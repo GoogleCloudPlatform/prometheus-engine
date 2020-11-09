@@ -150,6 +150,9 @@ func (c *seriesCache) get(ctx context.Context, ref uint64, target *scrape.Target
 // updateSampleInterval attempts to set the new most recent time range for the series with given hash.
 // Returns false if it failed, in which case the sample must be discarded.
 func (c *seriesCache) updateSampleInterval(hash uint64, start, end int64) bool {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	iv, ok := c.intervals[hash]
 	if !ok || iv.accepts(start, end) {
 		c.intervals[hash] = sampleInterval{start, end}
@@ -206,7 +209,7 @@ func (c *seriesCache) refresh(ctx context.Context, ref uint64, target *scrape.Ta
 
 	// Probe for the target's applicable resource and the series metadata.
 	// They will be used subsequently for all other Prometheus series that map to the same complex
-	// Stackdriver series.
+	// GCM series.
 	// If either of those pieces of data is missing, the series will be skipped.
 	resource, metricLabels, ok := c.getResource(target.DiscoveredLabels(), entry.lset)
 	if !ok {
@@ -217,7 +220,7 @@ func (c *seriesCache) refresh(ctx context.Context, ref uint64, target *scrape.Ta
 	// Remove the __name__ label as it becomes the metric type in the GCM time series.
 	for i, l := range metricLabels {
 		if l.Name == "__name__" {
-			metricLabel = append(metricLabels[:i], metricLabels[i+1:]...)
+			metricLabels = append(metricLabels[:i], metricLabels[i+1:]...)
 			break
 		}
 	}
@@ -226,16 +229,6 @@ func (c *seriesCache) refresh(ctx context.Context, ref uint64, target *scrape.Ta
 	if len(metricLabels) > maxLabelCount {
 		level.Debug(c.logger).Log("msg", "too many labels", "labels", metricLabels)
 		return nil
-	}
-	// Handle label modifications for histograms early so we don't build the label map twice.
-	// We have to remove the 'le' label which defines the bucket boundary.
-	if metadata.Type == textparse.MetricTypeHistogram {
-		for i, l := range finalLabels {
-			if l.Name == "le" {
-				metricLabels = append(metricLabels[:i], metricLabels[i+1:]...)
-				break
-			}
-		}
 	}
 
 	var (
@@ -256,6 +249,17 @@ func (c *seriesCache) refresh(ctx context.Context, ref uint64, target *scrape.Ta
 			return nil
 		}
 	}
+	// Handle label modifications for histograms early so we don't build the label map twice.
+	// We have to remove the 'le' label which defines the bucket boundary.
+	if metadata.Type == textparse.MetricTypeHistogram {
+		for i, l := range metricLabels {
+			if l.Name == "le" {
+				metricLabels = append(metricLabels[:i], metricLabels[i+1:]...)
+				break
+			}
+		}
+	}
+
 	ts := &monitoring_pb.TimeSeries{
 		Metric: &metric_pb.Metric{
 			Type:   c.getMetricType(metricName),
@@ -315,7 +319,7 @@ func (c *seriesCache) getResource(discovered, entryLabels labels.Labels) (*monit
 	mres := &monitoredres_pb.MonitoredResource{
 		Type: "generic_task",
 		Labels: map[string]string{
-			"location":  "TODO_location",
+			"location":  "europe-west1-b",
 			"namespace": "TODO_namespace",
 			"job":       entryLabels.Get("job"),
 			"task_id":   entryLabels.Get("instance"),
