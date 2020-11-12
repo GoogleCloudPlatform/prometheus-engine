@@ -108,6 +108,8 @@ type ExporterOpts struct {
 	ProjectID string
 	// Test endpoint to send data to instead of GCM API
 	TestEndpoint string
+	// Credentials file for authentication with the GCM API.
+	CredentialsFile string
 }
 
 // NewFlagOptions returns new exporter options that are populated through flags
@@ -125,7 +127,10 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 		Default(projectID).StringVar(&opts.ProjectID)
 
 	a.Flag("gcm.experimental.test_endpoint", "Test endpoint to send data to instead of GCM API.").
-		.StringVar(&opts.TestEndpoint)
+		StringVar(&opts.TestEndpoint)
+
+	a.Flag("gcm.experimental.credentials_file", "Credentials file for authentication with the GCM API.").
+		StringVar(&opts.CredentialsFile)
 
 	return &opts
 }
@@ -241,6 +246,9 @@ func (e *Exporter) Run(ctx context.Context) error {
 			option.WithoutAuthentication(),
 			option.WithGRPCDialOption(grpc.WithInsecure()),
 		)
+	}
+	if e.opts.CredentialsFile != "" {
+		clientOpts = append(clientOpts, option.WithCredentialsFile(e.opts.CredentialsFile))
 	}
 	metricClient, err := monitoring.NewMetricClient(ctx, clientOpts...)
 	if err != nil {
