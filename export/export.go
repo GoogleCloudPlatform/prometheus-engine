@@ -58,15 +58,15 @@ var (
 			Help: "Number of processing iterations of the sample export send handler.",
 		},
 	)
-	shardGet = prometheus.NewCounter(
+	shardProcess = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "gcm_collector_shard_get_total",
+			Name: "gcm_collector_shard_process_total",
 			Help: "Number of shard retrievals.",
 		},
 	)
-	shardGetEmpty = prometheus.NewCounter(
+	shardProcessPending = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "gcm_collector_shard_get_empty_total",
+			Name: "gcm_collector_shard_process_pending_total",
 			Help: "Number of shard retrievals with an empty result.",
 		},
 	)
@@ -139,14 +139,17 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Exporter, error) {
 	grpc_prometheus.EnableClientHandlingTimeHistogram()
 
+	if logger == nil {
+		logger = log.NewNopLogger()
+	}
 	if reg != nil {
 		reg.MustRegister(
 			samplesExported,
 			samplesDropped,
 			samplesSent,
 			sendIterations,
-			shardGet,
-			shardGetEmpty,
+			shardProcess,
+			shardProcessPending,
 		)
 	}
 	seriesCache := newSeriesCache(logger, metricsPrefix)
@@ -225,7 +228,7 @@ func (e *Exporter) Export(ctx context.Context, samples []record.RefSample) {
 
 func (e *Exporter) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
 	idx := hash % uint64(len(e.shards))
-	e.shards[idx].enqueue(sample)
+	e.shards[idx].enqueue(hash, sample)
 }
 
 func (e *Exporter) triggerNext() {
@@ -270,35 +273,36 @@ func (e *Exporter) Run(ctx context.Context) error {
 	defer stopTimer()
 
 	var (
+		batch = make([]*monitoring_pb.TimeSeries, 0, batchSizeMax)
+		// Cache of series hashes already seen in the current batch.
+		seen = make(map[uint64]struct{}, batchSizeMax)
+		// Functions to be called once the batch has been sent.
 		closers = make([]func(), 0, shardCount)
-		batch   = make([]*monitoring_pb.TimeSeries, 0, batchSizeMax)
 	)
 
 	// Send the currently accumulated batch to GCM asynchronously.
 	send := func() {
+		go func(batch []*monitoring_pb.TimeSeries, closers []func()) {
+			if err := e.send(ctx, metricClient, batch); err != nil {
+				level.Error(e.logger).Log("msg", "send batch", "err", err)
+			}
+			samplesSent.Add(float64(len(batch)))
+
+			for _, close := range closers {
+				close()
+			}
+		}(batch, closers)
+
+		// Reset state for new batch.
 		stopTimer()
 		timer.Reset(batchDelayMax)
 
-		batchCopy := make([]*monitoring_pb.TimeSeries, batchSizeMax)
-		batchCopy = batchCopy[:len(batch)]
-		copy(batchCopy, batch)
-		batch = batch[:0]
+		for k := range seen {
+			delete(seen, k)
+		}
 
-		closersCopy := make([]func(), shardCount)
-		closersCopy = closersCopy[:len(closers)]
-		copy(closersCopy, closers)
-		closers = closers[:0]
-
-		go func() {
-			if err := e.send(ctx, metricClient, batchCopy); err != nil {
-				level.Error(e.logger).Log("msg", "send batch", "err", err)
-			}
-			samplesSent.Add(float64(len(batchCopy)))
-
-			for _, close := range closersCopy {
-				close()
-			}
-		}()
+		closers = make([]func(), 0, shardCount)
+		batch = make([]*monitoring_pb.TimeSeries, 0, batchSizeMax)
 	}
 
 	// Starting index when iterating over shards.
@@ -326,10 +330,32 @@ func (e *Exporter) Run(ctx context.Context) error {
 			// shards they span.
 			i := 0
 			for ; i < len(e.shards); i++ {
-				idx := (i + shardOffset) % len(e.shards)
+				shardProcess.Inc()
+				index := (i + shardOffset) % len(e.shards)
+				shard := e.shards[index]
 
-				if ok, close := e.shards[idx].get(&batch); ok {
-					closers = append(closers, close)
+				if shard.pending {
+					shardProcessPending.Inc()
+					continue
+				}
+				// Populate the batch until it's full or the shard is empty.
+				startLen := len(batch)
+				for len(batch) < cap(batch) {
+					e, ok := shard.get()
+					if !ok {
+						break
+					}
+					// If a series is about to be added that's already in the batch, flush
+					// it and start a new one.
+					if _, ok := seen[e.hash]; ok {
+						send()
+					}
+					seen[e.hash] = struct{}{}
+					batch = append(batch, e.sample)
+				}
+				if len(batch) > startLen {
+					shard.pending = true
+					closers = append(closers, func() { shard.pending = false })
 				}
 				if len(batch) == cap(batch) {
 					send()
@@ -362,44 +388,38 @@ func (e *Exporter) send(ctx context.Context, client *monitoring.MetricClient, ba
 
 // shard holds a queue of data for a subset of samples.
 type shard struct {
-	queue   chan *monitoring_pb.TimeSeries
+	queue   chan queueEntry
 	pending bool
 }
 
+type queueEntry struct {
+	hash   uint64
+	sample *monitoring_pb.TimeSeries
+}
+
 func newShard(queueSize int) shard {
-	return shard{queue: make(chan *monitoring_pb.TimeSeries, queueSize)}
+	return shard{queue: make(chan queueEntry, queueSize)}
 }
 
-// get new data from the shard and append it to the input slice up to its
-// capacity. It returns true if data was added in which case a close function
-// is returned do mark that the data has been fully processed.
-func (s *shard) get(data *[]*monitoring_pb.TimeSeries) (bool, func()) {
-	shardGet.Inc()
-	if s.pending || len(*data) == cap(*data) {
-		shardGetEmpty.Inc()
-		return false, nil
-	}
-	// Drain queue until the data slice is full.
-Loop:
-	for len(*data) < cap(*data) {
-		select {
-		case e, ok := <-s.queue:
-			if !ok {
-				break Loop
-			}
-			*data = append(*data, e)
-		default:
-			break Loop
-		}
-	}
-	s.pending = true
-	return true, func() { s.pending = false }
-}
-
-func (s *shard) enqueue(sample *monitoring_pb.TimeSeries) {
-	samplesExported.Inc()
+// get oldest queue entry if it exists.
+func (s *shard) get() (queueEntry, bool) {
 	select {
-	case s.queue <- sample:
+	case e, ok := <-s.queue:
+		return e, ok
+	default:
+	}
+	return queueEntry{}, false
+}
+
+func (s *shard) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
+	samplesExported.Inc()
+
+	e := queueEntry{
+		hash:   hash,
+		sample: sample,
+	}
+	select {
+	case s.queue <- e:
 	default:
 		// TODO(freinartz): tail drop is not a great solution. Once we have the WAL buffer,
 		// we can just block here when enqueueing from it.
