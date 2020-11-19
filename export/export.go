@@ -20,7 +20,6 @@ import (
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/google/gpe-collector/export/exportctx"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -201,18 +200,14 @@ func (e *Exporter) SetLabelsByIDFunc(f func(uint64) labels.Labels) {
 }
 
 // Export enqueues the samples to be written to Cloud Monitoring.
-func (e *Exporter) Export(ctx context.Context, samples []record.RefSample) {
-	target := ctx.Value(exportctx.KeyTarget).(*scrape.Target)
-	if target == nil {
-		panic("Target missing in context")
-	}
+func (e *Exporter) Export(target *scrape.Target, samples []record.RefSample) {
 	var (
 		sample *monitoring_pb.TimeSeries
 		hash   uint64
 		err    error
 	)
 	for len(samples) > 0 {
-		sample, hash, samples, err = e.builder.next(ctx, target, samples)
+		sample, hash, samples, err = e.builder.next(target, samples)
 		if err != nil {
 			panic(err)
 		}

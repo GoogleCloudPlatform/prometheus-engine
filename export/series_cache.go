@@ -29,7 +29,7 @@ import (
 
 type seriesStore interface {
 	// Same interface as the standard map getter.
-	get(ctx context.Context, ref uint64, target *scrape.Target) (*seriesCacheEntry, bool, error)
+	get(ref uint64, target *scrape.Target) (*seriesCacheEntry, bool, error)
 
 	// Get the reset timestamp and adjusted value for the input sample.
 	// If false is returned, the sample should be skipped.
@@ -119,7 +119,7 @@ func (c *seriesCache) garbageCollect() error {
 	return nil
 }
 
-func (c *seriesCache) get(ctx context.Context, ref uint64, target *scrape.Target) (*seriesCacheEntry, bool, error) {
+func (c *seriesCache) get(ref uint64, target *scrape.Target) (*seriesCacheEntry, bool, error) {
 	c.mtx.Lock()
 	e, ok := c.entries[ref]
 	c.mtx.Unlock()
@@ -137,7 +137,7 @@ func (c *seriesCache) get(ctx context.Context, ref uint64, target *scrape.Target
 	}
 	// TODO: Do we even need a periodic refresh?
 	if !ok || e.shouldRefresh() {
-		if err := c.refresh(ctx, ref, target); err != nil {
+		if err := c.refresh(ref, target); err != nil {
 			return nil, false, err
 		}
 	}
@@ -200,7 +200,7 @@ func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, f
 	return e.resetTimestamp, v - e.resetValue, true
 }
 
-func (c *seriesCache) refresh(ctx context.Context, ref uint64, target *scrape.Target) error {
+func (c *seriesCache) refresh(ref uint64, target *scrape.Target) error {
 	c.mtx.Lock()
 	entry := c.entries[ref]
 	c.mtx.Unlock()

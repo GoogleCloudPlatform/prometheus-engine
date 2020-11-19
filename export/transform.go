@@ -12,7 +12,6 @@
 package export
 
 import (
-	"context"
 	"math"
 	"sort"
 	"strconv"
@@ -36,7 +35,7 @@ type sampleBuilder struct {
 
 // next extracts the next sample from the input sample batch and returns
 // the remainder of the input.
-func (b *sampleBuilder) next(ctx context.Context, target *scrape.Target, samples []record.RefSample) (*monitoring_pb.TimeSeries, uint64, []record.RefSample, error) {
+func (b *sampleBuilder) next(target *scrape.Target, samples []record.RefSample) (*monitoring_pb.TimeSeries, uint64, []record.RefSample, error) {
 	sample := samples[0]
 	tailSamples := samples[1:]
 
@@ -45,7 +44,7 @@ func (b *sampleBuilder) next(ctx context.Context, target *scrape.Target, samples
 		return nil, 0, tailSamples, nil
 	}
 
-	entry, ok, err := b.series.get(ctx, sample.Ref, target)
+	entry, ok, err := b.series.get(sample.Ref, target)
 	if err != nil {
 		return nil, 0, samples, errors.Wrap(err, "get series information")
 	} else if !ok {
@@ -107,7 +106,7 @@ func (b *sampleBuilder) next(ctx context.Context, target *scrape.Target, samples
 		// We pass in the original lset for matching since Prometheus's target label must
 		// be the same as well.
 		var v *distribution_pb.Distribution
-		v, resetTimestamp, tailSamples, err = b.buildDistribution(ctx, entry.metadata.Metric, entry.lset, samples, target)
+		v, resetTimestamp, tailSamples, err = b.buildDistribution(entry.metadata.Metric, entry.lset, samples, target)
 		if v == nil || err != nil {
 			return nil, 0, tailSamples, err
 		}
@@ -190,7 +189,6 @@ func (d *distribution) Swap(i, j int) {
 // with the given metric name and label set.
 // It returns the reset timestamp along with the distrubution.
 func (b *sampleBuilder) buildDistribution(
-	ctx context.Context,
 	baseName string,
 	matchLset labels.Labels,
 	samples []record.RefSample,
@@ -208,7 +206,7 @@ func (b *sampleBuilder) buildDistribution(
 	// until we hit a new metric.
 Loop:
 	for i, s := range samples {
-		e, ok, err := b.series.get(ctx, s.Ref, target)
+		e, ok, err := b.series.get(s.Ref, target)
 		if err != nil {
 			return nil, 0, samples, err
 		}
