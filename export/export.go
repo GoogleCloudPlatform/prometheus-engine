@@ -14,6 +14,7 @@ package export
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -33,42 +34,39 @@ import (
 )
 
 var (
-	samplesExported = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "gcm_collector_samples_exported_total",
-			Help: "Number of samples exported at scrape time.",
-		},
-	)
-	samplesDropped = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "gcm_collector_samples_dropped_total",
-			Help: "Number of exported samples that were dropped because shard queues were full.",
-		},
-	)
-	samplesSent = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "gcm_collector_samples_sent_total",
-			Help: "Number of exported samples sent to GCM.",
-		},
-	)
-	sendIterations = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "gcm_collector_send_iterations_total",
-			Help: "Number of processing iterations of the sample export send handler.",
-		},
-	)
-	shardProcess = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "gcm_collector_shard_process_total",
-			Help: "Number of shard retrievals.",
-		},
-	)
-	shardProcessPending = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "gcm_collector_shard_process_pending_total",
-			Help: "Number of shard retrievals with an empty result.",
-		},
-	)
+	samplesExported = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "gcm_collector_samples_exported_total",
+		Help: "Number of samples exported at scrape time.",
+	})
+	samplesDropped = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "gcm_collector_samples_dropped_total",
+		Help: "Number of exported samples that were dropped because shard queues were full.",
+	})
+	samplesSent = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "gcm_collector_samples_sent_total",
+		Help: "Number of exported samples sent to GCM.",
+	})
+	sendIterations = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "gcm_collector_send_iterations_total",
+		Help: "Number of processing iterations of the sample export send handler.",
+	})
+	shardProcess = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "gcm_collector_shard_process_total",
+		Help: "Number of shard retrievals.",
+	})
+	shardProcessPending = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "gcm_collector_shard_process_pending_total",
+		Help: "Number of shard retrievals with an empty result.",
+	})
+	shardProcessSamplesTaken = prometheus.NewSummary(prometheus.SummaryOpts{
+		Name:       "gcm_collector_shard_process_samples_taken",
+		Help:       "Number of samples taken when processing a shard.",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+	})
+	pendingRequests = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "gcm_collector_pending_requests",
+		Help: "Number of in-flight requests to GCM.",
+	})
 )
 
 // Exporter converts Prometheus samples into Cloud Monitoring samples and exporst them.
@@ -78,7 +76,7 @@ type Exporter struct {
 
 	seriesCache *seriesCache
 	builder     *sampleBuilder
-	shards      []shard
+	shards      []*shard
 
 	// Channel for signaling that there may be more work items to
 	// be processed.
@@ -149,6 +147,8 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 			sendIterations,
 			shardProcess,
 			shardProcessPending,
+			shardProcessSamplesTaken,
+			pendingRequests,
 		)
 	}
 	seriesCache := newSeriesCache(logger, metricsPrefix)
@@ -163,7 +163,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		nextc:       make(chan struct{}, 1),
 		seriesCache: seriesCache,
 		builder:     &sampleBuilder{series: seriesCache},
-		shards:      make([]shard, shardCount),
+		shards:      make([]*shard, shardCount),
 	}
 	for i := range e.shards {
 		e.shards[i] = newShard(shardBufferSize)
@@ -267,6 +267,29 @@ func (e *Exporter) Run(ctx context.Context) error {
 	}
 	defer stopTimer()
 
+	// Start a loop that gathers samples and sends them to GCM.
+	//
+	// Samples must not arrive at the GCM API out of order. To ensure that, there
+	// must be at most one in-flight request per series. Tracking every series individually
+	// would also require separate queue per series. This would come with a lot of overhead
+	// and implementation complexity.
+	// Instead, we shard the series space and maintain one queue per shard. For every shard
+	// we ensure that there is at most one in-flight request.
+	//
+	// One solution would be to have a separate send loop per shard that reads from
+	// the queue, accumulates a batch, and sends it to the GCM API. The drawback is that one
+	// has to get the number of shards right. Too low, and samples per shard cannot be sent
+	// fast enough. Too high, and batches do not fill up, potentially sending new requests
+	// for every sample.
+	// As a result, fine-tuning at startup but also runtime is necessary to respond to changing
+	// load patterns and latency of the API.
+	//
+	// We largely avoid issue by filling up batches from multiple shards. Under high load,
+	// a batch contains samples from fewer shards, under low load from more.
+	// The per-shard overhead is minimal and thus a high number can be picked, which allows us
+	// to cover a large range of potential throughput and latency combinations without requiring
+	// user configuration or, even worse, runtime changes to the shard number.
+
 	var (
 		batch = make([]*monitoring_pb.TimeSeries, 0, batchSizeMax)
 		// Cache of series hashes already seen in the current batch.
@@ -277,6 +300,8 @@ func (e *Exporter) Run(ctx context.Context) error {
 
 	// Send the currently accumulated batch to GCM asynchronously.
 	send := func() {
+		pendingRequests.Inc()
+
 		go func(batch []*monitoring_pb.TimeSeries, closers []func()) {
 			if err := e.send(ctx, metricClient, batch); err != nil {
 				level.Error(e.logger).Log("msg", "send batch", "err", err)
@@ -286,6 +311,7 @@ func (e *Exporter) Run(ctx context.Context) error {
 			for _, close := range closers {
 				close()
 			}
+			pendingRequests.Dec()
 		}(batch, closers)
 
 		// Reset state for new batch.
@@ -334,7 +360,7 @@ func (e *Exporter) Run(ctx context.Context) error {
 					continue
 				}
 				// Populate the batch until it's full or the shard is empty.
-				startLen := len(batch)
+				took := 0
 				for len(batch) < cap(batch) {
 					e, ok := shard.get()
 					if !ok {
@@ -342,15 +368,25 @@ func (e *Exporter) Run(ctx context.Context) error {
 					}
 					// If a series is about to be added that's already in the batch, flush
 					// it and start a new one.
-					if _, ok := seen[e.hash]; ok {
+					_, hasCollision := seen[e.hash]
+					if hasCollision {
 						send()
 					}
 					seen[e.hash] = struct{}{}
 					batch = append(batch, e.sample)
+					took++
+
+					// We just sent out a batch with data from this shard so we must not
+					// gather more data from it.
+					if hasCollision {
+						break
+					}
 				}
-				if len(batch) > startLen {
-					shard.pending = true
-					closers = append(closers, func() { shard.pending = false })
+				shardProcessSamplesTaken.Observe(float64(took))
+
+				if took > 0 {
+					shard.setPending(true)
+					closers = append(closers, func() { shard.setPending(false) })
 				}
 				if len(batch) == cap(batch) {
 					send()
@@ -383,6 +419,7 @@ func (e *Exporter) send(ctx context.Context, client *monitoring.MetricClient, ba
 
 // shard holds a queue of data for a subset of samples.
 type shard struct {
+	mtx     sync.Mutex
 	queue   chan queueEntry
 	pending bool
 }
@@ -392,8 +429,8 @@ type queueEntry struct {
 	sample *monitoring_pb.TimeSeries
 }
 
-func newShard(queueSize int) shard {
-	return shard{queue: make(chan queueEntry, queueSize)}
+func newShard(queueSize int) *shard {
+	return &shard{queue: make(chan queueEntry, queueSize)}
 }
 
 // get oldest queue entry if it exists.
@@ -420,4 +457,14 @@ func (s *shard) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
 		// we can just block here when enqueueing from it.
 		samplesDropped.Inc()
 	}
+}
+
+func (s *shard) setPending(b bool) {
+	s.mtx.Lock()
+	// This case should never happen in our usage of shards unless there is a bug.
+	if s.pending == b {
+		panic(fmt.Sprintf("pending set to %s while it already was", b))
+	}
+	s.pending = b
+	s.mtx.Unlock()
 }
