@@ -56,6 +56,9 @@ type seriesCache struct {
 	// Function to retrieve a label set for a series reference number.
 	// Returns nil if the reference is no longer valid.
 	getLabelsByRef func(uint64) labels.Labels
+
+	// Function to retrieve external labels for the instance.
+	getExternalLabels func() labels.Labels
 }
 
 type seriesCacheEntry struct {
@@ -84,15 +87,16 @@ func (e *seriesCacheEntry) shouldRefresh() bool {
 	return !e.populated() && time.Since(e.lastRefresh) > refreshInterval
 }
 
-func newSeriesCache(logger log.Logger, metricsPrefix string) *seriesCache {
+func newSeriesCache(logger log.Logger, metricsPrefix string, getExternalLabels func() labels.Labels) *seriesCache {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
 	return &seriesCache{
-		logger:        logger,
-		metricsPrefix: metricsPrefix,
-		entries:       map[uint64]*seriesCacheEntry{},
-		intervals:     map[uint64]sampleInterval{},
+		logger:            logger,
+		metricsPrefix:     metricsPrefix,
+		entries:           map[uint64]*seriesCacheEntry{},
+		intervals:         map[uint64]sampleInterval{},
+		getExternalLabels: getExternalLabels,
 	}
 }
 
@@ -207,13 +211,10 @@ func (c *seriesCache) refresh(ref uint64, target *scrape.Target) error {
 
 	entry.lastRefresh = time.Now()
 
-	// Probe for the target's applicable resource and the series metadata.
-	// They will be used subsequently for all other Prometheus series that map to the same complex
-	// GCM series.
-	// If either of those pieces of data is missing, the series will be skipped.
-	resource, metricLabels, ok := c.getResource(target.DiscoveredLabels(), entry.lset)
+	// Break the series into resource and metric labels.
+	resource, metricLabels, ok := c.extractResource(entry.lset)
 	if !ok {
-		level.Debug(c.logger).Log("msg", "unknown resource", "labels", target.Labels(), "discovered_labels", target.DiscoveredLabels())
+		level.Debug(c.logger).Log("msg", "unknown resource", "series", entry.lset)
 		return nil
 	}
 
@@ -311,23 +312,57 @@ func (c *seriesCache) getMetricType(name string) string {
 }
 
 // getResource returns the monitored resource, the entry labels, and whether the operation succeeded.
-// The returned entry labels are a subset of `entryLabels` without the labels that were used as resource labels.
-func (c *seriesCache) getResource(discovered, entryLabels labels.Labels) (*monitoredres_pb.MonitoredResource, labels.Labels, bool) {
-	// TODO: use the dedicated resource type here once it is supported by the API.
-	// Allow configuring location, cluster, namespace through automated discovery where
-	// possible and manual configuration.
+// The returned entry labels are a subset of `lset` without the labels that were used as resource labels.
+func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.MonitoredResource, labels.Labels, bool) {
+	// Drop series that don't contain required job/instance labels. This will affect metrics written
+	// from recording or alerting rules.
+	// TODO(freinartz): consider supporting these in the backend. All fields other then location
+	// and cluster being empty should be sensible as cardinality shouldn't be high for these.
+	if !lset.Has(keyJob) {
+		return nil, nil, false
+	}
+	if !lset.Has(keyInstance) {
+		return nil, nil, false
+	}
+	// TOOD(freinartz): consider checking whether the target comes from Kubernetes service
+	// discovery and a namespace can be inferred from discovery metadata. This could help populate
+	// the schema correctly for Prometheus configs that don't relabel the namespace properly
+	// without requiring user action.
+	// It may also introduce unexpected behavior though, so this needs to be evaluated in depth.
+
+	// Prometheus allows to configure external labels, which are attached when exporting data out of
+	// the instance to disambiguate data across instances. For us they generally include 'location' and 'cluster'.
+	// Per Prometheus semantics they are merged into lset, while lset takes precedence on collisions.
+	//
+	// This generally seems problematic as it violates hierarchical precedence. Especially "location"
+	// being overwritten from a metric label would likely result the in the data being rejected.
+	// A sensible solution could be to adopt Prometheus collision resolution for target and metric
+	// labels, in which colliding metric label keys are prefixed with 'exported_'.
+	// But until we've a user issue caused by this we stay true to the upstream semantics.
+	builder := labels.NewBuilder(lset)
+
+	for _, l := range c.getExternalLabels() {
+		if !lset.Has(l.Name) {
+			builder.Set(l.Name, l.Value)
+		}
+	}
+	lset = builder.Labels()
+
 	mres := &monitoredres_pb.MonitoredResource{
-		Type: "generic_task",
+		Type: "prometheus_target",
 		Labels: map[string]string{
-			"location":  "europe-west1-b",
-			"namespace": "TODO_namespace",
-			"job":       entryLabels.Get("job"),
-			"task_id":   entryLabels.Get("instance"),
+			keyLocation:  lset.Get(keyLocation),
+			keyCluster:   lset.Get(keyCluster),
+			keyNamespace: lset.Get(keyNamespace),
+			keyJob:       lset.Get(keyJob),
+			keyInstance:  lset.Get(keyInstance),
 		},
 	}
-	builder := labels.NewBuilder(entryLabels)
-	builder.Del("job")
-	builder.Del("instance")
+	builder.Del(keyLocation)
+	builder.Del(keyCluster)
+	builder.Del(keyNamespace)
+	builder.Del(keyJob)
+	builder.Del(keyInstance)
 
 	return mres, builder.Labels(), true
 }

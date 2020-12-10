@@ -24,6 +24,7 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/tsdb/record"
@@ -81,11 +82,14 @@ type Exporter struct {
 	// Channel for signaling that there may be more work items to
 	// be processed.
 	nextc chan struct{}
+
+	mtx            sync.Mutex
+	externalLabels labels.Labels
 }
 
 const (
 	// Number of shards by which series are bucketed.
-	shardCount = 512
+	shardCount = 1024
 	// Buffer size for each individual shard.
 	shardBufferSize = 2048
 
@@ -103,6 +107,12 @@ const (
 type ExporterOpts struct {
 	// Google Cloud project ID to which data is sent.
 	ProjectID string
+	// The location identifier used for the monitored resource of exported data.
+	Location string
+	// The cluster identifier used for the monitored resource of exported data.
+	Cluster string
+
+	ExternalLabels string
 	// Test endpoint to send data to instead of GCM API
 	TestEndpoint string
 	// Credentials file for authentication with the GCM API.
@@ -114,14 +124,25 @@ type ExporterOpts struct {
 func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 	var opts ExporterOpts
 
-	// Default to the project ID if we can detect it.
-	var projectID string
+	// Default target fields if we can detect them in GCP.
 	if metadata.OnGCE() {
-		projectID, _ = metadata.ProjectID()
+		opts.ProjectID, _ = metadata.ProjectID()
+		// These attributes are set for GKE nodes.
+		opts.Location, _ = metadata.InstanceAttributeValue("cluster-location")
+		opts.Cluster, _ = metadata.InstanceAttributeValue("cluster-name")
 	}
 
 	a.Flag("gcm.experimental.project_id", "Google Cloud project ID to which data is sent.").
-		Default(projectID).StringVar(&opts.ProjectID)
+		Default(opts.ProjectID).StringVar(&opts.ProjectID)
+
+	// The location and cluster flag should probably not be used. On the other hand, they make it easy
+	// to populate these important values in the monitored resource without interfering with existing
+	// Prometheus configuration.
+	a.Flag("gcm.experimental.location", fmt.Sprintf("The location set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", keyLocation)).
+		Default(opts.Location).StringVar(&opts.Location)
+
+	a.Flag("gcm.experimental.cluster", fmt.Sprintf("The cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", keyCluster)).
+		Default(opts.Cluster).StringVar(&opts.Cluster)
 
 	a.Flag("gcm.experimental.test_endpoint", "Test endpoint to send data to instead of GCM API.").
 		StringVar(&opts.TestEndpoint)
@@ -151,25 +172,65 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 			pendingRequests,
 		)
 	}
-	seriesCache := newSeriesCache(logger, metricsPrefix)
 
 	if opts.ProjectID == "" {
 		return nil, errors.New("GCP project ID missing")
 	}
+	// Location is generally also required but we allow it to also be set
+	// through Prometheus's external labels, which we receive via ApplyConfig.
 
 	e := &Exporter{
-		logger:      logger,
-		opts:        opts,
-		nextc:       make(chan struct{}, 1),
-		seriesCache: seriesCache,
-		builder:     &sampleBuilder{series: seriesCache},
-		shards:      make([]*shard, shardCount),
+		logger: logger,
+		opts:   opts,
+		nextc:  make(chan struct{}, 1),
+		shards: make([]*shard, shardCount),
 	}
+	e.seriesCache = newSeriesCache(logger, metricsPrefix, e.getExternalLabels)
+	e.builder = &sampleBuilder{series: e.seriesCache}
+
 	for i := range e.shards {
 		e.shards[i] = newShard(shardBufferSize)
 	}
 
 	return e, nil
+}
+
+// The target label keys used for the Prometheus monitored resource.
+const (
+	keyLocation  = "location"
+	keyCluster   = "cluster"
+	keyNamespace = "namespace"
+	keyJob       = "job"
+	keyInstance  = "instance"
+)
+
+// ApplyConfig updates the exporter state to the given configuration.
+func (e *Exporter) ApplyConfig(cfg *config.Config) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	// If location and cluster were set through explicit flags or auto-discovery, set
+	// them in the external labels.
+	builder := labels.NewBuilder(cfg.GlobalConfig.ExternalLabels)
+
+	if e.opts.Location != "" {
+		builder.Set(keyLocation, e.opts.Location)
+	}
+	if e.opts.Cluster != "" {
+		builder.Set(keyCluster, e.opts.Cluster)
+	}
+	lset := builder.Labels()
+
+	// At this point we expect a location to be set. It is very unlikely a user wants to set
+	// this dynamically via target label. It would imply collection across failure domains, which
+	// is an anti-pattern.
+	// The cluster however is allowed to be empty or could feasibly be set through target labels.
+	if lset.Get(keyLocation) == "" {
+		return errors.Errorf("no label %q set via external labels or flag", keyLocation)
+	}
+	// TODO(freinartz): invalidate series cache to consider new base labels if they changed.
+	e.externalLabels = lset
+	return nil
 }
 
 // Generally, global state is not a good approach and actively discouraged throughout
@@ -196,7 +257,16 @@ func Global() *Exporter {
 // based on a series ID we got through exported sample records.
 // Must be called before any call to Export is made.
 func (e *Exporter) SetLabelsByIDFunc(f func(uint64) labels.Labels) {
+	if e.seriesCache.getLabelsByRef != nil {
+		panic("SetLabelsByIDFunc must only be called once")
+	}
 	e.seriesCache.getLabelsByRef = f
+}
+
+func (e *Exporter) getExternalLabels() labels.Labels {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	return e.externalLabels
 }
 
 // Export enqueues the samples to be written to Cloud Monitoring.
@@ -463,7 +533,7 @@ func (s *shard) setPending(b bool) {
 	s.mtx.Lock()
 	// This case should never happen in our usage of shards unless there is a bug.
 	if s.pending == b {
-		panic(fmt.Sprintf("pending set to %s while it already was", b))
+		panic(fmt.Sprintf("pending set to %v while it already was", b))
 	}
 	s.pending = b
 	s.mtx.Unlock()
