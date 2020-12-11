@@ -13,6 +13,7 @@ package export
 
 import (
 	"context"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -47,6 +48,8 @@ type seriesCache struct {
 	logger        log.Logger
 	metricsPrefix string
 
+	// Guards access to the entries and intervals maps and the lastRefresh
+	// field of individual cache entries.
 	mtx sync.Mutex
 	// Map from series reference to various cached information about it.
 	entries map[uint64]*seriesCacheEntry
@@ -62,29 +65,50 @@ type seriesCache struct {
 }
 
 type seriesCacheEntry struct {
-	lset     labels.Labels
+	// The uniquely identifying set of labels for the series.
+	lset labels.Labels
+
+	// Metadata for the metric of the series.
 	metadata scrape.MetricMetadata
-
-	proto  *monitoring_pb.TimeSeries
+	// A pre-populated time protobuf to be sent to the GCM API. It can
+	// be shallow-copied and populated with point values to avoid excessive
+	// allocations for each datapoint exported for the series.
+	proto *monitoring_pb.TimeSeries
+	// The well-known Prometheus metric name suffix if any.
 	suffix metricSuffix
-	hash   uint64
+	// A hash of the series descriptor.
+	hash uint64
+	// Timestamp after which to refresh the cached state.
+	nextRefresh int64
 
+	// Tracked counter reset state for conversion to GCM cumulatives.
 	hasReset       bool
 	resetValue     float64
 	resetTimestamp int64
-
-	// Last time we attempted to populate meta information about the series.
-	lastRefresh time.Time
 }
 
-const refreshInterval = 3 * time.Minute
+const (
+	refreshInterval = 10 * time.Minute
+	refreshJitter   = 10 * time.Minute
+)
 
-func (e *seriesCacheEntry) populated() bool {
+// valid returns true if the Prometheus series can be converted to a GCM series.
+func (e *seriesCacheEntry) valid() bool {
 	return e.proto != nil
 }
 
+// shouldRefresh returns true if the cached state should be refreshed.
 func (e *seriesCacheEntry) shouldRefresh() bool {
-	return !e.populated() && time.Since(e.lastRefresh) > refreshInterval
+	return time.Now().Unix() > e.nextRefresh
+}
+
+// setNextRefresh determines a timestamp for the next refresh.
+func (e *seriesCacheEntry) setNextRefresh() {
+	// Randomly offset the timestamp around the targeted average so a bulk of simultaniously
+	// created series are not invalidated all at once, causing potential CPU and allocation
+	// spikes.
+	jitter := time.Duration((rand.Float64() - 0.5) * float64(refreshJitter))
+	e.nextRefresh = time.Now().Add(refreshInterval).Add(jitter).Unix()
 }
 
 func newSeriesCache(logger log.Logger, metricsPrefix string, getExternalLabels func() labels.Labels) *seriesCache {
@@ -116,6 +140,17 @@ func (c *seriesCache) run(ctx context.Context) {
 	}
 }
 
+// invalidateAll invalidates all cache entries.
+func (c *seriesCache) invalidateAll() {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	// Set next refresh to the zero timestamp to trigger a refresh.
+	for _, e := range c.entries {
+		e.nextRefresh = 0
+	}
+}
+
 // garbageCollect drops obsolete cache entries based on the contents of the most
 // recent checkpoint.
 func (c *seriesCache) garbageCollect() error {
@@ -125,8 +160,9 @@ func (c *seriesCache) garbageCollect() error {
 
 func (c *seriesCache) get(ref uint64, target *scrape.Target) (*seriesCacheEntry, bool, error) {
 	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	e, ok := c.entries[ref]
-	c.mtx.Unlock()
 
 	if !ok {
 		lset := c.getLabelsByRef(ref)
@@ -135,20 +171,15 @@ func (c *seriesCache) get(ref uint64, target *scrape.Target) (*seriesCacheEntry,
 		}
 		e = &seriesCacheEntry{lset: lset}
 
-		c.mtx.Lock()
 		c.entries[ref] = e
-		c.mtx.Unlock()
 	}
-	// TODO: Do we even need a periodic refresh?
-	if !ok || e.shouldRefresh() {
-		if err := c.refresh(ref, target); err != nil {
+	if e.shouldRefresh() {
+		if err := c.populate(e, target); err != nil {
 			return nil, false, err
 		}
+		e.setNextRefresh()
 	}
-	if !e.populated() {
-		return nil, false, nil
-	}
-	return e, true, nil
+	return e, e.valid(), nil
 }
 
 // updateSampleInterval attempts to set the new most recent time range for the series with given hash.
@@ -204,13 +235,8 @@ func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, f
 	return e.resetTimestamp, v - e.resetValue, true
 }
 
-func (c *seriesCache) refresh(ref uint64, target *scrape.Target) error {
-	c.mtx.Lock()
-	entry := c.entries[ref]
-	c.mtx.Unlock()
-
-	entry.lastRefresh = time.Now()
-
+// populate cached state for the given entry.
+func (c *seriesCache) populate(entry *seriesCacheEntry, target *scrape.Target) error {
 	// Break the series into resource and metric labels.
 	resource, metricLabels, ok := c.extractResource(entry.lset)
 	if !ok {

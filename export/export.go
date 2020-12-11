@@ -97,9 +97,6 @@ const (
 	batchSizeMax = 200
 	// Time after an accumulating batch is flushed to GCM. This avoids data being
 	// held indefinititely if not enough new data flows in to fill up the batch.
-	// Keeping it at just 5 seconds generally prevents two scrapes of the same target
-	// making it into the same batch, which would trigger an error in GCM.
-	// This saves us implementing detection logic for a case only affecting tiny servers.
 	batchDelayMax = 5 * time.Second
 )
 
@@ -228,8 +225,11 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) error {
 	if lset.Get(keyLocation) == "" {
 		return errors.Errorf("no label %q set via external labels or flag", keyLocation)
 	}
-	// TODO(freinartz): invalidate series cache to consider new base labels if they changed.
-	e.externalLabels = lset
+	// New external labels invalidate the cached series conversions.
+	if !labels.Equal(e.externalLabels, lset) {
+		e.externalLabels = lset
+		e.seriesCache.invalidateAll()
+	}
 	return nil
 }
 
