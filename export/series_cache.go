@@ -28,19 +28,6 @@ import (
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 )
 
-type seriesStore interface {
-	// Same interface as the standard map getter.
-	get(ref uint64, target Target) (*seriesCacheEntry, bool, error)
-
-	// Get the reset timestamp and adjusted value for the input sample.
-	// If false is returned, the sample should be skipped.
-	getResetAdjusted(ref uint64, t int64, v float64) (int64, float64, bool)
-
-	// Attempt to set the new most recent time range for the series with given hash.
-	// Returns false if it failed, in which case the sample must be discarded.
-	updateSampleInterval(hash uint64, start, end int64) bool
-}
-
 // seriesCache holds a mapping from series reference to label set.
 // It can garbage collect obsolete entries based on the most recent WAL checkpoint.
 // Implements seriesGetter.
@@ -94,7 +81,7 @@ const (
 
 // valid returns true if the Prometheus series can be converted to a GCM series.
 func (e *seriesCacheEntry) valid() bool {
-	return e.proto != nil
+	return e.lset != nil && e.proto != nil
 }
 
 // shouldRefresh returns true if the cached state should be refreshed.
@@ -162,28 +149,22 @@ func (c *seriesCache) garbageCollect() error {
 
 // get a cache entry for the given series reference. If the series cannot be converted the returned
 // boolean is false.
-func (c *seriesCache) get(ref uint64, target Target) (*seriesCacheEntry, bool, error) {
+func (c *seriesCache) get(ref uint64, target Target) (*seriesCacheEntry, bool) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	e, ok := c.entries[ref]
-
 	if !ok {
-		lset := c.getLabelsByRef(ref)
-		if lset == nil {
-			return nil, false, errors.New("series reference invalid")
-		}
-		e = &seriesCacheEntry{lset: lset}
-
+		e = &seriesCacheEntry{}
 		c.entries[ref] = e
 	}
 	if e.shouldRefresh() {
-		if err := c.populate(e, target); err != nil {
-			return nil, false, err
+		if err := c.populate(ref, e, target); err != nil {
+			level.Debug(c.logger).Log("msg", "populating series failed", "ref", ref, "target", target, "err", err)
 		}
 		e.setNextRefresh()
 	}
-	return e, e.valid(), nil
+	return e, e.valid()
 }
 
 // updateSampleInterval attempts to set the new most recent time range for the series with given hash.
@@ -240,12 +221,17 @@ func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, f
 }
 
 // populate cached state for the given entry.
-func (c *seriesCache) populate(entry *seriesCacheEntry, target Target) error {
+func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Target) error {
+	if entry.lset == nil {
+		entry.lset = c.getLabelsByRef(ref)
+		if entry.lset == nil {
+			return errors.New("series reference invalid")
+		}
+	}
 	// Break the series into resource and metric labels.
 	resource, metricLabels, ok := c.extractResource(entry.lset)
 	if !ok {
-		level.Debug(c.logger).Log("msg", "unknown resource", "series", entry.lset)
-		return nil
+		return errors.Errorf("extracting resource for series %s failed", entry.lset)
 	}
 
 	// Remove the __name__ label as it becomes the metric type in the GCM time series.
@@ -258,8 +244,7 @@ func (c *seriesCache) populate(entry *seriesCacheEntry, target Target) error {
 	// Drop series with too many labels.
 	// TODO: remove once field limit is lifted in the GCM API.
 	if len(metricLabels) > maxLabelCount {
-		level.Debug(c.logger).Log("msg", "too many labels", "labels", metricLabels)
-		return nil
+		return errors.Errorf("metric labels %s exceed the limit of %d", metricLabels, maxLabelCount)
 	}
 
 	var (
@@ -276,8 +261,7 @@ func (c *seriesCache) populate(entry *seriesCacheEntry, target Target) error {
 			metadata, ok = getMetadata(target, baseMetricName)
 		}
 		if !ok {
-			level.Debug(c.logger).Log("msg", "metadata not found", "metric_name", metricName)
-			return nil
+			return errors.Errorf("no metadata found for metric name %q", metricName)
 		}
 	}
 	// Handle label modifications for histograms early so we don't build the label map twice.

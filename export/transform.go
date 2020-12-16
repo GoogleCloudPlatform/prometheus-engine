@@ -36,7 +36,7 @@ type Target interface {
 }
 
 type sampleBuilder struct {
-	series seriesStore
+	series *seriesCache
 }
 
 // next extracts the next sample from the input sample batch and returns
@@ -55,10 +55,8 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 		return nil, 0, tailSamples, nil
 	}
 
-	entry, ok, err := b.series.get(sample.Ref, target)
-	if err != nil {
-		return nil, 0, samples, errors.Wrap(err, "get series information")
-	} else if !ok {
+	entry, ok := b.series.get(sample.Ref, target)
+	if !ok {
 		return nil, 0, tailSamples, nil
 	}
 
@@ -117,6 +115,7 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 		// We pass in the original lset for matching since Prometheus's target label must
 		// be the same as well.
 		var v *distribution_pb.Distribution
+		var err error
 		v, resetTimestamp, tailSamples, err = b.buildDistribution(entry.metadata.Metric, entry.lset, samples, target)
 		if v == nil || err != nil {
 			return nil, 0, tailSamples, err
@@ -214,10 +213,7 @@ func (b *sampleBuilder) buildDistribution(
 	// until we hit a new metric.
 Loop:
 	for i, s := range samples {
-		e, ok, err := b.series.get(s.Ref, target)
-		if err != nil {
-			return nil, 0, samples[1:], err
-		}
+		e, ok := b.series.get(s.Ref, target)
 		if !ok {
 			consumed++
 			// TODO(fabxc): increment metric.

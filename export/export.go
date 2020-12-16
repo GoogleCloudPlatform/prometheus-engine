@@ -279,7 +279,7 @@ func (e *Exporter) Export(target *scrape.Target, samples []record.RefSample) {
 	for len(samples) > 0 {
 		sample, hash, samples, err = e.builder.next(target, samples)
 		if err != nil {
-			panic(err)
+			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
 		}
 		if sample != nil {
 			// TODO(freinartz): decouple sending from ingestion by writing to a
