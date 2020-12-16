@@ -30,7 +30,7 @@ import (
 
 type seriesStore interface {
 	// Same interface as the standard map getter.
-	get(ref uint64, target *scrape.Target) (*seriesCacheEntry, bool, error)
+	get(ref uint64, target Target) (*seriesCacheEntry, bool, error)
 
 	// Get the reset timestamp and adjusted value for the input sample.
 	// If false is returned, the sample should be skipped.
@@ -111,13 +111,15 @@ func (e *seriesCacheEntry) setNextRefresh() {
 	e.nextRefresh = time.Now().Add(refreshInterval).Add(jitter).Unix()
 }
 
-func newSeriesCache(logger log.Logger, metricsPrefix string, getExternalLabels func() labels.Labels) *seriesCache {
+func newSeriesCache(logger log.Logger, getExternalLabels func() labels.Labels) *seriesCache {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
+	if getExternalLabels == nil {
+		getExternalLabels = func() labels.Labels { return nil }
+	}
 	return &seriesCache{
 		logger:            logger,
-		metricsPrefix:     metricsPrefix,
 		entries:           map[uint64]*seriesCacheEntry{},
 		intervals:         map[uint64]sampleInterval{},
 		getExternalLabels: getExternalLabels,
@@ -158,7 +160,9 @@ func (c *seriesCache) garbageCollect() error {
 	return nil
 }
 
-func (c *seriesCache) get(ref uint64, target *scrape.Target) (*seriesCacheEntry, bool, error) {
+// get a cache entry for the given series reference. If the series cannot be converted the returned
+// boolean is false.
+func (c *seriesCache) get(ref uint64, target Target) (*seriesCacheEntry, bool, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -236,7 +240,7 @@ func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, f
 }
 
 // populate cached state for the given entry.
-func (c *seriesCache) populate(entry *seriesCacheEntry, target *scrape.Target) error {
+func (c *seriesCache) populate(entry *seriesCacheEntry, target Target) error {
 	// Break the series into resource and metric labels.
 	resource, metricLabels, ok := c.extractResource(entry.lset)
 	if !ok {
@@ -289,7 +293,7 @@ func (c *seriesCache) populate(entry *seriesCacheEntry, target *scrape.Target) e
 
 	ts := &monitoring_pb.TimeSeries{
 		Metric: &metric_pb.Metric{
-			Type:   c.getMetricType(metricName),
+			Type:   getMetricType(metricName),
 			Labels: metricLabels.Map(),
 		},
 		Resource: resource,
@@ -318,7 +322,7 @@ func (c *seriesCache) populate(entry *seriesCacheEntry, target *scrape.Target) e
 			return errors.Errorf("unexpected metric name suffix %q", suffix)
 		}
 	case textparse.MetricTypeHistogram:
-		ts.Metric.Type = c.getMetricType(baseMetricName)
+		ts.Metric.Type = getMetricType(baseMetricName)
 		ts.MetricKind = metric_pb.MetricDescriptor_CUMULATIVE
 		ts.ValueType = metric_pb.MetricDescriptor_DISTRIBUTION
 	default:
@@ -331,10 +335,6 @@ func (c *seriesCache) populate(entry *seriesCacheEntry, target *scrape.Target) e
 	entry.hash = hashSeries(ts)
 
 	return nil
-}
-
-func (c *seriesCache) getMetricType(name string) string {
-	return getMetricType(c.metricsPrefix, name)
 }
 
 // getResource returns the monitored resource, the entry labels, and whether the operation succeeded.
@@ -424,7 +424,7 @@ var internalMetrics = map[string]scrape.MetricMetadata{
 
 // getMetadata retrieves metric metadata for its scraped metrics or synthetic
 // metrics recorded about the scrape itself.
-func getMetadata(target *scrape.Target, metric string) (scrape.MetricMetadata, bool) {
+func getMetadata(target Target, metric string) (scrape.MetricMetadata, bool) {
 	if md, ok := target.Metadata(metric); ok {
 		return md, true
 	}

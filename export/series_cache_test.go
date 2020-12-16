@@ -89,7 +89,7 @@ func TestSeriesCache_extractResource(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.doc, func(t *testing.T) {
-			cache := newSeriesCache(nil, "", func() labels.Labels {
+			cache := newSeriesCache(nil, func() labels.Labels {
 				return c.externalLabels
 			})
 			resource, lset, ok := cache.extractResource(c.seriesLabels)

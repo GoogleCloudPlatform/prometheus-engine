@@ -12,6 +12,7 @@
 package export
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -29,16 +30,26 @@ import (
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 )
 
+// Target is an interface compatible with scrape.Target.
+type Target interface {
+	Metadata(metric string) (scrape.MetricMetadata, bool)
+}
+
 type sampleBuilder struct {
 	series seriesStore
 }
 
 // next extracts the next sample from the input sample batch and returns
 // the remainder of the input.
-func (b *sampleBuilder) next(target *scrape.Target, samples []record.RefSample) (*monitoring_pb.TimeSeries, uint64, []record.RefSample, error) {
+// Returns a nil time series for samples that couldn't be converted.
+func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monitoring_pb.TimeSeries, uint64, []record.RefSample, error) {
 	sample := samples[0]
 	tailSamples := samples[1:]
 
+	// Series without a target, e.g. from recording/alerting rules are not yet supported.
+	if target == nil {
+		return nil, 0, tailSamples, nil
+	}
 	// Staleness markers are currently not supported by Cloud Monitoring.
 	if value.IsStaleNaN(sample.V) {
 		return nil, 0, tailSamples, nil
@@ -96,7 +107,7 @@ func (b *sampleBuilder) next(target *scrape.Target, samples []record.RefSample) 
 			}
 			point.Interval.StartTime = getTimestamp(resetTimestamp)
 			point.Value = &monitoring_pb.TypedValue{Value: &monitoring_pb.TypedValue_Int64Value{int64(v)}}
-		case "": // Actual quantiles.
+		case metricSuffixNone: // Actual quantiles.
 			point.Value = &monitoring_pb.TypedValue{Value: &monitoring_pb.TypedValue_DoubleValue{sample.V}}
 		default:
 			return nil, 0, tailSamples, errors.Errorf("unexpected metric name suffix %q", entry.suffix)
@@ -148,15 +159,12 @@ func splitComplexMetricSuffix(name string) (prefix string, suffix metricSuffix, 
 }
 
 const (
-	maxLabelCount = 10
-	metricsPrefix = "external.googleapis.com/prometheus"
+	maxLabelCount    = 10
+	metricTypePrefix = "external.googleapis.com/gpe"
 )
 
-func getMetricType(prefix string, promName string) string {
-	if prefix == "" {
-		return metricsPrefix + "/" + promName
-	}
-	return prefix + "/" + promName
+func getMetricType(promName string) string {
+	return fmt.Sprintf("%s/%s", metricTypePrefix, promName)
 }
 
 // getTimestamp converts a millisecond timestamp into a protobuf timestamp.
@@ -192,7 +200,7 @@ func (b *sampleBuilder) buildDistribution(
 	baseName string,
 	matchLset labels.Labels,
 	samples []record.RefSample,
-	target *scrape.Target,
+	target Target,
 ) (*distribution_pb.Distribution, int64, []record.RefSample, error) {
 	var (
 		consumed       int
@@ -208,7 +216,7 @@ Loop:
 	for i, s := range samples {
 		e, ok, err := b.series.get(s.Ref, target)
 		if err != nil {
-			return nil, 0, samples, err
+			return nil, 0, samples[1:], err
 		}
 		if !ok {
 			consumed++
@@ -258,6 +266,11 @@ Loop:
 			skip = true
 		}
 		consumed++
+	}
+	// If no sample was consumed at all, the input was wrong and we consume at least
+	// one sample to not get stuck in a loop.
+	if consumed == 0 {
+		return nil, 0, samples[1:], errors.New("no sample consumed for histogram")
 	}
 	// Don't emit a sample if we explicitly skip it or no reset timestamp was set because the
 	// count series was missing.
