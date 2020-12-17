@@ -12,7 +12,6 @@
 package export
 
 import (
-	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -126,37 +125,6 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 	}
 
 	return &ts, entry.hash, tailSamples, nil
-}
-
-type metricSuffix string
-
-const (
-	metricSuffixNone   metricSuffix = ""
-	metricSuffixBucket metricSuffix = "_bucket"
-	metricSuffixSum    metricSuffix = "_sum"
-	metricSuffixCount  metricSuffix = "_count"
-)
-
-func splitComplexMetricSuffix(name string) (prefix string, suffix metricSuffix, ok bool) {
-	if strings.HasSuffix(name, string(metricSuffixBucket)) {
-		return name[:len(name)-len(metricSuffixBucket)], metricSuffixBucket, true
-	}
-	if strings.HasSuffix(name, string(metricSuffixCount)) {
-		return name[:len(name)-len(metricSuffixCount)], metricSuffixCount, true
-	}
-	if strings.HasSuffix(name, string(metricSuffixSum)) {
-		return name[:len(name)-len(metricSuffixSum)], metricSuffixSum, true
-	}
-	return name, metricSuffixNone, false
-}
-
-const (
-	maxLabelCount    = 10
-	metricTypePrefix = "external.googleapis.com/gpe"
-)
-
-func getMetricType(promName string) string {
-	return fmt.Sprintf("%s/%s", metricTypePrefix, promName)
 }
 
 // getTimestamp converts a millisecond timestamp into a protobuf timestamp.

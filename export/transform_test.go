@@ -73,14 +73,13 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1",
+						Type:   "external.googleapis.com/gpe/metric1/gauge",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_GAUGE,
 					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
 					Points: []*monitoring_pb.Point{{
 						Interval: &monitoring_pb.TimeInterval{
-							// StartTime: &timestamp_pb.Timestamp{Seconds: 2},
 							EndTime: &timestamp_pb.Timestamp{Seconds: 3},
 						},
 						Value: &monitoring_pb.TypedValue{
@@ -100,14 +99,13 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1",
+						Type:   "external.googleapis.com/gpe/metric1/gauge",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_GAUGE,
 					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
 					Points: []*monitoring_pb.Point{{
 						Interval: &monitoring_pb.TimeInterval{
-							// StartTime: &timestamp_pb.Timestamp{Seconds: 4, Nanos: 999000000},
 							EndTime: &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
@@ -149,7 +147,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1",
+						Type:   "external.googleapis.com/gpe/metric1/counter",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -176,7 +174,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1",
+						Type:   "external.googleapis.com/gpe/metric1/counter",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -205,7 +203,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1",
+						Type:   "external.googleapis.com/gpe/metric1/counter",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -256,10 +254,10 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1_sum",
+						Type:   "external.googleapis.com/gpe/metric1_sum/gauge",
 						Labels: map[string]string{},
 					},
-					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
+					MetricKind: metric_pb.MetricDescriptor_GAUGE,
 					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
 					Points: []*monitoring_pb.Point{{
 						Interval: &monitoring_pb.TimeInterval{
@@ -283,7 +281,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1",
+						Type:   "external.googleapis.com/gpe/metric1/gauge",
 						Labels: map[string]string{"quantile": "0.5"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_GAUGE,
@@ -310,7 +308,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1_count",
+						Type:   "external.googleapis.com/gpe/metric1_count/counter",
 						Labels: map[string]string{},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -337,7 +335,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1",
+						Type:   "external.googleapis.com/gpe/metric1/gauge",
 						Labels: map[string]string{"quantile": "0.9"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_GAUGE,
@@ -415,7 +413,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1",
+						Type:   "external.googleapis.com/gpe/metric1/histogram",
 						Labels: map[string]string{},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -457,7 +455,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1",
+						Type:   "external.googleapis.com/gpe/metric1/histogram",
 						Labels: map[string]string{"a": "b"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -498,7 +496,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "external.googleapis.com/gpe/metric1_a_count",
+						Type:   "external.googleapis.com/gpe/metric1_a_count/gauge",
 						Labels: map[string]string{"a": "b"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_GAUGE,
