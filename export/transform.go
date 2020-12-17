@@ -46,16 +46,12 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 	sample := samples[0]
 	tailSamples := samples[1:]
 
-	// Series without a target, e.g. from recording/alerting rules are not yet supported.
-	if target == nil {
-		return nil, 0, tailSamples, nil
-	}
 	// Staleness markers are currently not supported by Cloud Monitoring.
 	if value.IsStaleNaN(sample.V) {
 		return nil, 0, tailSamples, nil
 	}
 
-	entry, ok := b.series.get(sample.Ref, target)
+	entry, ok := b.series.get(sample, target)
 	if !ok {
 		return nil, 0, tailSamples, nil
 	}
@@ -129,9 +125,6 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 		return nil, 0, samples[1:], errors.Errorf("unexpected metric type %s", entry.metadata.Type)
 	}
 
-	if !b.series.updateSampleInterval(entry.hash, resetTimestamp, sample.T) {
-		return nil, 0, tailSamples, nil
-	}
 	return &ts, entry.hash, tailSamples, nil
 }
 
@@ -213,7 +206,7 @@ func (b *sampleBuilder) buildDistribution(
 	// until we hit a new metric.
 Loop:
 	for i, s := range samples {
-		e, ok := b.series.get(s.Ref, target)
+		e, ok := b.series.get(s, target)
 		if !ok {
 			consumed++
 			// TODO(fabxc): increment metric.

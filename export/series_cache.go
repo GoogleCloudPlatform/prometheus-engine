@@ -13,6 +13,8 @@ package export
 
 import (
 	"context"
+	"encoding/binary"
+	"hash/fnv"
 	"math/rand"
 	"sync"
 	"time"
@@ -23,6 +25,7 @@ import (
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/pkg/textparse"
 	"github.com/prometheus/prometheus/scrape"
+	"github.com/prometheus/prometheus/tsdb/record"
 	metric_pb "google.golang.org/genproto/googleapis/api/metric"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
@@ -32,16 +35,14 @@ import (
 // It can garbage collect obsolete entries based on the most recent WAL checkpoint.
 // Implements seriesGetter.
 type seriesCache struct {
-	logger        log.Logger
-	metricsPrefix string
+	logger log.Logger
+	now    func() time.Time
 
 	// Guards access to the entries and intervals maps and the lastRefresh
 	// field of individual cache entries.
 	mtx sync.Mutex
 	// Map from series reference to various cached information about it.
 	entries map[uint64]*seriesCacheEntry
-	// Map from series hash to most recently written interval.
-	intervals map[uint64]sampleInterval
 
 	// Function to retrieve a label set for a series reference number.
 	// Returns nil if the reference is no longer valid.
@@ -63,10 +64,12 @@ type seriesCacheEntry struct {
 	proto *monitoring_pb.TimeSeries
 	// The well-known Prometheus metric name suffix if any.
 	suffix metricSuffix
-	// A hash of the series descriptor.
+	// A hash of the series desccriptor
 	hash uint64
 	// Timestamp after which to refresh the cached state.
 	nextRefresh int64
+	// Unix timestamp at which the we last used the entry.
+	lastUsed int64
 
 	// Tracked counter reset state for conversion to GCM cumulatives.
 	hasReset       bool
@@ -107,14 +110,14 @@ func newSeriesCache(logger log.Logger, getExternalLabels func() labels.Labels) *
 	}
 	return &seriesCache{
 		logger:            logger,
+		now:               time.Now,
 		entries:           map[uint64]*seriesCacheEntry{},
-		intervals:         map[uint64]sampleInterval{},
 		getExternalLabels: getExternalLabels,
 	}
 }
 
 func (c *seriesCache) run(ctx context.Context) {
-	tick := time.NewTicker(time.Minute)
+	tick := time.NewTicker(10 * time.Minute)
 	defer tick.Stop()
 
 	for {
@@ -122,7 +125,7 @@ func (c *seriesCache) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			if err := c.garbageCollect(); err != nil {
+			if err := c.garbageCollect(10 * time.Minute); err != nil {
 				level.Error(c.logger).Log("msg", "garbage collection failed", "err", err)
 			}
 		}
@@ -140,53 +143,54 @@ func (c *seriesCache) invalidateAll() {
 	}
 }
 
-// garbageCollect drops obsolete cache entries based on the contents of the most
-// recent checkpoint.
-func (c *seriesCache) garbageCollect() error {
-	level.Debug(c.logger).Log("msg", "garbage collection not implemented yet")
+// garbageCollect drops obsolete cache entries that have not been updated for
+// the given delay duration.
+func (c *seriesCache) garbageCollect(delay time.Duration) error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	start := c.now()
+
+	// Drop all series that haven't been used in 10 minutes.
+	//
+	// Alternatively, we could call getLabelsByRef on each series and discard it if the
+	// result is nil. While more reliable in only evicting entries that will never come back
+	// it may mean stale entries sit around for up to 3 hours.
+	// Since we can always re-populate cache entries, this is not worth it as it may blow
+	// up our memory usage in high-churn environments.
+	deleteBefore := start.Add(-delay).Unix()
+
+	for ref, entry := range c.entries {
+		if entry.lastUsed < deleteBefore {
+			delete(c.entries, ref)
+		}
+	}
+	level.Debug(c.logger).Log("msg", "garbage collection completed", "took", time.Since(start))
+
 	return nil
 }
 
-// get a cache entry for the given series reference. If the series cannot be converted the returned
-// boolean is false.
-func (c *seriesCache) get(ref uint64, target Target) (*seriesCacheEntry, bool) {
+// get a cache entry for the given series reference. The passed timestamp indicates when data was
+// last seen for the entry.
+// If the series cannot be converted the returned boolean is false.
+func (c *seriesCache) get(s record.RefSample, target Target) (*seriesCacheEntry, bool) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	e, ok := c.entries[ref]
+	e, ok := c.entries[s.Ref]
 	if !ok {
 		e = &seriesCacheEntry{}
-		c.entries[ref] = e
+		c.entries[s.Ref] = e
 	}
 	if e.shouldRefresh() {
-		if err := c.populate(ref, e, target); err != nil {
-			level.Debug(c.logger).Log("msg", "populating series failed", "ref", ref, "target", target, "err", err)
+		if err := c.populate(s.Ref, e, target); err != nil {
+			level.Debug(c.logger).Log("msg", "populating series failed", "ref", s.Ref, "target", target, "err", err)
 		}
 		e.setNextRefresh()
 	}
+	// Store millisecond sample timestamp in seconds.
+	e.lastUsed = s.T / 1000
 	return e, e.valid()
-}
-
-// updateSampleInterval attempts to set the new most recent time range for the series with given hash.
-// Returns false if it failed, in which case the sample must be discarded.
-func (c *seriesCache) updateSampleInterval(hash uint64, start, end int64) bool {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	iv, ok := c.intervals[hash]
-	if !ok || iv.accepts(start, end) {
-		c.intervals[hash] = sampleInterval{start, end}
-		return true
-	}
-	return false
-}
-
-type sampleInterval struct {
-	start, end int64
-}
-
-func (si *sampleInterval) accepts(start, end int64) bool {
-	return (start == si.start && end > si.end) || (start > si.start && start >= si.end)
 }
 
 // getResetAdjusted takes a sample for a referenced series and returns
@@ -228,6 +232,11 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Targe
 			return errors.New("series reference invalid")
 		}
 	}
+	// Series without a target, e.g. from recording/alerting rules are not yet supported.
+	if target == nil {
+		return errors.New("series without target not supported")
+	}
+
 	// Break the series into resource and metric labels.
 	resource, metricLabels, ok := c.extractResource(entry.lset)
 	if !ok {
@@ -417,27 +426,30 @@ func getMetadata(target Target, metric string) (scrape.MetricMetadata, bool) {
 }
 
 func hashSeries(s *monitoring_pb.TimeSeries) uint64 {
-	const sep = '\xff'
-	h := hashNew()
+	sep := []byte{'\xff'}
+	hash := fnv.New64a()
 
-	h = hashAdd(h, s.Resource.Type)
-	h = hashAddByte(h, sep)
-	h = hashAdd(h, s.Metric.Type)
+	hash.Write([]byte(s.Resource.Type))
+	hash.Write(sep)
+	hash.Write([]byte(s.Metric.Type))
+	hash.Write(sep)
+	binary.Write(hash, binary.LittleEndian, s.MetricKind)
+	binary.Write(hash, binary.LittleEndian, s.ValueType)
 
 	// Map iteration is randomized. We thus convert the labels to sorted slices
 	// with labels.FromMap before hashing.
 	for _, l := range labels.FromMap(s.Resource.Labels) {
-		h = hashAddByte(h, sep)
-		h = hashAdd(h, l.Name)
-		h = hashAddByte(h, sep)
-		h = hashAdd(h, l.Value)
+		hash.Write(sep)
+		hash.Write([]byte(l.Name))
+		hash.Write(sep)
+		hash.Write([]byte(l.Value))
 	}
-	h = hashAddByte(h, sep)
 	for _, l := range labels.FromMap(s.Metric.Labels) {
-		h = hashAddByte(h, sep)
-		h = hashAdd(h, l.Name)
-		h = hashAddByte(h, sep)
-		h = hashAdd(h, l.Value)
+		hash.Write(sep)
+		hash.Write([]byte(l.Name))
+		hash.Write(sep)
+		hash.Write([]byte(l.Value))
 	}
-	return h
+
+	return hash.Sum64()
 }
