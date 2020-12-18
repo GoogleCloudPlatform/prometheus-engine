@@ -520,7 +520,36 @@ func TestSampleBuilder(t *testing.T) {
 			samples: []record.RefSample{
 				{Ref: 1, T: 1000, V: 1},
 			},
-			wantSeries: []*monitoring_pb.TimeSeries{nil},
+			// If the target is nil we expect the series to be converted to a gauge as
+			// target-less series are produced by rules and any processing result of type gauge.
+			wantSeries: []*monitoring_pb.TimeSeries{
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"location":  "europe",
+							"cluster":   "foo-cluster",
+							"namespace": "",
+							"job":       "job1",
+							"instance":  "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "external.googleapis.com/gpe/metric1/gauge",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_GAUGE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							EndTime: &timestamp_pb.Timestamp{Seconds: 1},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{1},
+						},
+					}},
+				},
+			},
 		}, {
 			doc: "no metric metadata",
 			target: testTarget{

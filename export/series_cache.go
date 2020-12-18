@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/prometheus/pkg/textparse"
 	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/tsdb/record"
+
 	metric_pb "google.golang.org/genproto/googleapis/api/metric"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
@@ -267,10 +268,6 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Targe
 			return errors.New("series reference invalid")
 		}
 	}
-	// Series without a target, e.g. from recording/alerting rules are not yet supported.
-	if target == nil {
-		return errors.New("series without target not supported")
-	}
 
 	// Break the series into resource and metric labels.
 	resource, metricLabels, ok := c.extractResource(entry.lset)
@@ -467,6 +464,19 @@ var internalMetrics = map[string]scrape.MetricMetadata{
 // getMetadata retrieves metric metadata for its scraped metrics or synthetic
 // metrics recorded about the scrape itself.
 func getMetadata(target Target, metric string) (scrape.MetricMetadata, bool) {
+	// Target is nil for metrics ingested through recording or alerting rules.
+	// Unless the rule literally does no processing at all, this always means the
+	// resulting data is a gauge.
+	// This makes it safe to assume a gauge type here in the absence of any other
+	// metadata.
+	// In the future we might want to propagate the rule definition and add it as
+	// help text here to easily understand what produced the metric.
+	if target == nil {
+		return scrape.MetricMetadata{
+			Metric: metric,
+			Type:   textparse.MetricTypeGauge,
+		}, true
+	}
 	if md, ok := target.Metadata(metric); ok {
 		return md, true
 	}

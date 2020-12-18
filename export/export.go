@@ -26,7 +26,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
@@ -270,7 +269,7 @@ func (e *Exporter) getExternalLabels() labels.Labels {
 }
 
 // Export enqueues the samples to be written to Cloud Monitoring.
-func (e *Exporter) Export(target *scrape.Target, samples []record.RefSample) {
+func (e *Exporter) Export(target Target, samples []record.RefSample) {
 	var (
 		sample *monitoring_pb.TimeSeries
 		hash   uint64
