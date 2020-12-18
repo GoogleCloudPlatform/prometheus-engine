@@ -101,6 +101,7 @@ const (
 
 // ExporterOpts holds options for an exporter.
 type ExporterOpts struct {
+	Disable bool
 	// Google Cloud project ID to which data is sent.
 	ProjectID string
 	// The location identifier used for the monitored resource of exported data.
@@ -127,6 +128,9 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 		opts.Location, _ = metadata.InstanceAttributeValue("cluster-location")
 		opts.Cluster, _ = metadata.InstanceAttributeValue("cluster-name")
 	}
+
+	a.Flag("gcm.experimental.disable", "Disable exporting to GCM.").
+		Default("false").BoolVar(&opts.Disable)
 
 	a.Flag("gcm.experimental.project_id", "Google Cloud project ID to which data is sent.").
 		Default(opts.ProjectID).StringVar(&opts.ProjectID)
@@ -270,6 +274,9 @@ func (e *Exporter) getExternalLabels() labels.Labels {
 
 // Export enqueues the samples to be written to Cloud Monitoring.
 func (e *Exporter) Export(target Target, samples []record.RefSample) {
+	if e.opts.Disable {
+		return
+	}
 	var (
 		sample *monitoring_pb.TimeSeries
 		hash   uint64
