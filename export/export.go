@@ -185,7 +185,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		nextc:  make(chan struct{}, 1),
 		shards: make([]*shard, shardCount),
 	}
-	e.seriesCache = newSeriesCache(logger, e.getExternalLabels)
+	e.seriesCache = newSeriesCache(logger, reg, e.getExternalLabels)
 	e.builder = &sampleBuilder{series: e.seriesCache}
 
 	for i := range e.shards {

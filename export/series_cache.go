@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"hash"
 	"hash/fnv"
 	"math/rand"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/pkg/textparse"
 	"github.com/prometheus/prometheus/scrape"
@@ -40,6 +42,7 @@ import (
 type seriesCache struct {
 	logger log.Logger
 	now    func() time.Time
+	pool   *pool
 
 	// Guards access to the entries and intervals maps and the lastRefresh
 	// field of individual cache entries.
@@ -104,7 +107,7 @@ func (e *seriesCacheEntry) setNextRefresh() {
 	e.nextRefresh = time.Now().Add(refreshInterval).Add(jitter).Unix()
 }
 
-func newSeriesCache(logger log.Logger, getExternalLabels func() labels.Labels) *seriesCache {
+func newSeriesCache(logger log.Logger, reg prometheus.Registerer, getExternalLabels func() labels.Labels) *seriesCache {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
@@ -114,6 +117,7 @@ func newSeriesCache(logger log.Logger, getExternalLabels func() labels.Labels) *
 	return &seriesCache{
 		logger:            logger,
 		now:               time.Now,
+		pool:              newPool(reg),
 		entries:           map[uint64]*seriesCacheEntry{},
 		getExternalLabels: getExternalLabels,
 	}
@@ -165,10 +169,11 @@ func (c *seriesCache) garbageCollect(delay time.Duration) error {
 
 	for ref, entry := range c.entries {
 		if entry.lastUsed < deleteBefore {
+			c.pool.release(entry.proto)
 			delete(c.entries, ref)
 		}
 	}
-	level.Debug(c.logger).Log("msg", "garbage collection completed", "took", time.Since(start))
+	level.Info(c.logger).Log("msg", "garbage collection completed", "took", time.Since(start))
 
 	return nil
 }
@@ -368,6 +373,9 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Targe
 		return errors.Errorf("unexpected metric type %s for metric %q", metadata.Type, metricName)
 	}
 
+	c.pool.release(entry.proto)
+	c.pool.intern(ts)
+
 	entry.proto = ts
 	entry.metadata = metadata
 	entry.suffix = suffix
@@ -498,30 +506,27 @@ func splitComplexMetricSuffix(name string) (prefix string, suffix metricSuffix, 
 }
 
 func hashSeries(s *monitoring_pb.TimeSeries) uint64 {
+	h := fnv.New64a()
+
+	h.Write([]byte(s.Resource.Type))
+	hashLabels(h, s.Resource.Labels)
+	h.Write([]byte(s.Metric.Type))
+	hashLabels(h, s.Metric.Labels)
+	binary.Write(h, binary.LittleEndian, s.MetricKind)
+	binary.Write(h, binary.LittleEndian, s.ValueType)
+
+	return h.Sum64()
+}
+
+func hashLabels(h hash.Hash, lset map[string]string) {
 	sep := []byte{'\xff'}
-	hash := fnv.New64a()
-
-	hash.Write([]byte(s.Resource.Type))
-	hash.Write(sep)
-	hash.Write([]byte(s.Metric.Type))
-	hash.Write(sep)
-	binary.Write(hash, binary.LittleEndian, s.MetricKind)
-	binary.Write(hash, binary.LittleEndian, s.ValueType)
-
 	// Map iteration is randomized. We thus convert the labels to sorted slices
 	// with labels.FromMap before hashing.
-	for _, l := range labels.FromMap(s.Resource.Labels) {
-		hash.Write(sep)
-		hash.Write([]byte(l.Name))
-		hash.Write(sep)
-		hash.Write([]byte(l.Value))
+	for _, l := range labels.FromMap(lset) {
+		h.Write(sep)
+		h.Write([]byte(l.Name))
+		h.Write(sep)
+		h.Write([]byte(l.Value))
 	}
-	for _, l := range labels.FromMap(s.Metric.Labels) {
-		hash.Write(sep)
-		hash.Write([]byte(l.Name))
-		hash.Write(sep)
-		hash.Write([]byte(l.Value))
-	}
-
-	return hash.Sum64()
+	h.Write(sep)
 }
