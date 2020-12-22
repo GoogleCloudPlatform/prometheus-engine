@@ -233,7 +233,6 @@ func TestSampleBuilder(t *testing.T) {
 				4: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "quantile", "0.9"),
 			},
 			samples: []record.RefSample{
-				{Ref: 1, T: 1000, V: 1},
 				{Ref: 1, T: 2000, V: 1},
 				{Ref: 2, T: 2000, V: 2},
 				{Ref: 3, T: 3000, V: 3},
@@ -241,7 +240,6 @@ func TestSampleBuilder(t *testing.T) {
 				{Ref: 4, T: 4000, V: 4},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
-				nil, // First metric1_sum sample dropped by reset handling.
 				{
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
@@ -261,11 +259,10 @@ func TestSampleBuilder(t *testing.T) {
 					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
 					Points: []*monitoring_pb.Point{{
 						Interval: &monitoring_pb.TimeInterval{
-							StartTime: &timestamp_pb.Timestamp{Seconds: 1},
-							EndTime:   &timestamp_pb.Timestamp{Seconds: 2},
+							EndTime: &timestamp_pb.Timestamp{Seconds: 2},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{0},
+							Value: &monitoring_pb.TypedValue_DoubleValue{1},
 						},
 					}},
 				},

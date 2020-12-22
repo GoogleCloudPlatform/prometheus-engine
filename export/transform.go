@@ -85,14 +85,9 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 
 	case textparse.MetricTypeSummary:
 		switch entry.suffix {
-		case metricSuffixSum:
-			var v float64
-			resetTimestamp, v, ok = b.series.getResetAdjusted(sample.Ref, sample.T, sample.V)
-			if !ok {
-				return nil, 0, tailSamples, nil
-			}
-			point.Interval.StartTime = getTimestamp(resetTimestamp)
-			point.Value = &monitoring_pb.TypedValue{Value: &monitoring_pb.TypedValue_DoubleValue{v}}
+		case metricSuffixSum, metricSuffixNone:
+			// Quantiles and sum. The sum may actually go up and down if observations are negative.
+			point.Value = &monitoring_pb.TypedValue{Value: &monitoring_pb.TypedValue_DoubleValue{sample.V}}
 		case metricSuffixCount:
 			var v float64
 			resetTimestamp, v, ok = b.series.getResetAdjusted(sample.Ref, sample.T, sample.V)
@@ -101,8 +96,6 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 			}
 			point.Interval.StartTime = getTimestamp(resetTimestamp)
 			point.Value = &monitoring_pb.TypedValue{Value: &monitoring_pb.TypedValue_Int64Value{int64(v)}}
-		case metricSuffixNone: // Actual quantiles.
-			point.Value = &monitoring_pb.TypedValue{Value: &monitoring_pb.TypedValue_DoubleValue{sample.V}}
 		default:
 			return nil, 0, tailSamples, errors.Errorf("unexpected metric name suffix %q", entry.suffix)
 		}
