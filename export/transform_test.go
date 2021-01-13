@@ -114,8 +114,75 @@ func TestSampleBuilder(t *testing.T) {
 					}},
 				},
 			},
-		},
-		{
+		}, {
+			doc: "convert untyped",
+			target: testTarget{
+				metadata: metricMetadataMap{
+					"metric1": {Type: textparse.MetricTypeUnknown, Help: "metric1 help text"},
+				},
+			},
+			series: seriesMap{
+				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
+			},
+			samples: []record.RefSample{
+				{Ref: 123, T: 3000, V: 0.6},
+				{Ref: 123, T: 4000, V: math.Inf(1)},
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"location":  "europe",
+							"cluster":   "foo-cluster",
+							"namespace": "",
+							"job":       "job1",
+							"instance":  "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "external.googleapis.com/gpe/metric1/unknown",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_GAUGE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							EndTime: &timestamp_pb.Timestamp{Seconds: 3},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{0.6},
+						},
+					}},
+				},
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"location":  "europe",
+							"cluster":   "foo-cluster",
+							"namespace": "",
+							"job":       "job1",
+							"instance":  "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "external.googleapis.com/gpe/metric1/unknown",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_GAUGE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							EndTime: &timestamp_pb.Timestamp{Seconds: 4},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{math.Inf(1)},
+						},
+					}},
+				},
+			},
+		}, {
 			doc: "convert counter",
 			target: testTarget{
 				metadata: metricMetadataMap{
@@ -129,7 +196,7 @@ func TestSampleBuilder(t *testing.T) {
 				{Ref: 123, T: 2000, V: 5.5},
 				{Ref: 123, T: 3000, V: 8},
 				{Ref: 123, T: 4000, V: 9},
-				{Ref: 123, T: 5000, V: 3},
+				{Ref: 123, T: 5000, V: 7},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				// First sample skipped to initialize reset handling.
@@ -214,7 +281,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 5},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{3},
+							Value: &monitoring_pb.TypedValue_DoubleValue{7},
 						},
 					}},
 				},

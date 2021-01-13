@@ -80,6 +80,7 @@ type seriesCacheEntry struct {
 	// Tracked counter reset state for conversion to GCM cumulatives.
 	hasReset       bool
 	resetValue     float64
+	lastValue      float64
 	resetTimestamp int64
 }
 
@@ -221,7 +222,7 @@ func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, f
 		// The next sample for will be considered from this point onwards.
 		return 0, 0, false
 	}
-	if v < e.resetValue {
+	if v < e.lastValue {
 		// If the series was reset, set the reset timestamp to be one millisecond
 		// before the timestamp of the current sample.
 		// We don't know the true reset time but this ensures the range is non-zero
@@ -229,6 +230,8 @@ func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, f
 		e.resetValue = 0
 		e.resetTimestamp = t - 1
 	}
+	e.lastValue = v
+
 	return e.resetTimestamp, v - e.resetValue, true
 }
 

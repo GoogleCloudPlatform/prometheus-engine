@@ -69,7 +69,6 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 
 	var resetTimestamp int64
 
-	// TODO: handle untyped.
 	switch entry.metadata.Type {
 	case textparse.MetricTypeCounter:
 		var v float64
