@@ -8,6 +8,7 @@ require (
 	github.com/golang/protobuf v1.4.3
 	github.com/google/go-cmp v0.5.2
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/oklog/run v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/common v0.14.0
@@ -20,6 +21,8 @@ require (
 	k8s.io/apimachinery v0.19.2
 	k8s.io/client-go v0.19.2
 	k8s.io/code-generator v0.20.2
+	k8s.io/klog v1.0.0
+	k8s.io/klog/v2 v2.3.0
 )
 
 replace (
@@ -27,4 +30,7 @@ replace (
 	k8s.io/apimachinery => k8s.io/apimachinery v0.18.8
 	k8s.io/client-go => k8s.io/client-go v0.18.8
 	k8s.io/code-generator => k8s.io/code-generator v0.18.8
+	// Substitute klog packages so their usage plays nicely with gokit's logger.
+	k8s.io/klog => github.com/simonpasquier/klog-gokit v0.3.0
+	k8s.io/klog/v2 => github.com/simonpasquier/klog-gokit/v2 v2.0.1
 )

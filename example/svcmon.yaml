@@ -1,0 +1,7 @@
+apiVersion: monitoring.googleapis.com/v1alpha1
+kind: ServiceMonitoring
+metadata:
+  namespace: default
+  name: test
+spec:
+  test: blub

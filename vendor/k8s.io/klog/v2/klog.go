@@ -36,6 +36,8 @@ type Verbose bool
 
 func V(level Level) Verbose { return level <= maxLevel }
 
+func (v Verbose) Enabled() bool { return bool(v) }
+
 func (v Verbose) Info(args ...interface{}) {
 	if v {
 		level.Debug(logger).Log("func", "Verbose.Info", "msg", fmt.Sprint(args...))

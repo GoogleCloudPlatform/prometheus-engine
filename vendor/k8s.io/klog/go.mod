@@ -1,5 +1,8 @@
-module k8s.io/klog
+module github.com/simonpasquier/klog-gokit
+
+require (
+	github.com/go-kit/kit v0.10.0
+	github.com/stretchr/testify v1.4.0
+)
 
 go 1.12
-
-require github.com/go-logr/logr v0.1.0

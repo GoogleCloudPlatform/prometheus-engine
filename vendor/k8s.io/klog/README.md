@@ -1,97 +1,85 @@
-klog
-====
+# klog-gokit [![CircleCI](https://circleci.com/gh/simonpasquier/klog-gokit.svg?style=svg)](https://circleci.com/gh/simonpasquier/klog-gokit)
 
-klog is a permanent fork of https://github.com/golang/glog.
+This package is a replacement for [k8s.io/klog](https://github.com/kubernetes/klog)
+in projects that use the [go-kit logger](https://godoc.org/github.com/go-kit/kit/log).
 
-## Why was klog created?
+It also supports [k8s.io/klog/v2](https://pkg.go.dev/k8s.io/klog/v2).
 
-The decision to create klog was one that wasn't made lightly, but it was necessary due to some
-drawbacks that are present in [glog](https://github.com/golang/glog). Ultimately, the fork was created due to glog not being under active development; this can be seen in the glog README:
+It is heavily inspired by the [`github.com/kubermatic/glog-gokit`](https://github.com/kubermatic/glog-gokit) package.
 
-> The code in this repo [...] is not itself under development
+## Usage
 
-This makes us unable to solve many use cases without a fork. The factors that contributed to needing feature development are listed below:
+Override the official klog package with this one.
+This simply replaces the code in `vendor/k8s.io/klog` with the code of this package.
 
- * `glog` [presents a lot "gotchas"](https://github.com/kubernetes/kubernetes/issues/61006) and introduces challenges in containerized environments, all of which aren't well documented.
- * `glog` doesn't provide an easy way to test logs, which detracts from the stability of software using it
- * A long term goal is to implement a logging interface that allows us to add context, change output format, etc.
- 
-Historical context is available here:
+**With dep**
 
- * https://github.com/kubernetes/kubernetes/issues/61006
- * https://github.com/kubernetes/kubernetes/issues/70264
- * https://groups.google.com/forum/#!msg/kubernetes-sig-architecture/wCWiWf3Juzs/hXRVBH90CgAJ
- * https://groups.google.com/forum/#!msg/kubernetes-dev/7vnijOMhLS0/1oRiNtigBgAJ
+In your `Gopkg.toml`:
+```toml
+[[override]]
+  name = "k8s.io/klog"
+  source = "github.com/simonpasquier/klog-gokit"
+```
 
-----
+**With Go modules**
 
-How to use klog
-===============
-- Replace imports for `github.com/golang/glog` with `k8s.io/klog`
-- Use `klog.InitFlags(nil)` explicitly for initializing global flags as we no longer use `init()` method to register the flags
-- You can now use `log-file` instead of `log-dir` for logging to a single file (See `examples/log_file/usage_log_file.go`)
-- If you want to redirect everything logged using klog somewhere else (say syslog!), you can use `klog.SetOutput()` method and supply a `io.Writer`. (See `examples/set_output/usage_set_output.go`)
-- For more logging conventions (See [Logging Conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md))
+Add this line to your `go.mod` file:
 
-### Coexisting with glog
-This package can be used side by side with glog. [This example](examples/coexist_glog/coexist_glog.go) shows how to initialize and syncronize flags from the global `flag.CommandLine` FlagSet. In addition, the example makes use of stderr as combined output by setting `alsologtostderr` (or `logtostderr`) to `true`.
+```
+replace k8s.io/klog => github.com/simonpasquier/klog-gokit master
+```
 
-## Community, discussion, contribution, and support
-
-Learn how to engage with the Kubernetes community on the [community page](http://kubernetes.io/community/).
-
-You can reach the maintainers of this project at:
-
-- [Slack](https://kubernetes.slack.com/messages/sig-architecture)
-- [Mailing List](https://groups.google.com/forum/#!forum/kubernetes-sig-architecture)
-
-### Code of conduct
-
-Participation in the Kubernetes community is governed by the [Kubernetes Code of Conduct](code-of-conduct.md).
-
-----
-
-glog
-====
-
-Leveled execution logs for Go.
-
-This is an efficient pure Go implementation of leveled logs in the
-manner of the open source C++ package
-	https://github.com/google/glog
-
-By binding methods to booleans it is possible to use the log package
-without paying the expense of evaluating the arguments to the log.
-Through the -vmodule flag, the package also provides fine-grained
-control over logging at the file level.
-
-The comment from glog.go introduces the ideas:
-
-	Package glog implements logging analogous to the Google-internal
-	C++ INFO/ERROR/V setup.  It provides functions Info, Warning,
-	Error, Fatal, plus formatting variants such as Infof. It
-	also provides V-style logging controlled by the -v and
-	-vmodule=file=2 flags.
-
-	Basic examples:
-
-		glog.Info("Prepare to repel boarders")
-
-		glog.Fatalf("Initialization failed: %s", err)
-
-	See the documentation for the V function for an explanation
-	of these examples:
-
-		if glog.V(2) {
-			glog.Info("Starting transaction...")
-		}
-
-		glog.V(2).Infoln("Processed", nItems, "elements")
+In your `main.go`:
+```go
+// Import the package like it is original klog
+import "k8s.io/klog"
 
 
-The repository contains an open source version of the log package
-used inside Google. The master copy of the source lives inside
-Google, not here. The code in this repo is for export only and is not itself
-under development. Feature requests will be ignored.
+// Create go-kit logger in your main.go
+logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+logger = log.With(logger, "ts", log.DefaultTimestampUTC)
+logger = log.With(logger, "caller", log.DefaultCaller)
+logger = level.NewFilter(logger, level.AllowAll())
 
-Send bug reports to golang-nuts@googlegroups.com.
+// Overriding the default klog with our go-kit klog implementation.
+// Thus we need to pass it our go-kit logger object.
+klog.SetLogger(logger)
+```
+
+Setting the logger to the klog package **MUST** happen before using klog in any package.
+
+## Function Levels
+
+|     klog     | gokit |
+| ------------ | ----- |
+| Info         | Debug |
+| InfoDepth    | Debug |
+| Infof        | Debug |
+| Infoln       | Debug |
+| Warning      | Warn  |
+| WarningDepth | Warn  |
+| Warningf     | Warn  |
+| Warningln    | Warn  |
+| Error        | Error |
+| ErrorDepth   | Error |
+| Errorf       | Error |
+| Errorln      | Error |
+| Exit         | Error |
+| ExitDepth    | Error |
+| Exitf        | Error |
+| Exitln       | Error |
+| Fatal        | Error |
+| FatalDepth   | Error |
+| Fatalf       | Error |
+| Fatalln      | Error |
+
+This table is rather opinionated and build for use with the Kubernetes' [Go client](https://github.com/kubernetes/client-go).
+
+## Disclaimer
+
+This project doesn't aim at covering the complete `klog` API. That being said, it should work ok for
+projects that use `k8s.io/client-go` (like [Prometheus](https://github.com/prometheus/prometheus) for instance).
+
+## License
+
+Apache License 2.0, see [LICENSE](https://github.com/simonpasquier/klog-gokit/blob/master/LICENSE).
