@@ -12,10 +12,10 @@ To update generated code when changes to Custom Resource Definitions are made ru
 hack/update-codegen.sh
 ```
 
-Register the ServiceMonitoring CRD with the cluster:
+Create or update cluster resources required by the operator.
 
 ```bash
-kubectl apply -f deploy/operator_crds.yaml
+kubectl apply -f deploy/manifests.yaml
 ```
 
 Run the operator locally (requires active kubectl context to have all permissions

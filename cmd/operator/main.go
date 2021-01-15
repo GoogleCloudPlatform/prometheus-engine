@@ -65,7 +65,7 @@ func main() {
 		level.Error(logger).Log("msg", "building kubeconfig failed", "err", err)
 		os.Exit(1)
 	}
-	op, err := operator.New(logger, cfg)
+	op, err := operator.New(logger, cfg, operator.DefaultNamespace)
 	if err != nil {
 		level.Error(logger).Log("msg", "instantiating operator failed", "err", err)
 		os.Exit(1)
