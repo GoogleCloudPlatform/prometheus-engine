@@ -3,7 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
-	"path/filepath"
+	"path"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -17,6 +17,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
@@ -29,13 +30,21 @@ import (
 	informers "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions"
 )
 
-// A key used for triggering reconciliation of global/cluster-wide resources.
-const keyGlobal = "__global__"
+// DefaultNamespace is the namespace in which all resources owned by the operator are installed.
+const DefaultNamespace = "gpe-system"
+
+// The official images to be used with this version of the operator. For debugging
+// and emergency use cases they may be overwritten through options.
+// TODO(freinartz): start setting official versioned images once we start releases.
+const (
+	ImageCollector      = "gcr.io/gpe-test-1/prometheus:test-1"
+	ImageConfigReloader = "gcr.io/gpe-test-1/config-reloader:0.0.8"
+)
 
 // Operator to implement managed collection for Google Prometheus Engine.
 type Operator struct {
 	logger     log.Logger
-	namespace  string
+	opts       Options
 	kubeClient kubernetes.Interface
 
 	// Informers that maintain a cache of cluster resources and call configured
@@ -47,10 +56,42 @@ type Operator struct {
 	queue workqueue.RateLimitingInterface
 }
 
+// Options for the Operator.
+type Options struct {
+	// Namespace to which the operator deploys any associated resources.
+	Namespace string
+	// Image for the Prometheus collector container.
+	ImageCollector string
+	// Image for the Prometheus config reloader.
+	ImageConfigReloader string
+}
+
+func (o *Options) defaultAndValidate(logger log.Logger) error {
+	if o.Namespace == "" {
+		o.Namespace = DefaultNamespace
+	}
+	if o.ImageCollector == "" {
+		o.ImageCollector = ImageCollector
+	}
+	if o.ImageConfigReloader == "" {
+		o.ImageConfigReloader = ImageConfigReloader
+	}
+
+	if o.ImageCollector != ImageCollector {
+		level.Warn(logger).Log("msg", "not using the canonical collector image",
+			"expected", ImageCollector, "got", o.ImageCollector)
+	}
+	if o.ImageConfigReloader != ImageConfigReloader {
+		level.Warn(logger).Log("msg", "not using the canonical config reloader image",
+			"expected", ImageConfigReloader, "got", o.ImageConfigReloader)
+	}
+	return nil
+}
+
 // New instantiates a new Operator.
-func New(logger log.Logger, clientConfig *rest.Config, namespace string) (*Operator, error) {
-	if namespace == "" {
-		return nil, errors.New("namespace must not be empty")
+func New(logger log.Logger, clientConfig *rest.Config, opts Options) (*Operator, error) {
+	if err := opts.defaultAndValidate(logger); err != nil {
+		return nil, errors.Wrap(err, "invalid options")
 	}
 	kubeClient, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
@@ -64,7 +105,7 @@ func New(logger log.Logger, clientConfig *rest.Config, namespace string) (*Opera
 
 	op := &Operator{
 		logger:                    logger,
-		namespace:                 namespace,
+		opts:                      opts,
 		kubeClient:                kubeClient,
 		informerServiceMonitoring: informerFactory.Monitoring().V1alpha1().ServiceMonitorings().Informer(),
 		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "GPEOperator"),
@@ -95,6 +136,9 @@ func (o *Operator) enqueueObject(obj interface{}) {
 	}
 	o.queue.Add(key)
 }
+
+// A key used for triggering reconciliation of global/cluster-wide resources.
+const keyGlobal = "__global__"
 
 // enqueueGlobal enqueues the global reconcilation key. It takes an unused
 // argument to avoid boilerplate when registering event handlers.
@@ -185,16 +229,15 @@ func (o *Operator) sync(ctx context.Context, key string) error {
 
 // Various constants generating resources.
 const (
-	// DefaultNamespace is the namespace in which all resources owned by the operator are installed.
-	DefaultNamespace = "gpe-system"
-
 	// collectorName is the base name of the collector used across various resources. Must match with
 	// the static resources installed during the operator's base setup.
 	collectorName = "collector"
 
-	collectorConfigFilename   = "config.yaml"
-	collectorConfigVolumeName = "config"
-	collectorConfigMountPath  = "/prometheus/config"
+	collectorConfigVolumeName    = "config"
+	collectorConfigDir           = "/prometheus/config"
+	collectorConfigOutVolumeName = "config-out"
+	collectorConfigOutDir        = "/prometheus/config_out"
+	collectorConfigFilename      = "config.yaml"
 )
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
@@ -231,23 +274,37 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{
-						Name: "prometheus",
-						// TODO(freinartz): use image of our own collector, make configurable.
-						Image: "quay.io/prometheus/prometheus:v2.22.1",
+						Name:  "prometheus",
+						Image: o.opts.ImageCollector,
 						Args: []string{
-							"--config.file=" + filepath.Join(collectorConfigMountPath, collectorConfigFilename),
+							fmt.Sprintf("--config.file=%s", path.Join(collectorConfigOutDir, collectorConfigFilename)),
 							"--storage.tsdb.path=/prometheus/data",
 							"--storage.tsdb.retention.time=24h",
-							"--web.enable-lifecycle",
 							"--storage.tsdb.no-lockfile",
+							"--web.listen-address=:9090",
+							"--web.enable-lifecycle",
 							"--web.route-prefix=/",
 						},
-						// TODO(freinartz): make use of this in the Prometheus configuration so each collector
-						// can only consider pods from its own node.
-						// Using the field_selector config options should help substantially reduce load on Prometheus
-						// as well as the Kubernetes API server in large setups.
-						// Using an environment in Prometheus configs will require custom logic, either in our fork
-						// or through a sidecar.
+						Ports: []corev1.ContainerPort{
+							{Name: "http", ContainerPort: 9090},
+						},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      collectorConfigOutVolumeName,
+								MountPath: collectorConfigOutDir,
+								ReadOnly:  true,
+							},
+						},
+					}, {
+						Name:  "config-reloader",
+						Image: o.opts.ImageConfigReloader,
+						Args: []string{
+							fmt.Sprintf("--config-file=%s", path.Join(collectorConfigDir, collectorConfigFilename)),
+							fmt.Sprintf("--config-file-output=%s", path.Join(collectorConfigOutDir, collectorConfigFilename)),
+							"--reload-url=http://localhost:9090/-/reload",
+							"--listen-address=:9091",
+						},
+						// Pass node name so the config can filter for targets on the local node,
 						Env: []corev1.EnvVar{
 							{
 								Name: "NODE_NAME",
@@ -259,13 +316,16 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 							},
 						},
 						Ports: []corev1.ContainerPort{
-							{Name: "http", ContainerPort: 9090},
+							{Name: "http", ContainerPort: 9091},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
 								Name:      collectorConfigVolumeName,
-								MountPath: collectorConfigMountPath,
+								MountPath: collectorConfigDir,
 								ReadOnly:  true,
+							}, {
+								Name:      collectorConfigOutVolumeName,
+								MountPath: collectorConfigOutDir,
 							},
 						},
 					},
@@ -280,6 +340,11 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 								},
 							},
 						},
+					}, {
+						Name: collectorConfigOutVolumeName,
+						VolumeSource: v1.VolumeSource{
+							EmptyDir: &v1.EmptyDirVolumeSource{},
+						},
 					},
 				},
 				ServiceAccountName: collectorName,
@@ -288,7 +353,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	}
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: o.namespace,
+			Namespace: o.opts.Namespace,
 			Name:      collectorName,
 		},
 		Spec: spec,
@@ -310,9 +375,9 @@ func (o *Operator) ensureCollectorConfig(ctx context.Context) error {
 			collectorConfigFilename: string(cfg),
 		},
 	}
-	_, err = o.kubeClient.CoreV1().ConfigMaps(o.namespace).Update(ctx, cm, metav1.UpdateOptions{})
+	_, err = o.kubeClient.CoreV1().ConfigMaps(o.opts.Namespace).Update(ctx, cm, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) {
-		_, err = o.kubeClient.CoreV1().ConfigMaps(o.namespace).Create(ctx, cm, metav1.CreateOptions{})
+		_, err = o.kubeClient.CoreV1().ConfigMaps(o.opts.Namespace).Create(ctx, cm, metav1.CreateOptions{})
 		if err != nil {
 			return errors.Wrap(err, "create Prometheus config")
 		}
@@ -334,6 +399,16 @@ func (o *Operator) makeCollectorConfig() *promconfig.Config {
 				ServiceDiscoveryConfigs: discovery.Configs{
 					&discoverykube.SDConfig{
 						Role: discoverykube.RolePod,
+						// Drop all potential targets not the same node as the collector. The $(NODE_NAME) variable
+						// is interpolated by the config reloader sidecar before the config reaches the Prometheus collector.
+						// Doing it through selectors rather than relabeling should substantially reduce the client and
+						// server side load.
+						Selectors: []discoverykube.SelectorConfig{
+							{
+								Role:  discoverykube.RolePod,
+								Field: "spec.nodeName=$(NODE_NAME)",
+							},
+						},
 					},
 				},
 				RelabelConfigs: []*relabel.Config{

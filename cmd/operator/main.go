@@ -25,6 +25,10 @@ import (
 	"github.com/google/gpe-collector/pkg/operator"
 )
 
+func unstableFlagHelp(help string) string {
+	return help + " (Setting this flag voids any guarantees of proper behavior of the operator.)"
+}
+
 // The valid levels for the --log-level flag.
 const (
 	logLevelDebug = "debug"
@@ -49,9 +53,16 @@ func main() {
 	} else {
 		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
-	apiserverURL := flag.String("apiserver", "", "help")
-	logLevel := flag.String("log-level", logLevelInfo, fmt.Sprintf("Log level to use. Possible values: %s", strings.Join(validLogLevels, ", ")))
+	var (
+		apiserverURL = flag.String("apiserver", "", "help")
+		logLevel     = flag.String("log-level", logLevelInfo, fmt.Sprintf("Log level to use. Possible values: %s", strings.Join(validLogLevels, ", ")))
+		namespace    = flag.String("namespace", operator.DefaultNamespace, "Namespace in which the operator manages its resources.")
 
+		imageCollector = flag.String("image-collector", operator.ImageCollector,
+			unstableFlagHelp("Override for the container image of the collector."))
+		imageConfigReloader = flag.String("image-config-reloader", operator.ImageConfigReloader,
+			unstableFlagHelp("Override for the container image of the config reloader."))
+	)
 	flag.Parse()
 
 	logger, err := setupLogger(*logLevel)
@@ -65,7 +76,11 @@ func main() {
 		level.Error(logger).Log("msg", "building kubeconfig failed", "err", err)
 		os.Exit(1)
 	}
-	op, err := operator.New(logger, cfg, operator.DefaultNamespace)
+	op, err := operator.New(logger, cfg, operator.Options{
+		Namespace:           *namespace,
+		ImageCollector:      *imageCollector,
+		ImageConfigReloader: *imageConfigReloader,
+	})
 	if err != nil {
 		level.Error(logger).Log("msg", "instantiating operator failed", "err", err)
 		os.Exit(1)
