@@ -25,8 +25,20 @@ the operator needs):
 go run cmd/operator/main.go
 ```
 
-Create a ServiceMonitoring resource and observe the operator reconciling it:
+Create a Service and ServiceMonitoring for the GPE collector agents themselves:
 
 ```bash
 kubectl apply -f example/svcmon.yaml
 ```
+
+The operator updates the configuration of all collectors after which they start
+scraping themselves.
+
+Verify by port-forwarding the collector service and inspecting the UI of a
+random collector:
+
+```bash
+kubectl -n gpe-system port-forward --address 0.0.0.0 svc/collector 9090
+```
+
+Go to `http://localhost:9090/targets`.

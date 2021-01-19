@@ -52,7 +52,11 @@ func main() {
 			CfgFile:       *configFile,
 			CfgOutputFile: *configFileOutput,
 			WatchedDirs:   []string{*watchedDir},
-			WatchInterval: 3 * time.Minute,
+			// There are some reliability issues with fsnotify picking up file changes.
+			// Configure a very aggress refresh for now. The reloader will only send reload signals
+			// to Prometheus if the contents actually changed. So this should not have any practical
+			// drawbacks.
+			WatchInterval: 10 * time.Second,
 			RetryInterval: 5 * time.Second,
 			DelayInterval: 3 * time.Second,
 		},

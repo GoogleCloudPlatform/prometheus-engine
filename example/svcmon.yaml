@@ -1,7 +1,32 @@
+# A pair of a service and a matching ServiceMonitoring definition.
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: gpe-system
+  name: collector
+  labels:
+    app: collector
+spec:
+  clusterIP: None
+  selector:
+    app: collector
+  ports:
+  - name: prometheus-http
+    port: 9090
+  - name: reloader-http
+    port: 9091
+---
 apiVersion: monitoring.googleapis.com/v1alpha1
 kind: ServiceMonitoring
 metadata:
-  namespace: default
-  name: test
+  namespace: gpe-system
+  name: collector
 spec:
-  test: blub
+  selector:
+    matchLabels:
+      app: collector
+  endpoints:
+  - port: prometheus-http
+    scrapeInterval: 30s
+  - port: reloader-http
+    scrapeInterval: 30s
