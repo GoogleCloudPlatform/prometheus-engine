@@ -18,8 +18,8 @@ package fake
 
 import (
 	clientset "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned"
-	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned/typed/operator/v1alpha1"
-	fakemonitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned/typed/operator/v1alpha1/fake"
+	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned/typed/monitoring/v1alpha1"
+	fakemonitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned/typed/monitoring/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

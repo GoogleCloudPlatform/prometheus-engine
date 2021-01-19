@@ -20,10 +20,10 @@ import (
 	"context"
 	time "time"
 
-	operatorv1alpha1 "github.com/google/gpe-collector/pkg/operator/apis/operator/v1alpha1"
+	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
 	versioned "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned"
 	internalinterfaces "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/google/gpe-collector/pkg/operator/generated/listers/operator/v1alpha1"
+	v1alpha1 "github.com/google/gpe-collector/pkg/operator/generated/listers/monitoring/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -69,7 +69,7 @@ func NewFilteredServiceMonitoringInformer(client versioned.Interface, namespace 
 				return client.MonitoringV1alpha1().ServiceMonitorings(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&operatorv1alpha1.ServiceMonitoring{},
+		&monitoringv1alpha1.ServiceMonitoring{},
 		resyncPeriod,
 		indexers,
 	)
@@ -80,7 +80,7 @@ func (f *serviceMonitoringInformer) defaultInformer(client versioned.Interface, 
 }
 
 func (f *serviceMonitoringInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorv1alpha1.ServiceMonitoring{}, f.defaultInformer)
+	return f.factory.InformerFor(&monitoringv1alpha1.ServiceMonitoring{}, f.defaultInformer)
 }
 
 func (f *serviceMonitoringInformer) Lister() v1alpha1.ServiceMonitoringLister {

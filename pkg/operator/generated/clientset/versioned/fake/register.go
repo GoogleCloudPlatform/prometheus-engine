@@ -17,7 +17,7 @@
 package fake
 
 import (
-	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/apis/operator/v1alpha1"
+	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -27,7 +27,7 @@ import (
 
 var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
-var parameterCodec = runtime.NewParameterCodec(scheme)
+
 var localSchemeBuilder = runtime.SchemeBuilder{
 	monitoringv1alpha1.AddToScheme,
 }

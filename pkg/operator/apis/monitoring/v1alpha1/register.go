@@ -5,11 +5,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	operator "github.com/google/gpe-collector/pkg/operator/apis/operator"
+	monitoring "github.com/google/gpe-collector/pkg/operator/apis/monitoring"
 )
 
 // SchemeGroupVersion is group version used to register these objects.
-var SchemeGroupVersion = schema.GroupVersion{Group: operator.GroupName, Version: "v1alpha1"}
+var SchemeGroupVersion = schema.GroupVersion{Group: monitoring.GroupName, Version: "v1alpha1"}
 
 // Kind takes an unqualified kind and returns back a Group qualified GroupKind.
 func Kind(kind string) schema.GroupKind {

@@ -23,7 +23,7 @@ import (
 
 	versioned "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned"
 	internalinterfaces "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions/internalinterfaces"
-	operator "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions/operator"
+	monitoring "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions/monitoring"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -170,9 +170,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Monitoring() operator.Interface
+	Monitoring() monitoring.Interface
 }
 
-func (f *sharedInformerFactory) Monitoring() operator.Interface {
-	return operator.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Monitoring() monitoring.Interface {
+	return monitoring.New(f, f.namespace, f.tweakListOptions)
 }
