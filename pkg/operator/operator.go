@@ -20,7 +20,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -179,14 +178,19 @@ func (o *Operator) Run(ctx context.Context) error {
 	ok := cache.WaitForNamedCacheSync("GPEOperator", syncCtx.Done(), o.informerServiceMonitoring.HasSynced)
 	cancel()
 	if !ok {
-		return errors.New("aborted while waiting for informer caches to sync")
+		return errors.New("aborted while waiting for informer caches to sync (are the CRDs installed?)")
 	}
+
+	level.Info(o.logger).Log("msg", "informer cache sync complete")
 
 	// Process work items until context is canceled.
 	go func() {
 		<-ctx.Done()
 		o.queue.ShutDown()
 	}()
+
+	// Trigger an initial sync even if no instances of the watched resources exists yet.
+	o.enqueueGlobal(nil)
 
 	for o.processNextItem(ctx) {
 	}
@@ -234,9 +238,9 @@ func (o *Operator) sync(ctx context.Context, key string) error {
 
 // Various constants generating resources.
 const (
-	// collectorName is the base name of the collector used across various resources. Must match with
+	// CollectorName is the base name of the collector used across various resources. Must match with
 	// the static resources installed during the operator's base setup.
-	collectorName = "collector"
+	CollectorName = "collector"
 
 	collectorConfigVolumeName    = "config"
 	collectorConfigDir           = "/prometheus/config"
@@ -266,7 +270,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	// Add more configuration of a full deployment: tolerations, resource request/limit,
 	// health checks, priority context, security context, dynamic update strategy params...
 	podLabels := map[string]string{
-		"app": collectorName,
+		"app": CollectorName,
 	}
 	spec := appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
@@ -341,25 +345,25 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: collectorName,
+									Name: CollectorName,
 								},
 							},
 						},
 					}, {
 						Name: collectorConfigOutVolumeName,
-						VolumeSource: v1.VolumeSource{
-							EmptyDir: &v1.EmptyDirVolumeSource{},
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
 						},
 					},
 				},
-				ServiceAccountName: collectorName,
+				ServiceAccountName: CollectorName,
 			},
 		},
 	}
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: o.opts.Namespace,
-			Name:      collectorName,
+			Name:      CollectorName,
 		},
 		Spec: spec,
 	}
@@ -378,7 +382,7 @@ func (o *Operator) ensureCollectorConfig(ctx context.Context) error {
 	}
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: collectorName,
+			Name: CollectorName,
 		},
 		Data: map[string]string{
 			collectorConfigFilename: string(cfgEncoded),
@@ -583,7 +587,7 @@ func makeScrapeConfig(svcmon *monitoringv1alpha1.ServiceMonitoring, index int) (
 	return &promconfig.ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
-		JobName:                 fmt.Sprintf("ServiceMonitoring/%s/%s/%d", svcmon.Namespace, svcmon.Name, index),
+		JobName:                 fmt.Sprintf("ServiceMonitoring/%s/%s/%s", svcmon.Namespace, svcmon.Name, ep.Port.StrVal),
 		ServiceDiscoveryConfigs: discoveryCfgs,
 		MetricsPath:             metricsPath,
 		ScrapeInterval:          scrapeInterval,

@@ -42,3 +42,27 @@ kubectl -n gpe-system port-forward --address 0.0.0.0 svc/collector 9090
 ```
 
 Go to `http://localhost:9090/targets`.
+
+
+### Testing
+
+The operator has an end-to-end test suite to run functional tests against a real
+Kubernetes cluster.
+
+To run the tests a kubeconfig is required. This is generally already taken care of while
+setting up `kubectl`. Use `kubectl config {get,set}-context` to verify or change which cluster
+the tests will execute against.
+
+The tests require that the ClusterRole `gpe-system:collector` cluster role exists in
+the cluster. All other resources are created and cleaned up by the test suite. To
+add the ClusterRole run:
+
+```bash
+kubectl apply -f deploy/clusterrole.yaml
+```
+
+Execute the tests with:
+
+```bash
+go test ./pkg/operator/e2e/
+```
