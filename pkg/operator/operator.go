@@ -572,9 +572,6 @@ func makeScrapeConfig(svcmon *monitoringv1alpha1.ServiceMonitoring, index int) (
 	})
 
 	// Filter targets by the configured port.
-	if ep.Port == nil {
-		return nil, errors.New("port missing")
-	}
 	if ep.Port.StrVal == "" {
 		return nil, errors.New("named port must be set for ServiceMonitoring")
 	}

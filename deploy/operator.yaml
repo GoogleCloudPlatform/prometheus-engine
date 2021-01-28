@@ -10,14 +10,14 @@ metadata:
   namespace: gpe-system
   name: collector
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: collector
+  name: gpe-system:collector
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: gpe-collector
+  name: gpe-system:collector
 subjects:
 - kind: ServiceAccount
   namespace: gpe-system

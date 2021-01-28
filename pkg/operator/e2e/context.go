@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
@@ -17,6 +18,12 @@ import (
 	"github.com/google/gpe-collector/pkg/operator"
 	clientset "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned"
 )
+
+var startTime time.Time
+
+func init() {
+	startTime = time.Now().UTC()
+}
 
 // testContext manages shared state for a group of test. Test contexts are isolated
 // based on a unqiue namespace. This requires that no test affects or can be affected by
@@ -42,10 +49,14 @@ func newTestContext(t *testing.T) *testContext {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	// Create a namespace per test and run. This is to ensure that repeated runs of
+	// tests don't falsify results. Either by old test resources not being cleaned up
+	// (less likely) or metrics observed in GCP being from a previous run (more likely).
+	namespace := fmt.Sprintf("gpe-test-%s-%s", strings.ToLower(t.Name()), startTime.Format("20060102-150405"))
 
 	tctx := &testContext{
 		T:              t,
-		namespace:      fmt.Sprintf("gpe-test-%s", strings.ToLower(t.Name())),
+		namespace:      namespace,
 		kubeClient:     kubeClient,
 		operatorClient: operatorClient,
 	}
@@ -153,11 +164,11 @@ func (tctx *testContext) cleanupNamespace() {
 }
 
 // subtest derives a new test function from a function accepting a test context.
-func (tctx *testContext) subtest(f func(*testContext)) func(*testing.T) {
+func (tctx *testContext) subtest(f func(context.Context, *testContext)) func(*testing.T) {
 	return func(t *testing.T) {
 		childCtx := *tctx
 		childCtx.T = t
-		f(&childCtx)
+		f(context.TODO(), &childCtx)
 	}
 }
 

@@ -34,7 +34,7 @@ type ServiceMonitoringSpec struct {
 type ScrapeEndpoint struct {
 	// Name or number of the port to scrape.
 	// For ServiceMonitoring resources, only port names are allowed.
-	Port *intstr.IntOrString `json:"port,omitempty"`
+	Port intstr.IntOrString `json:"port,omitempty"`
 
 	// HTTP path to scrape metrics from. Defaults to "/metrics".
 	Path string `json:"path,omitempty"`
