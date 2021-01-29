@@ -27,6 +27,6 @@ spec:
       app: collector
   endpoints:
   - port: prometheus-http
-    scrapeInterval: 30s
+    interval: 30s
   - port: reloader-http
-    scrapeInterval: 30s
+    interval: 30s

@@ -467,13 +467,13 @@ func makeScrapeConfig(svcmon *monitoringv1alpha1.ServiceMonitoring, index int) (
 
 	ep := svcmon.Spec.Endpoints[index]
 
-	scrapeInterval, err := prommodel.ParseDuration(ep.ScrapeInterval)
+	interval, err := prommodel.ParseDuration(ep.Interval)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid scrape interval")
 	}
-	scrapeTimeout := scrapeInterval
-	if ep.ScrapeTimeout != "" {
-		scrapeTimeout, err = prommodel.ParseDuration(ep.ScrapeTimeout)
+	timeout := interval
+	if ep.Timeout != "" {
+		timeout, err = prommodel.ParseDuration(ep.Timeout)
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid scrape timeout")
 		}
@@ -587,8 +587,8 @@ func makeScrapeConfig(svcmon *monitoringv1alpha1.ServiceMonitoring, index int) (
 		JobName:                 fmt.Sprintf("ServiceMonitoring/%s/%s/%s", svcmon.Namespace, svcmon.Name, ep.Port.StrVal),
 		ServiceDiscoveryConfigs: discoveryCfgs,
 		MetricsPath:             metricsPath,
-		ScrapeInterval:          scrapeInterval,
-		ScrapeTimeout:           scrapeTimeout,
+		ScrapeInterval:          interval,
+		ScrapeTimeout:           timeout,
 		RelabelConfigs:          relabelCfgs,
 	}, nil
 }

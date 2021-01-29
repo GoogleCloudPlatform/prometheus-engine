@@ -40,8 +40,8 @@ type ScrapeEndpoint struct {
 	Path string `json:"path,omitempty"`
 
 	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
-	ScrapeInterval string `json:"scrapeInterval,omitempty"`
+	Interval string `json:"interval,omitempty"`
 
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
-	ScrapeTimeout string `json:"scrapeTimeout,omitempty"`
+	Timeout string `json:"timeout,omitempty"`
 }

@@ -172,8 +172,8 @@ func testCollectorSelfMonitoring(ctx context.Context, t *testContext) {
 				},
 			},
 			Endpoints: []monitoringv1alpha1.ScrapeEndpoint{
-				{Port: intstr.FromString("prometheus-http"), ScrapeInterval: "5s"},
-				{Port: intstr.FromString("reloader-http"), ScrapeInterval: "5s"},
+				{Port: intstr.FromString("prometheus-http"), Interval: "5s"},
+				{Port: intstr.FromString("reloader-http"), Interval: "5s"},
 			},
 		},
 	}
