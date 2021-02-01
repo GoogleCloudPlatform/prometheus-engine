@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: gpe-system
+  name: kube-state-metrics
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/version: 1.9.7
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kube-state-metrics
+        app.kubernetes.io/version: 1.9.7
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+      - name: kube-state-metrics
+        image: quay.io/coreos/kube-state-metrics:v1.9.7
+        args:
+        - --port=8080
+        - --telemetry-port=8081
+        ports:
+        - name: metrics
+          containerPort: 8080
+        - name: metrics-self
+          containerPort: 8081
+        resources:
+          requests:
+            cpu: 10m
+            memory: 190Mi
+          limits:
+            cpu: 100m
+            memory: 250Mi
+      serviceAccountName: kube-state-metrics

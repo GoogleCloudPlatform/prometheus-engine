@@ -1,0 +1,16 @@
+apiVersion: monitoring.googleapis.com/v1alpha1
+kind: ServiceMonitoring
+metadata:
+  namespace: gpe-system
+  name: collector
+  labels:
+    app.kubernetes.io/name: collector
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: collector
+  endpoints:
+  - port: prometheus-http
+    interval: 30s
+  - port: reloader-http
+    interval: 30s

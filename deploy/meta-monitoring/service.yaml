@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: gpe-system
+  name: collector
+  labels:
+    app.kubernetes.io/name: collector
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: collector
+  ports:
+  - name: prometheus-http
+    port: 9090
+    targetPort: prometheus-http
+  - name: reloader-http
+    port: 9091
+    targetPort: reloader-http

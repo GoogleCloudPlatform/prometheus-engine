@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: gpe-system
+  name: node-exporter
+  labels:
+    app.kubernetes.io/name: node-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: node-exporter
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 9100
+    targetPort: metrics

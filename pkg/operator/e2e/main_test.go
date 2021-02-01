@@ -21,6 +21,7 @@ import (
 	gcmpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -95,7 +96,9 @@ func TestCollectorDeployment(t *testing.T) {
 func testCollectorDeployed(ctx context.Context, t *testContext) {
 	err := wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
 		ds, err := t.kubeClient.AppsV1().DaemonSets(t.namespace).Get(ctx, operator.CollectorName, metav1.GetOptions{})
-		if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		} else if err != nil {
 			return false, errors.Errorf("getting collector DaemonSet failed: %s", err)
 		}
 		if ds.Status.DesiredNumberScheduled == 0 {
@@ -142,12 +145,12 @@ func testCollectorSelfMonitoring(ctx context.Context, t *testContext) {
 			// from the service name rather than the numberous other places "collector" is used.
 			Name: "collector-service",
 			Labels: map[string]string{
-				"app": operator.CollectorName,
+				operator.LabelAppName: operator.CollectorName,
 			},
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: map[string]string{
-				"app": operator.CollectorName,
+				operator.LabelAppName: operator.CollectorName,
 			},
 			Ports: []corev1.ServicePort{
 				{Name: "prometheus-http", Port: 9090},
@@ -168,7 +171,7 @@ func testCollectorSelfMonitoring(ctx context.Context, t *testContext) {
 		Spec: monitoringv1alpha1.ServiceMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app": operator.CollectorName,
+					operator.LabelAppName: operator.CollectorName,
 				},
 			},
 			Endpoints: []monitoringv1alpha1.ScrapeEndpoint{
@@ -190,7 +193,7 @@ func testCollectorSelfMonitoring(ctx context.Context, t *testContext) {
 	defer metricClient.Close()
 
 	pods, err := t.kubeClient.CoreV1().Pods(t.namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "app=" + operator.CollectorName,
+		LabelSelector: fmt.Sprintf("%s=%s", operator.LabelAppName, operator.CollectorName),
 	})
 	if err != nil {
 		t.Fatalf("List collector pods: %s", err)

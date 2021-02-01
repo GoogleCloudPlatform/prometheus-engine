@@ -1,0 +1,17 @@
+
+apiVersion: monitoring.googleapis.com/v1alpha1
+kind: ServiceMonitoring
+metadata:
+  namespace: gpe-system
+  name: kube-state-metrics
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  endpoints:
+  # Only configure process metrics here. The state metrics are treated
+  # specially via a hard-coded configuration.
+  - port: mertics-self
+    interval: 30s

@@ -24,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
+	corev1informers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -54,6 +55,7 @@ type Operator struct {
 	// Informers that maintain a cache of cluster resources and call configured
 	// event handlers on changes.
 	informerServiceMonitoring cache.SharedIndexInformer
+	informerConfigMap         cache.SharedIndexInformer
 	// State changes are enqueued into a rate limited work queue, which ensures
 	// the operator does not get overloaded and multiple changes to the same resource
 	// are not handled in parallel, leading to semantic race conditions.
@@ -105,19 +107,28 @@ func New(logger log.Logger, clientConfig *rest.Config, opts Options) (*Operator,
 	if err != nil {
 		return nil, errors.Wrap(err, "build operator clientset")
 	}
-	informerFactory := informers.NewSharedInformerFactory(operatorClient, time.Minute)
+
+	const syncInterval = 5 * time.Minute
+
+	informerFactory := informers.NewSharedInformerFactory(operatorClient, syncInterval)
 
 	op := &Operator{
 		logger:                    logger,
 		opts:                      opts,
 		kubeClient:                kubeClient,
 		informerServiceMonitoring: informerFactory.Monitoring().V1alpha1().ServiceMonitorings().Informer(),
+		informerConfigMap:         corev1informers.NewConfigMapInformer(kubeClient, opts.Namespace, syncInterval, nil),
 		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "GPEOperator"),
 	}
 
 	// We only trigger global reconciliation as the operator currently does not handle CRDs
 	// that only affect a subset of resources managed by the operator.
 	op.informerServiceMonitoring.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    op.enqueueGlobal,
+		DeleteFunc: op.enqueueGlobal,
+		UpdateFunc: ifResourceVersionChanged(op.enqueueGlobal),
+	})
+	op.informerConfigMap.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    op.enqueueGlobal,
 		DeleteFunc: op.enqueueGlobal,
 		UpdateFunc: ifResourceVersionChanged(op.enqueueGlobal),
@@ -171,11 +182,16 @@ func (o *Operator) Run(ctx context.Context) error {
 	level.Info(o.logger).Log("msg", "starting GPE operator")
 
 	go o.informerServiceMonitoring.Run(ctx.Done())
+	go o.informerConfigMap.Run(ctx.Done())
 
 	level.Info(o.logger).Log("msg", "waiting for informer caches to sync")
 
 	syncCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	ok := cache.WaitForNamedCacheSync("GPEOperator", syncCtx.Done(), o.informerServiceMonitoring.HasSynced)
+	ok := cache.WaitForNamedCacheSync(
+		"GPEOperator", syncCtx.Done(),
+		o.informerServiceMonitoring.HasSynced,
+		o.informerConfigMap.HasSynced,
+	)
 	cancel()
 	if !ok {
 		return errors.New("aborted while waiting for informer caches to sync (are the CRDs installed?)")
@@ -247,6 +263,9 @@ const (
 	collectorConfigOutVolumeName = "config-out"
 	collectorConfigOutDir        = "/prometheus/config_out"
 	collectorConfigFilename      = "config.yaml"
+
+	// The well-known app name label.
+	LabelAppName = "app.kubernetes.io/name"
 )
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
@@ -270,7 +289,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	// Add more configuration of a full deployment: tolerations, resource request/limit,
 	// health checks, priority context, security context, dynamic update strategy params...
 	podLabels := map[string]string{
-		"app": CollectorName,
+		LabelAppName: CollectorName,
 	}
 	spec := appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
@@ -429,6 +448,30 @@ func (o *Operator) makeCollectorConfig() (*promconfig.Config, error) {
 			scrapeCfgs = append(scrapeCfgs, scrapeCfg)
 		}
 	}
+
+	// Load additional, hard-coded scrape configs from configmaps in the oeprator's namespace.
+	err = cache.ListAll(o.informerConfigMap.GetStore(), labels.SelectorFromSet(map[string]string{
+		"type": "scrape-config",
+	}), func(obj interface{}) {
+		cm := obj.(*corev1.ConfigMap)
+		const key = "config.yaml"
+
+		var promcfg promconfig.Config
+		if err := yaml.Unmarshal([]byte(cm.Data[key]), &promcfg); err != nil {
+			level.Error(o.logger).Log("msg", "cannot parse scrape config, skipping ...",
+				"err", err, "namespace", cm.Namespace, "name", cm.Name)
+			return
+		}
+		for _, sc := range promcfg.ScrapeConfigs {
+			// Make scrape config name unique and traceable.
+			sc.JobName = fmt.Sprintf("ConfigMap/%s/%s/%s", o.opts.Namespace, cm.Name, sc.JobName)
+			scrapeCfgs = append(scrapeCfgs, sc)
+		}
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "add hard-coded scrape configs")
+	}
+
 	// Sort to ensure reproducible configs.
 	sort.Slice(scrapeCfgs, func(i, j int) bool {
 		return scrapeCfgs[i].JobName < scrapeCfgs[j].JobName

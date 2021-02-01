@@ -1,0 +1,15 @@
+
+apiVersion: monitoring.googleapis.com/v1alpha1
+kind: ServiceMonitoring
+metadata:
+  namespace: gpe-system
+  name: node-exporter
+  labels:
+    app.kubernetes.io/name: node-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: node-exporter
+  endpoints:
+  - port: metrics
+    interval: 30s

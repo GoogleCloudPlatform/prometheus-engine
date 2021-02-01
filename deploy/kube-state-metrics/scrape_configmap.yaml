@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: gpe-system
+  name: scrape-kube-state-metrics
+  labels:
+    type: scrape-config
+    app.kubernetes.io/name: kube-state-metrics
+data:
+  config.yaml: |
+    # The resource state metrics typically have a namespace associated, which we want to use
+    # rather than the typical target label 'namespace', which merely contains the namespace of the
+    # KSM pod.
+    # For now we achieve this by setting honor_labels=true. State metrics without a namespace
+    # label will still get the pod's namespace attached. This is temporary so the metrics
+    # are accepted by GCM, which requires the label to be set. Once it is optional, we should
+    # set honor_labels=false, and leave the target label 'namespace' empty.
+    # This ensures that no other target labels are overwritten unintentionally due to honor_labels=true.
+    #
+    # Scraping of KSM's process metrics is configured via ServiceMonitoring.
+
+    scrape_configs:
+    - job_name: kube-state-metrics/metrics
+      scrape_interval: 30s
+      scrape_timeout: 30s
+      metrics_path: /metrics
+      honor_labels: true
+      kubernetes_sd_configs:
+      - role: endpoints
+        selectors:
+        - role: pod
+          field: spec.nodeName=$(NODE_NAME)
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        separator: ;
+        regex: $(NODE_NAME)
+        replacement: $1
+        action: keep
+      - source_labels: [__meta_kubernetes_namespace]
+        separator: ;
+        regex: gpe-system
+        replacement: $1
+        action: keep
+      - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+        separator: ;
+        regex: kube-state-metrics
+        replacement: $1
+        action: keep
+      # TODO(freinartz): drop this once empty resource labels are supported in GCM.
+      - source_labels: [__meta_kubernetes_namespace]
+        separator: ;
+        regex: (.*)
+        target_label: namespace
+        replacement: $1
+        action: replace
+      - source_labels: [__meta_kubernetes_service_name]
+        separator: ;
+        regex: (.*)
+        target_label: job
+        replacement: $1
+        action: replace
+      - source_labels: [__meta_kubernetes_pod_name, __meta_kubernetes_endpoint_port_name]
+        separator: ;
+        regex: (.+);(.+)
+        target_label: instance
+        replacement: $1:$2
+        action: replace
+      - source_labels: [__meta_kubernetes_endpoint_port_name]
+        separator: ;
+        regex: metrics
+        replacement: $1
+        action: keep
