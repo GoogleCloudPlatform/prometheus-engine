@@ -26,6 +26,10 @@ type FakeMonitoringV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeMonitoringV1alpha1) PodMonitorings(namespace string) v1alpha1.PodMonitoringInterface {
+	return &FakePodMonitorings{c, namespace}
+}
+
 func (c *FakeMonitoringV1alpha1) ServiceMonitorings(namespace string) v1alpha1.ServiceMonitoringInterface {
 	return &FakeServiceMonitorings{c, namespace}
 }

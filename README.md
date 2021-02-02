@@ -12,10 +12,12 @@ To update generated code when changes to Custom Resource Definitions are made ru
 hack/update-codegen.sh
 ```
 
+### Run
+
 Create or update cluster resources required by the operator.
 
 ```bash
-kubectl apply -f deploy/manifests.yaml
+kubectl apply -f deploy/operator/
 ```
 
 Run the operator locally (requires active kubectl context to have all permissions
@@ -25,24 +27,31 @@ the operator needs):
 go run cmd/operator/main.go
 ```
 
-Create a Service and ServiceMonitoring for the GPE collector agents themselves:
+Setup the builtin monitoring stack to collect cluster-level metrics::
 
 ```bash
-kubectl apply -f example/svcmon.yaml
+kubectl apply -f deploy/ --recursive
 ```
 
 The operator updates the configuration of all collectors after which they start
-scraping themselves.
+scraping various metric endpoints.
 
-Verify by port-forwarding the collector service and inspecting the UI of a
-random collector:
+Verify by port-forwarding an arbitrary collector and inspect its UI. You should
+see various targets being scraped successfully.
 
 ```bash
-kubectl -n gpe-system port-forward --address 0.0.0.0 svc/collector 9090
+kubectl -n gpe-system port-forward --address 0.0.0.0 collector 9090
 ```
 
 Go to `http://localhost:9090/targets`.
 
+### Teardown
+
+Simply stop running the operator locally and remove all manifests in the cluster with:
+
+```bash
+kubectl delete -f deploy/ --recursive
+```
 
 ### Testing
 

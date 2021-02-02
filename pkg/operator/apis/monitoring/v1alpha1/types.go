@@ -21,11 +21,36 @@ type ServiceMonitoring struct {
 type ServiceMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []*ServiceMonitoring `json:"items"`
+	Items           []ServiceMonitoring `json:"items"`
 }
 
 // ServiceMonitoringSpec contains specification parameters for ServiceMonitoring.
 type ServiceMonitoringSpec struct {
+	Selector  metav1.LabelSelector `json:"selector"`
+	Endpoints []ScrapeEndpoint     `json:"endpoints"`
+}
+
+// PodMonitoring defines monitoring for a set of pods.
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type PodMonitoring struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	// Specification of desired Pod selection for target discovery by
+	// Prometheus.
+	Spec PodMonitoringSpec `json:"spec"`
+}
+
+// PodMonitoringList is a list of PodMonitorings.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type PodMonitoringList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []PodMonitoring `json:"items"`
+}
+
+// PodMonitoringSpec contains specification parameters for PodMonitoring.
+type PodMonitoringSpec struct {
 	Selector  metav1.LabelSelector `json:"selector"`
 	Endpoints []ScrapeEndpoint     `json:"endpoints"`
 }

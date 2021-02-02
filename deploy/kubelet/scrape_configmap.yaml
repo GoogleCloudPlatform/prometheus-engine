@@ -34,11 +34,6 @@ data:
       - action: replace
         target_label: job
         replacement: kubelet
-      # Consider dropping namespace label once unset namespace is supported by GCM.
-      - source_labels: [__meta_kubernetes_namespace]
-        action: replace
-        target_label: namespace
-        replacement: kube-system
       - source_labels: [__meta_kubernetes_node_name]
         target_label: instance
         replacement: ${1}:metrics
@@ -63,11 +58,6 @@ data:
       - action: replace
         target_label: job
         replacement: kubelet
-      # Consider dropping namespace label once unset namespace is supported by GCM.
-      - source_labels: [__meta_kubernetes_namespace]
-        action: replace
-        target_label: namespace
-        replacement: kube-system
       - source_labels: [__meta_kubernetes_node_name]
         target_label: instance
         replacement: ${1}:cadvisor
@@ -92,11 +82,6 @@ data:
       - action: replace
         target_label: job
         replacement: kubelet
-      # Consider dropping namespace label once unset namespace is supported by GCM.
-      - source_labels: [__meta_kubernetes_namespace]
-        action: replace
-        target_label: namespace
-        replacement: kube-system
       - source_labels: [__meta_kubernetes_node_name]
         target_label: instance
         replacement: ${1}:probes

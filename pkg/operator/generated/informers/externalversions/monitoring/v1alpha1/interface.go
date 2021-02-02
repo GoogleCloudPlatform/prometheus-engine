@@ -22,6 +22,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// PodMonitorings returns a PodMonitoringInformer.
+	PodMonitorings() PodMonitoringInformer
 	// ServiceMonitorings returns a ServiceMonitoringInformer.
 	ServiceMonitorings() ServiceMonitoringInformer
 }
@@ -35,6 +37,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// PodMonitorings returns a PodMonitoringInformer.
+func (v *version) PodMonitorings() PodMonitoringInformer {
+	return &podMonitoringInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // ServiceMonitorings returns a ServiceMonitoringInformer.

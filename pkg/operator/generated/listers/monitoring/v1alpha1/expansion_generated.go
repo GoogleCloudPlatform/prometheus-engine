@@ -16,6 +16,14 @@
 
 package v1alpha1
 
+// PodMonitoringListerExpansion allows custom methods to be added to
+// PodMonitoringLister.
+type PodMonitoringListerExpansion interface{}
+
+// PodMonitoringNamespaceListerExpansion allows custom methods to be added to
+// PodMonitoringNamespaceLister.
+type PodMonitoringNamespaceListerExpansion interface{}
+
 // ServiceMonitoringListerExpansion allows custom methods to be added to
 // ServiceMonitoringLister.
 type ServiceMonitoringListerExpansion interface{}

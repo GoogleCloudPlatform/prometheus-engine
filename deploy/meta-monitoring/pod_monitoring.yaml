@@ -1,5 +1,5 @@
 apiVersion: monitoring.googleapis.com/v1alpha1
-kind: ServiceMonitoring
+kind: PodMonitoring
 metadata:
   namespace: gpe-system
   name: collector

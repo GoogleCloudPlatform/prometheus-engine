@@ -82,13 +82,22 @@ func TestMain(m *testing.M) {
 	}
 }
 
-func TestCollectorDeployment(t *testing.T) {
+func TestCollectorPodMonitoring(t *testing.T) {
 	tctx := newTestContext(t)
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
 	t.Run("deployed", tctx.subtest(testCollectorDeployed))
-	t.Run("self-monitoring", tctx.subtest(testCollectorSelfMonitoring))
+	t.Run("self-monitoring", tctx.subtest(testCollectorSelfPodMonitoring))
+}
+
+func TestCollectorServiceMonitoring(t *testing.T) {
+	tctx := newTestContext(t)
+
+	// We could simply verify that the full collection chain works once. But validating
+	// more fine-grained stages makes debugging a lot easier.
+	t.Run("deployed", tctx.subtest(testCollectorDeployed))
+	t.Run("self-monitoring", tctx.subtest(testCollectorSelfServiceMonitoring))
 }
 
 // testCollectorDeployed does a high-level verification on whether the
@@ -111,30 +120,37 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 	}
 }
 
-// testCollectorSelfMonitoring sets up service monitoring of the collector itself
+// testCollectorSelfPodMonitoring sets up pod monitoring of the collector itself
 // and waits for samples to become available in Cloud Monitoring.
-func testCollectorSelfMonitoring(ctx context.Context, t *testContext) {
-	// We rely on the default service account of the collector having write access to GCM.
-	// This means it will only work on GKE where the default service account has the default
-	// permissions.
-	// For support of other environments, the operator will need to be extended by flags
-	// to inject different service accounts or secrets.
+func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
+	// The operator should configure the collector to scrape itself and its metrics
+	// should show up in Cloud Monitoring shortly after.
+	podmon := &monitoringv1alpha1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "collector-podmon",
+		},
+		Spec: monitoringv1alpha1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					operator.LabelAppName: operator.CollectorName,
+				},
+			},
+			Endpoints: []monitoringv1alpha1.ScrapeEndpoint{
+				{Port: intstr.FromString("prometheus-http"), Interval: "5s"},
+				{Port: intstr.FromString("reloader-http"), Interval: "5s"},
+			},
+		},
+	}
+	_, err := t.operatorClient.MonitoringV1alpha1().PodMonitorings(t.namespace).Create(ctx, podmon, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("create collector PodMonitoring: %s", err)
+	}
+	validateCollectorUpMetrics(ctx, t, "collector-podmon")
+}
 
-	// The project, location and cluster name in which we look for the metric data must
-	// be provided by the user. Check this only in this test so tests that don't need these
-	// flags can still be run without them.
-	// They can be configured on the operator but our current test setup (targeting GKE)
-	// relies on the operator inferring them from the environment.
-	if project == "" {
-		t.Fatalf("no project specified (--project flag)")
-	}
-	if location == "" {
-		t.Fatalf("no location specified (--location flag)")
-	}
-	if cluster == "" {
-		t.Fatalf("no cluster name specified (--cluster flag)")
-	}
-
+// testCollectorSelfServiceMonitoring sets up service monitoring of the collector itself
+// and waits for samples to become available in Cloud Monitoring.
+func testCollectorSelfServiceMonitoring(ctx context.Context, t *testContext) {
 	// The collector is an application just like any other. So we create a Service and
 	// ServiceMonitoring for it.
 	// The operator should configure the collector to scrape itself and its metrics
@@ -166,7 +182,7 @@ func testCollectorSelfMonitoring(ctx context.Context, t *testContext) {
 	// Setup scraping of two ports of the collectors.
 	svcmon := &monitoringv1alpha1.ServiceMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: operator.CollectorName,
+			Name: "collector-svcmon",
 		},
 		Spec: monitoringv1alpha1.ServiceMonitoringSpec{
 			Selector: metav1.LabelSelector{
@@ -183,6 +199,32 @@ func testCollectorSelfMonitoring(ctx context.Context, t *testContext) {
 	_, err = t.operatorClient.MonitoringV1alpha1().ServiceMonitorings(t.namespace).Create(ctx, svcmon, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create collector ServiceMonitoring: %s", err)
+	}
+	validateCollectorUpMetrics(ctx, t, "collector-service")
+}
+
+// validateCollectorUpMetrics checks whether the scrape-time up metrics for all collector
+// pods can be queried from GCM.
+func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string) {
+	// We rely on the default service account of the collector having write access to GCM.
+	// This means it will only work on GKE where the default service account has the default
+	// permissions.
+	// For support of other environments, the operator will need to be extended by flags
+	// to inject different service accounts or secrets.
+
+	// The project, location and cluster name in which we look for the metric data must
+	// be provided by the user. Check this only in this test so tests that don't need these
+	// flags can still be run without them.
+	// They can be configured on the operator but our current test setup (targeting GKE)
+	// relies on the operator inferring them from the environment.
+	if project == "" {
+		t.Fatalf("no project specified (--project flag)")
+	}
+	if location == "" {
+		t.Fatalf("no location specified (--location flag)")
+	}
+	if cluster == "" {
+		t.Fatalf("no cluster name specified (--cluster flag)")
 	}
 
 	// Wait for metric data to show up in Cloud Monitoring.
@@ -221,13 +263,14 @@ func testCollectorSelfMonitoring(ctx context.Context, t *testContext) {
 					Filter: fmt.Sprintf(`
 				resource.type = "prometheus_target" AND
 				resource.labels.project_id = "%s" AND
+				resource.labels.location = "%s" AND
 				resource.labels.cluster = "%s" AND
 				resource.labels.namespace = "%s" AND
 				resource.labels.job = "%s" AND
 				resource.labels.instance = "%s:%s" AND
 				metric.type = "external.googleapis.com/gpe/up/gauge"
 				`,
-						project, cluster, t.namespace, "collector-service", pod.Name, port,
+						project, location, cluster, t.namespace, job, pod.Name, port,
 					),
 					Interval: &gcmpb.TimeInterval{
 						EndTime:   timestamppb.New(now),
