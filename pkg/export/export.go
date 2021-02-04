@@ -14,6 +14,7 @@ package export
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -112,11 +113,14 @@ type ExporterOpts struct {
 	// The cluster identifier used for the monitored resource of exported data.
 	Cluster string
 
-	ExternalLabels string
 	// Test endpoint to send data to instead of GCM API
 	TestEndpoint string
 	// Credentials file for authentication with the GCM API.
 	CredentialsFile string
+
+	// Maximum batch size to use when sending data to the GCM API. The default
+	// maximum will be used if set to 0.
+	BatchSize uint
 }
 
 // NewFlagOptions returns new exporter options that are populated through flags
@@ -153,6 +157,9 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 	a.Flag("gcm.experimental.credentials_file", "Credentials file for authentication with the GCM API.").
 		StringVar(&opts.CredentialsFile)
 
+	a.Flag("gcm.experimental.batch_size", "Maximum number of points to send in one batch to the GCM API.").
+		Default(strconv.Itoa(batchSizeMax)).UintVar(&opts.BatchSize)
+
 	return &opts
 }
 
@@ -181,6 +188,13 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 	}
 	// Location is generally also required but we allow it to also be set
 	// through Prometheus's external labels, which we receive via ApplyConfig.
+
+	if opts.BatchSize == 0 {
+		opts.BatchSize = batchSizeMax
+	}
+	if opts.BatchSize > batchSizeMax {
+		return nil, errors.Errorf("Maximum supported batch size is %d, got %d", batchSizeMax, opts.BatchSize)
+	}
 
 	e := &Exporter{
 		logger: logger,
@@ -369,43 +383,38 @@ func (e *Exporter) Run(ctx context.Context) error {
 	// to cover a large range of potential throughput and latency combinations without requiring
 	// user configuration or, even worse, runtime changes to the shard number.
 
+	// The batch and the shards that have contributed data to it so far.
 	var (
-		batch = make([]*monitoring_pb.TimeSeries, 0, batchSizeMax)
-		// Cache of series hashes already seen in the current batch.
-		seen = make(map[uint64]struct{}, batchSizeMax)
-		// Functions to be called once the batch has been sent.
-		closers = make([]func(), 0, shardCount)
+		batch         = make([]*monitoring_pb.TimeSeries, 0, e.opts.BatchSize)
+		pendingShards = make([]*shard, 0, shardCount)
 	)
 
 	// Send the currently accumulated batch to GCM asynchronously.
 	send := func() {
 		pendingRequests.Inc()
 
-		go func(batch []*monitoring_pb.TimeSeries, closers []func()) {
+		go func(batch []*monitoring_pb.TimeSeries, pendingShards []*shard) {
 			if err := e.send(ctx, metricClient, batch); err != nil {
 				level.Error(e.logger).Log("msg", "send batch", "err", err)
 			}
 			samplesSent.Add(float64(len(batch)))
 
-			for _, close := range closers {
-				close()
+			for _, s := range pendingShards {
+				s.notifyBatchDone()
 			}
 			pendingRequests.Dec()
-		}(batch, closers)
+		}(batch, pendingShards)
 
 		// Reset state for new batch.
 		stopTimer()
 		timer.Reset(batchDelayMax)
 
-		for k := range seen {
-			delete(seen, k)
-		}
-
-		closers = make([]func(), 0, shardCount)
-		batch = make([]*monitoring_pb.TimeSeries, 0, batchSizeMax)
+		pendingShards = make([]*shard, 0, shardCount)
+		batch = make([]*monitoring_pb.TimeSeries, 0, e.opts.BatchSize)
 	}
 
-	// Starting index when iterating over shards.
+	// Starting index when iterating over shards. This ensures we don't always start at 0 so that
+	// some shards may never be sent in a busy collector.
 	shardOffset := 0
 
 	for {
@@ -430,42 +439,11 @@ func (e *Exporter) Run(ctx context.Context) error {
 			// shards they span.
 			i := 0
 			for ; i < len(e.shards); i++ {
-				shardProcess.Inc()
-				index := (i + shardOffset) % len(e.shards)
-				shard := e.shards[index]
+				shardOffset = (shardOffset + 1) % len(e.shards)
+				shard := e.shards[shardOffset]
 
-				if shard.pending {
-					shardProcessPending.Inc()
-					continue
-				}
-				// Populate the batch until it's full or the shard is empty.
-				took := 0
-				for len(batch) < cap(batch) {
-					e, ok := shard.get()
-					if !ok {
-						break
-					}
-					// If a series is about to be added that's already in the batch, flush
-					// it and start a new one.
-					_, hasCollision := seen[e.hash]
-					if hasCollision {
-						send()
-					}
-					seen[e.hash] = struct{}{}
-					batch = append(batch, e.sample)
-					took++
-
-					// We just sent out a batch with data from this shard so we must not
-					// gather more data from it.
-					if hasCollision {
-						break
-					}
-				}
-				shardProcessSamplesTaken.Observe(float64(took))
-
-				if took > 0 {
-					shard.setPending(true)
-					closers = append(closers, func() { shard.setPending(false) })
+				if took := shard.fill(&batch); took > 0 {
+					pendingShards = append(pendingShards, shard)
 				}
 				if len(batch) == cap(batch) {
 					send()
@@ -475,7 +453,6 @@ func (e *Exporter) Run(ctx context.Context) error {
 			if i < len(e.shards) {
 				e.triggerNext()
 			}
-			shardOffset = (shardOffset + i) % len(e.shards)
 
 		case <-timer.C:
 			// Flush batch that has been pending for too long.
@@ -499,27 +476,19 @@ func (e *Exporter) send(ctx context.Context, client *monitoring.MetricClient, ba
 // shard holds a queue of data for a subset of samples.
 type shard struct {
 	mtx     sync.Mutex
-	queue   chan queueEntry
+	queue   *queue
 	pending bool
-}
 
-type queueEntry struct {
-	hash   uint64
-	sample *monitoring_pb.TimeSeries
+	// A cache of series IDs that have been added to the batch in fill already.
+	// It's only part of the struct to not re-allocate on each call to fill.
+	seen map[uint64]struct{}
 }
 
 func newShard(queueSize int) *shard {
-	return &shard{queue: make(chan queueEntry, queueSize)}
-}
-
-// get oldest queue entry if it exists.
-func (s *shard) get() (queueEntry, bool) {
-	select {
-	case e, ok := <-s.queue:
-		return e, ok
-	default:
+	return &shard{
+		queue: newQueue(queueSize),
+		seen:  map[uint64]struct{}{},
 	}
-	return queueEntry{}, false
 }
 
 func (s *shard) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
@@ -529,23 +498,116 @@ func (s *shard) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
 		hash:   hash,
 		sample: sample,
 	}
-	select {
-	case s.queue <- e:
-	default:
+	if !s.queue.add(e) {
 		// TODO(freinartz): tail drop is not a great solution. Once we have the WAL buffer,
 		// we can just block here when enqueueing from it.
 		samplesDropped.Inc()
 	}
 }
 
-func (s *shard) setPending(b bool) {
+// fill adds samples to the batch until its capacity is reached or the shard
+// has no more samples for series that are not in the batch yet.
+func (s *shard) fill(batch *[]*monitoring_pb.TimeSeries) int {
+	shardProcess.Inc()
+
 	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if s.pending {
+		shardProcessPending.Inc()
+		return 0
+	}
+	n := 0
+
+	for len(*batch) < cap(*batch) {
+		e, ok := s.queue.peek()
+		if !ok {
+			break
+		}
+		// If we already added a sample for the same series to the batch, stop
+		// the filling entirely.
+		if _, ok := s.seen[e.hash]; ok {
+			break
+		}
+		s.queue.remove()
+
+		*batch = append(*batch, e.sample)
+		s.seen[e.hash] = struct{}{}
+		n++
+	}
+
+	if n > 0 {
+		s.setPending(true)
+		shardProcessSamplesTaken.Observe(float64(n))
+	}
+	// Clear seen cache. Because the shard is now pending, we won't add any more data
+	// to the batch, even if fill was called again.
+	for k := range s.seen {
+		delete(s.seen, k)
+	}
+	return n
+}
+
+func (s *shard) setPending(b bool) {
 	// This case should never happen in our usage of shards unless there is a bug.
 	if s.pending == b {
 		panic(fmt.Sprintf("pending set to %v while it already was", b))
 	}
 	s.pending = b
-	s.mtx.Unlock()
+}
+
+func (s *shard) notifyBatchDone() {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.setPending(false)
+}
+
+type queue struct {
+	buf        []queueEntry
+	head, tail int
+	len        int
+}
+
+type queueEntry struct {
+	hash   uint64
+	sample *monitoring_pb.TimeSeries
+}
+
+func newQueue(size int) *queue {
+	return &queue{buf: make([]queueEntry, size)}
+}
+
+func (q *queue) length() int {
+	return q.len
+}
+
+func (q *queue) add(e queueEntry) bool {
+	if q.len == len(q.buf) {
+		return false
+	}
+	q.buf[q.tail] = e
+	q.tail = (q.tail + 1) % len(q.buf)
+	q.len++
+
+	return true
+}
+
+func (q *queue) peek() (queueEntry, bool) {
+	if q.len < 1 {
+		return queueEntry{}, false
+	}
+	return q.buf[q.head], true
+}
+
+func (q *queue) remove() bool {
+	if q.len < 1 {
+		return false
+	}
+	q.buf[q.head] = queueEntry{} // resetting makes debugging easier
+	q.head = (q.head + 1) % len(q.buf)
+	q.len--
+
+	return true
 }
 
 // Storage provides a stateful wrapper around an Exporter that implements
