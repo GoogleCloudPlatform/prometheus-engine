@@ -237,7 +237,7 @@ func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, f
 
 const (
 	// Maximum number of labels allowed on GCM series.
-	maxLabelCount = 10
+	maxLabelCount = 100
 	// Prefix for GCM metric
 	metricTypePrefix = "external.googleapis.com/gpe"
 )
