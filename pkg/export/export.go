@@ -632,7 +632,7 @@ func NewStorage(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts)
 	if err != nil {
 		return nil, err
 	}
-	e.ApplyConfig(&config.Config{})
+	exporter.ApplyConfig(&config.Config{})
 	s := &Storage{
 		exporter: exporter,
 		labels:   map[uint64]labels.Labels{},
