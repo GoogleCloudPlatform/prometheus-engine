@@ -69,6 +69,11 @@ func QueryFunc(ctx context.Context, q string, t time.Time) (promql.Vector, error
 	return convertValueToVector(results)
 }
 
+// NotifyFunc sends alerts to GCM
+func NotifyFunc(ctx context.Context, expr string, alerts ...*rules.Alert) {
+	// send alerts
+}
+
 func main() {
 	logger := log.NewLogfmtLogger(os.Stderr)
 
@@ -99,6 +104,7 @@ func main() {
 		Appendable:  destination,
 		Queryable:   storage.QueryableFunc(noopQueryable),
 		Logger:      logger,
+		NotifyFunc:  NotifyFunc,
 	}
 
 	manager := rules.NewManager(managerOptions)

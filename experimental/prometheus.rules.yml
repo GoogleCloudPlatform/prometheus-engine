@@ -5,13 +5,13 @@ groups:
     expr: up
   # - record: job:http_inprogress_requests:sum
   #   expr: avg by (job, instance, mode) (rate(node_cpu_seconds_total[5m]))
-  # - alert: HighRequestLatency
-  #   expr: job:request_latency_seconds:mean5m{job="myjob"} > 0.5
-  #   for: 10m
-  #   labels:
-  #     severity: page
-  #   annotations:
-  #     summary: High request latency
+  - alert: HighRequestLatency
+    expr: job:request_latency_seconds:mean5m{job="myjob"} > 0.5
+    for: 10m
+    labels:
+      severity: page
+    annotations:
+      summary: High request latency
   # Alert for any instance that is unreachable for >5 minutes.
   # - alert: InstanceDown
   #   expr: up == 0
