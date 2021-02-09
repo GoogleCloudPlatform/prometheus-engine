@@ -222,6 +222,7 @@ const (
 )
 
 // ApplyConfig updates the exporter state to the given configuration.
+// Must be called at least once before Export() can be used.
 func (e *Exporter) ApplyConfig(cfg *config.Config) error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
@@ -632,7 +633,9 @@ func NewStorage(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts)
 	if err != nil {
 		return nil, err
 	}
+	// Call ApplyConfig once with an empty config so it can initialize the exporter state properly.
 	exporter.ApplyConfig(&config.Config{})
+
 	s := &Storage{
 		exporter: exporter,
 		labels:   map[uint64]labels.Labels{},
