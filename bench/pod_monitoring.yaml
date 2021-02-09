@@ -1,0 +1,14 @@
+apiVersion: monitoring.googleapis.com/v1alpha1
+kind: PodMonitoring
+metadata:
+  namespace: default
+  name: example-app
+  labels:
+    app.kubernetes.io/name: example-app
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: example-app
+  endpoints:
+  - port: web
+    interval: 30s
