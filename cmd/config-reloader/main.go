@@ -44,6 +44,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	var watchedDirs []string
+	if *watchedDir != "" {
+		watchedDirs = append(watchedDirs, *watchedDir)
+	}
+
 	rel := reloader.New(
 		logger,
 		metrics,
@@ -51,7 +56,7 @@ func main() {
 			ReloadURL:     reloadURL,
 			CfgFile:       *configFile,
 			CfgOutputFile: *configFileOutput,
-			WatchedDirs:   []string{*watchedDir},
+			WatchedDirs:   watchedDirs,
 			// There are some reliability issues with fsnotify picking up file changes.
 			// Configure a very aggress refresh for now. The reloader will only send reload signals
 			// to Prometheus if the contents actually changed. So this should not have any practical

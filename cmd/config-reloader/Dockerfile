@@ -1,8 +1,12 @@
-# TODO(freinartz): pick a proper base image and figure out how to build the reloader for it
-# The standard busybox image appears to have linking issues with naively build Go executables.
-FROM golang:latest
-LABEL maintainer="The Google Prometheus Engine Authors"
+ARG APP=config-reloader
 
-COPY ./config-reloader /reloader
+FROM golang:1.15-buster AS builder
+ARG APP
+WORKDIR /app
+COPY . ./
+RUN CGO_ENABLED=0 go build -mod=vendor -o ${APP} cmd/${APP}/*.go
 
-ENTRYPOINT [ "/reloader" ]
+FROM gcr.io/distroless/static:latest
+ARG APP
+COPY --from=builder /app/${APP} /bin/${APP}
+ENTRYPOINT ["/bin/config-reloader"]
