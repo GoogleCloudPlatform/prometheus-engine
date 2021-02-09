@@ -10,6 +10,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/common v0.14.0
 	github.com/prometheus/prometheus v1.8.2-0.20201101200738-7558e9d3c374
 	google.golang.org/api v0.33.0
 	google.golang.org/genproto v0.0.0-20201019141844-1ed22bb0c154

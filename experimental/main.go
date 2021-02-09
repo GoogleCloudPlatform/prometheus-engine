@@ -2,14 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"net/url"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/gpe-collector/pkg/export"
@@ -17,88 +12,61 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/api"
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/storage"
 )
 
-type jsonResponse struct {
-	Status string `json:"status"`
-	Data   data   `json:"data"`
-}
-
-type vector []sample
-
-type data struct {
-	Results vector `json:"result"`
-}
-
-type sample struct {
-	Value  point         `json:"value"`
-	Metric labels.Labels `json:"metric"`
-}
-
-type point struct {
-	T int64
-	V float64
-}
-
-func (p *point) UnmarshalJSON(b []byte) error {
-	// input format b = [float64,string]
-	// output format p = [int64,float64]
-	s := string(b)
-	if s[0] != '[' || s[len(s)-1] != ']' {
-		return errors.Errorf("Missing open or close bracket", s)
+// convertValueToVector converts model.Value type to promql.Vector type
+func convertValueToVector(val model.Value) (promql.Vector, error) {
+	results, ok := val.(model.Vector)
+	if !ok {
+		return nil, errors.Errorf("Expected Prometheus results of type vector. Actual results type: %v\n", results.Type())
 	}
-	s = s[1 : len(s)-1] // remove brackets
-	m := strings.Split(s, ",")
-	if len(m) != 2 {
-		return errors.Errorf("Expected two values, recieved %d value(s)", len(m))
-	}
-	T, err := strconv.ParseFloat(m[0], 64)
-	if err != nil {
-		return err
-	}
-	p.T = int64(T * 1000)
-	V, err := strconv.Unquote(m[1])
-	if err != nil {
-		return err
-	}
-	p.V, err = strconv.ParseFloat(V, 64)
-	if err != nil {
-		return err
-	}
-	return err
-}
-
-func QueryFunc(ctx context.Context, q string, t time.Time) (promql.Vector, error) {
-	path := url.QueryEscape(q)
-	target := "http://localhost:9090/api/v1/query?query=" + path
-	res, err := http.Get(target)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	respText, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	var jsonResp jsonResponse
-	if err := json.Unmarshal(respText, &jsonResp); err != nil {
-		return nil, err
-	}
-
-	//TODO: this block is only necessary to make a vector of type promql.Vector, should be fixed by moving the methods to value.go
-	v := make(promql.Vector, len(jsonResp.Data.Results))
-	for i, result := range jsonResp.Data.Results {
+	v := make(promql.Vector, len(results))
+	for i, result := range results {
+		ls := make(labels.Labels, 0, len(result.Metric))
+		for name, value := range result.Metric {
+			l := labels.Label{
+				Name:  string(name),
+				Value: string(value),
+			}
+			ls = append(ls, l)
+		}
 		s := promql.Sample{
-			Point:  promql.Point(result.Value),
-			Metric: result.Metric,
+			Point: promql.Point{
+				T: int64(result.Timestamp),
+				V: float64(result.Value),
+			},
+			Metric: ls,
 		}
 		v[i] = s
 	}
-	return v, err
+	return v, nil
+}
+
+// QueryFunc queries a Prometheus instance and returns a promql.Vector
+func QueryFunc(ctx context.Context, q string, t time.Time) (promql.Vector, error) {
+	client, err := api.NewClient(api.Config{
+		Address: "http://localhost:9090/",
+	})
+	if err != nil {
+		return nil, errors.Errorf("Error creating client: %v\n", err)
+	}
+	v1api := v1.NewAPI(client)
+	results, warnings, err := v1api.Query(ctx, q, time.Now())
+	if err != nil {
+		return nil, errors.Errorf("Error querying Prometheus: %v\n", err)
+	}
+	if len(warnings) > 0 { //TODO(maxamin): use logger rather than Printf
+		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	return convertValueToVector(results)
 }
 
 func main() {
