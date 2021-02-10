@@ -51,9 +51,9 @@ func convertValueToVector(val model.Value) (promql.Vector, error) {
 }
 
 // QueryFunc queries a Prometheus instance and returns a promql.Vector
-func QueryFunc(ctx context.Context, q string, t time.Time) (promql.Vector, error) {
+func QueryFunc(ctx context.Context, targetURL, q string, t time.Time) (promql.Vector, error) {
 	client, err := api.NewClient(api.Config{
-		Address: "http://localhost:9090/",
+		Address: targetURL,
 	})
 	if err != nil {
 		return nil, errors.Errorf("Error creating client: %v\n", err)
@@ -75,6 +75,9 @@ func main() {
 	a := kingpin.New("rule", "The Prometheus Rule Evaluator")
 	exporterOptions := export.NewFlagOptions(a)
 
+	targetURL := a.Flag("target-url", "Prometheus instance URL").Required().String()
+	ruleFiles := a.Flag("rule-file", "Rule file").Required().Strings()
+
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing commandline arguments"))
@@ -92,9 +95,13 @@ func main() {
 		return storage.NoopQuerier(), nil
 	}
 
+	queryFunc := func(ctx context.Context, q string, t time.Time) (promql.Vector, error) {
+		return QueryFunc(ctx, *targetURL, q, t)
+	}
+
 	managerOptions := &rules.ManagerOptions{
 		ExternalURL: &url.URL{},
-		QueryFunc:   QueryFunc,
+		QueryFunc:   queryFunc,
 		Context:     context.Background(),
 		Appendable:  destination,
 		Queryable:   storage.QueryableFunc(noopQueryable),
@@ -102,7 +109,7 @@ func main() {
 	}
 
 	manager := rules.NewManager(managerOptions)
-	err = manager.Update(time.Second*10, []string{"experimental/prometheus.rules.yml"}, nil)
+	err = manager.Update(time.Second*10, *ruleFiles, nil)
 	if err != nil {
 		logger.Log("msg", "Updating rule manager failed", "err", err)
 		os.Exit(1)
