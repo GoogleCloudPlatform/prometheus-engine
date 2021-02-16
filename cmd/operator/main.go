@@ -62,6 +62,7 @@ func main() {
 			unstableFlagHelp("Override for the container image of the collector."))
 		imageConfigReloader = flag.String("image-config-reloader", operator.ImageConfigReloader,
 			unstableFlagHelp("Override for the container image of the config reloader."))
+		priorityClass = flag.String("priority-class", "", "Priority class at which the collector pods are run.")
 	)
 	flag.Parse()
 
@@ -80,6 +81,7 @@ func main() {
 		Namespace:           *namespace,
 		ImageCollector:      *imageCollector,
 		ImageConfigReloader: *imageConfigReloader,
+		PriorityClass:       *priorityClass,
 	})
 	if err != nil {
 		level.Error(logger).Log("msg", "instantiating operator failed", "err", err)

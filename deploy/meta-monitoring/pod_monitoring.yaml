@@ -11,6 +11,6 @@ spec:
       app.kubernetes.io/name: collector
   endpoints:
   - port: prometheus-http
-    interval: 30s
+    interval: 10s
   - port: reloader-http
-    interval: 30s
+    interval: 10s

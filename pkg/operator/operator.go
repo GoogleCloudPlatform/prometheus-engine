@@ -22,6 +22,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
@@ -43,7 +44,7 @@ const DefaultNamespace = "gpe-system"
 // and emergency use cases they may be overwritten through options.
 // TODO(freinartz): start setting official versioned images once we start releases.
 const (
-	ImageCollector      = "gcr.io/gpe-test-1/prometheus:test-1"
+	ImageCollector      = "gcr.io/gpe-test-1/prometheus:test-14"
 	ImageConfigReloader = "gcr.io/gpe-test-1/config-reloader:0.0.9"
 )
 
@@ -72,6 +73,8 @@ type Options struct {
 	ImageCollector string
 	// Image for the Prometheus config reloader.
 	ImageConfigReloader string
+	// Priority class for the collector pods.
+	PriorityClass string
 }
 
 func (o *Options) defaultAndValidate(logger log.Logger) error {
@@ -314,11 +317,25 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 					{
 						Name:  "prometheus",
 						Image: o.opts.ImageCollector,
+						// Set an aggressive GC threshold (default is 100%). Since the collector has a lot of
+						// long-lived allocations, this still doesn't result in a high GC rate (compared to stateless
+						// RPC applications) and gives us a more balanced ratio of memory and CPU usage.
+						Env: []corev1.EnvVar{
+							{Name: "GOGC", Value: "25"},
+						},
 						Args: []string{
 							fmt.Sprintf("--config.file=%s", path.Join(collectorConfigOutDir, collectorConfigFilename)),
 							"--storage.tsdb.path=/prometheus/data",
-							"--storage.tsdb.retention.time=24h",
 							"--storage.tsdb.no-lockfile",
+							// Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
+							// the containers memory usage. We could lower it further if this becomes problematic, but
+							// it the window for local data is quite convenient for debugging.
+							"--storage.tsdb.retention.time=30m",
+							"--storage.tsdb.wal-compression",
+							// Effectively disable compaction and make blocks short enough so that our retention window
+							// can be kept in practice.
+							"--storage.tsdb.min-block-duration=10m",
+							"--storage.tsdb.max-block-duration=10m",
 							"--web.listen-address=:9090",
 							"--web.enable-lifecycle",
 							"--web.route-prefix=/",
@@ -331,6 +348,16 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 								Name:      collectorConfigOutVolumeName,
 								MountPath: collectorConfigOutDir,
 								ReadOnly:  true,
+							},
+						},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(100, resource.Milli),
+								corev1.ResourceMemory: *resource.NewScaledQuantity(200, resource.Mega),
+							},
+							// Set no limit on CPU as it's a throttled resource.
+							Limits: corev1.ResourceList{
+								corev1.ResourceMemory: *resource.NewScaledQuantity(3000, resource.Mega),
 							},
 						},
 					}, {
@@ -366,6 +393,16 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 								MountPath: collectorConfigOutDir,
 							},
 						},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(5, resource.Milli),
+								corev1.ResourceMemory: *resource.NewScaledQuantity(16, resource.Mega),
+							},
+							// Set no limit on CPU as it's a throttled resource.
+							Limits: corev1.ResourceList{
+								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
+							},
+						},
 					},
 				},
 				Volumes: []corev1.Volume{
@@ -386,6 +423,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 					},
 				},
 				ServiceAccountName: CollectorName,
+				PriorityClassName:  o.opts.PriorityClass,
 			},
 		},
 	}
