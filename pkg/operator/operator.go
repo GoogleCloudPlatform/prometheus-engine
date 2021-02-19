@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"regexp"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -20,12 +23,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
 	clientset "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned"
 	informers "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions"
 )
@@ -38,7 +43,7 @@ const DefaultNamespace = "gpe-system"
 // TODO(freinartz): start setting official versioned images once we start releases.
 const (
 	ImageCollector      = "gcr.io/gpe-test-1/prometheus:test-1"
-	ImageConfigReloader = "gcr.io/gpe-test-1/config-reloader:0.0.8"
+	ImageConfigReloader = "gcr.io/gpe-test-1/config-reloader:0.0.9"
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.
@@ -286,7 +291,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 							"--web.route-prefix=/",
 						},
 						Ports: []corev1.ContainerPort{
-							{Name: "http", ContainerPort: 9090},
+							{Name: "prometheus-http", ContainerPort: 9090},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
@@ -316,7 +321,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 							},
 						},
 						Ports: []corev1.ContainerPort{
-							{Name: "http", ContainerPort: 9091},
+							{Name: "reloader-http", ContainerPort: 9091},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
@@ -363,7 +368,11 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 
 // ensureCollectorConfig generates the collector config and creates or updates it.
 func (o *Operator) ensureCollectorConfig(ctx context.Context) error {
-	cfg, err := yaml.Marshal(o.makeCollectorConfig())
+	cfg, err := o.makeCollectorConfig()
+	if err != nil {
+		return errors.Wrap(err, "generate Prometheus config")
+	}
+	cfgEncoded, err := yaml.Marshal(cfg)
 	if err != nil {
 		return errors.Wrap(err, "marshal Prometheus config")
 	}
@@ -372,7 +381,7 @@ func (o *Operator) ensureCollectorConfig(ctx context.Context) error {
 			Name: collectorName,
 		},
 		Data: map[string]string{
-			collectorConfigFilename: string(cfg),
+			collectorConfigFilename: string(cfgEncoded),
 		},
 	}
 	_, err = o.kubeClient.CoreV1().ConfigMaps(o.opts.Namespace).Update(ctx, cm, metav1.UpdateOptions{})
@@ -387,38 +396,205 @@ func (o *Operator) ensureCollectorConfig(ctx context.Context) error {
 	return nil
 }
 
-func (o *Operator) makeCollectorConfig() *promconfig.Config {
-	// Generate a config that attempts to scrape all containers with a port named http on /metrics.
-	// This will at least make the collector scrape itself.
-	// TODO(freinartz): generate these based on the ServiceMonitoring and PodMonitoring resources.
+func (o *Operator) makeCollectorConfig() (*promconfig.Config, error) {
+	var svcmons []*monitoringv1alpha1.ServiceMonitoring
+
+	err := cache.ListAll(o.informerServiceMonitoring.GetStore(), labels.Everything(), func(obj interface{}) {
+		svcmons = append(svcmons, obj.(*monitoringv1alpha1.ServiceMonitoring))
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list namespaces")
+	}
+	// Generate a separate scrape job for every endpoint in every ServiceMonitoring.
+	var scrapeCfgs []*promconfig.ScrapeConfig
+
+	for _, svcmon := range svcmons {
+		for i := range svcmon.Spec.Endpoints {
+			scrapeCfg, err := makeScrapeConfig(svcmon, i)
+			if err != nil {
+				// Only log a warning on error to not make reconciliation as a whole fail due to on bad resource.
+				// As we will ultimately implement a validation webhook, we just log a warning here and don't propagate
+				// the issue to the ServiceMonitoring's status section.
+				//
+				// TODO(freinartz): implement webhooks. Consider calling the same function as part of the validation
+				// to ensure they always match.
+				level.Warn(o.logger).Log("msg", "generating scrape config failed for ServiceMonitoring endpoint",
+					"err", err, "namespace", svcmon.Namespace, "name", svcmon.Name, "endpoint", i)
+				continue
+			}
+			scrapeCfgs = append(scrapeCfgs, scrapeCfg)
+		}
+	}
+	// Sort to ensure reproducible configs.
+	sort.Slice(scrapeCfgs, func(i, j int) bool {
+		return scrapeCfgs[i].JobName < scrapeCfgs[j].JobName
+	})
 	return &promconfig.Config{
-		ScrapeConfigs: []*promconfig.ScrapeConfig{
-			{
-				JobName:        "test",
-				ScrapeInterval: prommodel.Duration(30 * time.Second),
-				ServiceDiscoveryConfigs: discovery.Configs{
-					&discoverykube.SDConfig{
-						Role: discoverykube.RolePod,
-						// Drop all potential targets not the same node as the collector. The $(NODE_NAME) variable
-						// is interpolated by the config reloader sidecar before the config reaches the Prometheus collector.
-						// Doing it through selectors rather than relabeling should substantially reduce the client and
-						// server side load.
-						Selectors: []discoverykube.SelectorConfig{
-							{
-								Role:  discoverykube.RolePod,
-								Field: "spec.nodeName=$(NODE_NAME)",
-							},
-						},
-					},
-				},
-				RelabelConfigs: []*relabel.Config{
-					{
-						Action:       relabel.Keep,
-						SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_port_name"},
-						Regex:        relabel.MustNewRegexp("http"),
-					},
+		ScrapeConfigs: scrapeCfgs,
+	}, nil
+}
+
+func makeScrapeConfig(svcmon *monitoringv1alpha1.ServiceMonitoring, index int) (*promconfig.ScrapeConfig, error) {
+	// Configure how Prometheus talks to the Kubernetes API server to discover targets.
+	// This configuration is the same for all scrape jobs (esp. selectors).
+	// This ensures that Prometheus can reuse the underlying client and caches, which reduces
+	// load on the Kubernetes API server.
+	discoveryCfgs := discovery.Configs{
+		&discoverykube.SDConfig{
+			// While our pod cache can be constrained by the node we run on, the Endpoints resources
+			// are mirrored entirely. We should keep an eye on the load this produces as they are upgraded
+			// whenever a pod is scheduled.
+			// If every single pod causes updates to a collector on every single node, this may not scale
+			// well in large clusters. As a last resort we can always write our own logic that produces
+			// static Prometheus scrape configurations.
+			Role: discoverykube.RoleEndpoint,
+			// Drop all potential targets not the same node as the collector. The $(NODE_NAME) variable
+			// is interpolated by the config reloader sidecar before the config reaches the Prometheus collector.
+			// Doing it through selectors rather than relabeling should substantially reduce the client and
+			// server side load.
+			Selectors: []discoverykube.SelectorConfig{
+				{
+					Role:  discoverykube.RolePod,
+					Field: "spec.nodeName=$(NODE_NAME)",
 				},
 			},
 		},
 	}
+
+	ep := svcmon.Spec.Endpoints[index]
+
+	scrapeInterval, err := prommodel.ParseDuration(ep.ScrapeInterval)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid scrape interval")
+	}
+	scrapeTimeout := scrapeInterval
+	if ep.ScrapeTimeout != "" {
+		scrapeTimeout, err = prommodel.ParseDuration(ep.ScrapeTimeout)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid scrape timeout")
+		}
+	}
+
+	metricsPath := "/metrics"
+	if ep.Path != "" {
+		metricsPath = ep.Path
+	}
+
+	// TODO(freinartz): validate all generated regular expressions.
+	relabelCfgs := []*relabel.Config{
+		// Filter all pods not running on this node. The label won't exist in the first place for pods
+		// already filtered by the selector in the discovery config. But doing a full equality
+		// check makes us less dependent on that.
+		{
+			Action:       relabel.Keep,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_node_name"},
+			Regex:        relabel.MustNewRegexp("$(NODE_NAME)"),
+		},
+		// Filter targets by namespace of the ServiceMonitoring configuration.
+		{
+			Action:       relabel.Keep,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
+			Regex:        relabel.MustNewRegexp(svcmon.Namespace),
+		},
+	}
+
+	// Filter targets that belong to selected services.
+
+	// Simple equal matchers. Sort by keys first to ensure that generated configs are reproducible.
+	// (Go map iteration is non-deterministic.)
+	var selectorKeys []string
+	for k := range svcmon.Spec.Selector.MatchLabels {
+		selectorKeys = append(selectorKeys, k)
+	}
+	sort.Strings(selectorKeys)
+
+	for _, k := range selectorKeys {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Keep,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_label_" + sanitizeLabelName(k)},
+			Regex:        relabel.MustNewRegexp(svcmon.Spec.Selector.MatchLabels[k]),
+		})
+	}
+	// Expression matchers are mapped to relabeling rules with the same behavior.
+	for _, exp := range svcmon.Spec.Selector.MatchExpressions {
+		switch exp.Operator {
+		case metav1.LabelSelectorOpIn:
+			relabelCfgs = append(relabelCfgs, &relabel.Config{
+				Action:       relabel.Keep,
+				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_label_" + sanitizeLabelName(exp.Key)},
+				Regex:        relabel.MustNewRegexp(strings.Join(exp.Values, "|")),
+			})
+		case metav1.LabelSelectorOpNotIn:
+			relabelCfgs = append(relabelCfgs, &relabel.Config{
+				Action:       relabel.Drop,
+				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_label_" + sanitizeLabelName(exp.Key)},
+				Regex:        relabel.MustNewRegexp(strings.Join(exp.Values, "|")),
+			})
+		case metav1.LabelSelectorOpExists:
+			relabelCfgs = append(relabelCfgs, &relabel.Config{
+				Action:       relabel.Keep,
+				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_labelpresent_" + sanitizeLabelName(exp.Key)},
+				Regex:        relabel.MustNewRegexp("true"),
+			})
+		case metav1.LabelSelectorOpDoesNotExist:
+			relabelCfgs = append(relabelCfgs, &relabel.Config{
+				Action:       relabel.Drop,
+				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_labelpresent_" + sanitizeLabelName(exp.Key)},
+				Regex:        relabel.MustNewRegexp("true"),
+			})
+		}
+	}
+
+	// Set a clean namespace, job, and instance label that provide sufficient uniqueness.
+	relabelCfgs = append(relabelCfgs, &relabel.Config{
+		Action:       relabel.Replace,
+		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
+		TargetLabel:  "namespace",
+	})
+	relabelCfgs = append(relabelCfgs, &relabel.Config{
+		Action:       relabel.Replace,
+		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_name"},
+		TargetLabel:  "job",
+	})
+	// The instance label being the pod name would be ideal UX-wise. But we cannot be certain
+	// that multiple metrics endpoints on a pod don't expose metrics with the same name. Thus
+	// we have to disambiguate along the port as well.
+	relabelCfgs = append(relabelCfgs, &relabel.Config{
+		Action:       relabel.Replace,
+		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name", "__meta_kubernetes_endpoint_port_name"},
+		Regex:        relabel.MustNewRegexp("(.+);(.+)"),
+		Replacement:  "$1:$2",
+		TargetLabel:  "instance",
+	})
+
+	// Filter targets by the configured port.
+	if ep.Port == nil {
+		return nil, errors.New("port missing")
+	}
+	if ep.Port.StrVal == "" {
+		return nil, errors.New("named port must be set for ServiceMonitoring")
+	}
+	relabelCfgs = append(relabelCfgs, &relabel.Config{
+		Action:       relabel.Keep,
+		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_endpoint_port_name"},
+		Regex:        relabel.MustNewRegexp(ep.Port.StrVal),
+	})
+
+	return &promconfig.ScrapeConfig{
+		// Generate a job name to make it easy to track what generated the scrape configuration.
+		// The actual job label attached to its metrics is overwritten via relabeling.
+		JobName:                 fmt.Sprintf("ServiceMonitoring/%s/%s/%d", svcmon.Namespace, svcmon.Name, index),
+		ServiceDiscoveryConfigs: discoveryCfgs,
+		MetricsPath:             metricsPath,
+		ScrapeInterval:          scrapeInterval,
+		ScrapeTimeout:           scrapeTimeout,
+		RelabelConfigs:          relabelCfgs,
+	}, nil
+}
+
+var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
+
+// sanitizeLabelName reproduces the label name cleanup Prometheus's service discovery applies.
+func sanitizeLabelName(name string) prommodel.LabelName {
+	return prommodel.LabelName(invalidLabelCharRE.ReplaceAllString(name, "_"))
 }
