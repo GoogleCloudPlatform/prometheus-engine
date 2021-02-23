@@ -113,10 +113,12 @@ type ExporterOpts struct {
 	// The cluster identifier used for the monitored resource of exported data.
 	Cluster string
 
-	// Test endpoint to send data to instead of GCM API
-	TestEndpoint string
+	// GCM API endpoint to send metric data to.
+	Endpoint string
 	// Credentials file for authentication with the GCM API.
 	CredentialsFile string
+	// Disable authentication (for debugging purposes).
+	DisableAuth bool
 
 	// Maximum batch size to use when sending data to the GCM API. The default
 	// maximum will be used if set to 0.
@@ -136,28 +138,31 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 		opts.Cluster, _ = metadata.InstanceAttributeValue("cluster-name")
 	}
 
-	a.Flag("gcm.experimental.disable", "Disable exporting to GCM.").
+	a.Flag("gcm.disable", "Disable exporting to GCM.").
 		Default("false").BoolVar(&opts.Disable)
 
-	a.Flag("gcm.experimental.project_id", "Google Cloud project ID to which data is sent.").
+	a.Flag("gcm.project_id", "Google Cloud project ID to which data is sent.").
 		Default(opts.ProjectID).StringVar(&opts.ProjectID)
 
 	// The location and cluster flag should probably not be used. On the other hand, they make it easy
 	// to populate these important values in the monitored resource without interfering with existing
 	// Prometheus configuration.
-	a.Flag("gcm.experimental.location", fmt.Sprintf("The location set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", keyLocation)).
+	a.Flag("gcm.label.location", fmt.Sprintf("The location set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", keyLocation)).
 		Default(opts.Location).StringVar(&opts.Location)
 
-	a.Flag("gcm.experimental.cluster", fmt.Sprintf("The cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", keyCluster)).
+	a.Flag("gcm.label.cluster", fmt.Sprintf("The cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", keyCluster)).
 		Default(opts.Cluster).StringVar(&opts.Cluster)
 
-	a.Flag("gcm.experimental.test_endpoint", "Test endpoint to send data to instead of GCM API.").
-		StringVar(&opts.TestEndpoint)
+	a.Flag("gcm.endpoint", "GCM API endpoint to send metric data to.").
+		Default("monitoring.googleapis.com:443").StringVar(&opts.Endpoint)
 
-	a.Flag("gcm.experimental.credentials_file", "Credentials file for authentication with the GCM API.").
+	a.Flag("gcm.credentials-file", "Credentials file for authentication with the GCM API.").
 		StringVar(&opts.CredentialsFile)
 
-	a.Flag("gcm.experimental.batch_size", "Maximum number of points to send in one batch to the GCM API.").
+	a.Flag("gcm.debug.disable-auth", "Disable authentication (for debugging purposes).").
+		Default("false").BoolVar(&opts.DisableAuth)
+
+	a.Flag("gcm.debug.batch-size", "Maximum number of points to send in one batch to the GCM API.").
 		Default(strconv.Itoa(batchSizeMax)).UintVar(&opts.BatchSize)
 
 	return &opts
@@ -332,9 +337,11 @@ func (e *Exporter) Run(ctx context.Context) error {
 	clientOpts := []option.ClientOption{
 		option.WithGRPCDialOption(grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor)),
 	}
-	if e.opts.TestEndpoint != "" {
+	if e.opts.Endpoint != "" {
+		clientOpts = append(clientOpts, option.WithEndpoint(e.opts.Endpoint))
+	}
+	if e.opts.DisableAuth {
 		clientOpts = append(clientOpts,
-			option.WithEndpoint(e.opts.TestEndpoint),
 			option.WithoutAuthentication(),
 			option.WithGRPCDialOption(grpc.WithInsecure()),
 		)

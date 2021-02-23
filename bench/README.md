@@ -15,7 +15,7 @@ Define the cluster name, location, and scale:
 BASE_DIR=$(git rev-parse --show-toplevel)
 PROJECT_ID=$(gcloud config get-value core/project)
 ZONE=us-central1-b # recommended for benchmarks
-CLUSTER=gpe-bench
+CLUSTER=gpe-"bench-$USER"
 NODE_COUNT=5
 NODE_TYPE=e2-medium
 ```
@@ -97,7 +97,8 @@ doesn't affect any behavior but makes quick iteration quicker.
 go run $BASE_DIR/cmd/operator/*.go \
   --image-collector="$PROMETHEUS_IMAGE" \
   --image-config-reloader="$RELOADER_IMAGE" \
-  --priority-class=gpe-critical
+  --priority-class=gpe-critical \
+  --cloud-monitoring-endpoint=staging-monitoring.sandbox.googleapis.com:443
 ```
 
 You may terminate the operator, rebuild images as needed by following the steps above, and
@@ -119,7 +120,7 @@ being scraped via the following MQL query (substitute the `$CLUSTER` name manual
 
 ```
 fetch prometheus_target
-| metric 'external.googleapis.com/gpe/gauge/up'
+| metric 'external.googleapis.com/gpe/up/gauge'
 | filter (resource.cluster == '$CLUSTER')
 | group_by [resource.job], [sum(val())]
 ```
@@ -129,13 +130,13 @@ Further interesting cluster-wide queries are:
 ```
 # Number of active streams by job.
 fetch prometheus_target
-| metric 'external.googleapis.com/gpe/gauge/scrape_samples_scraped'
+| metric 'external.googleapis.com/gpe/scrape_samples_scraped/gauge'
 | filter resource.cluster == '$CLUSTER'
 | group_by [resource.job], [sum(val())]
 
 # Total number of scraped Prometheus samples per second.
 fetch prometheus_target
-| metric 'external.googleapis.com/gpe/counter/prometheus_tsdb_head_samples_appended_total'
+| metric 'external.googleapis.com/gpe/prometheus_tsdb_head_samples_appended_total/counter'
 | filter resource.cluster == '$CLUSTER'
 | align rate(1m)
 | every 1m

@@ -54,15 +54,21 @@ func main() {
 		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
 	var (
-		apiserverURL = flag.String("apiserver", "", "help")
-		logLevel     = flag.String("log-level", logLevelInfo, fmt.Sprintf("Log level to use. Possible values: %s", strings.Join(validLogLevels, ", ")))
-		namespace    = flag.String("namespace", operator.DefaultNamespace, "Namespace in which the operator manages its resources.")
+		apiserverURL = flag.String("apiserver", "",
+			"URL to the Kubernetes API server.")
+		logLevel = flag.String("log-level", logLevelInfo,
+			fmt.Sprintf("Log level to use. Possible values: %s", strings.Join(validLogLevels, ", ")))
+		namespace = flag.String("namespace", operator.DefaultNamespace,
+			"Namespace in which the operator manages its resources.")
 
 		imageCollector = flag.String("image-collector", operator.ImageCollector,
 			unstableFlagHelp("Override for the container image of the collector."))
 		imageConfigReloader = flag.String("image-config-reloader", operator.ImageConfigReloader,
 			unstableFlagHelp("Override for the container image of the config reloader."))
-		priorityClass = flag.String("priority-class", "", "Priority class at which the collector pods are run.")
+		priorityClass = flag.String("priority-class", "",
+			"Priority class at which the collector pods are run.")
+		gcmEndpoint = flag.String("cloud-monitoring-endpoint", "",
+			"Override for the Cloud Monitoring endpoint to use for all collectors.")
 	)
 	flag.Parse()
 
@@ -78,10 +84,11 @@ func main() {
 		os.Exit(1)
 	}
 	op, err := operator.New(logger, cfg, operator.Options{
-		Namespace:           *namespace,
-		ImageCollector:      *imageCollector,
-		ImageConfigReloader: *imageConfigReloader,
-		PriorityClass:       *priorityClass,
+		Namespace:               *namespace,
+		ImageCollector:          *imageCollector,
+		ImageConfigReloader:     *imageConfigReloader,
+		PriorityClass:           *priorityClass,
+		CloudMonitoringEndpoint: *gcmEndpoint,
 	})
 	if err != nil {
 		level.Error(logger).Log("msg", "instantiating operator failed", "err", err)

@@ -75,6 +75,8 @@ type Options struct {
 	ImageConfigReloader string
 	// Priority class for the collector pods.
 	PriorityClass string
+	// Endpoint of the Cloud Monitoring API to be used by all collectors.
+	CloudMonitoringEndpoint string
 }
 
 func (o *Options) defaultAndValidate(logger log.Logger) error {
@@ -304,6 +306,28 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	podLabels := map[string]string{
 		LabelAppName: CollectorName,
 	}
+
+	collectorArgs := []string{
+		fmt.Sprintf("--config.file=%s", path.Join(collectorConfigOutDir, collectorConfigFilename)),
+		"--storage.tsdb.path=/prometheus/data",
+		"--storage.tsdb.no-lockfile",
+		// Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
+		// the containers memory usage. We could lower it further if this becomes problematic, but
+		// it the window for local data is quite convenient for debugging.
+		"--storage.tsdb.retention.time=30m",
+		"--storage.tsdb.wal-compression",
+		// Effectively disable compaction and make blocks short enough so that our retention window
+		// can be kept in practice.
+		"--storage.tsdb.min-block-duration=10m",
+		"--storage.tsdb.max-block-duration=10m",
+		"--web.listen-address=:9090",
+		"--web.enable-lifecycle",
+		"--web.route-prefix=/",
+	}
+	if o.opts.CloudMonitoringEndpoint != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--gcm.endpoint=%s", o.opts.CloudMonitoringEndpoint))
+	}
+
 	spec := appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: podLabels,
@@ -323,23 +347,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						Env: []corev1.EnvVar{
 							{Name: "GOGC", Value: "25"},
 						},
-						Args: []string{
-							fmt.Sprintf("--config.file=%s", path.Join(collectorConfigOutDir, collectorConfigFilename)),
-							"--storage.tsdb.path=/prometheus/data",
-							"--storage.tsdb.no-lockfile",
-							// Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
-							// the containers memory usage. We could lower it further if this becomes problematic, but
-							// it the window for local data is quite convenient for debugging.
-							"--storage.tsdb.retention.time=30m",
-							"--storage.tsdb.wal-compression",
-							// Effectively disable compaction and make blocks short enough so that our retention window
-							// can be kept in practice.
-							"--storage.tsdb.min-block-duration=10m",
-							"--storage.tsdb.max-block-duration=10m",
-							"--web.listen-address=:9090",
-							"--web.enable-lifecycle",
-							"--web.route-prefix=/",
-						},
+						Args: collectorArgs,
 						Ports: []corev1.ContainerPort{
 							{Name: "prometheus-http", ContainerPort: 9090},
 						},
