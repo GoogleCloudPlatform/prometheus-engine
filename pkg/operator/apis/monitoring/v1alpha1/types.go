@@ -26,8 +26,9 @@ type ServiceMonitoringList struct {
 
 // ServiceMonitoringSpec contains specification parameters for ServiceMonitoring.
 type ServiceMonitoringSpec struct {
-	Selector  metav1.LabelSelector `json:"selector"`
-	Endpoints []ScrapeEndpoint     `json:"endpoints"`
+	Selector     metav1.LabelSelector `json:"selector"`
+	Endpoints    []ScrapeEndpoint     `json:"endpoints"`
+	TargetLabels TargetLabels         `json:"targetLabels,omitempty"`
 }
 
 // PodMonitoring defines monitoring for a set of pods.
@@ -51,8 +52,9 @@ type PodMonitoringList struct {
 
 // PodMonitoringSpec contains specification parameters for PodMonitoring.
 type PodMonitoringSpec struct {
-	Selector  metav1.LabelSelector `json:"selector"`
-	Endpoints []ScrapeEndpoint     `json:"endpoints"`
+	Selector     metav1.LabelSelector `json:"selector"`
+	Endpoints    []ScrapeEndpoint     `json:"endpoints"`
+	TargetLabels TargetLabels         `json:"targetLabels,omitempty"`
 }
 
 // ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
@@ -60,13 +62,31 @@ type ScrapeEndpoint struct {
 	// Name or number of the port to scrape.
 	// For ServiceMonitoring resources, only port names are allowed.
 	Port intstr.IntOrString `json:"port,omitempty"`
-
 	// HTTP path to scrape metrics from. Defaults to "/metrics".
 	Path string `json:"path,omitempty"`
-
 	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
 	Interval string `json:"interval,omitempty"`
-
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
 	Timeout string `json:"timeout,omitempty"`
+}
+
+// TargetLabels groups label mappings by Kubernetes resource.
+type TargetLabels struct {
+	// Labels to transfer from the Kubernetes Pod to Prometheus target labels.
+	// In the case of a label mapping conflict:
+	// - Mappings at the end of the array take precedence.
+	// - FromPod mappings take precedence over FromService mappings.
+	FromPod []LabelMapping `json:"fromPod,omitempty"`
+	// Labels to transfer from the Kubernetes Service to Prometheus target labels.
+	FromService []LabelMapping `json:"fromService,omitempty"`
+}
+
+// LabelMapping specifies how to transfer a label from a Kubernetes resource
+// onto a Prometheus target.
+type LabelMapping struct {
+	// Kubenetes resource label to remap.
+	From string `json:"from"`
+	// Remapped Prometheus target label.
+	// Defaults to the same name as `From`.
+	To string `json:"to,omitempty"`
 }
