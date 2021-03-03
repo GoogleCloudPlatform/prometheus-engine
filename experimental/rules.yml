@@ -1,0 +1,7 @@
+groups:
+- name: test-group
+  rules:
+  - record: sum_up
+    expr: up
+  - alert: Test Alert
+    expr: vector(1)
