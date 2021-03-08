@@ -1,5 +1,9 @@
+global:
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
 alerting:
   alertmanagers:
   - static_configs:
     - targets:
       - localhost:9093
+rule_files:
+  - "rules.yml"
