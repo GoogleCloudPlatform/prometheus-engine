@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -158,9 +159,6 @@ func main() {
 	a.Flag("query.target-url", "The address of the Prometheus server query endpoint.").
 		Required().StringVar(&cfg.targetURL)
 
-	a.Flag("rule-file", "The Prometheus rule file containing the necessary rule statements.").
-		Default("rules.yml").StringsVar(&cfg.ruleFiles)
-
 	a.Flag("web.listen-address", "The address to listen on for HTTP requests.").
 		Default(":9091").StringVar(&cfg.listenAddress)
 
@@ -232,8 +230,21 @@ func main() {
 			},
 		}, {
 			name: "rules",
-			reloader: func(conf *config.Config) error {
-				return ruleManager.Update(time.Second*20, cfg.ruleFiles, nil)
+			reloader: func(cfg *config.Config) error {
+				// Get all rule files matching the configuration paths.
+				var files []string
+				for _, pat := range cfg.RuleFiles {
+					fs, err := filepath.Glob(pat)
+					if fs == nil || err != nil {
+						return errors.Errorf("Error retrieving rule file: %s", pat)
+					}
+					files = append(files, fs...)
+				}
+				return ruleManager.Update(
+					time.Duration(cfg.GlobalConfig.EvaluationInterval),
+					files,
+					cfg.GlobalConfig.ExternalLabels,
+				)
 			},
 		},
 	}
