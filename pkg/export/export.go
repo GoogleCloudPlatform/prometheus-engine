@@ -147,10 +147,10 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 	// The location and cluster flag should probably not be used. On the other hand, they make it easy
 	// to populate these important values in the monitored resource without interfering with existing
 	// Prometheus configuration.
-	a.Flag("gcm.label.location", fmt.Sprintf("The location set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", keyLocation)).
+	a.Flag("gcm.label.location", fmt.Sprintf("The location set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyLocation)).
 		Default(opts.Location).StringVar(&opts.Location)
 
-	a.Flag("gcm.label.cluster", fmt.Sprintf("The cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", keyCluster)).
+	a.Flag("gcm.label.cluster", fmt.Sprintf("The cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyCluster)).
 		Default(opts.Cluster).StringVar(&opts.Cluster)
 
 	a.Flag("gcm.endpoint", "GCM API endpoint to send metric data to.").
@@ -219,11 +219,11 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 
 // The target label keys used for the Prometheus monitored resource.
 const (
-	keyLocation  = "location"
-	keyCluster   = "cluster"
-	keyNamespace = "namespace"
-	keyJob       = "job"
-	keyInstance  = "instance"
+	KeyLocation  = "location"
+	KeyCluster   = "cluster"
+	KeyNamespace = "namespace"
+	KeyJob       = "job"
+	KeyInstance  = "instance"
 )
 
 // ApplyConfig updates the exporter state to the given configuration.
@@ -237,10 +237,10 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) error {
 	builder := labels.NewBuilder(cfg.GlobalConfig.ExternalLabels)
 
 	if e.opts.Location != "" {
-		builder.Set(keyLocation, e.opts.Location)
+		builder.Set(KeyLocation, e.opts.Location)
 	}
 	if e.opts.Cluster != "" {
-		builder.Set(keyCluster, e.opts.Cluster)
+		builder.Set(KeyCluster, e.opts.Cluster)
 	}
 	lset := builder.Labels()
 
@@ -248,8 +248,8 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) error {
 	// this dynamically via target label. It would imply collection across failure domains, which
 	// is an anti-pattern.
 	// The cluster however is allowed to be empty or could feasibly be set through target labels.
-	if lset.Get(keyLocation) == "" {
-		return errors.Errorf("no label %q set via external labels or flag", keyLocation)
+	if lset.Get(KeyLocation) == "" {
+		return errors.Errorf("no label %q set via external labels or flag", KeyLocation)
 	}
 	// New external labels invalidate the cached series conversions.
 	if !labels.Equal(e.externalLabels, lset) {
@@ -681,7 +681,7 @@ func (s *Storage) clearLabels(samples []record.RefSample) {
 	}
 }
 
-// Appendable returns a new Appender.
+// Appender returns a new Appender.
 func (s *Storage) Appender(ctx context.Context) storage.Appender {
 	return &storageAppender{
 		storage: s,

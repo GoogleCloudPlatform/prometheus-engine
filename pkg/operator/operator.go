@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
+	"github.com/prometheus/common/model"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
@@ -32,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/google/gpe-collector/pkg/export"
 	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
 	clientset "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned"
 	informers "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions"
@@ -46,6 +48,13 @@ const DefaultNamespace = "gpe-system"
 const (
 	ImageCollector      = "gcr.io/gpe-test-1/prometheus:test-14"
 	ImageConfigReloader = "gcr.io/gpe-test-1/config-reloader:0.0.9"
+)
+
+// Kubernetes resource label mapping values.
+const (
+	kubeLabelPrefix    = model.MetaLabelPrefix + "kubernetes_"
+	podLabelPrefix     = kubeLabelPrefix + "pod_label_"
+	serviceLabelPrefix = kubeLabelPrefix + "service_label_"
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.
@@ -691,6 +700,18 @@ func makeServiceScrapeConfig(svcmon *monitoringv1alpha1.ServiceMonitoring, index
 		TargetLabel:  "instance",
 	})
 
+	// Incorporate k8s label remappings from CRD.
+	if pCfgs, err := labelMappingRelabelConfigs(svcmon.Spec.TargetLabels.FromPod, podLabelPrefix); err != nil {
+		return nil, errors.Wrap(err, "invalid ServiceMonitoring FromPod target labels")
+	} else if sCfgs, err := labelMappingRelabelConfigs(svcmon.Spec.TargetLabels.FromService, serviceLabelPrefix); err != nil {
+		return nil, errors.Wrap(err, "invalid ServiceMonitoring FromService target labels")
+	} else {
+		// Pod-level configs are intentionally added after service-level to ensure their relabelling
+		// takes precedence on any conflicts.
+		relabelCfgs = append(relabelCfgs, sCfgs...)
+		relabelCfgs = append(relabelCfgs, pCfgs...)
+	}
+
 	interval, err := prommodel.ParseDuration(ep.Interval)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid scrape interval")
@@ -841,6 +862,13 @@ func makePodScrapeConfig(podmon *monitoringv1alpha1.PodMonitoring, index int) (*
 		TargetLabel:  "instance",
 	})
 
+	// Incorporate k8s label remappings from CRD.
+	if pCfgs, err := labelMappingRelabelConfigs(podmon.Spec.TargetLabels.FromPod, podLabelPrefix); err != nil {
+		return nil, errors.Wrap(err, "invalid PodMonitoring target labels")
+	} else {
+		relabelCfgs = append(relabelCfgs, pCfgs...)
+	}
+
 	interval, err := prommodel.ParseDuration(ep.Interval)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid scrape interval")
@@ -868,6 +896,40 @@ func makePodScrapeConfig(podmon *monitoringv1alpha1.PodMonitoring, index int) (*
 		ScrapeTimeout:           timeout,
 		RelabelConfigs:          relabelCfgs,
 	}, nil
+}
+
+// labelMappingRelabelConfigs generates relabel configs using a provided mapping and resource prefix.
+func labelMappingRelabelConfigs(mappings []monitoringv1alpha1.LabelMapping, prefix model.LabelName) ([]*relabel.Config, error) {
+	var relabelCfgs []*relabel.Config
+	for _, m := range mappings {
+		if collision := isPrometheusTargetLabel(m.To); collision {
+			return nil, fmt.Errorf("relabel %q to %q conflicts with GPE target schema", m.From, m.To)
+		}
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{prefix + sanitizeLabelName(m.From)},
+			TargetLabel:  m.To,
+		})
+	}
+	return relabelCfgs, nil
+}
+
+// isPrometheusTargetLabel returns true if the label argument is in use by the Prometheus target schema.
+func isPrometheusTargetLabel(label string) bool {
+	switch label {
+	case export.KeyLocation:
+		return true
+	case export.KeyCluster:
+		return true
+	case export.KeyNamespace:
+		return true
+	case export.KeyJob:
+		return true
+	case export.KeyInstance:
+		return true
+	default:
+		return false
+	}
 }
 
 var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)

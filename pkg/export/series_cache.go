@@ -387,17 +387,17 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Targe
 	return nil
 }
 
-// getResource returns the monitored resource, the entry labels, and whether the operation succeeded.
+// extractResource returns the monitored resource, the entry labels, and whether the operation succeeded.
 // The returned entry labels are a subset of `lset` without the labels that were used as resource labels.
 func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.MonitoredResource, labels.Labels, bool) {
 	// Drop series that don't contain required job/instance labels. This will affect metrics written
 	// from recording or alerting rules.
 	// TODO(freinartz): consider supporting these in the backend. All fields other then location
 	// and cluster being empty should be sensible as cardinality shouldn't be high for these.
-	if !lset.Has(keyJob) {
+	if !lset.Has(KeyJob) {
 		return nil, nil, false
 	}
-	if !lset.Has(keyInstance) {
+	if !lset.Has(KeyInstance) {
 		return nil, nil, false
 	}
 	// TOOD(freinartz): consider checking whether the target comes from Kubernetes service
@@ -427,18 +427,18 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 	mres := &monitoredres_pb.MonitoredResource{
 		Type: "prometheus_target",
 		Labels: map[string]string{
-			keyLocation:  lset.Get(keyLocation),
-			keyCluster:   lset.Get(keyCluster),
-			keyNamespace: lset.Get(keyNamespace),
-			keyJob:       lset.Get(keyJob),
-			keyInstance:  lset.Get(keyInstance),
+			KeyLocation:  lset.Get(KeyLocation),
+			KeyCluster:   lset.Get(KeyCluster),
+			KeyNamespace: lset.Get(KeyNamespace),
+			KeyJob:       lset.Get(KeyJob),
+			KeyInstance:  lset.Get(KeyInstance),
 		},
 	}
-	builder.Del(keyLocation)
-	builder.Del(keyCluster)
-	builder.Del(keyNamespace)
-	builder.Del(keyJob)
-	builder.Del(keyInstance)
+	builder.Del(KeyLocation)
+	builder.Del(KeyCluster)
+	builder.Del(KeyNamespace)
+	builder.Del(KeyJob)
+	builder.Del(KeyInstance)
 
 	return mres, builder.Labels(), true
 }
