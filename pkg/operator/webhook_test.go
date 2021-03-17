@@ -64,6 +64,10 @@ func TestValidatingWebhookConfig(t *testing.T) {
 					t.Errorf("unexpected rule resources: %+v", rule)
 				} else if policy := *wh.FailurePolicy; policy != arv1.Ignore {
 					t.Errorf("unexpected policy: %s", policy)
+				} else if se := *wh.SideEffects; se != arv1.SideEffectClassNone {
+					t.Errorf("unexpected side effects: %s", se)
+				} else if arvs := wh.AdmissionReviewVersions; arvs[0] != "v1" {
+					t.Errorf("unexpected admission review versions: %v", arvs)
 				}
 			}
 		})

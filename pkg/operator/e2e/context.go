@@ -65,7 +65,8 @@ func newTestContext(t *testing.T) *testContext {
 	t.Cleanup(cancel)
 	t.Cleanup(func() { tctx.cleanupNamespace() })
 
-	if err := tctx.createBaseResources(); err != nil {
+	ors, err := tctx.createBaseResources()
+	if err != nil {
 		t.Fatalf("create test namespace: %s", err)
 	}
 
@@ -73,16 +74,21 @@ func newTestContext(t *testing.T) *testContext {
 	logger = log.With(logger, "test", t.Name())
 
 	op, err := operator.New(logger, kubeconfig, operator.Options{
-		Namespace: tctx.namespace,
+		Namespace:  tctx.namespace,
+		CASelfSign: false,
+		ListenAddr: ":8443",
 	})
 	if err != nil {
-		t.Fatalf("instantiating operator failed: %s", err)
+		t.Fatalf("instantiating operator: %s", err)
 	}
 
 	go func() {
+		if _, err := op.InitAdmissionResources(ctx, ors...); err != nil {
+			t.Errorf("initializing admission resources: %s", err)
+		}
 		if err := op.Run(ctx); err != nil {
 			// Since we aren't in the main test goroutine we cannot fail with Fatal here.
-			t.Errorf("running operator failed: %s", err)
+			t.Errorf("running operator: %s", err)
 		}
 	}()
 
@@ -92,7 +98,7 @@ func newTestContext(t *testing.T) *testContext {
 // createBaseResources creates resources the operator requires to exist already.
 // These are resources which don't depend on runtime state and can thus be deployed
 // statically, allowing to run the operator without critical write permissions.
-func (tctx *testContext) createBaseResources() error {
+func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: tctx.namespace,
@@ -107,7 +113,15 @@ func (tctx *testContext) createBaseResources() error {
 	// test run wasn't cleaned up correctly.
 	ns, err := tctx.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
 	if err != nil {
-		return errors.Wrapf(err, "create namespace %q", tctx.namespace)
+		return nil, errors.Wrapf(err, "create namespace %q", tctx.namespace)
+	}
+	ors := []metav1.OwnerReference{
+		{
+			APIVersion: "v1",
+			Kind:       "Namespace",
+			Name:       ns.Name,
+			UID:        ns.UID,
+		},
 	}
 
 	svcAccount := &corev1.ServiceAccount{
@@ -115,7 +129,7 @@ func (tctx *testContext) createBaseResources() error {
 	}
 	_, err = tctx.kubeClient.CoreV1().ServiceAccounts(tctx.namespace).Create(context.TODO(), svcAccount, metav1.CreateOptions{})
 	if err != nil {
-		return errors.Wrap(err, "create collector service account")
+		return nil, errors.Wrap(err, "create collector service account")
 	}
 
 	// The cluster role expected to exist already.
@@ -126,14 +140,7 @@ func (tctx *testContext) createBaseResources() error {
 			Name: clusterRoleName + ":" + tctx.namespace,
 			// Tie to the namespace so the binding gets deleted alongside it, even though
 			// it's an cluster-wide resource.
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: "v1",
-					Kind:       "Namespace",
-					Name:       ns.Name,
-					UID:        ns.UID,
-				},
-			},
+			OwnerReferences: ors,
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
@@ -151,9 +158,9 @@ func (tctx *testContext) createBaseResources() error {
 	}
 	_, err = tctx.kubeClient.RbacV1().ClusterRoleBindings().Create(context.TODO(), roleBinding, metav1.CreateOptions{})
 	if err != nil {
-		return errors.Wrap(err, "create cluster role binding")
+		return nil, errors.Wrap(err, "create cluster role binding")
 	}
-	return nil
+	return ors, nil
 }
 
 func (tctx *testContext) cleanupNamespace() {

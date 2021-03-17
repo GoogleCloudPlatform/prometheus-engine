@@ -69,6 +69,10 @@ func main() {
 			"Priority class at which the collector pods are run.")
 		gcmEndpoint = flag.String("cloud-monitoring-endpoint", "",
 			"Override for the Cloud Monitoring endpoint to use for all collectors.")
+		caSelfSign = flag.Bool("ca-selfsign", true,
+			"Whether to self-sign or have kube-apiserver sign certificate key pair for TLS.")
+		listenAddr = flag.String("listen-addr", ":8443",
+			"Address to listen to for incoming tcp connections.")
 	)
 	flag.Parse()
 
@@ -89,6 +93,8 @@ func main() {
 		ImageConfigReloader:     *imageConfigReloader,
 		PriorityClass:           *priorityClass,
 		CloudMonitoringEndpoint: *gcmEndpoint,
+		CASelfSign:              *caSelfSign,
+		ListenAddr:              *listenAddr,
 	})
 	if err != nil {
 		level.Error(logger).Log("msg", "instantiating operator failed", "err", err)
@@ -96,8 +102,8 @@ func main() {
 	}
 
 	var g run.Group
+	// Termination handler.
 	{
-		// Termination handler.
 		term := make(chan os.Signal, 1)
 		cancel := make(chan struct{})
 		signal.Notify(term, os.Interrupt, syscall.SIGTERM)
@@ -116,6 +122,23 @@ func main() {
 			},
 		)
 	}
+	// Init and run admission controller server.
+	{
+		ctx, cancel := context.WithCancel(context.Background())
+		g.Add(
+			func() error {
+				if srv, err := op.InitAdmissionResources(ctx); err != nil {
+					return err
+				} else {
+					return srv.ListenAndServeTLS("", "")
+				}
+			},
+			func(err error) {
+				cancel()
+			},
+		)
+	}
+	// Main operator loop.
 	{
 		ctx, cancel := context.WithCancel(context.Background())
 		g.Add(

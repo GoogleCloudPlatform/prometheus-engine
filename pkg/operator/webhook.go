@@ -15,16 +15,20 @@ import (
 )
 
 // ValidatingWebhookConfig returns a config for a webhook that listens for CREATE and UPDATE on GPE resources.
+// The resource kind is pulled from the basename of any given endpoint, and must be the plural,
+// e.g. `/validate/podmonitorings`.
 // The default policy for any failed resource admission is to Ignore.
-func ValidatingWebhookConfig(name, namespace string, caBundle []byte, endpoints []string) *arv1.ValidatingWebhookConfiguration {
+func ValidatingWebhookConfig(name, namespace string, caBundle []byte, endpoints []string, ors ...metav1.OwnerReference) *arv1.ValidatingWebhookConfiguration {
 	var (
 		vwc = &arv1.ValidatingWebhookConfiguration{
 			// Note: this is a "namespace-less" resource.
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
+				Name:            name,
+				OwnerReferences: ors,
 			},
 		}
-		policy = arv1.Ignore
+		policy      = arv1.Ignore
+		sideEffects = arv1.SideEffectClassNone
 	)
 
 	// Create webhook for each endpoint.
@@ -55,7 +59,9 @@ func ValidatingWebhookConfig(name, namespace string, caBundle []byte, endpoints 
 						},
 					},
 				},
-				FailurePolicy: &policy,
+				FailurePolicy:           &policy,
+				SideEffects:             &sideEffects,
+				AdmissionReviewVersions: []string{"v1"},
 			})
 	}
 	return vwc
@@ -69,10 +75,11 @@ func UpsertValidatingWebhookConfig(ctx context.Context, api v1.ValidatingWebhook
 	case err == nil:
 		return out, err
 	case k8serrors.IsAlreadyExists(err) && len(in.Name) > 0:
-		_, err := api.Get(ctx, in.Name, metav1.GetOptions{})
+		vwc, err := api.Get(ctx, in.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, errors.Wrapf(err, "getting existing config")
 		}
+		in.ResourceVersion = vwc.ResourceVersion
 		out, err = api.Update(ctx, in, metav1.UpdateOptions{})
 		if err != nil {
 			return nil, errors.Wrapf(err, "updating existing config")

@@ -5,6 +5,7 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -98,6 +99,64 @@ func TestCollectorServiceMonitoring(t *testing.T) {
 	// more fine-grained stages makes debugging a lot easier.
 	t.Run("deployed", tctx.subtest(testCollectorDeployed))
 	t.Run("self-monitoring", tctx.subtest(testCollectorSelfServiceMonitoring))
+}
+
+// This is hacky.
+// This is set during the subtest call to `testCSRIssued` and
+// validated against in `testValidatingWebhookConfig`.
+var caBundle []byte
+
+func TestCSRWithValidatingWebhookConfig(t *testing.T) {
+	tctx := newTestContext(t)
+
+	t.Cleanup(func() { caBundle = []byte{} })
+	t.Run("certificate issue", tctx.subtest(testCSRIssued))
+	t.Run("validatingwebhook configuration valid", tctx.subtest(testValidatingWebhookConfig))
+}
+
+// testCSRIssued checks to see if the kube-apiserver issued a valid
+// certificate from the CSR.
+func testCSRIssued(ctx context.Context, t *testContext) {
+	// Operator creates CSR using FQDN format.
+	var fqdn = fmt.Sprintf("%s.%s.svc", operator.DefaultName, t.namespace)
+	err := wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
+		// Use v1b1 for now as GKE 1.18 currently uses that version.
+		csr, err := t.kubeClient.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, fqdn, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		} else if err != nil {
+			return false, errors.Errorf("getting CSR: %s", err)
+		}
+		caBundle = csr.Status.Certificate
+		// This field is populated once a valid certificate has been issued by the API server.
+		return len(caBundle) > 0, nil
+	})
+	if err != nil {
+		t.Fatalf("waiting for CSR issued certificate: %s", err)
+	}
+}
+
+// testValidatingWebhookConfig checks to see if the validating webhook configuration
+// was created with the issued CSR caBundle.
+func testValidatingWebhookConfig(ctx context.Context, t *testContext) {
+	err := wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
+		vwc, err := t.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, operator.DefaultName, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		} else if err != nil {
+			return false, errors.Errorf("getting validatingwebhook configuration: %s", err)
+		}
+		// Verify all webhooks use correct caBundle from issued CSR.
+		for _, wh := range vwc.Webhooks {
+			if whBundle := wh.ClientConfig.CABundle; bytes.Compare(whBundle, caBundle) != 0 {
+				return false, errors.Errorf("caBundle from CSR: %v mismatches with webhook: %v", caBundle, whBundle)
+			}
+		}
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("waiting for validatingwebhook configuration: %s", err)
+	}
 }
 
 // testCollectorDeployed does a high-level verification on whether the

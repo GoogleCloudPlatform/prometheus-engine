@@ -2,7 +2,10 @@ package operator
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	stdlog "log"
+	"net/http"
 	"path"
 	"regexp"
 	"sort"
@@ -31,6 +34,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/google/gpe-collector/pkg/export"
@@ -40,7 +44,10 @@ import (
 )
 
 // DefaultNamespace is the namespace in which all resources owned by the operator are installed.
-const DefaultNamespace = "gpe-system"
+const (
+	DefaultName      = "gpe-operator"
+	DefaultNamespace = "gpe-system"
+)
 
 // The official images to be used with this version of the operator. For debugging
 // and emergency use cases they may be overwritten through options.
@@ -86,6 +93,10 @@ type Options struct {
 	PriorityClass string
 	// Endpoint of the Cloud Monitoring API to be used by all collectors.
 	CloudMonitoringEndpoint string
+	// Self-sign or solicit kube-apiserver as CA to sign TLS certificate.
+	CASelfSign bool
+	// Webhook serving address.
+	ListenAddr string
 }
 
 func (o *Options) defaultAndValidate(logger log.Logger) error {
@@ -195,6 +206,71 @@ func ifResourceVersionChanged(fn func(interface{})) func(oldObj, newObj interfac
 			fn(newObj)
 		}
 	}
+}
+
+// InitAdmissionResources sets state for the operator before monitoring for resources.
+// It returns a web server for handling Kubernetes admission controller webhooks.
+func (o *Operator) InitAdmissionResources(ctx context.Context, ors ...metav1.OwnerReference) (*http.Server, error) {
+	// Persisting TLS keypair to a k8s secret seems like unnecessary state to manage.
+	// It's fairly trivial to re-generate the cert and private
+	// key on each startup. Also no other GPE resources aside from the operator
+	// rely on the keypair.
+	// A downside to this approach is re-writing the validation webhook config
+	// every time with the new caBundle. This should only happen when the operator
+	// restarts, which should be infrequent.
+	var (
+		crt, key []byte
+		err      error
+		podEp    = "/validate/podmonitorings"
+		svcEp    = "/validate/servicemonitorings"
+		fqdn     = fmt.Sprintf("%s.%s.svc", DefaultName, o.opts.Namespace)
+	)
+
+	// Generate cert/key pair - self-signed CA or kube-apiserver CA.
+	if o.opts.CASelfSign {
+		crt, key, err = cert.GenerateSelfSignedCertKey(fqdn, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		crt, key, err = CreateSignedKeyPair(ctx, o.kubeClient, fqdn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Idempotently request validation webhook spec with caBundle and endpoints.
+	_, err = UpsertValidatingWebhookConfig(ctx,
+		o.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
+		ValidatingWebhookConfig(DefaultName, o.opts.Namespace, crt, []string{podEp, svcEp}, ors...))
+	if err != nil {
+		return nil, err
+	}
+
+	// Setup HTTPS server.
+	var (
+		tlsCfg = new(tls.Config)
+		mux    = http.NewServeMux()
+		as     = NewAdmissionServer(o.logger)
+	)
+
+	// Handle validation resource endpoints.
+	mux.HandleFunc(podEp, as.serveAdmission(admitPodMonitoring))
+	mux.HandleFunc(svcEp, as.serveAdmission(admitServiceMonitoring))
+
+	// Init TLS config with key pair.
+	if c, err := tls.X509KeyPair(crt, key); err != nil {
+		return nil, err
+	} else {
+		tlsCfg.Certificates = append(tlsCfg.Certificates, c)
+	}
+
+	return &http.Server{
+		Addr:      o.opts.ListenAddr,
+		ErrorLog:  stdlog.New(log.NewStdlibAdapter(o.logger), "", stdlog.LstdFlags),
+		TLSConfig: tlsCfg,
+		Handler:   mux,
+	}, nil
 }
 
 // Run the reconciliation loop of the operator.

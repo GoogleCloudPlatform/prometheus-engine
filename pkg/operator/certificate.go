@@ -64,6 +64,22 @@ func provisionCSR(client kubernetes.Interface, fqdn string) (string, []byte, err
 	return name, keyBuffer.Bytes(), nil
 }
 
+// deleteOldCSR removes any leftover CSR state from previous operations.
+func deleteOldCSR(ctx context.Context, client kubernetes.Interface, name string) error {
+	var (
+		apiV1 = client.CertificatesV1().CertificateSigningRequests()
+	)
+	if err := apiV1.Delete(ctx, name, metav1.DeleteOptions{}); !apierrors.IsNotFound(err) {
+		return err
+	}
+	// Error was API not found, try v1b1 API.
+	var apiV1b1 = client.CertificatesV1beta1().CertificateSigningRequests()
+	if err := apiV1b1.Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
+}
+
 // approveCSR fetches an existing Certificate Signing Request by name and approves it.
 // It returns the updated CSR and any encountered errors.
 func approveCSR(ctx context.Context, client kubernetes.Interface, name string) ([]byte, error) {
@@ -120,6 +136,10 @@ func approveCSR(ctx context.Context, client kubernetes.Interface, name string) (
 // CreateSignedKeyPair provisions and returns a kube-apiserver-signed certificate,
 // PEM-encoded private RSA key, and any encountered errors.
 func CreateSignedKeyPair(ctx context.Context, client kubernetes.Interface, fqdn string) ([]byte, []byte, error) {
+	err := deleteOldCSR(ctx, client, fqdn)
+	if err != nil {
+		return nil, nil, err
+	}
 	csrName, key, err := provisionCSR(client, fqdn)
 	if err != nil {
 		return nil, nil, err

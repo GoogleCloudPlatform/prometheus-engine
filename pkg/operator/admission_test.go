@@ -30,7 +30,7 @@ func TestAdmitPodMonitoring(t *testing.T) {
 			doc:      "admit",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "PodMonitoring",
+			res:      "podmonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from", To: "to"}},
 			expErr:   false,
 		},
@@ -38,7 +38,7 @@ func TestAdmitPodMonitoring(t *testing.T) {
 			doc:      "admit no relabelling",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "PodMonitoring",
+			res:      "podmonitorings",
 			mappings: nil,
 			expErr:   false,
 		},
@@ -46,7 +46,7 @@ func TestAdmitPodMonitoring(t *testing.T) {
 			doc:      "admit preserved relabelling",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "PodMonitoring",
+			res:      "podmonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from", To: "from"}},
 			expErr:   false,
 		},
@@ -54,7 +54,7 @@ func TestAdmitPodMonitoring(t *testing.T) {
 			doc:      "admit unset To relabelling",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "PodMonitoring",
+			res:      "podmonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from"}},
 			expErr:   false,
 		},
@@ -62,7 +62,7 @@ func TestAdmitPodMonitoring(t *testing.T) {
 			doc:      "bad api group",
 			resGroup: "unsupported.domain.group",
 			resVer:   v1alpha1.Version,
-			res:      "PodMonitoring",
+			res:      "podmonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from", To: "to"}},
 			expErr:   true,
 		},
@@ -70,7 +70,7 @@ func TestAdmitPodMonitoring(t *testing.T) {
 			doc:      "bad api version",
 			resGroup: monitoring.GroupName,
 			resVer:   "v0",
-			res:      "PodMonitoring",
+			res:      "podmonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from", To: "to"}},
 			expErr:   true,
 		},
@@ -78,7 +78,15 @@ func TestAdmitPodMonitoring(t *testing.T) {
 			doc:      "bad api resource",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "ServiceMonitoring",
+			res:      "servicemonitorings",
+			mappings: []v1alpha1.LabelMapping{{From: "from", To: "to"}},
+			expErr:   true,
+		},
+		{
+			doc:      "bad non-plural api resource",
+			resGroup: monitoring.GroupName,
+			resVer:   v1alpha1.Version,
+			res:      "PodMonitoring",
 			mappings: []v1alpha1.LabelMapping{{From: "from", To: "to"}},
 			expErr:   true,
 		},
@@ -86,7 +94,7 @@ func TestAdmitPodMonitoring(t *testing.T) {
 			doc:      "bad relabel mappings - conflicts with target schema",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "PodMonitoring",
+			res:      "podmonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from-instance", To: "instance"}},
 			expErr:   true,
 		},
@@ -153,7 +161,7 @@ func TestAdmitServiceMonitoring(t *testing.T) {
 			doc:      "admit",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "ServiceMonitoring",
+			res:      "servicemonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from", To: "to"}},
 			expErr:   false,
 		},
@@ -161,7 +169,7 @@ func TestAdmitServiceMonitoring(t *testing.T) {
 			doc:      "admit no relabelling",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "ServiceMonitoring",
+			res:      "servicemonitorings",
 			mappings: nil,
 			expErr:   false,
 		},
@@ -169,7 +177,7 @@ func TestAdmitServiceMonitoring(t *testing.T) {
 			doc:      "admit preserved relabelling",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "ServiceMonitoring",
+			res:      "servicemonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from", To: "from"}},
 			expErr:   false,
 		},
@@ -177,7 +185,7 @@ func TestAdmitServiceMonitoring(t *testing.T) {
 			doc:      "admit unset To relabelling",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "ServiceMonitoring",
+			res:      "servicemonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from"}},
 			expErr:   false,
 		},
@@ -185,7 +193,7 @@ func TestAdmitServiceMonitoring(t *testing.T) {
 			doc:      "bad api group",
 			resGroup: "unsupported.domain.group",
 			resVer:   v1alpha1.Version,
-			res:      "ServiceMonitoring",
+			res:      "servicemonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from", To: "to"}},
 			expErr:   true,
 		},
@@ -193,7 +201,7 @@ func TestAdmitServiceMonitoring(t *testing.T) {
 			doc:      "bad api version",
 			resGroup: monitoring.GroupName,
 			resVer:   "v0",
-			res:      "ServiceMonitoring",
+			res:      "servicemonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from", To: "to"}},
 			expErr:   true,
 		},
@@ -201,7 +209,15 @@ func TestAdmitServiceMonitoring(t *testing.T) {
 			doc:      "bad api resource",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "PodMonitoring",
+			res:      "podmonitorings",
+			mappings: []v1alpha1.LabelMapping{{From: "from", To: "to"}},
+			expErr:   true,
+		},
+		{
+			doc:      "bad non-plural api resource",
+			resGroup: monitoring.GroupName,
+			resVer:   v1alpha1.Version,
+			res:      "ServiceMonitoring",
 			mappings: []v1alpha1.LabelMapping{{From: "from", To: "to"}},
 			expErr:   true,
 		},
@@ -209,7 +225,7 @@ func TestAdmitServiceMonitoring(t *testing.T) {
 			doc:      "bad relabel mappings - conflicts with target schema",
 			resGroup: monitoring.GroupName,
 			resVer:   v1alpha1.Version,
-			res:      "ServiceMonitoring",
+			res:      "servicemonitorings",
 			mappings: []v1alpha1.LabelMapping{{From: "from-instance", To: "instance"}},
 			expErr:   true,
 		},
@@ -264,11 +280,13 @@ func TestAdmitServiceMonitoring(t *testing.T) {
 }
 
 func TestServeAdmission(t *testing.T) {
-	expUID := types.UID("1234")
-	expVer := v1alpha1.Version
-	expKind := "PodMonitoring"
+	var (
+		expUID  = types.UID("1234")
+		expVer  = "v1"
+		expKind = "AdmissionReview"
+	)
 	pm := mustMarshalJSON(t, &v1alpha1.PodMonitoring{})
-	goodBody := mustMarshalJSON(t, &v1.AdmissionReview{
+	body := mustMarshalJSON(t, &v1.AdmissionReview{
 		Request: &v1.AdmissionRequest{
 			UID:      expUID,
 			Resource: v1alpha1.PodMonitoringResource(),
@@ -289,7 +307,7 @@ func TestServeAdmission(t *testing.T) {
 	}{
 		{
 			doc:    "good admission request",
-			body:   goodBody,
+			body:   body,
 			expErr: false,
 		},
 		{

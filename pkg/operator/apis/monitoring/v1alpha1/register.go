@@ -37,7 +37,7 @@ func PodMonitoringResource() metav1.GroupVersionResource {
 	return metav1.GroupVersionResource{
 		Group:    monitoring.GroupName,
 		Version:  Version,
-		Resource: "PodMonitoring",
+		Resource: "podmonitorings",
 	}
 }
 
@@ -47,7 +47,7 @@ func ServiceMonitoringResource() metav1.GroupVersionResource {
 	return metav1.GroupVersionResource{
 		Group:    monitoring.GroupName,
 		Version:  Version,
-		Resource: "ServiceMonitoring",
+		Resource: "servicemonitorings",
 	}
 }
 
