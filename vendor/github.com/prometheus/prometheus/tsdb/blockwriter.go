@@ -39,6 +39,9 @@ type BlockWriter struct {
 	chunkDir  string
 }
 
+// ErrNoSeriesAppended is returned if the series count is zero while flushing blocks.
+var ErrNoSeriesAppended error = errors.New("no series appended, aborting")
+
 // NewBlockWriter create a new block writer.
 //
 // The returned writer accumulates all the series in the Head block until `Flush` is called.
@@ -66,8 +69,10 @@ func (w *BlockWriter) initHead() error {
 		return errors.Wrap(err, "create temp dir")
 	}
 	w.chunkDir = chunkDir
-
-	h, err := NewHead(nil, w.logger, nil, w.blockSize, w.chunkDir, nil, DefaultStripeSize, nil)
+	opts := DefaultHeadOptions()
+	opts.ChunkRange = w.blockSize
+	opts.ChunkDirRoot = w.chunkDir
+	h, err := NewHead(nil, w.logger, nil, opts)
 	if err != nil {
 		return errors.Wrap(err, "tsdb.NewHead")
 	}
@@ -87,7 +92,7 @@ func (w *BlockWriter) Appender(ctx context.Context) storage.Appender {
 func (w *BlockWriter) Flush(ctx context.Context) (ulid.ULID, error) {
 	seriesCount := w.head.NumSeries()
 	if w.head.NumSeries() == 0 {
-		return ulid.ULID{}, errors.New("no series appended, aborting")
+		return ulid.ULID{}, ErrNoSeriesAppended
 	}
 
 	mint := w.head.MinTime()

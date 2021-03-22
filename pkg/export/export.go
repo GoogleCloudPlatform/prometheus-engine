@@ -694,19 +694,17 @@ type storageAppender struct {
 	samples []record.RefSample
 }
 
-func (a *storageAppender) Add(lset labels.Labels, t int64, v float64) (uint64, error) {
+func (a *storageAppender) Append(ref uint64, lset labels.Labels, t int64, v float64) (uint64, error) {
+	if lset == nil {
+		return 0, errors.Errorf("label set is nil")
+	}
 	a.samples = append(a.samples, record.RefSample{
 		Ref: a.storage.setLabels(lset),
 		T:   t,
 		V:   v,
 	})
-	// Return 0 ID to indicate that we don't support AddFast.
+	// Return 0 ID to indicate that we don't support fast path appending.
 	return 0, nil
-}
-
-func (a *storageAppender) AddFast(ref uint64, t int64, v float64) error {
-	// For our current usage, the fast path is not supported.
-	panic("unexpected call to AddFast")
 }
 
 func (a *storageAppender) Rollback() error {

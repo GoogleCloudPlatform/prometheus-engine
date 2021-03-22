@@ -10,22 +10,22 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/oklog/run v1.1.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.7.1
-	github.com/prometheus/common v0.14.0
-	github.com/prometheus/prometheus v1.8.2-0.20201101200738-7558e9d3c374
+	github.com/prometheus/client_golang v1.9.0
+	github.com/prometheus/common v0.18.0
+	github.com/prometheus/prometheus v1.8.2-0.20210315220929-1cba1741828b
 	github.com/thanos-io/thanos v0.17.2
 	google.golang.org/api v0.40.0
 	google.golang.org/genproto v0.0.0-20201214200347-8c77b98c765d
 	google.golang.org/grpc v1.34.0
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
-	gopkg.in/yaml.v2 v2.3.0
-	k8s.io/api v0.20.1
-	k8s.io/apimachinery v0.20.1
+	gopkg.in/yaml.v2 v2.4.0
+	k8s.io/api v0.20.2
+	k8s.io/apimachinery v0.20.2
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/code-generator v0.20.1
 	k8s.io/klog v1.0.0
-	k8s.io/klog/v2 v2.4.0
+	k8s.io/klog/v2 v2.5.0
 )
 
 replace (

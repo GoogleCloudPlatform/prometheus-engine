@@ -191,23 +191,20 @@ func init() {
 type scrapePool struct {
 	appendable storage.Appendable
 	logger     log.Logger
+	cancel     context.CancelFunc
 
-	// targetMtx protects activeTargets and droppedTargets from concurrent reads
-	// and writes. Only one of Sync/stop/reload may be called at once due to
-	// manager.mtxScrape so we only need to protect from concurrent reads from
-	// the ActiveTargets and DroppedTargets methods. This allows those two
-	// methods to always complete without having to wait on scrape loops to gracefull stop.
+	// mtx must not be taken after targetMtx.
+	mtx            sync.Mutex
+	config         *config.ScrapeConfig
+	client         *http.Client
+	loops          map[uint64]loop
+	targetLimitHit bool // Internal state to speed up the target_limit checks.
+
 	targetMtx sync.Mutex
-
-	config *config.ScrapeConfig
-	client *http.Client
-	// Targets and loops must always be synchronized to have the same
+	// activeTargets and loops must always be synchronized to have the same
 	// set of hashes.
 	activeTargets  map[uint64]*Target
 	droppedTargets []*Target
-	loops          map[uint64]loop
-	cancel         context.CancelFunc
-	targetLimitHit bool // Internal state to speed up the target_limit checks.
 
 	// Constructor for new scrape loops. This is settable for testing convenience.
 	newLoop func(scrapeLoopOptions) loop
@@ -297,6 +294,8 @@ func (sp *scrapePool) DroppedTargets() []*Target {
 
 // stop terminates all scrape loops and returns after they all terminated.
 func (sp *scrapePool) stop() {
+	sp.mtx.Lock()
+	defer sp.mtx.Unlock()
 	sp.cancel()
 	var wg sync.WaitGroup
 
@@ -331,6 +330,8 @@ func (sp *scrapePool) stop() {
 // but all scrape loops are restarted with the new scrape configuration.
 // This method returns after all scrape loops that were stopped have stopped scraping.
 func (sp *scrapePool) reload(cfg *config.ScrapeConfig) error {
+	sp.mtx.Lock()
+	defer sp.mtx.Unlock()
 	targetScrapePoolReloads.Inc()
 	start := time.Now()
 
@@ -407,6 +408,8 @@ func (sp *scrapePool) reload(cfg *config.ScrapeConfig) error {
 // Sync converts target groups into actual scrape targets and synchronizes
 // the currently running scraper with the resulting set and returns all scraped and dropped targets.
 func (sp *scrapePool) Sync(tgs []*targetgroup.Group) {
+	sp.mtx.Lock()
+	defer sp.mtx.Unlock()
 	start := time.Now()
 
 	sp.targetMtx.Lock()
@@ -1303,20 +1306,19 @@ loop:
 			continue
 		}
 		ce, ok := sl.cache.get(yoloString(met))
+		var (
+			ref  uint64
+			lset labels.Labels
+			mets string
+			hash uint64
+		)
 
 		if ok {
-			err = app.AddFast(ce.ref, t, v)
-			_, err = sl.checkAddError(ce, met, tp, err, &sampleLimitErr, &appErrs)
-			// In theory this should never happen.
-			if err == storage.ErrNotFound {
-				ok = false
-			}
-		}
-		if !ok {
-			var lset labels.Labels
-
-			mets := p.Metric(&lset)
-			hash := lset.Hash()
+			ref = ce.ref
+			lset = ce.lset
+		} else {
+			mets = p.Metric(&lset)
+			hash = lset.Hash()
 
 			// Hash label set as it is seen local to the target. Then add target labels
 			// and relabeling and store the final label set.
@@ -1332,17 +1334,18 @@ loop:
 				err = errNameLabelMandatory
 				break loop
 			}
+		}
 
-			var ref uint64
-			ref, err = app.Add(lset, t, v)
-			sampleAdded, err = sl.checkAddError(nil, met, tp, err, &sampleLimitErr, &appErrs)
-			if err != nil {
-				if err != storage.ErrNotFound {
-					level.Debug(sl.l).Log("msg", "Unexpected error", "series", string(met), "err", err)
-				}
-				break loop
+		ref, err = app.Append(ref, lset, t, v)
+		sampleAdded, err = sl.checkAddError(ce, met, tp, err, &sampleLimitErr, &appErrs)
+		if err != nil {
+			if err != storage.ErrNotFound {
+				level.Debug(sl.l).Log("msg", "Unexpected error", "series", string(met), "err", err)
 			}
+			break loop
+		}
 
+		if !ok {
 			if tp == nil {
 				// Bypass staleness logic if there is an explicit timestamp.
 				sl.cache.trackStaleness(hash, lset)
@@ -1377,7 +1380,7 @@ loop:
 	if err == nil {
 		sl.cache.forEachStale(func(lset labels.Labels) bool {
 			// Series no longer exposed, mark it stale.
-			_, err = app.Add(lset, defTime, math.Float64frombits(value.StaleNaN))
+			_, err = app.Append(0, lset, defTime, math.Float64frombits(value.StaleNaN))
 			switch errors.Cause(err) {
 			case storage.ErrOutOfOrderSample, storage.ErrDuplicateSampleForTimestamp:
 				// Do not count these in logging, as this is expected if a target
@@ -1494,37 +1497,31 @@ func (sl *scrapeLoop) reportStale(app storage.Appender, start time.Time) (err er
 
 func (sl *scrapeLoop) addReportSample(app storage.Appender, s string, t int64, v float64) error {
 	ce, ok := sl.cache.get(s)
+	var ref uint64
+	var lset labels.Labels
 	if ok {
-		err := app.AddFast(ce.ref, t, v)
-		switch errors.Cause(err) {
-		case nil:
-			return nil
-		case storage.ErrNotFound:
-			// Try an Add.
-		case storage.ErrOutOfOrderSample, storage.ErrDuplicateSampleForTimestamp:
-			// Do not log here, as this is expected if a target goes away and comes back
-			// again with a new scrape loop.
-			return nil
-		default:
-			return err
+		ref = ce.ref
+		lset = ce.lset
+	} else {
+		lset = labels.Labels{
+			// The constants are suffixed with the invalid \xff unicode rune to avoid collisions
+			// with scraped metrics in the cache.
+			// We have to drop it when building the actual metric.
+			labels.Label{Name: labels.MetricName, Value: s[:len(s)-1]},
 		}
-	}
-	lset := labels.Labels{
-		// The constants are suffixed with the invalid \xff unicode rune to avoid collisions
-		// with scraped metrics in the cache.
-		// We have to drop it when building the actual metric.
-		labels.Label{Name: labels.MetricName, Value: s[:len(s)-1]},
+		lset = sl.reportSampleMutator(lset)
 	}
 
-	hash := lset.Hash()
-	lset = sl.reportSampleMutator(lset)
-
-	ref, err := app.Add(lset, t, v)
+	ref, err := app.Append(ref, lset, t, v)
 	switch errors.Cause(err) {
 	case nil:
-		sl.cache.addRef(s, ref, lset, hash)
+		if !ok {
+			sl.cache.addRef(s, ref, lset, lset.Hash())
+		}
 		return nil
 	case storage.ErrOutOfOrderSample, storage.ErrDuplicateSampleForTimestamp:
+		// Do not log here, as this is expected if a target goes away and comes back
+		// again with a new scrape loop.
 		return nil
 	default:
 		return err
