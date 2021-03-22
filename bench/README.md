@@ -83,8 +83,8 @@ APP_REPLICAS=30
 APP_CPU_BURN=0 # Burn CPU operations to simulate resource pressure
 APP_MEM_BALLAST=0 # Memory usage in megabytes
 
-for i in {1..$APP_DEPLOYMENTS}; do 
-  REPLICAS=$APP_REPLICAS IMAGE_TAG=$IMAGE_TAG INDEX=$i CPU_BURN=$APP_CPU_BURN MEM_BALLAST=$APP_MEM_BALLAST \
+for i in $(seq 1 $APP_DEPLOYMENTS); do 
+  REPLICAS=$APP_REPLICAS IMAGE_TAG=$IMAGE_TAG INDEX=$i CPU_BURN=$APP_CPU_BURN MEM_BALLAST=$APP_MEM_BALLAST PROJECT_ID=$PROJECT_ID \
     envsubst < "$BASE_DIR/bench/deployment.yaml" | kubectl apply -f -;
 done
 kubectl apply -f "$BASE_DIR/bench/pod_monitoring.yaml" 

@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: example-app
-        image: "gcr.io/gpe-test-1/example-app:${IMAGE_TAG}"
+        image: "gcr.io/${PROJECT_ID}/example-app:${IMAGE_TAG}"
         args:
         - "--listen-address=:8080"
         - "--max-count=32"
