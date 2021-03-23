@@ -905,6 +905,10 @@ func labelMappingRelabelConfigs(mappings []monitoringv1alpha1.LabelMapping, pref
 		if collision := isPrometheusTargetLabel(m.To); collision {
 			return nil, fmt.Errorf("relabel %q to %q conflicts with GPE target schema", m.From, m.To)
 		}
+		// `To` can be unset, default to `From`.
+		if m.To == "" {
+			m.To = m.From
+		}
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{prefix + sanitizeLabelName(m.From)},

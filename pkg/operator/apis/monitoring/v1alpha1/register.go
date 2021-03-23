@@ -8,8 +8,18 @@ import (
 	monitoring "github.com/google/gpe-collector/pkg/operator/apis/monitoring"
 )
 
-// SchemeGroupVersion is group version used to register these objects.
-var SchemeGroupVersion = schema.GroupVersion{Group: monitoring.GroupName, Version: "v1alpha1"}
+const (
+	Version = "v1alpha1"
+)
+
+var (
+	// SchemeBuilder initializes a scheme builder.
+	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
+	// AddToScheme is a global function that registers this API group & version to a scheme.
+	AddToScheme = SchemeBuilder.AddToScheme
+	// SchemeGroupVersion is group version used to register these objects.
+	SchemeGroupVersion = schema.GroupVersion{Group: monitoring.GroupName, Version: Version}
+)
 
 // Kind takes an unqualified kind and returns back a Group qualified GroupKind.
 func Kind(kind string) schema.GroupKind {
@@ -21,12 +31,25 @@ func Resource(resource string) schema.GroupResource {
 	return SchemeGroupVersion.WithResource(resource).GroupResource()
 }
 
-var (
-	// SchemeBuilder initializes a scheme builder.
-	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
-	// AddToScheme is a global function that registers this API group & version to a scheme.
-	AddToScheme = SchemeBuilder.AddToScheme
-)
+// PodMonitoringResource returns a PodMonitoring GroupVersionResource.
+// This can be used to enforce API types.
+func PodMonitoringResource() metav1.GroupVersionResource {
+	return metav1.GroupVersionResource{
+		Group:    monitoring.GroupName,
+		Version:  Version,
+		Resource: "PodMonitoring",
+	}
+}
+
+// ServiceMonitoringResource returns a ServiceMonitoring GroupVersionResource.
+// This can be used to enforce API types.
+func ServiceMonitoringResource() metav1.GroupVersionResource {
+	return metav1.GroupVersionResource{
+		Group:    monitoring.GroupName,
+		Version:  Version,
+		Resource: "ServiceMonitoring",
+	}
+}
 
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {

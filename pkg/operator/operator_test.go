@@ -46,6 +46,17 @@ func TestLabelMappingRelabelConfigs(t *testing.T) {
 			expErr:   true,
 		},
 		{
+			doc:      "empty to podmonitoring relabel",
+			mappings: []monitoringv1alpha1.LabelMapping{{From: "from"}},
+			prefix:   podLabelPrefix,
+			expected: []*relabel.Config{{
+				Action:       relabel.Replace,
+				SourceLabels: prommodel.LabelNames{podLabelPrefix + "from"},
+				TargetLabel:  "from",
+			}},
+			expErr: false,
+		},
+		{
 			doc:      "good svcmonitoring relabel",
 			mappings: []monitoringv1alpha1.LabelMapping{{From: "from", To: "to"}},
 			prefix:   serviceLabelPrefix,
@@ -71,6 +82,17 @@ func TestLabelMappingRelabelConfigs(t *testing.T) {
 			prefix:   serviceLabelPrefix,
 			expected: nil,
 			expErr:   true,
+		},
+		{
+			doc:      "empty to svcmonitoring relabel",
+			mappings: []monitoringv1alpha1.LabelMapping{{From: "from"}},
+			prefix:   serviceLabelPrefix,
+			expected: []*relabel.Config{{
+				Action:       relabel.Replace,
+				SourceLabels: prommodel.LabelNames{serviceLabelPrefix + "from"},
+				TargetLabel:  "from",
+			}},
+			expErr: false,
 		},
 	}
 
