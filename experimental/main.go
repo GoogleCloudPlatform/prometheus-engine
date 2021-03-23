@@ -70,22 +70,20 @@ type flagConfig struct {
 }
 
 // QueryFunc queries a Prometheus instance and returns a promql.Vector.
-func QueryFunc(ctx context.Context, targetURL, q string, t time.Time) (promql.Vector, error) {
+func QueryFunc(ctx context.Context, targetURL, q string, t time.Time) (promql.Vector, v1.Warnings, error) {
 	client, err := api.NewClient(api.Config{
 		Address: targetURL,
 	})
 	if err != nil {
-		return nil, errors.Errorf("Error creating client: %v\n", err)
+		return nil, nil, errors.Errorf("Error creating client: %v\n", err)
 	}
 	v1api := v1.NewAPI(client)
 	results, warnings, err := v1api.Query(ctx, q, time.Now())
 	if err != nil {
-		return nil, errors.Errorf("Error querying Prometheus: %v\n", err)
+		return nil, warnings, errors.Errorf("Error querying Prometheus: %v\n", err)
 	}
-	if len(warnings) > 0 { //TODO(maxamin): use logger rather than Printf
-		fmt.Printf("Warnings: %v\n", warnings)
-	}
-	return convertValueToVector(results)
+	v, err := convertValueToVector(results)
+	return v, warnings, err
 }
 
 // sendAlerts returns the rules.NotifyFunc for a Notifier.
@@ -190,7 +188,11 @@ func main() {
 	}
 
 	queryFunc := func(ctx context.Context, q string, t time.Time) (promql.Vector, error) {
-		return QueryFunc(ctx, cfg.targetURL, q, t)
+		v, warnings, err := QueryFunc(ctx, cfg.targetURL, q, t)
+		if len(warnings) > 0 {
+			level.Warn(logger).Log("msg", "Querying Promethues instance returned warnings", "warn", warnings)
+		}
+		return v, err
 	}
 
 	reg := prometheus.NewRegistry()
