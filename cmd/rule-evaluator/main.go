@@ -65,7 +65,6 @@ type flagConfig struct {
 	configFile    string
 	targetURL     string
 	listenAddress string
-	ruleFiles     []string
 	notifier      notifier.Options
 }
 
@@ -318,19 +317,62 @@ func main() {
 			cancel()
 		})
 	}
+	reloadCh := make(chan chan error)
 	{
-		// Metrics Server.
+		// Web Server.
 		server := &http.Server{Addr: cfg.listenAddress}
 		http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
-
+		http.HandleFunc("/-/reload", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "POST" {
+				rc := make(chan error)
+				reloadCh <- rc
+				if err := <-rc; err != nil {
+					http.Error(w, fmt.Sprintf("Failed to reload config: %s", err), http.StatusInternalServerError)
+				}
+			} else {
+				http.Error(w, "Only POST requests allowed.", http.StatusMethodNotAllowed)
+			}
+		})
 		g.Add(func() error {
-			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", cfg.listenAddress)
+			level.Info(logger).Log("msg", "Starting web server", "listen", cfg.listenAddress)
 			return server.ListenAndServe()
 		}, func(err error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			server.Shutdown(ctx)
 			cancel()
 		})
+	}
+	{
+		// Reload handler.
+		hup := make(chan os.Signal, 1)
+		signal.Notify(hup, syscall.SIGHUP)
+		cancel := make(chan struct{})
+		g.Add(
+			func() error {
+				for {
+					select {
+					case <-hup:
+						if err := reloadConfig(cfg.configFile, logger, reloaders...); err != nil {
+							level.Error(logger).Log("msg", "Error reloading config", "err", err)
+						}
+					case rc := <-reloadCh:
+						if err := reloadConfig(cfg.configFile, logger, reloaders...); err != nil {
+							level.Error(logger).Log("msg", "Error reloading config", "err", err)
+							rc <- err
+						} else {
+							rc <- nil
+						}
+					case <-cancel:
+						return nil
+					}
+				}
+			},
+			func(err error) {
+				// Wait for any in-progress reloads to complete to avoid
+				// reloading things after they have been shutdown.
+				cancel <- struct{}{}
+			},
+		)
 	}
 	{
 		// Initial configuration loading.
@@ -341,7 +383,6 @@ func main() {
 					level.Info(logger).Log("msg", "error loading config file.")
 					return errors.Wrapf(err, "error loading config from %q", cfg.configFile)
 				}
-				level.Info(logger).Log("msg", "Server is ready to receive web requests.")
 				<-cancel
 				return nil
 			},
