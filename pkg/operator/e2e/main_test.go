@@ -197,6 +197,32 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 	if err != nil {
 		t.Fatalf("create collector PodMonitoring: %s", err)
 	}
+	var resVer = ""
+	err = wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
+		pm, err := t.operatorClient.MonitoringV1alpha1().PodMonitorings(t.namespace).Get(ctx, "collector-podmon", metav1.GetOptions{})
+		if err != nil {
+			return false, errors.Errorf("getting PodMonitoring failed: %s", err)
+		}
+		// Ensure no status update cycles.
+		// This is not a perfect check as it's possible the get call returns before the operator
+		// would sync again, however it can serve as a valuable guardrail in case sporadic test
+		// failures start happening due to update cycles.
+		if size := len(pm.Status.Conditions); size == 1 {
+			if resVer == "" {
+				resVer = pm.ResourceVersion
+				return false, nil
+			}
+			success := pm.Status.Conditions[0].Type == monitoringv1alpha1.ConfigurationCreateSuccess
+			steadyVer := resVer == pm.ResourceVersion
+			return success && steadyVer, nil
+		} else if size > 1 {
+			return false, errors.Errorf("status conditions should be of length 1, but got: %d", size)
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Errorf("unable to validate PodMonitoring status: %s", err)
+	}
 	validateCollectorUpMetrics(ctx, t, "collector-podmon")
 }
 

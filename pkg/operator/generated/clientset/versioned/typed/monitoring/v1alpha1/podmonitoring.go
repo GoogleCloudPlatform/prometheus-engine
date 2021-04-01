@@ -38,6 +38,7 @@ type PodMonitoringsGetter interface {
 type PodMonitoringInterface interface {
 	Create(ctx context.Context, podMonitoring *v1alpha1.PodMonitoring, opts v1.CreateOptions) (*v1alpha1.PodMonitoring, error)
 	Update(ctx context.Context, podMonitoring *v1alpha1.PodMonitoring, opts v1.UpdateOptions) (*v1alpha1.PodMonitoring, error)
+	UpdateStatus(ctx context.Context, podMonitoring *v1alpha1.PodMonitoring, opts v1.UpdateOptions) (*v1alpha1.PodMonitoring, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.PodMonitoring, error)
@@ -126,6 +127,22 @@ func (c *podMonitorings) Update(ctx context.Context, podMonitoring *v1alpha1.Pod
 		Namespace(c.ns).
 		Resource("podmonitorings").
 		Name(podMonitoring.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(podMonitoring).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *podMonitorings) UpdateStatus(ctx context.Context, podMonitoring *v1alpha1.PodMonitoring, opts v1.UpdateOptions) (result *v1alpha1.PodMonitoring, err error) {
+	result = &v1alpha1.PodMonitoring{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("podmonitorings").
+		Name(podMonitoring.Name).
+		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(podMonitoring).
 		Do(ctx).

@@ -17,7 +17,7 @@ func TestValidatingWebhookConfig(t *testing.T) {
 		timeout     = 3 * time.Second
 		client      = fake.NewSimpleClientset()
 		ctx, cancel = context.WithTimeout(context.Background(), timeout)
-		endpoints   = []string{"/validate/podmonitorings", "/validate/servicemonitorings"}
+		endpoints   = []string{"/validate/podmonitorings"}
 	)
 
 	t.Cleanup(cancel)
@@ -47,7 +47,7 @@ func TestValidatingWebhookConfig(t *testing.T) {
 			if whs := vwCfg.Webhooks; len(whs) != 2 {
 				t.Errorf("unexpected number of webhooks: %d", len(whs))
 			}
-			for i, res := range []string{"podmonitorings", "servicemonitorings"} {
+			for i, res := range []string{"podmonitorings"} {
 				if wh := vwCfg.Webhooks[i]; wh.Name != res+".gpe-operator.gpe-system.svc" {
 					t.Errorf("unexpected webhook name: %s", wh.Name)
 				} else if name := wh.ClientConfig.Service.Name; name != "gpe-operator" {

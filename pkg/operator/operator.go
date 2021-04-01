@@ -66,9 +66,10 @@ const (
 
 // Operator to implement managed collection for Google Prometheus Engine.
 type Operator struct {
-	logger     log.Logger
-	opts       Options
-	kubeClient kubernetes.Interface
+	logger         log.Logger
+	opts           Options
+	kubeClient     kubernetes.Interface
+	operatorClient clientset.Interface
 
 	// Informers that maintain a cache of cluster resources and call configured
 	// event handlers on changes.
@@ -78,6 +79,9 @@ type Operator struct {
 	// the operator does not get overloaded and multiple changes to the same resource
 	// are not handled in parallel, leading to semantic race conditions.
 	queue workqueue.RateLimitingInterface
+
+	// Internal bookkeeping for sending status updates to processed CRDs.
+	statusState *CRDStatusState
 }
 
 // Options for the Operator.
@@ -142,9 +146,11 @@ func New(logger log.Logger, clientConfig *rest.Config, opts Options) (*Operator,
 		logger:                logger,
 		opts:                  opts,
 		kubeClient:            kubeClient,
+		operatorClient:        operatorClient,
 		informerPodMonitoring: informerFactory.Monitoring().V1alpha1().PodMonitorings().Informer(),
 		informerConfigMap:     corev1informers.NewConfigMapInformer(kubeClient, opts.Namespace, syncInterval, nil),
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "GPEOperator"),
+		statusState:           NewCRDStatusState(metav1.Now),
 	}
 
 	// We only trigger global reconciliation as the operator currently does not handle CRDs
@@ -198,6 +204,7 @@ func ifResourceVersionChanged(fn func(interface{})) func(oldObj, newObj interfac
 		if old.GetResourceVersion() != new.GetResourceVersion() {
 			fn(newObj)
 		}
+
 	}
 }
 
@@ -215,7 +222,6 @@ func (o *Operator) InitAdmissionResources(ctx context.Context, ors ...metav1.Own
 		crt, key []byte
 		err      error
 		podEp    = "/validate/podmonitorings"
-		svcEp    = "/validate/servicemonitorings"
 		fqdn     = fmt.Sprintf("%s.%s.svc", DefaultName, o.opts.Namespace)
 	)
 
@@ -235,7 +241,7 @@ func (o *Operator) InitAdmissionResources(ctx context.Context, ors ...metav1.Own
 	// Idempotently request validation webhook spec with caBundle and endpoints.
 	_, err = UpsertValidatingWebhookConfig(ctx,
 		o.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
-		ValidatingWebhookConfig(DefaultName, o.opts.Namespace, crt, []string{podEp, svcEp}, ors...))
+		ValidatingWebhookConfig(DefaultName, o.opts.Namespace, crt, []string{podEp}, ors...))
 	if err != nil {
 		return nil, err
 	}
@@ -333,11 +339,17 @@ func (o *Operator) sync(ctx context.Context, key string) error {
 
 	level.Info(o.logger).Log("msg", "syncing cluster state for key", "key", key)
 
+	// Reset parsed CRDs.
+	o.statusState.Reset()
+
 	if err := o.ensureCollectorConfig(ctx); err != nil {
 		return errors.Wrap(err, "ensure collector config")
 	}
 	if err := o.ensureCollectorDaemonSet(ctx); err != nil {
 		return errors.Wrap(err, "ensure collector daemon set")
+	}
+	if err := o.updateCRDStatus(ctx); err != nil {
+		return errors.Wrap(err, "update crd status")
 	}
 	return nil
 }
@@ -520,6 +532,22 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	return ds
 }
 
+// updateCRDStatus iterates through parsed CRDs and updates their statuses.
+// If an error is encountered from performing an update, the function returns
+// the error immediately and does not attempt updates on subsequent CRDs.
+func (o *Operator) updateCRDStatus(ctx context.Context) error {
+	// Update podmonitorings status.
+	// TODO(danielclark): add instrumentation here (latency gauge) for debugging
+	// potential issues.
+	for _, pm := range o.statusState.PodMonitorings() {
+		_, err := o.operatorClient.MonitoringV1alpha1().PodMonitorings(pm.Namespace).UpdateStatus(ctx, &pm, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ensureCollectorConfig generates the collector config and creates or updates it.
 func (o *Operator) ensureCollectorConfig(ctx context.Context) error {
 	cfg, err := o.makeCollectorConfig()
@@ -551,9 +579,8 @@ func (o *Operator) ensureCollectorConfig(ctx context.Context) error {
 }
 
 func (o *Operator) makeCollectorConfig() (*promconfig.Config, error) {
-	// Generate a separate scrape job for every endpoint in every ServiceMonitoring.
 	var scrapeCfgs []*promconfig.ScrapeConfig
-
+	// Generate a separate scrape job for every endpoint in every PodMonitoring.
 	var podmons []*monitoringv1alpha1.PodMonitoring
 	err := cache.ListAll(o.informerPodMonitoring.GetStore(), labels.Everything(), func(obj interface{}) {
 		podmons = append(podmons, obj.(*monitoringv1alpha1.PodMonitoring))
@@ -562,21 +589,31 @@ func (o *Operator) makeCollectorConfig() (*promconfig.Config, error) {
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
 	}
 
+	// Mark status updates in batch with single timestamp.
 	for _, podmon := range podmons {
+		cond := &monitoringv1alpha1.MonitoringCondition{
+			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
+			Status: corev1.ConditionTrue,
+		}
 		for i := range podmon.Spec.Endpoints {
 			scrapeCfg, err := makePodScrapeConfig(podmon, i)
 			if err != nil {
-				// Only log a warning on error to not make reconciliation as a whole fail due to on bad resource.
-				// As we will ultimately implement a validation webhook, we just log a warning here and don't propagate
-				// the issue to the ServiceMonitoring's status section.
-				//
 				// TODO(freinartz): implement webhooks. Consider calling the same function as part of the validation
 				// to ensure they always match.
-				level.Warn(o.logger).Log("msg", "generating scrape config failed for ServiceMonitoring endpoint",
+				cond.Status = corev1.ConditionFalse
+				level.Warn(o.logger).Log("msg", "generating scrape config failed for PodMonitoring endpoint",
 					"err", err, "namespace", podmon.Namespace, "name", podmon.Name, "endpoint", i)
 				continue
 			}
 			scrapeCfgs = append(scrapeCfgs, scrapeCfg)
+		}
+		err := o.statusState.SetPodMonitoringCondition(podmon, cond)
+		if err != nil {
+			// Log an error but let operator continue to avoid getting stuck
+			// on a potential bad resource.
+			level.Error(o.logger).Log(
+				"msg", "setting podmonitoring status state",
+				"err", err)
 		}
 	}
 
@@ -640,7 +677,7 @@ func makePodScrapeConfig(podmon *monitoringv1alpha1.PodMonitoring, index int) (*
 
 	// TODO(freinartz): validate all generated regular expressions.
 	relabelCfgs := []*relabel.Config{
-		// Filter targets by namespace of the ServiceMonitoring configuration.
+		// Filter targets by namespace of the PodMonitoring configuration.
 		{
 			Action:       relabel.Keep,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},

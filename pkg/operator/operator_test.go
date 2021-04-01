@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
+
 	"github.com/prometheus/common/model"
 	prommodel "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/relabel"

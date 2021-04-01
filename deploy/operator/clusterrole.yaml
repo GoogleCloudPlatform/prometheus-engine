@@ -26,7 +26,6 @@ rules:
 - apiGroups: ["", "apps", "admissionregistration.k8s.io", "monitoring.googleapis.com", "certificates.k8s.io"]
   resources:
   - podmonitorings
-  - servicemonitorings
   - configmaps
   - daemonsets
   - validatingwebhookconfigurations
