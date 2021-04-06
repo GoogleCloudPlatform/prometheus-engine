@@ -249,7 +249,6 @@ func (o *Operator) InitAdmissionResources(ctx context.Context, ors ...metav1.Own
 
 	// Handle validation resource endpoints.
 	mux.HandleFunc(podEp, as.serveAdmission(admitPodMonitoring))
-	mux.HandleFunc(svcEp, as.serveAdmission(admitServiceMonitoring))
 
 	// Init TLS config with key pair.
 	if c, err := tls.X509KeyPair(crt, key); err != nil {

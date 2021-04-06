@@ -83,7 +83,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestCollectorPodMonitoring(t *testing.T) {
-	t.Skip()
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
 	tctx := newTestContext(t)
 
 	// We could simply verify that the full collection chain works once. But validating

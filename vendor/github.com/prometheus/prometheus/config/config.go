@@ -51,11 +51,6 @@ var (
 		"accept-encoding":                   {},
 		"x-prometheus-remote-write-version": {},
 		"x-prometheus-remote-read-version":  {},
-
-		// Added by SigV4.
-		"x-amz-date":           {},
-		"x-amz-security-token": {},
-		"x-amz-content-sha256": {},
 	}
 )
 
@@ -106,27 +101,24 @@ var (
 	DefaultScrapeConfig = ScrapeConfig{
 		// ScrapeTimeout and ScrapeInterval default to the
 		// configured globals.
-		MetricsPath:      "/metrics",
-		Scheme:           "http",
-		HonorLabels:      false,
-		HonorTimestamps:  true,
-		HTTPClientConfig: config.DefaultHTTPClientConfig,
+		MetricsPath:     "/metrics",
+		Scheme:          "http",
+		HonorLabels:     false,
+		HonorTimestamps: true,
 	}
 
 	// DefaultAlertmanagerConfig is the default alertmanager configuration.
 	DefaultAlertmanagerConfig = AlertmanagerConfig{
-		Scheme:           "http",
-		Timeout:          model.Duration(10 * time.Second),
-		APIVersion:       AlertmanagerAPIVersionV1,
-		HTTPClientConfig: config.DefaultHTTPClientConfig,
+		Scheme:     "http",
+		Timeout:    model.Duration(10 * time.Second),
+		APIVersion: AlertmanagerAPIVersionV1,
 	}
 
 	// DefaultRemoteWriteConfig is the default remote write configuration.
 	DefaultRemoteWriteConfig = RemoteWriteConfig{
-		RemoteTimeout:    model.Duration(30 * time.Second),
-		QueueConfig:      DefaultQueueConfig,
-		MetadataConfig:   DefaultMetadataConfig,
-		HTTPClientConfig: config.DefaultHTTPClientConfig,
+		RemoteTimeout:  model.Duration(30 * time.Second),
+		QueueConfig:    DefaultQueueConfig,
+		MetadataConfig: DefaultMetadataConfig,
 	}
 
 	// DefaultQueueConfig is the default remote queue configuration.
@@ -156,8 +148,7 @@ var (
 
 	// DefaultRemoteReadConfig is the default remote read configuration.
 	DefaultRemoteReadConfig = RemoteReadConfig{
-		RemoteTimeout:    model.Duration(1 * time.Minute),
-		HTTPClientConfig: config.DefaultHTTPClientConfig,
+		RemoteTimeout: model.Duration(1 * time.Minute),
 	}
 )
 
@@ -606,7 +597,6 @@ type RemoteWriteConfig struct {
 	HTTPClientConfig config.HTTPClientConfig `yaml:",inline"`
 	QueueConfig      QueueConfig             `yaml:"queue_config,omitempty"`
 	MetadataConfig   MetadataConfig          `yaml:"metadata_config,omitempty"`
-	SigV4Config      *SigV4Config            `yaml:"sigv4,omitempty"`
 }
 
 // SetDirectory joins any relative file paths with dir.
@@ -636,18 +626,7 @@ func (c *RemoteWriteConfig) UnmarshalYAML(unmarshal func(interface{}) error) err
 	// The UnmarshalYAML method of HTTPClientConfig is not being called because it's not a pointer.
 	// We cannot make it a pointer as the parser panics for inlined pointer structs.
 	// Thus we just do its validation here.
-	if err := c.HTTPClientConfig.Validate(); err != nil {
-		return err
-	}
-
-	httpClientConfigAuthEnabled := c.HTTPClientConfig.BasicAuth != nil ||
-		c.HTTPClientConfig.Authorization != nil
-
-	if httpClientConfigAuthEnabled && c.SigV4Config != nil {
-		return fmt.Errorf("at most one of basic_auth, authorization, & sigv4 must be configured")
-	}
-
-	return nil
+	return c.HTTPClientConfig.Validate()
 }
 
 func validateHeaders(headers map[string]string) error {
@@ -694,17 +673,6 @@ type MetadataConfig struct {
 	Send bool `yaml:"send"`
 	// SendInterval controls how frequently we send metric metadata.
 	SendInterval model.Duration `yaml:"send_interval"`
-}
-
-// SigV4Config is the configuration for signing remote write requests with
-// AWS's SigV4 verification process. Empty values will be retrieved using the
-// AWS default credentials chain.
-type SigV4Config struct {
-	Region    string        `yaml:"region,omitempty"`
-	AccessKey string        `yaml:"access_key,omitempty"`
-	SecretKey config.Secret `yaml:"secret_key,omitempty"`
-	Profile   string        `yaml:"profile,omitempty"`
-	RoleARN   string        `yaml:"role_arn,omitempty"`
 }
 
 // RemoteReadConfig is the configuration for reading from remote storage.

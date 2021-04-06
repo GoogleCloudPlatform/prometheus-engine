@@ -694,7 +694,7 @@ type storageAppender struct {
 	samples []record.RefSample
 }
 
-func (a *storageAppender) Append(ref uint64, lset labels.Labels, t int64, v float64) (uint64, error) {
+func (a *storageAppender) Append(_ uint64, lset labels.Labels, t int64, v float64) (uint64, error) {
 	if lset == nil {
 		return 0, errors.Errorf("label set is nil")
 	}

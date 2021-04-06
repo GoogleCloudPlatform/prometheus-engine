@@ -11,8 +11,8 @@ require (
 	github.com/oklog/run v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.9.0
-	github.com/prometheus/common v0.18.0
-	github.com/prometheus/prometheus v1.8.2-0.20210315220929-1cba1741828b
+	github.com/prometheus/common v0.17.0
+	github.com/prometheus/prometheus v1.8.2-0.20210226165507-9c4bc38c94c2
 	github.com/thanos-io/thanos v0.17.2
 	google.golang.org/api v0.40.0
 	google.golang.org/genproto v0.0.0-20201214200347-8c77b98c765d

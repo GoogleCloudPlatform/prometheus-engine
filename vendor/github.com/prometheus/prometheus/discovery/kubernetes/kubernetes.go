@@ -66,9 +66,7 @@ var (
 		[]string{"role", "event"},
 	)
 	// DefaultSDConfig is the default Kubernetes SD configuration
-	DefaultSDConfig = SDConfig{
-		HTTPClientConfig: config.DefaultHTTPClientConfig,
-	}
+	DefaultSDConfig = SDConfig{}
 )
 
 func init() {
@@ -154,7 +152,7 @@ type resourceSelector struct {
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *SDConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultSDConfig
+	*c = SDConfig{}
 	type plain SDConfig
 	err := unmarshal((*plain)(c))
 	if err != nil {
@@ -167,7 +165,7 @@ func (c *SDConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err != nil {
 		return err
 	}
-	if c.APIServer.URL == nil && !reflect.DeepEqual(c.HTTPClientConfig, config.DefaultHTTPClientConfig) {
+	if c.APIServer.URL == nil && !reflect.DeepEqual(c.HTTPClientConfig, config.HTTPClientConfig{}) {
 		return errors.Errorf("to use custom HTTP client configuration please provide the 'api_server' URL explicitly")
 	}
 

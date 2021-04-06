@@ -19,7 +19,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -212,9 +211,6 @@ type EngineOpts struct {
 
 	// EnableAtModifier if true enables @ modifier. Disabled otherwise.
 	EnableAtModifier bool
-
-	// EnableNegativeOffset if true enables negative (-) offset values. Disabled otherwise.
-	EnableNegativeOffset bool
 }
 
 // Engine handles the lifetime of queries from beginning to end.
@@ -230,7 +226,6 @@ type Engine struct {
 	lookbackDelta            time.Duration
 	noStepSubqueryIntervalFn func(rangeMillis int64) int64
 	enableAtModifier         bool
-	enableNegativeOffset     bool
 }
 
 // NewEngine returns a new engine.
@@ -312,7 +307,6 @@ func NewEngine(opts EngineOpts) *Engine {
 		lookbackDelta:            opts.LookbackDelta,
 		noStepSubqueryIntervalFn: opts.NoStepSubqueryIntervalFn,
 		enableAtModifier:         opts.EnableAtModifier,
-		enableNegativeOffset:     opts.EnableNegativeOffset,
 	}
 }
 
@@ -394,53 +388,34 @@ func (ng *Engine) newQuery(q storage.Queryable, expr parser.Expr, start, end tim
 }
 
 var ErrValidationAtModifierDisabled = errors.New("@ modifier is disabled")
-var ErrValidationNegativeOffsetDisabled = errors.New("negative offset is disabled")
 
 func (ng *Engine) validateOpts(expr parser.Expr) error {
-	if ng.enableAtModifier && ng.enableNegativeOffset {
+	if ng.enableAtModifier {
 		return nil
 	}
-
-	var atModifierUsed, negativeOffsetUsed bool
 
 	var validationErr error
 	parser.Inspect(expr, func(node parser.Node, path []parser.Node) error {
 		switch n := node.(type) {
 		case *parser.VectorSelector:
 			if n.Timestamp != nil || n.StartOrEnd == parser.START || n.StartOrEnd == parser.END {
-				atModifierUsed = true
-			}
-			if n.OriginalOffset < 0 {
-				negativeOffsetUsed = true
+				validationErr = ErrValidationAtModifierDisabled
+				return validationErr
 			}
 
 		case *parser.MatrixSelector:
 			vs := n.VectorSelector.(*parser.VectorSelector)
 			if vs.Timestamp != nil || vs.StartOrEnd == parser.START || vs.StartOrEnd == parser.END {
-				atModifierUsed = true
-			}
-			if vs.OriginalOffset < 0 {
-				negativeOffsetUsed = true
+				validationErr = ErrValidationAtModifierDisabled
+				return validationErr
 			}
 
 		case *parser.SubqueryExpr:
 			if n.Timestamp != nil || n.StartOrEnd == parser.START || n.StartOrEnd == parser.END {
-				atModifierUsed = true
-			}
-			if n.OriginalOffset < 0 {
-				negativeOffsetUsed = true
+				validationErr = ErrValidationAtModifierDisabled
+				return validationErr
 			}
 		}
-
-		if atModifierUsed && !ng.enableAtModifier {
-			validationErr = ErrValidationAtModifierDisabled
-			return validationErr
-		}
-		if negativeOffsetUsed && !ng.enableNegativeOffset {
-			validationErr = ErrValidationNegativeOffsetDisabled
-			return validationErr
-		}
-
 		return nil
 	})
 
@@ -1126,10 +1101,6 @@ func (ev *evaluator) eval(expr parser.Expr) (parser.Value, storage.Warnings) {
 	}
 	numSteps := int((ev.endTimestamp-ev.startTimestamp)/ev.interval) + 1
 
-	// Create a new span to help investigate inner evaluation performances.
-	span, _ := opentracing.StartSpanFromContext(ev.ctx, stats.InnerEvalTime.SpanOperation()+" eval "+reflect.TypeOf(expr).String())
-	defer span.Finish()
-
 	switch e := expr.(type) {
 	case *parser.AggregateExpr:
 		unwrapParenExpr(&e.Param)
@@ -1416,7 +1387,7 @@ func (ev *evaluator) eval(expr parser.Expr) (parser.Value, storage.Warnings) {
 			ev.error(errWithWarnings{errors.Wrap(err, "expanding series"), ws})
 		}
 		mat := make(Matrix, 0, len(e.Series))
-		it := storage.NewMemoizedEmptyIterator(durationMilliseconds(ev.lookbackDelta))
+		it := storage.NewBuffer(durationMilliseconds(ev.lookbackDelta))
 		for i, s := range e.Series {
 			it.Reset(s.Iterator())
 			ss := Series{
@@ -1547,7 +1518,7 @@ func (ev *evaluator) vectorSelector(node *parser.VectorSelector, ts int64) (Vect
 		ev.error(errWithWarnings{errors.Wrap(err, "expanding series"), ws})
 	}
 	vec := make(Vector, 0, len(node.Series))
-	it := storage.NewMemoizedEmptyIterator(durationMilliseconds(ev.lookbackDelta))
+	it := storage.NewBuffer(durationMilliseconds(ev.lookbackDelta))
 	for i, s := range node.Series {
 		it.Reset(s.Iterator())
 
@@ -1569,7 +1540,7 @@ func (ev *evaluator) vectorSelector(node *parser.VectorSelector, ts int64) (Vect
 }
 
 // vectorSelectorSingle evaluates a instant vector for the iterator of one time series.
-func (ev *evaluator) vectorSelectorSingle(it *storage.MemoizedSeriesIterator, node *parser.VectorSelector, ts int64) (int64, float64, bool) {
+func (ev *evaluator) vectorSelectorSingle(it *storage.BufferedSeriesIterator, node *parser.VectorSelector, ts int64) (int64, float64, bool) {
 	refTime := ts - durationMilliseconds(node.Offset)
 	var t int64
 	var v float64
@@ -1586,7 +1557,7 @@ func (ev *evaluator) vectorSelectorSingle(it *storage.MemoizedSeriesIterator, no
 	}
 
 	if !ok || t > refTime {
-		t, v, ok = it.PeekPrev()
+		t, v, ok = it.PeekBack(1)
 		if !ok || t < refTime-durationMilliseconds(ev.lookbackDelta) {
 			return 0, 0, false
 		}
