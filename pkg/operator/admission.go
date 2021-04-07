@@ -38,8 +38,13 @@ func NewAdmissionServer(logger log.Logger) *AdmissionServer {
 // response.
 func (a *AdmissionServer) serveAdmission(admit admitFn) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req, resp v1.AdmissionReview
+		level.Debug(a.logger).Log(
+			"msg", "webhook called",
+			"method", r.Method,
+			"host", r.Host,
+			"path", r.URL.Path)
 
+		var req, resp v1.AdmissionReview
 		// Read, decode, and evaluate admission request.
 		if data, err := ioutil.ReadAll(r.Body); err != nil {
 			level.Error(a.logger).Log("msg", "reading request body", "err", err)
