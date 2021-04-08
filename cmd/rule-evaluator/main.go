@@ -333,6 +333,20 @@ func main() {
 				http.Error(w, "Only POST requests allowed.", http.StatusMethodNotAllowed)
 			}
 		})
+		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+		http.HandleFunc("/-/ready", func(w http.ResponseWriter, r *http.Request) {
+			_, err := queryFunc(context.Background(), "vector(1)", time.Now()) // Run a test query to check status of rule evaluator.
+			if err != nil {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				fmt.Fprintf(w, "Prometheus is not Ready.\n")
+				level.Error(logger).Log("msg", "Error querying Prometheus instance", "err", err)
+			} else {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprintf(w, "Prometheus is Ready.\n")
+			}
+		})
 		g.Add(func() error {
 			level.Info(logger).Log("msg", "Starting web server", "listen", cfg.listenAddress)
 			return server.ListenAndServe()
