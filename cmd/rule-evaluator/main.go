@@ -16,6 +16,8 @@ import (
 	"github.com/google/gpe-collector/pkg/export"
 	"github.com/oklog/run"
 	"github.com/pkg/errors"
+	"google.golang.org/api/option"
+	apihttp "google.golang.org/api/transport/http"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/client_golang/api"
@@ -69,14 +71,7 @@ type flagConfig struct {
 }
 
 // QueryFunc queries a Prometheus instance and returns a promql.Vector.
-func QueryFunc(ctx context.Context, targetURL, q string, t time.Time) (promql.Vector, v1.Warnings, error) {
-	client, err := api.NewClient(api.Config{
-		Address: targetURL,
-	})
-	if err != nil {
-		return nil, nil, errors.Errorf("Error creating client: %v\n", err)
-	}
-	v1api := v1.NewAPI(client)
+func QueryFunc(ctx context.Context, q string, t time.Time, v1api v1.API) (promql.Vector, v1.Warnings, error) {
 	results, warnings, err := v1api.Query(ctx, q, time.Now())
 	if err != nil {
 		return nil, warnings, errors.Errorf("Error querying Prometheus: %v\n", err)
@@ -186,8 +181,30 @@ func main() {
 		return storage.NoopQuerier(), nil
 	}
 
+	ctxRuleManger := context.Background()
+	ctxDiscover, cancelDiscover := context.WithCancel(context.Background())
+
+	opts := []option.ClientOption{
+		option.WithScopes("https://www.googleapis.com/auth/monitoring.read"),
+		option.WithCredentialsFile(exporterOptions.CredentialsFile),
+	}
+	transport, err := apihttp.NewTransport(ctxRuleManger, http.DefaultTransport, opts...)
+	if err != nil {
+		level.Error(logger).Log("msg", "Creating proxy HTTP transport failed", "err", err)
+		os.Exit(1)
+	}
+	client, err := api.NewClient(api.Config{
+		Address:      cfg.targetURL,
+		RoundTripper: transport,
+	})
+	if err != nil {
+		level.Error(logger).Log("msg", "Error creating client", "err", err)
+		os.Exit(1)
+	}
+	v1api := v1.NewAPI(client)
+
 	queryFunc := func(ctx context.Context, q string, t time.Time) (promql.Vector, error) {
-		v, warnings, err := QueryFunc(ctx, cfg.targetURL, q, t)
+		v, warnings, err := QueryFunc(ctx, q, t, v1api)
 		if len(warnings) > 0 {
 			level.Warn(logger).Log("msg", "Querying Promethues instance returned warnings", "warn", warnings)
 		}
@@ -200,15 +217,13 @@ func main() {
 		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
 	)
 
-	ctxDiscover, cancelDiscover := context.WithCancel(context.Background())
 	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
-
 	notificationManager := notifier.NewManager(&cfg.notifier, log.With(logger, "component", "notifier"))
 
 	ruleManager := rules.NewManager(&rules.ManagerOptions{
 		ExternalURL: &url.URL{},
 		QueryFunc:   queryFunc,
-		Context:     context.Background(),
+		Context:     ctxRuleManger,
 		Appendable:  destination,
 		Queryable:   storage.QueryableFunc(noopQueryable),
 		Logger:      logger,

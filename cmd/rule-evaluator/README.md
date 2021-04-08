@@ -13,29 +13,42 @@ gcloud auth application-default login
 ```
 ## Install
 
-1. [Prometheus](https://prometheus.io/docs/prometheus/latest/getting_started/)
+1. [Local Prometheus Instance](https://prometheus.io/docs/prometheus/latest/getting_started/) or GPE Instance //TODO(maxamin): add GPE link
 2. [Alert Manager](https://prometheus.io/download/)
 
 ## Startup Guide
 
 Startup Prometheus and Alert Manager.
 
-Define the project id, location, query target, and config file:
+Define the project id, location, and config file:
 
 ```bash
 PROJECT_ID=$(gcloud config get-value core/project)
 ZONE=us-central1-b
-TARGET=http://localhost:9090/ # default Prometheus query address
 CONFIG_FILE=prometheus.yml
+CREDENTIALS=~/.config/gcloud/application_default_credentials.json #default location
 ```
+
+Define one of the following query target:
+
+```bash
+# Address to local prometheus instance
+TARGET=http://localhost:9090/ # default Prometheus query address
+
+
+# Address to GPE instance
+TARGET=https://staging-monitoring.sandbox.googleapis.com/v1alpha/projects/$PROJECT_ID/location/global/prometheus/
+```
+
 Run the binary:
 
-```
+```bash
 go run main.go \
     --gcm.project_id=$PROJECT_ID \
     --gcm.label.location=$ZONE \
     --query.target-url=$TARGET \
-    --config.file=$CONFIG_FILE
+    --config.file=$CONFIG_FILE \
+    --gcm.credentials-file=$CREDENTIALS
 ```
 
 ## Evaluation
