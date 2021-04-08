@@ -72,9 +72,8 @@ type Operator struct {
 
 	// Informers that maintain a cache of cluster resources and call configured
 	// event handlers on changes.
-	informerServiceMonitoring cache.SharedIndexInformer
-	informerPodMonitoring     cache.SharedIndexInformer
-	informerConfigMap         cache.SharedIndexInformer
+	informerPodMonitoring cache.SharedIndexInformer
+	informerConfigMap     cache.SharedIndexInformer
 	// State changes are enqueued into a rate limited work queue, which ensures
 	// the operator does not get overloaded and multiple changes to the same resource
 	// are not handled in parallel, leading to semantic race conditions.
@@ -140,22 +139,16 @@ func New(logger log.Logger, clientConfig *rest.Config, opts Options) (*Operator,
 	informerFactory := informers.NewSharedInformerFactory(operatorClient, syncInterval)
 
 	op := &Operator{
-		logger:                    logger,
-		opts:                      opts,
-		kubeClient:                kubeClient,
-		informerServiceMonitoring: informerFactory.Monitoring().V1alpha1().ServiceMonitorings().Informer(),
-		informerPodMonitoring:     informerFactory.Monitoring().V1alpha1().PodMonitorings().Informer(),
-		informerConfigMap:         corev1informers.NewConfigMapInformer(kubeClient, opts.Namespace, syncInterval, nil),
-		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "GPEOperator"),
+		logger:                logger,
+		opts:                  opts,
+		kubeClient:            kubeClient,
+		informerPodMonitoring: informerFactory.Monitoring().V1alpha1().PodMonitorings().Informer(),
+		informerConfigMap:     corev1informers.NewConfigMapInformer(kubeClient, opts.Namespace, syncInterval, nil),
+		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "GPEOperator"),
 	}
 
 	// We only trigger global reconciliation as the operator currently does not handle CRDs
 	// that only affect a subset of resources managed by the operator.
-	op.informerServiceMonitoring.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    op.enqueueGlobal,
-		DeleteFunc: op.enqueueGlobal,
-		UpdateFunc: ifResourceVersionChanged(op.enqueueGlobal),
-	})
 	op.informerPodMonitoring.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    op.enqueueGlobal,
 		DeleteFunc: op.enqueueGlobal,
@@ -279,7 +272,6 @@ func (o *Operator) Run(ctx context.Context) error {
 
 	level.Info(o.logger).Log("msg", "starting GPE operator")
 
-	go o.informerServiceMonitoring.Run(ctx.Done())
 	go o.informerPodMonitoring.Run(ctx.Done())
 	go o.informerConfigMap.Run(ctx.Done())
 
@@ -288,7 +280,6 @@ func (o *Operator) Run(ctx context.Context) error {
 	syncCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	ok := cache.WaitForNamedCacheSync(
 		"GPEOperator", syncCtx.Done(),
-		o.informerServiceMonitoring.HasSynced,
 		o.informerPodMonitoring.HasSynced,
 		o.informerConfigMap.HasSynced,
 	)
@@ -564,34 +555,8 @@ func (o *Operator) makeCollectorConfig() (*promconfig.Config, error) {
 	// Generate a separate scrape job for every endpoint in every ServiceMonitoring.
 	var scrapeCfgs []*promconfig.ScrapeConfig
 
-	var svcmons []*monitoringv1alpha1.ServiceMonitoring
-	err := cache.ListAll(o.informerServiceMonitoring.GetStore(), labels.Everything(), func(obj interface{}) {
-		svcmons = append(svcmons, obj.(*monitoringv1alpha1.ServiceMonitoring))
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to list ServiceMonitorings")
-	}
-
-	for _, svcmon := range svcmons {
-		for i := range svcmon.Spec.Endpoints {
-			scrapeCfg, err := makeServiceScrapeConfig(svcmon, i)
-			if err != nil {
-				// Only log a warning on error to not make reconciliation as a whole fail due to on bad resource.
-				// As we will ultimately implement a validation webhook, we just log a warning here and don't propagate
-				// the issue to the ServiceMonitoring's status section.
-				//
-				// TODO(freinartz): implement webhooks. Consider calling the same function as part of the validation
-				// to ensure they always match.
-				level.Warn(o.logger).Log("msg", "generating scrape config failed for ServiceMonitoring endpoint",
-					"err", err, "namespace", svcmon.Namespace, "name", svcmon.Name, "endpoint", i)
-				continue
-			}
-			scrapeCfgs = append(scrapeCfgs, scrapeCfg)
-		}
-	}
-
 	var podmons []*monitoringv1alpha1.PodMonitoring
-	err = cache.ListAll(o.informerPodMonitoring.GetStore(), labels.Everything(), func(obj interface{}) {
+	err := cache.ListAll(o.informerPodMonitoring.GetStore(), labels.Everything(), func(obj interface{}) {
 		podmons = append(podmons, obj.(*monitoringv1alpha1.PodMonitoring))
 	})
 	if err != nil {
@@ -650,172 +615,6 @@ func (o *Operator) makeCollectorConfig() (*promconfig.Config, error) {
 
 // Environment variable interpolated by the config reloader sidecar.
 const envVarNodeName = "NODE_NAME"
-
-func makeServiceScrapeConfig(svcmon *monitoringv1alpha1.ServiceMonitoring, index int) (*promconfig.ScrapeConfig, error) {
-	// Configure how Prometheus talks to the Kubernetes API server to discover targets.
-	// This configuration is the same for all scrape jobs (esp. selectors).
-	// This ensures that Prometheus can reuse the underlying client and caches, which reduces
-	// load on the Kubernetes API server.
-	discoveryCfgs := discovery.Configs{
-		&discoverykube.SDConfig{
-			// While our pod cache can be constrained by the node we run on, the Endpoints resources
-			// are mirrored entirely. We should keep an eye on the load this produces as they are upgraded
-			// whenever a pod is scheduled.
-			// If every single pod causes updates to a collector on every single node, this may not scale
-			// well in large clusters. As a last resort we can always write our own logic that produces
-			// static Prometheus scrape configurations.
-			Role: discoverykube.RoleEndpoint,
-			// Drop all potential targets not the same node as the collector. The $(NODE_NAME) variable
-			// is interpolated by the config reloader sidecar before the config reaches the Prometheus collector.
-			// Doing it through selectors rather than relabeling should substantially reduce the client and
-			// server side load.
-			Selectors: []discoverykube.SelectorConfig{
-				{
-					Role:  discoverykube.RolePod,
-					Field: fmt.Sprintf("spec.nodeName=$(%s)", envVarNodeName),
-				},
-			},
-		},
-	}
-
-	ep := svcmon.Spec.Endpoints[index]
-
-	// TODO(freinartz): validate all generated regular expressions.
-	relabelCfgs := []*relabel.Config{
-		// Filter all pods not running on this node. The label won't exist in the first place for pods
-		// already filtered by the selector in the discovery config. But doing a full equality
-		// check makes us less dependent on that.
-		{
-			Action:       relabel.Keep,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_node_name"},
-			Regex:        relabel.MustNewRegexp(fmt.Sprintf("$(%s)", envVarNodeName)),
-		},
-		// Filter targets by namespace of the ServiceMonitoring configuration.
-		{
-			Action:       relabel.Keep,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
-			Regex:        relabel.MustNewRegexp(svcmon.Namespace),
-		},
-	}
-
-	// Filter targets that belong to selected services.
-
-	// Simple equal matchers. Sort by keys first to ensure that generated configs are reproducible.
-	// (Go map iteration is non-deterministic.)
-	var selectorKeys []string
-	for k := range svcmon.Spec.Selector.MatchLabels {
-		selectorKeys = append(selectorKeys, k)
-	}
-	sort.Strings(selectorKeys)
-
-	for _, k := range selectorKeys {
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Keep,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_label_" + sanitizeLabelName(k)},
-			Regex:        relabel.MustNewRegexp(svcmon.Spec.Selector.MatchLabels[k]),
-		})
-	}
-	// Expression matchers are mapped to relabeling rules with the same behavior.
-	for _, exp := range svcmon.Spec.Selector.MatchExpressions {
-		switch exp.Operator {
-		case metav1.LabelSelectorOpIn:
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Keep,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_label_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp(strings.Join(exp.Values, "|")),
-			})
-		case metav1.LabelSelectorOpNotIn:
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Drop,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_label_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp(strings.Join(exp.Values, "|")),
-			})
-		case metav1.LabelSelectorOpExists:
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Keep,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_labelpresent_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp("true"),
-			})
-		case metav1.LabelSelectorOpDoesNotExist:
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Drop,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_labelpresent_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp("true"),
-			})
-		}
-	}
-	// Filter targets by the configured port.
-	if ep.Port.StrVal == "" {
-		return nil, errors.New("named port must be set for ServiceMonitoring")
-	}
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:       relabel.Keep,
-		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_endpoint_port_name"},
-		Regex:        relabel.MustNewRegexp(ep.Port.StrVal),
-	})
-
-	// Set a clean namespace, job, and instance label that provide sufficient uniqueness.
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:       relabel.Replace,
-		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
-		TargetLabel:  "namespace",
-	})
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:       relabel.Replace,
-		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_name"},
-		TargetLabel:  "job",
-	})
-	// The instance label being the pod name would be ideal UX-wise. But we cannot be certain
-	// that multiple metrics endpoints on a pod don't expose metrics with the same name. Thus
-	// we have to disambiguate along the port as well.
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:       relabel.Replace,
-		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name", "__meta_kubernetes_endpoint_port_name"},
-		Regex:        relabel.MustNewRegexp("(.+);(.+)"),
-		Replacement:  "$1:$2",
-		TargetLabel:  "instance",
-	})
-
-	// Incorporate k8s label remappings from CRD.
-	if pCfgs, err := labelMappingRelabelConfigs(svcmon.Spec.TargetLabels.FromPod, podLabelPrefix); err != nil {
-		return nil, errors.Wrap(err, "invalid ServiceMonitoring FromPod target labels")
-	} else if sCfgs, err := labelMappingRelabelConfigs(svcmon.Spec.TargetLabels.FromService, serviceLabelPrefix); err != nil {
-		return nil, errors.Wrap(err, "invalid ServiceMonitoring FromService target labels")
-	} else {
-		// Pod-level configs are intentionally added after service-level to ensure their relabelling
-		// takes precedence on any conflicts.
-		relabelCfgs = append(relabelCfgs, sCfgs...)
-		relabelCfgs = append(relabelCfgs, pCfgs...)
-	}
-
-	interval, err := prommodel.ParseDuration(ep.Interval)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid scrape interval")
-	}
-	timeout := interval
-	if ep.Timeout != "" {
-		timeout, err = prommodel.ParseDuration(ep.Timeout)
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid scrape timeout")
-		}
-	}
-
-	metricsPath := "/metrics"
-	if ep.Path != "" {
-		metricsPath = ep.Path
-	}
-
-	return &promconfig.ScrapeConfig{
-		// Generate a job name to make it easy to track what generated the scrape configuration.
-		// The actual job label attached to its metrics is overwritten via relabeling.
-		JobName:                 fmt.Sprintf("ServiceMonitoring/%s/%s/%s", svcmon.Namespace, svcmon.Name, ep.Port.StrVal),
-		ServiceDiscoveryConfigs: discoveryCfgs,
-		MetricsPath:             metricsPath,
-		ScrapeInterval:          interval,
-		ScrapeTimeout:           timeout,
-		RelabelConfigs:          relabelCfgs,
-	}, nil
-}
 
 func makePodScrapeConfig(podmon *monitoringv1alpha1.PodMonitoring, index int) (*promconfig.ScrapeConfig, error) {
 	// Configure how Prometheus talks to the Kubernetes API server to discover targets.

@@ -41,21 +41,9 @@ func PodMonitoringResource() metav1.GroupVersionResource {
 	}
 }
 
-// ServiceMonitoringResource returns a ServiceMonitoring GroupVersionResource.
-// This can be used to enforce API types.
-func ServiceMonitoringResource() metav1.GroupVersionResource {
-	return metav1.GroupVersionResource{
-		Group:    monitoring.GroupName,
-		Version:  Version,
-		Resource: "servicemonitorings",
-	}
-}
-
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&ServiceMonitoring{},
-		&ServiceMonitoringList{},
 		&PodMonitoring{},
 		&PodMonitoringList{},
 	)

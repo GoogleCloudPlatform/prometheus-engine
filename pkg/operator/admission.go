@@ -93,26 +93,6 @@ func admitPodMonitoring(ar *v1.AdmissionReview) (*v1.AdmissionResponse, error) {
 	return &v1.AdmissionResponse{Allowed: true}, nil
 }
 
-// admitServiceMonitoring evaluates incoming ServiceMonitoring resources to ensure
-// they are a valid resource.
-func admitServiceMonitoring(ar *v1.AdmissionReview) (*v1.AdmissionResponse, error) {
-	var sm = &v1alpha1.ServiceMonitoring{}
-	// Ensure the requested resource is a ServiceMonitoring.
-	if ar.Request.Resource != v1alpha1.ServiceMonitoringResource() {
-		return nil, fmt.Errorf("expected resource to be %v, but received %v", v1alpha1.ServiceMonitoringResource(), ar.Request.Resource)
-		// Unmarshall payload to ServiceMonitoring stuct.
-	} else if err := json.Unmarshal(ar.Request.Object.Raw, sm); err != nil {
-		return nil, errors.Wrap(err, "unmarshalling admission request to servicemonitoring")
-		// Check valid relabel mappings.
-	} else if _, err := labelMappingRelabelConfigs(sm.Spec.TargetLabels.FromPod, podLabelPrefix); err != nil {
-		return nil, errors.Wrap(err, "checking pod label mappings")
-	} else if _, err := labelMappingRelabelConfigs(sm.Spec.TargetLabels.FromService, serviceLabelPrefix); err != nil {
-		return nil, errors.Wrap(err, "checking service label mappings")
-	}
-
-	return &v1.AdmissionResponse{Allowed: true}, nil
-}
-
 // toAdmissionResponse is a helper function that returns an AdmissionResponse
 // containing a message of the provided error.
 func toAdmissionResponse(err error) *v1.AdmissionResponse {

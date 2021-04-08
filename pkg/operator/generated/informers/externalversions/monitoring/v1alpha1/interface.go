@@ -24,8 +24,6 @@ import (
 type Interface interface {
 	// PodMonitorings returns a PodMonitoringInformer.
 	PodMonitorings() PodMonitoringInformer
-	// ServiceMonitorings returns a ServiceMonitoringInformer.
-	ServiceMonitorings() ServiceMonitoringInformer
 }
 
 type version struct {
@@ -42,9 +40,4 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // PodMonitorings returns a PodMonitoringInformer.
 func (v *version) PodMonitorings() PodMonitoringInformer {
 	return &podMonitoringInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// ServiceMonitorings returns a ServiceMonitoringInformer.
-func (v *version) ServiceMonitorings() ServiceMonitoringInformer {
-	return &serviceMonitoringInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

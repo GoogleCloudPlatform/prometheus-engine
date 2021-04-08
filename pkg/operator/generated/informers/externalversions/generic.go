@@ -53,8 +53,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=monitoring.googleapis.com, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("podmonitorings"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Monitoring().V1alpha1().PodMonitorings().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("servicemonitorings"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Monitoring().V1alpha1().ServiceMonitorings().Informer()}, nil
 
 	}
 

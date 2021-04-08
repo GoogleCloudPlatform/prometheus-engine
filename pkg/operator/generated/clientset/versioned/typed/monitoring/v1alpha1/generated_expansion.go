@@ -17,5 +17,3 @@
 package v1alpha1
 
 type PodMonitoringExpansion interface{}
-
-type ServiceMonitoringExpansion interface{}

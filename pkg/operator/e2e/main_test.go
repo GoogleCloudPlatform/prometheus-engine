@@ -21,7 +21,6 @@ import (
 	"google.golang.org/api/iterator"
 	gcmpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -84,21 +83,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestCollectorPodMonitoring(t *testing.T) {
+	t.Skip()
 	tctx := newTestContext(t)
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
 	t.Run("deployed", tctx.subtest(testCollectorDeployed))
 	t.Run("self-monitoring", tctx.subtest(testCollectorSelfPodMonitoring))
-}
-
-func TestCollectorServiceMonitoring(t *testing.T) {
-	tctx := newTestContext(t)
-
-	// We could simply verify that the full collection chain works once. But validating
-	// more fine-grained stages makes debugging a lot easier.
-	t.Run("deployed", tctx.subtest(testCollectorDeployed))
-	t.Run("self-monitoring", tctx.subtest(testCollectorSelfServiceMonitoring))
 }
 
 // This is hacky.
@@ -205,61 +196,6 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 		t.Fatalf("create collector PodMonitoring: %s", err)
 	}
 	validateCollectorUpMetrics(ctx, t, "collector-podmon")
-}
-
-// testCollectorSelfServiceMonitoring sets up service monitoring of the collector itself
-// and waits for samples to become available in Cloud Monitoring.
-func testCollectorSelfServiceMonitoring(ctx context.Context, t *testContext) {
-	// The collector is an application just like any other. So we create a Service and
-	// ServiceMonitoring for it.
-	// The operator should configure the collector to scrape itself and its metrics
-	// should show up in Cloud Monitoring shortly after.
-	svc := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			// Use a non-standard name so we can be sure that the metric job label is set
-			// from the service name rather than the numberous other places "collector" is used.
-			Name: "collector-service",
-			Labels: map[string]string{
-				operator.LabelAppName: operator.CollectorName,
-			},
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: map[string]string{
-				operator.LabelAppName: operator.CollectorName,
-			},
-			Ports: []corev1.ServicePort{
-				{Name: "prometheus-http", Port: 9090},
-				{Name: "reloader-http", Port: 9091},
-			},
-		},
-	}
-	_, err := t.kubeClient.CoreV1().Services(t.namespace).Create(ctx, svc, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("create collector Servic e: %s", err)
-	}
-
-	// Setup scraping of two ports of the collectors.
-	svcmon := &monitoringv1alpha1.ServiceMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "collector-svcmon",
-		},
-		Spec: monitoringv1alpha1.ServiceMonitoringSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					operator.LabelAppName: operator.CollectorName,
-				},
-			},
-			Endpoints: []monitoringv1alpha1.ScrapeEndpoint{
-				{Port: intstr.FromString("prometheus-http"), Interval: "5s"},
-				{Port: intstr.FromString("reloader-http"), Interval: "5s"},
-			},
-		},
-	}
-	_, err = t.operatorClient.MonitoringV1alpha1().ServiceMonitorings(t.namespace).Create(ctx, svcmon, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("create collector ServiceMonitoring: %s", err)
-	}
-	validateCollectorUpMetrics(ctx, t, "collector-service")
 }
 
 // validateCollectorUpMetrics checks whether the scrape-time up metrics for all collector

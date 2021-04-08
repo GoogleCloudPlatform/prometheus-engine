@@ -5,32 +5,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// ServiceMonitoring defines monitoring for a set of services.
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type ServiceMonitoring struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// Specification of desired Service selection for target discovery by
-	// Prometheus.
-	Spec ServiceMonitoringSpec `json:"spec"`
-}
-
-// ServiceMonitoringList is a list of ServiceMonitorings.
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type ServiceMonitoringList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ServiceMonitoring `json:"items"`
-}
-
-// ServiceMonitoringSpec contains specification parameters for ServiceMonitoring.
-type ServiceMonitoringSpec struct {
-	Selector     metav1.LabelSelector `json:"selector"`
-	Endpoints    []ScrapeEndpoint     `json:"endpoints"`
-	TargetLabels TargetLabels         `json:"targetLabels,omitempty"`
-}
-
 // PodMonitoring defines monitoring for a set of pods.
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

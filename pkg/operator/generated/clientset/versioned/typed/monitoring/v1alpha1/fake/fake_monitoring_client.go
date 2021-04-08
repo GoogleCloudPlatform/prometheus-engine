@@ -30,10 +30,6 @@ func (c *FakeMonitoringV1alpha1) PodMonitorings(namespace string) v1alpha1.PodMo
 	return &FakePodMonitorings{c, namespace}
 }
 
-func (c *FakeMonitoringV1alpha1) ServiceMonitorings(namespace string) v1alpha1.ServiceMonitoringInterface {
-	return &FakeServiceMonitorings{c, namespace}
-}
-
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeMonitoringV1alpha1) RESTClient() rest.Interface {
