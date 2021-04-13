@@ -73,7 +73,7 @@ func newTestContext(t *testing.T) *testContext {
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "test", t.Name())
 
-	op, err := operator.New(logger, kubeconfig, operator.Options{
+	op, err := operator.New(logger, kubeconfig, nil, operator.Options{
 		Namespace:  tctx.namespace,
 		CASelfSign: false,
 		ListenAddr: ":8443",

@@ -62,12 +62,13 @@ spec:
       serviceAccountName: operator
       containers:
       - name: operator
-        image: "gcr.io/gpe-test-1/gpe-operator:bench_20213003_2100"
+        image: "gcr.io/gpe-test-1/gpe-operator:bench_20211404_2011"
         args:
         - "--priority-class=gpe-critical"
         - "--cloud-monitoring-endpoint=staging-monitoring.sandbox.googleapis.com:443"
         - "--kubeconfig="
         - "--ca-selfsign=false"
+        - "--image-collector=gcr.io/gpe-test-1/prometheus:v2.26.0-gpe.0"
         ports:
         - name: webhook
           # Note this should match the --listen-addr flag passed in to the operator args.

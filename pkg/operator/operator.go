@@ -16,6 +16,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
@@ -62,6 +63,16 @@ const (
 	kubeLabelPrefix    = model.MetaLabelPrefix + "kubernetes_"
 	podLabelPrefix     = kubeLabelPrefix + "pod_label_"
 	serviceLabelPrefix = kubeLabelPrefix + "service_label_"
+)
+
+var (
+	metricOperatorSyncLatency = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name:      "operator_sync_latency",
+			Namespace: "gpe_operator",
+			Help:      "The time it takes for operator to synchronize with managed CRDs (s).",
+		},
+	)
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.
@@ -125,7 +136,7 @@ func (o *Options) defaultAndValidate(logger log.Logger) error {
 }
 
 // New instantiates a new Operator.
-func New(logger log.Logger, clientConfig *rest.Config, opts Options) (*Operator, error) {
+func New(logger log.Logger, clientConfig *rest.Config, registry prometheus.Registerer, opts Options) (*Operator, error) {
 	if err := opts.defaultAndValidate(logger); err != nil {
 		return nil, errors.Wrap(err, "invalid options")
 	}
@@ -141,6 +152,10 @@ func New(logger log.Logger, clientConfig *rest.Config, opts Options) (*Operator,
 	const syncInterval = 5 * time.Minute
 
 	informerFactory := informers.NewSharedInformerFactory(operatorClient, syncInterval)
+
+	if registry != nil {
+		registry.MustRegister(metricOperatorSyncLatency)
+	}
 
 	op := &Operator{
 		logger:                logger,
@@ -333,6 +348,11 @@ func (o *Operator) processNextItem(ctx context.Context) bool {
 }
 
 func (o *Operator) sync(ctx context.Context, key string) error {
+	// Record total time to sync resources.
+	defer func(now time.Time) {
+		metricOperatorSyncLatency.Set(float64(time.Since(now).Seconds()))
+	}(time.Now())
+
 	if key != keyGlobal {
 		return errors.Errorf("expected global reconciliation but got key %q", key)
 	}
@@ -536,9 +556,6 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 // If an error is encountered from performing an update, the function returns
 // the error immediately and does not attempt updates on subsequent CRDs.
 func (o *Operator) updateCRDStatus(ctx context.Context) error {
-	// Update podmonitorings status.
-	// TODO(danielclark): add instrumentation here (latency gauge) for debugging
-	// potential issues.
 	for _, pm := range o.statusState.PodMonitorings() {
 		_, err := o.operatorClient.MonitoringV1alpha1().PodMonitorings(pm.Namespace).UpdateStatus(ctx, &pm, metav1.UpdateOptions{})
 		if err != nil {
