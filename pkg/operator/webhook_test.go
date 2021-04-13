@@ -44,7 +44,7 @@ func TestValidatingWebhookConfig(t *testing.T) {
 			if err != nil {
 				t.Fatalf("upserting validtingwebhookconfig: %s", err)
 			}
-			if whs := vwCfg.Webhooks; len(whs) != 2 {
+			if whs := vwCfg.Webhooks; len(whs) != 1 {
 				t.Errorf("unexpected number of webhooks: %d", len(whs))
 			}
 			for i, res := range []string{"podmonitorings"} {

@@ -3,6 +3,7 @@ package operator
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http/httptest"
 	"os"
@@ -15,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func TestAdmitPodMonitoring(t *testing.T) {
@@ -102,9 +104,45 @@ func TestAdmitPodMonitoring(t *testing.T) {
 
 	// Test cases for proper admission requests.
 	for _, c := range cases {
-		t.Run(c.doc, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s - no scrape endpoints", c.doc), func(t *testing.T) {
 			// Prepare PodMonitoring resource.
 			res := &v1alpha1.PodMonitoring{}
+			res.Spec.TargetLabels.FromPod = c.mappings
+
+			// Create admission request.
+			bytes := mustMarshalJSON(t, res)
+			req := &v1.AdmissionRequest{
+				Resource: metav1.GroupVersionResource{
+					Group:    c.resGroup,
+					Version:  c.resVer,
+					Resource: c.res,
+				},
+				Object: runtime.RawExtension{
+					Raw: bytes,
+				},
+			}
+
+			// Send admission request to pod monitoring validation.
+			if resp, err := admitPodMonitoring(&v1.AdmissionReview{
+				Request: req,
+			}); err != nil && !c.expErr {
+				t.Errorf("returned unexpected error: %s", resp.Result.Message)
+			} else if err == nil && c.expErr {
+				t.Errorf("should have returned error")
+			}
+		})
+		t.Run(fmt.Sprintf("%s - with scrape endpoints", c.doc), func(t *testing.T) {
+			// Prepare PodMonitoring resource.
+			res := &v1alpha1.PodMonitoring{
+				Spec: v1alpha1.PodMonitoringSpec{
+					Endpoints: []v1alpha1.ScrapeEndpoint{
+						{
+							Port:     intstr.FromString("8080"),
+							Interval: "5s",
+						},
+					},
+				},
+			}
 			res.Spec.TargetLabels.FromPod = c.mappings
 
 			// Create admission request.
