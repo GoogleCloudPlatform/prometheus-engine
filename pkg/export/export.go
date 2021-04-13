@@ -332,6 +332,12 @@ func (e *Exporter) triggerNext() {
 	}
 }
 
+// ClientName and Version are used to identify to User Agent. TODO(maxamin): automate versioning.
+const (
+	ClientName = "gpe-collector"
+	Version    = ""
+)
+
 // Run sends exported samples to Google Cloud Monitoring.
 func (e *Exporter) Run(ctx context.Context) error {
 	clientOpts := []option.ClientOption{
@@ -344,6 +350,7 @@ func (e *Exporter) Run(ctx context.Context) error {
 		clientOpts = append(clientOpts,
 			option.WithoutAuthentication(),
 			option.WithGRPCDialOption(grpc.WithInsecure()),
+			option.WithUserAgent(ClientName+"/"+Version),
 		)
 	}
 	if e.opts.CredentialsFile != "" {
