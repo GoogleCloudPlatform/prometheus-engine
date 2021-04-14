@@ -13,6 +13,8 @@ require (
 	github.com/prometheus/client_golang v1.9.0
 	github.com/prometheus/common v0.17.0
 	github.com/prometheus/prometheus v1.8.2-0.20210226165507-9c4bc38c94c2
+	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
+	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
 	github.com/thanos-io/thanos v0.17.2
 	google.golang.org/api v0.40.0
 	google.golang.org/genproto v0.0.0-20201214200347-8c77b98c765d
