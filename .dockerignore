@@ -1,0 +1,9 @@
+*
+!go.mod
+!go.sum
+!cmd
+!pkg
+!third_party
+**/build
+**/assets_vfsdata.go
+**/Dockerfile

@@ -1,12 +1,11 @@
-ARG APP=rule-evaluator
-
-FROM golang:1.15-buster AS builder
-ARG APP
+FROM golang:1.15-buster AS buildbase
 WORKDIR /app
 COPY . ./
-RUN CGO_ENABLED=0 go build -mod=mod -o ${APP} cmd/${APP}/*.go
+RUN go mod download
+
+FROM buildbase as appbase
+RUN CGO_ENABLED=0 go build -mod=mod -o rule-evaluator cmd/rule-evaluator/*.go
 
 FROM gcr.io/distroless/static:latest
-ARG APP
-COPY --from=builder /app/${APP} /bin/${APP}
+COPY --from=appbase /app/rule-evaluator /bin/rule-evaluator
 ENTRYPOINT ["/bin/rule-evaluator"]
