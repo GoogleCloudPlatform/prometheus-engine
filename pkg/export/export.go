@@ -697,6 +697,10 @@ func (s *Storage) Appender(ctx context.Context) storage.Appender {
 }
 
 type storageAppender struct {
+	// Make sure all Appender methods are implemented at compile time. Panics
+	// are expected and intended if a method is used unexpectedly.
+	storage.Appender
+
 	storage *Storage
 	samples []record.RefSample
 }
@@ -712,11 +716,6 @@ func (a *storageAppender) Append(_ uint64, lset labels.Labels, t int64, v float6
 	})
 	// Return 0 ID to indicate that we don't support fast path appending.
 	return 0, nil
-}
-
-func (a *storageAppender) Rollback() error {
-	// As we never return errors, we are not expecting any rollbacks.
-	panic("unexpected call to Rollback")
 }
 
 func (a *storageAppender) Commit() error {
