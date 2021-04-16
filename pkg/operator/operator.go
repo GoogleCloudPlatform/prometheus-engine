@@ -598,8 +598,6 @@ func (o *Operator) makeCollectorConfig() (*promconfig.Config, error) {
 		for i := range podmon.Spec.Endpoints {
 			scrapeCfg, err := makePodScrapeConfig(podmon, i)
 			if err != nil {
-				// TODO(freinartz): implement webhooks. Consider calling the same function as part of the validation
-				// to ensure they always match.
 				cond.Status = corev1.ConditionFalse
 				level.Warn(o.logger).Log("msg", "generating scrape config failed for PodMonitoring endpoint",
 					"err", err, "namespace", podmon.Namespace, "name", podmon.Name, "endpoint", i)

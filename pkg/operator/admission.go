@@ -85,7 +85,14 @@ func admitPodMonitoring(ar *v1.AdmissionReview) (*v1.AdmissionResponse, error) {
 		// Unmarshall payload to PodMonitoring stuct.
 	} else if err := json.Unmarshal(ar.Request.Object.Raw, pm); err != nil {
 		return nil, errors.Wrap(err, "unmarshalling admission request to podmonitoring")
-		// Check valid relabel mappings.
+		// If scrape endpoints are provided, try and create scrape configs.
+	} else if eps := pm.Spec.Endpoints; len(eps) > 0 {
+		for i := range eps {
+			if _, err := makePodScrapeConfig(pm, i); err != nil {
+				return nil, errors.Wrap(err, "making scrape config from podmonitoring resource")
+			}
+		}
+		// If no scrape endpoints are provided, at least check label conflicts.
 	} else if _, err := labelMappingRelabelConfigs(pm.Spec.TargetLabels.FromPod, podLabelPrefix); err != nil {
 		return nil, errors.Wrap(err, "checking label mappings")
 	}
