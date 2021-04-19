@@ -4,16 +4,20 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 	klogv1 "k8s.io/klog"
@@ -71,8 +75,9 @@ func main() {
 			"Override for the Cloud Monitoring endpoint to use for all collectors.")
 		caSelfSign = flag.Bool("ca-selfsign", true,
 			"Whether to self-sign or have kube-apiserver sign certificate key pair for TLS.")
-		listenAddr = flag.String("listen-addr", ":8443",
-			"Address to listen to for incoming tcp connections.")
+		webhookAddr = flag.String("webhook-addr", ":8443",
+			"Address to listen to for incoming kube admission webhook connections.")
+		metricsAddr = flag.String("metrics-addr", ":8080", "Address to emit metrics on.")
 	)
 	flag.Parse()
 
@@ -87,14 +92,21 @@ func main() {
 		level.Error(logger).Log("msg", "building kubeconfig failed", "err", err)
 		os.Exit(1)
 	}
-	op, err := operator.New(logger, cfg, operator.Options{
+
+	metrics := prometheus.NewRegistry()
+	metrics.MustRegister(
+		prometheus.NewGoCollector(),
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+	)
+
+	op, err := operator.New(logger, cfg, metrics, operator.Options{
 		Namespace:               *namespace,
 		ImageCollector:          *imageCollector,
 		ImageConfigReloader:     *imageConfigReloader,
 		PriorityClass:           *priorityClass,
 		CloudMonitoringEndpoint: *gcmEndpoint,
 		CASelfSign:              *caSelfSign,
-		ListenAddr:              *listenAddr,
+		ListenAddr:              *webhookAddr,
 	})
 	if err != nil {
 		level.Error(logger).Log("msg", "instantiating operator failed", "err", err)
@@ -121,6 +133,18 @@ func main() {
 				close(cancel)
 			},
 		)
+	}
+	// Operator monitoring.
+	{
+		server := &http.Server{Addr: *metricsAddr}
+		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
+		g.Add(func() error {
+			return server.ListenAndServe()
+		}, func(err error) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			server.Shutdown(ctx)
+			cancel()
+		})
 	}
 	// Init and run admission controller server.
 	{
