@@ -22,12 +22,14 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"path"
+	"strings"
 	"syscall"
 	"time"
 
@@ -38,14 +40,27 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
+
+	"github.com/google/gpe-collector/pkg/ui"
+)
+
+const projectIDVar = "PROJECT_ID"
+
+var (
+	projectID = flag.String("project-id", "",
+		"Project ID of the Google Cloud Monitoring workspace project to query.")
+
+	credentialsFile = flag.String("credentials-file", "",
+		"JSON-encoded credentials (service account or refresh token). Can be left empty if default credentials have sufficient permission.")
+
+	listenAddress = flag.String("listen-address", ":9090",
+		"Address on which to expose metrics and the query UI.")
+
+	targetURLStr = flag.String("target-url", fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar),
+		fmt.Sprintf("The URL to forward authenticated requests to. (%s is replaced with the --project-id flag.)", projectIDVar))
 )
 
 func main() {
-	var (
-		credentialsFile = flag.String("credentials-file", "", "JSON-encoded credentials (service account or refresh token). Can be left empty on GCE if the default service account has the required permissions.")
-		listenAddress   = flag.String("listen-address", ":9091", "Address on which to expose metrics")
-		targetURLStr    = flag.String("target-url", "https://monitoring.googleapis.com/", "The URL to forward authenticated requests to.")
-	)
 	flag.Parse()
 
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
@@ -58,7 +73,12 @@ func main() {
 		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
 	)
 
-	targetURL, err := url.Parse(*targetURLStr)
+	if *projectID == "" {
+		level.Error(logger).Log("msg", "--project-id must be set")
+		os.Exit(1)
+	}
+
+	targetURL, err := url.Parse(strings.ReplaceAll(*targetURLStr, projectIDVar, *projectID))
 	if err != nil {
 		level.Error(logger).Log("msg", "parsing target URL failed", "err", err)
 		os.Exit(1)
@@ -99,7 +119,9 @@ func main() {
 
 		server := &http.Server{Addr: *listenAddress}
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
-		http.Handle("/", forward(logger, targetURL, transport))
+		http.Handle("/api/", forward(logger, targetURL, transport))
+
+		http.Handle("/", ui.Handler())
 
 		g.Add(func() error {
 			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
