@@ -4,7 +4,7 @@ FROM golang:1.15-buster AS builder
 ARG APP
 WORKDIR /app
 COPY . ./
-RUN CGO_ENABLED=0 go build -mod=vendor -o ${APP} cmd/${APP}/*.go
+RUN CGO_ENABLED=0 go build -mod=mod -o ${APP} cmd/${APP}/*.go
 
 FROM gcr.io/distroless/static:latest
 ARG APP

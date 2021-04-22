@@ -5,7 +5,7 @@ ARG APP
 WORKDIR /app
 COPY . ./
 # TODO(freinartz): generate static assets during build.
-RUN CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o ${APP} cmd/${APP}/*.go
+RUN CGO_ENABLED=0 go build -tags builtinassets -mod=mod -o ${APP} cmd/${APP}/*.go
 
 FROM gcr.io/distroless/static:latest
 ARG APP
