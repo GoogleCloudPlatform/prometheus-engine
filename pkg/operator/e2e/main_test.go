@@ -176,8 +176,10 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 		} else if err != nil {
 			return false, errors.Errorf("getting collector DaemonSet failed: %s", err)
 		}
+		// At first creation the DaemonSet may appear with 0 desired replicas. This should
+		// change shortly after.
 		if ds.Status.DesiredNumberScheduled == 0 {
-			return false, errors.New("expected at least one desired collector scheduled, got 0")
+			return false, nil
 		}
 		return ds.Status.NumberReady == ds.Status.DesiredNumberScheduled, nil
 	})

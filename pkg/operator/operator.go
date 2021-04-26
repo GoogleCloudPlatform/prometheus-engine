@@ -446,7 +446,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 		"--web.route-prefix=/",
 	}
 	if o.opts.CloudMonitoringEndpoint != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--gcm.endpoint=%s", o.opts.CloudMonitoringEndpoint))
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", o.opts.CloudMonitoringEndpoint))
 	}
 
 	spec := appsv1.DaemonSetSpec{

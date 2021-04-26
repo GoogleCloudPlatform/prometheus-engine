@@ -1,0 +1,9 @@
+rule_files:
+- "rules.yaml"
+
+# Send firing alerts to a static Alertmanager running locally.
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      - localhost:9093
