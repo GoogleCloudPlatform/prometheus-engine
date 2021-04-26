@@ -196,7 +196,7 @@ func (c *seriesCache) get(s record.RefSample, target Target) (*seriesCacheEntry,
 	}
 	if e.shouldRefresh() {
 		if err := c.populate(s.Ref, e, target); err != nil {
-			level.Debug(c.logger).Log("msg", "populating series failed", "ref", s.Ref, "target", target, "err", err)
+			level.Debug(c.logger).Log("msg", "populating series failed", "ref", s.Ref, "err", err)
 		}
 		e.setNextRefresh()
 	}
@@ -281,9 +281,9 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Targe
 	}
 
 	// Break the series into resource and metric labels.
-	resource, metricLabels, ok := c.extractResource(entry.lset)
-	if !ok {
-		return errors.Errorf("extracting resource for series %s failed", entry.lset)
+	resource, metricLabels, err := c.extractResource(entry.lset)
+	if err != nil {
+		return errors.Wrapf(err, "extracting resource for series %s failed", entry.lset)
 	}
 
 	// Remove the __name__ label as it becomes the metric type in the GCM time series.
@@ -392,17 +392,7 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Targe
 
 // extractResource returns the monitored resource, the entry labels, and whether the operation succeeded.
 // The returned entry labels are a subset of `lset` without the labels that were used as resource labels.
-func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.MonitoredResource, labels.Labels, bool) {
-	// Drop series that don't contain required job/instance labels. This will affect metrics written
-	// from recording or alerting rules.
-	// TODO(freinartz): consider supporting these in the backend. All fields other then location
-	// and cluster being empty should be sensible as cardinality shouldn't be high for these.
-	if !lset.Has(KeyJob) {
-		return nil, nil, false
-	}
-	if !lset.Has(KeyInstance) {
-		return nil, nil, false
-	}
+func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.MonitoredResource, labels.Labels, error) {
 	// TOOD(freinartz): consider checking whether the target comes from Kubernetes service
 	// discovery and a namespace can be inferred from discovery metadata. This could help populate
 	// the schema correctly for Prometheus configs that don't relabel the namespace properly
@@ -427,6 +417,10 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 	}
 	lset = builder.Labels()
 
+	if lset.Get(KeyLocation) == "" {
+		return nil, nil, errors.Errorf("missing required resource field %q", KeyLocation)
+	}
+
 	mres := &monitoredres_pb.MonitoredResource{
 		Type: "prometheus_target",
 		Labels: map[string]string{
@@ -443,7 +437,7 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 	builder.Del(KeyJob)
 	builder.Del(KeyInstance)
 
-	return mres, builder.Labels(), true
+	return mres, builder.Labels(), nil
 }
 
 // Metrics Prometheus writes at scrape time for which no metadata is exposed.
