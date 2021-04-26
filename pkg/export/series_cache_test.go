@@ -15,13 +15,14 @@
 package export
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/tsdb/record"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestSeriesCache_extractResource(t *testing.T) {
@@ -34,26 +35,6 @@ func TestSeriesCache_extractResource(t *testing.T) {
 		wantOk         bool
 	}{
 		{
-			doc: "job label must be set",
-			seriesLabels: labels.FromMap(map[string]string{
-				"location":  "l1",
-				"cluster":   "c1",
-				"namespace": "n1",
-				"instance":  "i1",
-				"key":       "v1",
-			}),
-			wantOk: false,
-		}, {
-			doc: "instance label must be set",
-			seriesLabels: labels.FromMap(map[string]string{
-				"location":  "l1",
-				"cluster":   "c1",
-				"namespace": "n1",
-				"job":       "j1",
-				"key":       "v1",
-			}),
-			wantOk: false,
-		}, {
 			doc: "everything contained in series labels",
 			seriesLabels: labels.FromMap(map[string]string{
 				"location":  "l1",
@@ -70,6 +51,27 @@ func TestSeriesCache_extractResource(t *testing.T) {
 					"cluster":   "c1",
 					"namespace": "n1",
 					"job":       "j1",
+					"instance":  "i1",
+				},
+			},
+			wantLabels: labels.FromStrings("key", "v1"),
+			wantOk:     true,
+		},
+		{
+			doc: "partially contained in series labels",
+			seriesLabels: labels.FromMap(map[string]string{
+				"location":  "l1",
+				"namespace": "n1",
+				"instance":  "i1",
+				"key":       "v1",
+			}),
+			wantResource: &monitoredres_pb.MonitoredResource{
+				Type: "prometheus_target",
+				Labels: map[string]string{
+					"location":  "l1",
+					"cluster":   "",
+					"namespace": "n1",
+					"job":       "",
 					"instance":  "i1",
 				},
 			},
@@ -101,6 +103,36 @@ func TestSeriesCache_extractResource(t *testing.T) {
 			},
 			wantLabels: labels.FromStrings("key1", "v1", "key2", "v2"),
 			wantOk:     true,
+		}, {
+			doc: "location must be set",
+			seriesLabels: labels.FromMap(map[string]string{
+				"cluster":   "c1",
+				"namespace": "n1",
+				"job":       "j1",
+				"key":       "v1",
+			}),
+			wantOk: false,
+		}, {
+			doc: "explicit project ID is set",
+			seriesLabels: labels.FromMap(map[string]string{
+				"project_id": "p1",
+				"location":   "l1",
+				"cluster":    "c1",
+				"key":        "v1",
+			}),
+			wantResource: &monitoredres_pb.MonitoredResource{
+				Type: "prometheus_target",
+				Labels: map[string]string{
+					"project_id": "p1",
+					"location":   "l1",
+					"cluster":    "c1",
+					"namespace":  "",
+					"job":        "",
+					"instance":   "",
+				},
+			},
+			wantLabels: labels.FromStrings("key", "v1"),
+			wantOk:     true,
 		},
 	}
 	for _, c := range cases {
@@ -108,15 +140,18 @@ func TestSeriesCache_extractResource(t *testing.T) {
 			cache := newSeriesCache(nil, nil, func() labels.Labels {
 				return c.externalLabels
 			})
-			resource, lset, ok := cache.extractResource(c.seriesLabels)
-			if c.wantOk != ok {
-				t.Errorf("expected 'ok' to be %v but got %v", c.wantOk, ok)
+			resource, lset, err := cache.extractResource(c.seriesLabels)
+			if c.wantOk && err != nil {
+				t.Errorf("expected no error but got: %s", err)
 			}
-			if !reflect.DeepEqual(c.wantResource, resource) {
-				t.Errorf("expected resource %+v but got %+v", c.wantResource, resource)
+			if !c.wantOk && err == nil {
+				t.Errorf("expected error but got none")
 			}
-			if !labels.Equal(c.wantLabels, lset) {
-				t.Errorf("expected metric labels %q but got %q", c.wantLabels, lset)
+			if diff := cmp.Diff(c.wantResource, resource, protocmp.Transform()); diff != "" {
+				t.Errorf("unexpected resource (-want, +got): %s", diff)
+			}
+			if diff := cmp.Diff(c.wantLabels, lset); diff != "" {
+				t.Errorf("unexpected labels (-want, +got): %s", diff)
 			}
 		})
 	}

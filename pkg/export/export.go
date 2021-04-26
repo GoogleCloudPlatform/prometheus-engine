@@ -222,6 +222,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 
 // The target label keys used for the Prometheus monitored resource.
 const (
+	KeyProjectID = "project_id"
 	KeyLocation  = "location"
 	KeyCluster   = "cluster"
 	KeyNamespace = "namespace"
@@ -247,10 +248,10 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) error {
 	}
 	lset := builder.Labels()
 
-	// At this point we expect a location to be set. It is very unlikely a user wants to set
-	// this dynamically via target label. It would imply collection across failure domains, which
-	// is an anti-pattern.
-	// The cluster however is allowed to be empty or could feasibly be set through target labels.
+	// At this point we expect a location to be set. It may be overriden by an explicit location
+	// set on exported data. This is primarily expected for rule evaluation. Collectors should
+	// generally always default as they shouldn't cross failure domains.
+	// The cluster label may however be entirely empty/unset.
 	if lset.Get(KeyLocation) == "" {
 		return errors.Errorf("no label %q set via external labels or flag", KeyLocation)
 	}
