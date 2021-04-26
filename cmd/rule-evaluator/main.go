@@ -45,6 +45,7 @@ import (
 	"github.com/prometheus/prometheus/notifier"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/storage"
 )
@@ -99,10 +100,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	noopQueryable := func(ctx context.Context, mint, maxt int64) (storage.Querier, error) {
-		return storage.NoopQuerier(), nil
-	}
-
 	ctxRuleManger := context.Background()
 	ctxDiscover, cancelDiscover := context.WithCancel(context.Background())
 
@@ -132,7 +129,11 @@ func main() {
 		if len(warnings) > 0 {
 			level.Warn(logger).Log("msg", "Querying Promethues instance returned warnings", "warn", warnings)
 		}
-		return v, err
+		vec, ok := v.(promql.Vector)
+		if !ok {
+			return nil, errors.Errorf("Error querying Prometheus, Expected type vector response. Actual type %v", v.Type())
+		}
+		return vec, err
 	}
 
 	reg := prometheus.NewRegistry()
@@ -144,12 +145,16 @@ func main() {
 	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
 	notificationManager := notifier.NewManager(&notifierOptions, log.With(logger, "component", "notifier"))
 
+	externalStorage := &queryStorage{
+		api: v1api,
+	}
+
 	ruleManager := rules.NewManager(&rules.ManagerOptions{
 		ExternalURL: &url.URL{},
 		QueryFunc:   queryFunc,
 		Context:     ctxRuleManger,
 		Appendable:  destination,
-		Queryable:   storage.QueryableFunc(noopQueryable),
+		Queryable:   externalStorage,
 		Logger:      logger,
 		NotifyFunc:  sendAlerts(notificationManager),
 		Metrics:     rules.NewGroupMetrics(reg),
@@ -353,12 +358,12 @@ func main() {
 }
 
 // QueryFunc queries a Prometheus instance and returns a promql.Vector.
-func QueryFunc(ctx context.Context, q string, t time.Time, v1api v1.API) (promql.Vector, v1.Warnings, error) {
-	results, warnings, err := v1api.Query(ctx, q, time.Now())
+func QueryFunc(ctx context.Context, q string, t time.Time, v1api v1.API) (parser.Value, v1.Warnings, error) {
+	results, warnings, err := v1api.Query(ctx, q, t)
 	if err != nil {
-		return nil, warnings, errors.Errorf("Error querying Prometheus: %v\n", err)
+		return nil, warnings, errors.Errorf("Error querying Prometheus: %v", err)
 	}
-	v, err := convertValueToVector(results)
+	v, err := convertModelToPromQLValue(results)
 	return v, warnings, err
 }
 
@@ -419,30 +424,171 @@ func reloadConfig(filename string, logger log.Logger, rls ...reloader) (err erro
 	return nil
 }
 
-// convertValueToVector converts model.Value type to promql.Vector type.
-func convertValueToVector(val model.Value) (promql.Vector, error) {
-	results, ok := val.(model.Vector)
-	if !ok {
-		return nil, errors.Errorf("Expected Prometheus results of type vector. Actual results type: %v\n", results.Type())
+// convertMetricToLabel converts model.Metric to labels.label.
+func convertMetricToLabel(metric model.Metric) labels.Labels {
+	ls := make(labels.Labels, 0, len(metric))
+	for name, value := range metric {
+		l := labels.Label{
+			Name:  string(name),
+			Value: string(value),
+		}
+		ls = append(ls, l)
 	}
-	v := make(promql.Vector, len(results))
-	for i, result := range results {
-		ls := make(labels.Labels, 0, len(result.Metric))
-		for name, value := range result.Metric {
-			l := labels.Label{
-				Name:  string(name),
-				Value: string(value),
+	return ls
+}
+
+// convertModelToPromQLValue converts model.Value type to promql type.
+func convertModelToPromQLValue(val model.Value) (parser.Value, error) {
+	switch results := val.(type) {
+	case model.Matrix:
+		m := make(promql.Matrix, len(results))
+		for i, result := range results {
+			pts := make([]promql.Point, len(result.Values))
+			for j, samplePair := range result.Values {
+				pts[j] = promql.Point{
+					T: int64(samplePair.Timestamp),
+					V: float64(samplePair.Value),
+				}
 			}
-			ls = append(ls, l)
+			m[i] = promql.Series{
+				Metric: convertMetricToLabel(result.Metric),
+				Points: pts,
+			}
 		}
-		s := promql.Sample{
-			Point: promql.Point{
-				T: int64(result.Timestamp),
-				V: float64(result.Value),
-			},
-			Metric: ls,
+		return m, nil
+
+	case model.Vector:
+		v := make(promql.Vector, len(results))
+		for i, result := range results {
+			v[i] = promql.Sample{
+				Point: promql.Point{
+					T: int64(result.Timestamp),
+					V: float64(result.Value),
+				},
+				Metric: convertMetricToLabel(result.Metric),
+			}
 		}
-		v[i] = s
+		return v, nil
+
+	default:
+		return nil, errors.Errorf("Expected Prometheus results of type matrix or vector. Actual results type: %v", val.Type())
 	}
-	return v, nil
+}
+
+// Converting v1.Warnings to storage.Warnings.
+func convertV1WarningsToStorageWarnings(w v1.Warnings) storage.Warnings {
+	warnings := make(storage.Warnings, len(w))
+	for i, warning := range w {
+		warnings[i] = errors.Errorf(warning)
+	}
+	return warnings
+}
+
+// listSeriesSet implements the storage.SeriesSet interface on top a list of listSeries.
+type listSeriesSet struct {
+	m        promql.Matrix
+	idx      int
+	err      error
+	warnings storage.Warnings
+}
+
+// Next advances the iterator and returns true if there's data to consume.
+func (ss *listSeriesSet) Next() bool {
+	ss.idx++
+	return ss.idx < len(ss.m)
+}
+
+// At returns the current series.
+func (ss *listSeriesSet) At() storage.Series {
+	return promql.NewStorageSeries(promql.Series(ss.m[ss.idx]))
+}
+
+// Err returns an error encountered while iterating.
+func (ss *listSeriesSet) Err() error {
+	return ss.err
+}
+
+// Warnings returns warnings encountered while iterating.
+func (ss *listSeriesSet) Warnings() storage.Warnings {
+	return ss.warnings
+}
+
+func newListSeriesSet(v promql.Matrix, err error, w v1.Warnings) *listSeriesSet {
+	return &listSeriesSet{m: v, idx: -1, err: err, warnings: convertV1WarningsToStorageWarnings(w)}
+}
+
+// convertMatchersToPromQL converts []*labels.Matcher to a PromQL query.
+func convertMatchersToPromQL(matchers []*labels.Matcher, d int64) (string, []string) {
+	metricLabels := make([]string, 0, len(matchers))
+	filteredMatchers := make([]string, 0, len(matchers))
+	for _, m := range matchers {
+		metricLabels = append(metricLabels, m.String())
+		filteredMatchers = append(filteredMatchers, m.Name)
+	}
+	queryExpression := fmt.Sprintf("{%s}[%ds]", strings.Join(metricLabels, ", "), d)
+	return queryExpression, filteredMatchers
+}
+
+// queryStorage implements storage.Queryable.
+type queryStorage struct {
+	api v1.API
+}
+
+// Querier provides querying access over time series data of a fixed time range.
+func (s *queryStorage) Querier(ctx context.Context, mint, maxt int64) (storage.Querier, error) {
+	db := &queryAccess{
+		api:   s.api,
+		ctx:   ctx,
+		mint:  mint / 1000, // divide by 1000 to convert milliseconds to seconds.
+		maxt:  maxt / 1000,
+		query: QueryFunc,
+	}
+	return db, nil
+}
+
+// queryAccess implements storage.Querier.
+type queryAccess struct {
+	// storage.LabelQuerier satisfies the interface. Calling related methods will result in panic.
+	storage.LabelQuerier
+	api   v1.API
+	mint  int64
+	maxt  int64
+	ctx   context.Context
+	query func(context.Context, string, time.Time, v1.API) (parser.Value, v1.Warnings, error)
+}
+
+// Select returns a set of series that matches the given label matchers and time range.
+func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ...*labels.Matcher) storage.SeriesSet {
+	if sort || hints != nil {
+		return newListSeriesSet(nil, errors.Errorf("sorting series and select hints are not supported"), nil)
+	}
+
+	duration := db.maxt - db.mint
+	if duration <= 0 { // not a valid time duration.
+		return newListSeriesSet(nil, nil, nil)
+	}
+
+	queryExpression, filteredMatchers := convertMatchersToPromQL(matchers, duration)
+	maxt := time.Unix(db.maxt, 0)
+	v, warnings, err := db.query(db.ctx, queryExpression, maxt, db.api)
+	if err != nil {
+		return newListSeriesSet(nil, err, warnings)
+	}
+
+	m, ok := v.(promql.Matrix)
+	if !ok {
+		return newListSeriesSet(nil, errors.Errorf("Error querying Prometheus, Expected type matrix response. Actual type %v", v.Type()), nil)
+	}
+	// TODO(maxamin) GCM returns label names and values that are not in matchers.
+	// Ensure results from query are equivalent to the requested matchers because
+	// manager.go checks if returned labels have the same length as matchers.
+	// Upstream change to prometheus code may be necessary.
+	for i, sample := range m {
+		m[i].Metric = sample.Metric.MatchLabels(true, filteredMatchers...)
+	}
+	return newListSeriesSet(m, err, warnings)
+}
+
+func (db *queryAccess) Close() error {
+	return nil
 }

@@ -23,12 +23,14 @@ ZONE=us-central1-b
 CONFIG_FILE=example/config.yaml
 # Default gcloud credentials. Substitute for service account key in production.
 CREDENTIALS=~/.config/gcloud/application_default_credentials.json
+GCM_TARGET=staging-monitoring.sandbox.googleapis.com:443
 ```
 
 ```bash
 go run main.go \
   --export.label.project-id=$PROJECT_ID \
   --export.label.location=$ZONE \
+  --export.endpoint=$GCM_TARGET \
   --export.credentials-file=$CREDENTIALS \
   --query.credentials-file=$CREDENTIALS \
   --query.project-id=$PROJECT_ID \
@@ -53,6 +55,7 @@ TARGET=http://localhost:9090
 go run main.go \
     --export.label.project-id=$PROJECT_ID \
     --export.label.location=$ZONE \
+    --export.endpoint=$GCM_TARGET \
     --export.credentials-file=$CREDENTIALS \
     --query.project-id=$PROJECT_ID \
     --query.target-url=$TARGET \
