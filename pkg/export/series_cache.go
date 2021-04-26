@@ -421,6 +421,9 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 		return nil, nil, errors.Errorf("missing required resource field %q", KeyLocation)
 	}
 
+	// Transfer resource fields from label set onto the resource. If they are not set,
+	// the respective field is set to an empty string. This explicitly is a valid value
+	// in Cloud Monitoring and not the same as being unset.
 	mres := &monitoredres_pb.MonitoredResource{
 		Type: "prometheus_target",
 		Labels: map[string]string{
@@ -436,6 +439,15 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 	builder.Del(KeyNamespace)
 	builder.Del(KeyJob)
 	builder.Del(KeyInstance)
+
+	// The Cloud Monitoring API defaults project_id to the one specified for the overall request.
+	// If it is explicitly specified on the data, set it.
+	// TODO(freinartz): it must match the project ID for the overall request. Add client-side
+	// validation for this or ensure that requests are sharded by distinct project IDs.
+	if lset.Has(KeyProjectID) {
+		mres.Labels[KeyProjectID] = lset.Get(KeyProjectID)
+		builder.Del(KeyProjectID)
+	}
 
 	return mres, builder.Labels(), nil
 }

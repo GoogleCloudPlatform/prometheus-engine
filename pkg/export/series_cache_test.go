@@ -21,8 +21,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/tsdb/record"
-	"google.golang.org/protobuf/testing/protocmp"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestSeriesCache_extractResource(t *testing.T) {
@@ -69,9 +69,9 @@ func TestSeriesCache_extractResource(t *testing.T) {
 				Type: "prometheus_target",
 				Labels: map[string]string{
 					"location":  "l1",
-					"cluster": "",
+					"cluster":   "",
 					"namespace": "n1",
-					"job": "",
+					"job":       "",
 					"instance":  "i1",
 				},
 			},
@@ -112,6 +112,27 @@ func TestSeriesCache_extractResource(t *testing.T) {
 				"key":       "v1",
 			}),
 			wantOk: false,
+		}, {
+			doc: "explicit project ID is set",
+			seriesLabels: labels.FromMap(map[string]string{
+				"project_id": "p1",
+				"location":   "l1",
+				"cluster":    "c1",
+				"key":        "v1",
+			}),
+			wantResource: &monitoredres_pb.MonitoredResource{
+				Type: "prometheus_target",
+				Labels: map[string]string{
+					"project_id": "p1",
+					"location":   "l1",
+					"cluster":    "c1",
+					"namespace":  "",
+					"job":        "",
+					"instance":   "",
+				},
+			},
+			wantLabels: labels.FromStrings("key", "v1"),
+			wantOk:     true,
 		},
 	}
 	for _, c := range cases {
