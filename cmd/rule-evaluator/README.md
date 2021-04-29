@@ -1,58 +1,60 @@
-# Prometheus Rule Evaluator
+# Rule Evaluator
 
-This binary will digest Prometheus rule configurations and evaluate them against a global query endpoint. Results are written back to GCM via the CreateTimeSeries API and alert notifications are sent to a configurable Alertmanager endpoint.
+The rule evaluator closely replicates the rule evaluation behavior of the Prometheus server.
 
-## Spinup
+Instead of reading and writing from local storage, it evaluates alerting and recording rules
+against a Prometheus compatible query API endpoint (typically Google Cloud Prometheus Engine's API)
+and writes data back to Google Cloud Monitoring via the CreateTimeSeries API.
 
-Make sure that your `gcloud` CLI is [setup properly](https://cloud.google.com/sdk/docs/quickstart).
+## Setup
 
-Authenticate with Google Cloud:
-```
-gcloud auth login
-gcloud auth application-default login
-```
-## Install
+For local setup, make sure that the `gcloud` CLI is [setup](https://cloud.google.com/sdk/docs/quickstart).
 
-1. [Local Prometheus Instance](https://prometheus.io/docs/prometheus/latest/getting_started/) or GPE Instance //TODO(maxamin): add GPE link
-2. [Alert Manager](https://prometheus.io/download/)
+We use example configuration files and rule files, which work like in a regular Prometheus server.
+For the config file, the rule evaluator considers the `alerting` and `rule_files` section as well as applicable fields of the `global` section.
 
-## Startup Guide
+Consult the Prometheus documentation for details on the [configuration format](https://prometheus.io/docs/prometheus/latest/configuration/configuration) as well as the [alerting](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/) and [recording](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/) rule file format.
 
-Startup Prometheus and Alert Manager.
-
-Define the project id, location, and config file:
+### Run
 
 ```bash
 PROJECT_ID=$(gcloud config get-value core/project)
 ZONE=us-central1-b
-CONFIG_FILE=prometheus.yml
-CREDENTIALS=~/.config/gcloud/application_default_credentials.json #default location
+CONFIG_FILE=example/config.yaml
+# Default gcloud credentials. Substitute for service account key in production.
+CREDENTIALS=~/.config/gcloud/application_default_credentials.json
 ```
-
-Define one of the following query target:
-
-```bash
-# Address to local prometheus instance
-TARGET=http://localhost:9090/ # default Prometheus query address
-
-
-# Address to GPE instance
-TARGET=https://staging-monitoring.sandbox.googleapis.com/v1alpha/projects/$PROJECT_ID/location/global/prometheus/
-```
-
-Run the binary:
 
 ```bash
 go run main.go \
-    --gcm.project_id=$PROJECT_ID \
-    --gcm.label.location=$ZONE \
-    --query.target-url=$TARGET \
-    --config.file=$CONFIG_FILE \
-    --gcm.credentials-file=$CREDENTIALS
+  --export.project_id=$PROJECT_ID \
+  --export.label.location=$ZONE \
+  --export.credentials-file=$CREDENTIALS \
+  --query.credentials-file=$CREDENTIALS \
+  --query.project-id=$PROJECT_ID \
+  --config.file=$CONFIG_FILE
 ```
 
-## Evaluation
+After a while recording rule results become visible through Prometheus Engine's query
+API (see [frontend]("../frontend/README.md") for setting up a UI) and firing alerts appear
+in the AlertManager and are routed from there.
 
-1. Recordings data is available in the Cloud Monitoring metric explorer for your project (https://pantheon.corp.google.com/monitoring/metrics-explorer).
-2. Alerts are viewiable at configured alert manager in prometheus.yml (default: http://localhost:9093).
-3. Metrics are viewable at the listening address (default: http://localhost:9091/metrics).
+## Development
+
+For development, the rule evaluator can evaluate rule queries against arbitrary other
+endpoints that expose the Prometheus query API. For example, against a locally running
+Prometheus server:
+
+```bash
+TARGET=http://localhost:9090
+```
+
+```bash
+go run main.go \
+    --export.project_id=$PROJECT_ID \
+    --export.label.location=$ZONE \
+    --export.credentials-file=$CREDENTIALS \
+    --query.project-id=$PROJECT_ID \
+    --query.target-url=$TARGET \
+    --config.file=$CONFIG_FILE
+```

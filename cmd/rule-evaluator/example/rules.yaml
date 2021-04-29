@@ -1,0 +1,16 @@
+groups:
+- name: group-1
+  interval: 10s
+  rules:
+  - record: job_up_sum
+    expr: sum by(job, project_id) (up)
+  - alert: TooFewReplicas
+    expr: job_up_sum < 3
+    for: 1m
+    annotations:
+      description: "Not enough replicas ({{ $value }}) for job {{ $labels.job }}"
+- name: group-2
+  interval: 10s
+  rules:
+  - alert: AlwaysFiring
+    expr: vector(1)

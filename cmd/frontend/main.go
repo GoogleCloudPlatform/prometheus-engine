@@ -47,16 +47,16 @@ import (
 const projectIDVar = "PROJECT_ID"
 
 var (
-	projectID = flag.String("project-id", "",
+	projectID = flag.String("query.project-id", "",
 		"Project ID of the Google Cloud Monitoring workspace project to query.")
 
-	credentialsFile = flag.String("credentials-file", "",
+	credentialsFile = flag.String("query.credentials-file", "",
 		"JSON-encoded credentials (service account or refresh token). Can be left empty if default credentials have sufficient permission.")
 
-	listenAddress = flag.String("listen-address", ":9090",
+	listenAddress = flag.String("web.listen-address", ":9090",
 		"Address on which to expose metrics and the query UI.")
 
-	targetURLStr = flag.String("target-url", fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar),
+	targetURLStr = flag.String("query.target-url", fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar),
 		fmt.Sprintf("The URL to forward authenticated requests to. (%s is replaced with the --project-id flag.)", projectIDVar))
 )
 

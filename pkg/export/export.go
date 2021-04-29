@@ -42,36 +42,36 @@ import (
 
 var (
 	samplesExported = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "gcm_collector_samples_exported_total",
+		Name: "gcm_export_samples_exported_total",
 		Help: "Number of samples exported at scrape time.",
 	})
 	samplesDropped = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "gcm_collector_samples_dropped_total",
+		Name: "gcm_export_samples_dropped_total",
 		Help: "Number of exported samples that were dropped because shard queues were full.",
 	})
 	samplesSent = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "gcm_collector_samples_sent_total",
+		Name: "gcm_export_samples_sent_total",
 		Help: "Number of exported samples sent to GCM.",
 	})
 	sendIterations = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "gcm_collector_send_iterations_total",
+		Name: "gcm_export_send_iterations_total",
 		Help: "Number of processing iterations of the sample export send handler.",
 	})
 	shardProcess = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "gcm_collector_shard_process_total",
+		Name: "gcm_export_shard_process_total",
 		Help: "Number of shard retrievals.",
 	})
 	shardProcessPending = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "gcm_collector_shard_process_pending_total",
+		Name: "gcm_export_shard_process_pending_total",
 		Help: "Number of shard retrievals with an empty result.",
 	})
 	shardProcessSamplesTaken = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name:       "gcm_collector_shard_process_samples_taken",
+		Name:       "gcm_export_shard_process_samples_taken",
 		Help:       "Number of samples taken when processing a shard.",
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	})
 	pendingRequests = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "gcm_collector_pending_requests",
+		Name: "gcm_export_pending_requests",
 		Help: "Number of in-flight requests to GCM.",
 	})
 )
@@ -141,31 +141,31 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 		opts.Cluster, _ = metadata.InstanceAttributeValue("cluster-name")
 	}
 
-	a.Flag("gcm.disable", "Disable exporting to GCM.").
+	a.Flag("export.disable", "Disable exporting to GCM.").
 		Default("false").BoolVar(&opts.Disable)
 
-	a.Flag("gcm.project_id", "Google Cloud project ID to which data is sent.").
+	a.Flag("export.project_id", "Google Cloud project ID to which data is sent.").
 		Default(opts.ProjectID).StringVar(&opts.ProjectID)
 
 	// The location and cluster flag should probably not be used. On the other hand, they make it easy
 	// to populate these important values in the monitored resource without interfering with existing
 	// Prometheus configuration.
-	a.Flag("gcm.label.location", fmt.Sprintf("The location set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyLocation)).
+	a.Flag("export.label.location", fmt.Sprintf("The location set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyLocation)).
 		Default(opts.Location).StringVar(&opts.Location)
 
-	a.Flag("gcm.label.cluster", fmt.Sprintf("The cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyCluster)).
+	a.Flag("export.label.cluster", fmt.Sprintf("The cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyCluster)).
 		Default(opts.Cluster).StringVar(&opts.Cluster)
 
-	a.Flag("gcm.endpoint", "GCM API endpoint to send metric data to.").
+	a.Flag("export.endpoint", "GCM API endpoint to send metric data to.").
 		Default("monitoring.googleapis.com:443").StringVar(&opts.Endpoint)
 
-	a.Flag("gcm.credentials-file", "Credentials file for authentication with the GCM API.").
+	a.Flag("export.credentials-file", "Credentials file for authentication with the GCM API.").
 		StringVar(&opts.CredentialsFile)
 
-	a.Flag("gcm.debug.disable-auth", "Disable authentication (for debugging purposes).").
+	a.Flag("export.debug.disable-auth", "Disable authentication (for debugging purposes).").
 		Default("false").BoolVar(&opts.DisableAuth)
 
-	a.Flag("gcm.debug.batch-size", "Maximum number of points to send in one batch to the GCM API.").
+	a.Flag("export.debug.batch-size", "Maximum number of points to send in one batch to the GCM API.").
 		Default(strconv.Itoa(batchSizeMax)).UintVar(&opts.BatchSize)
 
 	return &opts
