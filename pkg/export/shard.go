@@ -40,6 +40,9 @@ func newShard(queueSize int) *shard {
 }
 
 func (s *shard) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	samplesExported.Inc()
 
 	e := queueEntry{
@@ -56,10 +59,10 @@ func (s *shard) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
 // fill adds samples to the batch until its capacity is reached or the shard
 // has no more samples for series that are not in the batch yet.
 func (s *shard) fill(batch *[]*monitoring_pb.TimeSeries) int {
-	shardProcess.Inc()
-
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+
+	shardProcess.Inc()
 
 	if s.pending {
 		shardProcessPending.Inc()

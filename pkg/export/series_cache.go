@@ -228,6 +228,17 @@ func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, f
 		// We don't know the window over which the current cumulative value was built up over.
 		// The next sample for will be considered from this point onwards.
 		return 0, 0, false
+	} else if t <= e.resetTimestamp {
+		// Otherwise if the current sample's time was already processed, drop sample.
+		// Keeping the sample is not desirable because it results in:
+		// - (at best) performing excessive API write calls with redundant data
+		// - sending API bad requests in the form of zero-ranged sample intervals
+		// - attempting to update a previous point, resulting in an error response.
+		//
+		// Note: this will only omit duplicates of the initial "reset" sample.
+		// Omitting duplicates of all incoming samples would require
+		// more sophisticated state management.
+		return 0, 0, false
 	}
 	if v < e.lastValue {
 		// If the series was reset, set the reset timestamp to be one millisecond

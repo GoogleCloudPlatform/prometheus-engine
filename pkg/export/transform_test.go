@@ -301,6 +301,134 @@ func TestSampleBuilder(t *testing.T) {
 				},
 			},
 		}, {
+			doc: "convert counter - skip duplicates",
+			target: testTarget{
+				metadata: metricMetadataMap{
+					"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+				},
+			},
+			series: seriesMap{
+				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
+			},
+			samples: []record.RefSample{
+				{Ref: 123, T: 2000, V: 5.5},
+				{Ref: 123, T: 2000, V: 5.5}, // duplicate
+				{Ref: 123, T: 4000, V: 9},
+				{Ref: 123, T: 5000, V: 7},
+				{Ref: 123, T: 5000, V: 7}, // duplicate
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				// First sample skipped to initialize reset handling.
+				nil,
+				// Second sample was a duplicate of the reset value, should be dropped.
+				nil,
+				// Subsequent samples are relative to the initial sample in value and timestamp.
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"location":  "europe",
+							"cluster":   "foo-cluster",
+							"namespace": "",
+							"job":       "job1",
+							"instance":  "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "external.googleapis.com/gpe/metric1/counter",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							StartTime: &timestamp_pb.Timestamp{Seconds: 2},
+							EndTime:   &timestamp_pb.Timestamp{Seconds: 4},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{3.5},
+						},
+					}},
+				},
+				// Reset in the Prometheus series. Start timestamp is set to 1ms
+				// before end timestamp.
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"location":  "europe",
+							"cluster":   "foo-cluster",
+							"namespace": "",
+							"job":       "job1",
+							"instance":  "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "external.googleapis.com/gpe/metric1/counter",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							StartTime: &timestamp_pb.Timestamp{Seconds: 4, Nanos: 999000000},
+							EndTime:   &timestamp_pb.Timestamp{Seconds: 5},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{7},
+						},
+					}},
+				},
+				// subsequent duplicates still get through.
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"location":  "europe",
+							"cluster":   "foo-cluster",
+							"namespace": "",
+							"job":       "job1",
+							"instance":  "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "external.googleapis.com/gpe/metric1/counter",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							StartTime: &timestamp_pb.Timestamp{Seconds: 4, Nanos: 999000000},
+							EndTime:   &timestamp_pb.Timestamp{Seconds: 5},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{7},
+						},
+					}},
+				},
+			},
+		}, {
+			doc: "convert counter - skip on previous timestamp",
+			target: testTarget{
+				metadata: metricMetadataMap{
+					"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+				},
+			},
+			series: seriesMap{
+				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
+			},
+			samples: []record.RefSample{
+				{Ref: 123, T: 2000, V: 5.5},
+				{Ref: 123, T: 1000, V: 5.5}, // drop old timestamp.
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				// First sample skipped to initialize reset handling.
+				nil,
+				// Second sample occured before first, panic.
+				nil,
+			},
+		}, {
 			doc: "convert summary",
 			target: testTarget{
 				metadata: metricMetadataMap{
@@ -429,6 +557,136 @@ func TestSampleBuilder(t *testing.T) {
 				},
 			},
 		}, {
+			doc: "convert summary - skip counter duplicates",
+			target: testTarget{
+				metadata: metricMetadataMap{
+					"metric1": {Type: textparse.MetricTypeSummary, Help: "metric1 help text"},
+				},
+			},
+			series: seriesMap{
+				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
+				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "quantile", "0.5"),
+				3: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
+				4: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "quantile", "0.9"),
+			},
+			samples: []record.RefSample{
+				{Ref: 1, T: 2000, V: 1},
+				{Ref: 2, T: 2000, V: 2},
+				{Ref: 3, T: 3000, V: 3},
+				{Ref: 3, T: 3000, V: 3}, // duplicate
+				{Ref: 3, T: 4000, V: 4},
+				{Ref: 4, T: 4000, V: 4},
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"location":  "europe",
+							"cluster":   "foo-cluster",
+							"namespace": "",
+							"job":       "job1",
+							"instance":  "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "external.googleapis.com/gpe/metric1_sum/gauge",
+						Labels: map[string]string{},
+					},
+					MetricKind: metric_pb.MetricDescriptor_GAUGE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							EndTime: &timestamp_pb.Timestamp{Seconds: 2},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{1},
+						},
+					}},
+				},
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"location":  "europe",
+							"cluster":   "foo-cluster",
+							"namespace": "",
+							"job":       "job1",
+							"instance":  "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "external.googleapis.com/gpe/metric1/gauge",
+						Labels: map[string]string{"quantile": "0.5"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_GAUGE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							EndTime: &timestamp_pb.Timestamp{Seconds: 2},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{2},
+						},
+					}},
+				},
+				nil, // first metric1_count dropped by reset handling.
+				nil, // duplicate of initial reset sample.
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"location":  "europe",
+							"cluster":   "foo-cluster",
+							"namespace": "",
+							"job":       "job1",
+							"instance":  "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "external.googleapis.com/gpe/metric1_count/counter",
+						Labels: map[string]string{},
+					},
+					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							StartTime: &timestamp_pb.Timestamp{Seconds: 3},
+							EndTime:   &timestamp_pb.Timestamp{Seconds: 4},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{1},
+						},
+					}},
+				},
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"location":  "europe",
+							"cluster":   "foo-cluster",
+							"namespace": "",
+							"job":       "job1",
+							"instance":  "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "external.googleapis.com/gpe/metric1/gauge",
+						Labels: map[string]string{"quantile": "0.9"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_GAUGE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							EndTime: &timestamp_pb.Timestamp{Seconds: 4},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{4},
+						},
+					}},
+				},
+			},
+		}, {}, {
 			doc: "convert histogram",
 			target: testTarget{
 				metadata: metricMetadataMap{
@@ -503,7 +761,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 						Value: &monitoring_pb.TypedValue{
 							Value: &monitoring_pb.TypedValue_DistributionValue{
-								&distribution_pb.Distribution{
+								DistributionValue: &distribution_pb.Distribution{
 									Count:                 11,
 									Mean:                  6.20909090909091,
 									SumOfSquaredDeviation: 270.301590909091,
@@ -545,7 +803,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 						Value: &monitoring_pb.TypedValue{
 							Value: &monitoring_pb.TypedValue_DistributionValue{
-								&distribution_pb.Distribution{
+								DistributionValue: &distribution_pb.Distribution{
 									Count:                 3,
 									Mean:                  5,
 									SumOfSquaredDeviation: 0,
