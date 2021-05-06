@@ -645,7 +645,7 @@ func TestSampleBuilder(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("%d: %s", i, c.doc), func(t *testing.T) {
-			cache := newSeriesCache(nil, nil, func() labels.Labels {
+			cache := newSeriesCache(nil, nil, metricTypePrefix, func() labels.Labels {
 				return externalLabels
 			})
 			// Fake lookup into TSDB.

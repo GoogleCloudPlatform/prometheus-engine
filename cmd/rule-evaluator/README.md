@@ -27,7 +27,7 @@ CREDENTIALS=~/.config/gcloud/application_default_credentials.json
 
 ```bash
 go run main.go \
-  --export.project_id=$PROJECT_ID \
+  --export.project-id=$PROJECT_ID \
   --export.label.location=$ZONE \
   --export.credentials-file=$CREDENTIALS \
   --query.credentials-file=$CREDENTIALS \
@@ -51,7 +51,7 @@ TARGET=http://localhost:9090
 
 ```bash
 go run main.go \
-    --export.project_id=$PROJECT_ID \
+    --export.project-id=$PROJECT_ID \
     --export.label.location=$ZONE \
     --export.credentials-file=$CREDENTIALS \
     --query.project-id=$PROJECT_ID \

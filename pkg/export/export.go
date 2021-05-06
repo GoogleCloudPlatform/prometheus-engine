@@ -101,6 +101,9 @@ const (
 	// Time after an accumulating batch is flushed to GCM. This avoids data being
 	// held indefinititely if not enough new data flows in to fill up the batch.
 	batchDelayMax = 5 * time.Second
+
+	// Prefix for GCM metric.
+	metricTypePrefix = "external.googleapis.com/gpe"
 )
 
 // ExporterOpts holds options for an exporter.
@@ -123,6 +126,8 @@ type ExporterOpts struct {
 	// Maximum batch size to use when sending data to the GCM API. The default
 	// maximum will be used if set to 0.
 	BatchSize uint
+	// Prefix under which metrics are written to GCM.
+	MetricTypePrefix string
 }
 
 // NewFlagOptions returns new exporter options that are populated through flags
@@ -141,7 +146,7 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 	a.Flag("export.disable", "Disable exporting to GCM.").
 		Default("false").BoolVar(&opts.Disable)
 
-	a.Flag("export.project_id", "Google Cloud project ID to which data is sent.").
+	a.Flag("export.project-id", "Google Cloud project ID to which data is sent.").
 		Default(opts.ProjectID).StringVar(&opts.ProjectID)
 
 	// The location and cluster flag should probably not be used. On the other hand, they make it easy
@@ -158,6 +163,9 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 
 	a.Flag("export.credentials-file", "Credentials file for authentication with the GCM API.").
 		StringVar(&opts.CredentialsFile)
+
+	a.Flag("export.debug.metric-prefix", "Google Cloud Monitoring metric prefix to use.").
+		Default(metricTypePrefix).StringVar(&opts.MetricTypePrefix)
 
 	a.Flag("export.debug.disable-auth", "Disable authentication (for debugging purposes).").
 		Default("false").BoolVar(&opts.DisableAuth)
@@ -207,7 +215,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		nextc:  make(chan struct{}, 1),
 		shards: make([]*shard, shardCount),
 	}
-	e.seriesCache = newSeriesCache(logger, reg, e.getExternalLabels)
+	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, e.getExternalLabels)
 	e.builder = &sampleBuilder{series: e.seriesCache}
 
 	for i := range e.shards {
