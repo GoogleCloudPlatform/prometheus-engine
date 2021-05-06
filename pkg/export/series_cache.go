@@ -328,42 +328,37 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Targe
 	}
 
 	ts := &monitoring_pb.TimeSeries{
-		Resource: resource,
-		Metric:   &metric_pb.Metric{Labels: metricLabels.Map()},
+		Resource:  resource,
+		Metric:    &metric_pb.Metric{Labels: metricLabels.Map()},
+		ValueType: metric_pb.MetricDescriptor_DOUBLE, // default
 	}
 
 	switch metadata.Type {
 	case textparse.MetricTypeCounter:
 		ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixCounter)
 		ts.MetricKind = metric_pb.MetricDescriptor_CUMULATIVE
-		ts.ValueType = metric_pb.MetricDescriptor_DOUBLE
 
 	case textparse.MetricTypeGauge:
 		ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixGauge)
 		ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
-		ts.ValueType = metric_pb.MetricDescriptor_DOUBLE
 
 	case textparse.MetricTypeUnknown:
 		ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixUnknown)
 		ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
-		ts.ValueType = metric_pb.MetricDescriptor_DOUBLE
 
 	case textparse.MetricTypeSummary:
 		switch suffix {
 		case metricSuffixSum:
 			ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixGauge)
 			ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
-			ts.ValueType = metric_pb.MetricDescriptor_DOUBLE
 
 		case metricSuffixCount:
 			ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixCounter)
 			ts.MetricKind = metric_pb.MetricDescriptor_CUMULATIVE
-			ts.ValueType = metric_pb.MetricDescriptor_INT64
 
 		case metricSuffixNone: // Actual quantiles.
 			ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixGauge)
 			ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
-			ts.ValueType = metric_pb.MetricDescriptor_DOUBLE
 
 		default:
 			return errors.Errorf("unexpected metric name suffix %q for metric %q", suffix, metricName)
