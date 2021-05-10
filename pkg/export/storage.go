@@ -52,7 +52,9 @@ func NewStorage(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts)
 		return nil, err
 	}
 	// Call ApplyConfig once with an empty config so it can initialize the exporter state properly.
-	exporter.ApplyConfig(&config.Config{})
+	if err := exporter.ApplyConfig(&config.Config{}); err != nil {
+		return nil, err
+	}
 
 	s := &Storage{
 		exporter: exporter,

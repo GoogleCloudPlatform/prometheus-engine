@@ -37,21 +37,23 @@ func TestSeriesCache_extractResource(t *testing.T) {
 		{
 			doc: "everything contained in series labels",
 			seriesLabels: labels.FromMap(map[string]string{
-				"location":  "l1",
-				"cluster":   "c1",
-				"namespace": "n1",
-				"job":       "j1",
-				"instance":  "i1",
-				"key":       "v1",
+				"project_id": "p1",
+				"location":   "l1",
+				"cluster":    "c1",
+				"namespace":  "n1",
+				"job":        "j1",
+				"instance":   "i1",
+				"key":        "v1",
 			}),
 			wantResource: &monitoredres_pb.MonitoredResource{
 				Type: "prometheus_target",
 				Labels: map[string]string{
-					"location":  "l1",
-					"cluster":   "c1",
-					"namespace": "n1",
-					"job":       "j1",
-					"instance":  "i1",
+					"project_id": "p1",
+					"location":   "l1",
+					"cluster":    "c1",
+					"namespace":  "n1",
+					"job":        "j1",
+					"instance":   "i1",
 				},
 			},
 			wantLabels: labels.FromStrings("key", "v1"),
@@ -60,19 +62,21 @@ func TestSeriesCache_extractResource(t *testing.T) {
 		{
 			doc: "partially contained in series labels",
 			seriesLabels: labels.FromMap(map[string]string{
-				"location":  "l1",
-				"namespace": "n1",
-				"instance":  "i1",
-				"key":       "v1",
+				"project_id": "p1",
+				"location":   "l1",
+				"namespace":  "n1",
+				"instance":   "i1",
+				"key":        "v1",
 			}),
 			wantResource: &monitoredres_pb.MonitoredResource{
 				Type: "prometheus_target",
 				Labels: map[string]string{
-					"location":  "l1",
-					"cluster":   "",
-					"namespace": "n1",
-					"job":       "",
-					"instance":  "i1",
+					"project_id": "p1",
+					"location":   "l1",
+					"cluster":    "",
+					"namespace":  "n1",
+					"job":        "",
+					"instance":   "i1",
 				},
 			},
 			wantLabels: labels.FromStrings("key", "v1"),
@@ -80,9 +84,10 @@ func TestSeriesCache_extractResource(t *testing.T) {
 		}, {
 			doc: "some target and metric labels through external labels",
 			externalLabels: labels.FromMap(map[string]string{
-				"location": "l1",
-				"cluster":  "c1",
-				"key1":     "v1",
+				"project_id": "p1",
+				"location":   "l1",
+				"cluster":    "c1",
+				"key1":       "v1",
 			}),
 			seriesLabels: labels.FromMap(map[string]string{
 				"cluster":   "c2",
@@ -94,11 +99,12 @@ func TestSeriesCache_extractResource(t *testing.T) {
 			wantResource: &monitoredres_pb.MonitoredResource{
 				Type: "prometheus_target",
 				Labels: map[string]string{
-					"location":  "l1",
-					"cluster":   "c2",
-					"namespace": "n1",
-					"job":       "j1",
-					"instance":  "i1",
+					"project_id": "p1",
+					"location":   "l1",
+					"cluster":    "c2",
+					"namespace":  "n1",
+					"job":        "j1",
+					"instance":   "i1",
 				},
 			},
 			wantLabels: labels.FromStrings("key1", "v1", "key2", "v2"),
@@ -106,33 +112,23 @@ func TestSeriesCache_extractResource(t *testing.T) {
 		}, {
 			doc: "location must be set",
 			seriesLabels: labels.FromMap(map[string]string{
+				"project_id": "p1",
+				"cluster":    "c1",
+				"namespace":  "n1",
+				"job":        "j1",
+				"key":        "v1",
+			}),
+			wantOk: false,
+		}, {
+			doc: "project_id must be set",
+			seriesLabels: labels.FromMap(map[string]string{
+				"location":  "l1",
 				"cluster":   "c1",
 				"namespace": "n1",
 				"job":       "j1",
 				"key":       "v1",
 			}),
 			wantOk: false,
-		}, {
-			doc: "explicit project ID is set",
-			seriesLabels: labels.FromMap(map[string]string{
-				"project_id": "p1",
-				"location":   "l1",
-				"cluster":    "c1",
-				"key":        "v1",
-			}),
-			wantResource: &monitoredres_pb.MonitoredResource{
-				Type: "prometheus_target",
-				Labels: map[string]string{
-					"project_id": "p1",
-					"location":   "l1",
-					"cluster":    "c1",
-					"namespace":  "",
-					"job":        "",
-					"instance":   "",
-				},
-			},
-			wantLabels: labels.FromStrings("key", "v1"),
-			wantOk:     true,
 		},
 	}
 	for _, c := range cases {

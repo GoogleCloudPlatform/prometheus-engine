@@ -387,21 +387,25 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Targe
 // extractResource returns the monitored resource, the entry labels, and whether the operation succeeded.
 // The returned entry labels are a subset of `lset` without the labels that were used as resource labels.
 func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.MonitoredResource, labels.Labels, error) {
-	// TOOD(freinartz): consider checking whether the target comes from Kubernetes service
-	// discovery and a namespace can be inferred from discovery metadata. This could help populate
-	// the schema correctly for Prometheus configs that don't relabel the namespace properly
-	// without requiring user action.
-	// It may also introduce unexpected behavior though, so this needs to be evaluated in depth.
-
 	// Prometheus allows to configure external labels, which are attached when exporting data out of
-	// the instance to disambiguate data across instances. For us they generally include 'location' and 'cluster'.
-	// Per Prometheus semantics they are merged into lset, while lset takes precedence on collisions.
+	// the instance to disambiguate data across instances. For us they generally include 'project_id',
+	// 'location' and 'cluster'.
+	// Per Prometheus semantics external labels are merged into lset, while lset takes precedence on
+	// label name collisions.
 	//
-	// This generally seems problematic as it violates hierarchical precedence. Especially "location"
-	// being overwritten from a metric label would likely result the in the data being rejected.
+	// This can be problematic as it violates hierarchical precedence. Especially 'project_id'
+	// or 'location' being overwritten from a metric label could likely fill in an invalid value.
 	// A sensible solution could be to adopt Prometheus collision resolution for target and metric
 	// labels, in which colliding metric label keys are prefixed with 'exported_'.
-	// But until we've a user issue caused by this we stay true to the upstream semantics.
+	//
+	// However, the semantics are also right and important for recording rules, where one would generally
+	// want to retain original resource fields of the metrics but would want to default to a 'project_id' and
+	// 'location' for rules which aggregated away the original fields.
+	// For example a recording of 'sum(up)' would still need a fallback 'project_id' and 'location' to
+	// be stored in.
+	//
+	// Thus we stick with the upstream semantics and consider how to address unintended consequences if
+	// and when they come up.
 	builder := labels.NewBuilder(lset)
 
 	for _, l := range c.getExternalLabels() {
@@ -411,6 +415,10 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 	}
 	lset = builder.Labels()
 
+	// Ensure project_id and location are set but leave validating of the values to the API.
+	if lset.Get(KeyProjectID) == "" {
+		return nil, nil, errors.Errorf("missing required resource field %q", KeyProjectID)
+	}
 	if lset.Get(KeyLocation) == "" {
 		return nil, nil, errors.Errorf("missing required resource field %q", KeyLocation)
 	}
@@ -421,6 +429,7 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 	mres := &monitoredres_pb.MonitoredResource{
 		Type: "prometheus_target",
 		Labels: map[string]string{
+			KeyProjectID: lset.Get(KeyProjectID),
 			KeyLocation:  lset.Get(KeyLocation),
 			KeyCluster:   lset.Get(KeyCluster),
 			KeyNamespace: lset.Get(KeyNamespace),
@@ -428,20 +437,12 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 			KeyInstance:  lset.Get(KeyInstance),
 		},
 	}
+	builder.Del(KeyProjectID)
 	builder.Del(KeyLocation)
 	builder.Del(KeyCluster)
 	builder.Del(KeyNamespace)
 	builder.Del(KeyJob)
 	builder.Del(KeyInstance)
-
-	// The Cloud Monitoring API defaults project_id to the one specified for the overall request.
-	// If it is explicitly specified on the data, set it.
-	// TODO(freinartz): it must match the project ID for the overall request. Add client-side
-	// validation for this or ensure that requests are sharded by distinct project IDs.
-	if lset.Has(KeyProjectID) {
-		mres.Labels[KeyProjectID] = lset.Get(KeyProjectID)
-		builder.Del(KeyProjectID)
-	}
 
 	return mres, builder.Labels(), nil
 }
