@@ -59,6 +59,9 @@ type seriesCache struct {
 
 	// Function to retrieve external labels for the instance.
 	getExternalLabels func() labels.Labels
+
+	// Prefix under which metrics are written to GCM.
+	metricTypePrefix string
 }
 
 type seriesCacheEntry struct {
@@ -111,7 +114,7 @@ func (e *seriesCacheEntry) setNextRefresh() {
 	e.nextRefresh = time.Now().Add(refreshInterval).Add(jitter).Unix()
 }
 
-func newSeriesCache(logger log.Logger, reg prometheus.Registerer, getExternalLabels func() labels.Labels) *seriesCache {
+func newSeriesCache(logger log.Logger, reg prometheus.Registerer, metricTypePrefix string, getExternalLabels func() labels.Labels) *seriesCache {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
@@ -124,6 +127,7 @@ func newSeriesCache(logger log.Logger, reg prometheus.Registerer, getExternalLab
 		pool:              newPool(reg),
 		entries:           map[uint64]*seriesCacheEntry{},
 		getExternalLabels: getExternalLabels,
+		metricTypePrefix:  metricTypePrefix,
 	}
 }
 
@@ -238,15 +242,8 @@ func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, f
 	return e.resetTimestamp, v - e.resetValue, true
 }
 
-const (
-	// Maximum number of labels allowed on GCM series.
-	maxLabelCount = 100
-	// Prefix for GCM metric
-	metricTypePrefix = "external.googleapis.com/gpe"
-)
-
-func getMetricType(name string, suffix gcmMetricSuffix) string {
-	return fmt.Sprintf("%s/%s/%s", metricTypePrefix, name, suffix)
+func (c *seriesCache) getMetricType(name string, suffix gcmMetricSuffix) string {
+	return fmt.Sprintf("%s/%s/%s", c.metricTypePrefix, name, suffix)
 }
 
 // Metric name suffixes used by various Prometheus metric types.
@@ -270,6 +267,9 @@ const (
 	gcmMetricSuffixCounter   gcmMetricSuffix = "counter"
 	gcmMetricSuffixHistogram gcmMetricSuffix = "histogram"
 )
+
+// Maximum number of labels allowed on GCM series.
+const maxLabelCount = 100
 
 // populate cached state for the given entry.
 func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Target) error {
@@ -328,50 +328,44 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Targe
 	}
 
 	ts := &monitoring_pb.TimeSeries{
-		Resource: resource,
-		Metric:   &metric_pb.Metric{Labels: metricLabels.Map()},
+		Resource:  resource,
+		Metric:    &metric_pb.Metric{Labels: metricLabels.Map()},
+		ValueType: metric_pb.MetricDescriptor_DOUBLE, // default
 	}
 
-	// TODO: handle untyped.
 	switch metadata.Type {
 	case textparse.MetricTypeCounter:
-		ts.Metric.Type = getMetricType(metricName, gcmMetricSuffixCounter)
+		ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixCounter)
 		ts.MetricKind = metric_pb.MetricDescriptor_CUMULATIVE
-		ts.ValueType = metric_pb.MetricDescriptor_DOUBLE
 
 	case textparse.MetricTypeGauge:
-		ts.Metric.Type = getMetricType(metricName, gcmMetricSuffixGauge)
+		ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixGauge)
 		ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
-		ts.ValueType = metric_pb.MetricDescriptor_DOUBLE
 
 	case textparse.MetricTypeUnknown:
-		ts.Metric.Type = getMetricType(metricName, gcmMetricSuffixUnknown)
+		ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixUnknown)
 		ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
-		ts.ValueType = metric_pb.MetricDescriptor_DOUBLE
 
 	case textparse.MetricTypeSummary:
 		switch suffix {
 		case metricSuffixSum:
-			ts.Metric.Type = getMetricType(metricName, gcmMetricSuffixGauge)
+			ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixGauge)
 			ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
-			ts.ValueType = metric_pb.MetricDescriptor_DOUBLE
 
 		case metricSuffixCount:
-			ts.Metric.Type = getMetricType(metricName, gcmMetricSuffixCounter)
+			ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixCounter)
 			ts.MetricKind = metric_pb.MetricDescriptor_CUMULATIVE
-			ts.ValueType = metric_pb.MetricDescriptor_INT64
 
 		case metricSuffixNone: // Actual quantiles.
-			ts.Metric.Type = getMetricType(metricName, gcmMetricSuffixGauge)
+			ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixGauge)
 			ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
-			ts.ValueType = metric_pb.MetricDescriptor_DOUBLE
 
 		default:
 			return errors.Errorf("unexpected metric name suffix %q for metric %q", suffix, metricName)
 		}
 
 	case textparse.MetricTypeHistogram:
-		ts.Metric.Type = getMetricType(baseMetricName, gcmMetricSuffixHistogram)
+		ts.Metric.Type = c.getMetricType(baseMetricName, gcmMetricSuffixHistogram)
 		ts.MetricKind = metric_pb.MetricDescriptor_CUMULATIVE
 		ts.ValueType = metric_pb.MetricDescriptor_DISTRIBUTION
 

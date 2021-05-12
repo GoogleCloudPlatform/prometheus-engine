@@ -67,6 +67,7 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 		Interval: &monitoring_pb.TimeInterval{
 			EndTime: getTimestamp(sample.T),
 		},
+		Value: &monitoring_pb.TypedValue{},
 	}
 	ts.Points = append(ts.Points, point)
 
@@ -80,16 +81,16 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 			return nil, 0, tailSamples, nil
 		}
 		point.Interval.StartTime = getTimestamp(resetTimestamp)
-		point.Value = &monitoring_pb.TypedValue{Value: &monitoring_pb.TypedValue_DoubleValue{v}}
+		point.Value.Value = &monitoring_pb.TypedValue_DoubleValue{v}
 
 	case textparse.MetricTypeGauge, textparse.MetricTypeUnknown:
-		point.Value = &monitoring_pb.TypedValue{Value: &monitoring_pb.TypedValue_DoubleValue{sample.V}}
+		point.Value.Value = &monitoring_pb.TypedValue_DoubleValue{sample.V}
 
 	case textparse.MetricTypeSummary:
 		switch entry.suffix {
 		case metricSuffixSum, metricSuffixNone:
 			// Quantiles and sum. The sum may actually go up and down if observations are negative.
-			point.Value = &monitoring_pb.TypedValue{Value: &monitoring_pb.TypedValue_DoubleValue{sample.V}}
+			point.Value.Value = &monitoring_pb.TypedValue_DoubleValue{sample.V}
 		case metricSuffixCount:
 			var v float64
 			resetTimestamp, v, ok = b.series.getResetAdjusted(sample.Ref, sample.T, sample.V)
@@ -97,7 +98,7 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 				return nil, 0, tailSamples, nil
 			}
 			point.Interval.StartTime = getTimestamp(resetTimestamp)
-			point.Value = &monitoring_pb.TypedValue{Value: &monitoring_pb.TypedValue_Int64Value{int64(v)}}
+			point.Value.Value = &monitoring_pb.TypedValue_DoubleValue{v}
 		default:
 			return nil, 0, tailSamples, errors.Errorf("unexpected metric name suffix %q", entry.suffix)
 		}
@@ -112,9 +113,7 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 			return nil, 0, tailSamples, err
 		}
 		point.Interval.StartTime = getTimestamp(resetTimestamp)
-		point.Value = &monitoring_pb.TypedValue{
-			Value: &monitoring_pb.TypedValue_DistributionValue{v},
-		}
+		point.Value.Value = &monitoring_pb.TypedValue_DistributionValue{v}
 
 	default:
 		return nil, 0, samples[1:], errors.Errorf("unexpected metric type %s", entry.metadata.Type)
@@ -196,10 +195,12 @@ Loop:
 		switch metricSuffix(name[len(baseName):]) {
 		case metricSuffixSum:
 			sum = v
+
 		case metricSuffixCount:
 			count = v
 			// We take the count series as the authoritative source for the overall reset timestamp.
 			resetTimestamp = rt
+
 		case metricSuffixBucket:
 			upper, err := strconv.ParseFloat(e.lset.Get("le"), 64)
 			if err != nil {
@@ -209,6 +210,7 @@ Loop:
 			}
 			dist.bounds = append(dist.bounds, upper)
 			dist.values = append(dist.values, int64(v))
+
 		default:
 			break Loop
 		}

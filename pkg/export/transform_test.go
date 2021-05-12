@@ -390,14 +390,14 @@ func TestSampleBuilder(t *testing.T) {
 						Labels: map[string]string{},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
-					ValueType:  metric_pb.MetricDescriptor_INT64,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
 					Points: []*monitoring_pb.Point{{
 						Interval: &monitoring_pb.TimeInterval{
 							StartTime: &timestamp_pb.Timestamp{Seconds: 3},
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_Int64Value{1},
+							Value: &monitoring_pb.TypedValue_DoubleValue{1},
 						},
 					}},
 				},
@@ -645,7 +645,7 @@ func TestSampleBuilder(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("%d: %s", i, c.doc), func(t *testing.T) {
-			cache := newSeriesCache(nil, nil, func() labels.Labels {
+			cache := newSeriesCache(nil, nil, metricTypePrefix, func() labels.Labels {
 				return externalLabels
 			})
 			// Fake lookup into TSDB.
@@ -669,7 +669,6 @@ func TestSampleBuilder(t *testing.T) {
 				if err != nil {
 					break
 				}
-				t.Logf("out: %d %s %d", k, out, len(c.samples))
 				if len(tail) >= len(batch) {
 					t.Fatalf("no sample was consumed")
 				}
