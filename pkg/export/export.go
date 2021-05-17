@@ -108,20 +108,19 @@ const (
 
 // ExporterOpts holds options for an exporter.
 type ExporterOpts struct {
+	// Whether to disable exporting of metrics.
 	Disable bool
-	// Google Cloud project ID to which data is sent.
-	ProjectID string
-	// The location identifier used for the monitored resource of exported data.
-	Location string
-	// The cluster identifier used for the monitored resource of exported data.
-	Cluster string
-
 	// GCM API endpoint to send metric data to.
 	Endpoint string
 	// Credentials file for authentication with the GCM API.
 	CredentialsFile string
 	// Disable authentication (for debugging purposes).
 	DisableAuth bool
+
+	// Default monitored resource fields set on exported data.
+	ProjectID string
+	Location  string
+	Cluster   string
 
 	// Maximum batch size to use when sending data to the GCM API. The default
 	// maximum will be used if set to 0.
@@ -146,23 +145,23 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 	a.Flag("export.disable", "Disable exporting to GCM.").
 		Default("false").BoolVar(&opts.Disable)
 
-	a.Flag("export.project-id", "Google Cloud project ID to which data is sent.").
-		Default(opts.ProjectID).StringVar(&opts.ProjectID)
-
-	// The location and cluster flag should probably not be used. On the other hand, they make it easy
-	// to populate these important values in the monitored resource without interfering with existing
-	// Prometheus configuration.
-	a.Flag("export.label.location", fmt.Sprintf("The location set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyLocation)).
-		Default(opts.Location).StringVar(&opts.Location)
-
-	a.Flag("export.label.cluster", fmt.Sprintf("The cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyCluster)).
-		Default(opts.Cluster).StringVar(&opts.Cluster)
-
 	a.Flag("export.endpoint", "GCM API endpoint to send metric data to.").
 		Default("monitoring.googleapis.com:443").StringVar(&opts.Endpoint)
 
 	a.Flag("export.credentials-file", "Credentials file for authentication with the GCM API.").
 		StringVar(&opts.CredentialsFile)
+
+	a.Flag("export.label.project-id", fmt.Sprintf("Default project ID set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyProjectID)).
+		Default(opts.ProjectID).StringVar(&opts.ProjectID)
+
+	// The location and cluster flag should probably not be used. On the other hand, they make it easy
+	// to populate these important values in the monitored resource without interfering with existing
+	// Prometheus configuration.
+	a.Flag("export.label.location", fmt.Sprintf("The default location set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyLocation)).
+		Default(opts.Location).StringVar(&opts.Location)
+
+	a.Flag("export.label.cluster", fmt.Sprintf("The default cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyCluster)).
+		Default(opts.Cluster).StringVar(&opts.Cluster)
 
 	a.Flag("export.debug.metric-prefix", "Google Cloud Monitoring metric prefix to use.").
 		Default(metricTypePrefix).StringVar(&opts.MetricTypePrefix)
@@ -195,12 +194,6 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 			pendingRequests,
 		)
 	}
-
-	if opts.ProjectID == "" {
-		return nil, errors.New("GCP project ID missing")
-	}
-	// Location is generally also required but we allow it to also be set
-	// through Prometheus's external labels, which we receive via ApplyConfig.
 
 	if opts.BatchSize == 0 {
 		opts.BatchSize = batchSizeMax
@@ -241,10 +234,16 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
-	// If location and cluster were set through explicit flags or auto-discovery, set
-	// them in the external labels.
+	// If project_id, location and cluster were set through explicit flags or auto-discovery,
+	// set them in the external labels. Currently we don't expect a use case where one would want
+	// to override auto-discovery values via external labels.
+	// All resource labels may still later be overriden by metric labels per the precedence semantics
+	// Prometheus upstream has.
 	builder := labels.NewBuilder(cfg.GlobalConfig.ExternalLabels)
 
+	if e.opts.ProjectID != "" {
+		builder.Set(KeyProjectID, e.opts.ProjectID)
+	}
 	if e.opts.Location != "" {
 		builder.Set(KeyLocation, e.opts.Location)
 	}
@@ -253,10 +252,13 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) error {
 	}
 	lset := builder.Labels()
 
-	// At this point we expect a location to be set. It may be overriden by an explicit location
-	// set on exported data. This is primarily expected for rule evaluation. Collectors should
-	// generally always default as they shouldn't cross failure domains.
-	// The cluster label may however be entirely empty/unset.
+	// At this point we expect location and project ID to be set. They are effectively only a default
+	// however as they may be overriden by metric labels.
+	// In production scenarios, "location" should most likely never be overriden as it means crossing
+	// failure domains. Instead, each location should run a replica of the evaluator with the same rules.
+	if lset.Get(KeyProjectID) == "" {
+		return errors.Errorf("no label %q set via external labels or flag", KeyProjectID)
+	}
 	if lset.Get(KeyLocation) == "" {
 		return errors.Errorf("no label %q set via external labels or flag", KeyLocation)
 	}
@@ -320,8 +322,10 @@ func (e *Exporter) Export(target Target, samples []record.RefSample) {
 			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
 		}
 		if sample != nil {
-			// TODO(freinartz): decouple sending from ingestion by writing to a
-			// dedicated write-ahead-log here from which the send queues consume.
+			if p := sample.Resource.Labels[KeyProjectID]; p != e.opts.ProjectID {
+				level.Warn(e.logger).Log("msg", "exporting to different projects not supported yet", "want", e.opts.ProjectID, "got", p)
+				continue
+			}
 			e.enqueue(hash, sample)
 		}
 	}
@@ -490,7 +494,11 @@ func (e *Exporter) Run(ctx context.Context) error {
 }
 
 func (e *Exporter) send(ctx context.Context, client *monitoring.MetricClient, batch []*monitoring_pb.TimeSeries) error {
-	// TODO(freinartz): Handle retries if the error type allows.
+	// Currently we do not retry any requests due to the risk of producing a backlog
+	// that cannot be worked down, especially if large amounts of clients try to do so.
+	//
+	// TODO(freinartz): The batch may contain samples for multiple projects. They need to
+	// be split up.
 	return client.CreateTimeSeries(ctx, &monitoring_pb.CreateTimeSeriesRequest{
 		Name:       fmt.Sprintf("projects/%s", e.opts.ProjectID),
 		TimeSeries: batch,

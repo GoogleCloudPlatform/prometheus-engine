@@ -48,8 +48,9 @@ func (t testTarget) Metadata(metric string) (scrape.MetricMetadata, bool) {
 
 func TestSampleBuilder(t *testing.T) {
 	externalLabels := labels.FromMap(map[string]string{
-		"location": "europe",
-		"cluster":  "foo-cluster",
+		"project_id": "example-project",
+		"location":   "europe",
+		"cluster":    "foo-cluster",
 	})
 
 	cases := []struct {
@@ -79,11 +80,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -105,11 +107,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -147,11 +150,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -173,11 +177,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -220,11 +225,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -247,11 +253,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -276,11 +283,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -453,11 +461,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -479,11 +488,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -506,11 +516,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -533,11 +544,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -741,11 +753,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -783,11 +796,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -824,11 +838,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -863,11 +878,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
