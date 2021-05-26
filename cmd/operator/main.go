@@ -162,31 +162,29 @@ func main() {
 	}
 	// Init and run admission controller server.
 	{
-		ctx, cancel := context.WithCancel(context.Background())
-		g.Add(
-			func() error {
-				if srv, err := op.InitAdmissionResources(ctx); err != nil {
-					return err
-				} else {
-					return srv.ListenAndServeTLS("", "")
-				}
-			},
-			func(err error) {
-				cancel()
-			},
-		)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		server, err := op.InitAdmissionResources(ctx)
+		cancel()
+		if err != nil {
+			level.Error(logger).Log("msg", "initialize admission resources", "err", err)
+			os.Exit(1)
+		}
+		g.Add(func() (err error) {
+			return server.ListenAndServeTLS("", "")
+		}, func(err error) {
+			ctx, cancel = context.WithTimeout(context.Background(), time.Minute)
+			server.Shutdown(ctx)
+			cancel()
+		})
 	}
 	// Main operator loop.
 	{
 		ctx, cancel := context.WithCancel(context.Background())
-		g.Add(
-			func() error {
-				return op.Run(ctx)
-			},
-			func(err error) {
-				cancel()
-			},
-		)
+		g.Add(func() error {
+			return op.Run(ctx)
+		}, func(err error) {
+			cancel()
+		})
 	}
 	if err := g.Run(); err != nil {
 		level.Error(logger).Log("msg", "exit with error", "err", err)
