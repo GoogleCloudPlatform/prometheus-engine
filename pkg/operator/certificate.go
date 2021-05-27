@@ -25,6 +25,7 @@ import (
 
 	v1 "k8s.io/api/certificates/v1"
 	v1beta1 "k8s.io/api/certificates/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -126,7 +127,8 @@ func approveCSR(ctx context.Context, client kubernetes.Interface, name string) (
 		// No error means v1 API is supported.
 		req.Status.Conditions = append(req.Status.Conditions,
 			v1.CertificateSigningRequestCondition{
-				Type: v1.CertificateApproved,
+				Type:   v1.CertificateApproved,
+				Status: corev1.ConditionTrue,
 			})
 		req, err := apiV1.UpdateApproval(ctx, name, req, metav1.UpdateOptions{})
 		if err != nil {

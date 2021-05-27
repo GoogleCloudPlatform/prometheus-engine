@@ -335,11 +335,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"location":   "europe",
+							"project_id": "example-project",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -364,11 +365,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"location":   "europe",
+							"project_id": "example-project",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -392,11 +394,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"location":   "europe",
+							"project_id": "example-project",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -594,11 +597,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"location":   "europe",
+							"project_id": "example-project",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -620,11 +624,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"location":   "europe",
+							"project_id": "example-project",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -648,11 +653,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"location":   "europe",
+							"project_id": "example-project",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
@@ -675,11 +681,12 @@ func TestSampleBuilder(t *testing.T) {
 					Resource: &monitoredres_pb.MonitoredResource{
 						Type: "prometheus_target",
 						Labels: map[string]string{
-							"location":  "europe",
-							"cluster":   "foo-cluster",
-							"namespace": "",
-							"job":       "job1",
-							"instance":  "instance1",
+							"location":   "europe",
+							"project_id": "example-project",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
 						},
 					},
 					Metric: &metric_pb.Metric{
