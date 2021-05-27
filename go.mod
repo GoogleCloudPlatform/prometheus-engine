@@ -1,4 +1,4 @@
-module github.com/google/gpe-collector
+module github.com/GoogleCloudPlatform/prometheus-engine
 
 go 1.15
 

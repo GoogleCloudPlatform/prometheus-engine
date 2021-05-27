@@ -52,10 +52,10 @@ import (
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/google/gpe-collector/pkg/export"
-	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
-	clientset "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned"
-	informers "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
+	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
+	informers "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/informers/externalversions"
 )
 
 // DefaultNamespace is the namespace in which all resources owned by the operator are installed.

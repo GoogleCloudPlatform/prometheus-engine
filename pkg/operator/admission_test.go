@@ -24,8 +24,8 @@ import (
 	"testing"
 
 	"github.com/go-kit/kit/log"
-	monitoring "github.com/google/gpe-collector/pkg/operator/apis/monitoring"
-	"github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
+	monitoring "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

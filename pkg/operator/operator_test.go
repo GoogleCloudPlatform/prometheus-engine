@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
+	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 
 	"github.com/prometheus/common/model"
 	prommodel "github.com/prometheus/common/model"

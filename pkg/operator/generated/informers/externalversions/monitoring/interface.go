@@ -17,8 +17,8 @@
 package monitoring
 
 import (
-	internalinterfaces "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions/monitoring/v1alpha1"
+	internalinterfaces "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/informers/externalversions/monitoring/v1alpha1"
 )
 
 // Interface provides access to each of this group's versions.

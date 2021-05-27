@@ -21,9 +21,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned"
-	internalinterfaces "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions/internalinterfaces"
-	monitoring "github.com/google/gpe-collector/pkg/operator/generated/informers/externalversions/monitoring"
+	versioned "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
+	internalinterfaces "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/informers/externalversions/internalinterfaces"
+	monitoring "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/informers/externalversions/monitoring"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

@@ -17,7 +17,7 @@
 package fake
 
 import (
-	v1alpha1 "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned/typed/monitoring/v1alpha1"
+	v1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned/typed/monitoring/v1alpha1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

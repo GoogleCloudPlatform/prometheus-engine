@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	monitoring "github.com/google/gpe-collector/pkg/operator/apis/monitoring"
-	"github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
+	monitoring "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )

@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"path"
 
-	monitoring "github.com/google/gpe-collector/pkg/operator/apis/monitoring"
-	"github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
+	monitoring "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	"github.com/pkg/errors"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"

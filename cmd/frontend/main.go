@@ -41,7 +41,7 @@ import (
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
 
-	"github.com/google/gpe-collector/pkg/ui"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/ui"
 )
 
 const projectIDVar = "PROJECT_ID"

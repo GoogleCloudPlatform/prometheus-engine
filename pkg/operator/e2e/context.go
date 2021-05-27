@@ -29,8 +29,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/google/gpe-collector/pkg/operator"
-	clientset "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
+	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
 
 var startTime time.Time

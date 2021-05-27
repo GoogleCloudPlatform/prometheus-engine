@@ -28,7 +28,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/google/gpe-collector/pkg/export"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	"github.com/oklog/run"
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"

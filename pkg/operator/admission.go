@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes/scheme"
 

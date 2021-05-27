@@ -46,8 +46,8 @@ import (
 	// Blank import required to register GCP auth handlers to talk to GKE clusters.
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
-	"github.com/google/gpe-collector/pkg/operator"
-	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/apis/monitoring/v1alpha1"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
+	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 )
 
 var (

@@ -19,7 +19,7 @@ package versioned
 import (
 	"fmt"
 
-	monitoringv1alpha1 "github.com/google/gpe-collector/pkg/operator/generated/clientset/versioned/typed/monitoring/v1alpha1"
+	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned/typed/monitoring/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

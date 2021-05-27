@@ -40,7 +40,7 @@ import (
 	// Blank import required to register GCP auth handlers to talk to GKE clusters.
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
-	"github.com/google/gpe-collector/pkg/operator"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 )
 
 func unstableFlagHelp(help string) string {
