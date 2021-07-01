@@ -1,0 +1,39 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https:#www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: monitoring.googleapis.com/v1alpha1
+kind: Rules
+metadata:
+  namespace: default
+  name: example-app
+  labels:
+    app.kubernetes.io/name: example-app
+spec:
+  scope: Cluster
+  groups:
+  - name: group-1
+    interval: 15s
+    rules:
+    - record: job_up_sum
+      expr: sum without(instance) (up)
+    - alert: TooFewReplicas
+      expr: job_up_sum < 3
+      for: 1m
+      annotations:
+        description: "Not enough replicas ({{ $value }}) for job {{ $labels.job }}"
+  - name: group-2
+    interval: 15s
+    rules:
+    - alert: AlwaysFiring
+      expr: vector(1)

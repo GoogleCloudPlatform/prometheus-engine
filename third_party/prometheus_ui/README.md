@@ -1,0 +1,4 @@
+This directory contains a vendored version of the React UI of the Prometheus project
+(https://github.com/prometheus/prometheus) and a set of modified files.
+Building the union of both creates a subset of the upstream UI with only the graphing
+page being accessible.
