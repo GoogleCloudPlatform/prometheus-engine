@@ -1,3 +1,13 @@
+## 0.18.2 (2021-04-16)
+
+### Bug fixes
+
+Newlines in line messages are now shown as line breaks to the user.
+
+### New features
+
+You can now pass a delay option to `linter` to configure how long it waits before calling the linter.
+
 ## 0.18.1 (2021-03-15)
 
 ### Bug fixes

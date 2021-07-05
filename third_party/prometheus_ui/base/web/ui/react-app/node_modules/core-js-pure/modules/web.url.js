@@ -31,6 +31,7 @@ var INVALID_HOST = 'Invalid host';
 var INVALID_PORT = 'Invalid port';
 
 var ALPHA = /[A-Za-z]/;
+// eslint-disable-next-line regexp/no-obscure-range -- safe
 var ALPHANUMERIC = /[\d+-.A-Za-z]/;
 var DIGIT = /\d/;
 var HEX_START = /^(0x|0X)/;
@@ -38,10 +39,10 @@ var OCT = /^[0-7]+$/;
 var DEC = /^\d+$/;
 var HEX = /^[\dA-Fa-f]+$/;
 /* eslint-disable no-control-regex -- safe */
-var FORBIDDEN_HOST_CODE_POINT = /[\u0000\t\u000A\u000D #%/:?@[\\]]/;
-var FORBIDDEN_HOST_CODE_POINT_EXCLUDING_PERCENT = /[\u0000\t\u000A\u000D #/:?@[\\]]/;
+var FORBIDDEN_HOST_CODE_POINT = /[\0\t\n\r #%/:?@[\\]]/;
+var FORBIDDEN_HOST_CODE_POINT_EXCLUDING_PERCENT = /[\0\t\n\r #/:?@[\\]]/;
 var LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE = /^[\u0000-\u001F ]+|[\u0000-\u001F ]+$/g;
-var TAB_AND_NEW_LINE = /[\t\u000A\u000D]/g;
+var TAB_AND_NEW_LINE = /[\t\n\r]/g;
 /* eslint-enable no-control-regex -- safe */
 var EOF;
 
@@ -800,7 +801,7 @@ var getOrigin = function () {
   var scheme = url.scheme;
   var port = url.port;
   if (scheme == 'blob') try {
-    return new URL(scheme.path[0]).origin;
+    return new URLConstructor(scheme.path[0]).origin;
   } catch (error) {
     return 'null';
   }

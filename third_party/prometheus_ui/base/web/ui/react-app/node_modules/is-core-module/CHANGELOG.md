@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.0](https://github.com/inspect-js/is-core-module/compare/v2.2.0...v2.3.0) - 2021-04-24
+
+### Commits
+
+- [meta] do not publish github action workflow files [`060d4bb`](https://github.com/inspect-js/is-core-module/commit/060d4bb971a29451c19ff336eb56bee27f9fa95a)
+- [New] add support for `node:` prefix, in node 16+ [`7341223`](https://github.com/inspect-js/is-core-module/commit/73412230a769f6e81c05eea50b6520cebf54ed2f)
+- [actions] use `node/install` instead of `node/run`; use `codecov` action [`016269a`](https://github.com/inspect-js/is-core-module/commit/016269abae9f6657a5254adfbb813f09a05067f9)
+- [patch] remove unneeded `.0` in version ranges [`cb466a6`](https://github.com/inspect-js/is-core-module/commit/cb466a6d89e52b8389e5c12715efcd550c41cea3)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `aud`, `tape` [`c9f9c39`](https://github.com/inspect-js/is-core-module/commit/c9f9c396ace60ef81906f98059c064e6452473ed)
+- [actions] update workflows [`3ee4a89`](https://github.com/inspect-js/is-core-module/commit/3ee4a89fd5a02fccd43882d905448ea6a98e9a3c)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config` [`dee4fed`](https://github.com/inspect-js/is-core-module/commit/dee4fed79690c1d43a22f7fa9426abebdc6d727f)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config` [`7d046ba`](https://github.com/inspect-js/is-core-module/commit/7d046ba07ae8c9292e43652694ca808d7b309de8)
+- [meta] use `prepublishOnly` script for npm 7+ [`149e677`](https://github.com/inspect-js/is-core-module/commit/149e6771a5ede6d097e71785b467a9c4b4977cc7)
+- [readme] remove travis badge [`903b51d`](https://github.com/inspect-js/is-core-module/commit/903b51d6b69b98abeabfbc3695c345b02646f19c)
+
 ## [v2.2.0](https://github.com/inspect-js/is-core-module/compare/v2.1.0...v2.2.0) - 2020-11-26
 
 ### Commits

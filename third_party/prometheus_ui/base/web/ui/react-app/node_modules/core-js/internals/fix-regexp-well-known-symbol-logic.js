@@ -4,7 +4,6 @@ require('../modules/es.regexp.exec');
 var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var regexpExec = require('../internals/regexp-exec');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 
 var SPECIES = wellKnownSymbol('species');
@@ -25,6 +24,7 @@ var REPLACE_SUPPORTS_NAMED_GROUPS = !fails(function () {
 // IE <= 11 replaces $0 with the whole match, as if it was $&
 // https://stackoverflow.com/questions/6024666/getting-ie-to-replace-a-regex-with-the-literal-string-0
 var REPLACE_KEEPS_$0 = (function () {
+  // eslint-disable-next-line regexp/prefer-escape-replacement-dollar-char -- required for testing
   return 'a'.replace(/./, '$0') === '$0';
 })();
 
@@ -94,7 +94,7 @@ module.exports = function (KEY, length, exec, sham) {
   ) {
     var nativeRegExpMethod = /./[SYMBOL];
     var methods = exec(SYMBOL, ''[KEY], function (nativeMethod, regexp, str, arg2, forceStringMethod) {
-      if (regexp.exec === regexpExec) {
+      if (regexp.exec === RegExp.prototype.exec) {
         if (DELEGATES_TO_SYMBOL && !forceStringMethod) {
           // The native String method already delegates to @@method (this
           // polyfilled function), leasing to infinite recursion.

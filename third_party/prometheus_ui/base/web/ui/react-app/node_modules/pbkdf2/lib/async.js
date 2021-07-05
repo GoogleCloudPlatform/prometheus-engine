@@ -39,7 +39,22 @@ function checkNative (algo) {
   checks[algo] = prom
   return prom
 }
-
+var nextTick
+function getNextTick () {
+  if (nextTick) {
+    return nextTick
+  }
+  if (global.process && global.process.nextTick) {
+    nextTick = global.process.nextTick
+  } else if (global.queueMicrotask) {
+    nextTick = global.queueMicrotask
+  } else if (global.setImmediate) {
+    nextTick = global.setImmediate
+  } else {
+    nextTick = global.setTimeout
+  }
+  return nextTick
+}
 function browserPbkdf2 (password, salt, iterations, length, algo) {
   return subtle.importKey(
     'raw', password, { name: 'PBKDF2' }, false, ['deriveBits']
@@ -59,11 +74,11 @@ function browserPbkdf2 (password, salt, iterations, length, algo) {
 
 function resolvePromise (promise, callback) {
   promise.then(function (out) {
-    process.nextTick(function () {
+    getNextTick()(function () {
       callback(null, out)
     })
   }, function (e) {
-    process.nextTick(function () {
+    getNextTick()(function () {
       callback(e)
     })
   })
@@ -78,7 +93,7 @@ module.exports = function (password, salt, iterations, keylen, digest, callback)
   var algo = toBrowser[digest.toLowerCase()]
 
   if (!algo || typeof global.Promise !== 'function') {
-    return process.nextTick(function () {
+    getNextTick()(function () {
       var out
       try {
         out = sync(password, salt, iterations, keylen, digest)
@@ -87,6 +102,7 @@ module.exports = function (password, salt, iterations, keylen, digest, callback)
       }
       callback(null, out)
     })
+    return
   }
 
   checkParameters(iterations, keylen)

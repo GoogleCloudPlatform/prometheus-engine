@@ -6,11 +6,16 @@ var repeat = require('string.prototype.repeat');
 var inspect = require('..');
 
 test('inspect', function (t) {
-    t.plan(3);
+    t.plan(4);
     var obj = [{ inspect: function xyzInspect() { return '!XYZ¡'; } }, []];
     t.equal(inspect(obj), '[ !XYZ¡, [] ]');
     t.equal(inspect(obj, { customInspect: true }), '[ !XYZ¡, [] ]');
     t.equal(inspect(obj, { customInspect: false }), '[ { inspect: [Function: xyzInspect] }, [] ]');
+    t['throws'](
+        function () { inspect(obj, { customInspect: 'not a boolean' }); },
+        TypeError,
+        '`customInspect` must be a boolean'
+    );
 });
 
 test('inspect custom symbol', { skip: !hasSymbols || !utilInspect || !utilInspect.custom }, function (t) {
@@ -43,10 +48,30 @@ test('symbols', { skip: !hasSymbols }, function (t) {
 });
 
 test('maxStringLength', function (t) {
+    t['throws'](
+        function () { inspect('', { maxStringLength: -1 }); },
+        TypeError,
+        'maxStringLength must be >= 0, or Infinity, not negative'
+    );
+
+    var str = repeat('a', 1e8);
+
     t.equal(
-        inspect([repeat('a', 1e8)], { maxStringLength: 10 }),
+        inspect([str], { maxStringLength: 10 }),
         '[ \'aaaaaaaaaa\'... 99999990 more characters ]',
         'maxStringLength option limits output'
+    );
+
+    t.equal(
+        inspect(['f'], { maxStringLength: null }),
+        '[ \'\'... 1 more character ]',
+        'maxStringLength option accepts `null`'
+    );
+
+    t.equal(
+        inspect([str], { maxStringLength: Infinity }),
+        '[ \'' + str + '\' ]',
+        'maxStringLength option accepts ∞'
     );
 
     t.end();

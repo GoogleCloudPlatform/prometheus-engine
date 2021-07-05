@@ -8,6 +8,7 @@ import {
   NavbarToggler,
 } from 'reactstrap';
 import { usePathPrefix } from './contexts/PathPrefixContext';
+import { ThemeToggle } from './Theme';
 
 interface NavbarProps {
   consolesLink: string | null;
@@ -23,6 +24,7 @@ const Navigation: FC<NavbarProps> = ({ consolesLink }) => {
       <Link className="pt-0 navbar-brand" to={`${pathPrefix}/graph`}>
         Google Cloud Prometheus Engine
       </Link>
+      <ThemeToggle />
     </Navbar>
   );
 };

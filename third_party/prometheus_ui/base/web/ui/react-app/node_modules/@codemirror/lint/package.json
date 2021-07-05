@@ -1,6 +1,6 @@
 {
   "name": "@codemirror/lint",
-  "version": "0.18.1",
+  "version": "0.18.2",
   "description": "Linting support for the CodeMirror code editor",
   "scripts": {
     "test": "echo 'No tests'",
