@@ -48,7 +48,8 @@ class StackUtils {
     return natives.slice();
   }
 
-  clean (stack, indent = 0) {
+  clean (stack, indent) {
+    indent = indent || 0
     indent = ' '.repeat(indent);
 
     if (!Array.isArray(stack)) {
@@ -101,13 +102,14 @@ class StackUtils {
     return result.map(line => `${indent}${line}\n`).join('');
   }
 
-  captureString (limit, fn = this.captureString) {
+  captureString (limit, fn) {
+    fn = fn || this.captureString
     if (typeof limit === 'function') {
       fn = limit;
       limit = Infinity;
     }
 
-    const {stackTraceLimit} = Error;
+    const stackTraceLimit = Error.stackTraceLimit;
     if (limit) {
       Error.stackTraceLimit = limit;
     }
@@ -115,19 +117,21 @@ class StackUtils {
     const obj = {};
 
     Error.captureStackTrace(obj, fn);
-    const {stack} = obj;
+    const stack = obj.stack;
     Error.stackTraceLimit = stackTraceLimit;
 
     return this.clean(stack);
   }
 
-  capture (limit, fn = this.capture) {
+  capture (limit, fn) {
+    fn = fn || this.capture
     if (typeof limit === 'function') {
       fn = limit;
       limit = Infinity;
     }
 
-    const {prepareStackTrace, stackTraceLimit} = Error;
+    const prepareStackTrace = Error.prepareStackTrace
+    const stackTraceLimit = Error.stackTraceLimit
     Error.prepareStackTrace = (obj, site) => {
       if (this._wrapCallSite) {
         return site.map(this._wrapCallSite);
@@ -142,14 +146,15 @@ class StackUtils {
 
     const obj = {};
     Error.captureStackTrace(obj, fn);
-    const { stack } = obj;
+    const stack = obj.stack;
     Object.assign(Error, {prepareStackTrace, stackTraceLimit});
 
     return stack;
   }
 
-  at (fn = this.at) {
-    const [site] = this.capture(1, fn);
+  at (fn) {
+    fn = fn || this.at
+    const site = this.capture(1, fn)[0];
 
     if (!site) {
       return {};

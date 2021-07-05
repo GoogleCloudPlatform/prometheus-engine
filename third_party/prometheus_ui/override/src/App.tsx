@@ -5,10 +5,13 @@ import React, { FC } from 'react';
 import Navigation from './Navbar';
 import { Container } from 'reactstrap';
 
-import './App.css';
 import { Router, Redirect } from '@reach/router';
+import useMedia from 'use-media';
 import { PanelList } from './pages';
 import { PathPrefixContext } from './contexts/PathPrefixContext';
+import { ThemeContext, themeName, themeSetting } from './contexts/ThemeContext';
+import { Theme, themeLocalStorageKey } from './Theme';
+import { useLocalStorage } from './hooks/useLocalStorage';
 
 interface AppProps {
   consolesLink: string | null;
@@ -34,20 +37,36 @@ const App: FC<AppProps> = ({ consolesLink }) => {
     }
   }
 
+  const [userTheme, setUserTheme] = useLocalStorage<themeSetting>(themeLocalStorageKey, 'auto');
+  const browserHasThemes = useMedia('(prefers-color-scheme)');
+  const browserWantsDarkTheme = useMedia('(prefers-color-scheme: dark)');
+
+  let theme: themeName;
+  if (userTheme !== 'auto') {
+    theme = userTheme;
+  } else {
+    theme = browserHasThemes ? (browserWantsDarkTheme ? 'dark' : 'light') : 'light';
+  }
+
   return (
-    <PathPrefixContext.Provider value={basePath}>
-      <Navigation consolesLink={consolesLink} />
-      <Container fluid style={{ paddingTop: 70 }}>
-        <Router basepath={`${basePath}`}>
-          <Redirect from="/" to={`graph`} noThrow />
-          {/*
+    <ThemeContext.Provider
+      value={{ theme: theme, userPreference: userTheme, setTheme: (t: themeSetting) => setUserTheme(t) }}
+    >
+      <Theme />
+      <PathPrefixContext.Provider value={basePath}>
+        <Navigation consolesLink={consolesLink} />
+        <Container fluid style={{ paddingTop: 70 }}>
+          <Router basepath={`${basePath}`}>
+            <Redirect from="/" to={`graph`} noThrow />
+            {/*
               NOTE: Any route added here needs to also be added to the list of
               React-handled router paths ("reactRouterPaths") in /web/web.go.
             */}
-          <PanelList path="/graph" />
-        </Router>
-      </Container>
-    </PathPrefixContext.Provider>
+            <PanelList path="/graph" />
+          </Router>
+        </Container>
+      </PathPrefixContext.Provider>
+    </ThemeContext.Provider>
   );
 };
 

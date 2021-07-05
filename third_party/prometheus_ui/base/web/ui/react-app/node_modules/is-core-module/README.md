@@ -1,6 +1,5 @@
 # is-core-module <sup>[![Version Badge][2]][1]</sup>
 
-[![Build Status][3]][4]
 [![dependency status][5]][6]
 [![dev dependency status][7]][8]
 [![License][license-image]][license-url]
@@ -24,8 +23,6 @@ Clone the repo, `npm install`, and run `npm test`
 
 [1]: https://npmjs.org/package/is-core-module
 [2]: https://versionbadg.es/inspect-js/is-core-module.svg
-[3]: https://travis-ci.com/inspect-js/is-core-module.svg
-[4]: https://travis-ci.com/inspect-js/is-core-module
 [5]: https://david-dm.org/inspect-js/is-core-module.svg
 [6]: https://david-dm.org/inspect-js/is-core-module
 [7]: https://david-dm.org/inspect-js/is-core-module/dev-status.svg

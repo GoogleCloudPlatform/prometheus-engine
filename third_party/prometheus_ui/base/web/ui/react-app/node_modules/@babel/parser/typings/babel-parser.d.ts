@@ -108,6 +108,7 @@ export interface ParserOptions {
 }
 
 export type ParserPlugin =
+  | "asyncDoExpressions"
   | "asyncGenerators"
   | "bigInt"
   | "classPrivateMethods"
@@ -167,3 +168,8 @@ export interface RecordAndTuplePluginOptions {
 export interface FlowPluginOptions {
   all?: boolean;
 }
+
+export const tokTypes: {
+  // todo(flow->ts) real token type
+  [name: string]: any;
+};

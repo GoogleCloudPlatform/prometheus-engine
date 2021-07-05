@@ -49,6 +49,8 @@ p {
 }
 ```
 
+[!['Can I use' table](https://caniuse.bitsofco.de/image/css-initial-value.png)](https://caniuse.com/#feat=css-initial-value)
+
 **Killer feature!**
 
 Universal reset from future css!

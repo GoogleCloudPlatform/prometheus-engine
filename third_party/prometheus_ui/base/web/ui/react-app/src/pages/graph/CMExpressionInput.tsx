@@ -11,15 +11,16 @@ import { closeBrackets, closeBracketsKeymap } from '@codemirror/closebrackets';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { commentKeymap } from '@codemirror/comment';
 import { lintKeymap } from '@codemirror/lint';
-import { PromQLExtension } from 'codemirror-promql';
+import { PromQLExtension, CompleteStrategy } from 'codemirror-promql';
 import { autocompletion, completionKeymap, CompletionContext, CompletionResult } from '@codemirror/autocomplete';
-import { theme, promqlHighlighter } from './CMTheme';
+import { baseTheme, lightTheme, darkTheme, promqlHighlighter } from './CMTheme';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSearch, faSpinner, faGlobeEurope } from '@fortawesome/free-solid-svg-icons';
 import MetricsExplorer from './MetricsExplorer';
-import { CompleteStrategy, newCompleteStrategy } from 'codemirror-promql/complete';
 import { usePathPrefix } from '../../contexts/PathPrefixContext';
+import { newCompleteStrategy } from 'codemirror-promql/cjs/complete';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const promqlExtension = new PromQLExtension();
 
@@ -92,21 +93,27 @@ const CMExpressionInput: FC<CMExpressionInputProps> = ({
   const viewRef = useRef<EditorView | null>(null);
   const [showMetricsExplorer, setShowMetricsExplorer] = useState<boolean>(false);
   const pathPrefix = usePathPrefix();
+  const { theme } = useTheme();
 
   // (Re)initialize editor based on settings / setting changes.
   useEffect(() => {
     // Build the dynamic part of the config.
-    promqlExtension.activateCompletion(enableAutocomplete);
-    promqlExtension.activateLinter(enableLinter);
-    promqlExtension.setComplete({
-      completeStrategy: new HistoryCompleteStrategy(
-        newCompleteStrategy({
-          remote: { url: pathPrefix },
-        }),
-        queryHistory
-      ),
-    });
-    const dynamicConfig = [enableHighlighting ? promqlHighlighter : [], promqlExtension.asExtension()];
+    promqlExtension
+      .activateCompletion(enableAutocomplete)
+      .activateLinter(enableLinter)
+      .setComplete({
+        completeStrategy: new HistoryCompleteStrategy(
+          newCompleteStrategy({
+            remote: { url: pathPrefix, cache: { initialMetricList: metricNames } },
+          }),
+          queryHistory
+        ),
+      });
+    const dynamicConfig = [
+      enableHighlighting ? promqlHighlighter : [],
+      promqlExtension.asExtension(),
+      theme === 'dark' ? darkTheme : lightTheme,
+    ];
 
     // Create or reconfigure the editor.
     const view = viewRef.current;
@@ -119,7 +126,7 @@ const CMExpressionInput: FC<CMExpressionInputProps> = ({
       const startState = EditorState.create({
         doc: value,
         extensions: [
-          theme,
+          baseTheme,
           highlightSpecialChars(),
           history(),
           EditorState.allowMultipleSelections.of(true),
@@ -192,7 +199,7 @@ const CMExpressionInput: FC<CMExpressionInputProps> = ({
     // re-run this effect every time that "value" changes.
     //
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enableAutocomplete, enableHighlighting, enableLinter, executeQuery, onExpressionChange, queryHistory]);
+  }, [enableAutocomplete, enableHighlighting, enableLinter, executeQuery, onExpressionChange, queryHistory, theme]);
 
   const insertAtCursor = (value: string) => {
     const view = viewRef.current;
@@ -217,11 +224,13 @@ const CMExpressionInput: FC<CMExpressionInputProps> = ({
         </InputGroupAddon>
         <div ref={containerRef} className="cm-expression-input" />
         <InputGroupAddon addonType="append">
-          <Button className="btn-light border" title="Open metrics explorer" onClick={() => setShowMetricsExplorer(true)}>
+          <Button
+            className="metrics-explorer-btn"
+            title="Open metrics explorer"
+            onClick={() => setShowMetricsExplorer(true)}
+          >
             <FontAwesomeIcon icon={faGlobeEurope} />
           </Button>
-        </InputGroupAddon>
-        <InputGroupAddon addonType="append">
           <Button className="execute-btn" color="primary" onClick={executeQuery}>
             Execute
           </Button>

@@ -1,6 +1,6 @@
 {
   "name": "damerau-levenshtein",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Damerau - Levenshtein distance by The Spanish Inquisition + relative distance",
   "main": "index.js",
   "scripts": {
