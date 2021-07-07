@@ -261,6 +261,7 @@ type metricSuffix string
 
 const (
 	metricSuffixNone   metricSuffix = ""
+	metricSuffixTotal  metricSuffix = "_total"
 	metricSuffixBucket metricSuffix = "_bucket"
 	metricSuffixSum    metricSuffix = "_sum"
 	metricSuffixCount  metricSuffix = "_count"
@@ -318,9 +319,11 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, getMetadata 
 	metadata, ok := getMetadata(metricName)
 	if !ok {
 		// The full name didn't turn anything up. Check again in case it's a summary
-		// or histogram without the metric name suffix.
+		// or histogram without the metric name suffix. If the underlying target
+		// returned the OpenMetrics format, counter metadata is also stored with the
+		// _total suffix stripped.
 		var ok bool
-		if baseMetricName, suffix, ok = splitComplexMetricSuffix(metricName); ok {
+		if baseMetricName, suffix, ok = splitMetricSuffix(metricName); ok {
 			metadata, ok = getMetadata(baseMetricName)
 		}
 		if !ok {
@@ -458,7 +461,10 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 	return mres, builder.Labels(), nil
 }
 
-func splitComplexMetricSuffix(name string) (prefix string, suffix metricSuffix, ok bool) {
+func splitMetricSuffix(name string) (prefix string, suffix metricSuffix, ok bool) {
+	if strings.HasSuffix(name, string(metricSuffixTotal)) {
+		return name[:len(name)-len(metricSuffixTotal)], metricSuffixTotal, true
+	}
 	if strings.HasSuffix(name, string(metricSuffixBucket)) {
 		return name[:len(name)-len(metricSuffixBucket)], metricSuffixBucket, true
 	}
