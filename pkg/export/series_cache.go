@@ -31,7 +31,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/pkg/textparse"
-	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/tsdb/record"
 
 	metric_pb "google.golang.org/genproto/googleapis/api/metric"
@@ -69,7 +68,7 @@ type seriesCacheEntry struct {
 	lset labels.Labels
 
 	// Metadata for the metric of the series.
-	metadata scrape.MetricMetadata
+	metadata MetricMetadata
 	// A pre-populated time protobuf to be sent to the GCM API. It can
 	// be shallow-copied and populated with point values to avoid excessive
 	// allocations for each datapoint exported for the series.
@@ -189,7 +188,7 @@ func (c *seriesCache) garbageCollect(delay time.Duration) error {
 // get a cache entry for the given series reference. The passed timestamp indicates when data was
 // last seen for the entry.
 // If the series cannot be converted the returned boolean is false.
-func (c *seriesCache) get(s record.RefSample, target Target) (*seriesCacheEntry, bool) {
+func (c *seriesCache) get(s record.RefSample, metadata MetadataFunc) (*seriesCacheEntry, bool) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -199,7 +198,7 @@ func (c *seriesCache) get(s record.RefSample, target Target) (*seriesCacheEntry,
 		c.entries[s.Ref] = e
 	}
 	if e.shouldRefresh() {
-		if err := c.populate(s.Ref, e, target); err != nil {
+		if err := c.populate(s.Ref, e, metadata); err != nil {
 			level.Debug(c.logger).Log("msg", "populating series failed", "ref", s.Ref, "err", err)
 		}
 		e.setNextRefresh()
@@ -284,7 +283,7 @@ const (
 const maxLabelCount = 100
 
 // populate cached state for the given entry.
-func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Target) error {
+func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, getMetadata MetadataFunc) error {
 	if entry.lset == nil {
 		entry.lset = c.getLabelsByRef(ref)
 		if entry.lset == nil {
@@ -316,13 +315,13 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, target Targe
 		baseMetricName = metricName
 		suffix         metricSuffix
 	)
-	metadata, ok := getMetadata(target, metricName)
+	metadata, ok := getMetadata(metricName)
 	if !ok {
 		// The full name didn't turn anything up. Check again in case it's a summary
 		// or histogram without the metric name suffix.
 		var ok bool
 		if baseMetricName, suffix, ok = splitComplexMetricSuffix(metricName); ok {
-			metadata, ok = getMetadata(target, baseMetricName)
+			metadata, ok = getMetadata(baseMetricName)
 		}
 		if !ok {
 			return errors.Errorf("no metadata found for metric name %q", metricName)
@@ -457,58 +456,6 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 	builder.Del(KeyInstance)
 
 	return mres, builder.Labels(), nil
-}
-
-// Metrics Prometheus writes at scrape time for which no metadata is exposed.
-var internalMetrics = map[string]scrape.MetricMetadata{
-	"up": {
-		Metric: "up",
-		Type:   textparse.MetricTypeGauge,
-		Help:   "Up indicates whether the last target scrape was successful.",
-	},
-	"scrape_samples_scraped": {
-		Metric: "scrape_samples_scraped",
-		Type:   textparse.MetricTypeGauge,
-		Help:   "How many samples were scraped during the last successful scrape.",
-	},
-	"scrape_duration_seconds": {
-		Metric: "scrape_duration_seconds",
-		Type:   textparse.MetricTypeGauge,
-		Help:   "Duration of the last scrape.",
-	},
-	"scrape_samples_post_metric_relabeling": {
-		Metric: "scrape_samples_post_metric_relabeling",
-		Type:   textparse.MetricTypeGauge,
-		Help:   "How many samples were ingested after relabeling.",
-	},
-	"scrape_series_added": {
-		Metric: "scrape_series_added",
-		Type:   textparse.MetricTypeGauge,
-		Help:   "Number of new series added in the last scrape.",
-	},
-}
-
-// getMetadata retrieves metric metadata for its scraped metrics or synthetic
-// metrics recorded about the scrape itself.
-func getMetadata(target Target, metric string) (scrape.MetricMetadata, bool) {
-	// Target is nil for metrics ingested through recording or alerting rules.
-	// Unless the rule literally does no processing at all, this always means the
-	// resulting data is a gauge.
-	// This makes it safe to assume a gauge type here in the absence of any other
-	// metadata.
-	// In the future we might want to propagate the rule definition and add it as
-	// help text here to easily understand what produced the metric.
-	if target == nil {
-		return scrape.MetricMetadata{
-			Metric: metric,
-			Type:   textparse.MetricTypeGauge,
-		}, true
-	}
-	if md, ok := target.Metadata(metric); ok {
-		return md, true
-	}
-	md, ok := internalMetrics[metric]
-	return md, ok
 }
 
 func splitComplexMetricSuffix(name string) (prefix string, suffix metricSuffix, ok bool) {

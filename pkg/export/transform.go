@@ -25,7 +25,6 @@ import (
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/pkg/textparse"
 	"github.com/prometheus/prometheus/pkg/value"
-	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/tsdb/record"
 
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
@@ -33,28 +32,95 @@ import (
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 )
 
-// Target is an interface compatible with scrape.Target.
-type Target interface {
-	Metadata(metric string) (scrape.MetricMetadata, bool)
-}
-
 type sampleBuilder struct {
 	series *seriesCache
+}
+
+// MetricMetadata is a copy of MetricMetadata in Prometheus's scrape package.
+// It is copied to break a dependency cycle.
+type MetricMetadata struct {
+	Metric string
+	Type   textparse.MetricType
+	Help   string
+	Unit   string
+}
+
+// MetadataFunc gets metadata for a specific metric name.
+type MetadataFunc func(metric string) (MetricMetadata, bool)
+
+// gaugeMetadata is a MetadataFunc that always returns the gauge type.
+// Help and Unit are left empty.
+func gaugeMetadata(metric string) (MetricMetadata, bool) {
+	return MetricMetadata{
+		Metric: metric,
+		Type:   textparse.MetricTypeGauge,
+	}, true
+}
+
+// withScrapeMetricMetadata wraps a MetadataFunc and additionally returns metadata
+// about Prometheues's synthetic scrape-time metrics.
+func withScrapeMetricMetadata(f MetadataFunc) MetadataFunc {
+	// Metrics Prometheus writes at scrape time for which no metadata is exposed.
+	internalMetrics := map[string]MetricMetadata{
+		"up": {
+			Metric: "up",
+			Type:   textparse.MetricTypeGauge,
+			Help:   "Up indicates whether the last target scrape was successful.",
+		},
+		"scrape_samples_scraped": {
+			Metric: "scrape_samples_scraped",
+			Type:   textparse.MetricTypeGauge,
+			Help:   "How many samples were scraped during the last successful scrape.",
+		},
+		"scrape_duration_seconds": {
+			Metric: "scrape_duration_seconds",
+			Type:   textparse.MetricTypeGauge,
+			Help:   "Duration of the last scrape.",
+		},
+		"scrape_samples_post_metric_relabeling": {
+			Metric: "scrape_samples_post_metric_relabeling",
+			Type:   textparse.MetricTypeGauge,
+			Help:   "How many samples were ingested after relabeling.",
+		},
+		"scrape_series_added": {
+			Metric: "scrape_series_added",
+			Type:   textparse.MetricTypeGauge,
+			Help:   "Number of new series added in the last scrape.",
+		},
+	}
+	// Metadata is nil for metrics ingested through recording or alerting rules.
+	// Unless the rule literally does no processing at all, this always means the
+	// resulting data is a gauge.
+	// This makes it safe to assume a gauge type here in the absence of any other
+	// metadata.
+	// In the future we might want to propagate the rule definition and add it as
+	// help text here to easily understand what produced the metric.
+	if f == nil {
+		f = gaugeMetadata
+	}
+	return func(metric string) (MetricMetadata, bool) {
+		md, ok := internalMetrics[metric]
+		if ok {
+			return md, true
+		}
+		return f(metric)
+	}
 }
 
 // next extracts the next sample from the input sample batch and returns
 // the remainder of the input.
 // Returns a nil time series for samples that couldn't be converted.
-func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monitoring_pb.TimeSeries, uint64, []record.RefSample, error) {
+func (b *sampleBuilder) next(metadata MetadataFunc, samples []record.RefSample) (*monitoring_pb.TimeSeries, uint64, []record.RefSample, error) {
 	sample := samples[0]
 	tailSamples := samples[1:]
+	metadata = withScrapeMetricMetadata(metadata)
 
 	// Staleness markers are currently not supported by Cloud Monitoring.
 	if value.IsStaleNaN(sample.V) {
 		return nil, 0, tailSamples, nil
 	}
 
-	entry, ok := b.series.get(sample, target)
+	entry, ok := b.series.get(sample, metadata)
 	if !ok {
 		return nil, 0, tailSamples, nil
 	}
@@ -108,7 +174,7 @@ func (b *sampleBuilder) next(target Target, samples []record.RefSample) (*monito
 		// be the same as well.
 		var v *distribution_pb.Distribution
 		var err error
-		v, resetTimestamp, tailSamples, err = b.buildDistribution(entry.metadata.Metric, entry.lset, samples, target)
+		v, resetTimestamp, tailSamples, err = b.buildDistribution(entry.metadata.Metric, entry.lset, samples, metadata)
 		if v == nil || err != nil {
 			return nil, 0, tailSamples, err
 		}
@@ -155,7 +221,7 @@ func (b *sampleBuilder) buildDistribution(
 	baseName string,
 	matchLset labels.Labels,
 	samples []record.RefSample,
-	target Target,
+	metadata MetadataFunc,
 ) (*distribution_pb.Distribution, int64, []record.RefSample, error) {
 	var (
 		consumed       int
@@ -169,7 +235,7 @@ func (b *sampleBuilder) buildDistribution(
 	// until we hit a new metric.
 Loop:
 	for i, s := range samples {
-		e, ok := b.series.get(s, target)
+		e, ok := b.series.get(s, metadata)
 		if !ok {
 			consumed++
 			// TODO(fabxc): increment metric.

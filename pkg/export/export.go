@@ -17,6 +17,7 @@ package export
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -285,7 +286,12 @@ func InitGlobal(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts)
 // Global returns the global instance of the GCM exporter.
 func Global() *Exporter {
 	if globalExporter == nil {
-		panic("Global GCM exporter used before initialization.")
+		// This should usually be a panic but we set an inactive default exporter in this case
+		// to not break existing tests in Prometheus.
+		fmt.Fprintln(os.Stderr, "No global GCM exporter was set, setting default inactive exporter.")
+		return &Exporter{
+			opts: ExporterOpts{Disable: true},
+		}
 	}
 	return globalExporter
 }
@@ -294,6 +300,10 @@ func Global() *Exporter {
 // based on a series ID we got through exported sample records.
 // Must be called before any call to Export is made.
 func (e *Exporter) SetLabelsByIDFunc(f func(uint64) labels.Labels) {
+	// Prevent panics in case a default disabled exporter was instantiated (see Global()).
+	if e.opts.Disable {
+		return
+	}
 	if e.seriesCache.getLabelsByRef != nil {
 		panic("SetLabelsByIDFunc must only be called once")
 	}
@@ -307,7 +317,7 @@ func (e *Exporter) getExternalLabels() labels.Labels {
 }
 
 // Export enqueues the samples to be written to Cloud Monitoring.
-func (e *Exporter) Export(target Target, samples []record.RefSample) {
+func (e *Exporter) Export(metadata MetadataFunc, samples []record.RefSample) {
 	if e.opts.Disable {
 		return
 	}
@@ -317,7 +327,7 @@ func (e *Exporter) Export(target Target, samples []record.RefSample) {
 		err    error
 	)
 	for len(samples) > 0 {
-		sample, hash, samples, err = e.builder.next(target, samples)
+		sample, hash, samples, err = e.builder.next(metadata, samples)
 		if err != nil {
 			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
 		}
@@ -503,4 +513,24 @@ func (e *Exporter) send(ctx context.Context, client *monitoring.MetricClient, ba
 		Name:       fmt.Sprintf("projects/%s", e.opts.ProjectID),
 		TimeSeries: batch,
 	})
+}
+
+// CtxKey is a dedicated type for keys of context-embedded values propagated
+// with the scrape context.
+type ctxKey int
+
+// Valid CtxKey values.
+const (
+	ctxKeyMetadata ctxKey = iota + 1
+)
+
+// WithMetadataFunc stores mf in the context.
+func WithMetadataFunc(ctx context.Context, mf MetadataFunc) context.Context {
+	return context.WithValue(ctx, ctxKeyMetadata, mf)
+}
+
+// MetadataFuncFromContext extracts a MetataFunc from ctx.
+func MetadataFuncFromContext(ctx context.Context) (MetadataFunc, bool) {
+	mf, ok := ctx.Value(ctxKeyMetadata).(MetadataFunc)
+	return mf, ok
 }
