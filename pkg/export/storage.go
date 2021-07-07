@@ -23,8 +23,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/pkg/textparse"
-	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 )
@@ -126,23 +124,14 @@ func (a *storageAppender) Append(_ uint64, lset labels.Labels, t int64, v float6
 
 func (a *storageAppender) Commit() error {
 	// This method is used to export rule results. It's generally safe to assume that
-	// they are of type gauge. Thus we pass in a target that always returns default metric
-	// metadata.
+	// they are of type gauge. Thus we pass in a metadata func that always returns the
+	// gauge type.
 	// In the future we may want to populate the help text with information on the rule
 	// that produced the metric.
-	a.storage.exporter.Export(gaugeTarget{}, a.samples)
+	a.storage.exporter.Export(gaugeMetadata, a.samples)
 
 	// After export is complete, we can clear the labels again.
 	a.storage.clearLabels(a.samples)
 
 	return nil
-}
-
-type gaugeTarget struct{}
-
-func (t gaugeTarget) Metadata(metric string) (scrape.MetricMetadata, bool) {
-	return scrape.MetricMetadata{
-		Metric: metric,
-		Type:   textparse.MetricTypeGauge,
-	}, true
 }

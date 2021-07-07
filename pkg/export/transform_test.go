@@ -22,7 +22,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/pkg/textparse"
-	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -34,16 +33,14 @@ import (
 )
 
 type seriesMap map[uint64]labels.Labels
-type metricMetadataMap map[string]scrape.MetricMetadata
+type metricMetadataMap map[string]MetricMetadata
 
-type testTarget struct {
-	metadata metricMetadataMap
-}
-
-func (t testTarget) Metadata(metric string) (scrape.MetricMetadata, bool) {
-	md, ok := t.metadata[metric]
-	md.Metric = metric
-	return md, ok
+func testMetadataFunc(metadata metricMetadataMap) MetadataFunc {
+	return func(metric string) (MetricMetadata, bool) {
+		md, ok := metadata[metric]
+		md.Metric = metric
+		return md, ok
+	}
 }
 
 func TestSampleBuilder(t *testing.T) {
@@ -55,7 +52,7 @@ func TestSampleBuilder(t *testing.T) {
 
 	cases := []struct {
 		doc        string
-		target     Target
+		metadata   MetadataFunc
 		series     seriesMap
 		samples    []record.RefSample
 		wantSeries []*monitoring_pb.TimeSeries
@@ -63,11 +60,9 @@ func TestSampleBuilder(t *testing.T) {
 	}{
 		{
 			doc: "convert gauge",
-			target: testTarget{
-				metadata: metricMetadataMap{
-					"metric1": {Type: textparse.MetricTypeGauge, Help: "metric1 help text"},
-				},
-			},
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeGauge, Help: "metric1 help text"},
+			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
@@ -133,11 +128,9 @@ func TestSampleBuilder(t *testing.T) {
 			},
 		}, {
 			doc: "convert untyped",
-			target: testTarget{
-				metadata: metricMetadataMap{
-					"metric1": {Type: textparse.MetricTypeUnknown, Help: "metric1 help text"},
-				},
-			},
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeUnknown, Help: "metric1 help text"},
+			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
@@ -203,11 +196,9 @@ func TestSampleBuilder(t *testing.T) {
 			},
 		}, {
 			doc: "convert counter",
-			target: testTarget{
-				metadata: metricMetadataMap{
-					"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
-				},
-			},
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
@@ -310,11 +301,9 @@ func TestSampleBuilder(t *testing.T) {
 			},
 		}, {
 			doc: "convert counter - skip duplicates",
-			target: testTarget{
-				metadata: metricMetadataMap{
-					"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
-				},
-			},
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
@@ -421,11 +410,9 @@ func TestSampleBuilder(t *testing.T) {
 			},
 		}, {
 			doc: "convert counter - skip on previous timestamp",
-			target: testTarget{
-				metadata: metricMetadataMap{
-					"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
-				},
-			},
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
@@ -441,11 +428,9 @@ func TestSampleBuilder(t *testing.T) {
 			},
 		}, {
 			doc: "convert summary",
-			target: testTarget{
-				metadata: metricMetadataMap{
-					"metric1": {Type: textparse.MetricTypeSummary, Help: "metric1 help text"},
-				},
-			},
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeSummary, Help: "metric1 help text"},
+			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
 				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "quantile", "0.5"),
@@ -573,11 +558,9 @@ func TestSampleBuilder(t *testing.T) {
 			},
 		}, {
 			doc: "convert summary - skip counter duplicates",
-			target: testTarget{
-				metadata: metricMetadataMap{
-					"metric1": {Type: textparse.MetricTypeSummary, Help: "metric1 help text"},
-				},
-			},
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeSummary, Help: "metric1 help text"},
+			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
 				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "quantile", "0.5"),
@@ -707,12 +690,10 @@ func TestSampleBuilder(t *testing.T) {
 			},
 		}, {}, {
 			doc: "convert histogram",
-			target: testTarget{
-				metadata: metricMetadataMap{
-					"metric1":         {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
-					"metric1_a_count": {Type: textparse.MetricTypeGauge, Help: "metric1_a_count help text"},
-				},
-			},
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1":         {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1_a_count": {Type: textparse.MetricTypeGauge, Help: "metric1_a_count help text"},
+			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
 				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
@@ -870,16 +851,16 @@ func TestSampleBuilder(t *testing.T) {
 				},
 			},
 		}, {
-			doc:    "target is nil",
-			target: nil,
+			doc:      "metadata is nil",
+			metadata: nil,
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
 			samples: []record.RefSample{
 				{Ref: 1, T: 1000, V: 1},
 			},
-			// If the target is nil we expect the series to be converted to a gauge as
-			// target-less series are produced by rules and any processing result of type gauge.
+			// If the metadata is nil we expect the series to be converted to a gauge as
+			// metadata-less series are produced by rules and any processing result of type gauge.
 			wantSeries: []*monitoring_pb.TimeSeries{
 				{
 					Resource: &monitoredres_pb.MonitoredResource{
@@ -910,10 +891,8 @@ func TestSampleBuilder(t *testing.T) {
 				},
 			},
 		}, {
-			doc: "no metric metadata",
-			target: testTarget{
-				metadata: metricMetadataMap{},
-			},
+			doc:      "no metric metadata",
+			metadata: testMetadataFunc(metricMetadataMap{}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
@@ -940,7 +919,7 @@ func TestSampleBuilder(t *testing.T) {
 			var result []*monitoring_pb.TimeSeries
 
 			for k, batch := 0, c.samples; len(batch) > 0; k++ {
-				out, _, tail, err := b.next(c.target, batch)
+				out, _, tail, err := b.next(c.metadata, batch)
 				if err == nil && c.wantFail {
 					t.Fatal("expected error but got none")
 				}
