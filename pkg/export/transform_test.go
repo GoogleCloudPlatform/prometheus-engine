@@ -195,12 +195,12 @@ func TestSampleBuilder(t *testing.T) {
 				},
 			},
 		}, {
-			doc: "convert counter",
+			doc: "convert counter (Prometheus format metadata key)",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+				"metric1_total": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
-				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
+				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
 			},
 			samples: []record.RefSample{
 				{Ref: 123, T: 2000, V: 5.5},
@@ -225,7 +225,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "prometheus.googleapis.com/metric1/counter",
+						Type:   "prometheus.googleapis.com/metric1_total/counter",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -253,7 +253,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "prometheus.googleapis.com/metric1/counter",
+						Type:   "prometheus.googleapis.com/metric1_total/counter",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -283,7 +283,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "prometheus.googleapis.com/metric1/counter",
+						Type:   "prometheus.googleapis.com/metric1_total/counter",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -300,12 +300,12 @@ func TestSampleBuilder(t *testing.T) {
 				},
 			},
 		}, {
-			doc: "convert counter - skip duplicates",
+			doc: "convert counter - skip duplicates (OpenMetrics format metadata key)",
 			metadata: testMetadataFunc(metricMetadataMap{
 				"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
-				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
+				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
 			},
 			samples: []record.RefSample{
 				{Ref: 123, T: 2000, V: 5.5},
@@ -333,7 +333,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "prometheus.googleapis.com/metric1/counter",
+						Type:   "prometheus.googleapis.com/metric1_total/counter",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -363,7 +363,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "prometheus.googleapis.com/metric1/counter",
+						Type:   "prometheus.googleapis.com/metric1_total/counter",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -392,7 +392,7 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					},
 					Metric: &metric_pb.Metric{
-						Type:   "prometheus.googleapis.com/metric1/counter",
+						Type:   "prometheus.googleapis.com/metric1_total/counter",
 						Labels: map[string]string{"k1": "v1"},
 					},
 					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
@@ -411,10 +411,10 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "convert counter - skip on previous timestamp",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+				"metric1_total": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
-				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
+				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
 			},
 			samples: []record.RefSample{
 				{Ref: 123, T: 2000, V: 5.5},
