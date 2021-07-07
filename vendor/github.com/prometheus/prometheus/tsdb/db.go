@@ -70,6 +70,7 @@ var (
 func DefaultOptions() *Options {
 	return &Options{
 		WALSegmentSize:            wal.DefaultSegmentSize,
+		MaxBlockChunkSegmentSize:  chunks.DefaultChunkSegmentSize,
 		RetentionDuration:         int64(15 * 24 * time.Hour / time.Millisecond),
 		MinBlockDuration:          DefaultBlockDuration,
 		MaxBlockDuration:          DefaultBlockDuration,
@@ -88,6 +89,11 @@ type Options struct {
 	// WALSegmentSize > 0, segment size is WALSegmentSize.
 	// WALSegmentSize < 0, wal is disabled.
 	WALSegmentSize int
+
+	// MaxBlockChunkSegmentSize is the max size of block chunk segment files.
+	// MaxBlockChunkSegmentSize = 0, chunk segment size is default size.
+	// MaxBlockChunkSegmentSize > 0, chunk segment size is MaxBlockChunkSegmentSize.
+	MaxBlockChunkSegmentSize int64
 
 	// Duration of persisted data to keep.
 	// Unit agnostic as long as unit is consistent with MinBlockDuration and MaxBlockDuration.
@@ -136,6 +142,10 @@ type Options struct {
 	// It is always the default time and size based retention in Prometheus and
 	// mainly meant for external users who import TSDB.
 	BlocksToDelete BlocksToDeleteFunc
+
+	// MaxExemplars sets the size, in # of exemplars stored, of the single circular buffer used to store exemplars in memory.
+	// See tsdb/exemplar.go, specifically the CircularExemplarStorage struct and it's constructor NewCircularExemplarStorage.
+	MaxExemplars int
 }
 
 type BlocksToDeleteFunc func(blocks []*Block) map[ulid.ULID]struct{}
@@ -546,6 +556,9 @@ func validateOpts(opts *Options, rngs []int64) (*Options, []int64) {
 	if opts.HeadChunksWriteBufferSize <= 0 {
 		opts.HeadChunksWriteBufferSize = chunks.DefaultWriteBufferSize
 	}
+	if opts.MaxBlockChunkSegmentSize <= 0 {
+		opts.MaxBlockChunkSegmentSize = chunks.DefaultChunkSegmentSize
+	}
 	if opts.MinBlockDuration <= 0 {
 		opts.MinBlockDuration = DefaultBlockDuration
 	}
@@ -635,7 +648,7 @@ func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs
 
 	var err error
 	ctx, cancel := context.WithCancel(context.Background())
-	db.compactor, err = NewLeveledCompactor(ctx, r, l, rngs, db.chunkPool)
+	db.compactor, err = NewLeveledCompactorWithChunkSize(ctx, r, l, rngs, db.chunkPool, opts.MaxBlockChunkSegmentSize)
 	if err != nil {
 		cancel()
 		return nil, errors.Wrap(err, "create leveled compactor")
@@ -663,6 +676,7 @@ func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs
 	headOpts.ChunkWriteBufferSize = opts.HeadChunksWriteBufferSize
 	headOpts.StripeSize = opts.StripeSize
 	headOpts.SeriesCallback = opts.SeriesLifecycleCallback
+	headOpts.NumExemplars = opts.MaxExemplars
 	db.head, err = NewHead(r, l, wlog, headOpts)
 	if err != nil {
 		return nil, err
@@ -788,6 +802,15 @@ func (db *DB) Appender(ctx context.Context) storage.Appender {
 type dbAppender struct {
 	storage.Appender
 	db *DB
+}
+
+var _ storage.GetRef = dbAppender{}
+
+func (a dbAppender) GetRef(lset labels.Labels) (uint64, labels.Labels) {
+	if g, ok := a.Appender.(storage.GetRef); ok {
+		return g.GetRef(lset)
+	}
+	return 0, nil
 }
 
 func (a dbAppender) Commit() error {
@@ -1504,6 +1527,10 @@ func (db *DB) ChunkQuerier(_ context.Context, mint, maxt int64) (storage.ChunkQu
 	}
 
 	return storage.NewMergeChunkQuerier(blockQueriers, nil, storage.NewCompactingChunkSeriesMerger(storage.ChainedSeriesMerge)), nil
+}
+
+func (db *DB) ExemplarQuerier(ctx context.Context) (storage.ExemplarQuerier, error) {
+	return db.head.exemplars.ExemplarQuerier(ctx)
 }
 
 func rangeForTimestamp(t int64, width int64) (maxt int64) {

@@ -95,7 +95,9 @@ func main() {
 
 	*targetURL = strings.ReplaceAll(*targetURL, projectIDVar, *projectID)
 
-	if _, err := config.LoadFile(*configFile); err != nil {
+	// Don't expand external labels on config file loading. It's a feature we like but we want to remain
+	// compatible with Prometheus and this is still an experimental feature, which we don't support.
+	if _, err := config.LoadFile(*configFile, false, logger); err != nil {
 		level.Error(logger).Log("msg", fmt.Sprintf("Error loading config (--config.file=%s)", *configFile), "err", err)
 		os.Exit(2)
 	}
@@ -410,7 +412,7 @@ func reloadConfig(filename string, logger log.Logger, rls ...reloader) (err erro
 	timings := []interface{}{}
 	level.Info(logger).Log("msg", "Loading configuration file", "filename", filename)
 
-	conf, err := config.LoadFile(filename)
+	conf, err := config.LoadFile(filename, false, logger)
 	if err != nil {
 		return errors.Wrapf(err, "couldn't load configuration (--config.file=%q)", filename)
 	}

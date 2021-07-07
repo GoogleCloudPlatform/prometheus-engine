@@ -32,6 +32,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
@@ -745,7 +746,8 @@ func makePodScrapeConfig(podmon *monitoringv1alpha1.PodMonitoring, index int) (*
 	// load on the Kubernetes API server.
 	discoveryCfgs := discovery.Configs{
 		&discoverykube.SDConfig{
-			Role: discoverykube.RolePod,
+			HTTPClientConfig: config.DefaultHTTPClientConfig,
+			Role:             discoverykube.RolePod,
 			// Drop all potential targets not the same node as the collector. The $(NODE_NAME) variable
 			// is interpolated by the config reloader sidecar before the config reaches the Prometheus collector.
 			// Doing it through selectors rather than relabeling should substantially reduce the client and
