@@ -22,6 +22,12 @@ import (
 	"path"
 
 	"github.com/prometheus/common/server"
+
+	// Empty imports to properly vendor dependencies of generates_assets.go even though
+	// it has the +build ignore tag.
+	_ "github.com/prometheus/prometheus/pkg/modtimevfs"
+	_ "github.com/shurcooL/httpfs/filter"
+	_ "github.com/shurcooL/vfsgen"
 )
 
 func Handler() http.Handler {

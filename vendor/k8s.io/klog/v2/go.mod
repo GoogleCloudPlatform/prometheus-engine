@@ -1,5 +1,5 @@
-module github.com/simonpasquier/klog-gokit/v2
+module k8s.io/klog/v2
 
-require github.com/go-kit/kit v0.10.0
+go 1.13
 
-go 1.12
+require github.com/go-logr/logr v0.4.0

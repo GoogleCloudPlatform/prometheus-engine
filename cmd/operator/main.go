@@ -35,8 +35,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
-	klogv1 "k8s.io/klog"
-	klogv2 "k8s.io/klog/v2"
 
 	// Blank import required to register GCP auth handlers to talk to GKE clusters.
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -223,15 +221,6 @@ func setupLogger(lvl string) (log.Logger, error) {
 		return nil, errors.Errorf("log level %q unknown, must be one of (%s)", lvl, strings.Join(validLogLevels, ", "))
 	}
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-
-	// Set caller to one function higher up in the stack as it will just reference the
-	// klog code with the default.
-	klogv1.SetLogger(log.With(logger, "component", "k8s_client_runtime", "caller", log.Caller(4)))
-	klogv2.SetLogger(log.With(logger, "component", "k8s_client_runtime", "caller", log.Caller(4)))
-	// Limit log level to address CVE-2019-11250, which would cause bearer tokens to be logged.
-	klogv1.ClampLevel(6)
-	klogv2.ClampLevel(6)
-
 	logger = log.With(logger, "caller", log.DefaultCaller)
 
 	return logger, nil

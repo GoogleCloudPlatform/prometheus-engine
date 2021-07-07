@@ -3,44 +3,60 @@ module github.com/GoogleCloudPlatform/prometheus-engine
 go 1.15
 
 require (
-	cloud.google.com/go v0.74.0
+	cloud.google.com/go v0.83.0
+	github.com/Azure/azure-sdk-for-go v55.2.0+incompatible // indirect
+	github.com/Azure/go-autorest/autorest v0.11.19 // indirect
+	github.com/Azure/go-autorest/autorest/adal v0.9.14 // indirect
+	github.com/aws/aws-sdk-go v1.38.60 // indirect
+	github.com/digitalocean/godo v1.62.0 // indirect
+	github.com/docker/docker v20.10.7+incompatible // indirect
 	github.com/go-kit/kit v0.10.0
-	github.com/golang/protobuf v1.4.3
-	github.com/google/go-cmp v0.5.4
+	github.com/golang/protobuf v1.5.2
+	github.com/google/go-cmp v0.5.6
+	github.com/google/pprof v0.0.0-20210609004039-a478d1d731e9 // indirect
+	github.com/gophercloud/gophercloud v0.18.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/hetznercloud/hcloud-go v1.26.2 // indirect
+	github.com/influxdata/influxdb v1.9.2 // indirect
+	github.com/linode/linodego v0.28.5 // indirect
+	github.com/miekg/dns v1.1.42 // indirect
 	github.com/oklog/run v1.1.0
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.9.0
-	github.com/prometheus/common v0.17.0
-	github.com/prometheus/prometheus v1.8.2-0.20210226165507-9c4bc38c94c2
+	github.com/prometheus/alertmanager v0.22.2 // indirect
+	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/common v0.29.0
+	// The Prometheus dependency must be hand-crafted as it does not support Go
+	// modules versioning. It must not be more recent than the Prometheus version
+	// deployed by the operator as otherwise the generated config may contain
+	// unrecognized fields (e.g. if 'omitempty' wasn't used properly for new fields).
+	//
+	// Find the commit of the Prometheus release to use, then:
+	//   go get github.com/prometheus/prometheus@${COMMIT_SHA}
+	github.com/prometheus/prometheus v1.8.2-0.20210518124745-db7f0bcec27b
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749
 	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
 	github.com/thanos-io/thanos v0.17.2
-	google.golang.org/api v0.40.0
-	google.golang.org/genproto v0.0.0-20201214200347-8c77b98c765d
-	google.golang.org/grpc v1.34.0
-	google.golang.org/protobuf v1.25.0
+	github.com/uber/jaeger-client-go v2.29.1+incompatible // indirect
+	go.uber.org/atomic v1.8.0 // indirect
+	golang.org/x/net v0.0.0-20210610132358-84b48f89b13b // indirect
+	golang.org/x/sys v0.0.0-20210611083646-a4fc73990273 // indirect
+	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6 // indirect
+	golang.org/x/tools v0.1.3 // indirect
+	google.golang.org/api v0.48.0
+	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08
+	google.golang.org/grpc v1.38.0
+	google.golang.org/protobuf v1.26.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
-	k8s.io/api v0.20.2
-	k8s.io/apimachinery v0.20.2
+	k8s.io/api v0.21.2
+	k8s.io/apimachinery v0.21.2
 	k8s.io/client-go v12.0.0+incompatible
-	k8s.io/code-generator v0.20.1
-	k8s.io/klog v1.0.0
-	k8s.io/klog/v2 v2.5.0
+	k8s.io/code-generator v0.21.2
+	k8s.io/klog v1.0.0 // indirect
+	k8s.io/klog/v2 v2.9.0 // indirect
 	sigs.k8s.io/yaml v1.2.0
 )
 
-replace (
-	// Requiring the version above is not enough, probably because transitive dependencies
-	// may be allowed to use an older version without the below lines, which causes
-	// lookup errors on vendoring.
-	k8s.io/api => k8s.io/api v0.20.1
-	k8s.io/apimachinery => k8s.io/apimachinery v0.20.1
-	k8s.io/client-go => k8s.io/client-go v0.20.1
-	k8s.io/code-generator => k8s.io/code-generator v0.20.1
-
-	// Substitute klog packages so their usage plays nicely with gokit's logger.
-	k8s.io/klog => github.com/simonpasquier/klog-gokit v0.3.0
-	k8s.io/klog/v2 => github.com/simonpasquier/klog-gokit/v2 v2.0.1
-)
+// Dependency resolution fails without adding this override. It's not entirely
+// understandable why but this appears to sufficiently fix it.
+replace k8s.io/client-go => k8s.io/client-go v0.21.2

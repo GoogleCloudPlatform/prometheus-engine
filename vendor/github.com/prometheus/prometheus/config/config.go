@@ -17,11 +17,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -51,11 +54,16 @@ var (
 		"accept-encoding":                   {},
 		"x-prometheus-remote-write-version": {},
 		"x-prometheus-remote-read-version":  {},
+
+		// Added by SigV4.
+		"x-amz-date":           {},
+		"x-amz-security-token": {},
+		"x-amz-content-sha256": {},
 	}
 )
 
 // Load parses the YAML input s into a Config.
-func Load(s string) (*Config, error) {
+func Load(s string, expandExternalLabels bool, logger log.Logger) (*Config, error) {
 	cfg := &Config{}
 	// If the entire config body is empty the UnmarshalYAML method is
 	// never called. We thus have to set the DefaultConfig at the entry
@@ -66,16 +74,35 @@ func Load(s string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if !expandExternalLabels {
+		return cfg, nil
+	}
+
+	for i, v := range cfg.GlobalConfig.ExternalLabels {
+		newV := os.Expand(v.Value, func(s string) string {
+			if v := os.Getenv(s); v != "" {
+				return v
+			}
+			level.Warn(logger).Log("msg", "Empty environment variable", "name", s)
+			return ""
+		})
+		if newV != v.Value {
+			level.Debug(logger).Log("msg", "External label replaced", "label", v.Name, "input", v.Value, "output", newV)
+			v.Value = newV
+			cfg.GlobalConfig.ExternalLabels[i] = v
+		}
+	}
 	return cfg, nil
 }
 
 // LoadFile parses the given YAML file into a Config.
-func LoadFile(filename string) (*Config, error) {
+func LoadFile(filename string, expandExternalLabels bool, logger log.Logger) (*Config, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := Load(string(content))
+	cfg, err := Load(string(content), expandExternalLabels, logger)
 	if err != nil {
 		return nil, errors.Wrapf(err, "parsing YAML file %s", filename)
 	}
@@ -101,24 +128,27 @@ var (
 	DefaultScrapeConfig = ScrapeConfig{
 		// ScrapeTimeout and ScrapeInterval default to the
 		// configured globals.
-		MetricsPath:     "/metrics",
-		Scheme:          "http",
-		HonorLabels:     false,
-		HonorTimestamps: true,
+		MetricsPath:      "/metrics",
+		Scheme:           "http",
+		HonorLabels:      false,
+		HonorTimestamps:  true,
+		HTTPClientConfig: config.DefaultHTTPClientConfig,
 	}
 
 	// DefaultAlertmanagerConfig is the default alertmanager configuration.
 	DefaultAlertmanagerConfig = AlertmanagerConfig{
-		Scheme:     "http",
-		Timeout:    model.Duration(10 * time.Second),
-		APIVersion: AlertmanagerAPIVersionV1,
+		Scheme:           "http",
+		Timeout:          model.Duration(10 * time.Second),
+		APIVersion:       AlertmanagerAPIVersionV2,
+		HTTPClientConfig: config.DefaultHTTPClientConfig,
 	}
 
 	// DefaultRemoteWriteConfig is the default remote write configuration.
 	DefaultRemoteWriteConfig = RemoteWriteConfig{
-		RemoteTimeout:  model.Duration(30 * time.Second),
-		QueueConfig:    DefaultQueueConfig,
-		MetadataConfig: DefaultMetadataConfig,
+		RemoteTimeout:    model.Duration(30 * time.Second),
+		QueueConfig:      DefaultQueueConfig,
+		MetadataConfig:   DefaultMetadataConfig,
+		HTTPClientConfig: config.DefaultHTTPClientConfig,
 	}
 
 	// DefaultQueueConfig is the default remote queue configuration.
@@ -148,7 +178,8 @@ var (
 
 	// DefaultRemoteReadConfig is the default remote read configuration.
 	DefaultRemoteReadConfig = RemoteReadConfig{
-		RemoteTimeout: model.Duration(1 * time.Minute),
+		RemoteTimeout:    model.Duration(1 * time.Minute),
+		HTTPClientConfig: config.DefaultHTTPClientConfig,
 	}
 )
 
@@ -351,11 +382,21 @@ type ScrapeConfig struct {
 	MetricsPath string `yaml:"metrics_path,omitempty"`
 	// The URL scheme with which to fetch metrics from targets.
 	Scheme string `yaml:"scheme,omitempty"`
-	// More than this many samples post metric-relabeling will cause the scrape to fail.
+	// More than this many samples post metric-relabeling will cause the scrape to
+	// fail.
 	SampleLimit uint `yaml:"sample_limit,omitempty"`
 	// More than this many targets after the target relabeling will cause the
 	// scrapes to fail.
 	TargetLimit uint `yaml:"target_limit,omitempty"`
+	// More than this many labels post metric-relabeling will cause the scrape to
+	// fail.
+	LabelLimit uint `yaml:"label_limit,omitempty"`
+	// More than this label name length post metric-relabeling will cause the
+	// scrape to fail.
+	LabelNameLengthLimit uint `yaml:"label_name_length_limit,omitempty"`
+	// More than this label value length post metric-relabeling will cause the
+	// scrape to fail.
+	LabelValueLengthLimit uint `yaml:"label_value_length_limit,omitempty"`
 
 	// We cannot do proper Go type embedding below as the parser will then parse
 	// values arbitrarily into the overflow maps of further-down types.
@@ -591,12 +632,14 @@ type RemoteWriteConfig struct {
 	Headers             map[string]string `yaml:"headers,omitempty"`
 	WriteRelabelConfigs []*relabel.Config `yaml:"write_relabel_configs,omitempty"`
 	Name                string            `yaml:"name,omitempty"`
+	SendExemplars       bool              `yaml:"send_exemplars,omitempty"`
 
 	// We cannot do proper Go type embedding below as the parser will then parse
 	// values arbitrarily into the overflow maps of further-down types.
 	HTTPClientConfig config.HTTPClientConfig `yaml:",inline"`
 	QueueConfig      QueueConfig             `yaml:"queue_config,omitempty"`
 	MetadataConfig   MetadataConfig          `yaml:"metadata_config,omitempty"`
+	SigV4Config      *SigV4Config            `yaml:"sigv4,omitempty"`
 }
 
 // SetDirectory joins any relative file paths with dir.
@@ -626,13 +669,24 @@ func (c *RemoteWriteConfig) UnmarshalYAML(unmarshal func(interface{}) error) err
 	// The UnmarshalYAML method of HTTPClientConfig is not being called because it's not a pointer.
 	// We cannot make it a pointer as the parser panics for inlined pointer structs.
 	// Thus we just do its validation here.
-	return c.HTTPClientConfig.Validate()
+	if err := c.HTTPClientConfig.Validate(); err != nil {
+		return err
+	}
+
+	httpClientConfigAuthEnabled := c.HTTPClientConfig.BasicAuth != nil ||
+		c.HTTPClientConfig.Authorization != nil || c.HTTPClientConfig.OAuth2 != nil
+
+	if httpClientConfigAuthEnabled && c.SigV4Config != nil {
+		return fmt.Errorf("at most one of basic_auth, authorization, oauth2, & sigv4 must be configured")
+	}
+
+	return nil
 }
 
 func validateHeaders(headers map[string]string) error {
 	for header := range headers {
 		if strings.ToLower(header) == "authorization" {
-			return errors.New("authorization header must be changed via the basic_auth or authorization parameter")
+			return errors.New("authorization header must be changed via the basic_auth, authorization, oauth2, or sigv4 parameter")
 		}
 		if _, ok := reservedHeaders[strings.ToLower(header)]; ok {
 			return errors.Errorf("%s is a reserved header. It must not be changed", header)
@@ -673,6 +727,17 @@ type MetadataConfig struct {
 	Send bool `yaml:"send"`
 	// SendInterval controls how frequently we send metric metadata.
 	SendInterval model.Duration `yaml:"send_interval"`
+}
+
+// SigV4Config is the configuration for signing remote write requests with
+// AWS's SigV4 verification process. Empty values will be retrieved using the
+// AWS default credentials chain.
+type SigV4Config struct {
+	Region    string        `yaml:"region,omitempty"`
+	AccessKey string        `yaml:"access_key,omitempty"`
+	SecretKey config.Secret `yaml:"secret_key,omitempty"`
+	Profile   string        `yaml:"profile,omitempty"`
+	RoleARN   string        `yaml:"role_arn,omitempty"`
 }
 
 // RemoteReadConfig is the configuration for reading from remote storage.
