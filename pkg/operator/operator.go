@@ -70,8 +70,8 @@ const (
 	// The official images to be used with this version of the operator. For debugging
 	// and emergency use cases they may be overwritten through options.
 	// TODO(freinartz): start setting official versioned images once we start releases.
-	ImageCollector      = "gcr.io/gpe-test-1/prometheus:bench_20210306_1302"
-	ImageConfigReloader = "gcr.io/gpe-test-1/gpe-config-reloader:bench_20210306_1314"
+	ImageCollector      = "gcr.io/gke-release-staging/prometheus-engine/prometheus:v2.26.1-gpe.2-gke.0"
+	ImageConfigReloader = "gcr.io/gke-release-staging/prometheus-engine/gpe-config-reloader:v0.0.0.gke.0"
 
 	// Kubernetes resource label mapping values.
 	kubeLabelPrefix    = model.MetaLabelPrefix + "kubernetes_"
