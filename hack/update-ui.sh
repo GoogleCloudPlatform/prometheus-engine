@@ -44,8 +44,11 @@ shopt -s extglob
 
 rm -rf \
   !(web|Makefile*|scripts|VERSION) \
-  web/!(ui) web/ui/!(react-app|static) web/ui/static/!(react) web/ui/react-app/.gitignore \
+  web/!(ui) web/ui/!(react-app|static) web/ui/static/* web/ui/react-app/.gitignore \
   scripts/!(build_react_app.sh)
+
+# Ensure empty target dir is committed.
+touch web/ui/static/.gitignore
 
 # Download modules according to lock file.
 cd web/ui/react-app && yarn install --frozen-lockfile
