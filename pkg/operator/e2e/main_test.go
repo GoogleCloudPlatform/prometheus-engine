@@ -280,7 +280,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 	//
 	// Make a single query for each pod/port combo as this is simpler than untangling the result
 	// of a single query.
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
 	for _, pod := range pods.Items {
