@@ -25,7 +25,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -44,13 +43,11 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	scheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -61,8 +58,6 @@ import (
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
-	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
-	informers "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/informers/externalversions"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/rules"
 )
 
@@ -101,20 +96,10 @@ var (
 
 // Operator to implement managed collection for Google Prometheus Engine.
 type Operator struct {
-	logger         log.Logger
-	opts           Options
-	kubeClient     kubernetes.Interface
-	operatorClient clientset.Interface
-
-	manager manager.Manager
-
-	// Informers that maintain a cache of cluster resources and call configured
-	// event handlers on changes.
-	informerRules cache.SharedIndexInformer
-	// State changes are enqueued into a rate limited work queue, which ensures
-	// the operator does not get overloaded and multiple changes to the same resource
-	// are not handled in parallel, leading to semantic race conditions.
-	queue workqueue.RateLimitingInterface
+	logger     log.Logger
+	opts       Options
+	kubeClient kubernetes.Interface
+	manager    manager.Manager
 }
 
 // Options for the Operator.
@@ -179,6 +164,10 @@ func New(logger log.Logger, clientConfig *rest.Config, registry prometheus.Regis
 	if err := opts.defaultAndValidate(logger); err != nil {
 		return nil, errors.Wrap(err, "invalid options")
 	}
+	kubeClient, err := kubernetes.NewForConfig(clientConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "build Kubernetes clientset")
+	}
 
 	sc := runtime.NewScheme()
 
@@ -198,86 +187,17 @@ func New(logger log.Logger, clientConfig *rest.Config, registry prometheus.Regis
 		return nil, errors.Wrap(err, "create controller manager")
 	}
 
-	kubeClient, err := kubernetes.NewForConfig(clientConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "build Kubernetes clientset")
-	}
-	operatorClient, err := clientset.NewForConfig(clientConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "build operator clientset")
-	}
-
-	const syncInterval = 5 * time.Minute
-
-	informerFactory := informers.NewSharedInformerFactory(operatorClient, syncInterval)
-
 	if registry != nil {
 		registry.MustRegister(metricOperatorSyncLatency)
 	}
 
 	op := &Operator{
-		logger:         logger,
-		opts:           opts,
-		kubeClient:     kubeClient,
-		operatorClient: operatorClient,
-		manager:        mgr,
-		informerRules:  informerFactory.Monitoring().V1alpha1().Rules().Informer(),
-		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "GPEOperator"),
+		logger:     logger,
+		opts:       opts,
+		kubeClient: kubeClient,
+		manager:    mgr,
 	}
-
-	// Reconcile rules ...
-	// ... on changes to any Rules resource.
-	op.informerRules.AddEventHandler(unifiedEventHandler(op.enqueueKey(keyRules)))
-
-	// ... on changes to the generated rule ConfigMap.
-	op.informerRules.AddEventHandler(unifiedEventHandler(func(o interface{}) {
-		if cm := o.(*monitoringv1alpha1.Rules); cm.Name == nameRulesGenerated {
-			op.queue.Add(keyRules)
-		}
-	}))
-
 	return op, nil
-}
-
-func unifiedEventHandler(f func(o interface{})) cache.ResourceEventHandler {
-	return cache.ResourceEventHandlerFuncs{
-		AddFunc:    f,
-		DeleteFunc: f,
-		UpdateFunc: ifResourceVersionChanged(f),
-	}
-}
-
-// enqueueObject enqueues the object for reconciliation. Only the key is enqueued
-// as the queue consumer should retrieve the most recent cache object once it gets to process
-// to not process stale state.
-func (o *Operator) enqueueObject(obj interface{}) {
-	key, err := cache.MetaNamespaceKeyFunc(obj)
-	if err != nil {
-		runtimeutil.HandleError(err)
-		return
-	}
-	o.queue.Add(key)
-}
-
-// enqueueKey enqueues the given reconciliation key. The returned function takes
-// an unused argument to make it easy to use with event handlers.
-func (o *Operator) enqueueKey(key string) func(interface{}) {
-	return func(interface{}) { o.queue.Add(key) }
-}
-
-// ifResourceVersionChanged returns an UpdateFunc handler that calls fn with the
-// new object if the resource version changed between old and new.
-// This prevents superfluous reconciliations as the cache is resynced periodically,
-// which will trigger no-op updates.
-func ifResourceVersionChanged(fn func(interface{})) func(oldObj, newObj interface{}) {
-	return func(oldObj, newObj interface{}) {
-		old := oldObj.(metav1.Object)
-		new := newObj.(metav1.Object)
-		if old.GetResourceVersion() != new.GetResourceVersion() {
-			fn(newObj)
-		}
-
-	}
 }
 
 // InitAdmissionResources sets state for the operator before monitoring for resources.
@@ -350,83 +270,13 @@ func (o *Operator) Run(ctx context.Context) error {
 	if err := setupCollectionControllers(o); err != nil {
 		return errors.Wrap(err, "setup collection controllers")
 	}
-	// TODO(fabxc): start controller manager in the background for now. After migration to
-	// controller manager is complete, it must be blocking.
-	go o.manager.Start(ctx)
+	if err := setupRulesControllers(o); err != nil {
+		return errors.Wrap(err, "setup rules controllers")
+	}
 
 	level.Info(o.logger).Log("msg", "starting GPE operator")
 
-	go o.informerRules.Run(ctx.Done())
-
-	level.Info(o.logger).Log("msg", "waiting for informer caches to sync")
-
-	syncCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	ok := cache.WaitForNamedCacheSync(
-		"GPEOperator", syncCtx.Done(),
-		o.informerRules.HasSynced,
-	)
-	cancel()
-	if !ok {
-		return errors.New("aborted while waiting for informer caches to sync (are the CRDs installed?)")
-	}
-
-	level.Info(o.logger).Log("msg", "informer cache sync complete")
-
-	// Process work items until context is canceled.
-	go func() {
-		<-ctx.Done()
-		o.queue.ShutDown()
-	}()
-
-	// Trigger an initial sync even if no instances of the watched resources exists yet.
-	o.enqueueKey(keyRules)(nil)
-
-	for o.processNextItem(ctx) {
-	}
-	return nil
-}
-
-func (o *Operator) processNextItem(ctx context.Context) bool {
-	key, quit := o.queue.Get()
-	if quit {
-		return false
-	}
-	defer o.queue.Done(key)
-
-	// For simplicity, we use a single timeout for the entire synchronization.
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-
-	if err := o.sync(ctx, key.(string)); err == nil {
-		// Drop item from rate limit tracking as we successfully processed it.
-		// If the item is enqueued again, we'll immediately process it.
-		o.queue.Forget(key)
-	} else {
-		runtimeutil.HandleError(errors.Wrap(err, fmt.Sprintf("sync for %q failed", key)))
-		// Requeue the item with backoff to retry on transient errors.
-		o.queue.AddRateLimited(key)
-	}
-	return true
-}
-
-func (o *Operator) sync(ctx context.Context, key string) error {
-	// Record total time to sync resources.
-	defer func(now time.Time) {
-		metricOperatorSyncLatency.Set(float64(time.Since(now).Seconds()))
-	}(time.Now())
-
-	level.Info(o.logger).Log("msg", "syncing cluster state for key", "key", key)
-
-	switch key {
-	case keyRules:
-		if err := o.ensureRuleConfigs(ctx); err != nil {
-			return errors.Wrap(err, "ensure rule configmaps")
-		}
-
-	default:
-		return errors.Errorf("expected global reconciliation but got key %q", key)
-	}
-	return nil
+	return o.manager.Start(ctx)
 }
 
 // Various constants generating resources.
@@ -923,12 +773,12 @@ func sanitizeLabelName(name string) prommodel.LabelName {
 	return prommodel.LabelName(invalidLabelCharRE.ReplaceAllString(name, "_"))
 }
 
-func (o *Operator) ensureRuleConfigs(ctx context.Context) error {
+func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 	// Re-generate the configmap that's loaded by the rule-evaluator.
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace: r.opts.OperatorNamespace,
 			Name:      nameRulesGenerated,
-			Namespace: o.opts.OperatorNamespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/name": "rule-evaluator",
 			},
@@ -941,54 +791,52 @@ func (o *Operator) ensureRuleConfigs(ctx context.Context) error {
 	}
 
 	// Generate a final rule file for each Rules resource.
-	err := cache.ListAll(o.informerRules.GetStore(), labels.Everything(), func(obj interface{}) {
-		apiRules := obj.(*monitoringv1alpha1.Rules)
-		logger := log.With(o.logger, "namespace", apiRules.Namespace, "name", apiRules.Name)
+	var rulesList monitoringv1alpha1.RulesList
+	if err := r.client.List(ctx, &rulesList); err != nil {
+		return errors.Wrap(err, "list rules")
+	}
+	for _, apiRules := range rulesList.Items {
+		logger := log.With(r.logger, "namespace", apiRules.Namespace, "name", apiRules.Name)
 
 		rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
 		if err != nil {
 			level.Warn(logger).Log("msg", "converting rules failed", "err", err)
 			// TODO(freinartz): update resource condition.
-			return
+			continue
 		}
 		lset := map[string]string{}
 		// Populate isolation level from the defined scope.
 		switch apiRules.Spec.Scope {
 		case monitoringv1alpha1.ScopeCluster:
-			lset[export.KeyProjectID] = o.opts.ProjectID
-			lset[export.KeyCluster] = o.opts.Cluster
+			lset[export.KeyProjectID] = r.opts.ProjectID
+			lset[export.KeyCluster] = r.opts.Cluster
 		case monitoringv1alpha1.ScopeNamespace:
-			lset[export.KeyProjectID] = o.opts.ProjectID
-			lset[export.KeyCluster] = o.opts.Cluster
+			lset[export.KeyProjectID] = r.opts.ProjectID
+			lset[export.KeyCluster] = r.opts.Cluster
 			lset[export.KeyNamespace] = apiRules.Namespace
 		default:
 			level.Warn(logger).Log("msg", "unexpected scope", "scope", apiRules.Spec.Scope)
 			// TODO(freinartz): update resource condition.
-			return
+			continue
 		}
 		if err := rules.Scope(&rs, lset); err != nil {
 			level.Warn(logger).Log("msg", "isolating rules failed", "err", err)
 			// TODO(freinartz): update resource condition.
-			return
+			continue
 		}
 		result, err := yaml.Marshal(rs)
 		if err != nil {
 			level.Warn(logger).Log("msg", "marshalling rules failed", "err", err)
 			// TODO(freinartz): update resource condition.
-			return
+			continue
 		}
 		filename := fmt.Sprintf("%s__%s.yaml", apiRules.Namespace, apiRules.Name)
 		cm.Data[filename] = string(result)
-	})
-	if err != nil {
-		return errors.Wrap(err, "failed to list Rules")
 	}
 
 	// Create or update generated rule ConfigMap.
-	_, err = o.kubeClient.CoreV1().ConfigMaps(o.opts.OperatorNamespace).Update(ctx, cm, metav1.UpdateOptions{})
-	if apierrors.IsNotFound(err) {
-		_, err = o.kubeClient.CoreV1().ConfigMaps(o.opts.OperatorNamespace).Create(ctx, cm, metav1.CreateOptions{})
-		if err != nil {
+	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
+		if err := r.client.Create(ctx, cm); err != nil {
 			return errors.Wrap(err, "create generated rules")
 		}
 	} else if err != nil {
