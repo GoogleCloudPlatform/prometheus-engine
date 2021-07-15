@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -31,10 +30,9 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
+	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	// Blank import required to register GCP auth handlers to talk to GKE clusters.
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -64,12 +62,6 @@ var (
 )
 
 func main() {
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
 	var (
 		defaultProjectID string
 		defaultCluster   string
@@ -79,8 +71,6 @@ func main() {
 		defaultCluster, _ = metadata.InstanceAttributeValue("cluster-name")
 	}
 	var (
-		apiserverURL = flag.String("apiserver", "",
-			"URL to the Kubernetes API server.")
 		logLevel = flag.String("log-level", logLevelInfo,
 			fmt.Sprintf("Log level to use. Possible values: %s", strings.Join(validLogLevels, ", ")))
 		projectID = flag.String("project-id", defaultProjectID,
@@ -111,18 +101,17 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Creating logger failed: %s", err)
 		os.Exit(2)
 	}
-
-	cfg, err := clientcmd.BuildConfigFromFlags(*apiserverURL, *kubeconfig)
+	cfg, err := ctrl.GetConfig()
 	if err != nil {
-		level.Error(logger).Log("msg", "building kubeconfig failed", "err", err)
+		level.Error(logger).Log("msg", "loading kubeconfig failed", "err", err)
 		os.Exit(1)
 	}
 
-	metrics := prometheus.NewRegistry()
-	metrics.MustRegister(
-		prometheus.NewGoCollector(),
-		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
-	)
+	// controller-runtime creates a registry against which its metrics are registered globally.
+	// Using it as our non-global registry is the easiest way to combine metrics into a single
+	// /metrics endpoint.
+	// It already has the GoCollector and ProcessCollector metrics installed.
+	metrics := ctrlmetrics.Registry
 
 	op, err := operator.New(logger, cfg, metrics, operator.Options{
 		ProjectID:               *projectID,
