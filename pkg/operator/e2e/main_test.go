@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -42,8 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
+	ctrl "sigs.k8s.io/controller-runtime"
 	kyaml "sigs.k8s.io/yaml"
 
 	// Blank import required to register GCP auth handlers to talk to GKE clusters.
@@ -60,21 +58,15 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	var configPath string
-	if home := homedir.HomeDir(); home != "" {
-		flag.StringVar(&configPath, "kubeconfig", filepath.Join(home, ".kube", "config"), "Path to the kubeconfig file.")
-	} else {
-		flag.StringVar(&configPath, "kubeconfig", "", "Path to the kubeconfig file.")
-	}
 	flag.StringVar(&projectID, "project-id", "", "The GCP project to write metrics to.")
 	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
 
 	flag.Parse()
 
 	var err error
-	kubeconfig, err = clientcmd.BuildConfigFromFlags("", configPath)
+	kubeconfig, err = ctrl.GetConfig()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Building kubeconfig failed:", err)
+		fmt.Fprintln(os.Stderr, "Loading kubeconfig failed:", err)
 		os.Exit(1)
 	}
 
@@ -214,8 +206,10 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 	if err != nil {
 		t.Fatalf("create collector PodMonitoring: %s", err)
 	}
+	t.Log("Waiting for PodMonitoring collector-podmon to be processed")
+
 	var resVer = ""
-	err = wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
+	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
 		pm, err := t.operatorClient.MonitoringV1alpha1().PodMonitorings(t.namespace).Get(ctx, "collector-podmon", metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Errorf("getting PodMonitoring failed: %s", err)
@@ -240,6 +234,8 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 	if err != nil {
 		t.Errorf("unable to validate PodMonitoring status: %s", err)
 	}
+
+	t.Log("Waiting for up metrics for collector targets")
 	validateCollectorUpMetrics(ctx, t, "collector-podmon")
 }
 
@@ -304,7 +300,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 				resource.labels.namespace = "%s" AND
 				resource.labels.job = "%s" AND
 				resource.labels.instance = "%s:%s" AND
-				metric.type = "external.googleapis.com/gpe/up/gauge"
+				metric.type = "prometheus.googleapis.com/up/gauge"
 				`,
 						projectID, cluster, t.namespace, job, pod.Name, port,
 					),

@@ -31,8 +31,8 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
@@ -45,13 +45,19 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
-	corev1informers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
+	scheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
@@ -80,8 +86,7 @@ const (
 	serviceLabelPrefix = kubeLabelPrefix + "service_label_"
 
 	// Keys for reconciling different sets of operator-managed resources.
-	keyCollection = "__collection__"
-	keyRules      = "__rules__"
+	keyRules = "__rules__"
 )
 
 var (
@@ -101,11 +106,11 @@ type Operator struct {
 	kubeClient     kubernetes.Interface
 	operatorClient clientset.Interface
 
+	manager manager.Manager
+
 	// Informers that maintain a cache of cluster resources and call configured
 	// event handlers on changes.
-	informerPodMonitoring cache.SharedIndexInformer
-	informerRules         cache.SharedIndexInformer
-	informerConfigMap     cache.SharedIndexInformer
+	informerRules cache.SharedIndexInformer
 	// State changes are enqueued into a rate limited work queue, which ensures
 	// the operator does not get overloaded and multiple changes to the same resource
 	// are not handled in parallel, leading to semantic race conditions.
@@ -177,6 +182,25 @@ func New(logger log.Logger, clientConfig *rest.Config, registry prometheus.Regis
 	if err := opts.defaultAndValidate(logger); err != nil {
 		return nil, errors.Wrap(err, "invalid options")
 	}
+
+	sc := runtime.NewScheme()
+
+	if err := scheme.AddToScheme(sc); err != nil {
+		return nil, errors.Wrap(err, "add Kubernetes core scheme")
+	}
+	if err := monitoringv1alpha1.AddToScheme(sc); err != nil {
+		return nil, errors.Wrap(err, "add monitoringv1alpha1 scheme")
+	}
+	mgr, err := ctrl.NewManager(clientConfig, manager.Options{
+		Scheme: sc,
+		// Don't run a metrics server with the manager. Metrics are being served
+		// explicitly in the main routine.
+		MetricsBindAddress: "0",
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "create controller manager")
+	}
+
 	kubeClient, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "build Kubernetes clientset")
@@ -195,29 +219,15 @@ func New(logger log.Logger, clientConfig *rest.Config, registry prometheus.Regis
 	}
 
 	op := &Operator{
-		logger:                logger,
-		opts:                  opts,
-		kubeClient:            kubeClient,
-		operatorClient:        operatorClient,
-		informerPodMonitoring: informerFactory.Monitoring().V1alpha1().PodMonitorings().Informer(),
-		informerRules:         informerFactory.Monitoring().V1alpha1().Rules().Informer(),
-		informerConfigMap:     corev1informers.NewConfigMapInformer(kubeClient, opts.OperatorNamespace, syncInterval, nil),
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "GPEOperator"),
-		statusState:           NewCRDStatusState(metav1.Now),
+		logger:         logger,
+		opts:           opts,
+		kubeClient:     kubeClient,
+		operatorClient: operatorClient,
+		manager:        mgr,
+		informerRules:  informerFactory.Monitoring().V1alpha1().Rules().Informer(),
+		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "GPEOperator"),
+		statusState:    NewCRDStatusState(metav1.Now),
 	}
-
-	// Reconcile collection ...
-	// ... on changes to any PodMonitoring resource.
-	op.informerPodMonitoring.AddEventHandler(unifiedEventHandler(op.enqueueKey(keyCollection)))
-
-	// ... on changes to ConfigMaps in the operator namespace with label type=scrape-config
-	// or to the collector ConfigMap.
-	op.informerConfigMap.AddEventHandler(unifiedEventHandler(func(o interface{}) {
-		cm := o.(*corev1.ConfigMap)
-		if cm.Name == CollectorName || cm.Labels["type"] == "scrape-config" {
-			op.queue.Add(keyCollection)
-		}
-	}))
 
 	// Reconcile rules ...
 	// ... on changes to any Rules resource.
@@ -341,20 +351,23 @@ func (o *Operator) InitAdmissionResources(ctx context.Context, ors ...metav1.Own
 func (o *Operator) Run(ctx context.Context) error {
 	defer runtimeutil.HandleCrash()
 
+	if err := setupCollectionControllers(ctx, o, o.manager); err != nil {
+		return errors.Wrap(err, "setup collection controllers")
+	}
+	// TODO(fabxc): start controller manager in the background for now. After migration to
+	// controller manager is complete, it must be blocking.
+	go o.manager.Start(ctx)
+
 	level.Info(o.logger).Log("msg", "starting GPE operator")
 
-	go o.informerPodMonitoring.Run(ctx.Done())
 	go o.informerRules.Run(ctx.Done())
-	go o.informerConfigMap.Run(ctx.Done())
 
 	level.Info(o.logger).Log("msg", "waiting for informer caches to sync")
 
 	syncCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	ok := cache.WaitForNamedCacheSync(
 		"GPEOperator", syncCtx.Done(),
-		o.informerPodMonitoring.HasSynced,
 		o.informerRules.HasSynced,
-		o.informerConfigMap.HasSynced,
 	)
 	cancel()
 	if !ok {
@@ -370,7 +383,6 @@ func (o *Operator) Run(ctx context.Context) error {
 	}()
 
 	// Trigger an initial sync even if no instances of the watched resources exists yet.
-	o.enqueueKey(keyCollection)(nil)
 	o.enqueueKey(keyRules)(nil)
 
 	for o.processNextItem(ctx) {
@@ -410,22 +422,6 @@ func (o *Operator) sync(ctx context.Context, key string) error {
 	level.Info(o.logger).Log("msg", "syncing cluster state for key", "key", key)
 
 	switch key {
-	case keyCollection:
-		// Reset parsed CRDs.
-		o.statusState.Reset()
-
-		if err := o.ensureCollectorConfig(ctx); err != nil {
-			return errors.Wrap(err, "ensure collector config")
-		}
-		// TODO(freinartz): add dedicated reconciliation triggered by changes
-		// to the daemon set.
-		if err := o.ensureCollectorDaemonSet(ctx); err != nil {
-			return errors.Wrap(err, "ensure collector daemon set")
-		}
-		if err := o.updateCRDStatus(ctx); err != nil {
-			return errors.Wrap(err, "update crd status")
-		}
-
 	case keyRules:
 		if err := o.ensureRuleConfigs(ctx); err != nil {
 			return errors.Wrap(err, "ensure rule configmaps")
@@ -454,13 +450,11 @@ const (
 )
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
-func (o *Operator) ensureCollectorDaemonSet(ctx context.Context) error {
+func (o *Operator) ensureCollectorDaemonSet(ctx context.Context, c client.Client) error {
 	ds := o.makeCollectorDaemonSet()
 
-	_, err := o.kubeClient.AppsV1().DaemonSets(ds.Namespace).Update(ctx, ds, metav1.UpdateOptions{})
-	if apierrors.IsNotFound(err) {
-		_, err = o.kubeClient.AppsV1().DaemonSets(ds.Namespace).Create(ctx, ds, metav1.CreateOptions{})
-		if err != nil {
+	if err := c.Update(ctx, ds); apierrors.IsNotFound(err) {
+		if err := c.Create(ctx, ds); err != nil {
 			return errors.Wrap(err, "create collector DaemonSet")
 		}
 	} else if err != nil {
@@ -627,10 +621,9 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 // updateCRDStatus iterates through parsed CRDs and updates their statuses.
 // If an error is encountered from performing an update, the function returns
 // the error immediately and does not attempt updates on subsequent CRDs.
-func (o *Operator) updateCRDStatus(ctx context.Context) error {
+func (o *Operator) updateCRDStatus(ctx context.Context, c client.Client) error {
 	for _, pm := range o.statusState.PodMonitorings() {
-		_, err := o.operatorClient.MonitoringV1alpha1().PodMonitorings(pm.Namespace).UpdateStatus(ctx, &pm, metav1.UpdateOptions{})
-		if err != nil {
+		if err := c.Status().Update(ctx, &pm); err != nil {
 			return err
 		}
 	}
@@ -638,8 +631,8 @@ func (o *Operator) updateCRDStatus(ctx context.Context) error {
 }
 
 // ensureCollectorConfig generates the collector config and creates or updates it.
-func (o *Operator) ensureCollectorConfig(ctx context.Context) error {
-	cfg, err := o.makeCollectorConfig()
+func (o *Operator) ensureCollectorConfig(ctx context.Context, c client.Client) error {
+	cfg, err := o.makeCollectorConfig(ctx, c)
 	if err != nil {
 		return errors.Wrap(err, "generate Prometheus config")
 	}
@@ -649,16 +642,16 @@ func (o *Operator) ensureCollectorConfig(ctx context.Context) error {
 	}
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: CollectorName,
+			Namespace: o.opts.OperatorNamespace,
+			Name:      CollectorName,
 		},
 		Data: map[string]string{
 			collectorConfigFilename: string(cfgEncoded),
 		},
 	}
-	_, err = o.kubeClient.CoreV1().ConfigMaps(o.opts.OperatorNamespace).Update(ctx, cm, metav1.UpdateOptions{})
-	if apierrors.IsNotFound(err) {
-		_, err = o.kubeClient.CoreV1().ConfigMaps(o.opts.OperatorNamespace).Create(ctx, cm, metav1.CreateOptions{})
-		if err != nil {
+
+	if err := c.Update(ctx, cm); apierrors.IsNotFound(err) {
+		if err := c.Create(ctx, cm); err != nil {
 			return errors.Wrap(err, "create Prometheus config")
 		}
 	} else if err != nil {
@@ -667,25 +660,28 @@ func (o *Operator) ensureCollectorConfig(ctx context.Context) error {
 	return nil
 }
 
-func (o *Operator) makeCollectorConfig() (*promconfig.Config, error) {
+func (o *Operator) makeCollectorConfig(ctx context.Context, c client.Client) (*promconfig.Config, error) {
 	var scrapeCfgs []*promconfig.ScrapeConfig
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
-	var podmons []*monitoringv1alpha1.PodMonitoring
-	err := cache.ListAll(o.informerPodMonitoring.GetStore(), labels.Everything(), func(obj interface{}) {
-		podmons = append(podmons, obj.(*monitoringv1alpha1.PodMonitoring))
-	})
-	if err != nil {
+	var (
+		podmons    monitoringv1alpha1.PodMonitoringList
+		scrapecfgs corev1.ConfigMapList
+	)
+	if err := c.List(ctx, &podmons); err != nil {
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
+	}
+	if err := c.List(ctx, &scrapecfgs, client.MatchingLabels{"type": "scrape-config"}); err != nil {
+		return nil, errors.Wrap(err, "failed to list scrape ConfigMaps")
 	}
 
 	// Mark status updates in batch with single timestamp.
-	for _, podmon := range podmons {
+	for _, podmon := range podmons.Items {
 		cond := &monitoringv1alpha1.MonitoringCondition{
 			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
 		for i := range podmon.Spec.Endpoints {
-			scrapeCfg, err := makePodScrapeConfig(podmon, i)
+			scrapeCfg, err := makePodScrapeConfig(&podmon, i)
 			if err != nil {
 				cond.Status = corev1.ConditionFalse
 				level.Warn(o.logger).Log("msg", "generating scrape config failed for PodMonitoring endpoint",
@@ -694,7 +690,7 @@ func (o *Operator) makeCollectorConfig() (*promconfig.Config, error) {
 			}
 			scrapeCfgs = append(scrapeCfgs, scrapeCfg)
 		}
-		err := o.statusState.SetPodMonitoringCondition(podmon, cond)
+		err := o.statusState.SetPodMonitoringCondition(&podmon, cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
@@ -705,26 +701,20 @@ func (o *Operator) makeCollectorConfig() (*promconfig.Config, error) {
 	}
 
 	// Load additional, hard-coded scrape configs from configmaps in the oeprator's namespace.
-	err = cache.ListAll(o.informerConfigMap.GetStore(), labels.SelectorFromSet(map[string]string{
-		"type": "scrape-config",
-	}), func(obj interface{}) {
-		cm := obj.(*corev1.ConfigMap)
+	for _, cm := range scrapecfgs.Items {
 		const key = "config.yaml"
 
 		var promcfg promconfig.Config
 		if err := yaml.Unmarshal([]byte(cm.Data[key]), &promcfg); err != nil {
 			level.Error(o.logger).Log("msg", "cannot parse scrape config, skipping ...",
 				"err", err, "namespace", cm.Namespace, "name", cm.Name)
-			return
+			continue
 		}
 		for _, sc := range promcfg.ScrapeConfigs {
 			// Make scrape config name unique and traceable.
 			sc.JobName = fmt.Sprintf("ConfigMap/%s/%s/%s", o.opts.OperatorNamespace, cm.Name, sc.JobName)
 			scrapeCfgs = append(scrapeCfgs, sc)
 		}
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "add hard-coded scrape configs")
 	}
 
 	// Sort to ensure reproducible configs.
@@ -1006,4 +996,43 @@ func (o *Operator) ensureRuleConfigs(ctx context.Context) error {
 		return errors.Wrap(err, "update generated rules")
 	}
 	return nil
+}
+
+// namespacedNamePredicate is an event filter predicate that only allows events with
+// a single object.
+type namespacedNamePredicate struct {
+	namespace string
+	name      string
+}
+
+func (o namespacedNamePredicate) Create(e event.CreateEvent) bool {
+	return e.Object.GetNamespace() == o.namespace && e.Object.GetName() == o.name
+}
+func (o namespacedNamePredicate) Update(e event.UpdateEvent) bool {
+	return e.ObjectNew.GetNamespace() == o.namespace && e.ObjectNew.GetName() == o.name
+}
+func (o namespacedNamePredicate) Delete(e event.DeleteEvent) bool {
+	return e.Object.GetNamespace() == o.namespace && e.Object.GetName() == o.name
+}
+func (o namespacedNamePredicate) Generic(e event.GenericEvent) bool {
+	return e.Object.GetNamespace() == o.namespace && e.Object.GetName() == o.name
+}
+
+// enqueueConst always enqueues the same request regardless of the event.
+type enqueueConst reconcile.Request
+
+func (e enqueueConst) Create(_ event.CreateEvent, q workqueue.RateLimitingInterface) {
+	q.Add(reconcile.Request(e))
+}
+
+func (e enqueueConst) Update(_ event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	q.Add(reconcile.Request(e))
+}
+
+func (e enqueueConst) Delete(_ event.DeleteEvent, q workqueue.RateLimitingInterface) {
+	q.Add(reconcile.Request(e))
+}
+
+func (e enqueueConst) Generic(_ event.GenericEvent, q workqueue.RateLimitingInterface) {
+	q.Add(reconcile.Request(e))
 }
