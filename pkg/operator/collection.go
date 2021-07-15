@@ -17,6 +17,7 @@ package operator
 import (
 	"context"
 
+	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -32,7 +33,10 @@ import (
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 )
 
-func setupCollectionControllers(ctx context.Context, op *Operator, mgr manager.Manager) error {
+func setupCollectionControllers(op *Operator) error {
+	const name = "collector-config"
+	logger := log.With(op.logger, "controller", name)
+
 	// Canonical request for both the config map as well as the daemon set.
 	objRequest := reconcile.Request{
 		NamespacedName: types.NamespacedName{
@@ -53,8 +57,8 @@ func setupCollectionControllers(ctx context.Context, op *Operator, mgr manager.M
 		return err
 	}
 	// Reconcile the generated Prometheus configuration that is used by all collectors.
-	err = ctrl.NewControllerManagedBy(mgr).
-		Named("collector-config").
+	err = ctrl.NewControllerManagedBy(op.manager).
+		Named(name).
 		// Filter events without changes for all watches.
 		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
 		For(
@@ -86,22 +90,41 @@ func setupCollectionControllers(ctx context.Context, op *Operator, mgr manager.M
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
-		Complete(reconcile.Func(func(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
-			op.statusState.Reset()
-
-			if err := op.ensureCollectorConfig(ctx, mgr.GetClient()); err != nil {
-				return reconcile.Result{}, errors.Wrap(err, "ensure collector config")
-			}
-			if err := op.updateCRDStatus(ctx, mgr.GetClient()); err != nil {
-				return reconcile.Result{}, errors.Wrap(err, "update crd status")
-			}
-			if err := op.ensureCollectorDaemonSet(ctx, mgr.GetClient()); err != nil {
-				return reconcile.Result{}, errors.Wrap(err, "ensure collector daemon set")
-			}
-			return reconcile.Result{}, nil
-		}))
+		Complete(newCollectionReconciler(logger, op.manager.GetClient(), op.opts))
 	if err != nil {
 		return errors.Wrap(err, "create collector config controller")
 	}
 	return nil
+}
+
+type collectionReconciler struct {
+	logger log.Logger
+	client client.Client
+	opts   Options
+	// Internal bookkeeping for sending status updates to processed CRDs.
+	statusState *CRDStatusState
+}
+
+func newCollectionReconciler(logger log.Logger, c client.Client, opts Options) *collectionReconciler {
+	return &collectionReconciler{
+		logger:      logger,
+		client:      c,
+		opts:        opts,
+		statusState: NewCRDStatusState(metav1.Now),
+	}
+}
+
+func (r *collectionReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
+	r.statusState.Reset()
+
+	if err := r.ensureCollectorConfig(ctx); err != nil {
+		return reconcile.Result{}, errors.Wrap(err, "ensure collector config")
+	}
+	if err := r.updateCRDStatus(ctx); err != nil {
+		return reconcile.Result{}, errors.Wrap(err, "update crd status")
+	}
+	if err := r.ensureCollectorDaemonSet(ctx); err != nil {
+		return reconcile.Result{}, errors.Wrap(err, "ensure collector daemon set")
+	}
+	return reconcile.Result{}, nil
 }

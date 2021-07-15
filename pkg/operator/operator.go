@@ -115,9 +115,6 @@ type Operator struct {
 	// the operator does not get overloaded and multiple changes to the same resource
 	// are not handled in parallel, leading to semantic race conditions.
 	queue workqueue.RateLimitingInterface
-
-	// Internal bookkeeping for sending status updates to processed CRDs.
-	statusState *CRDStatusState
 }
 
 // Options for the Operator.
@@ -226,7 +223,6 @@ func New(logger log.Logger, clientConfig *rest.Config, registry prometheus.Regis
 		manager:        mgr,
 		informerRules:  informerFactory.Monitoring().V1alpha1().Rules().Informer(),
 		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "GPEOperator"),
-		statusState:    NewCRDStatusState(metav1.Now),
 	}
 
 	// Reconcile rules ...
@@ -351,7 +347,7 @@ func (o *Operator) InitAdmissionResources(ctx context.Context, ors ...metav1.Own
 func (o *Operator) Run(ctx context.Context) error {
 	defer runtimeutil.HandleCrash()
 
-	if err := setupCollectionControllers(ctx, o, o.manager); err != nil {
+	if err := setupCollectionControllers(o); err != nil {
 		return errors.Wrap(err, "setup collection controllers")
 	}
 	// TODO(fabxc): start controller manager in the background for now. After migration to
@@ -450,11 +446,11 @@ const (
 )
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
-func (o *Operator) ensureCollectorDaemonSet(ctx context.Context, c client.Client) error {
-	ds := o.makeCollectorDaemonSet()
+func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context) error {
+	ds := r.makeCollectorDaemonSet()
 
-	if err := c.Update(ctx, ds); apierrors.IsNotFound(err) {
-		if err := c.Create(ctx, ds); err != nil {
+	if err := r.client.Update(ctx, ds); apierrors.IsNotFound(err) {
+		if err := r.client.Create(ctx, ds); err != nil {
 			return errors.Wrap(err, "create collector DaemonSet")
 		}
 	} else if err != nil {
@@ -463,7 +459,7 @@ func (o *Operator) ensureCollectorDaemonSet(ctx context.Context, c client.Client
 	return nil
 }
 
-func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
+func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	// TODO(freinartz): this just fills in the bare minimum to get semantics right.
 	// Add more configuration of a full deployment: tolerations, resource request/limit,
 	// health checks, priority context, security context, dynamic update strategy params...
@@ -484,12 +480,12 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 		// can be kept in practice.
 		"--storage.tsdb.min-block-duration=10m",
 		"--storage.tsdb.max-block-duration=10m",
-		fmt.Sprintf("--web.listen-address=:%d", o.opts.CollectorPort),
+		fmt.Sprintf("--web.listen-address=:%d", r.opts.CollectorPort),
 		"--web.enable-lifecycle",
 		"--web.route-prefix=/",
 	}
-	if o.opts.CloudMonitoringEndpoint != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", o.opts.CloudMonitoringEndpoint))
+	if r.opts.CloudMonitoringEndpoint != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
 	}
 
 	spec := appsv1.DaemonSetSpec{
@@ -504,7 +500,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 				Containers: []corev1.Container{
 					{
 						Name:  "prometheus",
-						Image: o.opts.ImageCollector,
+						Image: r.opts.ImageCollector,
 						// Set an aggressive GC threshold (default is 100%). Since the collector has a lot of
 						// long-lived allocations, this still doesn't result in a high GC rate (compared to stateless
 						// RPC applications) and gives us a more balanced ratio of memory and CPU usage.
@@ -513,7 +509,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						},
 						Args: collectorArgs,
 						Ports: []corev1.ContainerPort{
-							{Name: "prometheus-http", ContainerPort: o.opts.CollectorPort},
+							{Name: "prometheus-http", ContainerPort: r.opts.CollectorPort},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
@@ -534,12 +530,12 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						},
 					}, {
 						Name:  "config-reloader",
-						Image: o.opts.ImageConfigReloader,
+						Image: r.opts.ImageConfigReloader,
 						Args: []string{
 							fmt.Sprintf("--config-file=%s", path.Join(collectorConfigDir, collectorConfigFilename)),
 							fmt.Sprintf("--config-file-output=%s", path.Join(collectorConfigOutDir, collectorConfigFilename)),
-							fmt.Sprintf("--reload-url=http://localhost:%d/-/reload", o.opts.CollectorPort),
-							fmt.Sprintf("--listen-address=:%d", o.opts.CollectorPort+1),
+							fmt.Sprintf("--reload-url=http://localhost:%d/-/reload", r.opts.CollectorPort),
+							fmt.Sprintf("--listen-address=:%d", r.opts.CollectorPort+1),
 						},
 						// Pass node name so the config can filter for targets on the local node,
 						Env: []corev1.EnvVar{
@@ -553,7 +549,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 							},
 						},
 						Ports: []corev1.ContainerPort{
-							{Name: "reloader-http", ContainerPort: o.opts.CollectorPort + 1},
+							{Name: "reloader-http", ContainerPort: r.opts.CollectorPort + 1},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
@@ -595,7 +591,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 					},
 				},
 				ServiceAccountName: CollectorName,
-				PriorityClassName:  o.opts.PriorityClass,
+				PriorityClassName:  r.opts.PriorityClass,
 				// When a cluster has Workload Identity enabled, the default GCP service account
 				// of the node is no longer accessible. That is unless the pod runs on the host network,
 				// in which case it keeps accessing the GCE metadata agent, rather than the GKE metadata
@@ -610,7 +606,7 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	}
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: o.opts.OperatorNamespace,
+			Namespace: r.opts.OperatorNamespace,
 			Name:      CollectorName,
 		},
 		Spec: spec,
@@ -621,9 +617,9 @@ func (o *Operator) makeCollectorDaemonSet() *appsv1.DaemonSet {
 // updateCRDStatus iterates through parsed CRDs and updates their statuses.
 // If an error is encountered from performing an update, the function returns
 // the error immediately and does not attempt updates on subsequent CRDs.
-func (o *Operator) updateCRDStatus(ctx context.Context, c client.Client) error {
-	for _, pm := range o.statusState.PodMonitorings() {
-		if err := c.Status().Update(ctx, &pm); err != nil {
+func (r *collectionReconciler) updateCRDStatus(ctx context.Context) error {
+	for _, pm := range r.statusState.PodMonitorings() {
+		if err := r.client.Status().Update(ctx, &pm); err != nil {
 			return err
 		}
 	}
@@ -631,8 +627,8 @@ func (o *Operator) updateCRDStatus(ctx context.Context, c client.Client) error {
 }
 
 // ensureCollectorConfig generates the collector config and creates or updates it.
-func (o *Operator) ensureCollectorConfig(ctx context.Context, c client.Client) error {
-	cfg, err := o.makeCollectorConfig(ctx, c)
+func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context) error {
+	cfg, err := r.makeCollectorConfig(ctx)
 	if err != nil {
 		return errors.Wrap(err, "generate Prometheus config")
 	}
@@ -642,7 +638,7 @@ func (o *Operator) ensureCollectorConfig(ctx context.Context, c client.Client) e
 	}
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: o.opts.OperatorNamespace,
+			Namespace: r.opts.OperatorNamespace,
 			Name:      CollectorName,
 		},
 		Data: map[string]string{
@@ -650,8 +646,8 @@ func (o *Operator) ensureCollectorConfig(ctx context.Context, c client.Client) e
 		},
 	}
 
-	if err := c.Update(ctx, cm); apierrors.IsNotFound(err) {
-		if err := c.Create(ctx, cm); err != nil {
+	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
+		if err := r.client.Create(ctx, cm); err != nil {
 			return errors.Wrap(err, "create Prometheus config")
 		}
 	} else if err != nil {
@@ -660,22 +656,25 @@ func (o *Operator) ensureCollectorConfig(ctx context.Context, c client.Client) e
 	return nil
 }
 
-func (o *Operator) makeCollectorConfig(ctx context.Context, c client.Client) (*promconfig.Config, error) {
+func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promconfig.Config, error) {
 	var scrapeCfgs []*promconfig.ScrapeConfig
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
 	var (
 		podmons    monitoringv1alpha1.PodMonitoringList
 		scrapecfgs corev1.ConfigMapList
 	)
-	if err := c.List(ctx, &podmons); err != nil {
+	if err := r.client.List(ctx, &podmons); err != nil {
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
 	}
-	if err := c.List(ctx, &scrapecfgs, client.MatchingLabels{"type": "scrape-config"}); err != nil {
+	if err := r.client.List(ctx, &scrapecfgs, client.MatchingLabels{"type": "scrape-config"}); err != nil {
 		return nil, errors.Wrap(err, "failed to list scrape ConfigMaps")
 	}
 
 	// Mark status updates in batch with single timestamp.
-	for _, podmon := range podmons.Items {
+	for _, pm := range podmons.Items {
+		// Reassign so we can safely get a pointer.
+		podmon := pm
+
 		cond := &monitoringv1alpha1.MonitoringCondition{
 			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
@@ -684,17 +683,17 @@ func (o *Operator) makeCollectorConfig(ctx context.Context, c client.Client) (*p
 			scrapeCfg, err := makePodScrapeConfig(&podmon, i)
 			if err != nil {
 				cond.Status = corev1.ConditionFalse
-				level.Warn(o.logger).Log("msg", "generating scrape config failed for PodMonitoring endpoint",
+				level.Warn(r.logger).Log("msg", "generating scrape config failed for PodMonitoring endpoint",
 					"err", err, "namespace", podmon.Namespace, "name", podmon.Name, "endpoint", i)
 				continue
 			}
 			scrapeCfgs = append(scrapeCfgs, scrapeCfg)
 		}
-		err := o.statusState.SetPodMonitoringCondition(&podmon, cond)
+		err := r.statusState.SetPodMonitoringCondition(&podmon, cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
-			level.Error(o.logger).Log(
+			level.Error(r.logger).Log(
 				"msg", "setting podmonitoring status state",
 				"err", err)
 		}
@@ -706,13 +705,13 @@ func (o *Operator) makeCollectorConfig(ctx context.Context, c client.Client) (*p
 
 		var promcfg promconfig.Config
 		if err := yaml.Unmarshal([]byte(cm.Data[key]), &promcfg); err != nil {
-			level.Error(o.logger).Log("msg", "cannot parse scrape config, skipping ...",
+			level.Error(r.logger).Log("msg", "cannot parse scrape config, skipping ...",
 				"err", err, "namespace", cm.Namespace, "name", cm.Name)
 			continue
 		}
 		for _, sc := range promcfg.ScrapeConfigs {
 			// Make scrape config name unique and traceable.
-			sc.JobName = fmt.Sprintf("ConfigMap/%s/%s/%s", o.opts.OperatorNamespace, cm.Name, sc.JobName)
+			sc.JobName = fmt.Sprintf("ConfigMap/%s/%s/%s", r.opts.OperatorNamespace, cm.Name, sc.JobName)
 			scrapeCfgs = append(scrapeCfgs, sc)
 		}
 	}
