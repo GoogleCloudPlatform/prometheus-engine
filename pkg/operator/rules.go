@@ -17,7 +17,6 @@ package operator
 import (
 	"context"
 
-	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,9 +31,6 @@ import (
 )
 
 func setupRulesControllers(op *Operator) error {
-	const name = "rules"
-	logger := log.With(op.logger, "controller", name)
-
 	// Canonical request for any events that require re-generating the rule config map.
 	objRequest := reconcile.Request{
 		NamespacedName: types.NamespacedName{
@@ -49,7 +45,7 @@ func setupRulesControllers(op *Operator) error {
 	}
 	// Reconcile the generated rules that are used by the rule-evaluator deployment.
 	err := ctrl.NewControllerManagedBy(op.manager).
-		Named(name).
+		Named("rules").
 		// Filter events without changes for all watches.
 		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
 		For(
@@ -61,7 +57,7 @@ func setupRulesControllers(op *Operator) error {
 			&source.Kind{Type: &monitoringv1alpha1.Rules{}},
 			enqueueConst(objRequest),
 		).
-		Complete(newRulesReconciler(logger, op.manager.GetClient(), op.opts))
+		Complete(newRulesReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
 		return errors.Wrap(err, "create collector config controller")
 	}
@@ -69,14 +65,12 @@ func setupRulesControllers(op *Operator) error {
 }
 
 type rulesReconciler struct {
-	logger log.Logger
 	client client.Client
 	opts   Options
 }
 
-func newRulesReconciler(logger log.Logger, c client.Client, opts Options) *rulesReconciler {
+func newRulesReconciler(c client.Client, opts Options) *rulesReconciler {
 	return &rulesReconciler{
-		logger: logger,
 		client: c,
 		opts:   opts,
 	}

@@ -11,14 +11,12 @@ require (
 	github.com/digitalocean/godo v1.62.0 // indirect
 	github.com/docker/docker v20.10.7+incompatible // indirect
 	github.com/go-kit/kit v0.10.0
+	github.com/go-logr/logr v0.4.0 // indirect
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.6
-	github.com/google/pprof v0.0.0-20210609004039-a478d1d731e9 // indirect
 	github.com/gophercloud/gophercloud v0.18.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hetznercloud/hcloud-go v1.26.2 // indirect
-	github.com/influxdata/influxdb v1.9.2 // indirect
-	github.com/linode/linodego v0.28.5 // indirect
 	github.com/miekg/dns v1.1.42 // indirect
 	github.com/oklog/run v1.1.0
 	github.com/pkg/errors v0.9.1
@@ -40,7 +38,6 @@ require (
 	go.uber.org/atomic v1.8.0 // indirect
 	golang.org/x/net v0.0.0-20210610132358-84b48f89b13b // indirect
 	golang.org/x/sys v0.0.0-20210611083646-a4fc73990273 // indirect
-	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6 // indirect
 	golang.org/x/tools v0.1.3 // indirect
 	google.golang.org/api v0.48.0
 	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08
@@ -52,7 +49,6 @@ require (
 	k8s.io/apimachinery v0.21.2
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/code-generator v0.21.2
-	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.9.0 // indirect
 	sigs.k8s.io/controller-runtime v0.9.2
 	sigs.k8s.io/yaml v1.2.0

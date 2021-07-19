@@ -17,7 +17,6 @@ package operator
 import (
 	"context"
 
-	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -34,9 +33,6 @@ import (
 )
 
 func setupCollectionControllers(op *Operator) error {
-	const name = "collector-config"
-	logger := log.With(op.logger, "controller", name)
-
 	// Canonical request for both the config map as well as the daemon set.
 	objRequest := reconcile.Request{
 		NamespacedName: types.NamespacedName{
@@ -58,7 +54,7 @@ func setupCollectionControllers(op *Operator) error {
 	}
 	// Reconcile the generated Prometheus configuration that is used by all collectors.
 	err = ctrl.NewControllerManagedBy(op.manager).
-		Named(name).
+		Named("collector-config").
 		// Filter events without changes for all watches.
 		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
 		For(
@@ -90,7 +86,7 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
-		Complete(newCollectionReconciler(logger, op.manager.GetClient(), op.opts))
+		Complete(newCollectionReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
 		return errors.Wrap(err, "create collector config controller")
 	}
@@ -98,16 +94,14 @@ func setupCollectionControllers(op *Operator) error {
 }
 
 type collectionReconciler struct {
-	logger log.Logger
 	client client.Client
 	opts   Options
 	// Internal bookkeeping for sending status updates to processed CRDs.
 	statusState *CRDStatusState
 }
 
-func newCollectionReconciler(logger log.Logger, c client.Client, opts Options) *collectionReconciler {
+func newCollectionReconciler(c client.Client, opts Options) *collectionReconciler {
 	return &collectionReconciler{
-		logger:      logger,
 		client:      c,
 		opts:        opts,
 		statusState: NewCRDStatusState(metav1.Now),
