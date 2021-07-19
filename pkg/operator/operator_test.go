@@ -153,7 +153,7 @@ func TestInitAdmissionResoures(t *testing.T) {
 	op := &Operator{
 		logger:     logger,
 		kubeClient: kubeClient,
-		opts:       Options{Namespace: DefaultNamespace, CASelfSign: true, ListenAddr: ":8443"},
+		opts:       Options{OperatorNamespace: DefaultOperatorNamespace, CASelfSign: true, ListenAddr: ":8443"},
 	}
 	// Use self-signed to avoid dealing with CSRs.
 	srv, err := op.InitAdmissionResources(ctx)
@@ -162,9 +162,9 @@ func TestInitAdmissionResoures(t *testing.T) {
 	}
 
 	// Check for webhook config.
-	if vwc, err := kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, DefaultName, metav1.GetOptions{}); err != nil {
+	if vwc, err := kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, "gpe-operator", metav1.GetOptions{}); err != nil {
 		t.Errorf("getting validatingwebhook config: %s", err)
-	} else if vwc.Name != DefaultName {
+	} else if vwc.Name != "gpe-operator" {
 		t.Errorf("invalid validatingwebhook config: %+v", vwc)
 	}
 
