@@ -17,21 +17,18 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap/zapcore"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	// Blank import required to register GCP auth handlers to talk to GKE clusters.
@@ -44,23 +41,6 @@ func unstableFlagHelp(help string) string {
 	return help + " (Setting this flag voids any guarantees of proper behavior of the operator.)"
 }
 
-// The valid levels for the --log-level flag.
-const (
-	logLevelDebug = "debug"
-	logLevelInfo  = "info"
-	logLevelWarn  = "warn"
-	logLevelError = "error"
-)
-
-var (
-	validLogLevels = []string{
-		logLevelDebug,
-		logLevelInfo,
-		logLevelWarn,
-		logLevelError,
-	}
-)
-
 func main() {
 	var (
 		defaultProjectID string
@@ -71,9 +51,8 @@ func main() {
 		defaultCluster, _ = metadata.InstanceAttributeValue("cluster-name")
 	}
 	var (
-		logLevel = flag.String("log-level", logLevelInfo,
-			fmt.Sprintf("Log level to use. Possible values: %s", strings.Join(validLogLevels, ", ")))
-		projectID = flag.String("project-id", defaultProjectID,
+		logVerbosity = flag.Int("v", 0, "Logging verbosity")
+		projectID    = flag.String("project-id", defaultProjectID,
 			"Project ID of the cluster.")
 		cluster = flag.String("cluster", defaultCluster,
 			"Name of the cluster the operator acts on.")
@@ -96,14 +75,12 @@ func main() {
 	)
 	flag.Parse()
 
-	logger, err := setupLogger(*logLevel)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Creating logger failed: %s", err)
-		os.Exit(2)
-	}
+	logger := zap.New(zap.Level(zapcore.Level(-*logVerbosity)))
+	ctrl.SetLogger(logger)
+
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
-		level.Error(logger).Log("msg", "loading kubeconfig failed", "err", err)
+		logger.Error(err, "loading kubeconfig failed")
 		os.Exit(1)
 	}
 
@@ -125,7 +102,7 @@ func main() {
 		ListenAddr:              *webhookAddr,
 	})
 	if err != nil {
-		level.Error(logger).Log("msg", "instantiating operator failed", "err", err)
+		logger.Error(err, "instantiating operator failed")
 		os.Exit(1)
 	}
 
@@ -140,7 +117,7 @@ func main() {
 			func() error {
 				select {
 				case <-term:
-					level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+					logger.Info("received SIGTERM, exiting gracefully...")
 				case <-cancel:
 				}
 				return nil
@@ -168,7 +145,7 @@ func main() {
 		server, err := op.InitAdmissionResources(ctx)
 		cancel()
 		if err != nil {
-			level.Error(logger).Log("msg", "initialize admission resources", "err", err)
+			logger.Error(err, "initialize admission resources")
 			os.Exit(1)
 		}
 		g.Add(func() (err error) {
@@ -189,28 +166,7 @@ func main() {
 		})
 	}
 	if err := g.Run(); err != nil {
-		level.Error(logger).Log("msg", "exit with error", "err", err)
+		logger.Error(err, "exit with error")
 		os.Exit(1)
 	}
-}
-
-func setupLogger(lvl string) (log.Logger, error) {
-	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
-
-	switch lvl {
-	case logLevelDebug:
-		logger = level.NewFilter(logger, level.AllowDebug())
-	case logLevelInfo:
-		logger = level.NewFilter(logger, level.AllowInfo())
-	case logLevelWarn:
-		logger = level.NewFilter(logger, level.AllowWarn())
-	case logLevelError:
-		logger = level.NewFilter(logger, level.AllowError())
-	default:
-		return nil, errors.Errorf("log level %q unknown, must be one of (%s)", lvl, strings.Join(validLogLevels, ", "))
-	}
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
-
-	return logger, nil
 }

@@ -18,7 +18,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	stdlog "log"
 	"net/http"
 	"path"
 	"regexp"
@@ -26,8 +25,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/config"
@@ -96,7 +94,7 @@ var (
 
 // Operator to implement managed collection for Google Prometheus Engine.
 type Operator struct {
-	logger     log.Logger
+	logger     logr.Logger
 	opts       Options
 	kubeClient kubernetes.Interface
 	manager    manager.Manager
@@ -128,7 +126,7 @@ type Options struct {
 	ListenAddr string
 }
 
-func (o *Options) defaultAndValidate(logger log.Logger) error {
+func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	if o.OperatorNamespace == "" {
 		o.OperatorNamespace = DefaultOperatorNamespace
 	}
@@ -149,18 +147,18 @@ func (o *Options) defaultAndValidate(logger log.Logger) error {
 		return errors.New("Cluster must be set")
 	}
 	if o.ImageCollector != ImageCollector {
-		level.Warn(logger).Log("msg", "not using the canonical collector image",
+		logger.Info("not using the canonical collector image",
 			"expected", ImageCollector, "got", o.ImageCollector)
 	}
 	if o.ImageConfigReloader != ImageConfigReloader {
-		level.Warn(logger).Log("msg", "not using the canonical config reloader image",
+		logger.Info("not using the canonical config reloader image",
 			"expected", ImageConfigReloader, "got", o.ImageConfigReloader)
 	}
 	return nil
 }
 
 // New instantiates a new Operator.
-func New(logger log.Logger, clientConfig *rest.Config, registry prometheus.Registerer, opts Options) (*Operator, error) {
+func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Registerer, opts Options) (*Operator, error) {
 	if err := opts.defaultAndValidate(logger); err != nil {
 		return nil, errors.Wrap(err, "invalid options")
 	}
@@ -257,7 +255,6 @@ func (o *Operator) InitAdmissionResources(ctx context.Context, ors ...metav1.Own
 
 	return &http.Server{
 		Addr:      o.opts.ListenAddr,
-		ErrorLog:  stdlog.New(log.NewStdlibAdapter(o.logger), "", stdlog.LstdFlags),
 		TLSConfig: tlsCfg,
 		Handler:   mux,
 	}, nil
@@ -274,7 +271,7 @@ func (o *Operator) Run(ctx context.Context) error {
 		return errors.Wrap(err, "setup rules controllers")
 	}
 
-	level.Info(o.logger).Log("msg", "starting GPE operator")
+	o.logger.Info("starting GPE operator")
 
 	return o.manager.Start(ctx)
 }
@@ -507,6 +504,8 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context) error 
 }
 
 func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promconfig.Config, error) {
+	logger := logr.FromContext(ctx)
+
 	var scrapeCfgs []*promconfig.ScrapeConfig
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
 	var (
@@ -533,7 +532,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promco
 			scrapeCfg, err := makePodScrapeConfig(&podmon, i)
 			if err != nil {
 				cond.Status = corev1.ConditionFalse
-				level.Warn(r.logger).Log("msg", "generating scrape config failed for PodMonitoring endpoint",
+				logger.Info("generating scrape config failed for PodMonitoring endpoint",
 					"err", err, "namespace", podmon.Namespace, "name", podmon.Name, "endpoint", i)
 				continue
 			}
@@ -543,9 +542,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promco
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
-			level.Error(r.logger).Log(
-				"msg", "setting podmonitoring status state",
-				"err", err)
+			logger.Error(err, "setting podmonitoring status state")
 		}
 	}
 
@@ -555,8 +552,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promco
 
 		var promcfg promconfig.Config
 		if err := yaml.Unmarshal([]byte(cm.Data[key]), &promcfg); err != nil {
-			level.Error(r.logger).Log("msg", "cannot parse scrape config, skipping ...",
-				"err", err, "namespace", cm.Namespace, "name", cm.Name)
+			logger.Error(err, "cannot parse scrape config, skipping ...",
+				"namespace", cm.Namespace, "name", cm.Name)
 			continue
 		}
 		for _, sc := range promcfg.ScrapeConfigs {
@@ -774,6 +771,8 @@ func sanitizeLabelName(name string) prommodel.LabelName {
 }
 
 func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
+	logger := logr.FromContext(ctx)
+
 	// Re-generate the configmap that's loaded by the rule-evaluator.
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -796,11 +795,11 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 		return errors.Wrap(err, "list rules")
 	}
 	for _, apiRules := range rulesList.Items {
-		logger := log.With(r.logger, "namespace", apiRules.Namespace, "name", apiRules.Name)
+		rulesLogger := logger.WithValues("rules_namespace", apiRules.Namespace, "rules_name", apiRules.Name)
 
 		rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
 		if err != nil {
-			level.Warn(logger).Log("msg", "converting rules failed", "err", err)
+			rulesLogger.Error(err, "converting rules failed")
 			// TODO(freinartz): update resource condition.
 			continue
 		}
@@ -815,18 +814,18 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 			lset[export.KeyCluster] = r.opts.Cluster
 			lset[export.KeyNamespace] = apiRules.Namespace
 		default:
-			level.Warn(logger).Log("msg", "unexpected scope", "scope", apiRules.Spec.Scope)
+			rulesLogger.Error(errors.New("scope type is not defiend"), "unexpected scope", "scope", apiRules.Spec.Scope)
 			// TODO(freinartz): update resource condition.
 			continue
 		}
 		if err := rules.Scope(&rs, lset); err != nil {
-			level.Warn(logger).Log("msg", "isolating rules failed", "err", err)
+			rulesLogger.Error(err, "isolating rules failed")
 			// TODO(freinartz): update resource condition.
 			continue
 		}
 		result, err := yaml.Marshal(rs)
 		if err != nil {
-			level.Warn(logger).Log("msg", "marshalling rules failed", "err", err)
+			rulesLogger.Error(err, "marshalling rules failed")
 			// TODO(freinartz): update resource condition.
 			continue
 		}

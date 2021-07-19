@@ -21,8 +21,7 @@ import (
 	"net/http"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes/scheme"
 
@@ -35,12 +34,12 @@ type admitFn func(*v1.AdmissionReview) (*v1.AdmissionResponse, error)
 
 // AdmissionServer serves Kubernetes resource admission requests.
 type AdmissionServer struct {
-	logger  log.Logger
+	logger  logr.Logger
 	decoder runtime.Decoder
 }
 
 // NewAdmissionServer returns a new AdmissionServer with the provided logger.
-func NewAdmissionServer(logger log.Logger) *AdmissionServer {
+func NewAdmissionServer(logger logr.Logger) *AdmissionServer {
 	return &AdmissionServer{
 		logger:  logger,
 		decoder: scheme.Codecs.UniversalDeserializer(),
@@ -52,8 +51,7 @@ func NewAdmissionServer(logger log.Logger) *AdmissionServer {
 // response.
 func (a *AdmissionServer) serveAdmission(admit admitFn) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		level.Debug(a.logger).Log(
-			"msg", "webhook called",
+		a.logger.V(1).Info("webhook called",
 			"method", r.Method,
 			"host", r.Host,
 			"path", r.URL.Path)
@@ -61,13 +59,13 @@ func (a *AdmissionServer) serveAdmission(admit admitFn) http.HandlerFunc {
 		var req, resp v1.AdmissionReview
 		// Read, decode, and evaluate admission request.
 		if data, err := ioutil.ReadAll(r.Body); err != nil {
-			level.Error(a.logger).Log("msg", "reading request body", "err", err)
+			a.logger.Error(err, "reading request body")
 			resp.Response = toAdmissionResponse(err)
 		} else if _, _, err := a.decoder.Decode(data, nil, &req); err != nil {
-			level.Error(a.logger).Log("msg", "decoding request body", "err", err)
+			a.logger.Error(err, "decoding request body")
 			resp.Response = toAdmissionResponse(err)
 		} else if ar, err := admit(&req); err != nil {
-			level.Error(a.logger).Log("msg", "admitting admission request", "err", err)
+			a.logger.Error(err, "admitting admission request")
 			resp.Response = toAdmissionResponse(err)
 		} else {
 			resp.Response = ar
@@ -82,9 +80,9 @@ func (a *AdmissionServer) serveAdmission(admit admitFn) http.HandlerFunc {
 
 		// Write the admission response.
 		if respBytes, err := json.Marshal(resp); err != nil {
-			level.Error(a.logger).Log("msg", "encoding response body", "err", err)
+			a.logger.Error(err, "encoding response body")
 		} else if _, err := w.Write(respBytes); err != nil {
-			level.Error(a.logger).Log("msg", "writing response body", "err", err)
+			a.logger.Error(err, "writing response body")
 		}
 	}
 }

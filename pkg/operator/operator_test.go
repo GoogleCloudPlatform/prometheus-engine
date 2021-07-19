@@ -21,20 +21,18 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"reflect"
 	"testing"
 	"time"
 
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
-	"github.com/go-kit/kit/log"
-
 	"github.com/prometheus/common/model"
 	prommodel "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/relabel"
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 func TestLabelMappingRelabelConfigs(t *testing.T) {
@@ -142,7 +140,7 @@ func TestLabelMappingRelabelConfigs(t *testing.T) {
 
 func TestInitAdmissionResoures(t *testing.T) {
 	var (
-		logger      = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
+		logger      = zap.New()
 		ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
 		aresp       = &admissionv1.AdmissionReview{}
 		kubeClient  = fake.NewSimpleClientset()

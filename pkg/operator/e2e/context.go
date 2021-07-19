@@ -23,21 +23,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
+	"go.uber.org/zap/zapcore"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
 
-var startTime time.Time
+var (
+	startTime    = time.Now().UTC()
+	globalLogger = zap.New(zap.Level(zapcore.Level(-1)))
+)
 
 func init() {
-	startTime = time.Now().UTC()
+	ctrl.SetLogger(globalLogger)
 }
 
 // testContext manages shared state for a group of test. Test contexts are isolated
@@ -85,10 +90,7 @@ func newTestContext(t *testing.T) *testContext {
 		t.Fatalf("create test namespace: %s", err)
 	}
 
-	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
-	logger = log.With(logger, "test", t.Name())
-
-	op, err := operator.New(logger, kubeconfig, nil, operator.Options{
+	op, err := operator.New(globalLogger, kubeconfig, nil, operator.Options{
 		ProjectID: projectID,
 		Cluster:   cluster,
 		// Pick a random port to avoid conflicts with other simultaneous tests in the cluster

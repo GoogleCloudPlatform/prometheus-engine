@@ -20,17 +20,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	monitoring "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
-	"github.com/go-kit/kit/log"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 func TestAdmitPodMonitoring(t *testing.T) {
@@ -238,7 +237,7 @@ func TestServeAdmission(t *testing.T) {
 		},
 	}
 
-	as := NewAdmissionServer(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)))
+	as := NewAdmissionServer(zap.New())
 	for _, c := range cases {
 		t.Run(c.doc, func(t *testing.T) {
 			var (
