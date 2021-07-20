@@ -106,10 +106,7 @@ func newTestContext(t *testing.T) *testContext {
 	}
 
 	go func() {
-		if _, err := op.InitAdmissionResources(ctx, ors...); err != nil {
-			t.Errorf("initializing admission resources: %s", err)
-		}
-		if err := op.Run(ctx); err != nil {
+		if err := op.Run(ctx, ors...); err != nil {
 			// Since we aren't in the main test goroutine we cannot fail with Fatal here.
 			t.Errorf("running operator: %s", err)
 		}
