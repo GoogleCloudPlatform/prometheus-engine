@@ -16,25 +16,16 @@ package operator
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net/http"
+	"io/ioutil"
 	"path"
-	"regexp"
+	"path/filepath"
 	"sort"
-	"strconv"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
-	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
-	"github.com/prometheus/prometheus/discovery"
-	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
-	"github.com/prometheus/prometheus/pkg/relabel"
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -53,6 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
@@ -72,14 +64,6 @@ const (
 	// TODO(freinartz): start setting official versioned images once we start releases.
 	ImageCollector      = "gcr.io/gke-release-staging/prometheus-engine/prometheus:v2.26.1-gpe.2-gke.0"
 	ImageConfigReloader = "gcr.io/gke-release-staging/prometheus-engine/gpe-config-reloader:v0.0.0.gke.0"
-
-	// Kubernetes resource label mapping values.
-	kubeLabelPrefix    = model.MetaLabelPrefix + "kubernetes_"
-	podLabelPrefix     = kubeLabelPrefix + "pod_label_"
-	serviceLabelPrefix = kubeLabelPrefix + "service_label_"
-
-	// Keys for reconciling different sets of operator-managed resources.
-	keyRules = "__rules__"
 )
 
 var (
@@ -98,6 +82,7 @@ type Operator struct {
 	opts       Options
 	kubeClient kubernetes.Interface
 	manager    manager.Manager
+	certDir    string
 }
 
 // Options for the Operator.
@@ -166,6 +151,11 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 	if err != nil {
 		return nil, errors.Wrap(err, "build Kubernetes clientset")
 	}
+	// Create temporary directory to store webhook serving cert files.
+	certDir, err := ioutil.TempDir("", "prometheus-engine-operator-certs")
+	if err != nil {
+		return nil, errors.Wrap(err, "create temporary certificate dir")
+	}
 
 	sc := runtime.NewScheme()
 
@@ -180,6 +170,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 		// Don't run a metrics server with the manager. Metrics are being served
 		// explicitly in the main routine.
 		MetricsBindAddress: "0",
+		CertDir:            certDir,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "create controller manager")
@@ -194,13 +185,15 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 		opts:       opts,
 		kubeClient: kubeClient,
 		manager:    mgr,
+		certDir:    certDir,
 	}
 	return op, nil
 }
 
-// InitAdmissionResources sets state for the operator before monitoring for resources.
-// It returns a web server for handling Kubernetes admission controller webhooks.
-func (o *Operator) InitAdmissionResources(ctx context.Context, ors ...metav1.OwnerReference) (*http.Server, error) {
+// setupAdmissionWebhooks configures validating webhooks for the operator-managed
+// custom resources and registers handlers with the webhook server.
+// The passsed owner references are set on the created WebhookConfiguration resources.
+func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.OwnerReference) error {
 	// Persisting TLS keypair to a k8s secret seems like unnecessary state to manage.
 	// It's fairly trivial to re-generate the cert and private
 	// key on each startup. Also no other GPE resources aside from the operator
@@ -211,59 +204,53 @@ func (o *Operator) InitAdmissionResources(ctx context.Context, ors ...metav1.Own
 	var (
 		crt, key []byte
 		err      error
-		podEp    = "/validate/podmonitorings"
 		fqdn     = fmt.Sprintf("%s.%s.svc", NameOperator, o.opts.OperatorNamespace)
 	)
-
 	// Generate cert/key pair - self-signed CA or kube-apiserver CA.
 	if o.opts.CASelfSign {
 		crt, key, err = cert.GenerateSelfSignedCertKey(fqdn, nil, nil)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	} else {
 		crt, key, err = CreateSignedKeyPair(ctx, o.kubeClient, fqdn)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
+
+	if err := ioutil.WriteFile(filepath.Join(o.certDir, "tls.crt"), crt, 0666); err != nil {
+		return errors.Wrap(err, "create cert file")
+	}
+	if err := ioutil.WriteFile(filepath.Join(o.certDir, "tls.key"), key, 0666); err != nil {
+		return errors.Wrap(err, "create key file")
+	}
+
+	const podEp = "/podmonitorings/v1alpha1/validate"
 
 	// Idempotently request validation webhook spec with caBundle and endpoints.
 	_, err = UpsertValidatingWebhookConfig(ctx,
 		o.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
 		ValidatingWebhookConfig(NameOperator, o.opts.OperatorNamespace, crt, []string{podEp}, ors...))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// Setup HTTPS server.
-	var (
-		tlsCfg = new(tls.Config)
-		mux    = http.NewServeMux()
-		as     = NewAdmissionServer(o.logger)
-	)
+	s := o.manager.GetWebhookServer()
+	s.Register(podEp, admission.ValidatingWebhookFor(&monitoringv1alpha1.PodMonitoring{}))
 
-	// Handle validation resource endpoints.
-	mux.HandleFunc(podEp, as.serveAdmission(admitPodMonitoring))
-
-	// Init TLS config with key pair.
-	if c, err := tls.X509KeyPair(crt, key); err != nil {
-		return nil, err
-	} else {
-		tlsCfg.Certificates = append(tlsCfg.Certificates, c)
-	}
-
-	return &http.Server{
-		Addr:      o.opts.ListenAddr,
-		TLSConfig: tlsCfg,
-		Handler:   mux,
-	}, nil
+	return nil
 }
 
 // Run the reconciliation loop of the operator.
-func (o *Operator) Run(ctx context.Context) error {
+// The passed owner references are set on cluster-wide resources created by the
+// operator.
+func (o *Operator) Run(ctx context.Context,  ors ...metav1.OwnerReference) error {
 	defer runtimeutil.HandleCrash()
 
+	if err := o.setupAdmissionWebhooks(ctx, ors...); err != nil {
+		return errors.Wrap(err, "init admission resources")
+	}
 	if err := setupCollectionControllers(o); err != nil {
 		return errors.Wrap(err, "setup collection controllers")
 	}
@@ -387,7 +374,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						// Pass node name so the config can filter for targets on the local node,
 						Env: []corev1.EnvVar{
 							{
-								Name: envVarNodeName,
+								Name: monitoringv1alpha1.EnvVarNodeName,
 								ValueFrom: &corev1.EnvVarSource{
 									FieldRef: &corev1.ObjectFieldSelector{
 										FieldPath: "spec.nodeName",
@@ -528,18 +515,15 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promco
 			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		for i := range podmon.Spec.Endpoints {
-			scrapeCfg, err := makePodScrapeConfig(&podmon, i)
-			if err != nil {
-				cond.Status = corev1.ConditionFalse
-				logger.Info("generating scrape config failed for PodMonitoring endpoint",
-					"err", err, "namespace", podmon.Namespace, "name", podmon.Name, "endpoint", i)
-				continue
-			}
-			scrapeCfgs = append(scrapeCfgs, scrapeCfg)
-		}
-		err := r.statusState.SetPodMonitoringCondition(&podmon, cond)
+		cfgs, err := podmon.ScrapeConfigs()
 		if err != nil {
+			logger.Error(err, "generating scrape config failed for PodMonitoring endpoint",
+				"namespace", podmon.Namespace, "name", podmon.Name)
+			continue
+		}
+		scrapeCfgs = append(scrapeCfgs, cfgs...)
+
+		if err := r.statusState.SetPodMonitoringCondition(&podmon, cond); err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
 			logger.Error(err, "setting podmonitoring status state")
@@ -570,204 +554,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promco
 	return &promconfig.Config{
 		ScrapeConfigs: scrapeCfgs,
 	}, nil
-}
-
-// Environment variable interpolated by the config reloader sidecar.
-const envVarNodeName = "NODE_NAME"
-
-func makePodScrapeConfig(podmon *monitoringv1alpha1.PodMonitoring, index int) (*promconfig.ScrapeConfig, error) {
-	// Configure how Prometheus talks to the Kubernetes API server to discover targets.
-	// This configuration is the same for all scrape jobs (esp. selectors).
-	// This ensures that Prometheus can reuse the underlying client and caches, which reduces
-	// load on the Kubernetes API server.
-	discoveryCfgs := discovery.Configs{
-		&discoverykube.SDConfig{
-			HTTPClientConfig: config.DefaultHTTPClientConfig,
-			Role:             discoverykube.RolePod,
-			// Drop all potential targets not the same node as the collector. The $(NODE_NAME) variable
-			// is interpolated by the config reloader sidecar before the config reaches the Prometheus collector.
-			// Doing it through selectors rather than relabeling should substantially reduce the client and
-			// server side load.
-			Selectors: []discoverykube.SelectorConfig{
-				{
-					Role:  discoverykube.RolePod,
-					Field: fmt.Sprintf("spec.nodeName=$(%s)", envVarNodeName),
-				},
-			},
-		},
-	}
-
-	ep := podmon.Spec.Endpoints[index]
-
-	// TODO(freinartz): validate all generated regular expressions.
-	relabelCfgs := []*relabel.Config{
-		// Filter targets by namespace of the PodMonitoring configuration.
-		{
-			Action:       relabel.Keep,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
-			Regex:        relabel.MustNewRegexp(podmon.Namespace),
-		},
-	}
-
-	// Filter targets that belong to selected services.
-
-	// Simple equal matchers. Sort by keys first to ensure that generated configs are reproducible.
-	// (Go map iteration is non-deterministic.)
-	var selectorKeys []string
-	for k := range podmon.Spec.Selector.MatchLabels {
-		selectorKeys = append(selectorKeys, k)
-	}
-	sort.Strings(selectorKeys)
-
-	for _, k := range selectorKeys {
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Keep,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(k)},
-			Regex:        relabel.MustNewRegexp(podmon.Spec.Selector.MatchLabels[k]),
-		})
-	}
-	// Expression matchers are mapped to relabeling rules with the same behavior.
-	for _, exp := range podmon.Spec.Selector.MatchExpressions {
-		switch exp.Operator {
-		case metav1.LabelSelectorOpIn:
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Keep,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp(strings.Join(exp.Values, "|")),
-			})
-		case metav1.LabelSelectorOpNotIn:
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Drop,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp(strings.Join(exp.Values, "|")),
-			})
-		case metav1.LabelSelectorOpExists:
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Keep,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_labelpresent_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp("true"),
-			})
-		case metav1.LabelSelectorOpDoesNotExist:
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Drop,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_labelpresent_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp("true"),
-			})
-		}
-	}
-	// Filter targets by the configured port.
-	var portLabel prommodel.LabelName
-	var portValue string
-
-	if ep.Port.StrVal != "" {
-		portLabel = "__meta_kubernetes_pod_container_port_name"
-		portValue = ep.Port.StrVal
-	} else if ep.Port.IntVal != 0 {
-		portLabel = "__meta_kubernetes_pod_container_port_number"
-		portValue = strconv.FormatUint(uint64(ep.Port.IntVal), 10)
-	} else {
-		return nil, errors.New("port must be set for PodMonitoring")
-	}
-
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:       relabel.Keep,
-		SourceLabels: prommodel.LabelNames{portLabel},
-		Regex:        relabel.MustNewRegexp(portValue),
-	})
-
-	// Set a clean namespace, job, and instance label that provide sufficient uniqueness.
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:       relabel.Replace,
-		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
-		TargetLabel:  "namespace",
-	})
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:      relabel.Replace,
-		Replacement: podmon.Name,
-		TargetLabel: "job",
-	})
-	// The instance label being the pod name would be ideal UX-wise. But we cannot be certain
-	// that multiple metrics endpoints on a pod don't expose metrics with the same name. Thus
-	// we have to disambiguate along the port as well.
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:       relabel.Replace,
-		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name", portLabel},
-		Regex:        relabel.MustNewRegexp("(.+);(.+)"),
-		Replacement:  "$1:$2",
-		TargetLabel:  "instance",
-	})
-
-	// Incorporate k8s label remappings from CRD.
-	if pCfgs, err := labelMappingRelabelConfigs(podmon.Spec.TargetLabels.FromPod, podLabelPrefix); err != nil {
-		return nil, errors.Wrap(err, "invalid PodMonitoring target labels")
-	} else {
-		relabelCfgs = append(relabelCfgs, pCfgs...)
-	}
-
-	interval, err := prommodel.ParseDuration(ep.Interval)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid scrape interval")
-	}
-	timeout := interval
-	if ep.Timeout != "" {
-		timeout, err = prommodel.ParseDuration(ep.Timeout)
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid scrape timeout")
-		}
-	}
-
-	metricsPath := "/metrics"
-	if ep.Path != "" {
-		metricsPath = ep.Path
-	}
-
-	return &promconfig.ScrapeConfig{
-		// Generate a job name to make it easy to track what generated the scrape configuration.
-		// The actual job label attached to its metrics is overwritten via relabeling.
-		JobName:                 fmt.Sprintf("PodMonitoring/%s/%s/%s", podmon.Namespace, podmon.Name, portValue),
-		ServiceDiscoveryConfigs: discoveryCfgs,
-		MetricsPath:             metricsPath,
-		ScrapeInterval:          interval,
-		ScrapeTimeout:           timeout,
-		RelabelConfigs:          relabelCfgs,
-	}, nil
-}
-
-// labelMappingRelabelConfigs generates relabel configs using a provided mapping and resource prefix.
-func labelMappingRelabelConfigs(mappings []monitoringv1alpha1.LabelMapping, prefix model.LabelName) ([]*relabel.Config, error) {
-	var relabelCfgs []*relabel.Config
-	for _, m := range mappings {
-		if collision := isPrometheusTargetLabel(m.To); collision {
-			return nil, fmt.Errorf("relabel %q to %q conflicts with GPE target schema", m.From, m.To)
-		}
-		// `To` can be unset, default to `From`.
-		if m.To == "" {
-			m.To = m.From
-		}
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{prefix + sanitizeLabelName(m.From)},
-			TargetLabel:  m.To,
-		})
-	}
-	return relabelCfgs, nil
-}
-
-// isPrometheusTargetLabel returns true if the label argument is in use by the Prometheus target schema.
-func isPrometheusTargetLabel(label string) bool {
-	switch label {
-	case export.KeyProjectID, export.KeyLocation, export.KeyCluster, export.KeyNamespace, export.KeyJob, export.KeyInstance:
-		return true
-	default:
-		return false
-	}
-}
-
-var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
-
-// sanitizeLabelName reproduces the label name cleanup Prometheus's service discovery applies.
-func sanitizeLabelName(name string) prommodel.LabelName {
-	return prommodel.LabelName(invalidLabelCharRE.ReplaceAllString(name, "_"))
 }
 
 func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {

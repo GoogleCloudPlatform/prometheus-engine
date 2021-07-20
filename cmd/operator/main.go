@@ -139,23 +139,6 @@ func main() {
 			cancel()
 		})
 	}
-	// Init and run admission controller server.
-	{
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-		server, err := op.InitAdmissionResources(ctx)
-		cancel()
-		if err != nil {
-			logger.Error(err, "initialize admission resources")
-			os.Exit(1)
-		}
-		g.Add(func() (err error) {
-			return server.ListenAndServeTLS("", "")
-		}, func(err error) {
-			ctx, cancel = context.WithTimeout(context.Background(), time.Minute)
-			server.Shutdown(ctx)
-			cancel()
-		})
-	}
 	// Main operator loop.
 	{
 		ctx, cancel := context.WithCancel(context.Background())

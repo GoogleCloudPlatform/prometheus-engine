@@ -11,7 +11,7 @@ require (
 	github.com/digitalocean/godo v1.62.0 // indirect
 	github.com/docker/docker v20.10.7+incompatible // indirect
 	github.com/go-kit/kit v0.10.0
-	github.com/go-logr/logr v0.4.0 // indirect
+	github.com/go-logr/logr v0.4.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.6
 	github.com/gophercloud/gophercloud v0.18.0 // indirect
@@ -36,6 +36,7 @@ require (
 	github.com/thanos-io/thanos v0.17.2
 	github.com/uber/jaeger-client-go v2.29.1+incompatible // indirect
 	go.uber.org/atomic v1.8.0 // indirect
+	go.uber.org/zap v1.17.0
 	golang.org/x/net v0.0.0-20210610132358-84b48f89b13b // indirect
 	golang.org/x/sys v0.0.0-20210611083646-a4fc73990273 // indirect
 	golang.org/x/tools v0.1.3 // indirect
