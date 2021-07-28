@@ -30,3 +30,7 @@ assets:
 	DOCKER_BUILDKIT=1 docker build -f ./cmd/frontend/Dockerfile --target assets --tag gpe-tmp/assets .
 	echo -e 'FROM scratch\nCOPY --from=gpe-tmp/assets /app/pkg/ui/assets_vfsdata.go pkg/ui/assets_vfsdata.go' | DOCKER_BUILDKIT=1 docker build -o . -
 	docker image rm gpe-tmp/assets
+
+test:
+	go test `go list ./... | grep -v operator/e2e`
+	go test -short `go list ./... | grep operator/e2e` -args -project-id=test-proj -cluster=test-cluster
