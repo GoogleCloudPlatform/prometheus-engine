@@ -26,7 +26,7 @@ import (
 )
 
 type pathResource struct {
-	path     *string
+	path     string
 	resource metav1.GroupVersionResource
 }
 
@@ -59,7 +59,7 @@ func validatingWebhookConfig(name, namespace string, caBundle []byte, prs []path
 					Service: &arv1.ServiceReference{
 						Name:      name,
 						Namespace: namespace,
-						Path:      path,
+						Path:      &path,
 					},
 					CABundle: caBundle,
 				},

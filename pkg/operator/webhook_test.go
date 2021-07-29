@@ -22,7 +22,6 @@ import (
 
 	monitoring "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
-	"google.golang.org/protobuf/proto"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -34,7 +33,7 @@ func TestValidatingWebhookConfig(t *testing.T) {
 		ctx, cancel = context.WithTimeout(context.Background(), timeout)
 		prs         = []pathResource{
 			{
-				path:     proto.String("/podmonitorings/v1alpha1/validate"),
+				path:     "/podmonitorings/v1alpha1/validate",
 				resource: v1alpha1.PodMonitoringResource(),
 			},
 		}
