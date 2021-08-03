@@ -17,10 +17,7 @@ package operator
 import (
 	"context"
 	"fmt"
-	"path"
 
-	monitoring "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	"github.com/pkg/errors"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,11 +25,15 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/admissionregistration/v1"
 )
 
-// ValidatingWebhookConfig returns a config for a webhook that listens for CREATE and UPDATE on GPE resources.
-// The resource kind is pulled from the basename of any given endpoint, and must be the plural,
-// e.g. `/validate/podmonitorings`.
+type pathResource struct {
+	path     *string
+	resource metav1.GroupVersionResource
+}
+
+// ValidatingWebhookConfig returns a config for a webhook that listens for
+// CREATE and UPDATE on provided resources.
 // The default policy for any failed resource admission is to Ignore.
-func ValidatingWebhookConfig(name, namespace string, caBundle []byte, endpoints []string, ors ...metav1.OwnerReference) *arv1.ValidatingWebhookConfiguration {
+func ValidatingWebhookConfig(name, namespace string, caBundle []byte, prs []pathResource, ors ...metav1.OwnerReference) *arv1.ValidatingWebhookConfiguration {
 	var (
 		vwc = &arv1.ValidatingWebhookConfiguration{
 			// Note: this is a "namespace-less" resource.
@@ -46,12 +47,11 @@ func ValidatingWebhookConfig(name, namespace string, caBundle []byte, endpoints 
 	)
 
 	// Create webhook for each endpoint.
-	for _, ep := range endpoints {
-		// Init new memory address.
-		p := ep
-		// Assuming endpoint is of form "/path/to/plural-resourcename",
-		// e.g. "/validate/podmonitorings".
-		res := path.Base(p)
+	for _, pr := range prs {
+		path := pr.path
+		group := pr.resource.Group
+		ver := pr.resource.Version
+		res := pr.resource.Resource
 		vwc.Webhooks = append(vwc.Webhooks,
 			arv1.ValidatingWebhook{
 				Name: fmt.Sprintf("%s.%s.%s.svc", res, name, namespace),
@@ -59,7 +59,7 @@ func ValidatingWebhookConfig(name, namespace string, caBundle []byte, endpoints 
 					Service: &arv1.ServiceReference{
 						Name:      name,
 						Namespace: namespace,
-						Path:      &p,
+						Path:      path,
 					},
 					CABundle: caBundle,
 				},
@@ -67,8 +67,8 @@ func ValidatingWebhookConfig(name, namespace string, caBundle []byte, endpoints 
 					{
 						Operations: []arv1.OperationType{arv1.Create, arv1.Update},
 						Rule: arv1.Rule{
-							APIGroups:   []string{monitoring.GroupName},
-							APIVersions: []string{v1alpha1.Version},
+							APIGroups:   []string{group},
+							APIVersions: []string{ver},
 							Resources:   []string{res},
 						},
 					},

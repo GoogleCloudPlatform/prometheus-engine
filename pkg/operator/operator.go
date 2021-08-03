@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	promconfig "github.com/prometheus/prometheus/config"
+	"google.golang.org/protobuf/proto"
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -47,6 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/rules"
 )
@@ -231,7 +233,8 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 	// Idempotently request validation webhook spec with caBundle and endpoints.
 	_, err = UpsertValidatingWebhookConfig(ctx,
 		o.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
-		ValidatingWebhookConfig(NameOperator, o.opts.OperatorNamespace, crt, []string{podEp}, ors...))
+		ValidatingWebhookConfig(NameOperator, o.opts.OperatorNamespace, crt,
+			[]pathResource{{path: proto.String(podEp), resource: v1alpha1.PodMonitoringResource()}}, ors...))
 	if err != nil {
 		return err
 	}
@@ -245,7 +248,7 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 // Run the reconciliation loop of the operator.
 // The passed owner references are set on cluster-wide resources created by the
 // operator.
-func (o *Operator) Run(ctx context.Context,  ors ...metav1.OwnerReference) error {
+func (o *Operator) Run(ctx context.Context, ors ...metav1.OwnerReference) error {
 	defer runtimeutil.HandleCrash()
 
 	if err := o.setupAdmissionWebhooks(ctx, ors...); err != nil {
