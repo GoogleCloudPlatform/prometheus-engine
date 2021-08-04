@@ -185,6 +185,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 	}
 	if reg != nil {
 		reg.MustRegister(
+			prometheusSamplesDiscarded,
 			samplesExported,
 			samplesDropped,
 			samplesSent,
