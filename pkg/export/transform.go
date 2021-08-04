@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/pkg/textparse"
 	"github.com/prometheus/prometheus/pkg/value"
@@ -30,6 +31,16 @@ import (
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
 	distribution_pb "google.golang.org/genproto/googleapis/api/distribution"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
+)
+
+var (
+	prometheusSamplesDiscarded = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gcm_prometheus_samples_discarded_total",
+			Help: "Samples that were discarded during data model conversion.",
+		},
+		[]string{"reason"},
+	)
 )
 
 type sampleBuilder struct {
@@ -117,11 +128,13 @@ func (b *sampleBuilder) next(metadata MetadataFunc, samples []record.RefSample) 
 
 	// Staleness markers are currently not supported by Cloud Monitoring.
 	if value.IsStaleNaN(sample.V) {
+		prometheusSamplesDiscarded.WithLabelValues("staleness-marker").Inc()
 		return nil, 0, tailSamples, nil
 	}
 
 	entry, ok := b.series.get(sample, metadata)
 	if !ok {
+		prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
 		return nil, 0, tailSamples, nil
 	}
 
@@ -238,7 +251,7 @@ Loop:
 		e, ok := b.series.get(s, metadata)
 		if !ok {
 			consumed++
-			// TODO(fabxc): increment metric.
+			prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
 			continue
 		}
 		name := e.lset.Get("__name__")
@@ -271,7 +284,7 @@ Loop:
 			upper, err := strconv.ParseFloat(e.lset.Get("le"), 64)
 			if err != nil {
 				consumed++
-				// TODO(fabxc): increment metric.
+				prometheusSamplesDiscarded.WithLabelValues("malformed-bucket-le-label").Inc()
 				continue
 			}
 			dist.bounds = append(dist.bounds, upper)
@@ -291,6 +304,7 @@ Loop:
 	// If no sample was consumed at all, the input was wrong and we consume at least
 	// one sample to not get stuck in a loop.
 	if consumed == 0 {
+		prometheusSamplesDiscarded.WithLabelValues("zero-histogram-samples-processed").Inc()
 		return nil, 0, samples[1:], errors.New("no sample consumed for histogram")
 	}
 	// Don't emit a sample if we explicitly skip it or no reset timestamp was set because the
@@ -325,6 +339,12 @@ Loop:
 		lower = upper
 		prevVal = dist.values[i]
 		values = append(values, val)
+	}
+	// Catch distributions which are rejected by the CreateTimeSeries API and potentially
+	// make the entire batch fail.
+	if len(bounds) == 0 {
+		prometheusSamplesDiscarded.WithLabelValues("zero-buckets-bounds").Add(float64(consumed))
+		return nil, 0, samples[consumed:], nil
 	}
 	d := &distribution_pb.Distribution{
 		Count:                 int64(count),

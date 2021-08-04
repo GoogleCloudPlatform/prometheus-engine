@@ -688,7 +688,7 @@ func TestSampleBuilder(t *testing.T) {
 					}},
 				},
 			},
-		}, {}, {
+		}, {
 			doc: "convert histogram",
 			metadata: testMetadataFunc(metricMetadataMap{
 				"metric1":         {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
@@ -704,10 +704,11 @@ func TestSampleBuilder(t *testing.T) {
 				7: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "+Inf"),
 				// Add another series that only deviates by having an extra label. We must properly detect a new histogram.
 				// This is a discouraged but possible case of metric labeling.
-				8: labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_sum"),
-				9: labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_count"),
+				8:  labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_sum"),
+				9:  labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_count"),
+				10: labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_bucket", "le", "2.5"),
 				// Metric with prefix and suffix matching the previous histograms but actually a distinct metric.
-				10: labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_a_count"),
+				11: labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_a_count"),
 			},
 			samples: []record.RefSample{
 				// Mix up order of the series to test bucket sorting.
@@ -727,13 +728,15 @@ func TestSampleBuilder(t *testing.T) {
 				{Ref: 1, T: 2000, V: 123.4}, // sum
 				{Ref: 7, T: 2000, V: 21},    // inf
 				{Ref: 4, T: 2000, V: 9},     // 0.5
-				// New histogram without actual buckets – should still work.
+				// New histogram with different labels – should still work.
 				{Ref: 8, T: 1000, V: 100},
 				{Ref: 9, T: 1000, V: 10},
+				{Ref: 10, T: 1000, V: 10},
 				{Ref: 8, T: 2000, V: 115},
 				{Ref: 9, T: 2000, V: 13},
+				{Ref: 10, T: 2000, V: 10},
 				// Different metric with prefix common with previous histograms.
-				{Ref: 10, T: 1000, V: 3},
+				{Ref: 11, T: 1000, V: 3},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				nil, // 0: skipped by reset handling.
@@ -812,11 +815,11 @@ func TestSampleBuilder(t *testing.T) {
 									BucketOptions: &distribution_pb.Distribution_BucketOptions{
 										Options: &distribution_pb.Distribution_BucketOptions_ExplicitBuckets{
 											ExplicitBuckets: &distribution_pb.Distribution_BucketOptions_Explicit{
-												Bounds: []float64{},
+												Bounds: []float64{2.5},
 											},
 										},
 									},
-									BucketCounts: []int64{},
+									BucketCounts: []int64{0},
 								},
 							},
 						},
@@ -849,6 +852,51 @@ func TestSampleBuilder(t *testing.T) {
 						},
 					}},
 				},
+			},
+		}, {
+			doc: "histogram with 0 buckets is ignored",
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+			}),
+			series: seriesMap{
+				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
+				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
+			},
+			samples: []record.RefSample{
+				// Add two samples for each series as the first ones are discarded for reset
+				// handling regardless of the zero bucket count.
+				{Ref: 1, T: 1000, V: 5},
+				{Ref: 2, T: 1000, V: 2},
+				{Ref: 1, T: 2000, V: 5},
+				{Ref: 2, T: 2000, V: 2},
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				nil, // skipped by reset handling.
+				nil, // skipped due to zero buckets.
+			},
+		}, {
+			doc: "histogram with only Inf buckets is ignored",
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+			}),
+			series: seriesMap{
+				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
+				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
+				3: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "+Inf"),
+			},
+			samples: []record.RefSample{
+				// Add two samples for each series as the first ones are discarded for reset
+				// handling regardless of the zero bucket bounds count.
+				{Ref: 1, T: 1000, V: 5},
+				{Ref: 2, T: 1000, V: 2},
+				{Ref: 3, T: 1000, V: 2},
+				{Ref: 1, T: 2000, V: 5},
+				{Ref: 2, T: 2000, V: 2},
+				{Ref: 3, T: 2000, V: 2},
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				nil, // skipped by reset handling.
+				nil, // skipped due to zero buckets.
 			},
 		}, {
 			doc:      "metadata is nil",
