@@ -333,6 +333,14 @@ Loop:
 		}
 
 		val := dist.values[i] - prevVal
+		// val should never be negative and it most likely indicates a bug or a data race in a scraped
+		// metrics endpoint.
+		// It's a possible caused of the zero-count issue below so we catch it here early.
+		if val < 0 {
+			prometheusSamplesDiscarded.WithLabelValues("negative-bucket-count").Add(float64(consumed))
+			err := errors.Errorf("invalid bucket with negative count: count=%f, sum=%f, dev=%f, index=%d buckets=%v", count, sum, dev, i, dist)
+			return nil, 0, samples[consumed:], err
+		}
 		x := (lower + upper) / 2
 		dev += float64(val) * (x - mean) * (x - mean)
 
@@ -345,6 +353,16 @@ Loop:
 	if len(bounds) == 0 {
 		prometheusSamplesDiscarded.WithLabelValues("zero-buckets-bounds").Add(float64(consumed))
 		return nil, 0, samples[consumed:], nil
+	}
+	// Deviation and mean must be 0 if count is 0. We've got reports about samples with a negative
+	// deviation and 0 count being sent.
+	// Return an error to allow debugging this as it shouldn't happen under normal circumstances:
+	// Deviation can only become negative if one histogram bucket has a lower value than the previous
+	// one, which violates histogram's invariant.
+	if count == 0 && (mean != 0 || dev != 0) {
+		prometheusSamplesDiscarded.WithLabelValues("zero-count-violation").Add(float64(consumed))
+		err := errors.Errorf("invalid histogram with 0 count: count=%f, sum=%f, dev=%f, buckets=%v", count, sum, dev, dist)
+		return nil, 0, samples[consumed:], err
 	}
 	d := &distribution_pb.Distribution{
 		Count:                 int64(count),
