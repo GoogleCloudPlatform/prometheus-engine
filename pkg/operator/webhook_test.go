@@ -58,9 +58,9 @@ func TestValidatingWebhookConfig(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.doc, func(t *testing.T) {
-			vwCfg, err := UpsertValidatingWebhookConfig(ctx,
+			vwCfg, err := upsertValidatingWebhookConfig(ctx,
 				client.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
-				ValidatingWebhookConfig("gpe-operator", "gpe-system", c.caBundle, prs))
+				validatingWebhookConfig("gpe-operator", "gpe-system", c.caBundle, prs))
 			if err != nil {
 				t.Fatalf("upserting validtingwebhookconfig: %s", err)
 			}
