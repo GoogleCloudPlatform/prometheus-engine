@@ -231,9 +231,9 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 	const podEp = "/podmonitorings/v1alpha1/validate"
 
 	// Idempotently request validation webhook spec with caBundle and endpoints.
-	_, err = UpsertValidatingWebhookConfig(ctx,
+	_, err = upsertValidatingWebhookConfig(ctx,
 		o.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
-		ValidatingWebhookConfig(NameOperator, o.opts.OperatorNamespace, crt,
+		validatingWebhookConfig(NameOperator, o.opts.OperatorNamespace, crt,
 			[]pathResource{{path: proto.String(podEp), resource: v1alpha1.PodMonitoringResource()}}, ors...))
 	if err != nil {
 		return err

@@ -30,10 +30,10 @@ type pathResource struct {
 	resource metav1.GroupVersionResource
 }
 
-// ValidatingWebhookConfig returns a config for a webhook that listens for
+// validatingWebhookConfig returns a config for a webhook that listens for
 // CREATE and UPDATE on provided resources.
 // The default policy for any failed resource admission is to Ignore.
-func ValidatingWebhookConfig(name, namespace string, caBundle []byte, prs []pathResource, ors ...metav1.OwnerReference) *arv1.ValidatingWebhookConfiguration {
+func validatingWebhookConfig(name, namespace string, caBundle []byte, prs []pathResource, ors ...metav1.OwnerReference) *arv1.ValidatingWebhookConfiguration {
 	var (
 		vwc = &arv1.ValidatingWebhookConfiguration{
 			// Note: this is a "namespace-less" resource.
@@ -81,9 +81,9 @@ func ValidatingWebhookConfig(name, namespace string, caBundle []byte, prs []path
 	return vwc
 }
 
-// UpsertValidatingWebhookConfig attempts to create or update a validatingwebhookconfiguration
+// upsertValidatingWebhookConfig attempts to create or update a validatingwebhookconfiguration
 // resource if one exists.
-func UpsertValidatingWebhookConfig(ctx context.Context, api v1.ValidatingWebhookConfigurationInterface, in *arv1.ValidatingWebhookConfiguration) (*arv1.ValidatingWebhookConfiguration, error) {
+func upsertValidatingWebhookConfig(ctx context.Context, api v1.ValidatingWebhookConfigurationInterface, in *arv1.ValidatingWebhookConfiguration) (*arv1.ValidatingWebhookConfiguration, error) {
 	out, err := api.Create(ctx, in, metav1.CreateOptions{})
 	switch {
 	case err == nil:
