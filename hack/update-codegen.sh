@@ -23,7 +23,6 @@ SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 # We want to version the code generation with our Go modules to avoid incompatibilities.
 # Thus, while we don't want to use a vendor/ directory in general, we create it once to make
 # this script work. Afterwards we delete it again.
-trap "rm -rf $SCRIPT_ROOT/vendor/" EXIT
 go mod vendor
 
 CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}

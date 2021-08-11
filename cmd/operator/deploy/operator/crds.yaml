@@ -12,34 +12,242 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: podmonitorings.monitoring.googleapis.com
 spec:
-  additionalPrinterColumns:
-  - name: status
-    JSONPath: .status.conditions[*].type
-    type: string
   group: monitoring.googleapis.com
-  version: v1alpha1
   names:
     kind: PodMonitoring
     plural: podmonitorings
+  versions:
+    - name: v1alpha1
+      subresources:
+        status: {}
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: status
+          jsonPath: .status.conditions[*].type
+          type: string
+      "schema":
+        "openAPIV3Schema":
+          description: PodMonitoring defines monitoring for a set of pods.
+          type: object
+          required:
+            - spec
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: Specification of desired Pod selection for target discovery by Prometheus.
+              type: object
+              required:
+                - endpoints
+                - selector
+              properties:
+                endpoints:
+                  type: array
+                  items:
+                    description: ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
+                    type: object
+                    properties:
+                      interval:
+                        description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
+                        type: string
+                      path:
+                        description: HTTP path to scrape metrics from. Defaults to "/metrics".
+                        type: string
+                      port:
+                        description: Name or number of the port to scrape.
+                        anyOf:
+                          - type: integer
+                          - type: string
+                        x-kubernetes-int-or-string: true
+                      timeout:
+                        description: Timeout for metrics scrapes. Must be a valid Prometheus duration.
+                        type: string
+                selector:
+                  description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
+                  type: object
+                  properties:
+                    matchExpressions:
+                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      type: array
+                      items:
+                        description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                        type: object
+                        required:
+                          - key
+                          - operator
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies to.
+                            type: string
+                          operator:
+                            description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                            type: string
+                          values:
+                            description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                            type: array
+                            items:
+                              type: string
+                    matchLabels:
+                      description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                      type: object
+                      additionalProperties:
+                        type: string
+                targetLabels:
+                  description: TargetLabels groups label mappings by Kubernetes resource.
+                  type: object
+                  properties:
+                    fromPod:
+                      description: 'Labels to transfer from the Kubernetes Pod to Prometheus target labels. In the case of a label mapping conflict: - Mappings at the end of the array take precedence.'
+                      type: array
+                      items:
+                        description: LabelMapping specifies how to transfer a label from a Kubernetes resource onto a Prometheus target.
+                        type: object
+                        required:
+                          - from
+                        properties:
+                          from:
+                            description: Kubenetes resource label to remap.
+                            type: string
+                          to:
+                            description: Remapped Prometheus target label. Defaults to the same name as `From`.
+                            type: string
+            status:
+              description: Most recently observed status of the resource.
+              type: object
+              properties:
+                conditions:
+                  description: Represents the latest available observations of a podmonitor's current state.
+                  type: array
+                  items:
+                    description: MonitoringCondition describes a condition of a PodMonitoring.
+                    type: object
+                    required:
+                      - status
+                      - type
+                    properties:
+                      lastTransitionTime:
+                        description: Last time the condition transitioned from one status to another.
+                        type: string
+                        format: date-time
+                      lastUpdateTime:
+                        description: The last time this condition was updated.
+                        type: string
+                        format: date-time
+                      message:
+                        description: A human-readable message indicating details about the transition.
+                        type: string
+                      reason:
+                        description: The reason for the condition's last transition.
+                        type: string
+                      status:
+                        description: Status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: MonitoringConditionType is the type of MonitoringCondition.
+                        type: string
+                observedGeneration:
+                  description: The generation observed by the controller.
+                  type: integer
+                  format: int64
   scope: Namespaced
-  subresources:
-    status: {}
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: rules.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
-  version: v1alpha1
   names:
     kind: Rules
     plural: rules
+  versions:
+    - name: v1alpha1
+      subresources:
+        status: {}
+      served: true
+      storage: true
+      "schema":
+        "openAPIV3Schema":
+          description: Rules defines Prometheus alerting and recording rules.
+          type: object
+          required:
+            - spec
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: Specification of desired Pod selection for target discovery by Prometheus.
+              type: object
+              required:
+                - groups
+                - scope
+              properties:
+                groups:
+                  type: array
+                  items:
+                    description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                    type: object
+                    required:
+                      - interval
+                      - name
+                      - rules
+                    properties:
+                      interval:
+                        type: string
+                      name:
+                        type: string
+                      rules:
+                        type: array
+                        items:
+                          description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                          type: object
+                          required:
+                            - alert
+                            - annotations
+                            - expr
+                            - for
+                            - labels
+                            - record
+                          properties:
+                            alert:
+                              type: string
+                            annotations:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            expr:
+                              type: string
+                            for:
+                              type: string
+                            labels:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            record:
+                              type: string
+                scope:
+                  description: Scope of metric data a set of rules applies to.
+                  type: string
+            status:
+              description: Most recently observed status of the resource.
+              type: object
   scope: Namespaced
-  subresources:
-    status: {}
+---
