@@ -26,6 +26,7 @@ import (
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	gax "github.com/googleapis/gax-go/v2"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -63,14 +64,26 @@ var (
 		Name: "gcm_export_shard_process_pending_total",
 		Help: "Number of shard retrievals with an empty result.",
 	})
-	shardProcessSamplesTaken = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name:       "gcm_export_shard_process_samples_taken",
-		Help:       "Number of samples taken when processing a shard.",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+	shardProcessSamplesTaken = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "gcm_export_shard_process_samples_taken",
+		Help: "Number of samples taken when processing a shard.",
+		// Limit buckets to 200, which is the real-world batch size for GCM.
+		Buckets: []float64{1, 2, 5, 10, 20, 50, 100, 150, 200},
 	})
 	pendingRequests = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "gcm_export_pending_requests",
 		Help: "Number of in-flight requests to GCM.",
+	})
+	projectsPerBatch = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "gcm_export_projects_per_batch",
+		Help:    "Number of different projects in a batch that's being sent.",
+		Buckets: []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024},
+	})
+	samplesPerRPCBatch = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "gcm_export_samples_per_rpc_batch",
+		Help: "Number of samples that ended up in a single RPC batch.",
+		// Limit buckets to 200, which is the real-world batch size for GCM.
+		Buckets: []float64{1, 2, 5, 10, 20, 50, 100, 150, 200},
 	})
 )
 
@@ -194,6 +207,8 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 			shardProcessPending,
 			shardProcessSamplesTaken,
 			pendingRequests,
+			projectsPerBatch,
+			samplesPerRPCBatch,
 		)
 	}
 
@@ -331,12 +346,9 @@ func (e *Exporter) Export(metadata MetadataFunc, samples []record.RefSample) {
 		sample, hash, samples, err = e.builder.next(metadata, samples)
 		if err != nil {
 			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
+			continue
 		}
 		if sample != nil {
-			if p := sample.Resource.Labels[KeyProjectID]; p != e.opts.ProjectID {
-				level.Warn(e.logger).Log("msg", "exporting to different projects not supported yet", "want", e.opts.ProjectID, "got", p)
-				continue
-			}
 			e.enqueue(hash, sample)
 		}
 	}
@@ -424,20 +436,20 @@ func (e *Exporter) Run(ctx context.Context) error {
 
 	// The batch and the shards that have contributed data to it so far.
 	var (
-		batch         = newBatch(e.logger, e.opts.ProjectID, e.opts.BatchSize)
+		batch         = newBatch(e.logger, e.opts.BatchSize)
 		pendingShards = make([]*shard, 0, shardCount)
 	)
 
 	// Send the currently accumulated batch to GCM asynchronously.
 	send := func() {
-		go batch.send(ctx, metricClient, pendingShards)
+		go batch.send(ctx, pendingShards, metricClient.CreateTimeSeries)
 
 		// Reset state for new batch.
 		stopTimer()
 		timer.Reset(batchDelayMax)
 
 		pendingShards = make([]*shard, 0, shardCount)
-		batch = newBatch(e.logger, e.opts.ProjectID, e.opts.BatchSize)
+		batch = newBatch(e.logger, e.opts.BatchSize)
 	}
 
 	// Starting index when iterating over shards. This ensures we don't always start at 0 so that
@@ -513,47 +525,99 @@ func MetadataFuncFromContext(ctx context.Context) (MetadataFunc, bool) {
 }
 
 type batch struct {
-	logger    log.Logger
-	projectID string
-	l         []*monitoring_pb.TimeSeries
+	logger  log.Logger
+	maxSize uint
+
+	m       map[string][]*monitoring_pb.TimeSeries
+	oneFull bool
+	total   int
 }
 
-func newBatch(logger log.Logger, projectID string, maxSize uint) *batch {
+func newBatch(logger log.Logger, maxSize uint) *batch {
+	if logger == nil {
+		logger = log.NewNopLogger()
+	}
 	return &batch{
-		logger:    logger,
-		projectID: projectID,
-		l:         make([]*monitoring_pb.TimeSeries, 0, maxSize),
+		logger:  logger,
+		maxSize: maxSize,
+		m:       make(map[string][]*monitoring_pb.TimeSeries, 1),
 	}
 }
 
+// add a new sample to the batch. Must only be called after full() returned false.
 func (b *batch) add(s *monitoring_pb.TimeSeries) {
-	b.l = append(b.l, s)
-}
+	pid := s.Resource.Labels[KeyProjectID]
 
-func (b *batch) full() bool {
-	return len(b.l) >= cap(b.l)
-}
-
-func (b *batch) empty() bool {
-	return len(b.l) == 0
-}
-
-func (b *batch) send(ctx context.Context, client *monitoring.MetricClient, pendingShards []*shard) {
-	pendingRequests.Inc()
-
-	// We do not retry any requests due to the risk of producing a backlog
-	// that cannot be worked down, especially if large amounts of clients try to do so.
-	err := client.CreateTimeSeries(ctx, &monitoring_pb.CreateTimeSeriesRequest{
-		Name:       fmt.Sprintf("projects/%s", b.projectID),
-		TimeSeries: b.l,
-	})
-	if err != nil {
-		level.Error(b.logger).Log("msg", "send batch", "err", err)
+	l, ok := b.m[pid]
+	if !ok {
+		l = make([]*monitoring_pb.TimeSeries, 0, b.maxSize)
 	}
-	pendingRequests.Dec()
-	samplesSent.Add(float64(len(b.l)))
+	l = append(l, s)
+	b.m[pid] = l
+
+	if len(l) == cap(l) {
+		b.oneFull = true
+	}
+	b.total++
+}
+
+// full returns whether the batch is full. Being full means that add() must not be called again
+// and it guarantees that at most one request per project with at most maxSize samples is made.
+func (b *batch) full() bool {
+	// We determine that a batch is full if at least one project's batch is full.
+	//
+	// TODO(freinartz): We could add further conditions here like the total number projects or samples so we don't
+	// accumulate too many requests that block the shards that contributed to the batch.
+	// However, this may in turn result in too many small requests in flight.
+	// Another option is to limit the number of shards contributing to a single batch.
+	return b.oneFull
+}
+
+// empty returns true if the batch contains no samples.
+func (b *batch) empty() bool {
+	return b.total == 0
+}
+
+// send the accumulated samples to their respective projects. It returns once all
+// requests have completed and notifies the pending shards.
+func (b batch) send(
+	ctx context.Context,
+	pendingShards []*shard,
+	sendOne func(context.Context, *monitoring_pb.CreateTimeSeriesRequest, ...gax.CallOption) error,
+) {
+	// Set timeout so slow requests in the batch do not block overall progress indefinitely.
+	sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	projectsPerBatch.Observe(float64(len(b.m)))
+	var wg sync.WaitGroup
+
+	for pid, l := range b.m {
+		wg.Add(1)
+
+		go func(pid string, l []*monitoring_pb.TimeSeries) {
+			defer wg.Done()
+
+			pendingRequests.Inc()
+			defer pendingRequests.Dec()
+
+			samplesPerRPCBatch.Observe(float64(len(l)))
+
+			// We do not retry any requests due to the risk of producing a backlog
+			// that cannot be worked down, especially if large amounts of clients try to do so.
+			err := sendOne(sendCtx, &monitoring_pb.CreateTimeSeriesRequest{
+				Name:       fmt.Sprintf("projects/%s", pid),
+				TimeSeries: l,
+			})
+			if err != nil {
+				level.Error(b.logger).Log("msg", "send batch", "size", len(l), "err", err)
+			}
+			samplesSent.Add(float64(len(l)))
+		}(pid, l)
+	}
+	wg.Wait()
 
 	for _, s := range pendingShards {
-		s.notifyBatchDone()
+		s.notifyDone()
 	}
 }

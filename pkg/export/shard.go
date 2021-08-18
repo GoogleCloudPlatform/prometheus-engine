@@ -108,7 +108,7 @@ func (s *shard) setPending(b bool) {
 	s.pending = b
 }
 
-func (s *shard) notifyBatchDone() {
+func (s *shard) notifyDone() {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	s.setPending(false)

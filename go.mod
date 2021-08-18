@@ -14,6 +14,7 @@ require (
 	github.com/go-logr/logr v0.4.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.6
+	github.com/googleapis/gax-go/v2 v2.0.5
 	github.com/gophercloud/gophercloud v0.18.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hetznercloud/hcloud-go v1.26.2 // indirect
