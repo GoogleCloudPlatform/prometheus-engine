@@ -58,7 +58,7 @@ func (s *shard) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
 
 // fill adds samples to the batch until its capacity is reached or the shard
 // has no more samples for series that are not in the batch yet.
-func (s *shard) fill(batch *[]*monitoring_pb.TimeSeries) int {
+func (s *shard) fill(batch *batch) int {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -70,11 +70,12 @@ func (s *shard) fill(batch *[]*monitoring_pb.TimeSeries) int {
 	}
 	n := 0
 
-	for len(*batch) < cap(*batch) {
+	for !batch.full() {
 		e, ok := s.queue.peek()
 		if !ok {
 			break
 		}
+
 		// If we already added a sample for the same series to the batch, stop
 		// the filling entirely.
 		if _, ok := s.seen[e.hash]; ok {
@@ -82,7 +83,7 @@ func (s *shard) fill(batch *[]*monitoring_pb.TimeSeries) int {
 		}
 		s.queue.remove()
 
-		*batch = append(*batch, e.sample)
+		batch.add(e.sample)
 		s.seen[e.hash] = struct{}{}
 		n++
 	}
