@@ -424,32 +424,20 @@ func (e *Exporter) Run(ctx context.Context) error {
 
 	// The batch and the shards that have contributed data to it so far.
 	var (
-		batch         = make([]*monitoring_pb.TimeSeries, 0, e.opts.BatchSize)
+		batch         = newBatch(e.logger, e.opts.ProjectID, e.opts.BatchSize)
 		pendingShards = make([]*shard, 0, shardCount)
 	)
 
 	// Send the currently accumulated batch to GCM asynchronously.
 	send := func() {
-		pendingRequests.Inc()
-
-		go func(batch []*monitoring_pb.TimeSeries, pendingShards []*shard) {
-			if err := e.send(ctx, metricClient, batch); err != nil {
-				level.Error(e.logger).Log("msg", "send batch", "err", err)
-			}
-			samplesSent.Add(float64(len(batch)))
-
-			for _, s := range pendingShards {
-				s.notifyBatchDone()
-			}
-			pendingRequests.Dec()
-		}(batch, pendingShards)
+		go batch.send(ctx, metricClient, pendingShards)
 
 		// Reset state for new batch.
 		stopTimer()
 		timer.Reset(batchDelayMax)
 
 		pendingShards = make([]*shard, 0, shardCount)
-		batch = make([]*monitoring_pb.TimeSeries, 0, e.opts.BatchSize)
+		batch = newBatch(e.logger, e.opts.ProjectID, e.opts.BatchSize)
 	}
 
 	// Starting index when iterating over shards. This ensures we don't always start at 0 so that
@@ -481,10 +469,10 @@ func (e *Exporter) Run(ctx context.Context) error {
 				shardOffset = (shardOffset + 1) % len(e.shards)
 				shard := e.shards[shardOffset]
 
-				if took := shard.fill(&batch); took > 0 {
+				if took := shard.fill(batch); took > 0 {
 					pendingShards = append(pendingShards, shard)
 				}
-				if len(batch) == cap(batch) {
+				if batch.full() {
 					send()
 				}
 			}
@@ -495,25 +483,13 @@ func (e *Exporter) Run(ctx context.Context) error {
 
 		case <-timer.C:
 			// Flush batch that has been pending for too long.
-			if len(batch) > 0 {
+			if !batch.empty() {
 				send()
 			} else {
 				timer.Reset(batchDelayMax)
 			}
 		}
 	}
-}
-
-func (e *Exporter) send(ctx context.Context, client *monitoring.MetricClient, batch []*monitoring_pb.TimeSeries) error {
-	// Currently we do not retry any requests due to the risk of producing a backlog
-	// that cannot be worked down, especially if large amounts of clients try to do so.
-	//
-	// TODO(freinartz): The batch may contain samples for multiple projects. They need to
-	// be split up.
-	return client.CreateTimeSeries(ctx, &monitoring_pb.CreateTimeSeriesRequest{
-		Name:       fmt.Sprintf("projects/%s", e.opts.ProjectID),
-		TimeSeries: batch,
-	})
 }
 
 // CtxKey is a dedicated type for keys of context-embedded values propagated
@@ -534,4 +510,50 @@ func WithMetadataFunc(ctx context.Context, mf MetadataFunc) context.Context {
 func MetadataFuncFromContext(ctx context.Context) (MetadataFunc, bool) {
 	mf, ok := ctx.Value(ctxKeyMetadata).(MetadataFunc)
 	return mf, ok
+}
+
+type batch struct {
+	logger    log.Logger
+	projectID string
+	l         []*monitoring_pb.TimeSeries
+}
+
+func newBatch(logger log.Logger, projectID string, maxSize uint) *batch {
+	return &batch{
+		logger:    logger,
+		projectID: projectID,
+		l:         make([]*monitoring_pb.TimeSeries, 0, maxSize),
+	}
+}
+
+func (b *batch) add(s *monitoring_pb.TimeSeries) {
+	b.l = append(b.l, s)
+}
+
+func (b *batch) full() bool {
+	return len(b.l) >= cap(b.l)
+}
+
+func (b *batch) empty() bool {
+	return len(b.l) == 0
+}
+
+func (b *batch) send(ctx context.Context, client *monitoring.MetricClient, pendingShards []*shard) {
+	pendingRequests.Inc()
+
+	// We do not retry any requests due to the risk of producing a backlog
+	// that cannot be worked down, especially if large amounts of clients try to do so.
+	err := client.CreateTimeSeries(ctx, &monitoring_pb.CreateTimeSeriesRequest{
+		Name:       fmt.Sprintf("projects/%s", b.projectID),
+		TimeSeries: b.l,
+	})
+	if err != nil {
+		level.Error(b.logger).Log("msg", "send batch", "err", err)
+	}
+	pendingRequests.Dec()
+	samplesSent.Add(float64(len(b.l)))
+
+	for _, s := range pendingShards {
+		s.notifyBatchDone()
+	}
 }
