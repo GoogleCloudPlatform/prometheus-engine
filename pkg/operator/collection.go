@@ -142,9 +142,11 @@ const (
 	collectorConfigOutVolumeName = "config-out"
 	collectorConfigOutDir        = "/prometheus/config_out"
 	collectorConfigFilename      = "config.yaml"
-
+	collectorComponentName       = "prometheus-engine"
 	// The well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
+	// The component name, will be exposed as metric name.
+	AnnotationMetircName = "components.gke.io/component-name"
 )
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
@@ -167,6 +169,10 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	// health checks, priority context, security context, dynamic update strategy params...
 	podLabels := map[string]string{
 		LabelAppName: CollectorName,
+	}
+
+	podAnnotations := map[string]string{
+		AnnotationMetircName: collectorComponentName,
 	}
 
 	collectorArgs := []string{
@@ -197,6 +203,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: podLabels,
+				Annotations: podAnnotations,
 			},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
@@ -211,7 +218,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						},
 						Args: collectorArgs,
 						Ports: []corev1.ContainerPort{
-							{Name: "prometheus-http", ContainerPort: r.opts.CollectorPort},
+							{Name: "prometheus-http-metrics", ContainerPort: r.opts.CollectorPort},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
@@ -251,7 +258,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 							},
 						},
 						Ports: []corev1.ContainerPort{
-							{Name: "reloader-http", ContainerPort: r.opts.CollectorPort + 1},
+							{Name: "reloader-http-metrics", ContainerPort: r.opts.CollectorPort + 1},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
