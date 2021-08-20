@@ -107,7 +107,7 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		o.OperatorNamespace = DefaultOperatorNamespace
 	}
 	if o.CollectorPort == 0 {
-		o.CollectorPort = 9090
+		o.CollectorPort = 19090
 	}
 	if o.ImageCollector == "" {
 		o.ImageCollector = ImageCollector
