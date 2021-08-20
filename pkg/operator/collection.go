@@ -142,11 +142,12 @@ const (
 	collectorConfigOutVolumeName = "config-out"
 	collectorConfigOutDir        = "/prometheus/config_out"
 	collectorConfigFilename      = "config.yaml"
+	// TODO: rename prometheus-engine component to managed-prometheus?
 	collectorComponentName       = "prometheus-engine"
 	// The well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
 	// The component name, will be exposed as metric name.
-	AnnotationMetircName = "components.gke.io/component-name"
+	AnnotationMetricName = "components.gke.io/component-name"
 )
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
@@ -172,7 +173,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	}
 
 	podAnnotations := map[string]string{
-		AnnotationMetircName: collectorComponentName,
+		AnnotationMetricName: collectorComponentName,
 	}
 
 	collectorArgs := []string{
