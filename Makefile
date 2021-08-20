@@ -34,3 +34,9 @@ assets:
 test:
 	go test `go list ./... | grep -v operator/e2e`
 	go test -short `go list ./... | grep operator/e2e` -args -project-id=test-proj -cluster=test-cluster
+
+codegen:
+	./hack/update-codegen.sh
+
+crds:
+	./hack/update-crdgen.sh
