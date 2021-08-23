@@ -59,6 +59,11 @@ type seriesCache struct {
 	// Function to retrieve external labels for the instance.
 	getExternalLabels func() labels.Labels
 
+	// A list of metric selectors. Exported Prometheus are discarded if they
+	// don't match at least one of the matchers.
+	// If the matchers are empty, all series pass.
+	matchers Matchers
+
 	// Prefix under which metrics are written to GCM.
 	metricTypePrefix string
 }
@@ -81,6 +86,8 @@ type seriesCacheEntry struct {
 	nextRefresh int64
 	// Unix timestamp at which the we last used the entry.
 	lastUsed int64
+	// Whether the series is dropped from exporting.
+	dropped bool
 
 	// Tracked counter reset state for conversion to GCM cumulatives.
 	hasReset       bool
@@ -96,12 +103,15 @@ const (
 
 // valid returns true if the Prometheus series can be converted to a GCM series.
 func (e *seriesCacheEntry) valid() bool {
-	return e.lset != nil && e.proto != nil
+	return e.lset != nil && (e.dropped || e.proto != nil)
 }
 
 // shouldRefresh returns true if the cached state should be refreshed.
 func (e *seriesCacheEntry) shouldRefresh() bool {
-	return time.Now().Unix() > e.nextRefresh
+	// Matchers cannot be changed at runtime and are applied to the local time series labels
+	// without external labels. Thus the dropped status can never change at runtime and thus
+	// no refresh is required.
+	return !e.dropped && time.Now().Unix() > e.nextRefresh
 }
 
 // setNextRefresh determines a timestamp for the next refresh.
@@ -113,7 +123,13 @@ func (e *seriesCacheEntry) setNextRefresh() {
 	e.nextRefresh = time.Now().Add(refreshInterval).Add(jitter).Unix()
 }
 
-func newSeriesCache(logger log.Logger, reg prometheus.Registerer, metricTypePrefix string, getExternalLabels func() labels.Labels) *seriesCache {
+func newSeriesCache(
+	logger log.Logger,
+	reg prometheus.Registerer,
+	metricTypePrefix string,
+	getExternalLabels func() labels.Labels,
+	matchers Matchers,
+) *seriesCache {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
@@ -126,6 +142,7 @@ func newSeriesCache(logger log.Logger, reg prometheus.Registerer, metricTypePref
 		pool:              newPool(reg),
 		entries:           map[uint64]*seriesCacheEntry{},
 		getExternalLabels: getExternalLabels,
+		matchers:          matchers,
 		metricTypePrefix:  metricTypePrefix,
 	}
 }
@@ -290,8 +307,11 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, getMetadata 
 		if entry.lset == nil {
 			return errors.New("series reference invalid")
 		}
+		entry.dropped = !c.matchers.Matches(entry.lset)
 	}
-
+	if entry.dropped {
+		return nil
+	}
 	// Break the series into resource and metric labels.
 	resource, metricLabels, err := c.extractResource(entry.lset)
 	if err != nil {

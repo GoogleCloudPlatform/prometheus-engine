@@ -93,6 +93,11 @@ func main() {
 		os.Exit(2)
 	}
 
+	if *projectID == "" {
+		level.Error(logger).Log("msg", "no --query.project-id was specified or could be derived from the environment")
+		os.Exit(2)
+	}
+
 	*targetURL = strings.ReplaceAll(*targetURL, projectIDVar, *projectID)
 
 	// Don't expand external labels on config file loading. It's a feature we like but we want to remain

@@ -135,7 +135,7 @@ func TestSeriesCache_extractResource(t *testing.T) {
 		t.Run(c.doc, func(t *testing.T) {
 			cache := newSeriesCache(nil, nil, metricTypePrefix, func() labels.Labels {
 				return c.externalLabels
-			})
+			}, nil)
 			resource, lset, err := cache.extractResource(c.seriesLabels)
 			if c.wantOk && err != nil {
 				t.Errorf("expected no error but got: %s", err)
@@ -154,7 +154,7 @@ func TestSeriesCache_extractResource(t *testing.T) {
 }
 
 func TestSeriesCache_garbageCollect(t *testing.T) {
-	cache := newSeriesCache(nil, nil, metricTypePrefix, nil)
+	cache := newSeriesCache(nil, nil, metricTypePrefix, nil, nil)
 	// Always return empty labels. This will cause cache entries to be added but not populated,
 	// which we don't need to test garbage collection.
 	cache.getLabelsByRef = func(uint64) labels.Labels { return nil }

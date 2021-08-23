@@ -17,8 +17,8 @@ package export
 import (
 	"context"
 	"fmt"
-	"testing"
 	"sync"
+	"testing"
 
 	gax "github.com/googleapis/gax-go/v2"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"

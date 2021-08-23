@@ -32,6 +32,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
@@ -136,6 +137,12 @@ type ExporterOpts struct {
 	Location  string
 	Cluster   string
 
+	// A list of metric matchers. Only Prometheus time series satisfying at
+	// least one of the matchers are exported.
+	// This option matches the semantics of the Prometheus federation match[]
+	// parameter.
+	Matchers Matchers
+
 	// Maximum batch size to use when sending data to the GCM API. The default
 	// maximum will be used if set to 0.
 	BatchSize uint
@@ -176,6 +183,9 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 
 	a.Flag("export.label.cluster", fmt.Sprintf("The default cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyCluster)).
 		Default(opts.Cluster).StringVar(&opts.Cluster)
+
+	a.Flag("export.match", `A Prometheus time series matcher. Can be repeated. Every time series must match at least one of the matchers to be exported. This flag can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. (Example: --export.match='{job="prometheus"}' --export.match='{__name__=~"job:.*"})`).
+		SetValue(&opts.Matchers)
 
 	a.Flag("export.debug.metric-prefix", "Google Cloud Monitoring metric prefix to use.").
 		Default(metricTypePrefix).StringVar(&opts.MetricTypePrefix)
@@ -225,7 +235,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		nextc:  make(chan struct{}, 1),
 		shards: make([]*shard, shardCount),
 	}
-	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, e.getExternalLabels)
+	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, e.getExternalLabels, opts.Matchers)
 	e.builder = &sampleBuilder{series: e.seriesCache}
 
 	for i := range e.shards {
@@ -524,6 +534,8 @@ func MetadataFuncFromContext(ctx context.Context) (MetadataFunc, bool) {
 	return mf, ok
 }
 
+// batch accumulates a batch of samples to be sent to GCM. Once the batch is full
+// it must be sent and cannot be used anymore after that.
 type batch struct {
 	logger  log.Logger
 	maxSize uint
@@ -620,4 +632,36 @@ func (b batch) send(
 	for _, s := range pendingShards {
 		s.notifyDone()
 	}
+}
+
+// Matchers holds a list of metric selectors that can be set as a flag.
+type Matchers []labels.Selector
+
+func (m *Matchers) String() string {
+	return fmt.Sprintf("%v", []labels.Selector(*m))
+}
+
+func (m *Matchers) Set(s string) error {
+	ms, err := parser.ParseMetricSelector(s)
+	if err != nil {
+		return errors.Wrapf(err, "invalid metric matcher %q", s)
+	}
+	*m = append(*m, ms)
+	return nil
+}
+
+func (m *Matchers) IsCumulative() bool {
+	return true
+}
+
+func (m *Matchers) Matches(lset labels.Labels) bool {
+	if len(*m) == 0 {
+		return true
+	}
+	for _, sel := range *m {
+		if sel.Matches(lset) {
+			return true
+		}
+	}
+	return false
 }

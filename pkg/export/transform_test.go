@@ -55,6 +55,7 @@ func TestSampleBuilder(t *testing.T) {
 		metadata   MetadataFunc
 		series     seriesMap
 		samples    []record.RefSample
+		matchers   Matchers
 		wantSeries []*monitoring_pb.TimeSeries
 		wantFail   bool
 	}{
@@ -948,6 +949,120 @@ func TestSampleBuilder(t *testing.T) {
 				{Ref: 1, T: 1000, V: 1},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{nil},
+		}, {
+			doc: "filter with matchers",
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeGauge, Help: "metric1 help text"},
+			}),
+			series: seriesMap{
+				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
+				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v2"),
+				3: labels.FromStrings("job", "job2", "instance", "instance1", "__name__", "metric1", "k1", "v3"),
+				4: labels.FromStrings("job", "job2", "instance", "instance1", "__name__", "metric1", "k1", "v4"),
+			},
+			samples: []record.RefSample{
+				{Ref: 1, T: 1000, V: 1},
+				{Ref: 1, T: 2000, V: 2},
+				{Ref: 2, T: 1000, V: 1},
+				{Ref: 3, T: 1000, V: 1},
+				{Ref: 4, T: 1000, V: 1},
+			},
+			// Series must pass either of the matchers
+			matchers: Matchers{
+				labels.Selector{
+					labels.MustNewMatcher(labels.MatchEqual, "k1", "v1"),
+				},
+				labels.Selector{
+					labels.MustNewMatcher(labels.MatchRegexp, "job", ".+2"),
+					labels.MustNewMatcher(labels.MatchNotEqual, "k1", "v3"),
+				},
+			},
+			// If the metadata is nil we expect the series to be converted to a gauge as
+			// metadata-less series are produced by rules and any processing result of type gauge.
+			wantSeries: []*monitoring_pb.TimeSeries{
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "prometheus.googleapis.com/metric1/gauge",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_GAUGE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							EndTime: &timestamp_pb.Timestamp{Seconds: 1},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{1},
+						},
+					}},
+				}, {
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "prometheus.googleapis.com/metric1/gauge",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_GAUGE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							EndTime: &timestamp_pb.Timestamp{Seconds: 2},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{2},
+						},
+					}},
+				},
+				nil,
+				nil,
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job2",
+							"instance":   "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "prometheus.googleapis.com/metric1/gauge",
+						Labels: map[string]string{"k1": "v4"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_GAUGE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							EndTime: &timestamp_pb.Timestamp{Seconds: 1},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{1},
+						},
+					}},
+				},
+			},
 		},
 	}
 
@@ -955,7 +1070,7 @@ func TestSampleBuilder(t *testing.T) {
 		t.Run(fmt.Sprintf("%d: %s", i, c.doc), func(t *testing.T) {
 			cache := newSeriesCache(nil, nil, metricTypePrefix, func() labels.Labels {
 				return externalLabels
-			})
+			}, c.matchers)
 			// Fake lookup into TSDB.
 			cache.getLabelsByRef = func(ref uint64) labels.Labels {
 				return c.series[ref]
