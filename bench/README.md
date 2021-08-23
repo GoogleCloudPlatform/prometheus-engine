@@ -152,7 +152,7 @@ If no metrics show up, directly connect to one of the collector pods and inspect
 
 ```bash
 COLLECTOR_POD=$(kubectl -n gpe-system get pod -l "app.kubernetes.io/name=collector" -o name | head -n 1)
-kubectl -n gpe-system port-forward --address 0.0.0.0 $COLLECTOR_POD 9090
+kubectl -n gpe-system port-forward --address 0.0.0.0 $COLLECTOR_POD 19090
 ```
 
 To inspect resource usage, provides Prometheus node_exporter metrics for node-wide resource consumption

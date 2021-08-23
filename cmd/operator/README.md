@@ -31,10 +31,10 @@ Verify by port-forwarding an arbitrary collector and inspect its UI. You should
 see various targets being scraped successfully.
 
 ```bash
-kubectl -n gpe-system port-forward --address 0.0.0.0 collector 9090
+kubectl -n gpe-system port-forward --address 0.0.0.0 collector 19090
 ```
 
-Go to `http://localhost:9090/targets`.
+Go to `http://localhost:19090/targets`.
 
 ## Teardown
 
