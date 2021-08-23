@@ -137,6 +137,9 @@ func (b *sampleBuilder) next(metadata MetadataFunc, samples []record.RefSample) 
 		prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
 		return nil, 0, tailSamples, nil
 	}
+	if entry.dropped {
+		return nil, 0, tailSamples, nil
+	}
 
 	// Get a shallow copy of the proto so we can overwrite the point field
 	// and safely send it into the remote queues.
