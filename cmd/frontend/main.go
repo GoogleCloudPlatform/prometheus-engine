@@ -53,7 +53,7 @@ var (
 	credentialsFile = flag.String("query.credentials-file", "",
 		"JSON-encoded credentials (service account or refresh token). Can be left empty if default credentials have sufficient permission.")
 
-	listenAddress = flag.String("web.listen-address", ":9090",
+	listenAddress = flag.String("web.listen-address", ":19090",
 		"Address on which to expose metrics and the query UI.")
 
 	targetURLStr = flag.String("query.target-url", fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar),

@@ -48,7 +48,7 @@ endpoints that expose the Prometheus query API. For example, against a locally r
 Prometheus server:
 
 ```bash
-TARGET=http://localhost:9090
+TARGET=http://localhost:19090
 ```
 
 ```bash

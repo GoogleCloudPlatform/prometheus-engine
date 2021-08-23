@@ -26,9 +26,9 @@ CREDENTIALS=$HOME/.config/gcloud/application_default_credentials.json
 
 ```bash
 go run main.go \
-  --web.listen-address=:9090 \
+  --web.listen-address=:19090 \
   --query.credentials-file=$CREDENTIALS \
   --query.project-id=$PROJECT_ID
 ```
 
-Access the frontend UI in your browser at http://localhost:9090.
+Access the frontend UI in your browser at http://localhost:19090.

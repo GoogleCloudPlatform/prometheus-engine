@@ -71,7 +71,7 @@ func main() {
 			"Whether to self-sign or have kube-apiserver sign certificate key pair for TLS.")
 		webhookAddr = flag.String("webhook-addr", ":8443",
 			"Address to listen to for incoming kube admission webhook connections.")
-		metricsAddr = flag.String("metrics-addr", ":8080", "Address to emit metrics on.")
+		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
 	)
 	flag.Parse()
 

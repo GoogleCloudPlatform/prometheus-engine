@@ -37,8 +37,8 @@ func main() {
 		configFile       = flag.String("config-file", "", "config file to watch for changes")
 		configFileOutput = flag.String("config-file-output", "", "config file to write with interpolated environment variables")
 		watchedDir       = flag.String("watched-dir", "", "directory to watch for file changes (for rule files)")
-		reloadURLStr     = flag.String("reload-url", "http://127.0.0.1:9090/-/reload", "Prometheus reload endpoint")
-		listenAddress    = flag.String("listen-address", ":9091", "address on which to expose metrics")
+		reloadURLStr     = flag.String("reload-url", "http://127.0.0.1:19090/-/reload", "Prometheus reload endpoint")
+		listenAddress    = flag.String("listen-address", ":19091", "address on which to expose metrics")
 	)
 	flag.Parse()
 
