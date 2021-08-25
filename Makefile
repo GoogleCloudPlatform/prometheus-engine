@@ -1,5 +1,7 @@
 GOAPPS := $(notdir $(patsubst %/,%,$(dir $(shell find cmd -name 'main.go'))))
 
+CLOUDSDK_CONFIG?=${HOME}/.config/gcloud
+
 help:        ## Show this help.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
@@ -45,3 +47,20 @@ codegen:     ## Refresh generated CRD go interfaces.
 
 crds:        ## Refresh CRD OpenAPI YAML specs.
 	./hack/update-crdgen.sh
+
+kindclean:   ## Clean previous kind state.
+	docker container prune -f
+	docker volume prune -f
+	docker volume rm -f gcloud-config
+
+kindtest:    ## Run e2e test suite against fresh kind k8s cluster.
+kindtest: kindclean
+	@echo ">> building image"
+	DOCKER_BUILDKIT=1 docker build --tag gpe/kindtest -f hack/Dockerfile --target kindtest .
+	@echo ">> creating tmp gcloud config volume"
+	docker volume create gcloud-config
+	docker create -v gcloud-config:/data --name tmp busybox true
+	docker cp $(CLOUDSDK_CONFIG) tmp:/data
+	docker rm tmp
+	@echo ">> running container"
+	docker run --rm -v gcloud-config:/root/.config gpe/kindtest ./hack/kind-test.sh
