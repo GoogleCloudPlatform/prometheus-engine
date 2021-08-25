@@ -193,6 +193,17 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 		"--web.enable-lifecycle",
 		"--web.route-prefix=/",
 	}
+
+	// Check for explicitly-set pass-through args.
+	if r.opts.ProjectID != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.project-id=%q", r.opts.ProjectID))
+	}
+	if r.opts.Location != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%q", r.opts.ProjectID))
+	}
+	if r.opts.DisableExport {
+		collectorArgs = append(collectorArgs, "--export.disable")
+	}
 	if r.opts.CloudMonitoringEndpoint != "" {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
 	}

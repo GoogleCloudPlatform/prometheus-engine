@@ -91,8 +91,10 @@ func newTestContext(t *testing.T) *testContext {
 	}
 
 	op, err := operator.New(globalLogger, kubeconfig, nil, operator.Options{
-		ProjectID: projectID,
-		Cluster:   cluster,
+		ProjectID:               projectID,
+		Cluster:                 cluster,
+		Location:                location,
+		DisableCollectorsExport: true,
 		// Pick a random port to avoid conflicts with other simultaneous tests in the cluster
 		// as the collector runs on the host network.
 		CollectorPort:     1025 + rand.Int31n(65536-1025),

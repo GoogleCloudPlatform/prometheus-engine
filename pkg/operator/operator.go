@@ -80,8 +80,12 @@ type Operator struct {
 type Options struct {
 	// ID of the project of the cluster.
 	ProjectID string
+	// Location of the cluster.
+	Location string
 	// Name of the cluster the operator acts on.
 	Cluster string
+	// Disable exporting to GCM (mostly for testing).
+	DisableExport bool
 	// Namespace to which the operator deploys any associated resources.
 	OperatorNamespace string
 	// Listening port of the collector. Configurable to allow multiple
