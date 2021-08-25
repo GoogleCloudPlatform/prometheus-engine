@@ -360,6 +360,10 @@ spec:
     rules:
     - record: foo
       expr: sum(up)
+      annotations:
+        description: "foo sum up"
+      labels:
+        flavor: test
 `, `
 apiVersion: monitoring.googleapis.com/v1alpha1
 kind: Rules
@@ -372,6 +376,10 @@ spec:
     rules:
     - alert: Bar
       expr: avg(down)
+      annotations:
+        description: "bar avg down"
+      labels:
+        flavor: test
 `}
 	for _, content := range files {
 		var rules monitoringv1alpha1.Rules
@@ -398,7 +406,10 @@ spec:
           expr: sum(up{cluster="{cluster}",project_id="{project_id}"})
           labels:
             cluster: {cluster}
+            flavor: test
             project_id: {project_id}
+          annotations:
+            description: foo sum up
 `),
 		replace("{namespace}__namespace-rules.yaml"): replace(`groups:
     - name: group-1
@@ -407,8 +418,11 @@ spec:
           expr: avg(down{cluster="{cluster}",namespace="{namespace}",project_id="{project_id}"})
           labels:
             cluster: {cluster}
+            flavor: test
             namespace: {namespace}
             project_id: {project_id}
+          annotations:
+            description: bar avg down
 `),
 	}
 
