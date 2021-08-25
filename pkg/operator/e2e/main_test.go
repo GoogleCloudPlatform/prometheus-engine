@@ -197,8 +197,8 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 				},
 			},
 			Endpoints: []monitoringv1alpha1.ScrapeEndpoint{
-				{Port: intstr.FromString("prometheus-http"), Interval: "5s"},
-				{Port: intstr.FromString("reloader-http"), Interval: "5s"},
+				{Port: intstr.FromString("prom-metrics"), Interval: "5s"},
+				{Port: intstr.FromString("cfg-rel-metrics"), Interval: "5s"},
 			},
 		},
 	}
@@ -284,7 +284,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 	defer cancel()
 
 	for _, pod := range pods.Items {
-		for _, port := range []string{"prometheus-http", "reloader-http"} {
+		for _, port := range []string{"prom-metrics", "cfg-rel-metrics"} {
 			t.Logf("Poll up metric for pod %q and port %q", pod.Name, port)
 
 			err = wait.PollImmediateUntil(3*time.Second, func() (bool, error) {

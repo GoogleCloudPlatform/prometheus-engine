@@ -24,7 +24,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: collector
   endpoints:
-  - port: prometheus-http
+  - port: prom-metrics
     interval: 10s
-  - port: reloader-http
+  - port: cfg-rel-metrics
     interval: 10s
