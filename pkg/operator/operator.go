@@ -195,7 +195,7 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 	var (
 		crt, key []byte
 		err      error
-		fqdn     = fmt.Sprintf("%s.%s.svc", NameOperator, o.opts.OperatorNamespace)
+		fqdn     = fmt.Sprintf("system:node:%s.%s.svc", NameOperator, o.opts.OperatorNamespace)
 	)
 	// Generate cert/key pair - self-signed CA or kube-apiserver CA.
 	if o.opts.CASelfSign {
