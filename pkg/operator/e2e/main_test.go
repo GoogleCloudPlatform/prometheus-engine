@@ -55,11 +55,15 @@ var (
 	kubeconfig *rest.Config
 	projectID  string
 	cluster    string
+	location   string
+	skipGCM    bool
 )
 
 func TestMain(m *testing.M) {
 	flag.StringVar(&projectID, "project-id", "", "The GCP project to write metrics to.")
 	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
+	flag.StringVar(&location, "location", "", "The location of the Kubernetes cluster that's tested against.")
+	flag.BoolVar(&skipGCM, "skip-gcm", true, "Skip validating GCM ingested points.")
 
 	flag.Parse()
 
@@ -235,8 +239,10 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 		t.Errorf("unable to validate PodMonitoring status: %s", err)
 	}
 
-	t.Log("Waiting for up metrics for collector targets")
-	validateCollectorUpMetrics(ctx, t, "collector-podmon")
+	if !skipGCM {
+		t.Log("Waiting for up metrics for collector targets")
+		validateCollectorUpMetrics(ctx, t, "collector-podmon")
+	}
 }
 
 // validateCollectorUpMetrics checks whether the scrape-time up metrics for all collector

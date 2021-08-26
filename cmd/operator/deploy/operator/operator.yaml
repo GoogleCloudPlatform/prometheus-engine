@@ -76,7 +76,7 @@ spec:
       serviceAccountName: operator
       containers:
       - name: operator
-        image: "gcr.io/gpe-test-1/gpe-operator:bench_20210306_1314"
+        image: "gcr.io/gpe-test-1/gpe-operator:bench_20210508_1502"
         args:
         - "--priority-class=gpe-critical"
         - "--ca-selfsign=false"

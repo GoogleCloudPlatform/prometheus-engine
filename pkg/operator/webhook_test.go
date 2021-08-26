@@ -74,7 +74,7 @@ func TestValidatingWebhookConfig(t *testing.T) {
 				t.Errorf("unexpected webhook config namespace: %s", ns)
 			} else if path := *wh.ClientConfig.Service.Path; path != "/podmonitorings/v1alpha1/validate" {
 				t.Errorf("unexpected webhook path: %s", path)
-			} else if crt := wh.ClientConfig.CABundle; bytes.Compare(crt, c.caBundle) != 0 {
+			} else if crt := wh.ClientConfig.CABundle; !bytes.Equal(crt, c.caBundle) {
 				t.Errorf("unexpected caBundle: %v", crt)
 			} else if rule := wh.Rules[0]; !(rule.Operations[0] == arv1.Create && rule.Operations[1] == arv1.Update) {
 				t.Errorf("unexpected rule operations: %+v", rule)
