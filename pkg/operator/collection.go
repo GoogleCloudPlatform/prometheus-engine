@@ -143,7 +143,7 @@ const (
 	collectorConfigOutDir        = "/prometheus/config_out"
 	collectorConfigFilename      = "config.yaml"
 	// TODO: rename prometheus-engine component to managed-prometheus?
-	collectorComponentName       = "prometheus-engine"
+	collectorComponentName = "prometheus-engine"
 	// The well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
 	// The component name, will be exposed as metric name.
@@ -203,7 +203,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: podLabels,
+				Labels:      podLabels,
 				Annotations: podAnnotations,
 			},
 			Spec: corev1.PodSpec{
@@ -219,7 +219,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						},
 						Args: collectorArgs,
 						Ports: []corev1.ContainerPort{
-							{Name: "prometheus-http-metrics", ContainerPort: r.opts.CollectorPort},
+							{Name: "prom-metrics", ContainerPort: r.opts.CollectorPort},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
@@ -259,7 +259,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 							},
 						},
 						Ports: []corev1.ContainerPort{
-							{Name: "reloader-http-metrics", ContainerPort: r.opts.CollectorPort + 1},
+							{Name: "cfg-rel-metrics", ContainerPort: r.opts.CollectorPort + 1},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{

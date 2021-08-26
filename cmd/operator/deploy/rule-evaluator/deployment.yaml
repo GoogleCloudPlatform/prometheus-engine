@@ -36,7 +36,7 @@ spec:
         - "--config.file=/etc/config/config.yaml"
         - "--web.listen-address=:9092"
         ports:
-        - name: http
+        - name: r-eval-metrics
           containerPort: 9092
         resources:
           limits:
@@ -62,7 +62,7 @@ spec:
         name: config-reloader
         ports:
         - containerPort: 9093
-          name: reloader-http
+          name: cfg-rel-metrics
           protocol: TCP
         resources:
           limits:
