@@ -118,7 +118,7 @@ func TestCSRWithValidatingWebhookConfig(t *testing.T) {
 // certificate from the CSR.
 func testCSRIssued(ctx context.Context, t *testContext) {
 	// Operator creates CSR using FQDN format.
-	var fqdn = fmt.Sprintf("%s.%s.svc", operator.NameOperator, t.namespace)
+	var fqdn = fmt.Sprintf("system:node:%s.%s.svc", operator.NameOperator, t.namespace)
 	err := wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
 		// Use v1b1 for now as GKE 1.18 currently uses that version.
 		csr, err := t.kubeClient.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, fqdn, metav1.GetOptions{})
