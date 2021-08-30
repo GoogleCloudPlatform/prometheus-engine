@@ -142,8 +142,7 @@ const (
 	collectorConfigOutVolumeName = "config-out"
 	collectorConfigOutDir        = "/prometheus/config_out"
 	collectorConfigFilename      = "config.yaml"
-	// TODO: rename prometheus-engine component to managed-prometheus?
-	collectorComponentName = "prometheus-engine"
+	collectorComponentName = "managed-prometheus"
 	// The well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
 	// The component name, will be exposed as metric name.
