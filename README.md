@@ -16,6 +16,8 @@ For the fully Prometheus-compatible binary that writes ingested data into GPE/GC
 see [GoogleCloudPlatform/prometheus](https://github.com/GoogleCloudPlatform/prometheus).
 
 ## Build
+Run `make help` shows a list of candidate targets with documentation.
+
 Any go application in `./cmd/` with an associated `main.go`, e.g. `./cmd/operator/main.go`
 is a candidate for build by running:
 ```
@@ -38,7 +40,7 @@ In order to best develop and contribute to this repository, the following depend
 recommended:
 1. [`go`](https://golang.org/doc/install)
 2. [`gcloud`](https://cloud.google.com/sdk/docs/install)
-3. ['kubectl`](https://kubernetes.io/docs/tasks/tools/)
+3. [`kubectl`](https://kubernetes.io/docs/tasks/tools/)
   - Can also be installed via
   ```
   gcloud components install kubectl
