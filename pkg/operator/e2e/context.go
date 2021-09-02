@@ -72,7 +72,7 @@ func newTestContext(t *testing.T) *testContext {
 	// Create a namespace per test and run. This is to ensure that repeated runs of
 	// tests don't falsify results. Either by old test resources not being cleaned up
 	// (less likely) or metrics observed in GCP being from a previous run (more likely).
-	namespace := fmt.Sprintf("gpe-test-%s-%s", strings.ToLower(t.Name()), startTime.Format("20060102-150405"))
+	namespace := fmt.Sprintf("gmp-test-%s-%s", strings.ToLower(t.Name()), startTime.Format("20060102-150405"))
 
 	tctx := &testContext{
 		T:              t,
@@ -99,7 +99,7 @@ func newTestContext(t *testing.T) *testContext {
 		// as the collector runs on the host network.
 		CollectorPort:     1025 + rand.Int31n(65536-1025),
 		OperatorNamespace: tctx.namespace,
-		PriorityClass:     "gpe-critical",
+		PriorityClass:     "gmp-critical",
 		CASelfSign:        false,
 		ListenAddr:        ":8443",
 	})
@@ -127,7 +127,7 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 			// Apply a consistent label to make it easy manually cleanup in case
 			// something went wrong with the test cleanup.
 			Labels: map[string]string{
-				"gpe-operator-test": "true",
+				"gmp-operator-test": "true",
 			},
 		},
 	}
@@ -208,7 +208,7 @@ func cleanupAllNamespaces(ctx context.Context) error {
 		return errors.Wrap(err, "build Kubernetes clientset")
 	}
 	namespaces, err := kubeClient.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
-		LabelSelector: "gpe-operator-test=true",
+		LabelSelector: "gmp-operator-test=true",
 	})
 	if err != nil {
 		return errors.Wrap(err, "delete namespaces by label")

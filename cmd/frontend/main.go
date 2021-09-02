@@ -16,7 +16,7 @@
 // it with static service account credentials or the default service account on GCE
 // instances.
 // It's primarily intended to authenticate Prometheus queries coming from Grafana against
-// GPE as Grafana has no option to configure OAuth2 credentials.
+// GMP as Grafana has no option to configure OAuth2 credentials.
 package main
 
 import (

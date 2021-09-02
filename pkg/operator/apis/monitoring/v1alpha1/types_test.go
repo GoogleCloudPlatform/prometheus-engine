@@ -111,7 +111,7 @@ func TestValidatePodMonitoring(t *testing.T) {
 				},
 			},
 			fail:        true,
-			errContains: "conflicts with GPE target schema",
+			errContains: "conflicts with GMP target schema",
 		},
 	}
 

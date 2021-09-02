@@ -15,23 +15,23 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
   id: 'build-config-reloader'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/gpe-config-reloader:$TAG_NAME', '-f', 'cmd/config-reloader/Dockerfile', '.']
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/gmp-config-reloader:$TAG_NAME', '-f', 'cmd/config-reloader/Dockerfile', '.']
 - name: 'gcr.io/cloud-builders/docker'
   id: 'build-rule-evaluator'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/gpe-rule-evaluator:$TAG_NAME', '-f', 'cmd/rule-evaluator/Dockerfile', '.']
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/gmp-rule-evaluator:$TAG_NAME', '-f', 'cmd/rule-evaluator/Dockerfile', '.']
 - name: 'gcr.io/cloud-builders/docker'
   id: 'build-operator'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/gpe-operator:$TAG_NAME', '-f', 'cmd/operator/Dockerfile', '.']
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/gmp-operator:$TAG_NAME', '-f', 'cmd/operator/Dockerfile', '.']
 - name: 'gcr.io/cloud-builders/docker'
   id: 'build-frontend'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/gpe-frontend:$TAG_NAME', '-f', 'cmd/frontend/Dockerfile', '.']
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/gmp-frontend:$TAG_NAME', '-f', 'cmd/frontend/Dockerfile', '.']
 - name: 'gcr.io/cloud-builders/docker'
   id: 'build-example-app'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/example-app:$TAG_NAME', '-f', 'cmd/example-app/Dockerfile', '.']
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/example-app:$TAG_NAME', '-f', 'cmd/example-app/Dockerfile', '.']
 
 images:
-- 'gcr.io/$PROJECT_ID/gpe-config-reloader:$TAG_NAME'
-- 'gcr.io/$PROJECT_ID/gpe-rule-evaluator:$TAG_NAME'
-- 'gcr.io/$PROJECT_ID/gpe-operator:$TAG_NAME'
-- 'gcr.io/$PROJECT_ID/gpe-frontend:$TAG_NAME'
-- 'gcr.io/$PROJECT_ID/example-app:$TAG_NAME'
+- 'gcr.io/$PROJECT_ID/prometheus-engine/gmp-config-reloader:$TAG_NAME'
+- 'gcr.io/$PROJECT_ID/prometheus-engine/gmp-rule-evaluator:$TAG_NAME'
+- 'gcr.io/$PROJECT_ID/prometheus-engine/gmp-operator:$TAG_NAME'
+- 'gcr.io/$PROJECT_ID/prometheus-engine/gmp-frontend:$TAG_NAME'
+- 'gcr.io/$PROJECT_ID/prometheus-engine/example-app:$TAG_NAME'

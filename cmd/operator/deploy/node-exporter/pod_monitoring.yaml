@@ -15,7 +15,7 @@
 apiVersion: monitoring.googleapis.com/v1alpha1
 kind: PodMonitoring
 metadata:
-  namespace: gpe-system
+  namespace: gmp-system
   name: node-exporter
   labels:
     app.kubernetes.io/name: node-exporter

@@ -380,7 +380,7 @@ func (e *Exporter) triggerNext() {
 
 // ClientName and Version are used to identify to User Agent. TODO(maxamin): automate versioning.
 const (
-	ClientName = "gpe-collector"
+	ClientName = "gmp-collector"
 	Version    = ""
 )
 
