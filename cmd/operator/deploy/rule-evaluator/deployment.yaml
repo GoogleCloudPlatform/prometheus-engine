@@ -38,6 +38,16 @@ spec:
         ports:
         - name: r-eval-metrics
           containerPort: 9092
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: r-eval-metrics
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: r-eval-metrics
+          # Readiness attempts a query round-trip so we need a more generous timeout.
+          timeoutSeconds: 5
         resources:
           limits:
             memory: 1G
