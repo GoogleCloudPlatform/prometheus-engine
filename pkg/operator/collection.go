@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -230,6 +231,22 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						Args: collectorArgs,
 						Ports: []corev1.ContainerPort{
 							{Name: "prom-metrics", ContainerPort: r.opts.CollectorPort},
+						},
+						LivenessProbe: &corev1.Probe{
+							Handler: corev1.Handler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/-/healthy",
+									Port: intstr.FromInt(int(r.opts.CollectorPort)),
+								},
+							},
+						},
+						ReadinessProbe: &corev1.Probe{
+							Handler: corev1.Handler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/-/ready",
+									Port: intstr.FromInt(int(r.opts.CollectorPort)),
+								},
+							},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{

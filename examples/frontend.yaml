@@ -35,6 +35,14 @@ spec:
         ports:
         - name: web
           containerPort: 9090
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: web
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: web
 ---
 apiVersion: v1
 kind: Service

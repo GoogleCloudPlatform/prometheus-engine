@@ -121,6 +121,15 @@ func main() {
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
 		http.Handle("/api/", forward(logger, targetURL, transport))
 
+		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "Prometheus frontend is Healthy.\n")
+		})
+		http.HandleFunc("/-/ready", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "Prometheus frontend is Ready.\n")
+		})
+
 		http.Handle("/", ui.Handler())
 
 		g.Add(func() error {
