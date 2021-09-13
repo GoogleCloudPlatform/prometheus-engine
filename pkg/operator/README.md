@@ -13,7 +13,7 @@ already taken care of while setting up a GKE cluster
 Use `kubectl config {current,set}-context` to verify or change which cluster the tests will
 execute against.
 
-The tests require that the CRD definition and ClusterRole `gpe-system:collector` already
+The tests require that the CRD definition and ClusterRole `gmp-system:collector` already
 exist in the cluster. (They are part of deploying the operator itself, we make this manual
 for tests to not unknowingly deploy resources with cluster-wide effects.)
 All other resources are created and cleaned up by the test suite. To setup the resources:

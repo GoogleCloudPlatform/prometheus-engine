@@ -15,8 +15,8 @@
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
-  name: gpe-critical
-description: Used for GPE collector pods.
+  name: gmp-critical
+description: Used for GMP collector pods.
 # Maximum allowed user-defined. Only system-node-critical and system-cluster-critical
 # pods are higher.
 value: 1000000000

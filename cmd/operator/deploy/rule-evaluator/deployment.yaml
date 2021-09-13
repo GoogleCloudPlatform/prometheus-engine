@@ -15,7 +15,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: gpe-system
+  namespace: gmp-system
   name: rule-evaluator
   labels:
     app.kubernetes.io/name: rule-evaluator
@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
       - name: evaluator
-        image: gcr.io/gpe-test-1/gpe-rule-evaluator:bench_20210306_1314
+        image: gcr.io/gpe-test-1/prometheus-engine/rule-evaluator:bench_20210309_1843
         args:
         - "--config.file=/etc/config/config.yaml"
         - "--web.listen-address=:9092"
@@ -67,7 +67,7 @@ spec:
         - --watched-dir=/etc/rules
         - --reload-url=http://localhost:9092/-/reload
         - --listen-address=:9093
-        image: gcr.io/gpe-test-1/gpe-config-reloader:bench_20210306_1314
+        image: gcr.io/gpe-test-1/prometheus-engine/config-reloader:bench_20210309_1843
         imagePullPolicy: IfNotPresent
         name: config-reloader
         ports:

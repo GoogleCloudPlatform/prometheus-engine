@@ -59,18 +59,18 @@ func TestValidatingWebhookConfig(t *testing.T) {
 		t.Run(c.doc, func(t *testing.T) {
 			vwCfg, err := upsertValidatingWebhookConfig(ctx,
 				client.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
-				validatingWebhookConfig("gpe-operator", "gpe-system", c.caBundle, prs))
+				validatingWebhookConfig("gmp-operator", "gmp-system", c.caBundle, prs))
 			if err != nil {
 				t.Fatalf("upserting validtingwebhookconfig: %s", err)
 			}
 			if whs := vwCfg.Webhooks; len(whs) != 1 {
 				t.Errorf("unexpected number of webhooks: %d", len(whs))
 			}
-			if wh := vwCfg.Webhooks[0]; wh.Name != "podmonitorings.gpe-operator.gpe-system.svc" {
+			if wh := vwCfg.Webhooks[0]; wh.Name != "podmonitorings.gmp-operator.gmp-system.svc" {
 				t.Errorf("unexpected webhook name: %s", wh.Name)
-			} else if name := wh.ClientConfig.Service.Name; name != "gpe-operator" {
+			} else if name := wh.ClientConfig.Service.Name; name != "gmp-operator" {
 				t.Errorf("unexpected webhook config name: %s", name)
-			} else if ns := wh.ClientConfig.Service.Namespace; ns != "gpe-system" {
+			} else if ns := wh.ClientConfig.Service.Namespace; ns != "gmp-system" {
 				t.Errorf("unexpected webhook config namespace: %s", ns)
 			} else if path := *wh.ClientConfig.Service.Path; path != "/podmonitorings/v1alpha1/validate" {
 				t.Errorf("unexpected webhook path: %s", path)

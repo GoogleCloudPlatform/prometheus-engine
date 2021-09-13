@@ -16,69 +16,69 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: gpe-system
+  name: gmp-system
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  namespace: gpe-system
+  namespace: gmp-system
   name: operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: gpe-system:operator
+  name: gmp-system:operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: gpe-system:operator
+  name: gmp-system:operator
 subjects:
 - kind: ServiceAccount
-  namespace: gpe-system
+  namespace: gmp-system
   name: operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: gpe-system:operator-csr
+  name: gmp-system:operator-csr
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: gpe-system:csr-approver
+  name: gmp-system:csr-approver
 subjects:
 - kind: ServiceAccount
-  namespace: gpe-system
+  namespace: gmp-system
   name: operator
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: gpe-system
-  name: gpe-operator
+  namespace: gmp-system
+  name: gmp-operator
   labels:
-    app.kubernetes.io/name: gpe-operator
+    app.kubernetes.io/name: gmp-operator
     app.kubernetes.io/component: operator
-    app.kubernetes.io/part-of: gpe
+    app.kubernetes.io/part-of: gmp
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: gpe-operator
+      app.kubernetes.io/name: gmp-operator
       app.kubernetes.io/component: operator
-      app.kubernetes.io/part-of: gpe
+      app.kubernetes.io/part-of: gmp
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: gpe-operator
+        app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/component: operator
-        app.kubernetes.io/part-of: gpe
+        app.kubernetes.io/part-of: gmp
     spec:
       serviceAccountName: operator
       containers:
       - name: operator
-        image: "gcr.io/gpe-test-1/gpe-operator:bench_20210508_1502"
+        image: gcr.io/gpe-test-1/prometheus-engine/operator:bench_20210309_1843
         args:
-        - "--priority-class=gpe-critical"
+        - "--priority-class=gmp-critical"
         - "--ca-selfsign=false"
         ports:
         - name: webhook
@@ -93,13 +93,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: gpe-system
-  name: gpe-operator
+  namespace: gmp-system
+  name: gmp-operator
 spec:
   selector:
-    app.kubernetes.io/name: gpe-operator
+    app.kubernetes.io/name: gmp-operator
     app.kubernetes.io/component: operator
-    app.kubernetes.io/part-of: gpe
+    app.kubernetes.io/part-of: gmp
   ports:
     - protocol: TCP
       port: 443

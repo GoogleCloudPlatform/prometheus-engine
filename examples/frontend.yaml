@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: "gcr.io/$PROJECT_ID/gpe-frontend:$PROMETHEUS_ENGINE_VERSION"
+        image: "gcr.io/$PROJECT_ID/gmp-frontend:$PROMETHEUS_ENGINE_VERSION"
         args:
         - "--web.listen-address=:9090"
         - "--query.project-id=$PROJECT_ID"

@@ -1,8 +1,9 @@
 # Frontend
 
-The frontend binary is a thin query frontend for Google Cloud Prometheus Engine (GPE) that looks
-and feels like a regular Prometheus server. It primarily serves as a target URL for a Prometheus
-datasource in Grafana and to access GPE via the well-known Prometheus UI.
+The frontend binary is a thin query frontend for Google Cloud Managed Service
+for Prometheus (GMP) that looks and feels like a regular Prometheus server.
+It primarily serves as a target URL for a Prometheus datasource in Grafana
+and to access GMP via the well-known Prometheus UI.
 
 Currently, the following API endpoints are supported:
 
@@ -12,7 +13,7 @@ Currently, the following API endpoints are supported:
 
 ## Spinup
 
-The frontend authenticates to GPE with credentials (typically a service account) and re-exposes
+The frontend authenticates to GMP with credentials (typically a service account) and re-exposes
 the JSON/HTTP API unauthenticated (or for use with a custom authentication mechanism).
 
 A frontend instance serves read traffic for a single Google Cloud Monitoring workspace, identified

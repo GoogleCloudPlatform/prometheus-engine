@@ -254,7 +254,7 @@ func labelMappingRelabelConfigs(mappings []LabelMapping, prefix prommodel.LabelN
 	var relabelCfgs []*relabel.Config
 	for _, m := range mappings {
 		if collision := isPrometheusTargetLabel(m.To); collision {
-			return nil, fmt.Errorf("relabel %q to %q conflicts with GPE target schema", m.From, m.To)
+			return nil, fmt.Errorf("relabel %q to %q conflicts with GMP target schema", m.From, m.To)
 		}
 		// `To` can be unset, default to `From`.
 		if m.To == "" {

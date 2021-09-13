@@ -19,7 +19,7 @@ metadata:
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/version: 2.1.0
   name: kube-state-metrics
-  namespace: gpe-system
+  namespace: gmp-system
 spec:
   replicas: 1
   selector:
