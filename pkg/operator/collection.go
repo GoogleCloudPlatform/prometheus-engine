@@ -210,6 +210,9 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	if r.opts.CloudMonitoringEndpoint != "" {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
 	}
+	if r.opts.CredentialsFile != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", r.opts.CredentialsFile))
+	}
 
 	spec := appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
