@@ -16,6 +16,8 @@
 
 package v1alpha1
 
+type GMPOperatorExpansion interface{}
+
 type PodMonitoringExpansion interface{}
 
 type RulesExpansion interface{}

@@ -16,6 +16,14 @@
 
 package v1alpha1
 
+// GMPOperatorListerExpansion allows custom methods to be added to
+// GMPOperatorLister.
+type GMPOperatorListerExpansion interface{}
+
+// GMPOperatorNamespaceListerExpansion allows custom methods to be added to
+// GMPOperatorNamespaceLister.
+type GMPOperatorNamespaceListerExpansion interface{}
+
 // PodMonitoringListerExpansion allows custom methods to be added to
 // PodMonitoringLister.
 type PodMonitoringListerExpansion interface{}

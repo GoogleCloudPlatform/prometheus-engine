@@ -37,3 +37,6 @@ bash "${CODEGEN_PKG}"/generate-groups.sh "client,informer,lister" \
   monitoring:v1alpha1 \
   --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt \
   --plural-exceptions "Rules:Rules"
+
+cp -r $SCRIPT_ROOT/github.com/GoogleCloudPlatform/prometheus-engine/* $SCRIPT_ROOT
+rm -r $SCRIPT_ROOT/github.com
