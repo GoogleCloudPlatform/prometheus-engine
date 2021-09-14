@@ -24,7 +24,7 @@ import (
 
 type MonitoringV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	GMPOperatorsGetter
+	OperatorConfigsGetter
 	PodMonitoringsGetter
 	RulesGetter
 }
@@ -34,8 +34,8 @@ type MonitoringV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *MonitoringV1alpha1Client) GMPOperators(namespace string) GMPOperatorInterface {
-	return newGMPOperators(c, namespace)
+func (c *MonitoringV1alpha1Client) OperatorConfigs(namespace string) OperatorConfigInterface {
+	return newOperatorConfigs(c, namespace)
 }
 
 func (c *MonitoringV1alpha1Client) PodMonitorings(namespace string) PodMonitoringInterface {

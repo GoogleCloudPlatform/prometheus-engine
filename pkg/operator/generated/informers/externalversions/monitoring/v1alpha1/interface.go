@@ -22,8 +22,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// GMPOperators returns a GMPOperatorInformer.
-	GMPOperators() GMPOperatorInformer
+	// OperatorConfigs returns a OperatorConfigInformer.
+	OperatorConfigs() OperatorConfigInformer
 	// PodMonitorings returns a PodMonitoringInformer.
 	PodMonitorings() PodMonitoringInformer
 	// Rules returns a RulesInformer.
@@ -41,9 +41,9 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// GMPOperators returns a GMPOperatorInformer.
-func (v *version) GMPOperators() GMPOperatorInformer {
-	return &gMPOperatorInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// OperatorConfigs returns a OperatorConfigInformer.
+func (v *version) OperatorConfigs() OperatorConfigInformer {
+	return &operatorConfigInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // PodMonitorings returns a PodMonitoringInformer.

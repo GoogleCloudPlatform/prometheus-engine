@@ -36,24 +36,17 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 )
 
-// GMPOperator defines configuration of the gmp-operator.
+// OperatorConfig defines configuration of the gmp-operator.
 // +genclient
 // +k8s:deepcopy-gen:interfaes=k8s.io/apimachinery/pkg/runtime.Object
-type GMPOperator struct {
+type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              GMPOperatorSpec   `json:"spec"`
-	Status            GMPOperatorStatus `json:"status"`
+	Spec              OperatorConfigSpec `json:"spec"`
 }
 
-// GMPOperatorSpec contains specification parameters for GMPOperator.
-type GMPOperatorSpec struct {
-	Addons GMPOperatorAddonsSpec `json:"addons"`
-}
-
-// GMPOperatorAddonsSpec contains the set of supported addons for GMPOperator.
-type GMPOperatorAddonsSpec struct {
-	// TODO(pintohutch): add support for kubelet, node-exporter, and kube-state-metrics.
+// OperatorConfigSpec contains specification parameters for GMPOperator.
+type OperatorConfigSpec struct {
 	RuleEvaluator RuleEvaluatorSpec `json:"ruleEvaluator"`
 }
 
@@ -63,11 +56,6 @@ type RuleEvaluatorSpec struct {
 	// Valid string consisting of a hostname or IP followed by an optional port number.
 	// e.g. "localhost:9093".
 	Host string `json:"host"`
-}
-
-// GMPOperatorStatus contains status information of gmp-operator.
-type GMPOperatorStatus struct {
-	// TODO(pintohutch): add status updates.
 }
 
 // PodMonitoring defines monitoring for a set of pods.

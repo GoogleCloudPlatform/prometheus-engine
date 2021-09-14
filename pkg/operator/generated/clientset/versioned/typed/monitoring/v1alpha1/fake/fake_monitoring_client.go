@@ -26,8 +26,8 @@ type FakeMonitoringV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeMonitoringV1alpha1) GMPOperators(namespace string) v1alpha1.GMPOperatorInterface {
-	return &FakeGMPOperators{c, namespace}
+func (c *FakeMonitoringV1alpha1) OperatorConfigs(namespace string) v1alpha1.OperatorConfigInterface {
+	return &FakeOperatorConfigs{c, namespace}
 }
 
 func (c *FakeMonitoringV1alpha1) PodMonitorings(namespace string) v1alpha1.PodMonitoringInterface {
