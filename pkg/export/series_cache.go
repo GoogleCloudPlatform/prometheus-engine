@@ -77,7 +77,7 @@ type seriesCacheEntry struct {
 	// A pre-populated time protobuf to be sent to the GCM API. It can
 	// be shallow-copied and populated with point values to avoid excessive
 	// allocations for each datapoint exported for the series.
-	proto *monitoring_pb.TimeSeries
+	protos cachedProtos
 	// The well-known Prometheus metric name suffix if any.
 	suffix metricSuffix
 	// A hash of the series desccriptor
@@ -96,6 +96,19 @@ type seriesCacheEntry struct {
 	resetTimestamp int64
 }
 
+type hashedSeries struct {
+	hash  uint64
+	proto *monitoring_pb.TimeSeries
+}
+
+type cachedProtos struct {
+	gauge, cumulative hashedSeries
+}
+
+func (cp *cachedProtos) empty() bool {
+	return cp.gauge.proto == nil && cp.cumulative.proto == nil
+}
+
 const (
 	refreshInterval = 10 * time.Minute
 	refreshJitter   = 10 * time.Minute
@@ -103,7 +116,7 @@ const (
 
 // valid returns true if the Prometheus series can be converted to a GCM series.
 func (e *seriesCacheEntry) valid() bool {
-	return e.lset != nil && (e.dropped || e.proto != nil)
+	return e.lset != nil && (e.dropped || !e.protos.empty())
 }
 
 // shouldRefresh returns true if the cached state should be refreshed.
@@ -192,10 +205,12 @@ func (c *seriesCache) garbageCollect(delay time.Duration) error {
 	deleteBefore := start.Add(-delay).Unix()
 
 	for ref, entry := range c.entries {
-		if entry.lastUsed < deleteBefore {
-			c.pool.release(entry.proto)
-			delete(c.entries, ref)
+		if entry.lastUsed >= deleteBefore {
+			continue
 		}
+		c.pool.release(entry.protos.gauge.proto)
+		c.pool.release(entry.protos.cumulative.proto)
+		delete(c.entries, ref)
 	}
 	level.Info(c.logger).Log("msg", "garbage collection completed", "took", time.Since(start))
 
@@ -269,8 +284,17 @@ func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, f
 	return e.resetTimestamp, v - e.resetValue, true
 }
 
-func (c *seriesCache) getMetricType(name string, suffix gcmMetricSuffix) string {
-	return fmt.Sprintf("%s/%s/%s", c.metricTypePrefix, name, suffix)
+// getMetricType creates a GCM metric type from the Prometheus metric name and a type suffix.
+// Optionally, a secondary type suffix may be provided for series for which a Prometheus type
+// may be written as different GCM series.
+// The general rule is that if the primary suffix is ambigious about whether the specific series
+// is to be treated as a counter or gauge at query time, the secondarySuffix is set to "counter"
+// for the counter variant, and left empty for the gauge variant.
+func (c *seriesCache) getMetricType(name string, suffix, secondarySuffix gcmMetricSuffix) string {
+	if secondarySuffix == gcmMetricSuffixNone {
+		return fmt.Sprintf("%s/%s/%s", c.metricTypePrefix, name, suffix)
+	}
+	return fmt.Sprintf("%s/%s/%s:%s", c.metricTypePrefix, name, suffix, secondarySuffix)
 }
 
 // Metric name suffixes used by various Prometheus metric types.
@@ -290,6 +314,7 @@ const (
 type gcmMetricSuffix string
 
 const (
+	gcmMetricSuffixNone      gcmMetricSuffix = ""
 	gcmMetricSuffixUnknown   gcmMetricSuffix = "unknown"
 	gcmMetricSuffixGauge     gcmMetricSuffix = "gauge"
 	gcmMetricSuffixCounter   gcmMetricSuffix = "counter"
@@ -361,59 +386,82 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, getMetadata 
 		}
 	}
 
-	ts := &monitoring_pb.TimeSeries{
-		Resource:  resource,
-		Metric:    &metric_pb.Metric{Labels: metricLabels.Map()},
-		ValueType: metric_pb.MetricDescriptor_DOUBLE, // default
+	newSeries := func(mtype string, kind metric_pb.MetricDescriptor_MetricKind, vtype metric_pb.MetricDescriptor_ValueType) hashedSeries {
+		s := &monitoring_pb.TimeSeries{
+			Resource:   resource,
+			Metric:     &metric_pb.Metric{Type: mtype, Labels: metricLabels.Map()},
+			MetricKind: kind,
+			ValueType:  vtype,
+		}
+		return hashedSeries{hash: hashSeries(s), proto: s}
 	}
+	var protos cachedProtos
 
 	switch metadata.Type {
 	case textparse.MetricTypeCounter:
-		ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixCounter)
-		ts.MetricKind = metric_pb.MetricDescriptor_CUMULATIVE
+		protos.cumulative = newSeries(
+			c.getMetricType(metricName, gcmMetricSuffixCounter, gcmMetricSuffixNone),
+			metric_pb.MetricDescriptor_CUMULATIVE,
+			metric_pb.MetricDescriptor_DOUBLE)
 
 	case textparse.MetricTypeGauge:
-		ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixGauge)
-		ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
+		protos.gauge = newSeries(
+			c.getMetricType(metricName, gcmMetricSuffixGauge, gcmMetricSuffixNone),
+			metric_pb.MetricDescriptor_GAUGE,
+			metric_pb.MetricDescriptor_DOUBLE)
 
 	case textparse.MetricTypeUnknown:
-		ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixUnknown)
-		ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
+		protos.gauge = newSeries(
+			c.getMetricType(metricName, gcmMetricSuffixUnknown, gcmMetricSuffixNone),
+			metric_pb.MetricDescriptor_GAUGE,
+			metric_pb.MetricDescriptor_DOUBLE)
+		protos.cumulative = newSeries(
+			c.getMetricType(metricName, gcmMetricSuffixUnknown, gcmMetricSuffixCounter),
+			metric_pb.MetricDescriptor_CUMULATIVE,
+			metric_pb.MetricDescriptor_DOUBLE)
 
 	case textparse.MetricTypeSummary:
 		switch suffix {
 		case metricSuffixSum:
-			ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixSummary)
-			ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
+			protos.cumulative = newSeries(
+				c.getMetricType(metricName, gcmMetricSuffixSummary, gcmMetricSuffixCounter),
+				metric_pb.MetricDescriptor_CUMULATIVE,
+				metric_pb.MetricDescriptor_DOUBLE)
 
 		case metricSuffixCount:
-			ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixSummary)
-			ts.MetricKind = metric_pb.MetricDescriptor_CUMULATIVE
+			protos.cumulative = newSeries(
+				c.getMetricType(metricName, gcmMetricSuffixSummary, gcmMetricSuffixNone),
+				metric_pb.MetricDescriptor_CUMULATIVE,
+				metric_pb.MetricDescriptor_DOUBLE)
 
 		case metricSuffixNone: // Actual quantiles.
-			ts.Metric.Type = c.getMetricType(metricName, gcmMetricSuffixSummary)
-			ts.MetricKind = metric_pb.MetricDescriptor_GAUGE
+			protos.gauge = newSeries(
+				c.getMetricType(metricName, gcmMetricSuffixSummary, gcmMetricSuffixNone),
+				metric_pb.MetricDescriptor_GAUGE,
+				metric_pb.MetricDescriptor_DOUBLE)
 
 		default:
 			return errors.Errorf("unexpected metric name suffix %q for metric %q", suffix, metricName)
 		}
 
 	case textparse.MetricTypeHistogram:
-		ts.Metric.Type = c.getMetricType(baseMetricName, gcmMetricSuffixHistogram)
-		ts.MetricKind = metric_pb.MetricDescriptor_CUMULATIVE
-		ts.ValueType = metric_pb.MetricDescriptor_DISTRIBUTION
+		protos.cumulative = newSeries(
+			c.getMetricType(baseMetricName, gcmMetricSuffixHistogram, gcmMetricSuffixNone),
+			metric_pb.MetricDescriptor_CUMULATIVE,
+			metric_pb.MetricDescriptor_DISTRIBUTION)
 
 	default:
 		return errors.Errorf("unexpected metric type %s for metric %q", metadata.Type, metricName)
 	}
 
-	c.pool.release(entry.proto)
-	c.pool.intern(ts)
+	c.pool.release(entry.protos.gauge.proto)
+	c.pool.release(entry.protos.cumulative.proto)
+	c.pool.intern(protos.gauge.proto)
+	c.pool.intern(protos.cumulative.proto)
 
-	entry.proto = ts
+	entry.protos = protos
 	entry.metadata = metadata
 	entry.suffix = suffix
-	entry.hash = hashSeries(ts)
 
 	return nil
 }
