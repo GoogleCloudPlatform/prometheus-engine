@@ -89,11 +89,11 @@ spec:
       serviceAccountName: operator
       containers:
       - name: operator
-        image: "gcr.io/$PROJECT_ID/prometheus-engine/operator:$IMAGE_TAG"
+        image: "gcr.io/$PROJECT_ID/prometheus-engine/operator:$TAG_NAME"
         args:
         - "--ca-selfsign=false"
         - "--image-collector=gcr.io/$PROJECT_ID/prometheus:$PROMETHEUS_VERSION"
-        - "--image-config-reloader=gcr.io/$PROJECT_ID/prometheus-engine/config-reloader:$IMAGE_TAG"
+        - "--image-config-reloader=gcr.io/$PROJECT_ID/prometheus-engine/config-reloader:$TAG_NAME"
         ports:
         - name: webhook
           # Note this should match the --listen-addr flag passed in to the operator args.
