@@ -1,6 +1,6 @@
 GOAPPS := $(notdir $(patsubst %/,%,$(dir $(shell find cmd -name 'main.go'))))
 
-IMAGE_TAG?=$(shell date "+bench_%Y%d%m_%H%M")
+TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
 help:        ## Show this help.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
@@ -49,5 +49,5 @@ crds:        ## Refresh CRD OpenAPI YAML specs.
 	./hack/update-crdgen.sh
 
 cloudbuild:  ## Build images on Google Cloud Build.
-	@echo ">> building GMP images on Cloud Build with tag: $(IMAGE_TAG)"
-	gcloud builds submit --config build.yaml --timeout=30m --substitutions=TAG_NAME="$(IMAGE_TAG)"
+	@echo ">> building GMP images on Cloud Build with tag: $(TAG_NAME)"
+	gcloud builds submit --config build.yaml --timeout=30m --substitutions=TAG_NAME="$(TAG_NAME)"
