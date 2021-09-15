@@ -143,11 +143,11 @@ const (
 	collectorConfigOutVolumeName = "config-out"
 	collectorConfigOutDir        = "/prometheus/config_out"
 	collectorConfigFilename      = "config.yaml"
-	collectorComponentName 		 = "managed_prometheus"
+	collectorComponentName       = "managed_prometheus"
 	// The well-known app name label.
-	LabelAppName 				 = "app.kubernetes.io/name"
+	LabelAppName = "app.kubernetes.io/name"
 	// The component name, will be exposed as metric name.
-	AnnotationMetricName 		 = "components.gke.io/component-name"
+	AnnotationMetricName = "components.gke.io/component-name"
 )
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
@@ -201,11 +201,17 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	if r.opts.Location != "" {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.ProjectID))
 	}
+	if r.opts.Cluster != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.ProjectID))
+	}
 	if r.opts.DisableExport {
 		collectorArgs = append(collectorArgs, "--export.disable")
 	}
 	if r.opts.CloudMonitoringEndpoint != "" {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
+	}
+	if r.opts.CredentialsFile != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", r.opts.CredentialsFile))
 	}
 
 	spec := appsv1.DaemonSetSpec{
