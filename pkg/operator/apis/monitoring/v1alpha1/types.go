@@ -29,6 +29,7 @@ import (
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/pkg/relabel"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -42,20 +43,90 @@ import (
 type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              OperatorConfigSpec `json:"spec"`
-}
-
-// OperatorConfigSpec contains specification parameters for GMPOperator.
-type OperatorConfigSpec struct {
+	// RuleEvaluator contains how the operator configures and deployes rule-evaluator.
 	RuleEvaluator RuleEvaluatorSpec `json:"ruleEvaluator"`
 }
 
-// RuleEvaluatorSpec contains specification paramters for deploying rule-evaluator.
+// RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
 type RuleEvaluatorSpec struct {
-	// Static Alertmanager destination.
-	// Valid string consisting of a hostname or IP followed by an optional port number.
-	// e.g. "localhost:9093".
-	Host string `json:"host"`
+	// Alerting contains how the rule-evaluator configures alerting.
+	Alerting AlertingSpec `json:"alerting"`
+}
+
+// AlertingSpec defines alerting configuration.
+type AlertingSpec struct {
+	// Alertmanagers contains
+	Alertmanagers []AlertmanagerEndpoints
+}
+
+// AlertmanagerEndpoints defines a selection of a single Endpoints object
+// containing alertmanager IPs to fire alerts against.
+type AlertmanagerEndpoints struct {
+	// Namespace of Endpoints object.
+	Namespace string `json:"namespace"`
+	// Name of Endpoints object in Namespace.
+	Name string `json:"name"`
+	// Port the Alertmanager API is exposed on.
+	Port intstr.IntOrString `json:"port"`
+	// Scheme to use when firing alerts.
+	Scheme string `json:"scheme,omitempty"`
+	// Prefix for the HTTP path alerts are pushed to.
+	PathPrefix string `json:"pathPrefix,omitempty"`
+	// TLS Config to use for alertmanager connection.
+	TLSConfig *TLSConfig `json:"tlsConfig,omitempty"`
+	// BearerTokenFile to read from filesystem to use when authenticating to
+	// Alertmanager.
+	BearerTokenFile string `json:"bearerTokenFile,omitempty"`
+	// Authorization section for this alertmanager endpoint
+	Authorization *SafeAuthorization `json:"authorization,omitempty"`
+	// Version of the Alertmanager API that Prometheus uses to send alerts. It
+	// can be "v1" or "v2".
+	APIVersion string `json:"apiVersion,omitempty"`
+	// Timeout is a per-target Alertmanager timeout when pushing alerts.
+	Timeout *string `json:"timeout,omitempty"`
+}
+
+// SafeAuthorization specifies a subset of the Authorization struct, that is
+// safe for use in Endpoints (no CredentialsFile field).
+type SafeAuthorization struct {
+	// Set the authentication type. Defaults to Bearer, Basic will cause an
+	// error
+	Type string `json:"type,omitempty"`
+	// The secret's key that contains the credentials of the request
+	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
+}
+
+/// TLSConfig extends the safe TLS configuration with file parameters.
+type TLSConfig struct {
+	SafeTLSConfig `json:",inline"`
+	// Path to the CA cert in the Prometheus container to use for the targets.
+	CAFile string `json:"caFile,omitempty"`
+	// Path to the client cert file in the Prometheus container for the targets.
+	CertFile string `json:"certFile,omitempty"`
+	// Path to the client key file in the Prometheus container for the targets.
+	KeyFile string `json:"keyFile,omitempty"`
+}
+
+// SafeTLSConfig specifies safe TLS configuration parameters.
+type SafeTLSConfig struct {
+	// Struct containing the CA cert to use for the targets.
+	CA SecretOrConfigMap `json:"ca,omitempty"`
+	// Struct containing the client cert file for the targets.
+	Cert SecretOrConfigMap `json:"cert,omitempty"`
+	// Secret containing the client key file for the targets.
+	KeySecret *v1.SecretKeySelector `json:"keySecret,omitempty"`
+	// Used to verify the hostname for the targets.
+	ServerName string `json:"serverName,omitempty"`
+	// Disable target certificate validation.
+	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
+}
+
+// SecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive.
+type SecretOrConfigMap struct {
+	// Secret containing data to use for the targets.
+	Secret *v1.SecretKeySelector `json:"secret,omitempty"`
+	// ConfigMap containing data to use for the targets.
+	ConfigMap *v1.ConfigMapKeySelector `json:"configMap,omitempty"`
 }
 
 // PodMonitoring defines monitoring for a set of pods.
