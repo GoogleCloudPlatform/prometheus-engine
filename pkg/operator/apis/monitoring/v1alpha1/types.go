@@ -56,7 +56,7 @@ type RuleEvaluatorSpec struct {
 // AlertingSpec defines alerting configuration.
 type AlertingSpec struct {
 	// Alertmanagers contains
-	Alertmanagers []AlertmanagerEndpoints
+	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers"`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object
