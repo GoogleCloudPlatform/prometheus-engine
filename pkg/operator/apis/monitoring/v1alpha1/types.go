@@ -54,6 +54,7 @@ type RuleEvaluatorSpec struct {
 }
 
 // AlertingSpec defines alerting configuration.
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertingspec
 type AlertingSpec struct {
 	// Alertmanagers contains
 	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers"`
@@ -61,6 +62,7 @@ type AlertingSpec struct {
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object
 // containing alertmanager IPs to fire alerts against.
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertmanagerendpoints
 type AlertmanagerEndpoints struct {
 	// Namespace of Endpoints object.
 	Namespace string `json:"namespace"`
@@ -88,6 +90,7 @@ type AlertmanagerEndpoints struct {
 
 // SafeAuthorization specifies a subset of the Authorization struct, that is
 // safe for use in Endpoints (no CredentialsFile field).
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#safeauthorization
 type SafeAuthorization struct {
 	// Set the authentication type. Defaults to Bearer, Basic will cause an
 	// error
@@ -96,7 +99,8 @@ type SafeAuthorization struct {
 	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
-/// TLSConfig extends the safe TLS configuration with file parameters.
+// TLSConfig extends the safe TLS configuration with file parameters.
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#tlsconfig
 type TLSConfig struct {
 	SafeTLSConfig `json:",inline"`
 	// Path to the CA cert in the Prometheus container to use for the targets.
@@ -108,6 +112,7 @@ type TLSConfig struct {
 }
 
 // SafeTLSConfig specifies safe TLS configuration parameters.
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#safetlsconfig
 type SafeTLSConfig struct {
 	// Struct containing the CA cert to use for the targets.
 	CA SecretOrConfigMap `json:"ca,omitempty"`
@@ -122,6 +127,7 @@ type SafeTLSConfig struct {
 }
 
 // SecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive.
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#secretorconfigmap
 type SecretOrConfigMap struct {
 	// Secret containing data to use for the targets.
 	Secret *v1.SecretKeySelector `json:"secret,omitempty"`
