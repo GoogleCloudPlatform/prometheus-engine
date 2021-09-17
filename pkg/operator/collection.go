@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -142,11 +143,11 @@ const (
 	collectorConfigOutVolumeName = "config-out"
 	collectorConfigOutDir        = "/prometheus/config_out"
 	collectorConfigFilename      = "config.yaml"
-	collectorComponentName 		 = "managed_prometheus"
+	collectorComponentName       = "managed_prometheus"
 	// The well-known app name label.
-	LabelAppName 				 = "app.kubernetes.io/name"
+	LabelAppName = "app.kubernetes.io/name"
 	// The component name, will be exposed as metric name.
-	AnnotationMetricName 		 = "components.gke.io/component-name"
+	AnnotationMetricName = "components.gke.io/component-name"
 )
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
@@ -195,16 +196,22 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 
 	// Check for explicitly-set pass-through args.
 	if r.opts.ProjectID != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.project-id=%q", r.opts.ProjectID))
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
 	}
 	if r.opts.Location != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%q", r.opts.ProjectID))
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.ProjectID))
+	}
+	if r.opts.Cluster != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.ProjectID))
 	}
 	if r.opts.DisableExport {
 		collectorArgs = append(collectorArgs, "--export.disable")
 	}
 	if r.opts.CloudMonitoringEndpoint != "" {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
+	}
+	if r.opts.CredentialsFile != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", r.opts.CredentialsFile))
 	}
 
 	spec := appsv1.DaemonSetSpec{
@@ -230,6 +237,22 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						Args: collectorArgs,
 						Ports: []corev1.ContainerPort{
 							{Name: "prom-metrics", ContainerPort: r.opts.CollectorPort},
+						},
+						LivenessProbe: &corev1.Probe{
+							Handler: corev1.Handler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/-/healthy",
+									Port: intstr.FromInt(int(r.opts.CollectorPort)),
+								},
+							},
+						},
+						ReadinessProbe: &corev1.Probe{
+							Handler: corev1.Handler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/-/ready",
+									Port: intstr.FromInt(int(r.opts.CollectorPort)),
+								},
+							},
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{

@@ -15,7 +15,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: gpe-system:collector
+  name: gmp-system:collector
 rules:
 - apiGroups: [""]
   resources:
@@ -35,7 +35,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: gpe-system:operator
+  name: gmp-system:operator
 rules:
 - apiGroups: ["", "apps", "admissionregistration.k8s.io", "monitoring.googleapis.com", "certificates.k8s.io"]
   resources:
@@ -51,7 +51,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: gpe-system:csr-approver
+  name: gmp-system:csr-approver
 rules:
 - apiGroups:
   - certificates.k8s.io

@@ -343,23 +343,22 @@ func (e *Exporter) getExternalLabels() labels.Labels {
 }
 
 // Export enqueues the samples to be written to Cloud Monitoring.
-func (e *Exporter) Export(metadata MetadataFunc, samples []record.RefSample) {
+func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample) {
 	if e.opts.Disable {
 		return
 	}
-	var (
-		sample *monitoring_pb.TimeSeries
-		hash   uint64
-		err    error
-	)
-	for len(samples) > 0 {
-		sample, hash, samples, err = e.builder.next(metadata, samples)
+	for len(batch) > 0 {
+		var (
+			samples []hashedSeries
+			err     error
+		)
+		samples, batch, err = e.builder.next(metadata, batch)
 		if err != nil {
 			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
 			continue
 		}
-		if sample != nil {
-			e.enqueue(hash, sample)
+		for _, s := range samples {
+			e.enqueue(s.hash, s.proto)
 		}
 	}
 	// Signal that new data is available.
@@ -380,7 +379,7 @@ func (e *Exporter) triggerNext() {
 
 // ClientName and Version are used to identify to User Agent. TODO(maxamin): automate versioning.
 const (
-	ClientName = "gpe-collector"
+	ClientName = "gmp-collector"
 	Version    = ""
 )
 

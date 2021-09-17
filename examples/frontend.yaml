@@ -28,13 +28,21 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: "gcr.io/$PROJECT_ID/gpe-frontend:$PROMETHEUS_ENGINE_VERSION"
+        image: "gcr.io/$PROJECT_ID/prometheus-engine/frontend:$IMAGE_TAG"
         args:
         - "--web.listen-address=:9090"
         - "--query.project-id=$PROJECT_ID"
         ports:
         - name: web
           containerPort: 9090
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: web
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: web
 ---
 apiVersion: v1
 kind: Service

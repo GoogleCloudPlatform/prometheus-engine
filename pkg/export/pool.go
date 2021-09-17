@@ -68,6 +68,9 @@ type labelsEntry struct {
 
 // intern the strings and label sets in ts.
 func (p *pool) intern(ts *monitoring_pb.TimeSeries) {
+	if ts == nil {
+		return
+	}
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 

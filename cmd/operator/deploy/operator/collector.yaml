@@ -15,18 +15,18 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  namespace: gpe-system
+  namespace: gmp-system
   name: collector
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: gpe-system:collector
+  name: gmp-system:collector
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: gpe-system:collector
+  name: gmp-system:collector
 subjects:
 - kind: ServiceAccount
-  namespace: gpe-system
+  namespace: gmp-system
   name: collector

@@ -15,7 +15,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  namespace: gpe-system
+  namespace: gmp-system
   name: scrape-kube-state-metrics
   labels:
     type: scrape-config
@@ -45,7 +45,7 @@ data:
         regex: $(NODE_NAME)
         action: keep
       - source_labels: [__meta_kubernetes_namespace]
-        regex: gpe-system
+        regex: gmp-system
         action: keep
       - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
         regex: kube-state-metrics

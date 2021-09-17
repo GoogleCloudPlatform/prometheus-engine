@@ -16,7 +16,7 @@ apiVersion: autoscaling/v2beta2
 kind: HorizontalPodAutoscaler
 metadata:
   name: kube-state-metrics
-  namespace: gpe-system
+  namespace: gmp-system
 spec:
   maxReplicas: 10
   minReplicas: 1

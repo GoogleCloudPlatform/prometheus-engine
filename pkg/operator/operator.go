@@ -42,10 +42,10 @@ import (
 
 const (
 	// DefaultOperatorNamespace is the namespace in which all resources owned by the operator are installed.
-	DefaultOperatorNamespace = "gpe-system"
+	DefaultOperatorNamespace = "gmp-system"
 
 	// Fixed names used in various resources managed by the operator.
-	NameOperator       = "gpe-operator"
+	NameOperator       = "gmp-operator"
 	nameRulesGenerated = "rules-generated"
 
 	// The official images to be used with this version of the operator. For debugging
@@ -61,7 +61,7 @@ var (
 	metricOperatorSyncLatency = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name:      "operator_sync_latency",
-			Namespace: "gpe_operator",
+			Namespace: "gmp_operator",
 			Help:      "The time it takes for operator to synchronize with managed CRDs (s).",
 		},
 	)
@@ -86,6 +86,8 @@ type Options struct {
 	Cluster string
 	// Disable exporting to GCM (mostly for testing).
 	DisableExport bool
+	// Credentials file for authentication with the GCM API.
+	CredentialsFile string
 	// Namespace to which the operator deploys any associated resources.
 	OperatorNamespace string
 	// Listening port of the collector. Configurable to allow multiple
@@ -191,7 +193,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.OwnerReference) error {
 	// Persisting TLS keypair to a k8s secret seems like unnecessary state to manage.
 	// It's fairly trivial to re-generate the cert and private
-	// key on each startup. Also no other GPE resources aside from the operator
+	// key on each startup. Also no other GMP resources aside from the operator
 	// rely on the keypair.
 	// A downside to this approach is re-writing the validation webhook config
 	// every time with the new caBundle. This should only happen when the operator
@@ -254,7 +256,7 @@ func (o *Operator) Run(ctx context.Context, ors ...metav1.OwnerReference) error 
 		return errors.Wrap(err, "setup rules controllers")
 	}
 
-	o.logger.Info("starting GPE operator")
+	o.logger.Info("starting GMP operator")
 
 	return o.manager.Start(ctx)
 }

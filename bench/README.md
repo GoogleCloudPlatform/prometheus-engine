@@ -1,6 +1,6 @@
 # Collection Benchmarking
 
-This directory contains utilities to benchmark the GPE collection stack on
+This directory contains utilities to benchmark the GMP collection stack on
 GKE clusters.
 
 ## Spinup
@@ -15,7 +15,7 @@ Define the cluster name, location, and scale:
 BASE_DIR=$(git rev-parse --show-toplevel)
 PROJECT_ID=$(gcloud config get-value core/project)
 ZONE=us-central1-b # recommended for benchmarks
-CLUSTER=gpe-"bench-$USER"
+CLUSTER=gmp-"bench-$USER"
 NODE_COUNT=5
 NODE_TYPE=e2-medium
 ```
@@ -40,7 +40,7 @@ Build the container images from the current head of the repository:
 
 ```bash
 IMAGE_TAG=$(date "+bench_%Y%d%m_%H%M")
-RELOADER_IMAGE="gcr.io/$PROJECT_ID/gpe-config-reloader:$IMAGE_TAG"
+RELOADER_IMAGE="gcr.io/$PROJECT_ID/gmp-config-reloader:$IMAGE_TAG"
 
 pushd "$BASE_DIR" &&
 gcloud builds submit --config build.yaml --timeout=30m --substitutions=TAG_NAME="$IMAGE_TAG" &&
@@ -52,7 +52,7 @@ popd
 Make sure that you have the prometheus repository checked out in the same parent
 directory as the prometheus-engine repository.
 
-Then build the container images including any changes to the libraries it uses from gpe-collector:
+Then build the container images including any changes to the libraries it uses from gmp-collector:
 
 ```bash
 PROMETHEUS_IMAGE_TAG=$(date "+bench_%Y%d%m_%H%M")
@@ -101,7 +101,7 @@ go run $BASE_DIR/cmd/operator/*.go \
   --cluster=$CLUSTER \
   --image-collector="$PROMETHEUS_IMAGE" \
   --image-config-reloader="$RELOADER_IMAGE" \
-  --priority-class=gpe-critical \
+  --priority-class=gmp-critical \
   --cloud-monitoring-endpoint=staging-monitoring.sandbox.googleapis.com:443
 ```
 
@@ -124,7 +124,7 @@ being scraped via the following MQL query (substitute the `$CLUSTER` name manual
 
 ```
 fetch prometheus_target
-| metric 'external.googleapis.com/gpe/up/gauge'
+| metric 'prometheus.googleapis.com/up/gauge'
 | filter (resource.cluster == '$CLUSTER')
 | group_by [resource.job], [sum(val())]
 ```
@@ -134,13 +134,13 @@ Further interesting cluster-wide queries are:
 ```
 # Number of active streams by job.
 fetch prometheus_target
-| metric 'external.googleapis.com/gpe/scrape_samples_scraped/gauge'
+| metric 'prometheus.googleapis.com/scrape_samples_scraped/gauge'
 | filter resource.cluster == '$CLUSTER'
 | group_by [resource.job], [sum(val())]
 
 # Total number of scraped Prometheus samples per second.
 fetch prometheus_target
-| metric 'external.googleapis.com/gpe/prometheus_tsdb_head_samples_appended_total/counter'
+| metric 'prometheus.googleapis.com/prometheus_tsdb_head_samples_appended_total/counter'
 | filter resource.cluster == '$CLUSTER'
 | align rate(1m)
 | every 1m
@@ -151,8 +151,8 @@ If no metrics show up, directly connect to one of the collector pods and inspect
 "Configuration, or "Service Discovery" pages in the Prometheus UI for further debugging.
 
 ```bash
-COLLECTOR_POD=$(kubectl -n gpe-system get pod -l "app.kubernetes.io/name=collector" -o name | head -n 1)
-kubectl -n gpe-system port-forward --address 0.0.0.0 $COLLECTOR_POD 19090
+COLLECTOR_POD=$(kubectl -n gmp-system get pod -l "app.kubernetes.io/name=collector" -o name | head -n 1)
+kubectl -n gmp-system port-forward --address 0.0.0.0 $COLLECTOR_POD 19090
 ```
 
 To inspect resource usage, provides Prometheus node_exporter metrics for node-wide resource consumption

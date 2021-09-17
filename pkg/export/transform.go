@@ -121,7 +121,7 @@ func withScrapeMetricMetadata(f MetadataFunc) MetadataFunc {
 // next extracts the next sample from the input sample batch and returns
 // the remainder of the input.
 // Returns a nil time series for samples that couldn't be converted.
-func (b *sampleBuilder) next(metadata MetadataFunc, samples []record.RefSample) (*monitoring_pb.TimeSeries, uint64, []record.RefSample, error) {
+func (b *sampleBuilder) next(metadata MetadataFunc, samples []record.RefSample) ([]hashedSeries, []record.RefSample, error) {
 	sample := samples[0]
 	tailSamples := samples[1:]
 	metadata = withScrapeMetricMetadata(metadata)
@@ -129,79 +129,84 @@ func (b *sampleBuilder) next(metadata MetadataFunc, samples []record.RefSample) 
 	// Staleness markers are currently not supported by Cloud Monitoring.
 	if value.IsStaleNaN(sample.V) {
 		prometheusSamplesDiscarded.WithLabelValues("staleness-marker").Inc()
-		return nil, 0, tailSamples, nil
+		return nil, tailSamples, nil
 	}
 
 	entry, ok := b.series.get(sample, metadata)
 	if !ok {
 		prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
-		return nil, 0, tailSamples, nil
+		return nil, tailSamples, nil
 	}
 	if entry.dropped {
-		return nil, 0, tailSamples, nil
+		return nil, tailSamples, nil
 	}
 
-	// Get a shallow copy of the proto so we can overwrite the point field
-	// and safely send it into the remote queues.
-	ts := *entry.proto
+	result := make([]hashedSeries, 0, 2)
 
-	point := &monitoring_pb.Point{
-		Interval: &monitoring_pb.TimeInterval{
-			EndTime: getTimestamp(sample.T),
-		},
-		Value: &monitoring_pb.TypedValue{},
+	// Shallow copy the cached series protos and populate them with a point. Only histograms
+	// need a special case, for other Prometheus types we apply generic gauge/cumulative logic
+	// based on the type determined in the series cache.
+	// If both are set, we double-write the series as a gauge and a cumulative.
+	if g := entry.protos.gauge; g.proto != nil {
+		ts := *g.proto
+
+		ts.Points = []*monitoring_pb.Point{{
+			Interval: &monitoring_pb.TimeInterval{
+				EndTime: getTimestamp(sample.T),
+			},
+			Value: &monitoring_pb.TypedValue{
+				Value: &monitoring_pb.TypedValue_DoubleValue{sample.V},
+			},
+		}}
+		result = append(result, hashedSeries{hash: g.hash, proto: &ts})
 	}
-	ts.Points = append(ts.Points, point)
+	if c := entry.protos.cumulative; c.proto != nil {
+		var (
+			value          *monitoring_pb.TypedValue
+			resetTimestamp int64
+		)
+		if entry.metadata.Type == textparse.MetricTypeHistogram {
+			// Consume a set of series as a single distribution sample.
 
-	var resetTimestamp int64
-
-	switch entry.metadata.Type {
-	case textparse.MetricTypeCounter:
-		var v float64
-		resetTimestamp, v, ok = b.series.getResetAdjusted(sample.Ref, sample.T, sample.V)
-		if !ok {
-			return nil, 0, tailSamples, nil
-		}
-		point.Interval.StartTime = getTimestamp(resetTimestamp)
-		point.Value.Value = &monitoring_pb.TypedValue_DoubleValue{v}
-
-	case textparse.MetricTypeGauge, textparse.MetricTypeUnknown:
-		point.Value.Value = &monitoring_pb.TypedValue_DoubleValue{sample.V}
-
-	case textparse.MetricTypeSummary:
-		switch entry.suffix {
-		case metricSuffixSum, metricSuffixNone:
-			// Quantiles and sum. The sum may actually go up and down if observations are negative.
-			point.Value.Value = &monitoring_pb.TypedValue_DoubleValue{sample.V}
-		case metricSuffixCount:
+			// We pass in the original lset for matching since Prometheus's target label must
+			// be the same as well.
+			var v *distribution_pb.Distribution
+			var err error
+			v, resetTimestamp, tailSamples, err = b.buildDistribution(entry.metadata.Metric, entry.lset, samples, metadata)
+			if err != nil {
+				return nil, tailSamples, err
+			}
+			if v != nil {
+				value = &monitoring_pb.TypedValue{
+					Value: &monitoring_pb.TypedValue_DistributionValue{v},
+				}
+			}
+		} else {
+			// A regular counter series.
 			var v float64
 			resetTimestamp, v, ok = b.series.getResetAdjusted(sample.Ref, sample.T, sample.V)
-			if !ok {
-				return nil, 0, tailSamples, nil
+			if ok {
+				value = &monitoring_pb.TypedValue{
+					Value: &monitoring_pb.TypedValue_DoubleValue{v},
+				}
 			}
-			point.Interval.StartTime = getTimestamp(resetTimestamp)
-			point.Value.Value = &monitoring_pb.TypedValue_DoubleValue{v}
-		default:
-			return nil, 0, tailSamples, errors.Errorf("unexpected metric name suffix %q", entry.suffix)
 		}
+		// If we just saw the first sample for the cumulative, we initialized the reset timestamp
+		// and couldn't build a sample yet.
+		if value != nil {
+			ts := *c.proto
 
-	case textparse.MetricTypeHistogram:
-		// We pass in the original lset for matching since Prometheus's target label must
-		// be the same as well.
-		var v *distribution_pb.Distribution
-		var err error
-		v, resetTimestamp, tailSamples, err = b.buildDistribution(entry.metadata.Metric, entry.lset, samples, metadata)
-		if v == nil || err != nil {
-			return nil, 0, tailSamples, err
+			ts.Points = []*monitoring_pb.Point{{
+				Interval: &monitoring_pb.TimeInterval{
+					StartTime: getTimestamp(resetTimestamp),
+					EndTime:   getTimestamp(sample.T),
+				},
+				Value: value,
+			}}
+			result = append(result, hashedSeries{hash: c.hash, proto: &ts})
 		}
-		point.Interval.StartTime = getTimestamp(resetTimestamp)
-		point.Value.Value = &monitoring_pb.TypedValue_DistributionValue{v}
-
-	default:
-		return nil, 0, samples[1:], errors.Errorf("unexpected metric type %s", entry.metadata.Type)
 	}
-
-	return &ts, entry.hash, tailSamples, nil
+	return result, tailSamples, nil
 }
 
 // getTimestamp converts a millisecond timestamp into a protobuf timestamp.
