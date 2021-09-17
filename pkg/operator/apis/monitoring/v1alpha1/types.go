@@ -47,6 +47,14 @@ type OperatorConfig struct {
 	Rules RuleEvaluatorSpec `json:"rules"`
 }
 
+// OperatorConfigList is a list of OperatorConfigs.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type OperatorConfigList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []OperatorConfig `json:"items"`
+}
+
 // RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
 type RuleEvaluatorSpec struct {
 	// Alerting contains how the rule-evaluator configures alerting.
