@@ -380,7 +380,7 @@ func (e *Exporter) triggerNext() {
 // ClientName and Version are used to identify to User Agent. TODO(maxamin): automate versioning.
 const (
 	ClientName = "gmp-collector"
-	Version    = ""
+	Version    = "v2.28.1-gmp.0"
 )
 
 // Run sends exported samples to Google Cloud Monitoring.
@@ -395,12 +395,15 @@ func (e *Exporter) Run(ctx context.Context) error {
 		clientOpts = append(clientOpts,
 			option.WithoutAuthentication(),
 			option.WithGRPCDialOption(grpc.WithInsecure()),
-			option.WithUserAgent(ClientName+"/"+Version),
 		)
 	}
 	if e.opts.CredentialsFile != "" {
 		clientOpts = append(clientOpts, option.WithCredentialsFile(e.opts.CredentialsFile))
 	}
+
+	// Identity User Agent for all gRPC requests.
+	clientOpts = append(clientOpts, option.WithUserAgent(ClientName+"/"+Version))
+
 	metricClient, err := monitoring.NewMetricClient(ctx, clientOpts...)
 	if err != nil {
 		return err
