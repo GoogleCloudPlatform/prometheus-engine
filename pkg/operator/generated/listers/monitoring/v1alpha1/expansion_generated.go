@@ -16,6 +16,14 @@
 
 package v1alpha1
 
+// OperatorConfigListerExpansion allows custom methods to be added to
+// OperatorConfigLister.
+type OperatorConfigListerExpansion interface{}
+
+// OperatorConfigNamespaceListerExpansion allows custom methods to be added to
+// OperatorConfigNamespaceLister.
+type OperatorConfigNamespaceListerExpansion interface{}
+
 // PodMonitoringListerExpansion allows custom methods to be added to
 // PodMonitoringLister.
 type PodMonitoringListerExpansion interface{}

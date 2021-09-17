@@ -58,14 +58,15 @@ kindclean:   ## Clean previous kind state.
 kindtest:    ## Run e2e test suite against fresh kind k8s cluster.
 kindtest: kindclean
 	@echo ">> building image"
-	DOCKER_BUILDKIT=1 docker build --tag gpe/kindtest -f hack/Dockerfile --target kindtest .
+	DOCKER_BUILDKIT=1 docker build --tag gmp/kindtest -f hack/Dockerfile --target kindtest .
 	@echo ">> creating tmp gcloud config volume"
 	docker volume create gcloud-config
 	docker create -v gcloud-config:/data --name tmp busybox true
 	docker cp $(CLOUDSDK_CONFIG) tmp:/data
 	docker rm tmp
 	@echo ">> running container"
-	docker run --rm -v gcloud-config:/root/.config gpe/kindtest ./hack/kind-test.sh
+	docker run --rm -v gcloud-config:/root/.config gmp/kindtest ./hack/kind-test.sh
+	docker volume rm -f gcloud-config
 
 cloudbuild:  ## Build images on Google Cloud Build.
 	@echo ">> building GMP images on Cloud Build with tag: $(TAG_NAME)"

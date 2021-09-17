@@ -70,13 +70,9 @@ if docker ps; then
 else
   echo ">>> forwarding docker daemon from cloud-shell"
   gcloud alpha cloud-shell ssh -- -4 -nNT -L ${TMPDIR}/docker.sock:/var/run/docker.sock -L 6443:localhost:6443 &
+  # Wait for cloud-shell to mount Docker unix socket.
+  while [ ! -f $HOME/.ssh/known_hosts ]; do echo ">>> waiting for cloud-shell docker.sock mount"; sleep 2; done
   export DOCKER_HOST=unix://${TMPDIR}/docker.sock
-  # NOTE: this sleep statement is a little hacky. 
-  # We want to wait until the remote shell host's IP is added to the known
-  # hosts, which takes an indeterminate amount of time.
-  # In practice, 15s worked consistently. However, if a timeout occurs, try increasing
-  # this value.
-  sleep 15
 fi
 
 # Idempotently create kind cluster
@@ -93,5 +89,5 @@ kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/cmd/operator/deploy/operator
 kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/cmd/operator/deploy/operator/
 kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/cmd/operator/deploy/ --recursive
 
-echo ">>> executing gpe e2e tests"
+echo ">>> executing gmp e2e tests"
 go test -v ${SCRIPT_ROOT}/pkg/operator/e2e -args -project-id=test-proj -cluster=test-cluster -location=test-location

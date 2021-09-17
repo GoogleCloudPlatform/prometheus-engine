@@ -23,6 +23,9 @@ SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 # Refresh vendored dependencies to ensure script is found.
 go mod vendor
 
+# Idempotently regenerate by deleting current resources.
+rm -r $SCRIPT_ROOT/pkg/operator/generated
+
 CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
 
 # Invoke only for deepcopy first as it doesn't accept the pluralization flag
@@ -37,3 +40,6 @@ bash "${CODEGEN_PKG}"/generate-groups.sh "client,informer,lister" \
   monitoring:v1alpha1 \
   --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt \
   --plural-exceptions "Rules:Rules"
+
+cp -r $SCRIPT_ROOT/github.com/GoogleCloudPlatform/prometheus-engine/* $SCRIPT_ROOT
+rm -r $SCRIPT_ROOT/github.com

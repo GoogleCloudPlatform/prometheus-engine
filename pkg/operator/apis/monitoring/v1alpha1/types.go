@@ -29,12 +29,119 @@ import (
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/pkg/relabel"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 )
+
+// OperatorConfig defines configuration of the gmp-operator.
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type OperatorConfig struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	// Rules contains how the operator configures and deployes rule-evaluator.
+	Rules RuleEvaluatorSpec `json:"rules"`
+}
+
+// OperatorConfigList is a list of OperatorConfigs.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type OperatorConfigList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []OperatorConfig `json:"items"`
+}
+
+// RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
+type RuleEvaluatorSpec struct {
+	// Alerting contains how the rule-evaluator configures alerting.
+	Alerting AlertingSpec `json:"alerting"`
+}
+
+// AlertingSpec defines alerting configuration.
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertingspec
+type AlertingSpec struct {
+	// Alertmanagers contains endpoint configuration for designated Alertmanagers.
+	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers"`
+}
+
+// AlertmanagerEndpoints defines a selection of a single Endpoints object
+// containing alertmanager IPs to fire alerts against.
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertmanagerendpoints
+type AlertmanagerEndpoints struct {
+	// Namespace of Endpoints object.
+	Namespace string `json:"namespace"`
+	// Name of Endpoints object in Namespace.
+	Name string `json:"name"`
+	// Port the Alertmanager API is exposed on.
+	Port intstr.IntOrString `json:"port"`
+	// Scheme to use when firing alerts.
+	Scheme string `json:"scheme,omitempty"`
+	// Prefix for the HTTP path alerts are pushed to.
+	PathPrefix string `json:"pathPrefix,omitempty"`
+	// TLS Config to use for alertmanager connection.
+	TLSConfig *TLSConfig `json:"tlsConfig,omitempty"`
+	// BearerTokenFile to read from filesystem to use when authenticating to
+	// Alertmanager.
+	BearerTokenFile string `json:"bearerTokenFile,omitempty"`
+	// Authorization section for this alertmanager endpoint
+	Authorization *SafeAuthorization `json:"authorization,omitempty"`
+	// Version of the Alertmanager API that rule-evaluator uses to send alerts. It
+	// can be "v1" or "v2".
+	APIVersion string `json:"apiVersion,omitempty"`
+	// Timeout is a per-target Alertmanager timeout when pushing alerts.
+	Timeout *string `json:"timeout,omitempty"`
+}
+
+// SafeAuthorization specifies a subset of the Authorization struct, that is
+// safe for use in Endpoints (no CredentialsFile field).
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#safeauthorization
+type SafeAuthorization struct {
+	// Set the authentication type. Defaults to Bearer, Basic will cause an
+	// error
+	Type string `json:"type,omitempty"`
+	// The secret's key that contains the credentials of the request
+	Credentials *NamespacedSecretKeySelector `json:"credentials,omitempty"`
+}
+
+// NamespacedSecretKeySelector wraps the core SecretKeySelector with namespace.
+type NamespacedSecretKeySelector struct {
+	v1.SecretKeySelector `json:",inline"`
+	Namespace            string `json:"namespace"`
+}
+
+// NamespacedConfigMapKeySelector wraps the core ConfigMapKeySelector with namespace.
+type NamespacedConfigMapKeySelector struct {
+	v1.ConfigMapKeySelector `json:",inline"`
+	Namespace               string `json:"namespace"`
+}
+
+// SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#safetlsconfig
+type TLSConfig struct {
+	// Struct containing the CA cert to use for the targets.
+	CA NamespacedSecretOrConfigMap `json:"ca,omitempty"`
+	// Struct containing the client cert file for the targets.
+	Cert NamespacedSecretOrConfigMap `json:"cert,omitempty"`
+	// Secret containing the client key file for the targets.
+	KeySecret *NamespacedSecretKeySelector `json:"keySecret,omitempty"`
+	// Used to verify the hostname for the targets.
+	ServerName string `json:"serverName,omitempty"`
+	// Disable target certificate validation.
+	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
+}
+
+// NamespacedSecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive.
+// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#secretorconfigmap
+type NamespacedSecretOrConfigMap struct {
+	// Secret containing data to use for the targets.
+	Secret *NamespacedSecretKeySelector `json:"secret,omitempty"`
+	// ConfigMap containing data to use for the targets.
+	ConfigMap *NamespacedConfigMapKeySelector `json:"configMap,omitempty"`
+}
 
 // PodMonitoring defines monitoring for a set of pods.
 // +genclient

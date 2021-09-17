@@ -16,6 +16,8 @@
 
 package v1alpha1
 
+type OperatorConfigExpansion interface{}
+
 type PodMonitoringExpansion interface{}
 
 type RulesExpansion interface{}
