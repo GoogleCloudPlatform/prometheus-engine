@@ -269,7 +269,7 @@ spec:
           description: OperatorConfig defines configuration of the gmp-operator.
           type: object
           required:
-            - ruleEvaluator
+            - rules
           properties:
             apiVersion:
               description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
@@ -279,8 +279,8 @@ spec:
               type: string
             metadata:
               type: object
-            ruleEvaluator:
-              description: RuleEvaluator contains how the operator configures and deployes rule-evaluator.
+            rules:
+              description: Rules contains how the operator configures and deployes rule-evaluator.
               type: object
               required:
                 - alerting
@@ -292,10 +292,10 @@ spec:
                     - alertmanagers
                   properties:
                     alertmanagers:
-                      description: Alertmanagers contains
+                      description: Alertmanagers contains endpoint configuration for designated Alertmanagers.
                       type: array
                       items:
-                        description: AlertmanagerEndpoints defines a selection of a single Endpoints object containing alertmanager IPs to fire alerts against.
+                        description: 'AlertmanagerEndpoints defines a selection of a single Endpoints object containing alertmanager IPs to fire alerts against. Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertmanagerendpoints'
                         type: object
                         required:
                           - name
@@ -303,7 +303,7 @@ spec:
                           - port
                         properties:
                           apiVersion:
-                            description: Version of the Alertmanager API that Prometheus uses to send alerts. It can be "v1" or "v2".
+                            description: Version of the Alertmanager API that rule-evaluator uses to send alerts. It can be "v1" or "v2".
                             type: string
                           authorization:
                             description: Authorization section for this alertmanager endpoint
@@ -314,12 +314,15 @@ spec:
                                 type: object
                                 required:
                                   - key
+                                  - namespace
                                 properties:
                                   key:
                                     description: The key of the secret to select from.  Must be a valid secret key.
                                     type: string
                                   name:
                                     description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                    type: string
+                                  namespace:
                                     type: string
                                   optional:
                                     description: Specify whether the Secret or its key must be defined
@@ -364,12 +367,15 @@ spec:
                                     type: object
                                     required:
                                       - key
+                                      - namespace
                                     properties:
                                       key:
                                         description: The key to select.
                                         type: string
                                       name:
                                         description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                        type: string
+                                      namespace:
                                         type: string
                                       optional:
                                         description: Specify whether the ConfigMap or its key must be defined
@@ -379,6 +385,7 @@ spec:
                                     type: object
                                     required:
                                       - key
+                                      - namespace
                                     properties:
                                       key:
                                         description: The key of the secret to select from.  Must be a valid secret key.
@@ -386,12 +393,11 @@ spec:
                                       name:
                                         description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
                                         type: string
+                                      namespace:
+                                        type: string
                                       optional:
                                         description: Specify whether the Secret or its key must be defined
                                         type: boolean
-                              caFile:
-                                description: Path to the CA cert in the Prometheus container to use for the targets.
-                                type: string
                               cert:
                                 description: Struct containing the client cert file for the targets.
                                 type: object
@@ -401,12 +407,15 @@ spec:
                                     type: object
                                     required:
                                       - key
+                                      - namespace
                                     properties:
                                       key:
                                         description: The key to select.
                                         type: string
                                       name:
                                         description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                        type: string
+                                      namespace:
                                         type: string
                                       optional:
                                         description: Specify whether the ConfigMap or its key must be defined
@@ -416,6 +425,7 @@ spec:
                                     type: object
                                     required:
                                       - key
+                                      - namespace
                                     properties:
                                       key:
                                         description: The key of the secret to select from.  Must be a valid secret key.
@@ -423,29 +433,28 @@ spec:
                                       name:
                                         description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
                                         type: string
+                                      namespace:
+                                        type: string
                                       optional:
                                         description: Specify whether the Secret or its key must be defined
                                         type: boolean
-                              certFile:
-                                description: Path to the client cert file in the Prometheus container for the targets.
-                                type: string
                               insecureSkipVerify:
                                 description: Disable target certificate validation.
                                 type: boolean
-                              keyFile:
-                                description: Path to the client key file in the Prometheus container for the targets.
-                                type: string
                               keySecret:
                                 description: Secret containing the client key file for the targets.
                                 type: object
                                 required:
                                   - key
+                                  - namespace
                                 properties:
                                   key:
                                     description: The key of the secret to select from.  Must be a valid secret key.
                                     type: string
                                   name:
                                     description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                    type: string
+                                  namespace:
                                     type: string
                                   optional:
                                     description: Specify whether the Secret or its key must be defined

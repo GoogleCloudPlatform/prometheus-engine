@@ -39,12 +39,12 @@ import (
 
 // OperatorConfig defines configuration of the gmp-operator.
 // +genclient
-// +k8s:deepcopy-gen:interfaes=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// RuleEvaluator contains how the operator configures and deployes rule-evaluator.
-	RuleEvaluator RuleEvaluatorSpec `json:"ruleEvaluator"`
+	// Rules contains how the operator configures and deployes rule-evaluator.
+	Rules RuleEvaluatorSpec `json:"rules"`
 }
 
 // RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
@@ -56,7 +56,7 @@ type RuleEvaluatorSpec struct {
 // AlertingSpec defines alerting configuration.
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertingspec
 type AlertingSpec struct {
-	// Alertmanagers contains
+	// Alertmanagers contains endpoint configuration for designated Alertmanagers.
 	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers"`
 }
 
@@ -81,7 +81,7 @@ type AlertmanagerEndpoints struct {
 	BearerTokenFile string `json:"bearerTokenFile,omitempty"`
 	// Authorization section for this alertmanager endpoint
 	Authorization *SafeAuthorization `json:"authorization,omitempty"`
-	// Version of the Alertmanager API that Prometheus uses to send alerts. It
+	// Version of the Alertmanager API that rule-evaluator uses to send alerts. It
 	// can be "v1" or "v2".
 	APIVersion string `json:"apiVersion,omitempty"`
 	// Timeout is a per-target Alertmanager timeout when pushing alerts.
@@ -96,43 +96,43 @@ type SafeAuthorization struct {
 	// error
 	Type string `json:"type,omitempty"`
 	// The secret's key that contains the credentials of the request
-	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
+	Credentials *NamespacedSecretKeySelector `json:"credentials,omitempty"`
 }
 
-// TLSConfig extends the safe TLS configuration with file parameters.
-// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#tlsconfig
-type TLSConfig struct {
-	SafeTLSConfig `json:",inline"`
-	// Path to the CA cert in the Prometheus container to use for the targets.
-	CAFile string `json:"caFile,omitempty"`
-	// Path to the client cert file in the Prometheus container for the targets.
-	CertFile string `json:"certFile,omitempty"`
-	// Path to the client key file in the Prometheus container for the targets.
-	KeyFile string `json:"keyFile,omitempty"`
+// NamespacedSecretKeySelector wraps the core SecretKeySelector with namespace.
+type NamespacedSecretKeySelector struct {
+	v1.SecretKeySelector `json:",inline"`
+	Namespace            string `json:"namespace"`
 }
 
-// SafeTLSConfig specifies safe TLS configuration parameters.
+// NamespacedConfigMapKeySelector wraps the core ConfigMapKeySelector with namespace.
+type NamespacedConfigMapKeySelector struct {
+	v1.ConfigMapKeySelector `json:",inline"`
+	Namespace               string `json:"namespace"`
+}
+
+// SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#safetlsconfig
-type SafeTLSConfig struct {
+type TLSConfig struct {
 	// Struct containing the CA cert to use for the targets.
-	CA SecretOrConfigMap `json:"ca,omitempty"`
+	CA NamespacedSecretOrConfigMap `json:"ca,omitempty"`
 	// Struct containing the client cert file for the targets.
-	Cert SecretOrConfigMap `json:"cert,omitempty"`
+	Cert NamespacedSecretOrConfigMap `json:"cert,omitempty"`
 	// Secret containing the client key file for the targets.
-	KeySecret *v1.SecretKeySelector `json:"keySecret,omitempty"`
+	KeySecret *NamespacedSecretKeySelector `json:"keySecret,omitempty"`
 	// Used to verify the hostname for the targets.
 	ServerName string `json:"serverName,omitempty"`
 	// Disable target certificate validation.
 	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
 }
 
-// SecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive.
+// NamespacedSecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive.
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#secretorconfigmap
-type SecretOrConfigMap struct {
+type NamespacedSecretOrConfigMap struct {
 	// Secret containing data to use for the targets.
-	Secret *v1.SecretKeySelector `json:"secret,omitempty"`
+	Secret *NamespacedSecretKeySelector `json:"secret,omitempty"`
 	// ConfigMap containing data to use for the targets.
-	ConfigMap *v1.ConfigMapKeySelector `json:"configMap,omitempty"`
+	ConfigMap *NamespacedConfigMapKeySelector `json:"configMap,omitempty"`
 }
 
 // PodMonitoring defines monitoring for a set of pods.
