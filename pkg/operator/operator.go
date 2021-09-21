@@ -45,8 +45,14 @@ const (
 	DefaultOperatorNamespace = "gmp-system"
 
 	// Fixed names used in various resources managed by the operator.
-	NameOperator       = "gmp-operator"
-	nameRulesGenerated = "rules-generated"
+	NameOperator           = "gmp-operator"
+	nameRulesGenerated     = "rules-generated"
+	collectorComponentName = "managed_prometheus"
+
+	// The well-known app name label.
+	LabelAppName = "app.kubernetes.io/name"
+	// The component name, will be exposed as metric name.
+	AnnotationMetricName = "components.gke.io/component-name"
 
 	// The official images to be used with this version of the operator. For debugging
 	// and emergency use cases they may be overwritten through options.
@@ -254,6 +260,9 @@ func (o *Operator) Run(ctx context.Context, ors ...metav1.OwnerReference) error 
 	}
 	if err := setupRulesControllers(o); err != nil {
 		return errors.Wrap(err, "setup rules controllers")
+	}
+	if err := setupOperatorConfigControllers(o); err != nil {
+		return errors.Wrap(err, "setup rule-evaluator controllers")
 	}
 
 	o.logger.Info("starting GMP operator")

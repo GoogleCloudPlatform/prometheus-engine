@@ -60,11 +60,6 @@ func (in *AlertmanagerEndpoints) DeepCopyInto(out *AlertmanagerEndpoints) {
 		*out = new(SafeAuthorization)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.Timeout != nil {
-		in, out := &in.Timeout, &out.Timeout
-		*out = new(string)
-		**out = **in
-	}
 	return
 }
 

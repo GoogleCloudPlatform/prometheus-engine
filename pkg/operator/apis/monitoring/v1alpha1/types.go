@@ -93,7 +93,7 @@ type AlertmanagerEndpoints struct {
 	// can be "v1" or "v2".
 	APIVersion string `json:"apiVersion,omitempty"`
 	// Timeout is a per-target Alertmanager timeout when pushing alerts.
-	Timeout *string `json:"timeout,omitempty"`
+	Timeout string `json:"timeout,omitempty"`
 }
 
 // SafeAuthorization specifies a subset of the Authorization struct, that is
