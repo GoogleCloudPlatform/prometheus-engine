@@ -63,6 +63,8 @@ func main() {
 			unstableFlagHelp("Override for the container image of the collector."))
 		imageConfigReloader = flag.String("image-config-reloader", operator.ImageConfigReloader,
 			unstableFlagHelp("Override for the container image of the config reloader."))
+		imageRuleEvaluator = flag.String("image-rule-evaluator", operator.ImageRuleEvaluator,
+			unstableFlagHelp("Override for the container image of the rule evaluator."))
 		priorityClass = flag.String("priority-class", "",
 			"Priority class at which the collector pods are run.")
 		gcmEndpoint = flag.String("cloud-monitoring-endpoint", "",
@@ -96,6 +98,7 @@ func main() {
 		OperatorNamespace:       *operatorNamespace,
 		ImageCollector:          *imageCollector,
 		ImageConfigReloader:     *imageConfigReloader,
+		ImageRuleEvaluator:      *imageRuleEvaluator,
 		PriorityClass:           *priorityClass,
 		CloudMonitoringEndpoint: *gcmEndpoint,
 		CASelfSign:              *caSelfSign,

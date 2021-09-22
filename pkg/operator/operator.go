@@ -45,9 +45,17 @@ const (
 	DefaultOperatorNamespace = "gmp-system"
 
 	// Fixed names used in various resources managed by the operator.
-	NameOperator           = "gmp-operator"
-	nameRulesGenerated     = "rules-generated"
-	collectorComponentName = "managed_prometheus"
+	NameOperator       = "gmp-operator"
+	nameRulesGenerated = "rules-generated"
+	componentName      = "managed_prometheus"
+
+	// Prometheus configuration file and volume mounts.
+	// Used in both collectors and rule-evaluator.
+	configOutDir        = "/prometheus/config_out"
+	configVolumeName    = "config"
+	configDir           = "/prometheus/config"
+	configOutVolumeName = "config-out"
+	configFilename      = "config.yaml"
 
 	// The well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
@@ -61,6 +69,7 @@ const (
 	// ImageConfigReloader = "gcr.io/gke-release-staging/prometheus-engine/gpe-config-reloader:v0.0.0.gke.0"
 	ImageCollector      = "gcr.io/gpe-test-1/prometheus:v2.27.1-gpe.0"
 	ImageConfigReloader = "gcr.io/gpe-test-1/gpe-config-reloader:v0.0.1"
+	ImageRuleEvaluator  = "gcr.io/gpe-test-1/prometheus-engine/rule-evaluator:bench_20211309_1504"
 )
 
 var (
@@ -104,6 +113,8 @@ type Options struct {
 	ImageCollector string
 	// Image for the Prometheus config reloader.
 	ImageConfigReloader string
+	// Image for the Prometheus rule-evaluator.
+	ImageRuleEvaluator string
 	// Priority class for the collector pods.
 	PriorityClass string
 	// Endpoint of the Cloud Monitoring API to be used by all collectors.
@@ -127,6 +138,9 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	if o.ImageConfigReloader == "" {
 		o.ImageConfigReloader = ImageConfigReloader
 	}
+	if o.ImageRuleEvaluator == "" {
+		o.ImageRuleEvaluator = ImageRuleEvaluator
+	}
 
 	if o.ProjectID == "" {
 		return errors.New("ProjectID must be set")
@@ -141,6 +155,10 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	if o.ImageConfigReloader != ImageConfigReloader {
 		logger.Info("not using the canonical config reloader image",
 			"expected", ImageConfigReloader, "got", o.ImageConfigReloader)
+	}
+	if o.ImageRuleEvaluator != ImageRuleEvaluator {
+		logger.Info("not using the canonical rule-evaluator image",
+			"expected", ImageRuleEvaluator, "got", o.ImageRuleEvaluator)
 	}
 	return nil
 }

@@ -284,6 +284,9 @@ spec:
               type: object
               required:
                 - alerting
+                - labelLocation
+                - labelProjectID
+                - projectID
               properties:
                 alerting:
                   description: Alerting contains how the rule-evaluator configures alerting.
@@ -462,5 +465,14 @@ spec:
                               serverName:
                                 description: Used to verify the hostname for the targets.
                                 type: string
+                labelLocation:
+                  description: LabelLocation is the `location` label value on exported time series generated from recording rules. If left blank, the rule-evaluator will try and fetch the location from the GCE metadata server.
+                  type: string
+                labelProjectID:
+                  description: LabelProjectID is the `project_id` label value on exported time series generated from recording rules. If left blank, the rule-evaluator will try and fetch the project ID from the GCE metadata server.
+                  type: string
+                projectID:
+                  description: ProjectID is the GCP project ID to evaluate rules against. If left blank, the rule-evaluator will try and fetch the project ID from the GCE metadata server.
+                  type: string
   scope: Namespaced
 ---

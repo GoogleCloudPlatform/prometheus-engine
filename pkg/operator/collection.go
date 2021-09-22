@@ -137,12 +137,6 @@ const (
 	// CollectorName is the base name of the collector used across various resources. Must match with
 	// the static resources installed during the operator's base setup.
 	CollectorName = "collector"
-
-	collectorConfigVolumeName    = "config"
-	collectorConfigDir           = "/prometheus/config"
-	collectorConfigOutVolumeName = "config-out"
-	collectorConfigOutDir        = "/prometheus/config_out"
-	collectorConfigFilename      = "config.yaml"
 )
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
@@ -168,11 +162,11 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	}
 
 	podAnnotations := map[string]string{
-		AnnotationMetricName: collectorComponentName,
+		AnnotationMetricName: componentName,
 	}
 
 	collectorArgs := []string{
-		fmt.Sprintf("--config.file=%s", path.Join(collectorConfigOutDir, collectorConfigFilename)),
+		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
 		"--storage.tsdb.path=/prometheus/data",
 		"--storage.tsdb.no-lockfile",
 		// Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
@@ -251,8 +245,8 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
-								Name:      collectorConfigOutVolumeName,
-								MountPath: collectorConfigOutDir,
+								Name:      configOutVolumeName,
+								MountPath: configOutDir,
 								ReadOnly:  true,
 							},
 						},
@@ -270,8 +264,8 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						Name:  "config-reloader",
 						Image: r.opts.ImageConfigReloader,
 						Args: []string{
-							fmt.Sprintf("--config-file=%s", path.Join(collectorConfigDir, collectorConfigFilename)),
-							fmt.Sprintf("--config-file-output=%s", path.Join(collectorConfigOutDir, collectorConfigFilename)),
+							fmt.Sprintf("--config-file=%s", path.Join(configDir, configFilename)),
+							fmt.Sprintf("--config-file-output=%s", path.Join(configOutDir, configFilename)),
 							fmt.Sprintf("--reload-url=http://localhost:%d/-/reload", r.opts.CollectorPort),
 							fmt.Sprintf("--listen-address=:%d", r.opts.CollectorPort+1),
 						},
@@ -291,12 +285,12 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
-								Name:      collectorConfigVolumeName,
-								MountPath: collectorConfigDir,
+								Name:      configVolumeName,
+								MountPath: configDir,
 								ReadOnly:  true,
 							}, {
-								Name:      collectorConfigOutVolumeName,
-								MountPath: collectorConfigOutDir,
+								Name:      configOutVolumeName,
+								MountPath: configOutDir,
 							},
 						},
 						Resources: corev1.ResourceRequirements{
@@ -313,7 +307,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 				},
 				Volumes: []corev1.Volume{
 					{
-						Name: collectorConfigVolumeName,
+						Name: configVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
@@ -322,7 +316,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 							},
 						},
 					}, {
-						Name: collectorConfigOutVolumeName,
+						Name: configOutVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							EmptyDir: &corev1.EmptyDirVolumeSource{},
 						},
@@ -380,7 +374,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context) error 
 			Name:      CollectorName,
 		},
 		Data: map[string]string{
-			collectorConfigFilename: string(cfgEncoded),
+			configFilename: string(cfgEncoded),
 		},
 	}
 

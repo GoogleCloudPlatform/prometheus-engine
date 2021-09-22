@@ -71,13 +71,15 @@ else
   echo ">>> forwarding docker daemon from cloud-shell"
   gcloud alpha cloud-shell ssh -- -4 -nNT -L ${TMPDIR}/docker.sock:/var/run/docker.sock -L 6443:localhost:6443 &
   # Wait for cloud-shell to mount Docker unix socket.
-  while [ ! -f $HOME/.ssh/known_hosts ]; do echo ">>> waiting for cloud-shell docker.sock mount"; sleep 2; done
+  while [ ! -f $HOME/.ssh/known_hosts ]; do echo ">>> waiting for cloud-shell docker socket mount"; sleep 2; done
+  echo ">>> mounted docker socket at ${TMPDIR}/docker.sock"
   export DOCKER_HOST=unix://${TMPDIR}/docker.sock
+  sleep 2
 fi
 
 # Idempotently create kind cluster
-echo ">>> creating k8s cluster"
 export KUBECONFIG=${TMPDIR}/.kube/config
+echo ">>> creating k8s cluster using KUBECONFIG at ${KUBECONFIG}"
 kind delete cluster
 kind create cluster --config=${SCRIPT_ROOT}/hack/kind-config.yaml
 
