@@ -169,7 +169,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 		return nil, errors.Wrap(err, "build Kubernetes clientset")
 	}
 	// Create temporary directory to store webhook serving cert files.
-	certDir, err := ioutil.TempDir("", "prometheus-engine-operator-certs")
+	certDir, err := ioutil.TempDir("", "operator-cert")
 	if err != nil {
 		return nil, errors.Wrap(err, "create temporary certificate dir")
 	}

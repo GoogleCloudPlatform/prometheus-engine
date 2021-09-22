@@ -48,6 +48,7 @@ rules:
   - certificatesigningrequests
   - rules
   - operatorconfigs
+  - secrets
   verbs: ["create", "update", "get", "list", "watch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

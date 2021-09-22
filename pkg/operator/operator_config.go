@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strings"
 
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	"github.com/go-logr/logr"
@@ -11,8 +12,10 @@ import (
 	"gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -20,11 +23,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+// TODO(pintohutch): move these into the operator Options and pass in.
 const (
 	NameRuleEvaluator = "rule-evaluator"
 	rulesVolumeName   = "rules"
+	secretVolumeName  = "rules-secret"
+	RulesSecretName   = "rules"
 	rulesDir          = "/etc/rules"
+	secretsDir        = "/etc/secrets"
 	RuleEvaluatorPort = 19092
+)
+
+var (
+	rulesLabels = map[string]string{
+		LabelAppName: NameRuleEvaluator,
+	}
+	rulesAnnotations = map[string]string{
+		AnnotationMetricName: componentName,
+	}
 )
 
 // setupOperatorConfigControllers ensures a rule-evaluator
@@ -58,8 +74,9 @@ func setupOperatorConfigControllers(op *Operator) error {
 
 // operatorConfigReconciler reconciles the OperatorConfig CRD.
 type operatorConfigReconciler struct {
-	client client.Client
-	opts   Options
+	client     client.Client
+	opts       Options
+	secretData map[string][]byte
 }
 
 // newOperatorConfigReconciler creates a new operatorConfigReconciler.
@@ -82,6 +99,11 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	if err := r.ensureRuleEvaluatorConfig(ctx, config); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator config")
 	}
+
+	if err := r.ensureRuleEvaluatorSecrets(ctx); err != nil {
+		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator secrets")
+	}
+
 	if err := r.ensureRuleEvaluatorDeployment(ctx, &config.Rules); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator deploy")
 	}
@@ -91,7 +113,7 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 
 // ensureRuleEvaluatorConfig reconciles the ConfigMap for rule-evaluator.
 func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context, config *monitoringv1alpha1.OperatorConfig) error {
-	amConfigs, err := makeAlertManagerConfigs(&config.Rules.Alerting)
+	amConfigs, err := r.makeAlertManagerConfigs(ctx, &config.Rules.Alerting)
 	if err != nil {
 		return errors.Wrap(err, "make alertmanager config")
 	}
@@ -156,6 +178,31 @@ func makeRuleEvaluatorConfigMap(amConfigs []yaml.MapSlice, name, namespace, file
 	return cm, nil
 }
 
+// ensureRuleEvaluatorSecrets reconciles the Secrets for rule-evaluator.
+func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Context) error {
+	var secret = &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        RulesSecretName,
+			Namespace:   r.opts.OperatorNamespace,
+			Annotations: rulesAnnotations,
+			Labels:      rulesLabels,
+		},
+		Data: make(map[string][]byte),
+	}
+	for f, b := range r.secretData {
+		secret.Data[f] = b
+	}
+
+	if err := r.client.Update(ctx, secret); apierrors.IsNotFound(err) {
+		if err := r.client.Create(ctx, secret); err != nil {
+			return errors.Wrap(err, "create rule-evaluator secrets")
+		}
+	} else if err != nil {
+		return errors.Wrap(err, "update rule-evaluator secrets")
+	}
+	return nil
+}
+
 // ensureRuleEvaluatorDeployment reconciles the Deployment for rule-evaluator.
 func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Context, rules *monitoringv1alpha1.RuleEvaluatorSpec) error {
 	deploy := r.makeRuleEvaluatorDeployment(rules)
@@ -194,12 +241,12 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 	}
 	spec := appsv1.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
-			MatchLabels: podLabels,
+			MatchLabels: rulesLabels,
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels:      podLabels,
-				Annotations: podAnnotations,
+				Labels:      rulesLabels,
+				Annotations: rulesAnnotations,
 			},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
@@ -275,6 +322,11 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 								MountPath: rulesDir,
 								ReadOnly:  true,
 							},
+							{
+								Name:      secretVolumeName,
+								MountPath: secretsDir,
+								ReadOnly:  true,
+							},
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
@@ -322,6 +374,13 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 								},
 							},
 						},
+					}, {
+						Name: secretVolumeName,
+						VolumeSource: corev1.VolumeSource{
+							Secret: &corev1.SecretVolumeSource{
+								SecretName: RulesSecretName,
+							},
+						},
 					},
 				},
 				// Collector service account used for K8s endpoints-based SD.
@@ -345,6 +404,8 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
 			Name:      NameRuleEvaluator,
+			// TODO(pintohutch): OwnerReferences should tear down rule-evaluator
+			// when gmp-operator is deleted.
 		},
 		Spec: spec,
 	}
@@ -355,7 +416,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 // https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config.
 // TODO(pintohutch): change function signature to use native Promethues go structs
 // over []yaml.MapSlice.
-func makeAlertManagerConfigs(spec *monitoringv1alpha1.AlertingSpec) ([]yaml.MapSlice, error) {
+func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, spec *monitoringv1alpha1.AlertingSpec) ([]yaml.MapSlice, error) {
 	var configs []yaml.MapSlice
 	for _, am := range spec.Alertmanagers {
 		var cfg yaml.MapSlice
@@ -375,9 +436,260 @@ func makeAlertManagerConfigs(spec *monitoringv1alpha1.AlertingSpec) ([]yaml.MapS
 		if am.Scheme != "" {
 			cfg = append(cfg, yaml.MapItem{Key: "scheme", Value: am.Scheme})
 		}
-		// TODO(pintohutch): fill the rest out.
 
+		// Authorization.
+		// Default to Bearer for authorization type.
+		if am.Authorization != nil {
+			authCfg := yaml.MapSlice{}
+			if t := am.Authorization.Type; t != "" {
+				authCfg = append(authCfg, yaml.MapItem{Key: "type", Value: strings.TrimSpace(t)})
+			}
+			if c := am.Authorization.Credentials; c != nil {
+				b, err := getSecretKeyBytes(ctx, r.client, c)
+				if err != nil {
+					return configs, err
+				}
+				authCfg = append(authCfg, yaml.MapItem{Key: "credentials", Value: string(b)})
+			}
+			cfg = append(cfg, yaml.MapItem{Key: "authorization", Value: authCfg})
+		}
+
+		// TLS config.
+		if tls := am.TLSConfig; tls != nil {
+			cfg = append(cfg, yaml.MapItem{Key: "tls_config", Value: tlsConfigYAML(secretsDir, tls)})
+			// Populate secretData cache to act on (i.e. upsert dedicated Secret) later.
+			secretData, err := getTLSSecretData(ctx, r.client, tls)
+			if err != nil {
+				return configs, err
+			}
+			r.secretData = secretData
+		}
+
+		// Kubernetes SD configs.
+		cfg = append(cfg, yaml.MapItem{Key: "kubernetes_sd_configs", Value: k8sSDConfigYAML(am.Namespace)})
+
+		// Relabel configs.
+		cfg = append(cfg, yaml.MapItem{Key: "relabel_configs", Value: relabelConfigsYAML(&am)})
+
+		// TODO(pintohutch): Unsure if these make sense within K8s endpoints SD...
+		// basic_auth support.
+		// oauth2 support.
+		// proxy_url support.
+		// follow_redirects support.
+
+		// Append to alertmanagers config array.
 		configs = append(configs, cfg)
 	}
+
+	// Allow for separate alertmanager_configs to be used by rule-evaluator
+	// in cases where the CRDs don't provide enough configuration.
+	// Note: any configs that specify filepaths are unlikely to work as this
+	// requires manually mounting volumes and files to the deployment.
+	for _, amc := range spec.AlertmanagerConfigs {
+		b, err := getSecretOrConfigMapBytes(ctx, r.client, &amc)
+		if err != nil {
+			return configs, err
+		}
+		var cfgs []yaml.MapSlice
+		err = yaml.Unmarshal(b, &cfgs)
+		if err != nil {
+			return nil, errors.Wrap(err, "unmarshalling alert manager configs")
+		}
+		configs = append(configs, cfgs...)
+	}
+
 	return configs, nil
+}
+
+// tlsConfigYAML creates a yaml.MapSlice compatible with https://prometheus.io/docs/prometheus/latest/configuration/configuration/#tls_config
+// from the provided TLSConfig and mount path `dir`.
+func tlsConfigYAML(dir string, tls *monitoringv1alpha1.TLSConfig) yaml.MapSlice {
+	var (
+		filepath  string
+		tlsConfig = yaml.MapSlice{
+			{Key: "insecure_skip_verify", Value: tls.InsecureSkipVerify},
+		}
+	)
+	if tls.CA.Secret != nil || tls.CA.ConfigMap != nil {
+		filepath = path.Join(dir, pathForSelector(&tls.CA))
+		tlsConfig = append(tlsConfig, yaml.MapItem{Key: "ca_file", Value: filepath})
+	}
+	if tls.Cert.Secret != nil || tls.Cert.ConfigMap != nil {
+		filepath = path.Join(dir, pathForSelector(&tls.Cert))
+		tlsConfig = append(tlsConfig, yaml.MapItem{Key: "cert_file", Value: filepath})
+	}
+	if tls.KeySecret != nil {
+		scm := &monitoringv1alpha1.NamespacedSecretOrConfigMap{Secret: tls.KeySecret}
+		filepath = path.Join(dir, pathForSelector(scm))
+		tlsConfig = append(tlsConfig, yaml.MapItem{Key: "key_file", Value: filepath})
+	}
+	if tls.ServerName != "" {
+		tlsConfig = append(tlsConfig, yaml.MapItem{Key: "server_name", Value: tls.ServerName})
+	}
+	return tlsConfig
+}
+
+// k8sSDConfigYAML returns the kubernetes_sd_config YAML spec
+// from the provided namespace.
+func k8sSDConfigYAML(namespace string) []yaml.MapSlice {
+	k8sSDConfig := yaml.MapSlice{
+		{
+			Key:   "role",
+			Value: "endpoints",
+		},
+	}
+
+	k8sSDConfig = append(k8sSDConfig, yaml.MapItem{
+		Key: "namespaces",
+		Value: yaml.MapSlice{
+			{
+				Key:   "names",
+				Value: []string{namespace},
+			},
+		},
+	})
+
+	return []yaml.MapSlice{
+		k8sSDConfig,
+	}
+}
+
+// relabelConfigsYAML returns the relabel_configs YAML spec
+// from the provided AlertmanagerEndpoints.
+func relabelConfigsYAML(am *monitoringv1alpha1.AlertmanagerEndpoints) []yaml.MapSlice {
+	var relabelings []yaml.MapSlice
+
+	relabelings = append(relabelings, yaml.MapSlice{
+		{Key: "action", Value: "keep"},
+		{Key: "source_labels", Value: []string{"__meta_kubernetes_service_name"}},
+		{Key: "regex", Value: am.Name},
+	})
+
+	if am.Port.StrVal != "" {
+		relabelings = append(relabelings, yaml.MapSlice{
+			{Key: "action", Value: "keep"},
+			{Key: "source_labels", Value: []string{"__meta_kubernetes_endpoint_port_name"}},
+			{Key: "regex", Value: am.Port.String()},
+		})
+	} else if am.Port.IntVal != 0 {
+		relabelings = append(relabelings, yaml.MapSlice{
+			{Key: "action", Value: "keep"},
+			{Key: "source_labels", Value: []string{"__meta_kubernetes_pod_container_port_number"}},
+			{Key: "regex", Value: am.Port.String()},
+		})
+	}
+
+	return relabelings
+}
+
+// getTLSSecretData parses the provided TLSConfig and fetches the secret key bytes
+// and returns them in a map, keyed by unique filenames.
+func getTLSSecretData(ctx context.Context, kClient client.Reader, tls *monitoringv1alpha1.TLSConfig) (map[string][]byte, error) {
+	var m = make(map[string][]byte)
+	// Fetch CA cert bytes.
+	b, err := getSecretOrConfigMapBytes(ctx, kClient, &tls.CA)
+	if err != nil {
+		return m, err
+	}
+	m[pathForSelector(&tls.CA)] = b
+
+	// Fetch client cert bytes.
+	b, err = getSecretOrConfigMapBytes(ctx, kClient, &tls.Cert)
+	if err != nil {
+		return m, err
+	}
+	m[pathForSelector(&tls.Cert)] = b
+
+	// Fetch secret client key bytes.
+	if secret := tls.KeySecret; secret != nil {
+		b, err := getSecretKeyBytes(ctx, kClient, secret)
+		if err != nil {
+			return m, err
+		}
+		m[pathForSelector(&monitoringv1alpha1.NamespacedSecretOrConfigMap{Secret: tls.KeySecret})] = b
+	}
+	return m, nil
+}
+
+// getSecretOrConfigMapBytes is a helper function to conditionally fetch
+// the secret or configmap selector payloads.
+func getSecretOrConfigMapBytes(ctx context.Context, kClient client.Reader, scm *monitoringv1alpha1.NamespacedSecretOrConfigMap) ([]byte, error) {
+	var (
+		b   []byte
+		err error
+	)
+	if secret := scm.Secret; secret != nil {
+		b, err = getSecretKeyBytes(ctx, kClient, secret)
+		if err != nil {
+			return b, err
+		}
+	} else if cm := scm.ConfigMap; cm != nil {
+		b, err = getConfigMapKeyBytes(ctx, kClient, cm)
+		if err != nil {
+			return b, err
+		}
+	}
+	return b, nil
+}
+
+// getSecretKeyBytes processes the given NamespacedSecretKeySelector and returns the referenced data.
+func getSecretKeyBytes(ctx context.Context, kClient client.Reader, sel *monitoringv1alpha1.NamespacedSecretKeySelector) ([]byte, error) {
+	var (
+		secret = &corev1.Secret{}
+		nn     = types.NamespacedName{
+			Namespace: sel.Namespace,
+			Name:      sel.Name,
+		}
+		bytes []byte
+	)
+	err := kClient.Get(ctx, nn, secret)
+	if err != nil {
+		return bytes, errors.Wrapf(err, "unable to get secret %q", sel.Name)
+	}
+	bytes, ok := secret.Data[sel.Key]
+	if !ok {
+		return bytes, errors.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
+	}
+
+	return bytes, nil
+}
+
+// getConfigMapKeyBytes processes the given NamespacedConfigMapKeySelector and returns the referenced data.
+func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, sel *monitoringv1alpha1.NamespacedConfigMapKeySelector) ([]byte, error) {
+	var (
+		cm = &corev1.ConfigMap{}
+		nn = types.NamespacedName{
+			Namespace: sel.Namespace,
+			Name:      sel.Name,
+		}
+		b []byte
+	)
+	err := kClient.Get(ctx, nn, cm)
+	if err != nil {
+		return b, errors.Wrapf(err, "unable to get secret %q", sel.Name)
+	}
+
+	// Check 'data' first, then 'binaryData'.
+	if s, ok := cm.Data[sel.Key]; ok {
+		return []byte(s), nil
+	} else if b, ok := cm.BinaryData[sel.Key]; ok {
+		return b, nil
+	} else {
+		return b, errors.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
+	}
+}
+
+// pathForSelector cretes the filepath for the provided NamespacedSecretOrConfigMap.
+// This can be used to avoid naming collisions of like-keys across K8s resources.
+func pathForSelector(scm *monitoringv1alpha1.NamespacedSecretOrConfigMap) string {
+	if scm == nil {
+		return ""
+	}
+	if scm.ConfigMap != nil {
+		return fmt.Sprintf("%s_%s_%s_%s", "configmap", scm.ConfigMap.Namespace, scm.ConfigMap.Name, scm.ConfigMap.Key)
+	}
+	if scm.Secret != nil {
+		return fmt.Sprintf("%s_%s_%s_%s", "secret", scm.Secret.Namespace, scm.Secret.Name, scm.Secret.Key)
+	}
+	return ""
 }
