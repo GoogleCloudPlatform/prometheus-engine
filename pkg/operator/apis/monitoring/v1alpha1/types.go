@@ -83,7 +83,12 @@ type RuleEvaluatorSpec struct {
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertingspec
 type AlertingSpec struct {
 	// Alertmanagers contains endpoint configuration for designated Alertmanagers.
-	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers"`
+	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers,omitempty"`
+	// AlertmanagerConfigs contains a list of secret or configmap selectors
+	// that can be used to insert complete Alertmanager config specs.
+	// Each selector should return a payload that can be unmarshalled to
+	// a list of alertmanager_config: https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config.
+	AlertmanagerConfigs []NamespacedSecretOrConfigMap `json:"alertmanagerConfigs,omitempty"`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object
@@ -102,11 +107,8 @@ type AlertmanagerEndpoints struct {
 	PathPrefix string `json:"pathPrefix,omitempty"`
 	// TLS Config to use for alertmanager connection.
 	TLSConfig *TLSConfig `json:"tlsConfig,omitempty"`
-	// BearerTokenFile to read from filesystem to use when authenticating to
-	// Alertmanager.
-	BearerTokenFile string `json:"bearerTokenFile,omitempty"`
 	// Authorization section for this alertmanager endpoint
-	Authorization *SafeAuthorization `json:"authorization,omitempty"`
+	Authorization *Authorization `json:"authorization,omitempty"`
 	// Version of the Alertmanager API that rule-evaluator uses to send alerts. It
 	// can be "v1" or "v2".
 	APIVersion string `json:"apiVersion,omitempty"`
@@ -114,10 +116,10 @@ type AlertmanagerEndpoints struct {
 	Timeout string `json:"timeout,omitempty"`
 }
 
-// SafeAuthorization specifies a subset of the Authorization struct, that is
+// Authorization specifies a subset of the Authorization struct, that is
 // safe for use in Endpoints (no CredentialsFile field).
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#safeauthorization
-type SafeAuthorization struct {
+type Authorization struct {
 	// Set the authentication type. Defaults to Bearer, Basic will cause an
 	// error
 	Type string `json:"type,omitempty"`
