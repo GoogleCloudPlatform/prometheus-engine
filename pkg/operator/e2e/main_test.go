@@ -36,6 +36,7 @@ import (
 	"google.golang.org/api/iterator"
 	gcmpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -118,14 +119,34 @@ func TestCSRWithValidatingWebhookConfig(t *testing.T) {
 func TestOperatorConfig(t *testing.T) {
 	tctx := newTestContext(t)
 
+	t.Run("rule evaluator create alertmanager secrets", tctx.subtest(testCreateAlertmanagerSecrets))
 	t.Run("rule evaluator operatorconfig", tctx.subtest(testRuleEvaluatorOperatorConfig))
-	t.Run("rule evaluator config", tctx.subtest(testRuleEvaluatorConfigMap))
+	t.Run("rule evaluator secrets", tctx.subtest(testRuleEvaluatorSecrets))
+	t.Run("rule evaluator config", tctx.subtest(testRuleEvaluatorConfig))
 	t.Run("rule evaluator deploy", tctx.subtest(testRuleEvaluatorDeployment))
 }
 
 // testRuleEvaluatorOperatorConfig ensures an OperatorConfig can be deployed
 // that contains rule-evaluator configuration.
 func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
+	// Setup TLS secret selectors.
+	caSecret := &monitoringv1alpha1.NamespacedSecretKeySelector{
+		// Choose the non-test namespace to ensure we can read across namespaces.
+		Namespace: "default",
+		SecretKeySelector: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "alertmanager-tls",
+			},
+			Key: "ca",
+		},
+	}
+
+	certSecret := caSecret.DeepCopy()
+	certSecret.Key = "cert"
+
+	keySecret := caSecret.DeepCopy()
+	keySecret.Key = "key"
+
 	opCfg := &monitoringv1alpha1.OperatorConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "rules",
@@ -137,7 +158,35 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 			Alerting: monitoringv1alpha1.AlertingSpec{
 				Alertmanagers: []monitoringv1alpha1.AlertmanagerEndpoints{
 					{
+						Name:       "test-am",
+						Namespace:  t.namespace,
+						Port:       intstr.IntOrString{IntVal: 19093},
+						Timeout:    "30s",
+						APIVersion: "v2",
 						PathPrefix: "/test",
+						Scheme:     "https",
+						Authorization: &monitoringv1alpha1.Authorization{
+							Type: "Bearer",
+							Credentials: &monitoringv1alpha1.NamespacedSecretKeySelector{
+								// Choose the non-test namespace to ensure we can read across namespaces.
+								Namespace: "default",
+								SecretKeySelector: corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: "alertmanager-authorization",
+									},
+									Key: "auth-credentials",
+								},
+							},
+						},
+						TLSConfig: &monitoringv1alpha1.TLSConfig{
+							CA: monitoringv1alpha1.NamespacedSecretOrConfigMap{
+								Secret: caSecret,
+							},
+							Cert: monitoringv1alpha1.NamespacedSecretOrConfigMap{
+								Secret: certSecret,
+							},
+							KeySecret: keySecret,
+						},
 					},
 				},
 			},
@@ -149,18 +198,110 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 	}
 }
 
-func testRuleEvaluatorConfigMap(ctx context.Context, t *testContext) {
+func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
+	secrets := []*corev1.Secret{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "alertmanager-authorization",
+				Namespace: "default",
+			},
+			Data: map[string][]byte{
+				"auth-credentials": []byte("auth-bearer-password"),
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "alertmanager-tls",
+				Namespace: "default",
+			},
+			Data: map[string][]byte{
+				"ca":   []byte("cert-authority"),
+				"cert": []byte("cert-client"),
+				"key":  []byte("key-client"),
+			},
+		},
+	}
+
+	for _, s := range secrets {
+		if _, err := t.kubeClient.CoreV1().Secrets(s.Namespace).Update(ctx, s, metav1.UpdateOptions{}); apierrors.IsNotFound(err) {
+			if _, err := t.kubeClient.CoreV1().Secrets(s.Namespace).Create(ctx, s, metav1.CreateOptions{}); err != nil {
+				t.Fatalf("create alertmanager secret: %s", err)
+			}
+		} else if err != nil {
+			t.Fatalf("update alertmanager secret: %s", err)
+		}
+	}
+}
+
+func testRuleEvaluatorSecrets(ctx context.Context, t *testContext) {
 	var diff string
-	want := map[string]string{
-		"config.yaml": `alerting:
-  alertmanagers:
-  - path_prefix: /test
-rule_files:
-- /etc/rules/*.yaml
-`,
+	want := map[string][]byte{
+		"secret_default_alertmanager-tls_ca":   []byte("cert-authority"),
+		"secret_default_alertmanager-tls_cert": []byte("cert-client"),
+		"secret_default_alertmanager-tls_key":  []byte("key-client"),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
-		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
+		cm, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		} else if err != nil {
+			return false, errors.Wrap(err, "get secret")
+		}
+
+		diff = cmp.Diff(want, cm.Data)
+		return diff == "", nil
+	})
+	if err != nil {
+		t.Errorf("diff (-want, +got): %s", diff)
+		t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
+	}
+
+}
+
+func testRuleEvaluatorConfig(ctx context.Context, t *testContext) {
+	var diff string
+	replace := func(s string) []byte {
+		r := strings.NewReplacer(
+			"{namespace}", t.namespace,
+		).Replace(s)
+		return []byte(r)
+	}
+
+	want := map[string][]byte{
+		"config.yaml": replace(`alerting:
+  alertmanagers:
+  - timeout: 30s
+    api_version: v2
+    path_prefix: /test
+    scheme: https
+    authorization:
+      type: Bearer
+      credentials: auth-bearer-password
+    tls_config:
+      insecure_skip_verify: false
+      ca_file: /etc/secrets/secret_default_alertmanager-tls_ca
+      cert_file: /etc/secrets/secret_default_alertmanager-tls_cert
+      key_file: /etc/secrets/secret_default_alertmanager-tls_key
+    kubernetes_sd_configs:
+    - role: endpoints
+      namespaces:
+        names:
+        - {namespace}
+    relabel_configs:
+    - action: keep
+      source_labels:
+      - __meta_kubernetes_service_name
+      regex: test-am
+    - action: keep
+      source_labels:
+      - __meta_kubernetes_pod_container_port_number
+      regex: "19093"
+rule_files:
+- /etc/rules/*.yaml
+`),
+	}
+	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
+		cm, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
