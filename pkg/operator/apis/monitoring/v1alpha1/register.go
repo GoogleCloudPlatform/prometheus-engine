@@ -62,6 +62,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PodMonitoringList{},
 		&Rules{},
 		&RulesList{},
+		&OperatorConfig{},
+		&OperatorConfigList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

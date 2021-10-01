@@ -66,7 +66,7 @@ func setupRulesControllers(op *Operator) error {
 		).
 		Complete(newRulesReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
-		return errors.Wrap(err, "create collector config controller")
+		return errors.Wrap(err, "create rules config controller")
 	}
 	return nil
 }
