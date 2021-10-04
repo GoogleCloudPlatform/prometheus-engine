@@ -194,10 +194,10 @@ func (r *collectionReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
 	}
 	if r.opts.Location != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.ProjectID))
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.Location))
 	}
 	if r.opts.Cluster != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.ProjectID))
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.Cluster))
 	}
 	if r.opts.DisableExport {
 		collectorArgs = append(collectorArgs, "--export.disable")
