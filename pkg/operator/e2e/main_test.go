@@ -94,9 +94,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestCollectorPodMonitoring(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode.")
-	}
 	tctx := newTestContext(t)
 
 	// We could simply verify that the full collection chain works once. But validating
@@ -166,7 +163,7 @@ func testValidatingWebhookConfig(ctx context.Context, t *testContext) {
 // testCollectorDeployed does a high-level verification on whether the
 // collector is deployed to the cluster.
 func testCollectorDeployed(ctx context.Context, t *testContext) {
-	err := wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
+	err := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
 		ds, err := t.kubeClient.AppsV1().DaemonSets(t.namespace).Get(ctx, operator.CollectorName, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
@@ -178,7 +175,23 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 		if ds.Status.DesiredNumberScheduled == 0 {
 			return false, nil
 		}
-		return ds.Status.NumberReady == ds.Status.DesiredNumberScheduled, nil
+		var projMatch, clusterMatch, locMatch, collectorArgs bool
+		for _, c := range ds.Spec.Template.Spec.Containers {
+			if c.Name != "prometheus" {
+				continue
+			}
+			for _, a := range c.Args {
+				if a == "--export.label.project-id=test-proj" {
+					projMatch = true
+				} else if a == "--export.label.cluster=test-cluster" {
+					clusterMatch = true
+				} else if a == "--export.label.location=test-loc" {
+					locMatch = true
+				}
+			}
+		}
+		collectorArgs = projMatch && clusterMatch && locMatch
+		return (ds.Status.NumberReady == ds.Status.DesiredNumberScheduled) && collectorArgs, nil
 	})
 	if err != nil {
 		t.Fatalf("Waiting for DaemonSet deployment failed: %s", err)
