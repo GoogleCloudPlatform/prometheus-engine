@@ -163,7 +163,7 @@ func testValidatingWebhookConfig(ctx context.Context, t *testContext) {
 // testCollectorDeployed does a high-level verification on whether the
 // collector is deployed to the cluster.
 func testCollectorDeployed(ctx context.Context, t *testContext) {
-	err := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
+	err := wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
 		ds, err := t.kubeClient.AppsV1().DaemonSets(t.namespace).Get(ctx, operator.CollectorName, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
