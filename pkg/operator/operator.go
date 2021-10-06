@@ -56,8 +56,8 @@ const (
 
 	// The official images to be used with this version of the operator. For debugging
 	// and emergency use cases they may be overwritten through options.
-	ImageCollector      = "gcr.io/gke-release/prometheus-engine/prometheus:v2.28.1-gmp.1-gke.1"
-	ImageConfigReloader = "gcr.io/gke-release/prometheus-engine/config-reloader:v0.0.10-gke.0"
+	ImageCollector      = "gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.1-gke.1"
+	ImageConfigReloader = "gke.gcr.io/prometheus-engine/config-reloader:v0.0.10-gke.0"
 )
 
 var (
