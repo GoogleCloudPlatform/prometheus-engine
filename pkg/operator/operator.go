@@ -56,11 +56,8 @@ const (
 
 	// The official images to be used with this version of the operator. For debugging
 	// and emergency use cases they may be overwritten through options.
-	// TODO(freinartz): start setting official versioned images once we start releases.
-	// ImageCollector      = "gcr.io/gke-release-staging/prometheus-engine/prometheus:v2.26.1-gpe.2-gke.0"
-	// ImageConfigReloader = "gcr.io/gke-release-staging/prometheus-engine/gpe-config-reloader:v0.0.0.gke.0"
-	ImageCollector      = "gcr.io/gpe-test-1/prometheus:v2.27.1-gpe.0"
-	ImageConfigReloader = "gcr.io/gpe-test-1/gpe-config-reloader:v0.0.1"
+	ImageCollector      = "gcr.io/gke-release/prometheus-engine/prometheus:v2.28.1-gmp.1-gke.1"
+	ImageConfigReloader = "gcr.io/gke-release/prometheus-engine/config-reloader:v0.0.9-gke.0"
 )
 
 var (
