@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
       - name: evaluator
-        image: gcr.io/gke-release/prometheus-engine/rule-evaluator:v0.0.9-gke.0
+        image: gcr.io/gke-release/prometheus-engine/rule-evaluator:v0.0.10-gke.0
         args:
         - "--config.file=/etc/config/config.yaml"
         - "--web.listen-address=:9092"
@@ -67,7 +67,7 @@ spec:
         - --watched-dir=/etc/rules
         - --reload-url=http://localhost:9092/-/reload
         - --listen-address=:9093
-        image: gcr.io/gke-release/prometheus-engine/config-reloader:v0.0.9-gke.0
+        image: gcr.io/gke-release/prometheus-engine/config-reloader:v0.0.10-gke.0
         imagePullPolicy: IfNotPresent
         name: config-reloader
         ports:
