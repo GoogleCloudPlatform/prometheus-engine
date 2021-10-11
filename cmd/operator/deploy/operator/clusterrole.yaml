@@ -46,6 +46,7 @@ rules:
   - validatingwebhookconfigurations
   - certificatesigningrequests
   - rules
+  - operatorconfigs
   verbs: ["create", "update", "get", "list", "watch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
