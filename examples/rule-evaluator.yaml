@@ -15,12 +15,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: gmp-system
   name: rule-evaluator
   labels:
     app.kubernetes.io/name: rule-evaluator
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: rule-evaluator
@@ -68,7 +67,6 @@ spec:
         - --reload-url=http://localhost:9092/-/reload
         - --listen-address=:9093
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.0.10-gke.0
-        imagePullPolicy: IfNotPresent
         name: config-reloader
         ports:
         - containerPort: 9093
@@ -93,8 +91,36 @@ spec:
           name: rule-evaluator
       - name: rules
         configMap:
-          name: rules-generated
-      # Run the pod in the host network to access the APIs with the node default service account,
-      # which has read/write permissions by default, even in GKE clusters with Workload Identity
-      # enabled.
-      hostNetwork: true
+          name: rules
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rule-evaluator
+  labels:
+    app.kubernetes.io/name: rule-evaluator
+data:
+  config.yaml: |
+    global:
+      external_labels: {}
+      evaluation_interval: 60s
+
+    rule_files:
+    - "/etc/rules/*.yaml"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rules
+  labels:
+    app.kubernetes.io/name: rule-evaluator
+data:
+  rules.yaml: |
+    groups:
+    - name: example
+      interval: 10s
+      rules:
+      - record: job:up:sum
+        expr: sum without(instance) (up)
+      - alert: AlwaysFiring
+        expr: vector(1)

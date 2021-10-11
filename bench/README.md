@@ -39,11 +39,8 @@ the steps in this section to update the benchmark setup on code changes.
 Build the container images from the current head of the repository:
 
 ```bash
-IMAGE_TAG=$(date "+bench_%Y%d%m_%H%M")
-RELOADER_IMAGE="gcr.io/$PROJECT_ID/gmp-config-reloader:$IMAGE_TAG"
-
 pushd "$BASE_DIR" &&
-gcloud builds submit --config build.yaml --timeout=30m --substitutions=TAG_NAME="$IMAGE_TAG" &&
+make cloudbuild
 popd
 ```
 

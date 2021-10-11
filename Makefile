@@ -42,7 +42,7 @@ assets:      ## Build and write UI assets as go file.
 
 test:        ## Run all unit tests.
 	go test `go list ./... | grep -v operator/e2e`
-	go test -short `go list ./... | grep operator/e2e` -args -project-id=test-proj -cluster=test-cluster
+	go test -short `go list ./... | grep operator/e2e` -args -project-id=test-proj -cluster=test-cluster -location=test-loc
 
 codegen:     ## Refresh generated CRD go interfaces.
 	./hack/update-codegen.sh
