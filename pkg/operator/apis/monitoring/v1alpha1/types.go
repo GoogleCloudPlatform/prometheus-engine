@@ -61,11 +61,15 @@ type RuleEvaluatorSpec struct {
 	// If left blank, the rule-evaluator will try and fetch the project ID
 	// from the GCE metadata server.
 	ProjectID string `json:"projectID"`
+	// TODO(pintohutch): promote LabelProjectID to OperatorConfig to
+	// permit configuration of collectors as well.
 	// LabelProjectID is the `project_id` label value on exported time series
 	// generated from recording rules.
 	// If left blank, the rule-evaluator will try and fetch the project ID
 	// from the GCE metadata server.
 	LabelProjectID string `json:"labelProjectID"`
+	// TODO(pintohutch): promote LabelLocation to OperatorConfig to
+	// permit configuration of collectors as well.
 	// LabelLocation is the `location` label value on exported time series
 	// generated from recording rules.
 	// If left blank, the rule-evaluator will try and fetch the location

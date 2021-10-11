@@ -112,6 +112,8 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 // makeRuleEvaluatorConfigMap creates the ConfigMap for rule-evaluator.
 // TODO(pintohutch): incorporate rule_files regex from Rules CRD into ConfigMap
 // and rules-generated (nameRulesGenerated) configMap volume mount.
+// TODO(pintohutch): change function signature to use native Promethues go structs
+// over k8s configmap.
 func makeRuleEvaluatorConfigMap(amConfigs []yaml.MapSlice, name, namespace, filename string) (*corev1.ConfigMap, error) {
 	// Prepare and encode the Prometheus config used in rule-evaluator.
 	pmConfig := yaml.MapSlice{}
@@ -303,6 +305,8 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 
 // makeAlertManagerConfigs creates the alertmanager_config entries as described in
 // https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config.
+// TODO(pintohutch): change function signature to use native Promethues go structs
+// over []yaml.MapSlice.
 func makeAlertManagerConfigs(spec *monitoringv1alpha1.AlertingSpec) ([]yaml.MapSlice, error) {
 	var configs []yaml.MapSlice
 	for _, am := range spec.Alertmanagers {
