@@ -34,14 +34,17 @@ const (
 	RuleEvaluatorPort = 19092
 )
 
-var (
-	rulesLabels = map[string]string{
+func rulesLabels() map[string]string {
+	return map[string]string{
 		LabelAppName: NameRuleEvaluator,
 	}
-	rulesAnnotations = map[string]string{
+}
+
+func rulesAnnotations() map[string]string {
+	return map[string]string{
 		AnnotationMetricName: componentName,
 	}
-)
+}
 
 // setupOperatorConfigControllers ensures a rule-evaluator
 // deployment as part of managed collection.
@@ -92,15 +95,19 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	logger := logr.FromContext(ctx).WithValues("operatorconfig", req.NamespacedName)
 	logger.Info("reconciling operatorconfig")
 
-	var config = &monitoringv1alpha1.OperatorConfig{}
+	var (
+		config     = &monitoringv1alpha1.OperatorConfig{}
+		secretData map[string][]byte
+	)
 	if err := r.client.Get(ctx, req.NamespacedName, config); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "get operatorconfig")
 	}
-	if err := r.ensureRuleEvaluatorConfig(ctx, config); err != nil {
+	secretData, err := r.ensureRuleEvaluatorConfig(ctx, config)
+	if err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator config")
 	}
 
-	if err := r.ensureRuleEvaluatorSecrets(ctx); err != nil {
+	if err := r.ensureRuleEvaluatorSecrets(ctx, secretData); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator secrets")
 	}
 
@@ -112,25 +119,25 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 }
 
 // ensureRuleEvaluatorConfig reconciles the ConfigMap for rule-evaluator.
-func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context, config *monitoringv1alpha1.OperatorConfig) error {
-	amConfigs, err := r.makeAlertManagerConfigs(ctx, &config.Rules.Alerting)
+func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context, config *monitoringv1alpha1.OperatorConfig) (map[string][]byte, error) {
+	amConfigs, secretData, err := r.makeAlertManagerConfigs(ctx, &config.Rules.Alerting)
 	if err != nil {
-		return errors.Wrap(err, "make alertmanager config")
+		return secretData, errors.Wrap(err, "make alertmanager config")
 	}
 	cm, err := makeRuleEvaluatorConfigMap(amConfigs, NameRuleEvaluator, r.opts.OperatorNamespace, "config.yaml")
 	if err != nil {
-		return errors.Wrap(err, "make rule-evaluator configmap")
+		return secretData, errors.Wrap(err, "make rule-evaluator configmap")
 	}
 
 	// Upsert rule-evaluator ConfigMap.
 	if err := r.client.Update(ctx, cm); err != nil {
 		if err := r.client.Create(ctx, cm); err != nil {
-			return errors.Wrap(err, "create rule-evaluator config")
+			return secretData, errors.Wrap(err, "create rule-evaluator config")
 		}
 	} else if err != nil {
-		return errors.Wrap(err, "update rule-evaluator config")
+		return secretData, errors.Wrap(err, "update rule-evaluator config")
 	}
-	return nil
+	return secretData, nil
 }
 
 // makeRuleEvaluatorConfigMap creates the ConfigMap for rule-evaluator.
@@ -179,17 +186,17 @@ func makeRuleEvaluatorConfigMap(amConfigs []yaml.MapSlice, name, namespace, file
 }
 
 // ensureRuleEvaluatorSecrets reconciles the Secrets for rule-evaluator.
-func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Context) error {
-	var secret = &corev1.Secret{
+func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Context, data map[string][]byte) error {
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        RulesSecretName,
 			Namespace:   r.opts.OperatorNamespace,
-			Annotations: rulesAnnotations,
-			Labels:      rulesLabels,
+			Annotations: rulesAnnotations(),
+			Labels:      rulesLabels(),
 		},
 		Data: make(map[string][]byte),
 	}
-	for f, b := range r.secretData {
+	for f, b := range data {
 		secret.Data[f] = b
 	}
 
@@ -220,12 +227,6 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 
 // makeRuleEvaluatorDeployment creates the Deployment for rule-evaluator.
 func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoringv1alpha1.RuleEvaluatorSpec) *appsv1.Deployment {
-	podLabels := map[string]string{
-		LabelAppName: NameRuleEvaluator,
-	}
-	podAnnotations := map[string]string{
-		AnnotationMetricName: componentName,
-	}
 	evaluatorArgs := []string{
 		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
 		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
@@ -241,12 +242,12 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 	}
 	spec := appsv1.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
-			MatchLabels: rulesLabels,
+			MatchLabels: rulesLabels(),
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels:      rulesLabels,
-				Annotations: rulesAnnotations,
+				Labels:      rulesLabels(),
+				Annotations: rulesAnnotations(),
 			},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
@@ -404,8 +405,6 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
 			Name:      NameRuleEvaluator,
-			// TODO(pintohutch): OwnerReferences should tear down rule-evaluator
-			// when gmp-operator is deleted.
 		},
 		Spec: spec,
 	}
@@ -416,8 +415,11 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 // https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config.
 // TODO(pintohutch): change function signature to use native Promethues go structs
 // over []yaml.MapSlice.
-func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, spec *monitoringv1alpha1.AlertingSpec) ([]yaml.MapSlice, error) {
-	var configs []yaml.MapSlice
+func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, spec *monitoringv1alpha1.AlertingSpec) ([]yaml.MapSlice, map[string][]byte, error) {
+	var (
+		configs    []yaml.MapSlice
+		secretData = make(map[string][]byte)
+	)
 	for _, am := range spec.Alertmanagers {
 		var cfg yaml.MapSlice
 		// Timeout, APIVersion, PathPrefix, and Scheme all resort to defaults if left unspecified.
@@ -438,8 +440,8 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 		}
 
 		// Authorization.
-		// Default to Bearer for authorization type.
 		if am.Authorization != nil {
+			// TODO(pintohutch): use native Prometheus structs here.
 			authCfg := yaml.MapSlice{}
 			if t := am.Authorization.Type; t != "" {
 				authCfg = append(authCfg, yaml.MapItem{Key: "type", Value: strings.TrimSpace(t)})
@@ -447,7 +449,7 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 			if c := am.Authorization.Credentials; c != nil {
 				b, err := getSecretKeyBytes(ctx, r.client, c)
 				if err != nil {
-					return configs, err
+					return configs, secretData, err
 				}
 				authCfg = append(authCfg, yaml.MapItem{Key: "credentials", Value: string(b)})
 			}
@@ -460,9 +462,8 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 			// Populate secretData cache to act on (i.e. upsert dedicated Secret) later.
 			secretData, err := getTLSSecretData(ctx, r.client, tls)
 			if err != nil {
-				return configs, err
+				return configs, secretData, err
 			}
-			r.secretData = secretData
 		}
 
 		// Kubernetes SD configs.
@@ -481,24 +482,7 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 		configs = append(configs, cfg)
 	}
 
-	// Allow for separate alertmanager_configs to be used by rule-evaluator
-	// in cases where the CRDs don't provide enough configuration.
-	// Note: any configs that specify filepaths are unlikely to work as this
-	// requires manually mounting volumes and files to the deployment.
-	for _, amc := range spec.AlertmanagerConfigs {
-		b, err := getSecretOrConfigMapBytes(ctx, r.client, &amc)
-		if err != nil {
-			return configs, err
-		}
-		var cfgs []yaml.MapSlice
-		err = yaml.Unmarshal(b, &cfgs)
-		if err != nil {
-			return nil, errors.Wrap(err, "unmarshalling alert manager configs")
-		}
-		configs = append(configs, cfgs...)
-	}
-
-	return configs, nil
+	return configs, secretData, nil
 }
 
 // tlsConfigYAML creates a yaml.MapSlice compatible with https://prometheus.io/docs/prometheus/latest/configuration/configuration/#tls_config
