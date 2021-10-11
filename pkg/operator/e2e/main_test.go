@@ -115,6 +115,83 @@ func TestCSRWithValidatingWebhookConfig(t *testing.T) {
 	t.Run("validatingwebhook configuration valid", tctx.subtest(testValidatingWebhookConfig))
 }
 
+func TestOperatorConfig(t *testing.T) {
+	tctx := newTestContext(t)
+
+	t.Run("rule evaluator operatorconfig", tctx.subtest(testRuleEvaluatorOperatorConfig))
+	t.Run("rule evaluator config", tctx.subtest(testRuleEvaluatorConfigMap))
+	t.Run("rule evaluator deploy", tctx.subtest(testRuleEvaluatorDeployment))
+}
+
+// testRuleEvaluatorOperatorConfig ensures an OperatorConfig can be deployed
+// that contains rule-evaluator configuration.
+func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
+	opCfg := &monitoringv1alpha1.OperatorConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "rules",
+		},
+		Rules: monitoringv1alpha1.RuleEvaluatorSpec{
+			ProjectID:      "test-proj",
+			LabelProjectID: "label-proj",
+			LabelLocation:  "label-loc",
+			Alerting: monitoringv1alpha1.AlertingSpec{
+				Alertmanagers: []monitoringv1alpha1.AlertmanagerEndpoints{
+					{
+						PathPrefix: "/test",
+					},
+				},
+			},
+		},
+	}
+	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.namespace).Create(ctx, opCfg, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("create rules operatorconfig: %s", err)
+	}
+}
+
+func testRuleEvaluatorConfigMap(ctx context.Context, t *testContext) {
+	var diff string
+	want := map[string]string{
+		"config.yaml": `alerting:
+  alertmanagers:
+  - path_prefix: /test
+`,
+	}
+	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
+		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		} else if err != nil {
+			return false, errors.Wrap(err, "get configmap")
+		}
+		diff = cmp.Diff(want, cm.Data)
+		return diff == "", nil
+	})
+	if err != nil {
+		t.Errorf("diff (-want, +got): %s", diff)
+		t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
+	}
+}
+
+func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
+	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
+		deploy, err := t.kubeClient.AppsV1().Deployments(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		} else if err != nil {
+			return false, errors.Wrap(err, "get deployment")
+		}
+		// Note: using UpdatedReplicas here instead of ReadyReplicas.
+		// This is not ideal, but since the rule-evaluator requires queries
+		// against the GMP backend to be returning successfully, this
+		// may not always work.
+		return *deploy.Spec.Replicas == deploy.Status.UpdatedReplicas, nil
+	})
+	if err != nil {
+		t.Fatalf("failed waiting for generated rule-evaluator deployment: %s", err)
+	}
+}
+
 // testCSRIssued checks to see if the kube-apiserver issued a valid
 // certificate from the CSR.
 func testCSRIssued(ctx context.Context, t *testContext) {
