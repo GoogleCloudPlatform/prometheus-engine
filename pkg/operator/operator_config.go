@@ -21,7 +21,9 @@ import (
 )
 
 const (
-	RuleEvaluatorName = "rule-evaluator"
+	NameRuleEvaluator = "rule-evaluator"
+	rulesVolumeName   = "rules"
+	rulesDir          = "/etc/rules"
 	RuleEvaluatorPort = 19092
 )
 
@@ -32,7 +34,7 @@ func setupOperatorConfigControllers(op *Operator) error {
 	// rule evaluator deployment.
 	objFilter := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
-		name:      RuleEvaluatorName,
+		name:      NameRuleEvaluator,
 	}
 
 	err := ctrl.NewControllerManagedBy(op.manager).
@@ -93,7 +95,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 	if err != nil {
 		return errors.Wrap(err, "make alertmanager config")
 	}
-	cm, err := makeRuleEvaluatorConfigMap(amConfigs, RuleEvaluatorName, r.opts.OperatorNamespace, "config.yaml")
+	cm, err := makeRuleEvaluatorConfigMap(amConfigs, NameRuleEvaluator, r.opts.OperatorNamespace, "config.yaml")
 	if err != nil {
 		return errors.Wrap(err, "make rule-evaluator configmap")
 	}
@@ -110,13 +112,13 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 }
 
 // makeRuleEvaluatorConfigMap creates the ConfigMap for rule-evaluator.
-// TODO(pintohutch): incorporate rule_files regex from Rules CRD into ConfigMap
-// and rules-generated (nameRulesGenerated) configMap volume mount.
 // TODO(pintohutch): change function signature to use native Promethues go structs
 // over k8s configmap.
 func makeRuleEvaluatorConfigMap(amConfigs []yaml.MapSlice, name, namespace, filename string) (*corev1.ConfigMap, error) {
 	// Prepare and encode the Prometheus config used in rule-evaluator.
 	pmConfig := yaml.MapSlice{}
+
+	// Add alertmanager configuration.
 	pmConfig = append(pmConfig,
 		yaml.MapItem{
 			Key: "alerting",
@@ -126,6 +128,14 @@ func makeRuleEvaluatorConfigMap(amConfigs []yaml.MapSlice, name, namespace, file
 					Value: amConfigs,
 				},
 			},
+		},
+	)
+
+	// Add rules configuration.
+	pmConfig = append(pmConfig,
+		yaml.MapItem{
+			Key:   "rule_files",
+			Value: []string{path.Join(rulesDir, "*.yaml")},
 		},
 	)
 	cfgEncoded, err := yaml.Marshal(pmConfig)
@@ -164,10 +174,23 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 // makeRuleEvaluatorDeployment creates the Deployment for rule-evaluator.
 func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoringv1alpha1.RuleEvaluatorSpec) *appsv1.Deployment {
 	podLabels := map[string]string{
-		LabelAppName: RuleEvaluatorName,
+		LabelAppName: NameRuleEvaluator,
 	}
 	podAnnotations := map[string]string{
 		AnnotationMetricName: componentName,
+	}
+	evaluatorArgs := []string{
+		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
+		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
+	}
+	if rules.ProjectID != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", rules.ProjectID))
+	}
+	if rules.LabelProjectID != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.project-id=%s", rules.LabelProjectID))
+	}
+	if rules.LabelLocation != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.location=%s", rules.LabelLocation))
 	}
 	spec := appsv1.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
@@ -181,14 +204,9 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{
-						Name:  "rule-evaluator",
+						Name:  "evaluator",
 						Image: r.opts.ImageRuleEvaluator,
-						Args: []string{fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
-							fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
-							fmt.Sprintf("--query.project-id=%s", rules.ProjectID),
-							fmt.Sprintf("--export.label.project-id=%s", rules.LabelProjectID),
-							fmt.Sprintf("--export.label.location=%s", rules.LabelLocation),
-						},
+						Args:  evaluatorArgs,
 						Ports: []corev1.ContainerPort{
 							{Name: "r-eval-metrics", ContainerPort: RuleEvaluatorPort},
 						},
@@ -212,6 +230,11 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 							{
 								Name:      configOutVolumeName,
 								MountPath: configOutDir,
+								ReadOnly:  true,
+							},
+							{
+								Name:      rulesVolumeName,
+								MountPath: rulesDir,
 								ReadOnly:  true,
 							},
 						},
@@ -242,9 +265,15 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 								Name:      configVolumeName,
 								MountPath: configDir,
 								ReadOnly:  true,
-							}, {
+							},
+							{
 								Name:      configOutVolumeName,
 								MountPath: configOutDir,
+							},
+							{
+								Name:      rulesVolumeName,
+								MountPath: rulesDir,
+								ReadOnly:  true,
 							},
 						},
 						Resources: corev1.ResourceRequirements{
@@ -261,18 +290,37 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 				},
 				Volumes: []corev1.Volume{
 					{
+						// Rule-evaluator input Prometheus config.
 						Name: configVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: RuleEvaluatorName,
+									Name: NameRuleEvaluator,
 								},
 							},
 						},
 					}, {
+						// Generated rule-evaluator output Prometheus config.
 						Name: configOutVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					}, {
+						// Generated rules yaml files via the "rules" runtime controller.
+						// TODO(pintohutch): create dummy Rules resource on startup.
+						// At this time, the operator-config runtime controller
+						// does not guarantee this configmap exists. So unless a Rules
+						// resource is created separately, the rule-evaluator deployment
+						// will not be in a Running state.
+						// Though empirically, it seems the operator creates this configmap
+						// when it's created and running in a k8s cluster...?
+						Name: rulesVolumeName,
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: nameRulesGenerated,
+								},
+							},
 						},
 					},
 				},
@@ -296,7 +344,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
-			Name:      RuleEvaluatorName,
+			Name:      NameRuleEvaluator,
 		},
 		Spec: spec,
 	}
@@ -327,6 +375,7 @@ func makeAlertManagerConfigs(spec *monitoringv1alpha1.AlertingSpec) ([]yaml.MapS
 		if am.Scheme != "" {
 			cfg = append(cfg, yaml.MapItem{Key: "scheme", Value: am.Scheme})
 		}
+		// TODO(pintohutch): fill the rest out.
 
 		configs = append(configs, cfg)
 	}

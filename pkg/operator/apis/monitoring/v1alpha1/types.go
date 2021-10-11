@@ -60,21 +60,21 @@ type RuleEvaluatorSpec struct {
 	// ProjectID is the GCP project ID to evaluate rules against.
 	// If left blank, the rule-evaluator will try and fetch the project ID
 	// from the GCE metadata server.
-	ProjectID string `json:"projectID"`
-	// TODO(pintohutch): promote LabelProjectID to OperatorConfig to
-	// permit configuration of collectors as well.
+	ProjectID string `json:"projectID,omitempty"`
 	// LabelProjectID is the `project_id` label value on exported time series
 	// generated from recording rules.
 	// If left blank, the rule-evaluator will try and fetch the project ID
 	// from the GCE metadata server.
-	LabelProjectID string `json:"labelProjectID"`
-	// TODO(pintohutch): promote LabelLocation to OperatorConfig to
+	// TODO(pintohutch): promote LabelProjectID to OperatorConfig to
 	// permit configuration of collectors as well.
+	LabelProjectID string `json:"labelProjectID,omitempty"`
 	// LabelLocation is the `location` label value on exported time series
 	// generated from recording rules.
 	// If left blank, the rule-evaluator will try and fetch the location
 	// from the GCE metadata server.
-	LabelLocation string `json:"labelLocation"`
+	// TODO(pintohutch): promote LabelLocation to OperatorConfig to
+	// permit configuration of collectors as well.
+	LabelLocation string `json:"labelLocation,omitempty"`
 	// Alerting contains how the rule-evaluator configures alerting.
 	Alerting AlertingSpec `json:"alerting"`
 }
@@ -532,12 +532,12 @@ type RuleGroup struct {
 // Rule is a single rule in the Prometheus format:
 // https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
 type Rule struct {
-	Record      string            `json:"record"`
-	Alert       string            `json:"alert"`
+	Record      string            `json:"record,omitempty"`
+	Alert       string            `json:"alert,omitempty"`
 	Expr        string            `json:"expr"`
-	For         string            `json:"for"`
-	Labels      map[string]string `json:"labels"`
-	Annotations map[string]string `json:"annotations"`
+	For         string            `json:"for,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // RulesStatus contains status information for a Rules resource.

@@ -155,6 +155,8 @@ func testRuleEvaluatorConfigMap(ctx context.Context, t *testContext) {
 		"config.yaml": `alerting:
   alertmanagers:
   - path_prefix: /test
+rule_files:
+- /etc/rules/*.yaml
 `,
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
@@ -171,6 +173,7 @@ func testRuleEvaluatorConfigMap(ctx context.Context, t *testContext) {
 		t.Errorf("diff (-want, +got): %s", diff)
 		t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
 	}
+
 }
 
 func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
@@ -431,9 +434,6 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 }
 
 func TestRulesGeneration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode.")
-	}
 	tctx := newTestContext(t)
 
 	// Create multiple rules in the cluster and expect their scoped equivalents

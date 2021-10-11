@@ -220,12 +220,7 @@ spec:
                           description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
                           type: object
                           required:
-                            - alert
-                            - annotations
                             - expr
-                            - for
-                            - labels
-                            - record
                           properties:
                             alert:
                               type: string
@@ -284,9 +279,6 @@ spec:
               type: object
               required:
                 - alerting
-                - labelLocation
-                - labelProjectID
-                - projectID
               properties:
                 alerting:
                   description: Alerting contains how the rule-evaluator configures alerting.

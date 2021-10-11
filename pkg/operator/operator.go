@@ -45,9 +45,8 @@ const (
 	DefaultOperatorNamespace = "gmp-system"
 
 	// Fixed names used in various resources managed by the operator.
-	NameOperator       = "gmp-operator"
-	nameRulesGenerated = "rules-generated"
-	componentName      = "managed_prometheus"
+	NameOperator  = "gmp-operator"
+	componentName = "managed_prometheus"
 
 	// Prometheus configuration file and volume mounts.
 	// Used in both collectors and rule-evaluator.

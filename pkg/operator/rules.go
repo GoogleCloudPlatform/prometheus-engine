@@ -37,6 +37,10 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/rules"
 )
 
+const (
+	nameRulesGenerated = "rules-generated"
+)
+
 func setupRulesControllers(op *Operator) error {
 	// Canonical request for any events that require re-generating the rule config map.
 	objRequest := reconcile.Request{
@@ -99,7 +103,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 			Namespace: r.opts.OperatorNamespace,
 			Name:      nameRulesGenerated,
 			Labels: map[string]string{
-				"app.kubernetes.io/name": "rule-evaluator",
+				LabelAppName: NameRuleEvaluator,
 			},
 		},
 		// Ensure there's always at least an empty dummy file as the evaluator
