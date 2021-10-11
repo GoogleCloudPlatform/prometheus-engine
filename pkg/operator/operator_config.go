@@ -182,6 +182,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 	evaluatorArgs := []string{fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
 		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
 	}
+
 	if rules.ProjectID != "" {
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", rules.ProjectID))
 	}
@@ -306,7 +307,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 						},
 					}, {
 						// Generated rules yaml files via the "rules" runtime controller.
-						// TODO(pintohutch): how should we approach this...
+						// TODO(pintohutch): create dummy Rules resource on startup.
 						// At this time, the operator-config runtime controller
 						// does not guarantee this configmap exists. So unless a Rules
 						// resource is created separately, the rule-evaluator deployment
