@@ -179,10 +179,10 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 	podAnnotations := map[string]string{
 		AnnotationMetricName: componentName,
 	}
-	evaluatorArgs := []string{fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
+	evaluatorArgs := []string{
+		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
 		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
 	}
-
 	if rules.ProjectID != "" {
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", rules.ProjectID))
 	}
