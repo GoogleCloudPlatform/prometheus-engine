@@ -4,6 +4,8 @@ This repository contains various binaries and packages for client-side usage
 of Google Cloud Managed Service for Prometheus (GMP), a managed Prometheus offering on top
 of Google Cloud Monitoring (GCM).
 
+See g.co/cloud/managedprometheus for more documentation.
+
 ## Binaries
 
 * **[config-reloader](cmd/config-reloader)**: An auxiliary binary to initiate reload on configuration file changes.
