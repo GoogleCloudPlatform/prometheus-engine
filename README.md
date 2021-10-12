@@ -4,7 +4,7 @@ This repository contains various binaries and packages for client-side usage
 of Google Cloud Managed Service for Prometheus (GMP), a managed Prometheus offering on top
 of Google Cloud Monitoring (GCM).
 
-See g.co/cloud/managedprometheus for more documentation.
+For more documentation and to get started, go to g.co/cloud/managedprometheus.
 
 ## Binaries
 
