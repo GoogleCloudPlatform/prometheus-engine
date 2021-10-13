@@ -39,13 +39,20 @@ metadata:
 rules:
 - apiGroups: ["", "apps", "admissionregistration.k8s.io", "monitoring.googleapis.com", "certificates.k8s.io"]
   resources:
+# TODO(pintohutch): restrict access to non-CRD resources to select namespaces only.
+# This can also be enforced via watch/list filters of controllers/managers.
+# Ultimately we'll want that enforced here by the kube-apiserver and configured
+# properly at the controller/manager level.
+  - deployments
   - podmonitorings
   - podmonitorings/status
-  - rules
-  - operatorconfigs
   - configmaps
+  - daemonsets
   - validatingwebhookconfigurations
   - certificatesigningrequests
+  - rules
+  - operatorconfigs
+  - secrets
   verbs: ["create", "update", "get", "list", "watch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

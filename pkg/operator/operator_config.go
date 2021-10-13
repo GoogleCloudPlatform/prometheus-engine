@@ -62,7 +62,7 @@ func setupOperatorConfigControllers(op *Operator) error {
 			&monitoringv1alpha1.OperatorConfig{},
 		).
 		Owns(
-			&corev1.ConfigMap{},
+			&corev1.Secret{},
 			builder.WithPredicates(objFilter)).
 		Owns(
 			&appsv1.Deployment{},
@@ -99,18 +99,26 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 		config     = &monitoringv1alpha1.OperatorConfig{}
 		secretData map[string][]byte
 	)
+
+	// Fetch OperatorConfig.
 	if err := r.client.Get(ctx, req.NamespacedName, config); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "get operatorconfig")
 	}
+
+	// Ensure the rule-evaluator config and grab any to-be-mirrored
+	// secret data on the way.
 	secretData, err := r.ensureRuleEvaluatorConfig(ctx, config)
 	if err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator config")
 	}
 
+	// Mirror the fetched secret data to where the rule-evaluator can
+	// mount and access.
 	if err := r.ensureRuleEvaluatorSecrets(ctx, secretData); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator secrets")
 	}
 
+	// Ensure the rule-evaluator deployment and volume mounts.
 	if err := r.ensureRuleEvaluatorDeployment(ctx, &config.Rules); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator deploy")
 	}
@@ -118,20 +126,20 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	return reconcile.Result{}, nil
 }
 
-// ensureRuleEvaluatorConfig reconciles the ConfigMap for rule-evaluator.
-func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context, config *monitoringv1alpha1.OperatorConfig) (map[string][]byte, error) {
-	amConfigs, secretData, err := r.makeAlertManagerConfigs(ctx, &config.Rules.Alerting)
+// ensureRuleEvaluatorConfig reconciles the config for rule-evaluator.
+func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context, oc *monitoringv1alpha1.OperatorConfig) (map[string][]byte, error) {
+	amConfigs, secretData, err := r.makeAlertManagerConfigs(ctx, &oc.Rules.Alerting)
 	if err != nil {
 		return secretData, errors.Wrap(err, "make alertmanager config")
 	}
-	cm, err := makeRuleEvaluatorConfigMap(amConfigs, NameRuleEvaluator, r.opts.OperatorNamespace, "config.yaml")
+	cfg, err := makeRuleEvaluatorConfig(amConfigs, NameRuleEvaluator, r.opts.OperatorNamespace, configFilename)
 	if err != nil {
 		return secretData, errors.Wrap(err, "make rule-evaluator configmap")
 	}
 
-	// Upsert rule-evaluator ConfigMap.
-	if err := r.client.Update(ctx, cm); err != nil {
-		if err := r.client.Create(ctx, cm); err != nil {
+	// Upsert rule-evaluator config.
+	if err := r.client.Update(ctx, cfg); err != nil {
+		if err := r.client.Create(ctx, cfg); err != nil {
 			return secretData, errors.Wrap(err, "create rule-evaluator config")
 		}
 	} else if err != nil {
@@ -140,10 +148,12 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 	return secretData, nil
 }
 
-// makeRuleEvaluatorConfigMap creates the ConfigMap for rule-evaluator.
+// makeRuleEvaluatorConfig creates the config for rule-evaluator.
+// This is stored as a Secret rather than a ConfigMap as it could contain
+// sensitive configuration information.
 // TODO(pintohutch): change function signature to use native Promethues go structs
 // over k8s configmap.
-func makeRuleEvaluatorConfigMap(amConfigs []yaml.MapSlice, name, namespace, filename string) (*corev1.ConfigMap, error) {
+func makeRuleEvaluatorConfig(amConfigs []yaml.MapSlice, name, namespace, filename string) (*corev1.Secret, error) {
 	// Prepare and encode the Prometheus config used in rule-evaluator.
 	pmConfig := yaml.MapSlice{}
 
@@ -172,17 +182,17 @@ func makeRuleEvaluatorConfigMap(amConfigs []yaml.MapSlice, name, namespace, file
 		return nil, errors.Wrap(err, "marshal Prometheus config")
 	}
 
-	// Create rule-evaluator ConfigMap.
-	cm := &corev1.ConfigMap{
+	// Create rule-evaluator Secret.
+	s := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Data: map[string]string{
-			filename: string(cfgEncoded),
+		Data: map[string][]byte{
+			filename: cfgEncoded,
 		},
 	}
-	return cm, nil
+	return s, nil
 }
 
 // ensureRuleEvaluatorSecrets reconciles the Secrets for rule-evaluator.
@@ -346,10 +356,8 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 						// Rule-evaluator input Prometheus config.
 						Name: configVolumeName,
 						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: NameRuleEvaluator,
-								},
+							Secret: &corev1.SecretVolumeSource{
+								SecretName: NameRuleEvaluator,
 							},
 						},
 					}, {
@@ -376,6 +384,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 							},
 						},
 					}, {
+						// Mirrored config secrets (config specified as filepaths).
 						Name: secretVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							Secret: &corev1.SecretVolumeSource{
@@ -460,10 +469,11 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 		if tls := am.TLSConfig; tls != nil {
 			cfg = append(cfg, yaml.MapItem{Key: "tls_config", Value: tlsConfigYAML(secretsDir, tls)})
 			// Populate secretData cache to act on (i.e. upsert dedicated Secret) later.
-			secretData, err := getTLSSecretData(ctx, r.client, tls)
+			sd, err := getTLSSecretData(ctx, r.client, tls)
 			if err != nil {
-				return configs, secretData, err
+				return configs, sd, err
 			}
+			secretData = sd
 		}
 
 		// Kubernetes SD configs.
@@ -472,11 +482,7 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 		// Relabel configs.
 		cfg = append(cfg, yaml.MapItem{Key: "relabel_configs", Value: relabelConfigsYAML(&am)})
 
-		// TODO(pintohutch): Unsure if these make sense within K8s endpoints SD...
-		// basic_auth support.
-		// oauth2 support.
-		// proxy_url support.
-		// follow_redirects support.
+		// TODO(pintohutch): add support for basic_auth, oauth2, proxy_url, follow_redirects.
 
 		// Append to alertmanagers config array.
 		configs = append(configs, cfg)
