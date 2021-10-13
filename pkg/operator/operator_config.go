@@ -77,9 +77,8 @@ func setupOperatorConfigControllers(op *Operator) error {
 
 // operatorConfigReconciler reconciles the OperatorConfig CRD.
 type operatorConfigReconciler struct {
-	client     client.Client
-	opts       Options
-	secretData map[string][]byte
+	client client.Client
+	opts   Options
 }
 
 // newOperatorConfigReconciler creates a new operatorConfigReconciler.
