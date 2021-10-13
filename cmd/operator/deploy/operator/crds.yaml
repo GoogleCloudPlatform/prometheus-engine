@@ -284,49 +284,6 @@ spec:
                   description: Alerting contains how the rule-evaluator configures alerting.
                   type: object
                   properties:
-                    alertmanagerConfigs:
-                      description: 'AlertmanagerConfigs contains a list of secret or configmap selectors that can be used to insert complete Alertmanager config specs. Each selector should return a payload that can be unmarshalled to a list of alertmanager_config: https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config.'
-                      type: array
-                      items:
-                        description: 'NamespacedSecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive. Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#secretorconfigmap'
-                        type: object
-                        properties:
-                          configMap:
-                            description: ConfigMap containing data to use for the targets.
-                            type: object
-                            required:
-                              - key
-                              - namespace
-                            properties:
-                              key:
-                                description: The key to select.
-                                type: string
-                              name:
-                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
-                                type: string
-                              namespace:
-                                type: string
-                              optional:
-                                description: Specify whether the ConfigMap or its key must be defined
-                                type: boolean
-                          secret:
-                            description: Secret containing data to use for the targets.
-                            type: object
-                            required:
-                              - key
-                              - namespace
-                            properties:
-                              key:
-                                description: The key of the secret to select from.  Must be a valid secret key.
-                                type: string
-                              name:
-                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
-                                type: string
-                              namespace:
-                                type: string
-                              optional:
-                                description: Specify whether the Secret or its key must be defined
-                                type: boolean
                     alertmanagers:
                       description: Alertmanagers contains endpoint configuration for designated Alertmanagers.
                       type: array
@@ -496,10 +453,10 @@ spec:
                                 description: Used to verify the hostname for the targets.
                                 type: string
                 labelLocation:
-                  description: LabelLocation is the `location` label value on exported time series generated from recording rules. If left blank, the rule-evaluator will try and fetch the location from the GCE metadata server.
+                  description: 'LabelLocation is the `location` label value on exported time series generated from recording rules. If left blank, the rule-evaluator will try and fetch the location from the GCE metadata server. TODO(pintohutch): promote LabelLocation to OperatorConfig to permit configuration of collectors as well.'
                   type: string
                 labelProjectID:
-                  description: LabelProjectID is the `project_id` label value on exported time series generated from recording rules. If left blank, the rule-evaluator will try and fetch the project ID from the GCE metadata server.
+                  description: 'LabelProjectID is the `project_id` label value on exported time series generated from recording rules. If left blank, the rule-evaluator will try and fetch the project ID from the GCE metadata server. TODO(pintohutch): promote LabelProjectID to OperatorConfig to permit configuration of collectors as well.'
                   type: string
                 projectID:
                   description: ProjectID is the GCP project ID to evaluate rules against. If left blank, the rule-evaluator will try and fetch the project ID from the GCE metadata server.

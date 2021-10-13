@@ -84,11 +84,6 @@ type RuleEvaluatorSpec struct {
 type AlertingSpec struct {
 	// Alertmanagers contains endpoint configuration for designated Alertmanagers.
 	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers,omitempty"`
-	// AlertmanagerConfigs contains a list of secret or configmap selectors
-	// that can be used to insert complete Alertmanager config specs.
-	// Each selector should return a payload that can be unmarshalled to
-	// a list of alertmanager_config: https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config.
-	AlertmanagerConfigs []NamespacedSecretOrConfigMap `json:"alertmanagerConfigs,omitempty"`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object
