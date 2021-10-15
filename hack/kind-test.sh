@@ -92,4 +92,4 @@ kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/cmd/operator/deploy/operator
 kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/cmd/operator/deploy/ --recursive
 
 echo ">>> executing gmp e2e tests"
-go test -v ${SCRIPT_ROOT}/pkg/operator/e2e -args -project-id=test-proj -cluster=test-cluster -location=test-loc
+go test -v ${SCRIPT_ROOT}/pkg/operator/e2e -args -project-id=test-proj -cluster=test-cluster -location=test-loc -skip-gcm

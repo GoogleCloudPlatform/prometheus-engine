@@ -39,7 +39,8 @@ for i in $CRD_TMPS; do
   controller-gen schemapatch:manifests=${dir} output:dir=${dir} paths=./pkg/operator/apis/...
 done
 
-# Merge and overwrite crds.yaml.
+# Merge and overwrite crds.yaml. Remove last line so we don't produce
+# a final empty file that would make repeated runs of this script fail
 CRD_TMPS=$(find $CRD_TMP -iname '*.yaml' | sort)
-sed -s '$a---' $CRD_TMPS > ${CRD_DIR}/crds-tmp.yaml
+sed -s '$a---' $CRD_TMPS | sed -e '$ d' > ${CRD_DIR}/crds-tmp.yaml
 mv ${CRD_DIR}/crds-tmp.yaml ${CRD_DIR}/crds.yaml

@@ -43,8 +43,10 @@ import (
 type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// Rules contains how the operator configures and deployes rule-evaluator.
+	// Rules specifies how the operator configures and deployes rule-evaluator.
 	Rules RuleEvaluatorSpec `json:"rules"`
+	// Collection specifies how the operator configures collection.
+	Collection CollectionSpec `json:"collection"`
 }
 
 // OperatorConfigList is a list of OperatorConfigs.
@@ -78,6 +80,22 @@ type RuleEvaluatorSpec struct {
 	// Alerting contains how the rule-evaluator configures alerting.
 	Alerting AlertingSpec `json:"alerting"`
 }
+
+// CollectionSpec specifies how the operator configures collection of metric data.
+type CollectionSpec struct {
+	// Filter limits which metric data is sent to Cloud Monitoring.
+	Filter ExportFilters `json:"filter"`
+}
+
+type ExportFilters struct {
+	// A list Prometheus time series matchers. Every time series must match at least one
+	// of the matchers to be exported. This field can be used equivalently to the match[]
+	// parameter of the Prometheus federation endpoint to selectively export data.
+	//
+	// Example: ["{job='prometheus'}", "{__name__=~'job:.*'}"]
+	MatchOneOf []string `json:"matchOneOf"`
+}
+
 
 // AlertingSpec defines alerting configuration.
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertingspec

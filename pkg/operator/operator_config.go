@@ -145,7 +145,7 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	}
 
 	// Deploy Prometheus collector as a node agent.
-	if err := r.ensureCollectorDaemonSet(ctx); err != nil {
+	if err := r.ensureCollectorDaemonSet(ctx, &config.Collection); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure collector daemon set")
 	}
 
@@ -171,8 +171,8 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 }
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
-func (r *operatorConfigReconciler) ensureCollectorDaemonSet(ctx context.Context) error {
-	ds := r.makeCollectorDaemonSet()
+func (r *operatorConfigReconciler) ensureCollectorDaemonSet(ctx context.Context, cfg *monitoringv1alpha1.CollectionSpec) error {
+	ds := r.makeCollectorDaemonSet(cfg)
 
 	if err := r.client.Update(ctx, ds); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, ds); err != nil {
@@ -184,7 +184,7 @@ func (r *operatorConfigReconciler) ensureCollectorDaemonSet(ctx context.Context)
 	return nil
 }
 
-func (r *operatorConfigReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
+func (r *operatorConfigReconciler) makeCollectorDaemonSet(cfg *monitoringv1alpha1.CollectionSpec) *appsv1.DaemonSet {
 	// TODO(freinartz): this just fills in the bare minimum to get semantics right.
 	// Add more configuration of a full deployment: tolerations, resource request/limit,
 	// health checks, priority context, security context, dynamic update strategy params...
@@ -232,6 +232,10 @@ func (r *operatorConfigReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	}
 	if r.opts.CredentialsFile != "" {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", r.opts.CredentialsFile))
+	}
+	// Populate export filtering from OperatorConfig.
+	for _, matcher := range cfg.Filter.MatchOneOf {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.match=%s", matcher))
 	}
 
 	spec := appsv1.DaemonSetSpec{
