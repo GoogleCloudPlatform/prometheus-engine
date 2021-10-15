@@ -23,7 +23,6 @@ import (
 	"github.com/pkg/errors"
 	promconfig "github.com/prometheus/prometheus/config"
 	yaml "gopkg.in/yaml.v3"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,13 +42,17 @@ func setupCollectionControllers(op *Operator) error {
 	objRequest := reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Namespace: op.opts.OperatorNamespace,
-			Name:      CollectorName,
+			Name:      NameCollector,
 		},
 	}
-	// Canonical filter to only capture events for the config or collector object.
-	objFilter := namespacedNamePredicate{
+	// Canonical filter to only capture events for specific objects.
+	objFilterCollector := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
-		name:      CollectorName,
+		name:      NameCollector,
+	}
+	objFilterOperatorConfig := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      NameOperatorConfig,
 	}
 	// Predicate that filters for config maps containing hardcoded Prometheus scrape configs.
 	staticScrapeConfigSelector, err := predicate.LabelSelectorPredicate(metav1.LabelSelector{
@@ -65,7 +68,14 @@ func setupCollectionControllers(op *Operator) error {
 		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
 		For(
 			&corev1.ConfigMap{},
-			builder.WithPredicates(objFilter),
+			builder.WithPredicates(objFilterCollector),
+		).
+		// OperatorConfig is our root resource that ensures we reconcile
+		// at least once initially.
+		Watches(
+			&source.Kind{Type: &monitoringv1alpha1.OperatorConfig{}},
+			enqueueConst(objRequest),
+			builder.WithPredicates(objFilterOperatorConfig),
 		).
 		// Any update to a PodMonitoring requires regenerating the config.
 		Watches(
@@ -79,18 +89,6 @@ func setupCollectionControllers(op *Operator) error {
 			&source.Kind{Type: &corev1.ConfigMap{}},
 			enqueueConst(objRequest),
 			builder.WithPredicates(staticScrapeConfigSelector),
-		).
-		// Trigger for changes to the collector DaemonSet as well as we handle it as part
-		// of the config controller for now.  This does not guarantee initial collector creation in
-		// the absence of PodMonitorings or ConfigMaps.
-		// TODO(freinartz): This is fine in principle but ultimately the collector should be
-		// created along with other resources that are fixed for a given operator configuration.
-		// An operator config CRD should act as the general trigger resource to deploy these
-		// static resources.
-		Watches(
-			&source.Kind{Type: &appsv1.DaemonSet{}},
-			enqueueConst(objRequest),
-			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
 		Complete(newCollectionReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
@@ -115,6 +113,8 @@ func newCollectionReconciler(c client.Client, opts Options) *collectionReconcile
 }
 
 func (r *collectionReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
+	logr.FromContext(ctx).Info("reconciling collection")
+
 	r.statusState.Reset()
 
 	if err := r.ensureCollectorConfig(ctx); err != nil {
@@ -151,7 +151,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context) error 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
-			Name:      CollectorName,
+			Name:      NameCollector,
 		},
 		Data: map[string]string{
 			configFilename: string(cfgEncoded),

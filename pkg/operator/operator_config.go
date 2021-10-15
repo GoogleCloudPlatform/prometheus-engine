@@ -20,12 +20,20 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-// TODO(pintohutch): move these into the operator Options and pass in.
+// Base resource names which may be used for multiple different resource kinds
+// related to the given component.
 const (
-	NameRuleEvaluator = "rule-evaluator"
+	NameOperatorConfig = "config"
+	NameRuleEvaluator  = "rule-evaluator"
+	NameCollector      = "collector"
+)
+
+const (
 	rulesVolumeName   = "rules"
 	secretVolumeName  = "rules-secret"
 	RulesSecretName   = "rules"
@@ -49,24 +57,59 @@ func rulesAnnotations() map[string]string {
 // setupOperatorConfigControllers ensures a rule-evaluator
 // deployment as part of managed collection.
 func setupOperatorConfigControllers(op *Operator) error {
-	// Canonical filter to only capture events for the generated
-	// rule evaluator deployment.
-	objFilter := namespacedNamePredicate{
+	// Canonical filter to only capture events for specific objects.
+	objFilterRuleEvaluator := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
 		name:      NameRuleEvaluator,
+	}
+	objFilterCollector := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      NameCollector,
+	}
+	objFilterOperatorConfig := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      NameOperatorConfig,
+	}
+	// The singleton OperatorConfig is the request object we reconcile against.
+	objRequest := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: op.opts.OperatorNamespace,
+			Name:      NameOperatorConfig,
+		},
 	}
 
 	err := ctrl.NewControllerManagedBy(op.manager).
 		Named("operator-config").
+		// Filter events without changes for all watches.
+		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
 		For(
 			&monitoringv1alpha1.OperatorConfig{},
+			builder.WithPredicates(objFilterOperatorConfig),
 		).
-		Owns(
-			&corev1.Secret{},
-			builder.WithPredicates(objFilter)).
-		Owns(
-			&appsv1.Deployment{},
-			builder.WithPredicates(objFilter)).
+		// // Maintain the rule-evaluator deployment and configuration (as a secret).
+		Watches(
+			&source.Kind{Type: &appsv1.Deployment{}},
+			enqueueConst(objRequest),
+			builder.WithPredicates(
+				objFilterRuleEvaluator,
+				predicate.GenerationChangedPredicate{},
+			)).
+		// We must watch all secrets in the cluster as we copy and inline secrets referenced
+		// in the OperatorConfig and need to repeat those steps if affected secrets change.
+		// As the set of secrets to watch is not static, we've to watch them all.
+		// A viable alternative could be for the rule-evaluator (or a sidecar) to generate
+		// the configuration locally and maintain a more constrained watch.
+		Watches(
+			&source.Kind{Type: &corev1.Secret{}},
+			enqueueConst(objRequest)).
+		// Maintain the collector daemon set.
+		Watches(
+			&source.Kind{Type: &appsv1.DaemonSet{}},
+			enqueueConst(objRequest),
+			builder.WithPredicates(
+				objFilterCollector,
+				predicate.GenerationChangedPredicate{},
+			)).
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
 
 	if err != nil {
@@ -94,10 +137,7 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	logger := logr.FromContext(ctx).WithValues("operatorconfig", req.NamespacedName)
 	logger.Info("reconciling operatorconfig")
 
-	var (
-		config     = &monitoringv1alpha1.OperatorConfig{}
-		secretData map[string][]byte
-	)
+	config := &monitoringv1alpha1.OperatorConfig{}
 
 	// Fetch OperatorConfig.
 	if err := r.client.Get(ctx, req.NamespacedName, config); err != nil {
@@ -130,10 +170,6 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	return reconcile.Result{}, nil
 }
 
-// CollectorName is the base name of the collector used across various resources. Must match with
-// the static resources installed during the operator's base setup.
-const CollectorName = "collector"
-
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
 func (r *operatorConfigReconciler) ensureCollectorDaemonSet(ctx context.Context) error {
 	ds := r.makeCollectorDaemonSet()
@@ -153,7 +189,7 @@ func (r *operatorConfigReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	// Add more configuration of a full deployment: tolerations, resource request/limit,
 	// health checks, priority context, security context, dynamic update strategy params...
 	podLabels := map[string]string{
-		LabelAppName: CollectorName,
+		LabelAppName: NameCollector,
 	}
 
 	podAnnotations := map[string]string{
@@ -306,7 +342,7 @@ func (r *operatorConfigReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: CollectorName,
+									Name: NameCollector,
 								},
 							},
 						},
@@ -317,7 +353,7 @@ func (r *operatorConfigReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 						},
 					},
 				},
-				ServiceAccountName: CollectorName,
+				ServiceAccountName: NameCollector,
 				PriorityClassName:  r.opts.PriorityClass,
 				// When a cluster has Workload Identity enabled, the default GCP service account
 				// of the node is no longer accessible. That is unless the pod runs on the host network,
@@ -334,7 +370,7 @@ func (r *operatorConfigReconciler) makeCollectorDaemonSet() *appsv1.DaemonSet {
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
-			Name:      CollectorName,
+			Name:      NameCollector,
 		},
 		Spec: spec,
 	}
@@ -353,7 +389,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 	}
 
 	// Upsert rule-evaluator config.
-	if err := r.client.Update(ctx, cfg); err != nil {
+	if err := r.client.Update(ctx, cfg); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, cfg); err != nil {
 			return secretData, errors.Wrap(err, "create rule-evaluator config")
 		}
@@ -439,8 +475,11 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Contex
 func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Context, rules *monitoringv1alpha1.RuleEvaluatorSpec) error {
 	deploy := r.makeRuleEvaluatorDeployment(rules)
 
-	// Upsert rule-evaluator ConfigMap.
-	if err := r.client.Update(ctx, deploy); err != nil {
+	// Upsert rule-evaluator Deployment.
+	// We've to use Patch() as Update() with update we'll get stuck in an infinite loop as each
+	// update increases the generation since we override the managed fields metadata, which is
+	// set by the kube-controller-manager, which wants to own an annotation on deployments.
+	if err := r.client.Patch(ctx, deploy, client.Merge); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, deploy); err != nil {
 			return errors.Wrap(err, "create rule-evaluator deployment")
 		}
@@ -465,7 +504,10 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 	if rules.LabelLocation != "" {
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.location=%s", rules.LabelLocation))
 	}
+	replicas := int32(1)
+
 	spec := appsv1.DeploymentSpec{
+		Replicas: &replicas,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: rulesLabels(),
 		},
@@ -611,7 +653,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 				// Collector service account used for K8s endpoints-based SD.
 				// TODO(pintohutch): confirm minimum serviceAccount credentials needed for rule-evaluator
 				// and create dedicated serviceAccount.
-				ServiceAccountName: CollectorName,
+				ServiceAccountName: NameCollector,
 				PriorityClassName:  r.opts.PriorityClass,
 				// When a cluster has Workload Identity enabled, the default GCP service account
 				// of the node is no longer accessible. That is unless the pod runs on the host network,
