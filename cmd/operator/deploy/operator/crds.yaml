@@ -263,22 +263,31 @@ spec:
         "openAPIV3Schema":
           description: OperatorConfig defines configuration of the gmp-operator.
           type: object
-          required:
-            - rules
           properties:
             apiVersion:
               description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
               type: string
+            collection:
+              description: Collection specifies how the operator configures collection.
+              type: object
+              properties:
+                filter:
+                  description: Filter limits which metric data is sent to Cloud Monitoring.
+                  type: object
+                  properties:
+                    matchOneOf:
+                      description: "A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. \n Example: [\"{job='prometheus'}\", \"{__name__=~'job:.*'}\"]"
+                      type: array
+                      items:
+                        type: string
             kind:
               description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
               type: string
             metadata:
               type: object
             rules:
-              description: Rules contains how the operator configures and deployes rule-evaluator.
+              description: Rules specifies how the operator configures and deployes rule-evaluator.
               type: object
-              required:
-                - alerting
               properties:
                 alerting:
                   description: Alerting contains how the rule-evaluator configures alerting.
@@ -462,4 +471,3 @@ spec:
                   description: ProjectID is the GCP project ID to evaluate rules against. If left blank, the rule-evaluator will try and fetch the project ID from the GCE metadata server.
                   type: string
   scope: Namespaced
----

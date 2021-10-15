@@ -64,7 +64,7 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&projectID, "project-id", "", "The GCP project to write metrics to.")
 	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
 	flag.StringVar(&location, "location", "", "The location of the Kubernetes cluster that's tested against.")
-	flag.BoolVar(&skipGCM, "skip-gcm", true, "Skip validating GCM ingested points.")
+	flag.BoolVar(&skipGCM, "skip-gcm", false, "Skip validating GCM ingested points.")
 
 	flag.Parse()
 
@@ -389,6 +389,14 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: operator.NameOperatorConfig,
 		},
+		Collection: monitoringv1alpha1.CollectionSpec{
+			Filter: monitoringv1alpha1.ExportFilters{
+				MatchOneOf: []string{
+					"{job='foo'}",
+					"{__name__=~'up'}",
+				},
+			},
+		},
 	}
 	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.namespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
@@ -407,23 +415,42 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 		if ds.Status.DesiredNumberScheduled == 0 {
 			return false, nil
 		}
-		var projMatch, clusterMatch, locMatch, collectorArgs bool
+		if ds.Status.NumberReady != ds.Status.DesiredNumberScheduled {
+			return false, nil
+		}
 		for _, c := range ds.Spec.Template.Spec.Containers {
 			if c.Name != "prometheus" {
 				continue
 			}
-			for _, a := range c.Args {
-				if a == "--export.label.project-id=test-proj" {
-					projMatch = true
-				} else if a == "--export.label.cluster=test-cluster" {
-					clusterMatch = true
-				} else if a == "--export.label.location=test-loc" {
-					locMatch = true
-				}
+			// We're mainly interested in the dynamic flags but checking the entire set including
+			// the static ones is ultimately simpler.
+			wantArgs := []string{
+				"--config.file=/prometheus/config_out/config.yaml",
+				"--storage.tsdb.path=/prometheus/data",
+				"--storage.tsdb.no-lockfile",
+				"--storage.tsdb.retention.time=30m",
+				"--storage.tsdb.wal-compression",
+				"--storage.tsdb.min-block-duration=10m",
+				"--storage.tsdb.max-block-duration=10m",
+				fmt.Sprintf("--web.listen-address=:%d", t.collectorPort),
+				"--web.enable-lifecycle",
+				"--web.route-prefix=/",
+				fmt.Sprintf("--export.label.project-id=%s", projectID),
+				fmt.Sprintf("--export.label.cluster=%s", cluster),
 			}
+			if skipGCM {
+				wantArgs = append(wantArgs, "--export.disable")
+			}
+			wantArgs = append(wantArgs,
+				"--export.match={job='foo'}",
+				"--export.match={__name__=~'up'}",
+			)
+			if diff := cmp.Diff(wantArgs, c.Args); diff != "" {
+				return false, errors.Errorf("unexpected flags (-want, +got): %s", diff)
+			}
+			return true, nil
 		}
-		collectorArgs = projMatch && clusterMatch && locMatch
-		return (ds.Status.NumberReady == ds.Status.DesiredNumberScheduled) && collectorArgs, nil
+		return false, errors.New("no container with name prometheus found")
 	})
 	if err != nil {
 		t.Fatalf("Waiting for DaemonSet deployment failed: %s", err)

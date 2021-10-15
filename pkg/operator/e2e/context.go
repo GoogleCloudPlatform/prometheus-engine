@@ -56,6 +56,7 @@ type testContext struct {
 
 	kubeClient     kubernetes.Interface
 	operatorClient clientset.Interface
+	collectorPort  int32
 }
 
 func newTestContext(t *testing.T) *testContext {
@@ -79,6 +80,9 @@ func newTestContext(t *testing.T) *testContext {
 		namespace:      namespace,
 		kubeClient:     kubeClient,
 		operatorClient: operatorClient,
+		// Pick a random port to avoid conflicts with other simultaneous tests in the cluster
+		// as the collector runs on the host network.
+		collectorPort: 1025 + rand.Int31n(65536-1025),
 	}
 	// The testing package runs cleanup on a best-effort basis. Thus we have a fallback
 	// cleanup of namespaces in TestMain.
@@ -91,13 +95,11 @@ func newTestContext(t *testing.T) *testContext {
 	}
 
 	op, err := operator.New(globalLogger, kubeconfig, nil, operator.Options{
-		ProjectID:     projectID,
-		Cluster:       cluster,
-		Location:      location,
-		DisableExport: true,
-		// Pick a random port to avoid conflicts with other simultaneous tests in the cluster
-		// as the collector runs on the host network.
-		CollectorPort:     1025 + rand.Int31n(65536-1025),
+		ProjectID:         projectID,
+		Cluster:           cluster,
+		Location:          location,
+		DisableExport:     skipGCM,
+		CollectorPort:     tctx.collectorPort,
 		OperatorNamespace: tctx.namespace,
 		PriorityClass:     "gmp-critical",
 		CASelfSign:        false,
