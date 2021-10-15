@@ -15,10 +15,8 @@
 apiVersion: monitoring.googleapis.com/v1alpha1
 kind: OperatorConfig
 metadata:
-  namespace: default
-  name: example
-  labels:
-    app.kubernetes.io/name: example
+  namespace: gmp-system
+  name: config
 rules:
   alerting:
     alertmanagers:

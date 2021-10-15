@@ -147,7 +147,7 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 	}
 
 	svcAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{Name: operator.CollectorName},
+		ObjectMeta: metav1.ObjectMeta{Name: operator.NameCollector},
 	}
 	_, err = tctx.kubeClient.CoreV1().ServiceAccounts(tctx.namespace).Create(context.TODO(), svcAccount, metav1.CreateOptions{})
 	if err != nil {
@@ -155,7 +155,7 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 	}
 
 	// The cluster role expected to exist already.
-	const clusterRoleName = operator.DefaultOperatorNamespace + ":" + operator.CollectorName
+	const clusterRoleName = operator.DefaultOperatorNamespace + ":" + operator.NameCollector
 
 	roleBinding := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -174,7 +174,7 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 			{
 				Kind:      "ServiceAccount",
 				Namespace: tctx.namespace,
-				Name:      operator.CollectorName,
+				Name:      operator.NameCollector,
 			},
 		},
 	}

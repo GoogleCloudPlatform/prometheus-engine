@@ -49,10 +49,15 @@ func setupRulesControllers(op *Operator) error {
 			Name:      nameRulesGenerated,
 		},
 	}
-	// Canonical filter to only capture events for the generated rules config map.
-	objFilter := namespacedNamePredicate{
+
+	// Canonical filter to only capture events for specific objects.
+	objFilterRulesGenerated := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
 		name:      nameRulesGenerated,
+	}
+	objFilterOperatorConfig := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      NameOperatorConfig,
 	}
 	// Reconcile the generated rules that are used by the rule-evaluator deployment.
 	err := ctrl.NewControllerManagedBy(op.manager).
@@ -61,7 +66,14 @@ func setupRulesControllers(op *Operator) error {
 		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
 		For(
 			&corev1.ConfigMap{},
-			builder.WithPredicates(objFilter),
+			builder.WithPredicates(objFilterRulesGenerated),
+		).
+		// OperatorConfig is our root resource that ensures we reconcile
+		// at least once initially.
+		Watches(
+			&source.Kind{Type: &monitoringv1alpha1.OperatorConfig{}},
+			enqueueConst(objRequest),
+			builder.WithPredicates(objFilterOperatorConfig),
 		).
 		// Any update to a Rules object requires re-generating the config.
 		Watches(
@@ -88,6 +100,8 @@ func newRulesReconciler(c client.Client, opts Options) *rulesReconciler {
 }
 
 func (r *rulesReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
+	logr.FromContext(ctx).Info("reconciling rules")
+
 	if err := r.ensureRuleConfigs(ctx); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule configmaps")
 	}

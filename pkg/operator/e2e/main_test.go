@@ -149,7 +149,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 
 	opCfg := &monitoringv1alpha1.OperatorConfig{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "rules",
+			Name: operator.NameOperatorConfig,
 		},
 		Rules: monitoringv1alpha1.RuleEvaluatorSpec{
 			ProjectID:      "test-proj",
@@ -384,8 +384,19 @@ func testValidatingWebhookConfig(ctx context.Context, t *testContext) {
 // testCollectorDeployed does a high-level verification on whether the
 // collector is deployed to the cluster.
 func testCollectorDeployed(ctx context.Context, t *testContext) {
-	err := wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
-		ds, err := t.kubeClient.AppsV1().DaemonSets(t.namespace).Get(ctx, operator.CollectorName, metav1.GetOptions{})
+	// Create initial OperatorConfig to trigger deployment of resources.
+	opCfg := &monitoringv1alpha1.OperatorConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: operator.NameOperatorConfig,
+		},
+	}
+	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.namespace).Create(ctx, opCfg, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("create rules operatorconfig: %s", err)
+	}
+
+	err = wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
+		ds, err := t.kubeClient.AppsV1().DaemonSets(t.namespace).Get(ctx, operator.NameCollector, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
@@ -431,7 +442,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 		Spec: monitoringv1alpha1.PodMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					operator.LabelAppName: operator.CollectorName,
+					operator.LabelAppName: operator.NameCollector,
 				},
 			},
 			Endpoints: []monitoringv1alpha1.ScrapeEndpoint{
@@ -508,7 +519,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 	defer metricClient.Close()
 
 	pods, err := t.kubeClient.CoreV1().Pods(t.namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=%s", operator.LabelAppName, operator.CollectorName),
+		LabelSelector: fmt.Sprintf("%s=%s", operator.LabelAppName, operator.NameCollector),
 	})
 	if err != nil {
 		t.Fatalf("List collector pods: %s", err)
