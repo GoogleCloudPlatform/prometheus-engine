@@ -46,7 +46,7 @@ func setupRulesControllers(op *Operator) error {
 	objRequest := reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Namespace: op.opts.OperatorNamespace,
-			Name:      nameRulesGenerated,
+			Name:      NameOperatorConfig,
 		},
 	}
 
@@ -64,21 +64,22 @@ func setupRulesControllers(op *Operator) error {
 		Named("rules").
 		// Filter events without changes for all watches.
 		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
-		For(
-			&corev1.ConfigMap{},
-			builder.WithPredicates(objFilterRulesGenerated),
-		).
 		// OperatorConfig is our root resource that ensures we reconcile
 		// at least once initially.
-		Watches(
-			&source.Kind{Type: &monitoringv1alpha1.OperatorConfig{}},
-			enqueueConst(objRequest),
+		For(
+			&monitoringv1alpha1.OperatorConfig{},
 			builder.WithPredicates(objFilterOperatorConfig),
 		).
 		// Any update to a Rules object requires re-generating the config.
 		Watches(
 			&source.Kind{Type: &monitoringv1alpha1.Rules{}},
 			enqueueConst(objRequest),
+		).
+		// The configuration we generate for the rule-evaluator.
+		Watches(
+			&source.Kind{Type: &corev1.ConfigMap{}},
+			enqueueConst(objRequest),
+			builder.WithPredicates(objFilterRulesGenerated),
 		).
 		Complete(newRulesReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
