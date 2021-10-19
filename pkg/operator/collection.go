@@ -42,7 +42,7 @@ func setupCollectionControllers(op *Operator) error {
 	objRequest := reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Namespace: op.opts.OperatorNamespace,
-			Name:      NameCollector,
+			Name:      NameOperatorConfig,
 		},
 	}
 	// Canonical filter to only capture events for specific objects.
@@ -66,15 +66,10 @@ func setupCollectionControllers(op *Operator) error {
 		Named("collector-config").
 		// Filter events without changes for all watches.
 		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
-		For(
-			&corev1.ConfigMap{},
-			builder.WithPredicates(objFilterCollector),
-		).
 		// OperatorConfig is our root resource that ensures we reconcile
 		// at least once initially.
-		Watches(
-			&source.Kind{Type: &monitoringv1alpha1.OperatorConfig{}},
-			enqueueConst(objRequest),
+		For(
+			&monitoringv1alpha1.OperatorConfig{},
 			builder.WithPredicates(objFilterOperatorConfig),
 		).
 		// Any update to a PodMonitoring requires regenerating the config.
@@ -89,6 +84,12 @@ func setupCollectionControllers(op *Operator) error {
 			&source.Kind{Type: &corev1.ConfigMap{}},
 			enqueueConst(objRequest),
 			builder.WithPredicates(staticScrapeConfigSelector),
+		).
+		// The configuration we generate for the collectors.
+		Watches(
+			&source.Kind{Type: &corev1.ConfigMap{}},
+			enqueueConst(objRequest),
+			builder.WithPredicates(objFilterCollector),
 		).
 		Complete(newCollectionReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
