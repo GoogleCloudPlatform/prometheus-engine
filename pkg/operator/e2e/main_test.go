@@ -436,6 +436,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 				"--web.enable-lifecycle",
 				"--web.route-prefix=/",
 				fmt.Sprintf("--export.label.project-id=%s", projectID),
+				fmt.Sprintf("--export.label.location=%s", location),
 				fmt.Sprintf("--export.label.cluster=%s", cluster),
 			}
 			if skipGCM {
