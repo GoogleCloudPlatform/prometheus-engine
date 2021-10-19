@@ -23,6 +23,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	promconfig "github.com/prometheus/prometheus/config"
+	"github.com/prometheus/prometheus/pkg/labels"
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -140,7 +141,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, errors.Wrap(err, "ensure collector daemon set")
 	}
 
-	if err := r.ensureCollectorConfig(ctx); err != nil {
+	if err := r.ensureCollectorConfig(ctx, &config.Collection); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure collector config")
 	}
 	if err := r.updateCRDStatus(ctx); err != nil {
@@ -163,7 +164,7 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, cfg
 	return nil
 }
 
-func (r *collectionReconciler) makeCollectorDaemonSet(cfg *monitoringv1alpha1.CollectionSpec) *appsv1.DaemonSet {
+func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.CollectionSpec) *appsv1.DaemonSet {
 	// TODO(freinartz): this just fills in the bare minimum to get semantics right.
 	// Add more configuration of a full deployment: tolerations, resource request/limit,
 	// health checks, priority context, security context, dynamic update strategy params...
@@ -213,11 +214,11 @@ func (r *collectionReconciler) makeCollectorDaemonSet(cfg *monitoringv1alpha1.Co
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", r.opts.CredentialsFile))
 	}
 	// Populate export filtering from OperatorConfig.
-	for _, matcher := range cfg.Filter.MatchOneOf {
+	for _, matcher := range spec.Filter.MatchOneOf {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.match=%s", matcher))
 	}
 
-	spec := appsv1.DaemonSetSpec{
+	ds := appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: podLabels,
 		},
@@ -350,14 +351,13 @@ func (r *collectionReconciler) makeCollectorDaemonSet(cfg *monitoringv1alpha1.Co
 			},
 		},
 	}
-	ds := &appsv1.DaemonSet{
+	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
 			Name:      NameCollector,
 		},
-		Spec: spec,
+		Spec: ds,
 	}
-	return ds
 }
 
 // updateCRDStatus iterates through parsed CRDs and updates their statuses.
@@ -373,8 +373,8 @@ func (r *collectionReconciler) updateCRDStatus(ctx context.Context) error {
 }
 
 // ensureCollectorConfig generates the collector config and creates or updates it.
-func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context) error {
-	cfg, err := r.makeCollectorConfig(ctx)
+func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1alpha1.CollectionSpec) error {
+	cfg, err := r.makeCollectorConfig(ctx, spec)
 	if err != nil {
 		return errors.Wrap(err, "generate Prometheus config")
 	}
@@ -402,19 +402,24 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context) error 
 	return nil
 }
 
-func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promconfig.Config, error) {
+func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1alpha1.CollectionSpec) (*promconfig.Config, error) {
 	logger := logr.FromContext(ctx)
 
-	var scrapeCfgs []*promconfig.ScrapeConfig
+	cfg := &promconfig.Config{
+		GlobalConfig: promconfig.GlobalConfig{
+			ExternalLabels: labels.FromMap(spec.ExternalLabels),
+		},
+	}
+
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
 	var (
 		podmons    monitoringv1alpha1.PodMonitoringList
-		scrapecfgs corev1.ConfigMapList
+		scrapeCfgs corev1.ConfigMapList
 	)
 	if err := r.client.List(ctx, &podmons); err != nil {
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
 	}
-	if err := r.client.List(ctx, &scrapecfgs, client.MatchingLabels{"type": "scrape-config"}); err != nil {
+	if err := r.client.List(ctx, &scrapeCfgs, client.MatchingLabels{"type": "scrape-config"}); err != nil {
 		return nil, errors.Wrap(err, "failed to list scrape ConfigMaps")
 	}
 
@@ -433,7 +438,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promco
 				"namespace", podmon.Namespace, "name", podmon.Name)
 			continue
 		}
-		scrapeCfgs = append(scrapeCfgs, cfgs...)
+		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
 		if err := r.statusState.SetPodMonitoringCondition(&podmon, cond); err != nil {
 			// Log an error but let operator continue to avoid getting stuck
@@ -443,7 +448,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promco
 	}
 
 	// Load additional, hard-coded scrape configs from configmaps in the oeprator's namespace.
-	for _, cm := range scrapecfgs.Items {
+	for _, cm := range scrapeCfgs.Items {
 		const key = "config.yaml"
 
 		var promcfg promconfig.Config
@@ -455,15 +460,14 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context) (*promco
 		for _, sc := range promcfg.ScrapeConfigs {
 			// Make scrape config name unique and traceable.
 			sc.JobName = fmt.Sprintf("ConfigMap/%s/%s/%s", r.opts.OperatorNamespace, cm.Name, sc.JobName)
-			scrapeCfgs = append(scrapeCfgs, sc)
+			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, sc)
 		}
 	}
 
 	// Sort to ensure reproducible configs.
-	sort.Slice(scrapeCfgs, func(i, j int) bool {
-		return scrapeCfgs[i].JobName < scrapeCfgs[j].JobName
+	sort.Slice(cfg.ScrapeConfigs, func(i, j int) bool {
+		return cfg.ScrapeConfigs[i].JobName < cfg.ScrapeConfigs[j].JobName
 	})
-	return &promconfig.Config{
-		ScrapeConfigs: scrapeCfgs,
-	}, nil
+
+	return cfg, nil
 }

@@ -4,12 +4,18 @@ import (
 	"context"
 	"fmt"
 	"path"
-	"strings"
 
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
+	promcommonconfig "github.com/prometheus/common/config"
+	prommodel "github.com/prometheus/common/model"
+	promconfig "github.com/prometheus/prometheus/config"
+	"github.com/prometheus/prometheus/discovery"
+	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/pkg/relabel"
+	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -133,7 +139,7 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	}
 	// Ensure the rule-evaluator config and grab any to-be-mirrored
 	// secret data on the way.
-	secretData, err := r.ensureRuleEvaluatorConfig(ctx, config)
+	secretData, err := r.ensureRuleEvaluatorConfig(ctx, &config.Rules)
 	if err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator config")
 	}
@@ -153,23 +159,19 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 }
 
 // ensureRuleEvaluatorConfig reconciles the config for rule-evaluator.
-func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context, oc *monitoringv1alpha1.OperatorConfig) (map[string][]byte, error) {
-	amConfigs, secretData, err := r.makeAlertManagerConfigs(ctx, &oc.Rules.Alerting)
+func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1alpha1.RuleEvaluatorSpec) (map[string][]byte, error) {
+	cfg, secretData, err := r.makeRuleEvaluatorConfig(ctx, spec)
 	if err != nil {
-		return secretData, errors.Wrap(err, "make alertmanager config")
-	}
-	cfg, err := makeRuleEvaluatorConfig(amConfigs, NameRuleEvaluator, r.opts.OperatorNamespace, configFilename)
-	if err != nil {
-		return secretData, errors.Wrap(err, "make rule-evaluator configmap")
+		return nil, errors.Wrap(err, "make rule-evaluator configmap")
 	}
 
 	// Upsert rule-evaluator config.
 	if err := r.client.Update(ctx, cfg); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, cfg); err != nil {
-			return secretData, errors.Wrap(err, "create rule-evaluator config")
+			return nil, errors.Wrap(err, "create rule-evaluator config")
 		}
 	} else if err != nil {
-		return secretData, errors.Wrap(err, "update rule-evaluator config")
+		return nil, errors.Wrap(err, "update rule-evaluator config")
 	}
 	return secretData, nil
 }
@@ -177,48 +179,37 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 // makeRuleEvaluatorConfig creates the config for rule-evaluator.
 // This is stored as a Secret rather than a ConfigMap as it could contain
 // sensitive configuration information.
-// TODO(pintohutch): change function signature to use native Promethues go structs
-// over k8s configmap.
-func makeRuleEvaluatorConfig(amConfigs []yaml.MapSlice, name, namespace, filename string) (*corev1.Secret, error) {
-	// Prepare and encode the Prometheus config used in rule-evaluator.
-	pmConfig := yaml.MapSlice{}
-
-	// Add alertmanager configuration.
-	pmConfig = append(pmConfig,
-		yaml.MapItem{
-			Key: "alerting",
-			Value: yaml.MapSlice{
-				{
-					Key:   "alertmanagers",
-					Value: amConfigs,
-				},
-			},
-		},
-	)
-
-	// Add rules configuration.
-	pmConfig = append(pmConfig,
-		yaml.MapItem{
-			Key:   "rule_files",
-			Value: []string{path.Join(rulesDir, "*.yaml")},
-		},
-	)
-	cfgEncoded, err := yaml.Marshal(pmConfig)
+func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1alpha1.RuleEvaluatorSpec) (*corev1.Secret, map[string][]byte, error) {
+	amConfigs, secretData, err := r.makeAlertManagerConfigs(ctx, &spec.Alerting)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal Prometheus config")
+		return nil, nil, errors.Wrap(err, "make alertmanager config")
+	}
+
+	cfg := &promconfig.Config{
+		GlobalConfig: promconfig.GlobalConfig{
+			ExternalLabels: labels.FromMap(spec.ExternalLabels),
+		},
+		AlertingConfig: promconfig.AlertingConfig{
+			AlertmanagerConfigs: amConfigs,
+		},
+		RuleFiles: []string{path.Join(rulesDir, "*.yaml")},
+	}
+	cfgEncoded, err := yaml.Marshal(cfg)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "marshal Prometheus config")
 	}
 
 	// Create rule-evaluator Secret.
 	s := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:      NameRuleEvaluator,
+			Namespace: r.opts.OperatorNamespace,
 		},
 		Data: map[string][]byte{
-			filename: cfgEncoded,
+			configFilename: cfgEncoded,
 		},
 	}
-	return s, nil
+	return s, secretData, nil
 }
 
 // ensureRuleEvaluatorSecrets reconciles the Secrets for rule-evaluator.
@@ -247,8 +238,8 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Contex
 }
 
 // ensureRuleEvaluatorDeployment reconciles the Deployment for rule-evaluator.
-func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Context, rules *monitoringv1alpha1.RuleEvaluatorSpec) error {
-	deploy := r.makeRuleEvaluatorDeployment(rules)
+func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Context, spec *monitoringv1alpha1.RuleEvaluatorSpec) error {
+	deploy := r.makeRuleEvaluatorDeployment(spec)
 
 	// Upsert rule-evaluator Deployment.
 	// We've to use Patch() as Update() with update we'll get stuck in an infinite loop as each
@@ -265,23 +256,17 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 }
 
 // makeRuleEvaluatorDeployment creates the Deployment for rule-evaluator.
-func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoringv1alpha1.RuleEvaluatorSpec) *appsv1.Deployment {
+func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv1alpha1.RuleEvaluatorSpec) *appsv1.Deployment {
 	evaluatorArgs := []string{
 		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
 		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
 	}
-	if rules.ProjectID != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", rules.ProjectID))
-	}
-	if rules.LabelProjectID != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.project-id=%s", rules.LabelProjectID))
-	}
-	if rules.LabelLocation != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.location=%s", rules.LabelLocation))
+	if spec.QueryProjectID != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", spec.QueryProjectID))
 	}
 	replicas := int32(1)
 
-	spec := appsv1.DeploymentSpec{
+	deploy := appsv1.DeploymentSpec{
 		Replicas: &replicas,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: rulesLabels(),
@@ -442,195 +427,129 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(rules *monitoring
 			},
 		},
 	}
-	deploy := &appsv1.Deployment{
+	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
 			Name:      NameRuleEvaluator,
 		},
-		Spec: spec,
+		Spec: deploy,
 	}
-	return deploy
 }
 
 // makeAlertManagerConfigs creates the alertmanager_config entries as described in
 // https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config.
-// TODO(pintohutch): change function signature to use native Promethues go structs
-// over []yaml.MapSlice.
-func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, spec *monitoringv1alpha1.AlertingSpec) ([]yaml.MapSlice, map[string][]byte, error) {
+func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, spec *monitoringv1alpha1.AlertingSpec) (promconfig.AlertmanagerConfigs, map[string][]byte, error) {
 	var (
-		configs    []yaml.MapSlice
+		err        error
+		configs    promconfig.AlertmanagerConfigs
 		secretData = make(map[string][]byte)
 	)
 	for _, am := range spec.Alertmanagers {
-		var cfg yaml.MapSlice
+		cfg := promconfig.AlertmanagerConfig{
+			APIVersion: promconfig.AlertmanagerAPIVersion(am.APIVersion),
+			PathPrefix: am.PathPrefix,
+			Scheme:     am.Scheme,
+		}
 		// Timeout, APIVersion, PathPrefix, and Scheme all resort to defaults if left unspecified.
 		if am.Timeout != "" {
-			cfg = append(cfg, yaml.MapItem{Key: "timeout", Value: am.Timeout})
+			cfg.Timeout, err = prommodel.ParseDuration(am.Timeout)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "invalid timeout")
+			}
 		}
-		// Default to V2 Alertmanager version.
-		if am.APIVersion != "" {
-			cfg = append(cfg, yaml.MapItem{Key: "api_version", Value: am.APIVersion})
-		}
-		// Default to / path prefix.
-		if am.PathPrefix != "" {
-			cfg = append(cfg, yaml.MapItem{Key: "path_prefix", Value: am.PathPrefix})
-		}
-		// Default to http scheme.
-		if am.Scheme != "" {
-			cfg = append(cfg, yaml.MapItem{Key: "scheme", Value: am.Scheme})
-		}
-
 		// Authorization.
 		if am.Authorization != nil {
-			// TODO(pintohutch): use native Prometheus structs here.
-			authCfg := yaml.MapSlice{}
-			if t := am.Authorization.Type; t != "" {
-				authCfg = append(authCfg, yaml.MapItem{Key: "type", Value: strings.TrimSpace(t)})
+			cfg.HTTPClientConfig.Authorization = &promcommonconfig.Authorization{
+				Type: am.Authorization.Type,
 			}
 			if c := am.Authorization.Credentials; c != nil {
 				b, err := getSecretKeyBytes(ctx, r.client, c)
 				if err != nil {
-					return configs, secretData, err
+					return nil, nil, err
 				}
-				authCfg = append(authCfg, yaml.MapItem{Key: "credentials", Value: string(b)})
-			}
-			cfg = append(cfg, yaml.MapItem{Key: "authorization", Value: authCfg})
-		}
+				p := pathForSelector(&monitoringv1alpha1.NamespacedSecretOrConfigMap{Secret: c})
 
+				secretData[p] = b
+				cfg.HTTPClientConfig.Authorization.CredentialsFile = path.Join(secretsDir, p)
+			}
+		}
 		// TLS config.
-		if tls := am.TLSConfig; tls != nil {
-			cfg = append(cfg, yaml.MapItem{Key: "tls_config", Value: tlsConfigYAML(secretsDir, tls)})
-			// Populate secretData cache to act on (i.e. upsert dedicated Secret) later.
-			sd, err := getTLSSecretData(ctx, r.client, tls)
-			if err != nil {
-				return configs, sd, err
+		if am.TLS != nil {
+			tlsCfg := promcommonconfig.TLSConfig{
+				InsecureSkipVerify: am.TLS.InsecureSkipVerify,
+				ServerName:         am.TLS.ServerName,
 			}
-			secretData = sd
+			p := pathForSelector(&am.TLS.CA)
+			b, err := getSecretOrConfigMapBytes(ctx, r.client, &am.TLS.CA)
+			if err != nil {
+				return nil, nil, err
+			}
+			secretData[p] = b
+			tlsCfg.CAFile = path.Join(secretsDir, p)
+
+			p = pathForSelector(&am.TLS.Cert)
+			b, err = getSecretOrConfigMapBytes(ctx, r.client, &am.TLS.Cert)
+			if err != nil {
+				return nil, nil, err
+			}
+			secretData[p] = b
+			tlsCfg.CertFile = path.Join(secretsDir, p)
+
+			p = pathForSelector(&monitoringv1alpha1.NamespacedSecretOrConfigMap{Secret: am.TLS.KeySecret})
+			b, err = getSecretKeyBytes(ctx, r.client, am.TLS.KeySecret)
+			if err != nil {
+				return nil, nil, err
+			}
+			secretData[p] = b
+			tlsCfg.KeyFile = path.Join(secretsDir, p)
+
+			cfg.HTTPClientConfig.TLSConfig = tlsCfg
 		}
 
-		// Kubernetes SD configs.
-		cfg = append(cfg, yaml.MapItem{Key: "kubernetes_sd_configs", Value: k8sSDConfigYAML(am.Namespace)})
-
-		// Relabel configs.
-		cfg = append(cfg, yaml.MapItem{Key: "relabel_configs", Value: relabelConfigsYAML(&am)})
+		// Configure discovery of AM endpoints via Kubernetes API.
+		cfg.ServiceDiscoveryConfigs = discovery.Configs{
+			&discoverykube.SDConfig{
+				HTTPClientConfig: promcommonconfig.DefaultHTTPClientConfig,
+				Role:             discoverykube.RoleEndpoint,
+				NamespaceDiscovery: discoverykube.NamespaceDiscovery{
+					Names: []string{am.Namespace},
+				},
+			},
+		}
+		svcNameRE, err := relabel.NewRegexp(am.Name)
+		if err != nil {
+			return nil, nil, errors.Errorf("cannot build regex from service name %q: %s", am.Name, err)
+		}
+		cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
+			Action:       relabel.Keep,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_name"},
+			Regex:        svcNameRE,
+		})
+		portRE, err := relabel.NewRegexp(am.Port.String())
+		if err != nil {
+			return nil, nil, errors.Errorf("cannot build regex from port %q: %s", am.Port, err)
+		}
+		if am.Port.StrVal != "" {
+			cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
+				Action:       relabel.Keep,
+				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_endpoint_port_name"},
+				Regex:        portRE,
+			})
+		} else if am.Port.IntVal != 0 {
+			cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
+				Action:       relabel.Keep,
+				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_port_number"},
+				Regex:        portRE,
+			})
+		}
 
 		// TODO(pintohutch): add support for basic_auth, oauth2, proxy_url, follow_redirects.
 
 		// Append to alertmanagers config array.
-		configs = append(configs, cfg)
+		configs = append(configs, &cfg)
 	}
 
 	return configs, secretData, nil
-}
-
-// tlsConfigYAML creates a yaml.MapSlice compatible with https://prometheus.io/docs/prometheus/latest/configuration/configuration/#tls_config
-// from the provided TLSConfig and mount path `dir`.
-func tlsConfigYAML(dir string, tls *monitoringv1alpha1.TLSConfig) yaml.MapSlice {
-	var (
-		filepath  string
-		tlsConfig = yaml.MapSlice{
-			{Key: "insecure_skip_verify", Value: tls.InsecureSkipVerify},
-		}
-	)
-	if tls.CA.Secret != nil || tls.CA.ConfigMap != nil {
-		filepath = path.Join(dir, pathForSelector(&tls.CA))
-		tlsConfig = append(tlsConfig, yaml.MapItem{Key: "ca_file", Value: filepath})
-	}
-	if tls.Cert.Secret != nil || tls.Cert.ConfigMap != nil {
-		filepath = path.Join(dir, pathForSelector(&tls.Cert))
-		tlsConfig = append(tlsConfig, yaml.MapItem{Key: "cert_file", Value: filepath})
-	}
-	if tls.KeySecret != nil {
-		scm := &monitoringv1alpha1.NamespacedSecretOrConfigMap{Secret: tls.KeySecret}
-		filepath = path.Join(dir, pathForSelector(scm))
-		tlsConfig = append(tlsConfig, yaml.MapItem{Key: "key_file", Value: filepath})
-	}
-	if tls.ServerName != "" {
-		tlsConfig = append(tlsConfig, yaml.MapItem{Key: "server_name", Value: tls.ServerName})
-	}
-	return tlsConfig
-}
-
-// k8sSDConfigYAML returns the kubernetes_sd_config YAML spec
-// from the provided namespace.
-func k8sSDConfigYAML(namespace string) []yaml.MapSlice {
-	k8sSDConfig := yaml.MapSlice{
-		{
-			Key:   "role",
-			Value: "endpoints",
-		},
-	}
-
-	k8sSDConfig = append(k8sSDConfig, yaml.MapItem{
-		Key: "namespaces",
-		Value: yaml.MapSlice{
-			{
-				Key:   "names",
-				Value: []string{namespace},
-			},
-		},
-	})
-
-	return []yaml.MapSlice{
-		k8sSDConfig,
-	}
-}
-
-// relabelConfigsYAML returns the relabel_configs YAML spec
-// from the provided AlertmanagerEndpoints.
-func relabelConfigsYAML(am *monitoringv1alpha1.AlertmanagerEndpoints) []yaml.MapSlice {
-	var relabelings []yaml.MapSlice
-
-	relabelings = append(relabelings, yaml.MapSlice{
-		{Key: "action", Value: "keep"},
-		{Key: "source_labels", Value: []string{"__meta_kubernetes_service_name"}},
-		{Key: "regex", Value: am.Name},
-	})
-
-	if am.Port.StrVal != "" {
-		relabelings = append(relabelings, yaml.MapSlice{
-			{Key: "action", Value: "keep"},
-			{Key: "source_labels", Value: []string{"__meta_kubernetes_endpoint_port_name"}},
-			{Key: "regex", Value: am.Port.String()},
-		})
-	} else if am.Port.IntVal != 0 {
-		relabelings = append(relabelings, yaml.MapSlice{
-			{Key: "action", Value: "keep"},
-			{Key: "source_labels", Value: []string{"__meta_kubernetes_pod_container_port_number"}},
-			{Key: "regex", Value: am.Port.String()},
-		})
-	}
-
-	return relabelings
-}
-
-// getTLSSecretData parses the provided TLSConfig and fetches the secret key bytes
-// and returns them in a map, keyed by unique filenames.
-func getTLSSecretData(ctx context.Context, kClient client.Reader, tls *monitoringv1alpha1.TLSConfig) (map[string][]byte, error) {
-	var m = make(map[string][]byte)
-	// Fetch CA cert bytes.
-	b, err := getSecretOrConfigMapBytes(ctx, kClient, &tls.CA)
-	if err != nil {
-		return m, err
-	}
-	m[pathForSelector(&tls.CA)] = b
-
-	// Fetch client cert bytes.
-	b, err = getSecretOrConfigMapBytes(ctx, kClient, &tls.Cert)
-	if err != nil {
-		return m, err
-	}
-	m[pathForSelector(&tls.Cert)] = b
-
-	// Fetch secret client key bytes.
-	if secret := tls.KeySecret; secret != nil {
-		b, err := getSecretKeyBytes(ctx, kClient, secret)
-		if err != nil {
-			return m, err
-		}
-		m[pathForSelector(&monitoringv1alpha1.NamespacedSecretOrConfigMap{Secret: tls.KeySecret})] = b
-	}
-	return m, nil
 }
 
 // getSecretOrConfigMapBytes is a helper function to conditionally fetch
