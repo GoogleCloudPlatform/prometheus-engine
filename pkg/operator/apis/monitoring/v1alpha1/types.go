@@ -44,9 +44,9 @@ type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Rules specifies how the operator configures and deployes rule-evaluator.
-	Rules RuleEvaluatorSpec `json:"rules"`
+	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
 	// Collection specifies how the operator configures collection.
-	Collection CollectionSpec `json:"collection"`
+	Collection CollectionSpec `json:"collection,omitempty"`
 }
 
 // OperatorConfigList is a list of OperatorConfigs.
@@ -59,32 +59,26 @@ type OperatorConfigList struct {
 
 // RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
 type RuleEvaluatorSpec struct {
-	// ProjectID is the GCP project ID to evaluate rules against.
-	// If left blank, the rule-evaluator will try and fetch the project ID
-	// from the GCE metadata server.
-	ProjectID string `json:"projectID,omitempty"`
-	// LabelProjectID is the `project_id` label value on exported time series
-	// generated from recording rules.
-	// If left blank, the rule-evaluator will try and fetch the project ID
-	// from the GCE metadata server.
-	// TODO(pintohutch): promote LabelProjectID to OperatorConfig to
-	// permit configuration of collectors as well.
-	LabelProjectID string `json:"labelProjectID,omitempty"`
-	// LabelLocation is the `location` label value on exported time series
-	// generated from recording rules.
-	// If left blank, the rule-evaluator will try and fetch the location
-	// from the GCE metadata server.
-	// TODO(pintohutch): promote LabelLocation to OperatorConfig to
-	// permit configuration of collectors as well.
-	LabelLocation string `json:"labelLocation,omitempty"`
+	// ExternalLabels specifies external labels that are attached to any rule
+	// results and alerts produced by rules. The precedence behavior matches that
+	// of Prometheus.
+	ExternalLabels map[string]string `json:"externalLabels,omitempty"`
+	// QueryProjectID is the GCP project ID to evaluate rules against.
+	// If left blank, the rule-evaluator will try attempt to infer the Project ID
+	// from the environment.
+	QueryProjectID string `json:"queryProjectID,omitempty"`
 	// Alerting contains how the rule-evaluator configures alerting.
-	Alerting AlertingSpec `json:"alerting"`
+	Alerting AlertingSpec `json:"alerting,omitempty"`
 }
 
 // CollectionSpec specifies how the operator configures collection of metric data.
 type CollectionSpec struct {
+	// ExternalLabels specifies external labels that are attached to all scraped
+	// data before being written to Cloud Monitoring. The precedence behavior matches that
+	// of Prometheus.
+	ExternalLabels map[string]string `json:"externalLabels,omitempty"`
 	// Filter limits which metric data is sent to Cloud Monitoring.
-	Filter ExportFilters `json:"filter"`
+	Filter ExportFilters `json:"filter,omitempty"`
 }
 
 type ExportFilters struct {
@@ -93,7 +87,7 @@ type ExportFilters struct {
 	// parameter of the Prometheus federation endpoint to selectively export data.
 	//
 	// Example: ["{job='prometheus'}", "{__name__=~'job:.*'}"]
-	MatchOneOf []string `json:"matchOneOf"`
+	MatchOneOf []string `json:"matchOneOf,omitempty"`
 }
 
 
@@ -119,7 +113,7 @@ type AlertmanagerEndpoints struct {
 	// Prefix for the HTTP path alerts are pushed to.
 	PathPrefix string `json:"pathPrefix,omitempty"`
 	// TLS Config to use for alertmanager connection.
-	TLSConfig *TLSConfig `json:"tlsConfig,omitempty"`
+	TLS *TLSConfig `json:"tls,omitempty"`
 	// Authorization section for this alertmanager endpoint
 	Authorization *Authorization `json:"authorization,omitempty"`
 	// Version of the Alertmanager API that rule-evaluator uses to send alerts. It

@@ -131,8 +131,7 @@ func TestOperatorConfig(t *testing.T) {
 func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 	// Setup TLS secret selectors.
 	caSecret := &monitoringv1alpha1.NamespacedSecretKeySelector{
-		// Choose the non-test namespace to ensure we can read across namespaces.
-		Namespace: "default",
+		Namespace: t.namespace,
 		SecretKeySelector: corev1.SecretKeySelector{
 			LocalObjectReference: corev1.LocalObjectReference{
 				Name: "alertmanager-tls",
@@ -152,9 +151,10 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 			Name: operator.NameOperatorConfig,
 		},
 		Rules: monitoringv1alpha1.RuleEvaluatorSpec{
-			ProjectID:      "test-proj",
-			LabelProjectID: "label-proj",
-			LabelLocation:  "label-loc",
+			ExternalLabels: map[string]string{
+				"external_key": "external_val",
+			},
+			QueryProjectID: "test-proj",
 			Alerting: monitoringv1alpha1.AlertingSpec{
 				Alertmanagers: []monitoringv1alpha1.AlertmanagerEndpoints{
 					{
@@ -168,17 +168,16 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 						Authorization: &monitoringv1alpha1.Authorization{
 							Type: "Bearer",
 							Credentials: &monitoringv1alpha1.NamespacedSecretKeySelector{
-								// Choose the non-test namespace to ensure we can read across namespaces.
-								Namespace: "default",
+								Namespace: t.namespace,
 								SecretKeySelector: corev1.SecretKeySelector{
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: "alertmanager-authorization",
 									},
-									Key: "auth-credentials",
+									Key: "token",
 								},
 							},
 						},
-						TLSConfig: &monitoringv1alpha1.TLSConfig{
+						TLS: &monitoringv1alpha1.TLSConfig{
 							CA: monitoringv1alpha1.NamespacedSecretOrConfigMap{
 								Secret: caSecret,
 							},
@@ -203,16 +202,16 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "alertmanager-authorization",
-				Namespace: "default",
+				Namespace: t.namespace,
 			},
 			Data: map[string][]byte{
-				"auth-credentials": []byte("auth-bearer-password"),
+				"token": []byte("auth-bearer-password"),
 			},
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "alertmanager-tls",
-				Namespace: "default",
+				Namespace: t.namespace,
 			},
 			Data: map[string][]byte{
 				"ca":   []byte("cert-authority"),
@@ -223,22 +222,19 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
 	}
 
 	for _, s := range secrets {
-		if _, err := t.kubeClient.CoreV1().Secrets(s.Namespace).Update(ctx, s, metav1.UpdateOptions{}); apierrors.IsNotFound(err) {
-			if _, err := t.kubeClient.CoreV1().Secrets(s.Namespace).Create(ctx, s, metav1.CreateOptions{}); err != nil {
+		if _, err := t.kubeClient.CoreV1().Secrets(s.Namespace).Create(ctx, s, metav1.CreateOptions{}); err != nil {
 				t.Fatalf("create alertmanager secret: %s", err)
 			}
-		} else if err != nil {
-			t.Fatalf("update alertmanager secret: %s", err)
-		}
 	}
 }
 
 func testRuleEvaluatorSecrets(ctx context.Context, t *testContext) {
 	var diff string
 	want := map[string][]byte{
-		"secret_default_alertmanager-tls_ca":   []byte("cert-authority"),
-		"secret_default_alertmanager-tls_cert": []byte("cert-client"),
-		"secret_default_alertmanager-tls_key":  []byte("key-client"),
+		fmt.Sprintf("secret_%s_alertmanager-tls_ca", t.namespace):              []byte("cert-authority"),
+		fmt.Sprintf("secret_%s_alertmanager-tls_cert", t.namespace):            []byte("cert-client"),
+		fmt.Sprintf("secret_%s_alertmanager-tls_key", t.namespace):             []byte("key-client"),
+		fmt.Sprintf("secret_%s_alertmanager-authorization_token", t.namespace): []byte("auth-bearer-password"),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
 		cm, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
@@ -261,43 +257,45 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext) {
 func testRuleEvaluatorConfig(ctx context.Context, t *testContext) {
 	var diff string
 	replace := func(s string) []byte {
-		r := strings.NewReplacer(
+		return []byte(strings.NewReplacer(
 			"{namespace}", t.namespace,
-		).Replace(s)
-		return []byte(r)
+		).Replace(s))
 	}
 
 	want := map[string][]byte{
-		"config.yaml": replace(`alerting:
-  alertmanagers:
-  - timeout: 30s
-    api_version: v2
-    path_prefix: /test
-    scheme: https
-    authorization:
-      type: Bearer
-      credentials: auth-bearer-password
-    tls_config:
-      insecure_skip_verify: false
-      ca_file: /etc/secrets/secret_default_alertmanager-tls_ca
-      cert_file: /etc/secrets/secret_default_alertmanager-tls_cert
-      key_file: /etc/secrets/secret_default_alertmanager-tls_key
-    kubernetes_sd_configs:
-    - role: endpoints
-      namespaces:
-        names:
-        - {namespace}
-    relabel_configs:
-    - action: keep
-      source_labels:
-      - __meta_kubernetes_service_name
-      regex: test-am
-    - action: keep
-      source_labels:
-      - __meta_kubernetes_pod_container_port_number
-      regex: "19093"
+		"config.yaml": replace(`global:
+    external_labels:
+        external_key: external_val
+alerting:
+    alertmanagers:
+        - authorization:
+            type: Bearer
+            credentials_file: /etc/secrets/secret_{namespace}_alertmanager-authorization_token
+          tls_config:
+            ca_file: /etc/secrets/secret_{namespace}_alertmanager-tls_ca
+            cert_file: /etc/secrets/secret_{namespace}_alertmanager-tls_cert
+            key_file: /etc/secrets/secret_{namespace}_alertmanager-tls_key
+            insecure_skip_verify: false
+          follow_redirects: false
+          scheme: https
+          path_prefix: /test
+          timeout: 30s
+          api_version: v2
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_name]
+              regex: test-am
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_container_port_number]
+              regex: "19093"
+              action: keep
+          kubernetes_sd_configs:
+            - role: endpoints
+              follow_redirects: true
+              namespaces:
+                names:
+                    - {namespace}
 rule_files:
-- /etc/rules/*.yaml
+    - /etc/rules/*.yaml
 `),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
@@ -390,6 +388,9 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			Name: operator.NameOperatorConfig,
 		},
 		Collection: monitoringv1alpha1.CollectionSpec{
+			ExternalLabels: map[string]string{
+				"external_key": "external_val",
+			},
 			Filter: monitoringv1alpha1.ExportFilters{
 				MatchOneOf: []string{
 					"{job='foo'}",
@@ -579,7 +580,8 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 				resource.labels.namespace = "%s" AND
 				resource.labels.job = "%s" AND
 				resource.labels.instance = "%s:%s" AND
-				metric.type = "prometheus.googleapis.com/up/gauge"
+				metric.type = "prometheus.googleapis.com/up/gauge" AND
+				metric.labels.external_key = "external_val"
 				`,
 						projectID, cluster, t.namespace, job, pod.Name, port,
 					),
