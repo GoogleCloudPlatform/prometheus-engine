@@ -29,7 +29,7 @@ GKE cluster must be provided. Execute the tests with:
 
 ```bash
 go test ./e2e/ \
-    --project-id=$PROJECT_ID --cluster=$CLUSTER_NAME
+    --project-id=$PROJECT_ID --cluster=$CLUSTER_NAME --location=$LOCATION
 ```
 
 ## Code Generation
@@ -37,5 +37,9 @@ go test ./e2e/ \
 To update generated code when changes to Custom Resource Definitions are made run:
 
 ```bash
-hack/update-codegen.sh
+make codegen
+make crds
 ```
+
+The generated CRD YAMLs may require manual editing. Especially consider whether fields
+are correctly marked as required or not.
