@@ -229,7 +229,6 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
 }
 
 func testRuleEvaluatorSecrets(ctx context.Context, t *testContext) {
-	var diff string
 	want := map[string][]byte{
 		fmt.Sprintf("secret_%s_alertmanager-tls_ca", t.namespace):              []byte("cert-authority"),
 		fmt.Sprintf("secret_%s_alertmanager-tls_cert", t.namespace):            []byte("cert-client"),
@@ -237,32 +236,31 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext) {
 		fmt.Sprintf("secret_%s_alertmanager-authorization_token", t.namespace): []byte("auth-bearer-password"),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
-		cm, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
+		secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
 			return false, errors.Wrap(err, "get secret")
 		}
-
-		diff = cmp.Diff(want, cm.Data)
-		return diff == "", nil
+		if diff := cmp.Diff(want, secret.Data); diff != "" {
+			return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
+		}
+		return true, nil
 	})
 	if err != nil {
-		t.Errorf("diff (-want, +got): %s", diff)
 		t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
 	}
 
 }
 
 func testRuleEvaluatorConfig(ctx context.Context, t *testContext) {
-	var diff string
-	replace := func(s string) []byte {
-		return []byte(strings.NewReplacer(
+	replace := func(s string) string {
+		return strings.NewReplacer(
 			"{namespace}", t.namespace,
-		).Replace(s))
+		).Replace(s)
 	}
 
-	want := map[string][]byte{
+	want := map[string]string{
 		"config.yaml": replace(`global:
     external_labels:
         external_key: external_val
@@ -299,17 +297,18 @@ rule_files:
 `),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
-		cm, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
+		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
 			return false, errors.Wrap(err, "get configmap")
 		}
-		diff = cmp.Diff(want, cm.Data)
-		return diff == "", nil
+		if diff := cmp.Diff(want, cm.Data); diff != "" {
+			return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
+		}
+		return true, nil
 	})
 	if err != nil {
-		t.Errorf("diff (-want, +got): %s", diff)
 		t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
 	}
 

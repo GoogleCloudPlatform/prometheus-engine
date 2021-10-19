@@ -179,7 +179,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 // makeRuleEvaluatorConfig creates the config for rule-evaluator.
 // This is stored as a Secret rather than a ConfigMap as it could contain
 // sensitive configuration information.
-func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1alpha1.RuleEvaluatorSpec) (*corev1.Secret, map[string][]byte, error) {
+func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1alpha1.RuleEvaluatorSpec) (*corev1.ConfigMap, map[string][]byte, error) {
 	amConfigs, secretData, err := r.makeAlertManagerConfigs(ctx, &spec.Alerting)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "make alertmanager config")
@@ -200,16 +200,16 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 	}
 
 	// Create rule-evaluator Secret.
-	s := &corev1.Secret{
+	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      NameRuleEvaluator,
 			Namespace: r.opts.OperatorNamespace,
 		},
-		Data: map[string][]byte{
-			configFilename: cfgEncoded,
+		Data: map[string]string{
+			configFilename: string(cfgEncoded),
 		},
 	}
-	return s, secretData, nil
+	return cm, secretData, nil
 }
 
 // ensureRuleEvaluatorSecrets reconciles the Secrets for rule-evaluator.
@@ -373,8 +373,10 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 						// Rule-evaluator input Prometheus config.
 						Name: configVolumeName,
 						VolumeSource: corev1.VolumeSource{
-							Secret: &corev1.SecretVolumeSource{
-								SecretName: NameRuleEvaluator,
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: NameRuleEvaluator,
+								},
 							},
 						},
 					}, {
@@ -385,13 +387,6 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 						},
 					}, {
 						// Generated rules yaml files via the "rules" runtime controller.
-						// TODO(pintohutch): create dummy Rules resource on startup.
-						// At this time, the operator-config runtime controller
-						// does not guarantee this configmap exists. So unless a Rules
-						// resource is created separately, the rule-evaluator deployment
-						// will not be in a Running state.
-						// Though empirically, it seems the operator creates this configmap
-						// when it's created and running in a k8s cluster...?
 						Name: rulesVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
