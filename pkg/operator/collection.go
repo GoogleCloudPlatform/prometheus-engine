@@ -17,16 +17,20 @@ package operator
 import (
 	"context"
 	"fmt"
+	"path"
 	"sort"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	promconfig "github.com/prometheus/prometheus/config"
 	yaml "gopkg.in/yaml.v3"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -91,6 +95,14 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterCollector),
 		).
+		// Detect and undo changes to the daemon set.
+		Watches(
+			&source.Kind{Type: &appsv1.DaemonSet{}},
+			enqueueConst(objRequest),
+			builder.WithPredicates(
+				objFilterCollector,
+				predicate.GenerationChangedPredicate{},
+			)).
 		Complete(newCollectionReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
 		return errors.Wrap(err, "create collector config controller")
@@ -113,10 +125,20 @@ func newCollectionReconciler(c client.Client, opts Options) *collectionReconcile
 	}
 }
 
-func (r *collectionReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
+func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	logr.FromContext(ctx).Info("reconciling collection")
 
 	r.statusState.Reset()
+
+	var config monitoringv1alpha1.OperatorConfig
+	if err := r.client.Get(ctx, req.NamespacedName, &config); err != nil {
+		return reconcile.Result{}, errors.Wrap(err, "get operatorconfig")
+	}
+
+	// Deploy Prometheus collector as a node agent.
+	if err := r.ensureCollectorDaemonSet(ctx, &config.Collection); err != nil {
+		return reconcile.Result{}, errors.Wrap(err, "ensure collector daemon set")
+	}
 
 	if err := r.ensureCollectorConfig(ctx); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure collector config")
@@ -125,6 +147,217 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, _ reconcile.Reques
 		return reconcile.Result{}, errors.Wrap(err, "update crd status")
 	}
 	return reconcile.Result{}, nil
+}
+
+// ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
+func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, cfg *monitoringv1alpha1.CollectionSpec) error {
+	ds := r.makeCollectorDaemonSet(cfg)
+
+	if err := r.client.Update(ctx, ds); apierrors.IsNotFound(err) {
+		if err := r.client.Create(ctx, ds); err != nil {
+			return errors.Wrap(err, "create collector DaemonSet")
+		}
+	} else if err != nil {
+		return errors.Wrap(err, "update collector DaemonSet")
+	}
+	return nil
+}
+
+func (r *collectionReconciler) makeCollectorDaemonSet(cfg *monitoringv1alpha1.CollectionSpec) *appsv1.DaemonSet {
+	// TODO(freinartz): this just fills in the bare minimum to get semantics right.
+	// Add more configuration of a full deployment: tolerations, resource request/limit,
+	// health checks, priority context, security context, dynamic update strategy params...
+	podLabels := map[string]string{
+		LabelAppName: NameCollector,
+	}
+
+	podAnnotations := map[string]string{
+		AnnotationMetricName: componentName,
+	}
+
+	collectorArgs := []string{
+		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
+		"--storage.tsdb.path=/prometheus/data",
+		"--storage.tsdb.no-lockfile",
+		// Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
+		// the containers memory usage. We could lower it further if this becomes problematic, but
+		// it the window for local data is quite convenient for debugging.
+		"--storage.tsdb.retention.time=30m",
+		"--storage.tsdb.wal-compression",
+		// Effectively disable compaction and make blocks short enough so that our retention window
+		// can be kept in practice.
+		"--storage.tsdb.min-block-duration=10m",
+		"--storage.tsdb.max-block-duration=10m",
+		fmt.Sprintf("--web.listen-address=:%d", r.opts.CollectorPort),
+		"--web.enable-lifecycle",
+		"--web.route-prefix=/",
+	}
+
+	// Check for explicitly-set pass-through args.
+	if r.opts.ProjectID != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
+	}
+	if r.opts.Location != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.Location))
+	}
+	if r.opts.Cluster != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.Cluster))
+	}
+	if r.opts.DisableExport {
+		collectorArgs = append(collectorArgs, "--export.disable")
+	}
+	if r.opts.CloudMonitoringEndpoint != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
+	}
+	if r.opts.CredentialsFile != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", r.opts.CredentialsFile))
+	}
+	// Populate export filtering from OperatorConfig.
+	for _, matcher := range cfg.Filter.MatchOneOf {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.match=%s", matcher))
+	}
+
+	spec := appsv1.DaemonSetSpec{
+		Selector: &metav1.LabelSelector{
+			MatchLabels: podLabels,
+		},
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels:      podLabels,
+				Annotations: podAnnotations,
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:  "prometheus",
+						Image: r.opts.ImageCollector,
+						// Set an aggressive GC threshold (default is 100%). Since the collector has a lot of
+						// long-lived allocations, this still doesn't result in a high GC rate (compared to stateless
+						// RPC applications) and gives us a more balanced ratio of memory and CPU usage.
+						Env: []corev1.EnvVar{
+							{Name: "GOGC", Value: "25"},
+						},
+						Args: collectorArgs,
+						Ports: []corev1.ContainerPort{
+							{Name: "prom-metrics", ContainerPort: r.opts.CollectorPort},
+						},
+						LivenessProbe: &corev1.Probe{
+							Handler: corev1.Handler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/-/healthy",
+									Port: intstr.FromInt(int(r.opts.CollectorPort)),
+								},
+							},
+						},
+						ReadinessProbe: &corev1.Probe{
+							Handler: corev1.Handler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/-/ready",
+									Port: intstr.FromInt(int(r.opts.CollectorPort)),
+								},
+							},
+						},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      configOutVolumeName,
+								MountPath: configOutDir,
+								ReadOnly:  true,
+							},
+						},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(100, resource.Milli),
+								corev1.ResourceMemory: *resource.NewScaledQuantity(200, resource.Mega),
+							},
+							// Set no limit on CPU as it's a throttled resource.
+							Limits: corev1.ResourceList{
+								corev1.ResourceMemory: *resource.NewScaledQuantity(3000, resource.Mega),
+							},
+						},
+					}, {
+						Name:  "config-reloader",
+						Image: r.opts.ImageConfigReloader,
+						Args: []string{
+							fmt.Sprintf("--config-file=%s", path.Join(configDir, configFilename)),
+							fmt.Sprintf("--config-file-output=%s", path.Join(configOutDir, configFilename)),
+							fmt.Sprintf("--reload-url=http://localhost:%d/-/reload", r.opts.CollectorPort),
+							fmt.Sprintf("--listen-address=:%d", r.opts.CollectorPort+1),
+						},
+						// Pass node name so the config can filter for targets on the local node,
+						Env: []corev1.EnvVar{
+							{
+								Name: monitoringv1alpha1.EnvVarNodeName,
+								ValueFrom: &corev1.EnvVarSource{
+									FieldRef: &corev1.ObjectFieldSelector{
+										FieldPath: "spec.nodeName",
+									},
+								},
+							},
+						},
+						Ports: []corev1.ContainerPort{
+							{Name: "cfg-rel-metrics", ContainerPort: r.opts.CollectorPort + 1},
+						},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      configVolumeName,
+								MountPath: configDir,
+								ReadOnly:  true,
+							}, {
+								Name:      configOutVolumeName,
+								MountPath: configOutDir,
+							},
+						},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(5, resource.Milli),
+								corev1.ResourceMemory: *resource.NewScaledQuantity(16, resource.Mega),
+							},
+							// Set no limit on CPU as it's a throttled resource.
+							Limits: corev1.ResourceList{
+								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
+							},
+						},
+					},
+				},
+				Volumes: []corev1.Volume{
+					{
+						Name: configVolumeName,
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: NameCollector,
+								},
+							},
+						},
+					}, {
+						Name: configOutVolumeName,
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					},
+				},
+				ServiceAccountName: NameCollector,
+				PriorityClassName:  r.opts.PriorityClass,
+				// When a cluster has Workload Identity enabled, the default GCP service account
+				// of the node is no longer accessible. That is unless the pod runs on the host network,
+				// in which case it keeps accessing the GCE metadata agent, rather than the GKE metadata
+				// agent.
+				// We run the collector in the host network for now to match behavior of other GKE
+				// telemetry agents and not require an additional permission setup step for collection.
+				// This relies on the default GCP service account to have write permissions for Cloud
+				// Monitoring set, which generally is the case.
+				HostNetwork: true,
+			},
+		},
+	}
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: r.opts.OperatorNamespace,
+			Name:      NameCollector,
+		},
+		Spec: spec,
+	}
+	return ds
 }
 
 // updateCRDStatus iterates through parsed CRDs and updates their statuses.
