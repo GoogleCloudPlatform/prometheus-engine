@@ -90,7 +90,6 @@ type ExportFilters struct {
 	MatchOneOf []string `json:"matchOneOf,omitempty"`
 }
 
-
 // AlertingSpec defines alerting configuration.
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertingspec
 type AlertingSpec struct {

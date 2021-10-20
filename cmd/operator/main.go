@@ -55,6 +55,9 @@ func main() {
 			unstableFlagHelp("Override for the container image of the config reloader."))
 		imageRuleEvaluator = flag.String("image-rule-evaluator", operator.ImageRuleEvaluator,
 			unstableFlagHelp("Override for the container image of the rule evaluator."))
+
+		hostNetwork = flag.Bool("host-network", true,
+			"Whether pods are deployed with hostNetwork enabled. If true, GKE clusters with Workload Identity will not require additional permission for the components deployed by the operator. Must be false on GKE Autopilot clusters.")
 		priorityClass = flag.String("priority-class", "",
 			"Priority class at which the collector pods are run.")
 		gcmEndpoint = flag.String("cloud-monitoring-endpoint", "",
@@ -90,6 +93,7 @@ func main() {
 		ImageCollector:          *imageCollector,
 		ImageConfigReloader:     *imageConfigReloader,
 		ImageRuleEvaluator:      *imageRuleEvaluator,
+		HostNetwork:             *hostNetwork,
 		PriorityClass:           *priorityClass,
 		CloudMonitoringEndpoint: *gcmEndpoint,
 		CASelfSign:              *caSelfSign,

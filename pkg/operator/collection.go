@@ -339,15 +339,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 				},
 				ServiceAccountName: NameCollector,
 				PriorityClassName:  r.opts.PriorityClass,
-				// When a cluster has Workload Identity enabled, the default GCP service account
-				// of the node is no longer accessible. That is unless the pod runs on the host network,
-				// in which case it keeps accessing the GCE metadata agent, rather than the GKE metadata
-				// agent.
-				// We run the collector in the host network for now to match behavior of other GKE
-				// telemetry agents and not require an additional permission setup step for collection.
-				// This relies on the default GCP service account to have write permissions for Cloud
-				// Monitoring set, which generally is the case.
-				HostNetwork: true,
+				HostNetwork:        r.opts.HostNetwork,
 			},
 		},
 	}

@@ -95,10 +95,13 @@ func newTestContext(t *testing.T) *testContext {
 	}
 
 	op, err := operator.New(globalLogger, kubeconfig, nil, operator.Options{
-		ProjectID:         projectID,
-		Cluster:           cluster,
-		Location:          location,
-		DisableExport:     skipGCM,
+		ProjectID:     projectID,
+		Cluster:       cluster,
+		Location:      location,
+		DisableExport: skipGCM,
+		// Run in host network to so the tests also work in Workload Identity
+		// clusters without additional configuration.
+		HostNetwork:       true,
 		CollectorPort:     tctx.collectorPort,
 		OperatorNamespace: tctx.namespace,
 		PriorityClass:     "gmp-critical",
