@@ -111,6 +111,10 @@ type Options struct {
 	ImageConfigReloader string
 	// Image for the Prometheus rule-evaluator.
 	ImageRuleEvaluator string
+	// Whether to deploy pods with hostNetwork enabled. This allow pods to run with the GCE compute
+	// default service account even on GKE clusters with Workload Identity enabled.
+	// It must be set to false for GKE Autopilot clusters.
+	HostNetwork bool
 	// Priority class for the collector pods.
 	PriorityClass string
 	// Endpoint of the Cloud Monitoring API to be used by all collectors.

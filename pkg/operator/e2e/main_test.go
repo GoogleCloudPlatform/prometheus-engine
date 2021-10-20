@@ -223,8 +223,8 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
 
 	for _, s := range secrets {
 		if _, err := t.kubeClient.CoreV1().Secrets(s.Namespace).Create(ctx, s, metav1.CreateOptions{}); err != nil {
-				t.Fatalf("create alertmanager secret: %s", err)
-			}
+			t.Fatalf("create alertmanager secret: %s", err)
+		}
 	}
 }
 
