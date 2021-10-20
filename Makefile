@@ -50,6 +50,12 @@ codegen:     ## Refresh generated CRD go interfaces.
 crds:        ## Refresh CRD OpenAPI YAML specs.
 	./hack/update-crdgen.sh
 
+docgen:      ## Refresh API markdown documentation.
+	mkdir -p doc
+	which po-docgen || (go get github.com/prometheus-operator/prometheus-operator && go install -mod=mod github.com/prometheus-operator/prometheus-operator/cmd/po-docgen)
+	po-docgen api ./pkg/operator/apis/monitoring/v1alpha1/types.go > doc/api.md
+	sed -i 's/Prometheus Operator/GMP CRDs/g' doc/api.md
+
 kindclean:   ## Clean previous kind state.
 	docker container prune -f
 	docker volume prune -f
