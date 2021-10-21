@@ -153,11 +153,11 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 	// test run wasn't cleaned up correctly.
 	ns, err := tctx.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "create namespace %q", tctx.namespace)
+		return nil, errors.Wrapf(err, "create namespace %q", ns)
 	}
 	_, err = tctx.kubeClient.CoreV1().Namespaces().Create(context.TODO(), pns, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "create namespace %q", tctx.namespace)
+		return nil, errors.Wrapf(err, "create namespace %q", pns)
 	}
 
 	ors := []metav1.OwnerReference{

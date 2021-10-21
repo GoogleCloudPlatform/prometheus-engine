@@ -52,7 +52,7 @@ func setupCollectionControllers(op *Operator) error {
 	}
 	// Default OperatorConfig filter.
 	objFilterOperatorConfig := namespacedNamePredicate{
-		namespace: op.opts.OperatorNamespace,
+		namespace: op.opts.PublicNamespace,
 		name:      NameOperatorConfig,
 	}
 	// Collector ConfigMap and Daemonset filter.

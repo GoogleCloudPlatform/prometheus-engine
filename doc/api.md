@@ -24,9 +24,6 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [ExportFilters](#exportfilters)
 * [LabelMapping](#labelmapping)
 * [MonitoringCondition](#monitoringcondition)
-* [NamespacedConfigMapKeySelector](#namespacedconfigmapkeyselector)
-* [NamespacedSecretKeySelector](#namespacedsecretkeyselector)
-* [NamespacedSecretOrConfigMap](#namespacedsecretorconfigmap)
 * [OperatorConfig](#operatorconfig)
 * [OperatorConfigList](#operatorconfiglist)
 * [PodMonitoring](#podmonitoring)
@@ -40,6 +37,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [RulesList](#ruleslist)
 * [RulesSpec](#rulesspec)
 * [ScrapeEndpoint](#scrapeendpoint)
+* [SecretOrConfigMap](#secretorconfigmap)
 * [TLSConfig](#tlsconfig)
 * [TargetLabels](#targetlabels)
 
@@ -87,7 +85,7 @@ Authorization specifies a subset of the Authorization struct, that is safe for u
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | type | Set the authentication type. Defaults to Bearer, Basic will cause an error | string | false |
-| credentials | The secret's key that contains the credentials of the request | *[NamespacedSecretKeySelector](#namespacedsecretkeyselector) | false |
+| credentials | The secret's key that contains the credentials of the request | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -147,46 +145,6 @@ MonitoringCondition describes a condition of a PodMonitoring.
 | lastTransitionTime | Last time the condition transitioned from one status to another. | metav1.Time | false |
 | reason | The reason for the condition's last transition. | string | false |
 | message | A human-readable message indicating details about the transition. | string | false |
-
-[Back to TOC](#table-of-contents)
-
-## NamespacedConfigMapKeySelector
-
-NamespacedConfigMapKeySelector wraps the core ConfigMapKeySelector with namespace.
-
-
-<em>appears in: [NamespacedSecretOrConfigMap](#namespacedsecretorconfigmap)</em>
-
-| Field | Description | Scheme | Required |
-| ----- | ----------- | ------ | -------- |
-| namespace |  | string | true |
-
-[Back to TOC](#table-of-contents)
-
-## NamespacedSecretKeySelector
-
-NamespacedSecretKeySelector wraps the core SecretKeySelector with namespace.
-
-
-<em>appears in: [Authorization](#authorization), [NamespacedSecretOrConfigMap](#namespacedsecretorconfigmap), [TLSConfig](#tlsconfig)</em>
-
-| Field | Description | Scheme | Required |
-| ----- | ----------- | ------ | -------- |
-| namespace |  | string | true |
-
-[Back to TOC](#table-of-contents)
-
-## NamespacedSecretOrConfigMap
-
-NamespacedSecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive. Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#secretorconfigmap
-
-
-<em>appears in: [TLSConfig](#tlsconfig)</em>
-
-| Field | Description | Scheme | Required |
-| ----- | ----------- | ------ | -------- |
-| secret | Secret containing data to use for the targets. | *[NamespacedSecretKeySelector](#namespacedsecretkeyselector) | false |
-| configMap | ConfigMap containing data to use for the targets. | *[NamespacedConfigMapKeySelector](#namespacedconfigmapkeyselector) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -375,6 +333,20 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 
 [Back to TOC](#table-of-contents)
 
+## SecretOrConfigMap
+
+SecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive. Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#secretorconfigmap
+
+
+<em>appears in: [TLSConfig](#tlsconfig)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| secret | Secret containing data to use for the targets. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
+| configMap | ConfigMap containing data to use for the targets. | *v1.ConfigMapKeySelector | false |
+
+[Back to TOC](#table-of-contents)
+
 ## TLSConfig
 
 SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
@@ -384,9 +356,9 @@ SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| ca | Struct containing the CA cert to use for the targets. | [NamespacedSecretOrConfigMap](#namespacedsecretorconfigmap) | false |
-| cert | Struct containing the client cert file for the targets. | [NamespacedSecretOrConfigMap](#namespacedsecretorconfigmap) | false |
-| keySecret | Secret containing the client key file for the targets. | *[NamespacedSecretKeySelector](#namespacedsecretkeyselector) | false |
+| ca | Struct containing the CA cert to use for the targets. | [SecretOrConfigMap](#secretorconfigmap) | false |
+| cert | Struct containing the client cert file for the targets. | [SecretOrConfigMap](#secretorconfigmap) | false |
+| keySecret | Secret containing the client key file for the targets. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
 | serverName | Used to verify the hostname for the targets. | string | false |
 | insecureSkipVerify | Disable target certificate validation. | bool | false |
 

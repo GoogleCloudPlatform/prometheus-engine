@@ -15,11 +15,5 @@
 apiVersion: monitoring.googleapis.com/v1alpha1
 kind: OperatorConfig
 metadata:
-  namespace: gmp-system
+  namespace: gmp-public
   name: config
-rules:
-  alerting:
-    alertmanagers:
-    - name: test
-      namespace: gmp-public
-      port: 9093

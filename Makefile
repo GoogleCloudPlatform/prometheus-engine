@@ -1,6 +1,9 @@
 GOAPPS := $(notdir $(patsubst %/,%,$(dir $(shell find cmd -name 'main.go'))))
 
 CLOUDSDK_CONFIG?=${HOME}/.config/gcloud
+PROJECT_ID?=$(shell gcloud config get-value core/project)
+GMP_CLUSTER?=gmp-test
+GMP_LOCATION?=us-central1-c
 
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
@@ -40,9 +43,11 @@ assets:      ## Build and write UI assets as go file.
 	echo -e 'FROM scratch\nCOPY --from=gmp-tmp/assets /app/pkg/ui/assets_vfsdata.go pkg/ui/assets_vfsdata.go' | DOCKER_BUILDKIT=1 docker build -o . -
 	docker image rm gmp-tmp/assets
 
-test:        ## Run all unit tests.
+test:        ## Run all tests. Writes real data to GCM API under PROJECT_ID environment variable.
+             ## Use GMP_CLUSTER, GMP_LOCATION to specify timeseries labels.
+	@echo ${PROJECT_ID}
 	go test `go list ./... | grep -v operator/e2e`
-	go test `go list ./... | grep operator/e2e` -args -project-id=test-proj -cluster=test-cluster -location=test-loc
+	go test `go list ./... | grep operator/e2e` -args -project-id=${PROJECT_ID} -cluster=${GMP_CLUSTER} -location=${GMP_LOCATION}
 
 codegen:     ## Refresh generated CRD go interfaces.
 	./hack/update-codegen.sh

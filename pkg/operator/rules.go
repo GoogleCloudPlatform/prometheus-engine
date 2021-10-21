@@ -51,10 +51,9 @@ func setupRulesControllers(op *Operator) error {
 	}
 	// Default OperatorConfig filter.
 	objFilterOperatorConfig := namespacedNamePredicate{
-		namespace: op.opts.OperatorNamespace,
+		namespace: op.opts.PublicNamespace,
 		name:      NameOperatorConfig,
 	}
-
 	// Rule-evaluator rules ConfigMap filter.
 	objFilterRulesGenerated := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,

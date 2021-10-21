@@ -74,7 +74,7 @@ func setupOperatorConfigControllers(op *Operator) error {
 	}
 	// Default OperatorConfig filter.
 	objFilterOperatorConfig := namespacedNamePredicate{
-		namespace: op.opts.OperatorNamespace,
+		namespace: op.opts.PublicNamespace,
 		name:      NameOperatorConfig,
 	}
 	// Rule-evaluator deployment filter.
