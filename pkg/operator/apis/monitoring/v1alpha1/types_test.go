@@ -41,7 +41,7 @@ func TestValidatePodMonitoring(t *testing.T) {
 					},
 					{
 						Port:     intstr.FromInt(8080),
-						Interval: "1000ms",
+						Interval: "10000ms",
 						Timeout:  "5s",
 					},
 				},
@@ -95,6 +95,19 @@ func TestValidatePodMonitoring(t *testing.T) {
 			},
 			fail:        true,
 			errContains: "invalid scrape timeout: not a valid duration string",
+		}, {
+			desc: "scrape timeout greater than interval",
+			pm: PodMonitoringSpec{
+				Endpoints: []ScrapeEndpoint{
+					{
+						Port:     intstr.FromString("web"),
+						Interval: "1s",
+						Timeout:  "2s",
+					},
+				},
+			},
+			fail:        true,
+			errContains: "scrape timeout 2s must not be greater than scrape interval 1s",
 		}, {
 			desc: "remapping onto prometheus_target label",
 			pm: PodMonitoringSpec{
