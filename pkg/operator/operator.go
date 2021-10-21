@@ -43,6 +43,9 @@ import (
 const (
 	// DefaultOperatorNamespace is the namespace in which all resources owned by the operator are installed.
 	DefaultOperatorNamespace = "gmp-system"
+	// DefaultPublicNamespace is the namespace where the operator will check for user-specified
+	// configuration data.
+	DefaultPublicNamespace = "gmp-public"
 
 	// Fixed names used in various resources managed by the operator.
 	NameOperator  = "gmp-operator"
@@ -101,6 +104,9 @@ type Options struct {
 	CredentialsFile string
 	// Namespace to which the operator deploys any associated resources.
 	OperatorNamespace string
+	// Namespace to which the operator looks for user-specified configuration
+	// data, like Secrets and ConfigMaps.
+	PublicNamespace string
 	// Listening port of the collector. Configurable to allow multiple
 	// simultanious collector deployments for testing purposes while each
 	// collector runs on the host network.
@@ -128,6 +134,9 @@ type Options struct {
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	if o.OperatorNamespace == "" {
 		o.OperatorNamespace = DefaultOperatorNamespace
+	}
+	if o.PublicNamespace == "" {
+		o.PublicNamespace = DefaultPublicNamespace
 	}
 	if o.CollectorPort == 0 {
 		o.CollectorPort = 19090

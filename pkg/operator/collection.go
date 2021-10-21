@@ -132,8 +132,11 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	r.statusState.Reset()
 
 	var config monitoringv1alpha1.OperatorConfig
-	if err := r.client.Get(ctx, req.NamespacedName, &config); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "get operatorconfig")
+	// Fetch OperatorConfig if it exists.
+	if err := r.client.Get(ctx, req.NamespacedName, &config); apierrors.IsNotFound(err) {
+		logr.FromContext(ctx).Info("no operatorconfig created yet")
+	} else if err != nil {
+		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
 	}
 
 	// Deploy Prometheus collector as a node agent.

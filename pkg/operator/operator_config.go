@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strings"
 
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	"github.com/go-logr/logr"
@@ -18,6 +19,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,6 +28,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -103,13 +106,25 @@ func setupOperatorConfigControllers(op *Operator) error {
 		// the configuration locally and maintain a more constrained watch.
 		Watches(
 			&source.Kind{Type: &corev1.Secret{}},
-			enqueueConst(objRequest)).
+			//enqueueConst(objRequest),
+			&handler.EnqueueRequestForObject{},
+			builder.WithPredicates(predicate.NewPredicateFuncs(secretFilter(op))),
+		).
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
 
 	if err != nil {
 		return errors.Wrap(err, "operator-config controller")
 	}
 	return nil
+}
+
+func secretFilter(op *Operator) func(object client.Object) bool {
+	return func(object client.Object) bool {
+		if object.GetNamespace() == op.opts.PublicNamespace {
+			return !strings.HasPrefix(object.GetName(), "default-token")
+		}
+		return false
+	}
 }
 
 // operatorConfigReconciler reconciles the OperatorConfig CRD.
@@ -134,8 +149,10 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	config := &monitoringv1alpha1.OperatorConfig{}
 
 	// Fetch OperatorConfig.
-	if err := r.client.Get(ctx, req.NamespacedName, config); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "get operatorconfig")
+	if err := r.client.Get(ctx, req.NamespacedName, config); apierrors.IsNotFound(err) {
+		logger.Info("no operatorconfig created yet")
+	} else if err != nil {
+		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
 	}
 	// Ensure the rule-evaluator config and grab any to-be-mirrored
 	// secret data on the way.
@@ -450,11 +467,11 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 				Type: am.Authorization.Type,
 			}
 			if c := am.Authorization.Credentials; c != nil {
-				b, err := getSecretKeyBytes(ctx, r.client, c)
+				b, err := getSecretKeyBytes(ctx, r.client, r.opts.PublicNamespace, c)
 				if err != nil {
 					return nil, nil, err
 				}
-				p := pathForSelector(&monitoringv1alpha1.NamespacedSecretOrConfigMap{Secret: c})
+				p := pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: c})
 
 				secretData[p] = b
 				cfg.HTTPClientConfig.Authorization.CredentialsFile = path.Join(secretsDir, p)
@@ -466,24 +483,24 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 				InsecureSkipVerify: am.TLS.InsecureSkipVerify,
 				ServerName:         am.TLS.ServerName,
 			}
-			p := pathForSelector(&am.TLS.CA)
-			b, err := getSecretOrConfigMapBytes(ctx, r.client, &am.TLS.CA)
+			p := pathForSelector(r.opts.PublicNamespace, &am.TLS.CA)
+			b, err := getSecretOrConfigMapBytes(ctx, r.client, r.opts.PublicNamespace, &am.TLS.CA)
 			if err != nil {
 				return nil, nil, err
 			}
 			secretData[p] = b
 			tlsCfg.CAFile = path.Join(secretsDir, p)
 
-			p = pathForSelector(&am.TLS.Cert)
-			b, err = getSecretOrConfigMapBytes(ctx, r.client, &am.TLS.Cert)
+			p = pathForSelector(r.opts.PublicNamespace, &am.TLS.Cert)
+			b, err = getSecretOrConfigMapBytes(ctx, r.client, r.opts.PublicNamespace, &am.TLS.Cert)
 			if err != nil {
 				return nil, nil, err
 			}
 			secretData[p] = b
 			tlsCfg.CertFile = path.Join(secretsDir, p)
 
-			p = pathForSelector(&monitoringv1alpha1.NamespacedSecretOrConfigMap{Secret: am.TLS.KeySecret})
-			b, err = getSecretKeyBytes(ctx, r.client, am.TLS.KeySecret)
+			p = pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: am.TLS.KeySecret})
+			b, err = getSecretKeyBytes(ctx, r.client, r.opts.PublicNamespace, am.TLS.KeySecret)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -541,18 +558,18 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 
 // getSecretOrConfigMapBytes is a helper function to conditionally fetch
 // the secret or configmap selector payloads.
-func getSecretOrConfigMapBytes(ctx context.Context, kClient client.Reader, scm *monitoringv1alpha1.NamespacedSecretOrConfigMap) ([]byte, error) {
+func getSecretOrConfigMapBytes(ctx context.Context, kClient client.Reader, namespace string, scm *monitoringv1alpha1.SecretOrConfigMap) ([]byte, error) {
 	var (
 		b   []byte
 		err error
 	)
 	if secret := scm.Secret; secret != nil {
-		b, err = getSecretKeyBytes(ctx, kClient, secret)
+		b, err = getSecretKeyBytes(ctx, kClient, namespace, secret)
 		if err != nil {
 			return b, err
 		}
 	} else if cm := scm.ConfigMap; cm != nil {
-		b, err = getConfigMapKeyBytes(ctx, kClient, cm)
+		b, err = getConfigMapKeyBytes(ctx, kClient, namespace, cm)
 		if err != nil {
 			return b, err
 		}
@@ -561,11 +578,11 @@ func getSecretOrConfigMapBytes(ctx context.Context, kClient client.Reader, scm *
 }
 
 // getSecretKeyBytes processes the given NamespacedSecretKeySelector and returns the referenced data.
-func getSecretKeyBytes(ctx context.Context, kClient client.Reader, sel *monitoringv1alpha1.NamespacedSecretKeySelector) ([]byte, error) {
+func getSecretKeyBytes(ctx context.Context, kClient client.Reader, namespace string, sel *v1.SecretKeySelector) ([]byte, error) {
 	var (
 		secret = &corev1.Secret{}
 		nn     = types.NamespacedName{
-			Namespace: sel.Namespace,
+			Namespace: namespace,
 			Name:      sel.Name,
 		}
 		bytes []byte
@@ -583,11 +600,11 @@ func getSecretKeyBytes(ctx context.Context, kClient client.Reader, sel *monitori
 }
 
 // getConfigMapKeyBytes processes the given NamespacedConfigMapKeySelector and returns the referenced data.
-func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, sel *monitoringv1alpha1.NamespacedConfigMapKeySelector) ([]byte, error) {
+func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace string, sel *v1.ConfigMapKeySelector) ([]byte, error) {
 	var (
 		cm = &corev1.ConfigMap{}
 		nn = types.NamespacedName{
-			Namespace: sel.Namespace,
+			Namespace: namespace,
 			Name:      sel.Name,
 		}
 		b []byte
@@ -609,15 +626,15 @@ func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, sel *monit
 
 // pathForSelector cretes the filepath for the provided NamespacedSecretOrConfigMap.
 // This can be used to avoid naming collisions of like-keys across K8s resources.
-func pathForSelector(scm *monitoringv1alpha1.NamespacedSecretOrConfigMap) string {
+func pathForSelector(namespace string, scm *monitoringv1alpha1.SecretOrConfigMap) string {
 	if scm == nil {
 		return ""
 	}
 	if scm.ConfigMap != nil {
-		return fmt.Sprintf("%s_%s_%s_%s", "configmap", scm.ConfigMap.Namespace, scm.ConfigMap.Name, scm.ConfigMap.Key)
+		return fmt.Sprintf("%s_%s_%s_%s", "configmap", namespace, scm.ConfigMap.Name, scm.ConfigMap.Key)
 	}
 	if scm.Secret != nil {
-		return fmt.Sprintf("%s_%s_%s_%s", "secret", scm.Secret.Namespace, scm.Secret.Name, scm.Secret.Key)
+		return fmt.Sprintf("%s_%s_%s_%s", "secret", namespace, scm.Secret.Name, scm.Secret.Key)
 	}
 	return ""
 }
