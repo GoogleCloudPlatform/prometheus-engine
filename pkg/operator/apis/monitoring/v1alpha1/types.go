@@ -81,17 +81,17 @@ type CollectionSpec struct {
 	Filter ExportFilters `json:"filter,omitempty"`
 }
 
+// ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
 type ExportFilters struct {
 	// A list Prometheus time series matchers. Every time series must match at least one
 	// of the matchers to be exported. This field can be used equivalently to the match[]
 	// parameter of the Prometheus federation endpoint to selectively export data.
 	//
-	// Example: ["{job='prometheus'}", "{__name__=~'job:.*'}"]
+	// Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`
 	MatchOneOf []string `json:"matchOneOf,omitempty"`
 }
 
 // AlertingSpec defines alerting configuration.
-// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertingspec
 type AlertingSpec struct {
 	// Alertmanagers contains endpoint configuration for designated Alertmanagers.
 	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers,omitempty"`
@@ -99,7 +99,6 @@ type AlertingSpec struct {
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object
 // containing alertmanager IPs to fire alerts against.
-// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertmanagerendpoints
 type AlertmanagerEndpoints struct {
 	// Namespace of Endpoints object.
 	Namespace string `json:"namespace"`
@@ -124,7 +123,6 @@ type AlertmanagerEndpoints struct {
 
 // Authorization specifies a subset of the Authorization struct, that is
 // safe for use in Endpoints (no CredentialsFile field).
-// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#safeauthorization
 type Authorization struct {
 	// Set the authentication type. Defaults to Bearer, Basic will cause an
 	// error
@@ -146,7 +144,6 @@ type NamespacedConfigMapKeySelector struct {
 }
 
 // SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
-// Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#safetlsconfig
 type TLSConfig struct {
 	// Struct containing the CA cert to use for the targets.
 	CA NamespacedSecretOrConfigMap `json:"ca,omitempty"`
@@ -513,7 +510,16 @@ type RulesList struct {
 
 // RulesSpec contains specification parameters for a Rules resource.
 type RulesSpec struct {
-	Scope  Scope       `json:"scope"`
+	// The scope at which to evaluate rules. Must be "Cluster" or "Namespace". It acts as
+	// safety mechanism against unintentionally having rules query more data than intended
+	// without requiring adjusting all selectors of the PromQL expression.
+	//
+	// At the Cluster scope only metrics with target labels "project_id" and "cluster"
+	// matching the current one are used as input to rules.
+	// At the Namespace scope they are further restricted by the namespace the Rules
+	// resource is in.
+	Scope Scope `json:"scope"`
+	// A list of Prometheus rule groups.
 	Groups []RuleGroup `json:"groups"`
 }
 
@@ -532,19 +538,32 @@ const (
 // RuleGroup declares rules in the Prometheus format:
 // https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
 type RuleGroup struct {
-	Name     string `json:"name"`
+	// The name of the rule group.
+	Name string `json:"name"`
+	// The interval at which to evaluate the rules. Must be a valid Prometheus duration.
 	Interval string `json:"interval"`
-	Rules    []Rule `json:"rules"`
+	// A list of rules that are executed sequentially as part of this group.
+	Rules []Rule `json:"rules"`
 }
 
 // Rule is a single rule in the Prometheus format:
 // https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
 type Rule struct {
-	Record      string            `json:"record,omitempty"`
-	Alert       string            `json:"alert,omitempty"`
-	Expr        string            `json:"expr"`
-	For         string            `json:"for,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
+	// Record the result of the expression to this metric name.
+	// Only one of `record` and `alert` must be set.
+	Record string `json:"record,omitempty"`
+	// Name of the alert to evaluate the expression as.
+	// Only one of `record` and `alert` must be set.
+	Alert string `json:"alert,omitempty"`
+	// The PromQL expression to evaluate.
+	Expr string `json:"expr"`
+	// The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
+	// Only valid if `alert` is set.
+	For string `json:"for,omitempty"`
+	// A set of labels to attach to the result of the query expression.
+	Labels map[string]string `json:"labels,omitempty"`
+	// A set of annotations to attach to alerts produced by the query expression.
+	// Only valid if `alert` is set.
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 

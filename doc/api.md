@@ -45,7 +45,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 
 ## AlertingSpec
 
-AlertingSpec defines alerting configuration. Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertingspec
+AlertingSpec defines alerting configuration.
 
 
 <em>appears in: [RuleEvaluatorSpec](#ruleevaluatorspec)</em>
@@ -58,7 +58,7 @@ AlertingSpec defines alerting configuration. Taking inspiration from prometheus-
 
 ## AlertmanagerEndpoints
 
-AlertmanagerEndpoints defines a selection of a single Endpoints object containing alertmanager IPs to fire alerts against. Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertmanagerendpoints
+AlertmanagerEndpoints defines a selection of a single Endpoints object containing alertmanager IPs to fire alerts against.
 
 
 <em>appears in: [AlertingSpec](#alertingspec)</em>
@@ -70,7 +70,7 @@ AlertmanagerEndpoints defines a selection of a single Endpoints object containin
 | port | Port the Alertmanager API is exposed on. | intstr.IntOrString | true |
 | scheme | Scheme to use when firing alerts. | string | false |
 | pathPrefix | Prefix for the HTTP path alerts are pushed to. | string | false |
-| tlsConfig | TLS Config to use for alertmanager connection. | *[TLSConfig](#tlsconfig) | false |
+| tls | TLS Config to use for alertmanager connection. | *[TLSConfig](#tlsconfig) | false |
 | authorization | Authorization section for this alertmanager endpoint | *[Authorization](#authorization) | false |
 | apiVersion | Version of the Alertmanager API that rule-evaluator uses to send alerts. It can be \"v1\" or \"v2\". | string | false |
 | timeout | Timeout is a per-target Alertmanager timeout when pushing alerts. | string | false |
@@ -79,7 +79,7 @@ AlertmanagerEndpoints defines a selection of a single Endpoints object containin
 
 ## Authorization
 
-Authorization specifies a subset of the Authorization struct, that is safe for use in Endpoints (no CredentialsFile field). Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#safeauthorization
+Authorization specifies a subset of the Authorization struct, that is safe for use in Endpoints (no CredentialsFile field).
 
 
 <em>appears in: [AlertmanagerEndpoints](#alertmanagerendpoints)</em>
@@ -100,20 +100,21 @@ CollectionSpec specifies how the operator configures collection of metric data.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| filter | Filter limits which metric data is sent to Cloud Monitoring. | [ExportFilters](#exportfilters) | true |
+| externalLabels | ExternalLabels specifies external labels that are attached to all scraped data before being written to Cloud Monitoring. The precedence behavior matches that of Prometheus. | map[string]string | false |
+| filter | Filter limits which metric data is sent to Cloud Monitoring. | [ExportFilters](#exportfilters) | false |
 
 [Back to TOC](#table-of-contents)
 
 ## ExportFilters
 
-
+ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
 
 
 <em>appears in: [CollectionSpec](#collectionspec)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| matchOneOf | A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data.\n\nExample: [\"{job='prometheus'}\", \"{__name__=~'job:.*'}\"] | []string | true |
+| matchOneOf | A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data.\n\nExample: `[\"{job='prometheus'}\", \"{__name__=~'job:.*'}\"]` | []string | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -199,8 +200,8 @@ OperatorConfig defines configuration of the gmp-operator.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
-| rules | Rules specifies how the operator configures and deployes rule-evaluator. | [RuleEvaluatorSpec](#ruleevaluatorspec) | true |
-| collection | Collection specifies how the operator configures collection. | [CollectionSpec](#collectionspec) | true |
+| rules | Rules specifies how the operator configures and deployes rule-evaluator. | [RuleEvaluatorSpec](#ruleevaluatorspec) | false |
+| collection | Collection specifies how the operator configures collection. | [CollectionSpec](#collectionspec) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -279,12 +280,12 @@ Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prome
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| record |  | string | false |
-| alert |  | string | false |
-| expr |  | string | true |
-| for |  | string | false |
-| labels |  | map[string]string | false |
-| annotations |  | map[string]string | false |
+| record | Record the result of the expression to this metric name. Only one of `record` and `alert` must be set. | string | false |
+| alert | Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set. | string | false |
+| expr | The PromQL expression to evaluate. | string | true |
+| for | The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set. | string | false |
+| labels | A set of labels to attach to the result of the query expression. | map[string]string | false |
+| annotations | A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set. | map[string]string | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -297,10 +298,9 @@ RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| projectID | ProjectID is the GCP project ID to evaluate rules against. If left blank, the rule-evaluator will try and fetch the project ID from the GCE metadata server. | string | false |
-| labelProjectID | LabelProjectID is the `project_id` label value on exported time series generated from recording rules. If left blank, the rule-evaluator will try and fetch the project ID from the GCE metadata server. permit configuration of collectors as well. | string | false |
-| labelLocation | LabelLocation is the `location` label value on exported time series generated from recording rules. If left blank, the rule-evaluator will try and fetch the location from the GCE metadata server. permit configuration of collectors as well. | string | false |
-| alerting | Alerting contains how the rule-evaluator configures alerting. | [AlertingSpec](#alertingspec) | true |
+| externalLabels | ExternalLabels specifies external labels that are attached to any rule results and alerts produced by rules. The precedence behavior matches that of Prometheus. | map[string]string | false |
+| queryProjectID | QueryProjectID is the GCP project ID to evaluate rules against. If left blank, the rule-evaluator will try attempt to infer the Project ID from the environment. | string | false |
+| alerting | Alerting contains how the rule-evaluator configures alerting. | [AlertingSpec](#alertingspec) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -313,9 +313,9 @@ RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/pr
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| name |  | string | true |
-| interval |  | string | true |
-| rules |  | [][Rule](#rule) | true |
+| name | The name of the rule group. | string | true |
+| interval | The interval at which to evaluate the rules. Must be a valid Prometheus duration. | string | true |
+| rules | A list of rules that are executed sequentially as part of this group. | [][Rule](#rule) | true |
 
 [Back to TOC](#table-of-contents)
 
@@ -354,8 +354,8 @@ RulesSpec contains specification parameters for a Rules resource.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| scope |  | Scope | true |
-| groups |  | [][RuleGroup](#rulegroup) | true |
+| scope | The scope at which to evaluate rules. Must be \"Cluster\" or \"Namespace\". It acts as safety mechanism against unintentionally having rules query more data than intended without requiring adjusting all selectors of the PromQL expression.\n\nAt the Cluster scope only metrics with target labels \"project_id\" and \"cluster\" matching the current one are used as input to rules. At the Namespace scope they are further restricted by the namespace the Rules resource is in. | Scope | true |
+| groups | A list of Prometheus rule groups. | [][RuleGroup](#rulegroup) | true |
 
 [Back to TOC](#table-of-contents)
 
@@ -377,7 +377,7 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 
 ## TLSConfig
 
-SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources. Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#safetlsconfig
+SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
 
 
 <em>appears in: [AlertmanagerEndpoints](#alertmanagerendpoints)</em>
