@@ -186,7 +186,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 			},
 		},
 	}
-	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.namespace).Create(ctx, opCfg, metav1.CreateOptions{})
+	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
 	}
@@ -391,7 +391,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			},
 		},
 	}
-	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.namespace).Create(ctx, opCfg, metav1.CreateOptions{})
+	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
 	}

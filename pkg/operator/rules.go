@@ -42,23 +42,25 @@ const (
 )
 
 func setupRulesControllers(op *Operator) error {
-	// Canonical request for any events that require re-generating the rule config map.
+	// The singleton OperatorConfig is the request object we reconcile against.
 	objRequest := reconcile.Request{
 		NamespacedName: types.NamespacedName{
-			Namespace: op.opts.OperatorNamespace,
+			Namespace: op.opts.PublicNamespace,
 			Name:      NameOperatorConfig,
 		},
 	}
-
-	// Canonical filter to only capture events for specific objects.
-	objFilterRulesGenerated := namespacedNamePredicate{
-		namespace: op.opts.OperatorNamespace,
-		name:      nameRulesGenerated,
-	}
+	// Default OperatorConfig filter.
 	objFilterOperatorConfig := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
 		name:      NameOperatorConfig,
 	}
+
+	// Rule-evaluator rules ConfigMap filter.
+	objFilterRulesGenerated := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      nameRulesGenerated,
+	}
+
 	// Reconcile the generated rules that are used by the rule-evaluator deployment.
 	err := ctrl.NewControllerManagedBy(op.manager).
 		Named("rules").

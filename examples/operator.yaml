@@ -481,6 +481,11 @@ kind: Namespace
 metadata:
   name: gmp-system
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gmp-public
+---
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:

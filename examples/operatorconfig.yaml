@@ -21,5 +21,5 @@ rules:
   alerting:
     alertmanagers:
     - name: test
-      namespace: gmp-system
+      namespace: gmp-public
       port: 9093

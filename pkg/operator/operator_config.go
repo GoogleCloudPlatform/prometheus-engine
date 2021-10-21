@@ -28,7 +28,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
@@ -66,23 +65,25 @@ func rulesAnnotations() map[string]string {
 // setupOperatorConfigControllers ensures a rule-evaluator
 // deployment as part of managed collection.
 func setupOperatorConfigControllers(op *Operator) error {
-	// Canonical filter to only capture events for specific objects.
-	objFilterRuleEvaluator := namespacedNamePredicate{
-		namespace: op.opts.OperatorNamespace,
-		name:      NameRuleEvaluator,
+	// The singleton OperatorConfig is the request object we reconcile against.
+	objRequest := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: op.opts.PublicNamespace,
+			Name:      NameOperatorConfig,
+		},
 	}
+	// Default OperatorConfig filter.
 	objFilterOperatorConfig := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
 		name:      NameOperatorConfig,
 	}
-	// The singleton OperatorConfig is the request object we reconcile against.
-	objRequest := reconcile.Request{
-		NamespacedName: types.NamespacedName{
-			Namespace: op.opts.OperatorNamespace,
-			Name:      NameOperatorConfig,
-		},
+	// Rule-evaluator deployment filter.
+	objFilterRuleEvaluator := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      NameRuleEvaluator,
 	}
 
+	// Reconcile operator-managed resources.
 	err := ctrl.NewControllerManagedBy(op.manager).
 		Named("operator-config").
 		// Filter events without changes for all watches.
@@ -106,9 +107,8 @@ func setupOperatorConfigControllers(op *Operator) error {
 		// the configuration locally and maintain a more constrained watch.
 		Watches(
 			&source.Kind{Type: &corev1.Secret{}},
-			//enqueueConst(objRequest),
-			&handler.EnqueueRequestForObject{},
-			builder.WithPredicates(predicate.NewPredicateFuncs(secretFilter(op))),
+			enqueueConst(objRequest),
+			builder.WithPredicates(predicate.NewPredicateFuncs(secretFilter(op.opts.PublicNamespace))),
 		).
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
 
@@ -118,9 +118,10 @@ func setupOperatorConfigControllers(op *Operator) error {
 	return nil
 }
 
-func secretFilter(op *Operator) func(object client.Object) bool {
+// secretFilter filters by non-default Secrets in specified namespace.
+func secretFilter(ns string) func(object client.Object) bool {
 	return func(object client.Object) bool {
-		if object.GetNamespace() == op.opts.PublicNamespace {
+		if object.GetNamespace() == ns {
 			return !strings.HasPrefix(object.GetName(), "default-token")
 		}
 		return false
