@@ -43,6 +43,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/cert"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kyaml "sigs.k8s.io/yaml"
 
@@ -120,9 +121,18 @@ func TestCSRWithValidatingWebhookConfig(t *testing.T) {
 func TestOperatorConfig(t *testing.T) {
 	tctx := newTestContext(t)
 
-	t.Run("rule evaluator create alertmanager secrets", tctx.subtest(testCreateAlertmanagerSecrets))
+	cert, key, err := cert.GenerateSelfSignedCertKey("test", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("rule evaluator create alertmanager secrets", tctx.subtest(func(ctx context.Context, t *testContext) {
+		testCreateAlertmanagerSecrets(ctx, t, cert, key)
+	}))
 	t.Run("rule evaluator operatorconfig", tctx.subtest(testRuleEvaluatorOperatorConfig))
-	t.Run("rule evaluator secrets", tctx.subtest(testRuleEvaluatorSecrets))
+	t.Run("rule evaluator secrets", tctx.subtest(func(ctx context.Context, t *testContext) {
+		testRuleEvaluatorSecrets(ctx, t, cert, key)
+	}))
 	t.Run("rule evaluator config", tctx.subtest(testRuleEvaluatorConfig))
 	t.Run("rule evaluator deploy", tctx.subtest(testRuleEvaluatorDeployment))
 }
@@ -131,17 +141,14 @@ func TestOperatorConfig(t *testing.T) {
 // that contains rule-evaluator configuration.
 func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 	// Setup TLS secret selectors.
-	caSecret := &v1.SecretKeySelector{
+	certSecret := &corev1.SecretKeySelector{
 		LocalObjectReference: corev1.LocalObjectReference{
 			Name: "alertmanager-tls",
 		},
-		Key: "ca",
+		Key: "cert",
 	}
 
-	certSecret := caSecret.DeepCopy()
-	certSecret.Key = "cert"
-
-	keySecret := caSecret.DeepCopy()
+	keySecret := certSecret.DeepCopy()
 	keySecret.Key = "key"
 
 	opCfg := &monitoringv1alpha1.OperatorConfig{
@@ -152,7 +159,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 			ExternalLabels: map[string]string{
 				"external_key": "external_val",
 			},
-			QueryProjectID: "test-proj",
+			QueryProjectID: projectID,
 			Alerting: monitoringv1alpha1.AlertingSpec{
 				Alertmanagers: []monitoringv1alpha1.AlertmanagerEndpoints{
 					{
@@ -173,10 +180,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 							},
 						},
 						TLS: &monitoringv1alpha1.TLSConfig{
-							CA: monitoringv1alpha1.SecretOrConfigMap{
-								Secret: caSecret,
-							},
-							Cert: monitoringv1alpha1.SecretOrConfigMap{
+							Cert: &monitoringv1alpha1.SecretOrConfigMap{
 								Secret: certSecret,
 							},
 							KeySecret: keySecret,
@@ -192,7 +196,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 	}
 }
 
-func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
+func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext, cert, key []byte) {
 	secrets := []*corev1.Secret{
 		{
 			ObjectMeta: metav1.ObjectMeta{
@@ -207,9 +211,8 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
 				Name: "alertmanager-tls",
 			},
 			Data: map[string][]byte{
-				"ca":   []byte("cert-authority"),
-				"cert": []byte("cert-client"),
-				"key":  []byte("key-client"),
+				"cert": cert,
+				"key":  key,
 			},
 		},
 	}
@@ -221,11 +224,10 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
 	}
 }
 
-func testRuleEvaluatorSecrets(ctx context.Context, t *testContext) {
+func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []byte) {
 	want := map[string][]byte{
-		fmt.Sprintf("secret_%s_alertmanager-tls_ca", t.pubNamespace):              []byte("cert-authority"),
-		fmt.Sprintf("secret_%s_alertmanager-tls_cert", t.pubNamespace):            []byte("cert-client"),
-		fmt.Sprintf("secret_%s_alertmanager-tls_key", t.pubNamespace):             []byte("key-client"),
+		fmt.Sprintf("secret_%s_alertmanager-tls_cert", t.pubNamespace):            cert,
+		fmt.Sprintf("secret_%s_alertmanager-tls_key", t.pubNamespace):             key,
 		fmt.Sprintf("secret_%s_alertmanager-authorization_token", t.pubNamespace): []byte("auth-bearer-password"),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
@@ -263,11 +265,10 @@ alerting:
             type: Bearer
             credentials_file: /etc/secrets/secret_{pubNamespace}_alertmanager-authorization_token
           tls_config:
-            ca_file: /etc/secrets/secret_{pubNamespace}_alertmanager-tls_ca
             cert_file: /etc/secrets/secret_{pubNamespace}_alertmanager-tls_cert
             key_file: /etc/secrets/secret_{pubNamespace}_alertmanager-tls_key
             insecure_skip_verify: false
-          follow_redirects: false
+          follow_redirects: true
           scheme: https
           path_prefix: /test
           timeout: 30s
@@ -315,11 +316,12 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 		} else if err != nil {
 			return false, errors.Wrap(err, "get deployment")
 		}
-		// Note: using UpdatedReplicas here instead of ReadyReplicas.
-		// This is not ideal, but since the rule-evaluator requires queries
-		// against the GMP backend to be returning successfully, this
-		// may not always work.
-		return *deploy.Spec.Replicas == deploy.Status.UpdatedReplicas, nil
+		// When not using GCM, we check the available replicas rather than ready ones
+		// as the rule-evaluator's readyness probe does check for connectivity to GCM.
+		if skipGCM {
+			return *deploy.Spec.Replicas == deploy.Status.AvailableReplicas, nil
+		}
+		return *deploy.Spec.Replicas == deploy.Status.ReadyReplicas, nil
 	})
 	if err != nil {
 		t.Fatalf("failed waiting for generated rule-evaluator deployment: %s", err)
