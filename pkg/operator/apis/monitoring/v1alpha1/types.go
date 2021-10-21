@@ -360,6 +360,9 @@ func (pm *PodMonitoring) endpontScrapeConfig(index int) (*promconfig.ScrapeConfi
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid scrape timeout")
 		}
+		if timeout > interval {
+			return nil, errors.Errorf("scrape timeout %v must not be greater than scrape interval %v", timeout, interval)
+		}
 	}
 
 	metricsPath := "/metrics"
@@ -415,6 +418,7 @@ type ScrapeEndpoint struct {
 	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
 	Interval string `json:"interval,omitempty"`
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
+	// Must not be larger then the scrape interval.
 	Timeout string `json:"timeout,omitempty"`
 }
 

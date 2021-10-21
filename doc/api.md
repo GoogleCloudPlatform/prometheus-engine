@@ -371,7 +371,7 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 | port | Name or number of the port to scrape. | intstr.IntOrString | false |
 | path | HTTP path to scrape metrics from. Defaults to \"/metrics\". | string | false |
 | interval | Interval at which to scrape metrics. Must be a valid Prometheus duration. | string | false |
-| timeout | Timeout for metrics scrapes. Must be a valid Prometheus duration. | string | false |
+| timeout | Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval. | string | false |
 
 [Back to TOC](#table-of-contents)
 
