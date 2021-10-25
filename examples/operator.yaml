@@ -671,3 +671,9 @@ spec:
   - protocol: TCP
     port: 443
     targetPort: webhook
+---
+apiVersion: monitoring.googleapis.com/v1alpha1
+kind: OperatorConfig
+metadata:
+  namespace: gmp-public
+  name: config
