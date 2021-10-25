@@ -136,7 +136,10 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		o.OperatorNamespace = DefaultOperatorNamespace
 	}
 	if o.PublicNamespace == "" {
-		o.PublicNamespace = DefaultPublicNamespace
+		// For non-managed deployments, default to same namespace
+		// as operator, assuming cluster operators prefer consolidating
+		// resources in a single namespace.
+		o.PublicNamespace = DefaultOperatorNamespace
 	}
 	if o.CollectorPort == 0 {
 		o.CollectorPort = 19090
