@@ -37,6 +37,7 @@ import (
 	gcmpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -130,14 +131,11 @@ func TestOperatorConfig(t *testing.T) {
 // that contains rule-evaluator configuration.
 func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 	// Setup TLS secret selectors.
-	caSecret := &monitoringv1alpha1.NamespacedSecretKeySelector{
-		Namespace: t.namespace,
-		SecretKeySelector: corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{
-				Name: "alertmanager-tls",
-			},
-			Key: "ca",
+	caSecret := &v1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{
+			Name: "alertmanager-tls",
 		},
+		Key: "ca",
 	}
 
 	certSecret := caSecret.DeepCopy()
@@ -167,21 +165,18 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 						Scheme:     "https",
 						Authorization: &monitoringv1alpha1.Authorization{
 							Type: "Bearer",
-							Credentials: &monitoringv1alpha1.NamespacedSecretKeySelector{
-								Namespace: t.namespace,
-								SecretKeySelector: corev1.SecretKeySelector{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: "alertmanager-authorization",
-									},
-									Key: "token",
+							Credentials: &v1.SecretKeySelector{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: "alertmanager-authorization",
 								},
+								Key: "token",
 							},
 						},
 						TLS: &monitoringv1alpha1.TLSConfig{
-							CA: monitoringv1alpha1.NamespacedSecretOrConfigMap{
+							CA: monitoringv1alpha1.SecretOrConfigMap{
 								Secret: caSecret,
 							},
-							Cert: monitoringv1alpha1.NamespacedSecretOrConfigMap{
+							Cert: monitoringv1alpha1.SecretOrConfigMap{
 								Secret: certSecret,
 							},
 							KeySecret: keySecret,
@@ -191,7 +186,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 			},
 		},
 	}
-	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.namespace).Create(ctx, opCfg, metav1.CreateOptions{})
+	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
 	}
@@ -201,8 +196,7 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
 	secrets := []*corev1.Secret{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "alertmanager-authorization",
-				Namespace: t.namespace,
+				Name: "alertmanager-authorization",
 			},
 			Data: map[string][]byte{
 				"token": []byte("auth-bearer-password"),
@@ -210,8 +204,7 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "alertmanager-tls",
-				Namespace: t.namespace,
+				Name: "alertmanager-tls",
 			},
 			Data: map[string][]byte{
 				"ca":   []byte("cert-authority"),
@@ -222,7 +215,7 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
 	}
 
 	for _, s := range secrets {
-		if _, err := t.kubeClient.CoreV1().Secrets(s.Namespace).Create(ctx, s, metav1.CreateOptions{}); err != nil {
+		if _, err := t.kubeClient.CoreV1().Secrets(t.pubNamespace).Create(ctx, s, metav1.CreateOptions{}); err != nil {
 			t.Fatalf("create alertmanager secret: %s", err)
 		}
 	}
@@ -230,10 +223,10 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext) {
 
 func testRuleEvaluatorSecrets(ctx context.Context, t *testContext) {
 	want := map[string][]byte{
-		fmt.Sprintf("secret_%s_alertmanager-tls_ca", t.namespace):              []byte("cert-authority"),
-		fmt.Sprintf("secret_%s_alertmanager-tls_cert", t.namespace):            []byte("cert-client"),
-		fmt.Sprintf("secret_%s_alertmanager-tls_key", t.namespace):             []byte("key-client"),
-		fmt.Sprintf("secret_%s_alertmanager-authorization_token", t.namespace): []byte("auth-bearer-password"),
+		fmt.Sprintf("secret_%s_alertmanager-tls_ca", t.pubNamespace):              []byte("cert-authority"),
+		fmt.Sprintf("secret_%s_alertmanager-tls_cert", t.pubNamespace):            []byte("cert-client"),
+		fmt.Sprintf("secret_%s_alertmanager-tls_key", t.pubNamespace):             []byte("key-client"),
+		fmt.Sprintf("secret_%s_alertmanager-authorization_token", t.pubNamespace): []byte("auth-bearer-password"),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
 		secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
@@ -256,7 +249,7 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext) {
 func testRuleEvaluatorConfig(ctx context.Context, t *testContext) {
 	replace := func(s string) string {
 		return strings.NewReplacer(
-			"{namespace}", t.namespace,
+			"{namespace}", t.namespace, "{pubNamespace}", t.pubNamespace,
 		).Replace(s)
 	}
 
@@ -268,11 +261,11 @@ alerting:
     alertmanagers:
         - authorization:
             type: Bearer
-            credentials_file: /etc/secrets/secret_{namespace}_alertmanager-authorization_token
+            credentials_file: /etc/secrets/secret_{pubNamespace}_alertmanager-authorization_token
           tls_config:
-            ca_file: /etc/secrets/secret_{namespace}_alertmanager-tls_ca
-            cert_file: /etc/secrets/secret_{namespace}_alertmanager-tls_cert
-            key_file: /etc/secrets/secret_{namespace}_alertmanager-tls_key
+            ca_file: /etc/secrets/secret_{pubNamespace}_alertmanager-tls_ca
+            cert_file: /etc/secrets/secret_{pubNamespace}_alertmanager-tls_cert
+            key_file: /etc/secrets/secret_{pubNamespace}_alertmanager-tls_key
             insecure_skip_verify: false
           follow_redirects: false
           scheme: https
@@ -398,7 +391,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			},
 		},
 	}
-	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.namespace).Create(ctx, opCfg, metav1.CreateOptions{})
+	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
 	}

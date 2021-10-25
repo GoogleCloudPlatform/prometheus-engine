@@ -128,42 +128,30 @@ type Authorization struct {
 	// error
 	Type string `json:"type,omitempty"`
 	// The secret's key that contains the credentials of the request
-	Credentials *NamespacedSecretKeySelector `json:"credentials,omitempty"`
-}
-
-// NamespacedSecretKeySelector wraps the core SecretKeySelector with namespace.
-type NamespacedSecretKeySelector struct {
-	v1.SecretKeySelector `json:",inline"`
-	Namespace            string `json:"namespace"`
-}
-
-// NamespacedConfigMapKeySelector wraps the core ConfigMapKeySelector with namespace.
-type NamespacedConfigMapKeySelector struct {
-	v1.ConfigMapKeySelector `json:",inline"`
-	Namespace               string `json:"namespace"`
+	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
 // SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
 type TLSConfig struct {
 	// Struct containing the CA cert to use for the targets.
-	CA NamespacedSecretOrConfigMap `json:"ca,omitempty"`
+	CA SecretOrConfigMap `json:"ca,omitempty"`
 	// Struct containing the client cert file for the targets.
-	Cert NamespacedSecretOrConfigMap `json:"cert,omitempty"`
+	Cert SecretOrConfigMap `json:"cert,omitempty"`
 	// Secret containing the client key file for the targets.
-	KeySecret *NamespacedSecretKeySelector `json:"keySecret,omitempty"`
+	KeySecret *v1.SecretKeySelector `json:"keySecret,omitempty"`
 	// Used to verify the hostname for the targets.
 	ServerName string `json:"serverName,omitempty"`
 	// Disable target certificate validation.
 	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
 }
 
-// NamespacedSecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive.
+// SecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive.
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#secretorconfigmap
-type NamespacedSecretOrConfigMap struct {
+type SecretOrConfigMap struct {
 	// Secret containing data to use for the targets.
-	Secret *NamespacedSecretKeySelector `json:"secret,omitempty"`
+	Secret *v1.SecretKeySelector `json:"secret,omitempty"`
 	// ConfigMap containing data to use for the targets.
-	ConfigMap *NamespacedConfigMapKeySelector `json:"configMap,omitempty"`
+	ConfigMap *v1.ConfigMapKeySelector `json:"configMap,omitempty"`
 }
 
 // PodMonitoring defines monitoring for a set of pods.

@@ -43,21 +43,22 @@ import (
 )
 
 func setupCollectionControllers(op *Operator) error {
-	// Canonical request for both the config map as well as the daemon set.
+	// The singleton OperatorConfig is the request object we reconcile against.
 	objRequest := reconcile.Request{
 		NamespacedName: types.NamespacedName{
-			Namespace: op.opts.OperatorNamespace,
+			Namespace: op.opts.PublicNamespace,
 			Name:      NameOperatorConfig,
 		},
 	}
-	// Canonical filter to only capture events for specific objects.
+	// Default OperatorConfig filter.
+	objFilterOperatorConfig := namespacedNamePredicate{
+		namespace: op.opts.PublicNamespace,
+		name:      NameOperatorConfig,
+	}
+	// Collector ConfigMap and Daemonset filter.
 	objFilterCollector := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
 		name:      NameCollector,
-	}
-	objFilterOperatorConfig := namespacedNamePredicate{
-		namespace: op.opts.OperatorNamespace,
-		name:      NameOperatorConfig,
 	}
 	// Predicate that filters for config maps containing hardcoded Prometheus scrape configs.
 	staticScrapeConfigSelector, err := predicate.LabelSelectorPredicate(metav1.LabelSelector{
@@ -66,6 +67,7 @@ func setupCollectionControllers(op *Operator) error {
 	if err != nil {
 		return err
 	}
+
 	// Reconcile the generated Prometheus configuration that is used by all collectors.
 	err = ctrl.NewControllerManagedBy(op.manager).
 		Named("collector-config").
@@ -132,8 +134,11 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	r.statusState.Reset()
 
 	var config monitoringv1alpha1.OperatorConfig
-	if err := r.client.Get(ctx, req.NamespacedName, &config); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "get operatorconfig")
+	// Fetch OperatorConfig if it exists.
+	if err := r.client.Get(ctx, req.NamespacedName, &config); apierrors.IsNotFound(err) {
+		logr.FromContext(ctx).Info("no operatorconfig created yet")
+	} else if err != nil {
+		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
 	}
 
 	// Deploy Prometheus collector as a node agent.

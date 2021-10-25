@@ -52,7 +52,7 @@ func init() {
 type testContext struct {
 	*testing.T
 
-	namespace string
+	namespace, pubNamespace string
 
 	kubeClient     kubernetes.Interface
 	operatorClient clientset.Interface
@@ -74,10 +74,12 @@ func newTestContext(t *testing.T) *testContext {
 	// tests don't falsify results. Either by old test resources not being cleaned up
 	// (less likely) or metrics observed in GCP being from a previous run (more likely).
 	namespace := fmt.Sprintf("gmp-test-%s-%s", strings.ToLower(t.Name()), startTime.Format("20060102-150405"))
+	pubNamespace := fmt.Sprintf("%s-pub", namespace)
 
 	tctx := &testContext{
 		T:              t,
 		namespace:      namespace,
+		pubNamespace:   pubNamespace,
 		kubeClient:     kubeClient,
 		operatorClient: operatorClient,
 		// Pick a random port to avoid conflicts with other simultaneous tests in the cluster
@@ -104,6 +106,7 @@ func newTestContext(t *testing.T) *testContext {
 		HostNetwork:       true,
 		CollectorPort:     tctx.collectorPort,
 		OperatorNamespace: tctx.namespace,
+		PublicNamespace:   tctx.pubNamespace,
 		PriorityClass:     "gmp-critical",
 		CASelfSign:        false,
 		ListenAddr:        ":8443",
@@ -136,12 +139,27 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 			},
 		},
 	}
+	pns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: tctx.pubNamespace,
+			// Apply a consistent label to make it easy manually cleanup in case
+			// something went wrong with the test cleanup.
+			Labels: map[string]string{
+				"gmp-operator-test": "true",
+			},
+		},
+	}
 	// This will also fail is the namespace already exists, thereby detecting if a previous
 	// test run wasn't cleaned up correctly.
 	ns, err := tctx.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "create namespace %q", tctx.namespace)
+		return nil, errors.Wrapf(err, "create namespace %q", ns)
 	}
+	_, err = tctx.kubeClient.CoreV1().Namespaces().Create(context.TODO(), pns, metav1.CreateOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "create namespace %q", pns)
+	}
+
 	ors := []metav1.OwnerReference{
 		{
 			APIVersion: "v1",
