@@ -72,7 +72,7 @@ spec:
                           - type: string
                         x-kubernetes-int-or-string: true
                       timeout:
-                        description: Timeout for metrics scrapes. Must be a valid Prometheus duration.
+                        description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
                         type: string
                 selector:
                   description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
@@ -201,6 +201,7 @@ spec:
                 - scope
               properties:
                 groups:
+                  description: A list of Prometheus rule groups.
                   type: array
                   items:
                     description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
@@ -211,10 +212,13 @@ spec:
                       - rules
                     properties:
                       interval:
+                        description: The interval at which to evaluate the rules. Must be a valid Prometheus duration.
                         type: string
                       name:
+                        description: The name of the rule group.
                         type: string
                       rules:
+                        description: A list of rules that are executed sequentially as part of this group.
                         type: array
                         items:
                           description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
@@ -223,23 +227,29 @@ spec:
                             - expr
                           properties:
                             alert:
+                              description: Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set.
                               type: string
                             annotations:
+                              description: A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set.
                               type: object
                               additionalProperties:
                                 type: string
                             expr:
+                              description: The PromQL expression to evaluate.
                               type: string
                             for:
+                              description: The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set.
                               type: string
                             labels:
+                              description: A set of labels to attach to the result of the query expression.
                               type: object
                               additionalProperties:
                                 type: string
                             record:
+                              description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
                               type: string
                 scope:
-                  description: Scope of metric data a set of rules applies to.
+                  description: "The scope at which to evaluate rules. Must be \"Cluster\" or \"Namespace\". It acts as safety mechanism against unintentionally having rules query more data than intended without requiring adjusting all selectors of the PromQL expression. \n At the Cluster scope only metrics with target labels \"project_id\" and \"cluster\" matching the current one are used as input to rules. At the Namespace scope they are further restricted by the namespace the Rules resource is in."
                   type: string
             status:
               description: Most recently observed status of the resource.
@@ -281,7 +291,7 @@ spec:
                   type: object
                   properties:
                     matchOneOf:
-                      description: "A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. \n Example: [\"{job='prometheus'}\", \"{__name__=~'job:.*'}\"]"
+                      description: "A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. \n Example: `[\"{job='prometheus'}\", \"{__name__=~'job:.*'}\"]`"
                       type: array
                       items:
                         type: string
@@ -302,7 +312,7 @@ spec:
                       description: Alertmanagers contains endpoint configuration for designated Alertmanagers.
                       type: array
                       items:
-                        description: 'AlertmanagerEndpoints defines a selection of a single Endpoints object containing alertmanager IPs to fire alerts against. Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#alertmanagerendpoints'
+                        description: AlertmanagerEndpoints defines a selection of a single Endpoints object containing alertmanager IPs to fire alerts against.
                         type: object
                         required:
                           - name

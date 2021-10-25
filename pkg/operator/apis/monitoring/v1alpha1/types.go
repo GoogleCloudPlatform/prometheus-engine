@@ -134,9 +134,9 @@ type Authorization struct {
 // SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
 type TLSConfig struct {
 	// Struct containing the CA cert to use for the targets.
-	CA SecretOrConfigMap `json:"ca,omitempty"`
+	CA *SecretOrConfigMap `json:"ca,omitempty"`
 	// Struct containing the client cert file for the targets.
-	Cert SecretOrConfigMap `json:"cert,omitempty"`
+	Cert *SecretOrConfigMap `json:"cert,omitempty"`
 	// Secret containing the client key file for the targets.
 	KeySecret *v1.SecretKeySelector `json:"keySecret,omitempty"`
 	// Used to verify the hostname for the targets.

@@ -330,6 +330,11 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 								MountPath: rulesDir,
 								ReadOnly:  true,
 							},
+							{
+								Name:      secretVolumeName,
+								MountPath: secretsDir,
+								ReadOnly:  true,
+							},
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
@@ -362,16 +367,6 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 							{
 								Name:      configOutVolumeName,
 								MountPath: configOutDir,
-							},
-							{
-								Name:      rulesVolumeName,
-								MountPath: rulesDir,
-								ReadOnly:  true,
-							},
-							{
-								Name:      secretVolumeName,
-								MountPath: secretsDir,
-								ReadOnly:  true,
 							},
 						},
 						Resources: corev1.ResourceRequirements{
@@ -450,11 +445,21 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 		secretData = make(map[string][]byte)
 	)
 	for _, am := range spec.Alertmanagers {
-		cfg := promconfig.AlertmanagerConfig{
-			APIVersion: promconfig.AlertmanagerAPIVersion(am.APIVersion),
-			PathPrefix: am.PathPrefix,
-			Scheme:     am.Scheme,
+		// The upstream struct is lacking the omitempty field on the API version. Thus it looks
+		// like we explicitly set it to empty (invalid) even if left empty after marshalling.
+		// Thus we initialize the config with defaulting. Similar applies for the embedded HTTPConfig.
+		cfg := promconfig.DefaultAlertmanagerConfig
+
+		if am.PathPrefix != "" {
+			cfg.PathPrefix = am.PathPrefix
 		}
+		if am.Scheme != "" {
+			cfg.Scheme = am.Scheme
+		}
+		if am.APIVersion != "" {
+			cfg.APIVersion = promconfig.AlertmanagerAPIVersion(am.APIVersion)
+		}
+
 		// Timeout, APIVersion, PathPrefix, and Scheme all resort to defaults if left unspecified.
 		if am.Timeout != "" {
 			cfg.Timeout, err = prommodel.ParseDuration(am.Timeout)
@@ -484,29 +489,33 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 				InsecureSkipVerify: am.TLS.InsecureSkipVerify,
 				ServerName:         am.TLS.ServerName,
 			}
-			p := pathForSelector(r.opts.PublicNamespace, &am.TLS.CA)
-			b, err := getSecretOrConfigMapBytes(ctx, r.client, r.opts.PublicNamespace, &am.TLS.CA)
-			if err != nil {
-				return nil, nil, err
+			if am.TLS.CA != nil {
+				p := pathForSelector(r.opts.PublicNamespace, am.TLS.CA)
+				b, err := getSecretOrConfigMapBytes(ctx, r.client, r.opts.PublicNamespace, am.TLS.CA)
+				if err != nil {
+					return nil, nil, err
+				}
+				secretData[p] = b
+				tlsCfg.CAFile = path.Join(secretsDir, p)
 			}
-			secretData[p] = b
-			tlsCfg.CAFile = path.Join(secretsDir, p)
-
-			p = pathForSelector(r.opts.PublicNamespace, &am.TLS.Cert)
-			b, err = getSecretOrConfigMapBytes(ctx, r.client, r.opts.PublicNamespace, &am.TLS.Cert)
-			if err != nil {
-				return nil, nil, err
+			if am.TLS.Cert != nil {
+				p := pathForSelector(r.opts.PublicNamespace, am.TLS.Cert)
+				b, err := getSecretOrConfigMapBytes(ctx, r.client, r.opts.PublicNamespace, am.TLS.Cert)
+				if err != nil {
+					return nil, nil, err
+				}
+				secretData[p] = b
+				tlsCfg.CertFile = path.Join(secretsDir, p)
 			}
-			secretData[p] = b
-			tlsCfg.CertFile = path.Join(secretsDir, p)
-
-			p = pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: am.TLS.KeySecret})
-			b, err = getSecretKeyBytes(ctx, r.client, r.opts.PublicNamespace, am.TLS.KeySecret)
-			if err != nil {
-				return nil, nil, err
+			if am.TLS.KeySecret != nil {
+				p := pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: am.TLS.KeySecret})
+				b, err := getSecretKeyBytes(ctx, r.client, r.opts.PublicNamespace, am.TLS.KeySecret)
+				if err != nil {
+					return nil, nil, err
+				}
+				secretData[p] = b
+				tlsCfg.KeyFile = path.Join(secretsDir, p)
 			}
-			secretData[p] = b
-			tlsCfg.KeyFile = path.Join(secretsDir, p)
 
 			cfg.HTTPClientConfig.TLSConfig = tlsCfg
 		}
@@ -514,6 +523,9 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 		// Configure discovery of AM endpoints via Kubernetes API.
 		cfg.ServiceDiscoveryConfigs = discovery.Configs{
 			&discoverykube.SDConfig{
+				// Must instantiate a default client config explicitly as the follow_redirects
+				// field lacks the omitempty tag. Thus it looks like we explicitly set it to false
+				// even if left empty after marshalling.
 				HTTPClientConfig: promcommonconfig.DefaultHTTPClientConfig,
 				Role:             discoverykube.RoleEndpoint,
 				NamespaceDiscovery: discoverykube.NamespaceDiscovery{

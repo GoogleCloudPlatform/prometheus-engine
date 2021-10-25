@@ -356,8 +356,8 @@ SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| ca | Struct containing the CA cert to use for the targets. | [SecretOrConfigMap](#secretorconfigmap) | false |
-| cert | Struct containing the client cert file for the targets. | [SecretOrConfigMap](#secretorconfigmap) | false |
+| ca | Struct containing the CA cert to use for the targets. | *[SecretOrConfigMap](#secretorconfigmap) | false |
+| cert | Struct containing the client cert file for the targets. | *[SecretOrConfigMap](#secretorconfigmap) | false |
 | keySecret | Secret containing the client key file for the targets. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
 | serverName | Used to verify the hostname for the targets. | string | false |
 | insecureSkipVerify | Disable target certificate validation. | bool | false |
