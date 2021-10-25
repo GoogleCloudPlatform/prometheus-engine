@@ -17,3 +17,9 @@ kind: OperatorConfig
 metadata:
   namespace: gmp-public
   name: config
+rules:
+  alerting:
+    alertmanagers:
+    - namespace: monitoring
+      name: alertmanager-main
+      port: web

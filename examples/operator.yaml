@@ -537,7 +537,8 @@ rules:
   - rules/status
   - operatorconfigs
   - deployments
-  verbs: ["create", "update", "get", "list", "watch", "delete"]
+  - secrets
+  verbs: ["create", "patch", "update", "get", "list", "watch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -632,11 +633,13 @@ spec:
       serviceAccountName: operator
       containers:
       - name: operator
-        image: "gke.gcr.io/prometheus-engine/operator:v0.0.10-gke.0"
+        image: "gcr.io/gpe-test-1/prometheus-engine/operator:dc"
         args:
         - "--ca-selfsign=false"
+        - "--public-namespace=gmp-public"
         - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.1-gke.1"
-        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.0.10-gke.0"
+        - "--image-config-reloader=gcr.io/gpe-test-1/prometheus-engine/config-reloader:gmp-20212510_1733"
+        - "--image-rule-evaluator=gcr.io/gpe-test-1/prometheus-engine/rule-evaluator:gmp-20212510_1733"
         ports:
         - name: webhook
           # Note this should match the --listen-addr flag passed in to the operator args.
