@@ -154,12 +154,6 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		o.ImageRuleEvaluator = ImageRuleEvaluator
 	}
 
-	if o.ProjectID == "" {
-		return errors.New("ProjectID must be set")
-	}
-	if o.Cluster == "" {
-		return errors.New("Cluster must be set")
-	}
 	if o.ImageCollector != ImageCollector {
 		logger.Info("not using the canonical collector image",
 			"expected", ImageCollector, "got", o.ImageCollector)
