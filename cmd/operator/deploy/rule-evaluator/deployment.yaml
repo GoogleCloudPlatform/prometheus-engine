@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.0.10-gke.0
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.0.11-gke.0
         args:
         - "--config.file=/etc/config/config.yaml"
         - "--web.listen-address=:9092"
