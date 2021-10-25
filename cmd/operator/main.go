@@ -48,6 +48,8 @@ func main() {
 		cluster           = flag.String("cluster", "", "Name of the cluster the operator acts on. May be left empty on GKE.")
 		operatorNamespace = flag.String("operator-namespace", operator.DefaultOperatorNamespace,
 			"Namespace in which the operator manages its resources.")
+		publicNamespace = flag.String("public-namespace", operator.DefaultOperatorNamespace,
+			"Namespace in which the operator reads user-provided resources.")
 
 		imageCollector = flag.String("image-collector", operator.ImageCollector,
 			unstableFlagHelp("Override for the container image of the collector."))
@@ -90,6 +92,7 @@ func main() {
 		Cluster:                 *cluster,
 		Location:                *location,
 		OperatorNamespace:       *operatorNamespace,
+		PublicNamespace:         *publicNamespace,
 		ImageCollector:          *imageCollector,
 		ImageConfigReloader:     *imageConfigReloader,
 		ImageRuleEvaluator:      *imageRuleEvaluator,

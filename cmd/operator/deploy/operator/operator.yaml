@@ -81,7 +81,7 @@ spec:
       serviceAccountName: operator
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.0.10-gke.0
+        image: gke.gcr.io/prometheus-engine/operator:v0.0.11-gke.0
         args:
         - "--priority-class=gmp-critical"
         - "--ca-selfsign=false"
