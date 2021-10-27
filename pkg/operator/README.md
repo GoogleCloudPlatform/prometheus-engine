@@ -32,6 +32,21 @@ go test ./e2e/ \
     --project-id=$PROJECT_ID --cluster=$CLUSTER_NAME --location=$LOCATION
 ```
 
+### Credentials
+
+Tests by default assume to run in a GKE cluster and that they can infer sufficient
+credentials from the environment.
+
+If that's not the case the `--skip-gcm` flag disables tests paths that require
+connectivity to the GMP and GCM backends.
+
+Alternatively, the `--gcp-service-account=<filepath>` flag allows providing a
+GCP service account credentials file which is used for deployed components instead
+of relying on the environment. The service account needs permission to read and write
+metric data against the `--project-id`.
+Running the test on GKE with and without this option provides more comprehensive
+coverage.
+
 ## Code Generation
 
 To update generated code when changes to Custom Resource Definitions are made run:

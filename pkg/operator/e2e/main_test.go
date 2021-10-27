@@ -60,6 +60,7 @@ var (
 	cluster    string
 	location   string
 	skipGCM    bool
+	gcpServiceAccount string
 )
 
 func TestMain(m *testing.M) {
@@ -67,6 +68,7 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
 	flag.StringVar(&location, "location", "", "The location of the Kubernetes cluster that's tested against.")
 	flag.BoolVar(&skipGCM, "skip-gcm", false, "Skip validating GCM ingested points.")
+	flag.StringVar(&gcpServiceAccount, "gcp-service-account", "", "Path to GCP service account file for usage by deployed containers.")
 
 	flag.Parse()
 
@@ -190,6 +192,14 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 			},
 		},
 	}
+	if gcpServiceAccount != "" {
+		opCfg.Rules.Credentials = &v1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "user-gcp-service-account",
+			},
+			Key: "key.json",
+		}
+	}
 	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
@@ -224,7 +234,10 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext, cert, ke
 	}
 }
 
+
 func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []byte) {
+	// Verify contents but without the GCP SA credentials file to not leak secrets in tests logs.
+	// Whether the contents were copied correctly is implicitly verified by the credentials working.
 	want := map[string][]byte{
 		fmt.Sprintf("secret_%s_alertmanager-tls_cert", t.pubNamespace):            cert,
 		fmt.Sprintf("secret_%s_alertmanager-tls_key", t.pubNamespace):             key,
@@ -237,6 +250,8 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []b
 		} else if err != nil {
 			return false, errors.Wrap(err, "get secret")
 		}
+		delete(secret.Data, fmt.Sprintf("secret_%s_user-gcp-service-account_key.json", t.pubNamespace))
+
 		if diff := cmp.Diff(want, secret.Data); diff != "" {
 			return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
 		}
@@ -319,9 +334,45 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 		// When not using GCM, we check the available replicas rather than ready ones
 		// as the rule-evaluator's readyness probe does check for connectivity to GCM.
 		if skipGCM {
-			return *deploy.Spec.Replicas == deploy.Status.AvailableReplicas, nil
+			if *deploy.Spec.Replicas != deploy.Status.AvailableReplicas {
+				return false, nil
+			}
+		} else if *deploy.Spec.Replicas != deploy.Status.ReadyReplicas {
+			return false, nil
 		}
-		return *deploy.Spec.Replicas == deploy.Status.ReadyReplicas, nil
+
+		for _, c := range deploy.Spec.Template.Spec.Containers {
+			if c.Name != "evaluator" {
+				continue
+			}
+			// We're mainly interested in the dynamic flags but checking the entire set including
+			// the static ones is ultimately simpler.
+			wantArgs := []string{
+				"--config.file=/prometheus/config_out/config.yaml",
+				"--web.listen-address=:19092",
+				fmt.Sprintf("--export.label.project-id=%s", projectID),
+				fmt.Sprintf("--export.label.location=%s", location),
+				fmt.Sprintf("--export.label.cluster=%s", cluster),
+			}
+			if skipGCM {
+				wantArgs = append(wantArgs, "--export.disable")
+			}
+			wantArgs = append(wantArgs,
+				fmt.Sprintf("--query.project-id=%s", projectID),
+			)
+			if gcpServiceAccount != "" {
+				filepath := fmt.Sprintf("/etc/secrets/secret_%s_user-gcp-service-account_key.json", t.pubNamespace)
+				wantArgs = append(wantArgs,
+					fmt.Sprintf("--export.credentials-file=%s", filepath),
+					fmt.Sprintf("--query.credentials-file=%s", filepath),
+				)
+			}
+			if diff := cmp.Diff(wantArgs, c.Args); diff != "" {
+				return false, errors.Errorf("unexpected flags (-want, +got): %s", diff)
+			}
+			return true, nil
+		}
+		return false, errors.New("no container with name evaluator found")
 	})
 	if err != nil {
 		t.Fatalf("failed waiting for generated rule-evaluator deployment: %s", err)
@@ -393,6 +444,14 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			},
 		},
 	}
+	if gcpServiceAccount != "" {
+		opCfg.Collection.Credentials = &v1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "user-gcp-service-account",
+			},
+			Key: "key.json",
+		}
+	}
 	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
@@ -436,6 +495,9 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			}
 			if skipGCM {
 				wantArgs = append(wantArgs, "--export.disable")
+			}
+			if gcpServiceAccount != "" {
+				wantArgs = append(wantArgs, fmt.Sprintf("--export.credentials-file=/etc/secrets/secret_%s_user-gcp-service-account_key.json", t.pubNamespace))
 			}
 			wantArgs = append(wantArgs,
 				"--export.match={job='foo'}",

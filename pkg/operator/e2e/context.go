@@ -20,6 +20,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -204,6 +205,25 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 	_, err = tctx.kubeClient.RbacV1().ClusterRoleBindings().Create(context.TODO(), roleBinding, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "create cluster role binding")
+	}
+
+	if gcpServiceAccount != "" {
+		b, err := ioutil.ReadFile(gcpServiceAccount)
+		if err != nil {
+			return nil, errors.Wrap(err, "read GCP service account file")
+		}
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "user-gcp-service-account",
+			},
+			Data: map[string][]byte{
+				"key.json": b,
+			},
+		}
+		_, err = tctx.kubeClient.CoreV1().Secrets(tctx.pubNamespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "create GCP service account secret")
+		}
 	}
 	return ors, nil
 }

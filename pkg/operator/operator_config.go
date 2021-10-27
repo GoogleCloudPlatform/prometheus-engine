@@ -42,12 +42,13 @@ const (
 )
 
 const (
-	rulesVolumeName   = "rules"
-	secretVolumeName  = "rules-secret"
-	RulesSecretName   = "rules"
-	rulesDir          = "/etc/rules"
-	secretsDir        = "/etc/secrets"
-	RuleEvaluatorPort = 19092
+	rulesVolumeName      = "rules"
+	secretVolumeName     = "rules-secret"
+	RulesSecretName      = "rules"
+	CollectionSecretName = "collection"
+	rulesDir             = "/etc/rules"
+	secretsDir           = "/etc/secrets"
+	RuleEvaluatorPort    = 19092
 )
 
 func rulesLabels() map[string]string {
@@ -202,6 +203,14 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "make alertmanager config")
 	}
+	if spec.Credentials != nil {
+		p := pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: spec.Credentials})
+		b, err := getSecretKeyBytes(ctx, r.client, r.opts.PublicNamespace, spec.Credentials)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "get service account credentials")
+		}
+		secretData[p] = b
+	}
 
 	cfg := &promconfig.Config{
 		GlobalConfig: promconfig.GlobalConfig{
@@ -279,8 +288,28 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
 		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
 	}
+	if r.opts.ProjectID != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
+	}
+	if r.opts.Location != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.Location))
+	}
+	if r.opts.Cluster != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.Cluster))
+	}
+	if r.opts.DisableExport {
+		evaluatorArgs = append(evaluatorArgs, "--export.disable")
+	}
+	if r.opts.CloudMonitoringEndpoint != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
+	}
 	if spec.QueryProjectID != "" {
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", spec.QueryProjectID))
+	}
+	if spec.Credentials != nil {
+		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: spec.Credentials}))
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.credentials-file=%s", p))
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.credentials-file=%s", p))
 	}
 	replicas := int32(1)
 

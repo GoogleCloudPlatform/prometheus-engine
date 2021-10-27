@@ -100,6 +100,7 @@ CollectionSpec specifies how the operator configures collection of metric data.
 | ----- | ----------- | ------ | -------- |
 | externalLabels | ExternalLabels specifies external labels that are attached to all scraped data before being written to Cloud Monitoring. The precedence behavior matches that of Prometheus. | map[string]string | false |
 | filter | Filter limits which metric data is sent to Cloud Monitoring. | [ExportFilters](#exportfilters) | false |
+| credentials | A reference to GCP service account credentials with which Prometheus collectors are run. It needs to have metric write permissions for all project IDs to which data is written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -259,6 +260,7 @@ RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
 | externalLabels | ExternalLabels specifies external labels that are attached to any rule results and alerts produced by rules. The precedence behavior matches that of Prometheus. | map[string]string | false |
 | queryProjectID | QueryProjectID is the GCP project ID to evaluate rules against. If left blank, the rule-evaluator will try attempt to infer the Project ID from the environment. | string | false |
 | alerting | Alerting contains how the rule-evaluator configures alerting. | [AlertingSpec](#alertingspec) | false |
+| credentials | A reference to GCP service account credentials with which the rule evaluator container is run. It needs to have metric read permissions against queryProjectId and metric write permissions against all projects to which rule results are written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
 
 [Back to TOC](#table-of-contents)
 

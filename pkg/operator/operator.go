@@ -100,8 +100,6 @@ type Options struct {
 	Cluster string
 	// Disable exporting to GCM (mostly for testing).
 	DisableExport bool
-	// Credentials file for authentication with the GCM API.
-	CredentialsFile string
 	// Namespace to which the operator deploys any associated resources.
 	OperatorNamespace string
 	// Namespace to which the operator looks for user-specified configuration
