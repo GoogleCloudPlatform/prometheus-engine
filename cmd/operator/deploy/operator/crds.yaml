@@ -281,6 +281,21 @@ spec:
               description: Collection specifies how the operator configures collection.
               type: object
               properties:
+                credentials:
+                  description: A reference to GCP service account credentials with which Prometheus collectors are run. It needs to have metric write permissions for all project IDs to which data is written. Within GKE, this can typically be left empty if the compute default service account has the required permissions.
+                  type: object
+                  required:
+                    - key
+                  properties:
+                    key:
+                      description: The key of the secret to select from.  Must be a valid secret key.
+                      type: string
+                    name:
+                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                      type: string
+                    optional:
+                      description: Specify whether the Secret or its key must be defined
+                      type: boolean
                 externalLabels:
                   description: ExternalLabels specifies external labels that are attached to all scraped data before being written to Cloud Monitoring. The precedence behavior matches that of Prometheus.
                   type: object
@@ -458,6 +473,21 @@ spec:
                               serverName:
                                 description: Used to verify the hostname for the targets.
                                 type: string
+                credentials:
+                  description: A reference to GCP service account credentials with which the rule evaluator container is run. It needs to have metric read permissions against queryProjectId and metric write permissions against all projects to which rule results are written. Within GKE, this can typically be left empty if the compute default service account has the required permissions.
+                  type: object
+                  required:
+                    - key
+                  properties:
+                    key:
+                      description: The key of the secret to select from.  Must be a valid secret key.
+                      type: string
+                    name:
+                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                      type: string
+                    optional:
+                      description: Specify whether the Secret or its key must be defined
+                      type: boolean
                 externalLabels:
                   description: ExternalLabels specifies external labels that are attached to any rule results and alerts produced by rules. The precedence behavior matches that of Prometheus.
                   type: object

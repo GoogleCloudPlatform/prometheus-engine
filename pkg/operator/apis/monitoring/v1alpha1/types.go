@@ -69,6 +69,13 @@ type RuleEvaluatorSpec struct {
 	QueryProjectID string `json:"queryProjectID,omitempty"`
 	// Alerting contains how the rule-evaluator configures alerting.
 	Alerting AlertingSpec `json:"alerting,omitempty"`
+	// A reference to GCP service account credentials with which the rule
+	// evaluator container is run. It needs to have metric read permissions
+	// against queryProjectId and metric write permissions against all projects
+	// to which rule results are written.
+	// Within GKE, this can typically be left empty if the compute default
+	// service account has the required permissions.
+	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
 // CollectionSpec specifies how the operator configures collection of metric data.
@@ -79,6 +86,12 @@ type CollectionSpec struct {
 	ExternalLabels map[string]string `json:"externalLabels,omitempty"`
 	// Filter limits which metric data is sent to Cloud Monitoring.
 	Filter ExportFilters `json:"filter,omitempty"`
+	// A reference to GCP service account credentials with which Prometheus collectors
+	// are run. It needs to have metric write permissions for all project IDs to which
+	// data is written.
+	// Within GKE, this can typically be left empty if the compute default
+	// service account has the required permissions.
+	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
 // ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.

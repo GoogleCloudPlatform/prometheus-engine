@@ -141,6 +141,9 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
 	}
 
+	if err := r.ensureCollectorSecrets(ctx, &config.Collection); err != nil {
+		return reconcile.Result{}, errors.Wrap(err, "ensure collector secrets")
+	}
 	// Deploy Prometheus collector as a node agent.
 	if err := r.ensureCollectorDaemonSet(ctx, &config.Collection); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure collector daemon set")
@@ -155,9 +158,42 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	return reconcile.Result{}, nil
 }
 
+func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec *monitoringv1alpha1.CollectionSpec) error {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      CollectionSecretName,
+			Namespace: r.opts.OperatorNamespace,
+			Labels: map[string]string{
+				LabelAppName: NameCollector,
+			},
+			Annotations: map[string]string{
+				AnnotationMetricName: componentName,
+			},
+		},
+		Data: make(map[string][]byte),
+	}
+	if spec.Credentials != nil {
+		p := pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: spec.Credentials})
+		b, err := getSecretKeyBytes(ctx, r.client, r.opts.PublicNamespace, spec.Credentials)
+		if err != nil {
+			return err
+		}
+		secret.Data[p] = b
+	}
+
+	if err := r.client.Update(ctx, secret); apierrors.IsNotFound(err) {
+		if err := r.client.Create(ctx, secret); err != nil {
+			return errors.Wrap(err, "create collector secrets")
+		}
+	} else if err != nil {
+		return errors.Wrap(err, "update rule-evaluator secrets")
+	}
+	return nil
+}
+
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
-func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, cfg *monitoringv1alpha1.CollectionSpec) error {
-	ds := r.makeCollectorDaemonSet(cfg)
+func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spec *monitoringv1alpha1.CollectionSpec) error {
+	ds := r.makeCollectorDaemonSet(spec)
 
 	if err := r.client.Update(ctx, ds); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, ds); err != nil {
@@ -215,8 +251,9 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 	if r.opts.CloudMonitoringEndpoint != "" {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
 	}
-	if r.opts.CredentialsFile != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", r.opts.CredentialsFile))
+	if spec.Credentials != nil {
+		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: spec.Credentials}))
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", p))
 	}
 	// Populate export filtering from OperatorConfig.
 	for _, matcher := range spec.Filter.MatchOneOf {
@@ -267,6 +304,10 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 							{
 								Name:      configOutVolumeName,
 								MountPath: configOutDir,
+								ReadOnly:  true,
+							}, {
+								Name:      secretVolumeName,
+								MountPath: secretsDir,
 								ReadOnly:  true,
 							},
 						},
@@ -339,6 +380,14 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 						Name: configOutVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					}, {
+						// Mirrored config secrets (config specified as filepaths).
+						Name: secretVolumeName,
+						VolumeSource: corev1.VolumeSource{
+							Secret: &corev1.SecretVolumeSource{
+								SecretName: CollectionSecretName,
+							},
 						},
 					},
 				},
