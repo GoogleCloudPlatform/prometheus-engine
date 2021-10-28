@@ -89,7 +89,7 @@ func newTestContext(t *testing.T) *testContext {
 	// The testing package runs cleanup on a best-effort basis. Thus we have a fallback
 	// cleanup of namespaces in TestMain.
 	t.Cleanup(cancel)
-	t.Cleanup(func() { tctx.cleanupNamespace() })
+	t.Cleanup(func() { tctx.cleanupNamespaces() })
 
 	ors, err := tctx.createBaseResources()
 	if err != nil {
@@ -208,10 +208,14 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 	return ors, nil
 }
 
-func (tctx *testContext) cleanupNamespace() {
+func (tctx *testContext) cleanupNamespaces() {
 	err := tctx.kubeClient.CoreV1().Namespaces().Delete(context.TODO(), tctx.namespace, metav1.DeleteOptions{})
 	if err != nil {
-		tctx.Fatalf("cleanup namespace %q: %s", tctx.namespace, err)
+		tctx.Errorf("cleanup namespace %q: %s", tctx.namespace, err)
+	}
+	err = tctx.kubeClient.CoreV1().Namespaces().Delete(context.TODO(), tctx.pubNamespace, metav1.DeleteOptions{})
+	if err != nil {
+		tctx.Errorf("cleanup public namespace %q: %s", tctx.namespace, err)
 	}
 }
 
