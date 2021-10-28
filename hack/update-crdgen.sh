@@ -24,6 +24,7 @@ which controller-gen || go install sigs.k8s.io/controller-tools/cmd/controller-g
 
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 CRD_DIR=${SCRIPT_ROOT}/cmd/operator/deploy/operator
+EXAMPLES_DIR=${SCRIPT_ROOT}/examples
 CRD_TMP=$(mktemp -d)
 
 # Split current crds.yaml into individual CRD files.
@@ -43,4 +44,5 @@ done
 # a final empty file that would make repeated runs of this script fail
 CRD_TMPS=$(find $CRD_TMP -iname '*.yaml' | sort)
 sed -s '$a---' $CRD_TMPS | sed -e '$ d' > ${CRD_DIR}/crds-tmp.yaml
-mv ${CRD_DIR}/crds-tmp.yaml ${CRD_DIR}/crds.yaml
+cp ${CRD_DIR}/crds-tmp.yaml ${CRD_DIR}/crds.yaml
+mv ${CRD_DIR}/crds-tmp.yaml ${EXAMPLES_DIR}/setup.yaml
