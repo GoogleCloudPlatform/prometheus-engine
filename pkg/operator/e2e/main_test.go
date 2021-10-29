@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"testing"
@@ -55,11 +56,11 @@ import (
 )
 
 var (
-	kubeconfig *rest.Config
-	projectID  string
-	cluster    string
-	location   string
-	skipGCM    bool
+	kubeconfig        *rest.Config
+	projectID         string
+	cluster           string
+	location          string
+	skipGCM           bool
 	gcpServiceAccount string
 )
 
@@ -234,7 +235,6 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext, cert, ke
 	}
 }
 
-
 func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []byte) {
 	// Verify contents but without the GCP SA credentials file to not leak secrets in tests logs.
 	// Whether the contents were copied correctly is implicitly verified by the credentials working.
@@ -353,13 +353,11 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 				fmt.Sprintf("--export.label.project-id=%s", projectID),
 				fmt.Sprintf("--export.label.location=%s", location),
 				fmt.Sprintf("--export.label.cluster=%s", cluster),
+				fmt.Sprintf("--query.project-id=%s", projectID),
 			}
 			if skipGCM {
 				wantArgs = append(wantArgs, "--export.disable")
 			}
-			wantArgs = append(wantArgs,
-				fmt.Sprintf("--query.project-id=%s", projectID),
-			)
 			if gcpServiceAccount != "" {
 				filepath := fmt.Sprintf("/etc/secrets/secret_%s_user-gcp-service-account_key.json", t.pubNamespace)
 				wantArgs = append(wantArgs,
@@ -367,6 +365,9 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 					fmt.Sprintf("--query.credentials-file=%s", filepath),
 				)
 			}
+			sort.Strings(wantArgs)
+			sort.Strings(c.Args)
+
 			if diff := cmp.Diff(wantArgs, c.Args); diff != "" {
 				return false, errors.Errorf("unexpected flags (-want, +got): %s", diff)
 			}
@@ -492,6 +493,8 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 				fmt.Sprintf("--export.label.project-id=%s", projectID),
 				fmt.Sprintf("--export.label.location=%s", location),
 				fmt.Sprintf("--export.label.cluster=%s", cluster),
+				"--export.match={job='foo'}",
+				"--export.match={__name__=~'up'}",
 			}
 			if skipGCM {
 				wantArgs = append(wantArgs, "--export.disable")
@@ -499,10 +502,9 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			if gcpServiceAccount != "" {
 				wantArgs = append(wantArgs, fmt.Sprintf("--export.credentials-file=/etc/secrets/secret_%s_user-gcp-service-account_key.json", t.pubNamespace))
 			}
-			wantArgs = append(wantArgs,
-				"--export.match={job='foo'}",
-				"--export.match={__name__=~'up'}",
-			)
+			sort.Strings(wantArgs)
+			sort.Strings(c.Args)
+
 			if diff := cmp.Diff(wantArgs, c.Args); diff != "" {
 				return false, errors.Errorf("unexpected flags (-want, +got): %s", diff)
 			}

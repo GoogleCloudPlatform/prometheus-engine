@@ -17,10 +17,10 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"strings"
-	"io/ioutil"
 	"testing"
 	"time"
 
