@@ -60,16 +60,9 @@ func setupCollectionControllers(op *Operator) error {
 		namespace: op.opts.OperatorNamespace,
 		name:      NameCollector,
 	}
-	// Predicate that filters for config maps containing hardcoded Prometheus scrape configs.
-	staticScrapeConfigSelector, err := predicate.LabelSelectorPredicate(metav1.LabelSelector{
-		MatchLabels: map[string]string{"type": "scrape-config"},
-	})
-	if err != nil {
-		return err
-	}
 
 	// Reconcile the generated Prometheus configuration that is used by all collectors.
-	err = ctrl.NewControllerManagedBy(op.manager).
+	err := ctrl.NewControllerManagedBy(op.manager).
 		Named("collector-config").
 		// Filter events without changes for all watches.
 		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
@@ -84,13 +77,6 @@ func setupCollectionControllers(op *Operator) error {
 			&source.Kind{Type: &monitoringv1alpha1.PodMonitoring{}},
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
-		).
-		// Specifically labeled ConfigMaps in the operator namespace allow to inject
-		// hard-coded scrape configurations.
-		Watches(
-			&source.Kind{Type: &corev1.ConfigMap{}},
-			enqueueConst(objRequest),
-			builder.WithPredicates(staticScrapeConfigSelector),
 		).
 		// The configuration we generate for the collectors.
 		Watches(
