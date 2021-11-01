@@ -22,7 +22,7 @@ const Navigation: FC<NavbarProps> = ({ consolesLink }) => {
     <Navbar className="mb-3" dark color="dark" expand="md" fixed="top">
       <NavbarToggler onClick={toggle} />
       <Link className="pt-0 navbar-brand" to={`${pathPrefix}/graph`}>
-        Google Cloud Prometheus Engine
+        Google Cloud Managed Service for Prometheus
       </Link>
       <ThemeToggle />
     </Navbar>
