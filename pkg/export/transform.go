@@ -68,37 +68,38 @@ func gaugeMetadata(metric string) (MetricMetadata, bool) {
 	}, true
 }
 
+// Metrics Prometheus writes at scrape time for which no metadata is exposed.
+var internalMetricMetadata = map[string]MetricMetadata{
+	"up": {
+		Metric: "up",
+		Type:   textparse.MetricTypeGauge,
+		Help:   "Up indicates whether the last target scrape was successful.",
+	},
+	"scrape_samples_scraped": {
+		Metric: "scrape_samples_scraped",
+		Type:   textparse.MetricTypeGauge,
+		Help:   "How many samples were scraped during the last successful scrape.",
+	},
+	"scrape_duration_seconds": {
+		Metric: "scrape_duration_seconds",
+		Type:   textparse.MetricTypeGauge,
+		Help:   "Duration of the last scrape.",
+	},
+	"scrape_samples_post_metric_relabeling": {
+		Metric: "scrape_samples_post_metric_relabeling",
+		Type:   textparse.MetricTypeGauge,
+		Help:   "How many samples were ingested after relabeling.",
+	},
+	"scrape_series_added": {
+		Metric: "scrape_series_added",
+		Type:   textparse.MetricTypeGauge,
+		Help:   "Number of new series added in the last scrape.",
+	},
+}
+
 // withScrapeMetricMetadata wraps a MetadataFunc and additionally returns metadata
 // about Prometheues's synthetic scrape-time metrics.
 func withScrapeMetricMetadata(f MetadataFunc) MetadataFunc {
-	// Metrics Prometheus writes at scrape time for which no metadata is exposed.
-	internalMetrics := map[string]MetricMetadata{
-		"up": {
-			Metric: "up",
-			Type:   textparse.MetricTypeGauge,
-			Help:   "Up indicates whether the last target scrape was successful.",
-		},
-		"scrape_samples_scraped": {
-			Metric: "scrape_samples_scraped",
-			Type:   textparse.MetricTypeGauge,
-			Help:   "How many samples were scraped during the last successful scrape.",
-		},
-		"scrape_duration_seconds": {
-			Metric: "scrape_duration_seconds",
-			Type:   textparse.MetricTypeGauge,
-			Help:   "Duration of the last scrape.",
-		},
-		"scrape_samples_post_metric_relabeling": {
-			Metric: "scrape_samples_post_metric_relabeling",
-			Type:   textparse.MetricTypeGauge,
-			Help:   "How many samples were ingested after relabeling.",
-		},
-		"scrape_series_added": {
-			Metric: "scrape_series_added",
-			Type:   textparse.MetricTypeGauge,
-			Help:   "Number of new series added in the last scrape.",
-		},
-	}
 	// Metadata is nil for metrics ingested through recording or alerting rules.
 	// Unless the rule literally does no processing at all, this always means the
 	// resulting data is a gauge.
@@ -110,7 +111,7 @@ func withScrapeMetricMetadata(f MetadataFunc) MetadataFunc {
 		f = gaugeMetadata
 	}
 	return func(metric string) (MetricMetadata, bool) {
-		md, ok := internalMetrics[metric]
+		md, ok := internalMetricMetadata[metric]
 		if ok {
 			return md, true
 		}
