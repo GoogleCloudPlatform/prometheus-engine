@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -302,25 +301,6 @@ func (pm *PodMonitoring) endpontScrapeConfig(index int) (*promconfig.ScrapeConfi
 			})
 		}
 	}
-	// Filter targets by the configured port.
-	var portLabel prommodel.LabelName
-	var portValue string
-
-	if ep.Port.StrVal != "" {
-		portLabel = "__meta_kubernetes_pod_container_port_name"
-		portValue = ep.Port.StrVal
-	} else if ep.Port.IntVal != 0 {
-		portLabel = "__meta_kubernetes_pod_container_port_number"
-		portValue = strconv.FormatUint(uint64(ep.Port.IntVal), 10)
-	} else {
-		return nil, errors.New("port must be set for PodMonitoring")
-	}
-
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:       relabel.Keep,
-		SourceLabels: prommodel.LabelNames{portLabel},
-		Regex:        relabel.MustNewRegexp(portValue),
-	})
 
 	// Set a clean namespace, job, and instance label that provide sufficient uniqueness.
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
@@ -333,16 +313,58 @@ func (pm *PodMonitoring) endpontScrapeConfig(index int) (*promconfig.ScrapeConfi
 		Replacement: pm.Name,
 		TargetLabel: "job",
 	})
-	// The instance label being the pod name would be ideal UX-wise. But we cannot be certain
-	// that multiple metrics endpoints on a pod don't expose metrics with the same name. Thus
-	// we have to disambiguate along the port as well.
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:       relabel.Replace,
-		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name", portLabel},
-		Regex:        relabel.MustNewRegexp("(.+);(.+)"),
-		Replacement:  "$1:$2",
-		TargetLabel:  "instance",
-	})
+
+	// Filter targets by the configured port.
+	//
+	// If a port number is configured we don't filter by the __meta_kubernetes_pod_container_port_number
+	// label but instead hardcode it into the config and rely on Prometheus' target deduplication to
+	// ensure only one final target is produced.
+	// We do this because a user may not be able to ensure that all Pods sufficiently declare ports
+	// but should still be able to enforce a specific port being scraped.
+	//
+	// This approach works in our case for two reasons:
+	//   1. if a Pod specifies no ports at all as Prometheus will still generate a single substitute target
+	//   2. we generate a scrape config for each specified endpoint and can thus safely force all candidates
+	//      to have a static port number without preventing other ports from being scraped.
+	if ep.Port.StrVal != "" {
+		portValue, err := relabel.NewRegexp(ep.Port.StrVal)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid port name %q", ep.Port)
+		}
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Keep,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_port_name"},
+			Regex:        portValue,
+		})
+		// The instance label being the pod name would be ideal UX-wise. But we cannot be certain
+		// that multiple metrics endpoints on a pod don't expose metrics with the same name. Thus
+		// we have to disambiguate along the port as well.
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name", "__meta_kubernetes_pod_container_port_name"},
+			Regex:        relabel.MustNewRegexp("(.+);(.+)"),
+			Replacement:  "$1:$2",
+			TargetLabel:  "instance",
+		})
+	} else if ep.Port.IntVal != 0 {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
+			Replacement:  fmt.Sprintf("$1:%d", ep.Port.IntVal),
+			TargetLabel:  "instance",
+		})
+		// If the input target was produced by a port declared in the Pod, this port number
+		// is pre-filled in the __address__ label that's actually used for scraping. Thus
+		// we need to explicitly override it.
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_ip"},
+			Replacement:  fmt.Sprintf("$1:%d", ep.Port.IntVal),
+			TargetLabel:  "__address__",
+		})
+	} else {
+		return nil, errors.New("port must be set for PodMonitoring")
+	}
 
 	// Incorporate k8s label remappings from CRD.
 	if pCfgs, err := labelMappingRelabelConfigs(pm.Spec.TargetLabels.FromPod, "__meta_kubernetes_pod_label_"); err != nil {
@@ -374,7 +396,7 @@ func (pm *PodMonitoring) endpontScrapeConfig(index int) (*promconfig.ScrapeConfi
 	return &promconfig.ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
-		JobName:                 fmt.Sprintf("PodMonitoring/%s/%s/%s", pm.Namespace, pm.Name, portValue),
+		JobName:                 fmt.Sprintf("PodMonitoring/%s/%s/%s", pm.Namespace, pm.Name, &ep.Port),
 		ServiceDiscoveryConfigs: discoveryCfgs,
 		MetricsPath:             metricsPath,
 		ScrapeInterval:          interval,
