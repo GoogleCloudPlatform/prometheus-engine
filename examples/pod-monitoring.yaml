@@ -17,7 +17,7 @@ kind: PodMonitoring
 metadata:
   name: prom-example
   labels:
-    app.kubernetes.io/name: example-app
+    app.kubernetes.io/name: prom-example
 spec:
   selector:
     matchLabels:
