@@ -60,16 +60,9 @@ func setupCollectionControllers(op *Operator) error {
 		namespace: op.opts.OperatorNamespace,
 		name:      NameCollector,
 	}
-	// Predicate that filters for config maps containing hardcoded Prometheus scrape configs.
-	staticScrapeConfigSelector, err := predicate.LabelSelectorPredicate(metav1.LabelSelector{
-		MatchLabels: map[string]string{"type": "scrape-config"},
-	})
-	if err != nil {
-		return err
-	}
 
 	// Reconcile the generated Prometheus configuration that is used by all collectors.
-	err = ctrl.NewControllerManagedBy(op.manager).
+	err := ctrl.NewControllerManagedBy(op.manager).
 		Named("collector-config").
 		// Filter events without changes for all watches.
 		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
@@ -84,13 +77,6 @@ func setupCollectionControllers(op *Operator) error {
 			&source.Kind{Type: &monitoringv1alpha1.PodMonitoring{}},
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
-		).
-		// Specifically labeled ConfigMaps in the operator namespace allow to inject
-		// hard-coded scrape configurations.
-		Watches(
-			&source.Kind{Type: &corev1.ConfigMap{}},
-			enqueueConst(objRequest),
-			builder.WithPredicates(staticScrapeConfigSelector),
 		).
 		// The configuration we generate for the collectors.
 		Watches(
@@ -459,14 +445,10 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
 	var (
-		podmons    monitoringv1alpha1.PodMonitoringList
-		scrapeCfgs corev1.ConfigMapList
+		podmons monitoringv1alpha1.PodMonitoringList
 	)
 	if err := r.client.List(ctx, &podmons); err != nil {
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
-	}
-	if err := r.client.List(ctx, &scrapeCfgs, client.MatchingLabels{"type": "scrape-config"}); err != nil {
-		return nil, errors.Wrap(err, "failed to list scrape ConfigMaps")
 	}
 
 	// Mark status updates in batch with single timestamp.
@@ -490,23 +472,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
 			logger.Error(err, "setting podmonitoring status state")
-		}
-	}
-
-	// Load additional, hard-coded scrape configs from configmaps in the oeprator's namespace.
-	for _, cm := range scrapeCfgs.Items {
-		const key = "config.yaml"
-
-		var promcfg promconfig.Config
-		if err := yaml.Unmarshal([]byte(cm.Data[key]), &promcfg); err != nil {
-			logger.Error(err, "cannot parse scrape config, skipping ...",
-				"namespace", cm.Namespace, "name", cm.Name)
-			continue
-		}
-		for _, sc := range promcfg.ScrapeConfigs {
-			// Make scrape config name unique and traceable.
-			sc.JobName = fmt.Sprintf("ConfigMap/%s/%s/%s", r.opts.OperatorNamespace, cm.Name, sc.JobName)
-			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, sc)
 		}
 	}
 
