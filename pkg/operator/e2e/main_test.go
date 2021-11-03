@@ -121,7 +121,7 @@ func TestCSRWithValidatingWebhookConfig(t *testing.T) {
 	t.Run("validatingwebhook configuration valid", tctx.subtest(testValidatingWebhookConfig))
 }
 
-func TestOperatorConfig(t *testing.T) {
+func TestRuleEvaluation(t *testing.T) {
 	tctx := newTestContext(t)
 
 	cert, key, err := cert.GenerateSelfSignedCertKey("test", nil, nil)
@@ -137,7 +137,13 @@ func TestOperatorConfig(t *testing.T) {
 		testRuleEvaluatorSecrets(ctx, t, cert, key)
 	}))
 	t.Run("rule evaluator config", tctx.subtest(testRuleEvaluatorConfig))
+	t.Run("rule generation", tctx.subtest(testRulesGeneration))
 	t.Run("rule evaluator deploy", tctx.subtest(testRuleEvaluatorDeployment))
+
+	if !skipGCM {
+		t.Log("Waiting rule results to become readable")
+		t.Run("check rule metrics", tctx.subtest(testValidateRuleEvaluationMetrics))
+	}
 }
 
 // testRuleEvaluatorOperatorConfig ensures an OperatorConfig can be deployed
@@ -580,12 +586,6 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 // validateCollectorUpMetrics checks whether the scrape-time up metrics for all collector
 // pods can be queried from GCM.
 func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string) {
-	// We rely on the default service account of the collector having write access to GCM.
-	// This means it will only work on GKE where the default service account has the default
-	// permissions.
-	// For support of other environments, the operator will need to be extended by flags
-	// to inject different service accounts or secrets.
-
 	// The project and cluster name in which we look for the metric data must
 	// be provided by the user. Check this only in this test so tests that don't need these
 	// flags can still be run without them.
@@ -673,13 +673,11 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 	}
 }
 
-func TestRulesGeneration(t *testing.T) {
-	tctx := newTestContext(t)
-
+func testRulesGeneration(ctx context.Context, t *testContext) {
 	replace := strings.NewReplacer(
 		"{project_id}", projectID,
 		"{cluster}", cluster,
-		"{namespace}", tctx.namespace,
+		"{namespace}", t.namespace,
 	).Replace
 
 	// Create multiple rules in the cluster and expect their scoped equivalents
@@ -702,12 +700,13 @@ spec:
 	if err := kyaml.Unmarshal([]byte(content), &clusterRules); err != nil {
 		t.Fatal(err)
 	}
-	clusterRules.OwnerReferences = tctx.ownerReferences
+	clusterRules.OwnerReferences = t.ownerReferences
 
-	if _, err := tctx.operatorClient.MonitoringV1alpha1().ClusterRules().Create(context.TODO(), &clusterRules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.MonitoringV1alpha1().ClusterRules().Create(context.TODO(), &clusterRules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
+	// TODO(freinartz): Instantiate structs directly rather than templating strings.
 	content = `
 apiVersion: monitoring.googleapis.com/v1alpha1
 kind: Rules
@@ -723,12 +722,14 @@ spec:
         description: "bar avg down"
       labels:
         flavor: test
+    - record: always_one
+      expr: vector(1)
 `
 	var rules monitoringv1alpha1.Rules
 	if err := kyaml.Unmarshal([]byte(content), &rules); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tctx.operatorClient.MonitoringV1alpha1().Rules(tctx.namespace).Create(context.TODO(), &rules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.MonitoringV1alpha1().Rules(t.namespace).Create(context.TODO(), &rules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -755,13 +756,19 @@ spec:
             project_id: {project_id}
           annotations:
             description: bar avg down
+        - record: always_one
+          expr: vector(1)
+          labels:
+            cluster: {cluster}
+            namespace: {namespace}
+            project_id: {project_id}
 `),
 	}
 
 	var diff string
 
 	err := wait.Poll(1*time.Second, time.Minute, func() (bool, error) {
-		cm, err := tctx.kubeClient.CoreV1().ConfigMaps(tctx.namespace).Get(context.TODO(), "rules-generated", metav1.GetOptions{})
+		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.namespace).Get(context.TODO(), "rules-generated", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
@@ -780,5 +787,65 @@ spec:
 	if err != nil {
 		t.Errorf("diff (-want, +got): %s", diff)
 		t.Fatalf("failed waiting for generated rules: %s", err)
+	}
+}
+
+func testValidateRuleEvaluationMetrics(ctx context.Context, t *testContext) {
+	// The project and cluster name in which we look for the metric data must
+	// be provided by the user. Check this only in this test so tests that don't need these
+	// flags can still be run without them.
+	if projectID == "" {
+		t.Fatalf("no project specified (--project-id flag)")
+	}
+	if cluster == "" {
+		t.Fatalf("no cluster name specified (--cluster flag)")
+	}
+
+	// Wait for metric data to show up in Cloud Monitoring.
+	metricClient, err := gcm.NewMetricClient(ctx)
+	if err != nil {
+		t.Fatalf("Create GCM metric client: %s", err)
+	}
+	defer metricClient.Close()
+
+	err = wait.Poll(1*time.Second, 3*time.Minute, func() (bool, error) {
+		now := time.Now()
+
+		// Validate the majority of labels being set correctly by filtering along them.
+		iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
+			Name: fmt.Sprintf("projects/%s", projectID),
+			Filter: fmt.Sprintf(`
+				resource.type = "prometheus_target" AND
+				resource.labels.project_id = "%s" AND
+				resource.labels.cluster = "%s" AND
+				resource.labels.namespace = "%s" AND
+				metric.type = "prometheus.googleapis.com/always_one/gauge"
+				`,
+				projectID, cluster, t.namespace,
+			),
+			Interval: &gcmpb.TimeInterval{
+				EndTime:   timestamppb.New(now),
+				StartTime: timestamppb.New(now.Add(-10 * time.Second)),
+			},
+		})
+		series, err := iter.Next()
+		if err == iterator.Done {
+			t.Logf("No data, retrying...")
+			return false, nil
+		} else if err != nil {
+			return false, errors.Wrap(err, "querying metrics failed")
+		}
+		if len(series.Points) == 0 {
+			return false, errors.New("unexpected zero points in result series")
+		}
+		// We expect exactly one result.
+		series, err = iter.Next()
+		if err != iterator.Done {
+			return false, errors.Errorf("expected iterator to be done but got error %q and series %v", err, series)
+		}
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("Waiting for rule metrics to appear in Cloud Monitoring failed: %s", err)
 	}
 }
