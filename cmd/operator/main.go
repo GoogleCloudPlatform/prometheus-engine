@@ -23,6 +23,7 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap/zapcore"
@@ -42,10 +43,18 @@ func unstableFlagHelp(help string) string {
 
 func main() {
 	var (
+		defaultProjectID string
+		defaultCluster   string
+	)
+	if metadata.OnGCE() {
+		defaultProjectID, _ = metadata.ProjectID()
+		defaultCluster, _ = metadata.InstanceAttributeValue("cluster-name")
+	}
+	var (
 		logVerbosity      = flag.Int("v", 0, "Logging verbosity")
-		projectID         = flag.String("project-id", "", "Project ID of the cluster. May be left empty on GKE.")
-		location          = flag.String("location", "", "GCP location of the cluster. May be left empty on GKE.")
-		cluster           = flag.String("cluster", "", "Name of the cluster the operator acts on. May be left empty on GKE.")
+		projectID         = flag.String("project-id", defaultProjectID, "Project ID of the cluster. May be left empty on GKE.")
+		location          = flag.String("location", "", "GCP location of the cluster. Maybe be left empty on GKE.")
+		cluster           = flag.String("cluster", defaultCluster, "Name of the cluster the operator acts on. May be left empty on GKE.")
 		operatorNamespace = flag.String("operator-namespace", operator.DefaultOperatorNamespace,
 			"Namespace in which the operator manages its resources.")
 		publicNamespace = flag.String("public-namespace", operator.DefaultOperatorNamespace,
@@ -89,8 +98,8 @@ func main() {
 
 	op, err := operator.New(logger, cfg, metrics, operator.Options{
 		ProjectID:               *projectID,
-		Cluster:                 *cluster,
 		Location:                *location,
+		Cluster:                 *cluster,
 		OperatorNamespace:       *operatorNamespace,
 		PublicNamespace:         *publicNamespace,
 		ImageCollector:          *imageCollector,

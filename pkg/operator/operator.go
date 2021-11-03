@@ -152,6 +152,15 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		o.ImageRuleEvaluator = ImageRuleEvaluator
 	}
 
+	// ProjectID and Cluster must be always be set. Collectors and rule-evaluator can
+	// auto-discover them but we need them in the operator to scope generated rules.
+	if o.ProjectID == "" {
+		return errors.New("ProjectID must be set")
+	}
+	if o.Cluster == "" {
+		return errors.New("Cluster must be set")
+	}
+
 	if o.ImageCollector != ImageCollector {
 		logger.Info("not using the canonical collector image",
 			"expected", ImageCollector, "got", o.ImageCollector)
