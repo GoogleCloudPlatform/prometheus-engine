@@ -54,6 +54,9 @@ type testContext struct {
 	*testing.T
 
 	namespace, pubNamespace string
+	// A list of owner references that can be attached to non-namespaced
+	// test resources so that they'll get cleaned up on teardown.
+	ownerReferences []metav1.OwnerReference
 
 	kubeClient     kubernetes.Interface
 	operatorClient clientset.Interface
@@ -92,7 +95,7 @@ func newTestContext(t *testing.T) *testContext {
 	t.Cleanup(cancel)
 	t.Cleanup(func() { tctx.cleanupNamespaces() })
 
-	ors, err := tctx.createBaseResources()
+	tctx.ownerReferences, err = tctx.createBaseResources()
 	if err != nil {
 		t.Fatalf("create test namespace: %s", err)
 	}
@@ -117,7 +120,7 @@ func newTestContext(t *testing.T) *testContext {
 	}
 
 	go func() {
-		if err := op.Run(ctx, ors...); err != nil {
+		if err := op.Run(ctx, tctx.ownerReferences...); err != nil {
 			// Since we aren't in the main test goroutine we cannot fail with Fatal here.
 			t.Errorf("running operator: %s", err)
 		}
@@ -261,7 +264,6 @@ func cleanupAllNamespaces(ctx context.Context) error {
 		return errors.Wrap(err, "delete namespaces by label")
 	}
 	for _, ns := range namespaces.Items {
-		fmt.Println("delete ns", ns)
 		if err := kubeClient.CoreV1().Namespaces().Delete(ctx, ns.Name, metav1.DeleteOptions{}); err != nil {
 			fmt.Fprintf(os.Stderr, "deleting namespace %q failed: %s\n", ns.Name, err)
 		}

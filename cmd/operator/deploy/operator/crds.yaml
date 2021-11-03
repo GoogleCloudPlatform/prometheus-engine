@@ -180,7 +180,7 @@ spec:
       storage: true
       "schema":
         "openAPIV3Schema":
-          description: Rules defines Prometheus alerting and recording rules.
+          description: Rules defines Prometheus alerting and recording rules that are scoped to the namespace of the resource. Only metric data from this namespace is processed and all rule results have their project_id, cluster, and namespace label preserved query processing. The location, if not preserved by the rule, is set to the cluster's location.
           type: object
           required:
             - spec
@@ -198,7 +198,6 @@ spec:
               type: object
               required:
                 - groups
-                - scope
               properties:
                 groups:
                   description: A list of Prometheus rule groups.
@@ -248,13 +247,99 @@ spec:
                             record:
                               description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
                               type: string
-                scope:
-                  description: "The scope at which to evaluate rules. Must be \"Cluster\" or \"Namespace\". It acts as safety mechanism against unintentionally having rules query more data than intended without requiring adjusting all selectors of the PromQL expression. \n At the Cluster scope only metrics with target labels \"project_id\" and \"cluster\" matching the current one are used as input to rules. At the Namespace scope they are further restricted by the namespace the Rules resource is in."
-                  type: string
             status:
               description: Most recently observed status of the resource.
               type: object
   scope: Namespaced
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clusterrules.monitoring.googleapis.com
+spec:
+  group: monitoring.googleapis.com
+  names:
+    kind: ClusterRules
+    plural: clusterrules
+  versions:
+    - name: v1alpha1
+      subresources:
+        status: {}
+      served: true
+      storage: true
+      "schema":
+        "openAPIV3Schema":
+          description: ClusterRules defines Prometheus alerting and recording rules that are scoped to the current cluster. Only metric data from the current cluster is processed and all rule results have their project_id and cluster label preserved preserved query processing. The location, if not preserved by the rule, is set to the cluster's location
+          type: object
+          required:
+            - spec
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: Specification of desired Pod selection for target discovery by Prometheus.
+              type: object
+              required:
+                - groups
+              properties:
+                groups:
+                  description: A list of Prometheus rule groups.
+                  type: array
+                  items:
+                    description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                    type: object
+                    required:
+                      - interval
+                      - name
+                      - rules
+                    properties:
+                      interval:
+                        description: The interval at which to evaluate the rules. Must be a valid Prometheus duration.
+                        type: string
+                      name:
+                        description: The name of the rule group.
+                        type: string
+                      rules:
+                        description: A list of rules that are executed sequentially as part of this group.
+                        type: array
+                        items:
+                          description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                          type: object
+                          required:
+                            - expr
+                          properties:
+                            alert:
+                              description: Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set.
+                              type: string
+                            annotations:
+                              description: A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set.
+                              type: object
+                              additionalProperties:
+                                type: string
+                            expr:
+                              description: The PromQL expression to evaluate.
+                              type: string
+                            for:
+                              description: The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set.
+                              type: string
+                            labels:
+                              description: A set of labels to attach to the result of the query expression.
+                              type: object
+                              additionalProperties:
+                                type: string
+                            record:
+                              description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
+                              type: string
+            status:
+              description: Most recently observed status of the resource.
+              type: object
+  scope: Cluster
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition

@@ -16,6 +16,10 @@
 
 package v1alpha1
 
+// ClusterRulesListerExpansion allows custom methods to be added to
+// ClusterRulesLister.
+type ClusterRulesListerExpansion interface{}
+
 // OperatorConfigListerExpansion allows custom methods to be added to
 // OperatorConfigLister.
 type OperatorConfigListerExpansion interface{}
