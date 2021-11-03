@@ -76,6 +76,10 @@ func setupRulesControllers(op *Operator) error {
 			&source.Kind{Type: &monitoringv1alpha1.Rules{}},
 			enqueueConst(objRequest),
 		).
+		Watches(
+			&source.Kind{Type: &monitoringv1alpha1.ClusterRules{}},
+			enqueueConst(objRequest),
+		).
 		// The configuration we generate for the rule-evaluator.
 		Watches(
 			&source.Kind{Type: &corev1.ConfigMap{}},
@@ -130,6 +134,14 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 	}
 
 	// Generate a final rule file for each Rules resource.
+	//
+	// Depending on the scope level (cluster, namespace) the rules will be generated
+	// so that queries are constrained to the appropriate project_id, cluster, and namespace
+	// labels and that they are preserved through query aggregations and appear on the
+	// output data.
+	//
+	// The location is not scoped as it's not a meaningful boundary for "human access"
+	// to data as clusters may span locations.
 	var rulesList monitoringv1alpha1.RulesList
 	if err := r.client.List(ctx, &rulesList); err != nil {
 		return errors.Wrap(err, "list rules")
@@ -143,22 +155,11 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 			// TODO(freinartz): update resource condition.
 			continue
 		}
-		lset := map[string]string{}
-		// Populate isolation level from the defined scope.
-		switch apiRules.Spec.Scope {
-		case monitoringv1alpha1.ScopeCluster:
-			lset[export.KeyProjectID] = r.opts.ProjectID
-			lset[export.KeyCluster] = r.opts.Cluster
-		case monitoringv1alpha1.ScopeNamespace:
-			lset[export.KeyProjectID] = r.opts.ProjectID
-			lset[export.KeyCluster] = r.opts.Cluster
-			lset[export.KeyNamespace] = apiRules.Namespace
-		default:
-			rulesLogger.Error(errors.New("scope type is not defiend"), "unexpected scope", "scope", apiRules.Spec.Scope)
-			// TODO(freinartz): update resource condition.
-			continue
-		}
-		if err := rules.Scope(&rs, lset); err != nil {
+		if err := rules.Scope(&rs, map[string]string{
+			export.KeyProjectID: r.opts.ProjectID,
+			export.KeyCluster:   r.opts.Cluster,
+			export.KeyNamespace: apiRules.Namespace,
+		}); err != nil {
 			rulesLogger.Error(err, "isolating rules failed")
 			// TODO(freinartz): update resource condition.
 			continue
@@ -169,7 +170,38 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 			// TODO(freinartz): update resource condition.
 			continue
 		}
-		filename := fmt.Sprintf("%s__%s.yaml", apiRules.Namespace, apiRules.Name)
+		filename := fmt.Sprintf("rules__%s__%s.yaml", apiRules.Namespace, apiRules.Name)
+		cm.Data[filename] = string(result)
+	}
+
+	var clusterRulesList monitoringv1alpha1.ClusterRulesList
+	if err := r.client.List(ctx, &clusterRulesList); err != nil {
+		return errors.Wrap(err, "list cluster rules")
+	}
+	for _, apiRules := range clusterRulesList.Items {
+		rulesLogger := logger.WithValues("cluster_rules_name", apiRules.Name)
+
+		rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
+		if err != nil {
+			rulesLogger.Error(err, "converting rules failed")
+			// TODO(freinartz): update resource condition.
+			continue
+		}
+		if err := rules.Scope(&rs, map[string]string{
+			export.KeyProjectID: r.opts.ProjectID,
+			export.KeyCluster:   r.opts.Cluster,
+		}); err != nil {
+			rulesLogger.Error(err, "isolating rules failed")
+			// TODO(freinartz): update resource condition.
+			continue
+		}
+		result, err := yaml.Marshal(rs)
+		if err != nil {
+			rulesLogger.Error(err, "marshalling rules failed")
+			// TODO(freinartz): update resource condition.
+			continue
+		}
+		filename := fmt.Sprintf("clusterrules__%s.yaml", apiRules.Name)
 		cm.Data[filename] = string(result)
 	}
 

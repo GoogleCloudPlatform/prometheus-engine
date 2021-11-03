@@ -22,6 +22,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// ClusterRules returns a ClusterRulesInformer.
+	ClusterRules() ClusterRulesInformer
 	// OperatorConfigs returns a OperatorConfigInformer.
 	OperatorConfigs() OperatorConfigInformer
 	// PodMonitorings returns a PodMonitoringInformer.
@@ -39,6 +41,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// ClusterRules returns a ClusterRulesInformer.
+func (v *version) ClusterRules() ClusterRulesInformer {
+	return &clusterRulesInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // OperatorConfigs returns a OperatorConfigInformer.

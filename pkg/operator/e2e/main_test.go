@@ -676,60 +676,64 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 func TestRulesGeneration(t *testing.T) {
 	tctx := newTestContext(t)
 
-	// Create multiple rules in the cluster and expect their scoped equivalents
-	// to be present in the generated rule file.
-	files := []string{`
-apiVersion: monitoring.googleapis.com/v1alpha1
-kind: Rules
-metadata:
-  name: cluster-rules
-spec:
-  scope: Cluster
-  groups:
-  - name: group-1
-    rules:
-    - record: foo
-      expr: sum(up)
-      annotations:
-        description: "foo sum up"
-      labels:
-        flavor: test
-`, `
-apiVersion: monitoring.googleapis.com/v1alpha1
-kind: Rules
-metadata:
-  name: namespace-rules
-spec:
-  scope: Namespace
-  groups:
-  - name: group-1
-    rules:
-    - alert: Bar
-      expr: avg(down)
-      annotations:
-        description: "bar avg down"
-      labels:
-        flavor: test
-`}
-	for _, content := range files {
-		var rules monitoringv1alpha1.Rules
-		if err := kyaml.Unmarshal([]byte(content), &rules); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tctx.operatorClient.MonitoringV1alpha1().Rules(tctx.namespace).Create(context.TODO(), &rules, metav1.CreateOptions{}); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	var diff string
 	replace := strings.NewReplacer(
 		"{project_id}", projectID,
 		"{cluster}", cluster,
 		"{namespace}", tctx.namespace,
 	).Replace
 
+	// Create multiple rules in the cluster and expect their scoped equivalents
+	// to be present in the generated rule file.
+	content := replace(`
+apiVersion: monitoring.googleapis.com/v1alpha1
+kind: ClusterRules
+metadata:
+  name: {namespace}-cluster-rules
+spec:
+  groups:
+  - name: group-1
+    rules:
+    - record: foo
+      expr: sum(up)
+      labels:
+        flavor: test
+`)
+	var clusterRules monitoringv1alpha1.ClusterRules
+	if err := kyaml.Unmarshal([]byte(content), &clusterRules); err != nil {
+		t.Fatal(err)
+	}
+	clusterRules.OwnerReferences = tctx.ownerReferences
+
+	if _, err := tctx.operatorClient.MonitoringV1alpha1().ClusterRules().Create(context.TODO(), &clusterRules, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	content = `
+apiVersion: monitoring.googleapis.com/v1alpha1
+kind: Rules
+metadata:
+  name: rules
+spec:
+  groups:
+  - name: group-1
+    rules:
+    - alert: Bar
+      expr: avg(down) > 1
+      annotations:
+        description: "bar avg down"
+      labels:
+        flavor: test
+`
+	var rules monitoringv1alpha1.Rules
+	if err := kyaml.Unmarshal([]byte(content), &rules); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tctx.operatorClient.MonitoringV1alpha1().Rules(tctx.namespace).Create(context.TODO(), &rules, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
 	want := map[string]string{
-		replace("{namespace}__cluster-rules.yaml"): replace(`groups:
+		replace("clusterrules__{namespace}-cluster-rules.yaml"): replace(`groups:
     - name: group-1
       rules:
         - record: foo
@@ -738,14 +742,12 @@ spec:
             cluster: {cluster}
             flavor: test
             project_id: {project_id}
-          annotations:
-            description: foo sum up
 `),
-		replace("{namespace}__namespace-rules.yaml"): replace(`groups:
+		replace("rules__{namespace}__rules.yaml"): replace(`groups:
     - name: group-1
       rules:
         - alert: Bar
-          expr: avg(down{cluster="{cluster}",namespace="{namespace}",project_id="{project_id}"})
+          expr: avg(down{cluster="{cluster}",namespace="{namespace}",project_id="{project_id}"}) > 1
           labels:
             cluster: {cluster}
             flavor: test
@@ -756,6 +758,8 @@ spec:
 `),
 	}
 
+	var diff string
+
 	err := wait.Poll(1*time.Second, time.Minute, func() (bool, error) {
 		cm, err := tctx.kubeClient.CoreV1().ConfigMaps(tctx.namespace).Get(context.TODO(), "rules-generated", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
@@ -764,9 +768,9 @@ spec:
 			return false, errors.Wrap(err, "get ConfigMap")
 		}
 		// The operator observes Rules across all namespaces. For the purpose of this test we drop
-		// all outputs from the result that were created by Rules not in the test's namespace.
+		// all outputs from the result that aren't in the expected set.
 		for name := range cm.Data {
-			if !strings.HasPrefix(name, tctx.namespace+"__") {
+			if _, ok := want[name]; !ok {
 				delete(cm.Data, name)
 			}
 		}

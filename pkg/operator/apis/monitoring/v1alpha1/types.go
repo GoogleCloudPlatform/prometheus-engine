@@ -513,7 +513,12 @@ func NewDefaultConditions(now metav1.Time) []MonitoringCondition {
 	}
 }
 
-// Rules defines Prometheus alerting and recording rules.
+// Rules defines Prometheus alerting and recording rules that are scoped
+// to the namespace of the resource. Only metric data from this namespace is processed
+// and all rule results have their project_id, cluster, and namespace label preserved
+// query processing.
+// The location, if not preserved by the rule, is set to the cluster's location.
+//
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Rules struct {
@@ -535,32 +540,39 @@ type RulesList struct {
 	Items           []Rules `json:"items"`
 }
 
+// ClusterRules defines Prometheus alerting and recording rules that are scoped
+// to the current cluster. Only metric data from the current cluster is processed
+// and all rule results have their project_id and cluster label preserved preserved
+// query processing.
+// The location, if not preserved by the rule, is set to the cluster's location
+//
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ClusterRules struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	// Specification of desired Pod selection for target discovery by
+	// Prometheus.
+	Spec RulesSpec `json:"spec"`
+	// Most recently observed status of the resource.
+	// +optional
+	Status RulesStatus `json:"status"`
+}
+
+// ClusterRulesList is a list of ClusterRules.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ClusterRulesList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ClusterRules `json:"items"`
+}
+
 // RulesSpec contains specification parameters for a Rules resource.
 type RulesSpec struct {
-	// The scope at which to evaluate rules. Must be "Cluster" or "Namespace". It acts as
-	// safety mechanism against unintentionally having rules query more data than intended
-	// without requiring adjusting all selectors of the PromQL expression.
-	//
-	// At the Cluster scope only metrics with target labels "project_id" and "cluster"
-	// matching the current one are used as input to rules.
-	// At the Namespace scope they are further restricted by the namespace the Rules
-	// resource is in.
-	Scope Scope `json:"scope"`
 	// A list of Prometheus rule groups.
 	Groups []RuleGroup `json:"groups"`
 }
-
-// Scope of metric data a set of rules applies to.
-type Scope string
-
-// The valid scopes. Currently only cluster and namespace are supported, i.e.
-// rules only select over data for a given cluster or namespace. Support for
-// rules processing over an entire project or even across projects may be added
-// once uses cases have been identified more clearly.
-const (
-	ScopeCluster   Scope = "Cluster"
-	ScopeNamespace Scope = "Namespace"
-)
 
 // RuleGroup declares rules in the Prometheus format:
 // https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/

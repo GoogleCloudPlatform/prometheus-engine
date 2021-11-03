@@ -16,6 +16,8 @@
 
 package v1alpha1
 
+type ClusterRulesExpansion interface{}
+
 type OperatorConfigExpansion interface{}
 
 type PodMonitoringExpansion interface{}

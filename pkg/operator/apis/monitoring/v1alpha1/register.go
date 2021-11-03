@@ -62,6 +62,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PodMonitoringList{},
 		&Rules{},
 		&RulesList{},
+		&ClusterRules{},
+		&ClusterRulesList{},
 		&OperatorConfig{},
 		&OperatorConfigList{},
 	)
