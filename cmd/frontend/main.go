@@ -154,9 +154,19 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		u := *target
 		u.Path = path.Join(u.Path, req.URL.Path)
-		u.RawQuery = req.URL.RawQuery
 
-		newReq, err := http.NewRequestWithContext(req.Context(), req.Method, u.String(), req.Body)
+		method := req.Method
+		// Write all params into the URL and make a GET request to work around
+		// /api/v1/series currently not accepting match[] params on POST.
+		if req.URL.Path == "/api/v1/series" {
+			method = "GET"
+			req.ParseForm()
+			u.RawQuery = req.Form.Encode()
+		} else {
+			u.RawQuery = req.URL.RawQuery
+		}
+
+		newReq, err := http.NewRequestWithContext(req.Context(), method, u.String(), req.Body)
 		if err != nil {
 			level.Warn(logger).Log("msg", "creating request failed", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
