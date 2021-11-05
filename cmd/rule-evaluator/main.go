@@ -110,7 +110,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	destination, err := export.NewStorage(logger, nil, *exporterOptions)
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(
+		prometheus.NewGoCollector(),
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+	)
+
+	destination, err := export.NewStorage(logger, reg, *exporterOptions)
 	if err != nil {
 		level.Error(logger).Log("msg", "Creating a Cloud Monitoring Exporter failed", "err", err)
 		os.Exit(1)
@@ -154,12 +160,6 @@ func main() {
 		}
 		return vec, nil
 	}
-
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(
-		prometheus.NewGoCollector(),
-		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
-	)
 
 	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
 	notificationManager := notifier.NewManager(&notifierOptions, log.With(logger, "component", "notifier"))
