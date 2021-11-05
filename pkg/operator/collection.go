@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 )
 
@@ -197,6 +198,8 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 	// health checks, priority context, security context, dynamic update strategy params...
 	podLabels := map[string]string{
 		LabelAppName: NameCollector,
+		// TODO(pintohutch): make version centralized and populated at build time.
+		LabelVersion: "v2.28.1-gmp.1",
 	}
 
 	podAnnotations := map[string]string{
@@ -265,6 +268,8 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 						// RPC applications) and gives us a more balanced ratio of memory and CPU usage.
 						Env: []corev1.EnvVar{
 							{Name: "GOGC", Value: "25"},
+							{Name: export.GMPApp, Value: GMPAppVal},
+							{Name: export.GMPVer, Value: GMPVerVal},
 						},
 						Args: collectorArgs,
 						Ports: []corev1.ContainerPort{

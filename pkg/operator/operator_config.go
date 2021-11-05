@@ -6,6 +6,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -54,6 +55,8 @@ const (
 func rulesLabels() map[string]string {
 	return map[string]string{
 		LabelAppName: NameRuleEvaluator,
+		// TODO(pintohutch): make version centralized and populated at build time.
+		LabelVersion: "v0.1.0",
 	}
 }
 
@@ -328,7 +331,11 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 					{
 						Name:  "evaluator",
 						Image: r.opts.ImageRuleEvaluator,
-						Args:  evaluatorArgs,
+						Env: []corev1.EnvVar{
+							{Name: export.GMPApp, Value: GMPAppVal},
+							{Name: export.GMPVer, Value: GMPVerVal},
+						},
+						Args: evaluatorArgs,
 						Ports: []corev1.ContainerPort{
 							{Name: "r-eval-metrics", ContainerPort: RuleEvaluatorPort},
 						},

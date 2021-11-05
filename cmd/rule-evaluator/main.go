@@ -69,6 +69,9 @@ func main() {
 	}
 
 	exporterOptions := export.NewFlagOptions(a)
+	// TODO(danielclark): make version centralized and populated at build time.
+	exporterOptions.UserAgent = "rule-evaluator/prometheus-engine/export:v0.1.0"
+
 	notifierOptions := notifier.Options{}
 
 	projectID := a.Flag("query.project-id", "Project ID of the Google Cloud Monitoring workspace to evaluate rules against.").

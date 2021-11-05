@@ -61,6 +61,8 @@ const (
 
 	// The well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
+	// The component version.
+	LabelVersion = "app.kubernetes.io/version"
 	// The component name, will be exposed as metric name.
 	AnnotationMetricName = "components.gke.io/component-name"
 
@@ -79,6 +81,9 @@ var (
 			Help:      "The time it takes for operator to synchronize with managed CRDs (s).",
 		},
 	)
+	// Use Kubernetes' downward API to gather pod labels at runtime.
+	GMPApp = fmt.Sprintf("metadata.labels[%s]", LabelAppName)
+	GMPVer = fmt.Sprintf("metadata.labels[%s]", LabelVersion)
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.

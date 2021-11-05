@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"sync"
 	"time"
@@ -38,6 +39,11 @@ import (
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/grpc"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
+)
+
+const (
+	GMPApp = "GMP_APP"
+	GMPVer = "GMP_VER"
 )
 
 var (
@@ -103,6 +109,8 @@ type Exporter struct {
 
 	mtx            sync.Mutex
 	externalLabels labels.Labels
+
+	userAgent string
 }
 
 const (
@@ -148,6 +156,9 @@ type ExporterOpts struct {
 	BatchSize uint
 	// Prefix under which metrics are written to GCM.
 	MetricTypePrefix string
+
+	// UserAgent to include in export gRPC requests.
+	UserAgent string
 }
 
 // NewFlagOptions returns new exporter options that are populated through flags
@@ -228,12 +239,30 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 	if opts.BatchSize > batchSizeMax {
 		return nil, errors.Errorf("Maximum supported batch size is %d, got %d", batchSizeMax, opts.BatchSize)
 	}
+	// Inject managed collection state via environment variable.
+	// An environment variable was preferred overp a flag because:
+	// 1. We can take advantage of the Kubernetes downward API in the deployment
+	//    spec to get information about the running workload.
+	//    See: https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#capabilities-of-the-downward-api
+	// 2. As this forms part of the User Agent, we'd rather not encourage users
+	//    to overwrite this with their own values. A CLI flag seems to encourage
+	//    this more than an environment variable.
+	//
+	// If env vars are present, attempt to construct an "app/ver" user agent
+	// prefix.
+	if a, ok := os.LookupEnv(GMPApp); ok {
+		opts.UserAgent = a
+	}
+	if v, ok := os.LookupEnv(GMPVer); ok {
+		opts.UserAgent = path.Join(opts.UserAgent, v)
+	}
 
 	e := &Exporter{
-		logger: logger,
-		opts:   opts,
-		nextc:  make(chan struct{}, 1),
-		shards: make([]*shard, shardCount),
+		logger:    logger,
+		opts:      opts,
+		nextc:     make(chan struct{}, 1),
+		shards:    make([]*shard, shardCount),
+		userAgent: opts.UserAgent,
 	}
 	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, e.getExternalLabels, opts.Matchers)
 	e.builder = &sampleBuilder{series: e.seriesCache}
@@ -365,6 +394,12 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample) {
 	e.triggerNext()
 }
 
+const (
+	ClientName = "prometheus-engine-export"
+	// TODO(pintohutch): make version centralized and populated at build time.
+	Version = "v0.1.0"
+)
+
 func (e *Exporter) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
 	idx := hash % uint64(len(e.shards))
 	e.shards[idx].enqueue(hash, sample)
@@ -402,7 +437,8 @@ func (e *Exporter) Run(ctx context.Context) error {
 	}
 
 	// Identity User Agent for all gRPC requests.
-	clientOpts = append(clientOpts, option.WithUserAgent(ClientName+"/"+Version))
+	ua := fmt.Sprintf("%s %s/%s", e.userAgent, ClientName, Version)
+	clientOpts = append(clientOpts, option.WithUserAgent(ua))
 
 	metricClient, err := monitoring.NewMetricClient(ctx, clientOpts...)
 	if err != nil {
