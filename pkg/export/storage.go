@@ -49,11 +49,6 @@ func NewStorage(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts)
 	if err != nil {
 		return nil, err
 	}
-	// Call ApplyConfig once with an empty config so it can initialize the exporter state properly.
-	if err := exporter.ApplyConfig(&config.Config{}); err != nil {
-		return nil, err
-	}
-
 	s := &Storage{
 		exporter: exporter,
 		labels:   map[uint64]labels.Labels{},
@@ -61,6 +56,11 @@ func NewStorage(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts)
 	exporter.SetLabelsByIDFunc(s.labelsByID)
 
 	return s, nil
+}
+
+// ApplyConfig applies the new configuration to the storage.
+func (s *Storage) ApplyConfig(cfg *config.Config) error {
+	return s.exporter.ApplyConfig(cfg)
 }
 
 // Run background processing of the storage.

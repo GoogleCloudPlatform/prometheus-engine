@@ -184,6 +184,9 @@ func main() {
 			name:     "notify",
 			reloader: notificationManager.ApplyConfig,
 		}, {
+			name:     "exporter",
+			reloader: destination.ApplyConfig,
+		}, {
 			name: "notify_sd",
 			reloader: func(cfg *config.Config) error {
 				c := make(map[string]discovery.Configs)
@@ -211,6 +214,11 @@ func main() {
 				)
 			},
 		},
+	}
+	// Do an initial load of the configuration for all components.
+	if err := reloadConfig(*configFile, logger, reloaders...); err != nil {
+		level.Error(logger).Log("msg", "error loading config file.", "err", err)
+		os.Exit(1)
 	}
 
 	var g run.Group
@@ -349,23 +357,6 @@ func main() {
 				// Wait for any in-progress reloads to complete to avoid
 				// reloading things after they have been shutdown.
 				cancel <- struct{}{}
-			},
-		)
-	}
-	{
-		// Initial configuration loading.
-		cancel := make(chan struct{})
-		g.Add(
-			func() error {
-				if err := reloadConfig(*configFile, logger, reloaders...); err != nil {
-					level.Info(logger).Log("msg", "error loading config file.")
-					return errors.Wrapf(err, "error loading config from %q", *configFile)
-				}
-				<-cancel
-				return nil
-			},
-			func(err error) {
-				close(cancel)
 			},
 		)
 	}
