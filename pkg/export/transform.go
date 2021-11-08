@@ -122,7 +122,7 @@ func withScrapeMetricMetadata(f MetadataFunc) MetadataFunc {
 // next extracts the next sample from the input sample batch and returns
 // the remainder of the input.
 // Returns a nil time series for samples that couldn't be converted.
-func (b *sampleBuilder) next(metadata MetadataFunc, samples []record.RefSample) ([]hashedSeries, []record.RefSample, error) {
+func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels, samples []record.RefSample) ([]hashedSeries, []record.RefSample, error) {
 	sample := samples[0]
 	tailSamples := samples[1:]
 	metadata = withScrapeMetricMetadata(metadata)
@@ -133,7 +133,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, samples []record.RefSample) 
 		return nil, tailSamples, nil
 	}
 
-	entry, ok := b.series.get(sample, metadata)
+	entry, ok := b.series.get(sample, externalLabels, metadata)
 	if !ok {
 		prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
 		return nil, tailSamples, nil
@@ -173,7 +173,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, samples []record.RefSample) 
 			// be the same as well.
 			var v *distribution_pb.Distribution
 			var err error
-			v, resetTimestamp, tailSamples, err = b.buildDistribution(entry.metadata.Metric, entry.lset, samples, metadata)
+			v, resetTimestamp, tailSamples, err = b.buildDistribution(entry.metadata.Metric, entry.lset, samples, externalLabels, metadata)
 			if err != nil {
 				return nil, tailSamples, err
 			}
@@ -243,6 +243,7 @@ func (b *sampleBuilder) buildDistribution(
 	baseName string,
 	matchLset labels.Labels,
 	samples []record.RefSample,
+	externalLabels labels.Labels,
 	metadata MetadataFunc,
 ) (*distribution_pb.Distribution, int64, []record.RefSample, error) {
 	var (
@@ -257,7 +258,7 @@ func (b *sampleBuilder) buildDistribution(
 	// until we hit a new metric.
 Loop:
 	for i, s := range samples {
-		e, ok := b.series.get(s, metadata)
+		e, ok := b.series.get(s, externalLabels, metadata)
 		if !ok {
 			consumed++
 			prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()

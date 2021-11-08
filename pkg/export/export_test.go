@@ -17,12 +17,20 @@ package export
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"testing"
+	"time"
 
+	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/google/go-cmp/cmp"
 	gax "github.com/googleapis/gax-go/v2"
+	"github.com/prometheus/prometheus/pkg/labels"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/lease"
 )
 
 func TestBatchAdd(t *testing.T) {
@@ -113,5 +121,217 @@ func TestBatchFillFromShardsAndSend(t *testing.T) {
 		if s.pending {
 			t.Fatalf("shard unexpectedtly pending after send")
 		}
+	}
+}
+
+func TestSampleInRange(t *testing.T) {
+	cases := []struct {
+		interval   monitoring_pb.TimeInterval
+		start, end time.Time
+		want       bool
+	}{
+		{
+			interval: monitoring_pb.TimeInterval{
+				EndTime: &timestamp_pb.Timestamp{Seconds: 100},
+			},
+			start: time.Unix(100, 0),
+			end:   time.Unix(100, 0),
+			want:  true,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				EndTime: &timestamp_pb.Timestamp{Seconds: 100},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  true,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				EndTime: &timestamp_pb.Timestamp{Seconds: 101},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  false,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				StartTime: &timestamp_pb.Timestamp{Seconds: 90},
+				EndTime:   &timestamp_pb.Timestamp{Seconds: 100},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  true,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				StartTime: &timestamp_pb.Timestamp{Seconds: 89},
+				EndTime:   &timestamp_pb.Timestamp{Seconds: 100},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  false,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				StartTime: &timestamp_pb.Timestamp{Seconds: 90},
+				EndTime:   &timestamp_pb.Timestamp{Seconds: 101},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  false,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				StartTime: &timestamp_pb.Timestamp{Seconds: 89},
+				EndTime:   &timestamp_pb.Timestamp{Seconds: 101},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  false,
+		},
+	}
+	for _, c := range cases {
+		p := &monitoring_pb.TimeSeries{
+			Points: []*monitoring_pb.Point{
+				{Interval: &c.interval},
+			},
+		}
+		if ok := sampleInRange(p, c.start, c.end); ok != c.want {
+			t.Errorf("expected sample in range %v, got %v", c.want, ok)
+		}
+	}
+}
+
+func TestReplaceLease_NoHA(t *testing.T) {
+	exp, err := New(nil, nil, ExporterOpts{
+		EnableHighAvailability: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp.replaceLease()
+	want := alwaysLease{}
+
+	if exp.lease != want {
+		t.Errorf("unexpected lease type %T", exp.lease)
+	}
+}
+
+type testLease struct {
+	runCh chan struct{}
+}
+
+func (t *testLease) Run(ctx context.Context) {
+	close(t.runCh)
+	<-ctx.Done()
+}
+
+func (testLease) Register(func(start, end time.Time, owned bool)) {
+}
+
+func (testLease) Range() (time.Time, time.Time, bool) {
+	return time.UnixMilli(math.MinInt64), time.UnixMilli(math.MaxInt64), true
+}
+
+func TestReplaceLease(t *testing.T) {
+	exp, err := New(nil, nil, ExporterOpts{
+		EnableHighAvailability: true,
+		HighAvailabilitySet:    "foo",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Test a lease and check that it started correctly. Then replace the lease and
+	// do the same with the replacement. Check that the previous one got terminated
+	// correctly.
+
+	// Set first lease.
+	exp.externalLabels = labels.FromStrings(
+		"project_id", "proj",
+		"location", "loc",
+		"cluster", "cluster1",
+		"a", "b",
+	)
+
+	lease1 := &testLease{
+		runCh: make(chan struct{}),
+	}
+	exp.newLease = func(res *monitoredres_pb.MonitoredResource, opts *lease.Options) (leaseInterface, error) {
+		wantRes := &monitoredres_pb.MonitoredResource{
+			Type: "prometheus_target",
+			Labels: map[string]string{
+				"project_id": "proj",
+				"location":   "loc",
+				"cluster":    "cluster1",
+				"namespace":  "",
+				"job":        "",
+				"instance":   "",
+			},
+		}
+		if diff := cmp.Diff(wantRes, res, protocmp.Transform()); diff != "" {
+			t.Fatalf("unexpected resource (-want, +got): %s", diff)
+		}
+		wantLabels := map[string]string{
+			"a":             "b",
+			"gmp_lease_key": "foo",
+		}
+		if diff := cmp.Diff(opts.MetricLabels, wantLabels); diff != "" {
+			t.Fatalf("unexpected metric labels (-want, +got): %s", diff)
+		}
+		return lease1, nil
+	}
+
+	stopf, err := exp.replaceLease()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-lease1.runCh:
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for lease 1 to be started")
+	}
+	stopf()
+
+	// Set second lease.
+	lease2 := &testLease{
+		runCh: make(chan struct{}),
+	}
+	exp.externalLabels = labels.FromStrings(
+		"project_id", "proj",
+		"location", "loc",
+		"cluster", "cluster2",
+		"b", "c",
+	)
+
+	exp.newLease = func(res *monitoredres_pb.MonitoredResource, opts *lease.Options) (leaseInterface, error) {
+		wantRes := &monitoredres_pb.MonitoredResource{
+			Type: "prometheus_target",
+			Labels: map[string]string{
+				"project_id": "proj",
+				"location":   "loc",
+				"cluster":    "cluster2",
+				"namespace":  "",
+				"job":        "",
+				"instance":   "",
+			},
+		}
+		if diff := cmp.Diff(wantRes, res, protocmp.Transform()); diff != "" {
+			t.Fatalf("unexpected resource (-want, +got): %s", diff)
+		}
+		wantLabels := map[string]string{
+			"b":             "c",
+			"gmp_lease_key": "foo",
+		}
+		if diff := cmp.Diff(opts.MetricLabels, wantLabels); diff != "" {
+			t.Fatalf("unexpected metric labels (-want, +got): %s", diff)
+		}
+		return lease2, nil
+	}
+	stopf, err = exp.replaceLease()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stopf()
+
+	select {
+	case <-lease2.runCh:
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for lease 2 to be started")
 	}
 }

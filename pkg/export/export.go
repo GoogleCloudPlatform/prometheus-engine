@@ -17,6 +17,7 @@ package export
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"sync"
@@ -35,9 +36,12 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
+	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/grpc"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
+
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/lease"
 )
 
 var (
@@ -45,10 +49,10 @@ var (
 		Name: "gcm_export_samples_exported_total",
 		Help: "Number of samples exported at scrape time.",
 	})
-	samplesDropped = prometheus.NewCounter(prometheus.CounterOpts{
+	samplesDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "gcm_export_samples_dropped_total",
 		Help: "Number of exported samples that were dropped because shard queues were full.",
-	})
+	}, []string{"reason"})
 	samplesSent = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "gcm_export_samples_sent_total",
 		Help: "Number of exported samples sent to GCM.",
@@ -93,16 +97,24 @@ type Exporter struct {
 	logger log.Logger
 	opts   ExporterOpts
 
-	seriesCache *seriesCache
-	builder     *sampleBuilder
-	shards      []*shard
+	metricClient *monitoring.MetricClient
+	seriesCache  *seriesCache
+	builder      *sampleBuilder
+	shards       []*shard
 
 	// Channel for signaling that there may be more work items to
 	// be processed.
-	nextc chan struct{}
+	nextCh        chan struct{}
+	updateLeaseCh chan struct{}
 
+	// The external labels and as a result the lease may be updated
+	// asynchronously by configuration changes.
 	mtx            sync.Mutex
 	externalLabels labels.Labels
+	lease          leaseInterface
+
+	// Substitution hook for testing. Must only be used when holding mtx.
+	newLease func(res *monitoredres_pb.MonitoredResource, opts *lease.Options) (leaseInterface, error)
 }
 
 const (
@@ -142,12 +154,39 @@ type ExporterOpts struct {
 	// This option matches the semantics of the Prometheus federation match[]
 	// parameter.
 	Matchers Matchers
+	// Enable high-availability mode in which only one writer can export data
+	// at a time.
+	EnableHighAvailability bool
+	// A name uniquely identifiyng the replica set the exporting application
+	// is part of. Can be used to write with different leases even if all
+	// external labels are identical.
+	HighAvailabilitySet string
 
 	// Maximum batch size to use when sending data to the GCM API. The default
 	// maximum will be used if set to 0.
 	BatchSize uint
 	// Prefix under which metrics are written to GCM.
 	MetricTypePrefix string
+}
+
+func (opts *ExporterOpts) newMetricClient(ctx context.Context) (*monitoring.MetricClient, error) {
+	clientOpts := []option.ClientOption{
+		option.WithGRPCDialOption(grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor)),
+	}
+	if opts.Endpoint != "" {
+		clientOpts = append(clientOpts, option.WithEndpoint(opts.Endpoint))
+	}
+	if opts.DisableAuth {
+		clientOpts = append(clientOpts,
+			option.WithoutAuthentication(),
+			option.WithGRPCDialOption(grpc.WithInsecure()),
+			option.WithUserAgent(ClientName+"/"+Version),
+		)
+	}
+	if opts.CredentialsFile != "" {
+		clientOpts = append(clientOpts, option.WithCredentialsFile(opts.CredentialsFile))
+	}
+	return monitoring.NewMetricClient(ctx, clientOpts...)
 }
 
 // NewFlagOptions returns new exporter options that are populated through flags
@@ -170,7 +209,7 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 		Default("monitoring.googleapis.com:443").StringVar(&opts.Endpoint)
 
 	a.Flag("export.credentials-file", "Credentials file for authentication with the GCM API.").
-		StringVar(&opts.CredentialsFile)
+		Default("").StringVar(&opts.CredentialsFile)
 
 	a.Flag("export.label.project-id", fmt.Sprintf("Default project ID set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyProjectID)).
 		Default(opts.ProjectID).StringVar(&opts.ProjectID)
@@ -185,7 +224,13 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 		Default(opts.Cluster).StringVar(&opts.Cluster)
 
 	a.Flag("export.match", `A Prometheus time series matcher. Can be repeated. Every time series must match at least one of the matchers to be exported. This flag can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. (Example: --export.match='{job="prometheus"}' --export.match='{__name__=~"job:.*"})`).
-		SetValue(&opts.Matchers)
+		Default("").SetValue(&opts.Matchers)
+
+	a.Flag("export.ha.enable", "Enable high-availability mode for writes. Among writers with the same external labels (including project_id, location, cluster, ...) and set name (--export.ha.set-name) only data from one is exported at a time.").
+		Default("false").BoolVar(&opts.EnableHighAvailability)
+
+	a.Flag("export.ha.set-name", "A unique identifier for the replica set this application is part of. If the external labels of two exporting clients are identical but they export different data, setting different values allows them to write simultaniously. For example, if a cluster has a Prometheus server and a rule-evaluator with no distinguishing external labels.").
+		Default("default").StringVar(&opts.HighAvailabilitySet)
 
 	a.Flag("export.debug.metric-prefix", "Google Cloud Monitoring metric prefix to use.").
 		Default(metricTypePrefix).StringVar(&opts.MetricTypePrefix)
@@ -229,14 +274,30 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		return nil, errors.Errorf("Maximum supported batch size is %d, got %d", batchSizeMax, opts.BatchSize)
 	}
 
-	e := &Exporter{
-		logger: logger,
-		opts:   opts,
-		nextc:  make(chan struct{}, 1),
-		shards: make([]*shard, shardCount),
+	metricClient, err := opts.newMetricClient(context.Background())
+	if err != nil {
+		return nil, errors.Wrap(err, "create metric client")
 	}
-	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, e.getExternalLabels, opts.Matchers)
+	e := &Exporter{
+		logger:        logger,
+		opts:          opts,
+		metricClient:  metricClient,
+		nextCh:        make(chan struct{}, 1),
+		updateLeaseCh: make(chan struct{}, 1),
+		shards:        make([]*shard, shardCount),
+	}
+	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, opts.Matchers)
 	e.builder = &sampleBuilder{series: e.seriesCache}
+
+	e.newLease = func(res *monitoredres_pb.MonitoredResource, opts *lease.Options) (leaseInterface, error) {
+		return lease.New(
+			log.With(e.logger, "lease", e.externalLabels, "set", e.opts.HighAvailabilitySet),
+			e.opts.ProjectID,
+			e.metricClient,
+			res,
+			opts,
+		)
+	}
 
 	for i := range e.shards {
 		e.shards[i] = newShard(shardBufferSize)
@@ -257,10 +318,7 @@ const (
 
 // ApplyConfig updates the exporter state to the given configuration.
 // Must be called at least once before Export() can be used.
-func (e *Exporter) ApplyConfig(cfg *config.Config) error {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-
+func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
 	// If project_id, location and cluster were set through explicit flags or auto-discovery,
 	// set them in the external labels. Currently we don't expect a use case where one would want
 	// to override auto-discovery values via external labels.
@@ -289,12 +347,64 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) error {
 	if lset.Get(KeyLocation) == "" {
 		return errors.Errorf("no label %q set via external labels or flag", KeyLocation)
 	}
-	// New external labels invalidate the cached series conversions.
-	if !labels.Equal(e.externalLabels, lset) {
-		e.externalLabels = lset
-		e.seriesCache.invalidateAll()
+	if labels.Equal(e.externalLabels, lset) {
+		return nil
+	}
+	// New external labels possibly invalidate the cached series conversions and the monitored
+	// resource used for the lease.
+	e.mtx.Lock()
+	e.externalLabels = lset
+	e.seriesCache.forceRefresh()
+	e.mtx.Unlock()
+
+	// Signal that the lease needs replacement, which is handled in Run to coordinate
+	// the lease's background processing.
+	select {
+	case e.updateLeaseCh <- struct{}{}:
+	default:
 	}
 	return nil
+}
+
+// replaceLease replaces the existing lease, if any, with a new one and returns a stop function
+// to cancel background processing of the new lease. It must be called before another call to
+// replaceLaes is made.
+func (e *Exporter) replaceLease() (func(), error) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	if !e.opts.EnableHighAvailability {
+		e.lease = alwaysLease{}
+		return func() {}, nil
+	}
+	// Build a resource to run the lease against from the existing semantics so we namespace
+	// the replica set name appropriately by the other resource labels.
+	resource, metricLabels, err := extractResource(e.externalLabels, labels.FromStrings("gmp_lease_key", e.opts.HighAvailabilitySet))
+	if err != nil {
+		return nil, errors.Wrap(err, "build resource for lease")
+	}
+	opts := &lease.Options{
+		MetricLabels: metricLabels.Map(),
+	}
+	lease, err := e.newLease(resource, opts)
+	if err != nil {
+		return nil, errors.Wrap(err, "create lease")
+	}
+	// Clear the cache if the lease became invalid to free memory early as we need to reset
+	// state anyway when re-acquiring.
+	// We don't care about the interval as we filter in Export() in case the lease expired.
+	// If it expired once we're also guaranteed to have observed ok=false at least once.
+	lease.Register(func(start, end time.Time, ok bool) {
+		if !ok {
+			e.seriesCache.clear()
+		}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go lease.Run(ctx)
+
+	e.lease = lease
+	return cancel, nil
 }
 
 // Generally, global state is not a good approach and actively discouraged throughout
@@ -336,10 +446,24 @@ func (e *Exporter) SetLabelsByIDFunc(f func(uint64) labels.Labels) {
 	e.seriesCache.getLabelsByRef = f
 }
 
-func (e *Exporter) getExternalLabels() labels.Labels {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	return e.externalLabels
+type leaseInterface interface {
+	Range() (start, end time.Time, owned bool)
+	Register(func(start, end time.Time, owned bool))
+	Run(ctx context.Context)
+}
+
+// alwaysLease is a lease that is always owned.
+type alwaysLease struct{}
+
+func (alwaysLease) Run(ctx context.Context) {
+	<-ctx.Done()
+}
+
+func (alwaysLease) Register(func(start, end time.Time, owned bool)) {
+}
+
+func (alwaysLease) Range() (time.Time, time.Time, bool) {
+	return time.UnixMilli(math.MinInt64), time.UnixMilli(math.MaxInt64), true
 }
 
 // Export enqueues the samples to be written to Cloud Monitoring.
@@ -347,22 +471,49 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample) {
 	if e.opts.Disable {
 		return
 	}
+
+	e.mtx.Lock()
+	externalLabels := e.externalLabels
+	start, end, ok := e.lease.Range()
+	e.mtx.Unlock()
+
+	if !ok {
+		prometheusSamplesDiscarded.WithLabelValues("no-valid-lease").Inc()
+		return
+	}
+
 	for len(batch) > 0 {
 		var (
 			samples []hashedSeries
 			err     error
 		)
-		samples, batch, err = e.builder.next(metadata, batch)
+		samples, batch, err = e.builder.next(metadata, externalLabels, batch)
 		if err != nil {
 			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
 			continue
 		}
 		for _, s := range samples {
-			e.enqueue(s.hash, s.proto)
+			// Only enqueue samples for when lease is held.
+			if sampleInRange(s.proto, start, end) {
+				e.enqueue(s.hash, s.proto)
+			} else {
+				samplesDropped.WithLabelValues("not-in-lease-range").Inc()
+			}
 		}
 	}
 	// Signal that new data is available.
 	e.triggerNext()
+}
+
+func sampleInRange(sample *monitoring_pb.TimeSeries, start, end time.Time) bool {
+	// A sample has exactly one point in the time series. The start timestamp may be unset for gauges.
+	if s := sample.Points[0].Interval.StartTime; s != nil && s.AsTime().Before(start) {
+		return false
+	}
+	if sample.Points[0].Interval.EndTime.AsTime().After(end) {
+		return false
+	}
+	return true
 }
 
 func (e *Exporter) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
@@ -372,7 +523,7 @@ func (e *Exporter) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
 
 func (e *Exporter) triggerNext() {
 	select {
-	case e.nextc <- struct{}{}:
+	case e.nextCh <- struct{}{}:
 	default:
 	}
 }
@@ -383,34 +534,25 @@ const (
 	Version    = "0.1.1"
 )
 
-// Run sends exported samples to Google Cloud Monitoring.
+// Run sends exported samples to Google Cloud Monitoring. Must be called at most once.
+// ApplyConfig must be called once prior to calling Run.
 func (e *Exporter) Run(ctx context.Context) error {
-	clientOpts := []option.ClientOption{
-		option.WithGRPCDialOption(grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor)),
-	}
-	if e.opts.Endpoint != "" {
-		clientOpts = append(clientOpts, option.WithEndpoint(e.opts.Endpoint))
-	}
-	if e.opts.DisableAuth {
-		clientOpts = append(clientOpts,
-			option.WithoutAuthentication(),
-			option.WithGRPCDialOption(grpc.WithInsecure()),
-		)
-	}
-	if e.opts.CredentialsFile != "" {
-		clientOpts = append(clientOpts, option.WithCredentialsFile(e.opts.CredentialsFile))
-	}
-
-	// Identity User Agent for all gRPC requests.
-	clientOpts = append(clientOpts, option.WithUserAgent(ClientName+"/"+Version))
-
-	metricClient, err := monitoring.NewMetricClient(ctx, clientOpts...)
-	if err != nil {
-		return err
-	}
-	defer metricClient.Close()
-
+	defer e.metricClient.Close()
 	go e.seriesCache.run(ctx)
+
+	// Drain initial update if any exists.
+	select {
+	case <-e.updateLeaseCh:
+	default:
+	}
+	// Create the initial initial lease and cancel the currently running lease on exit.
+	stopLease, err := e.replaceLease()
+	if err != nil {
+		return errors.Wrap(err, "replace lease")
+	}
+	// The defer call is wrapped so it calls the most recent stop function as we may override
+	// it in the loop below.
+	defer func() { stopLease() }()
 
 	timer := time.NewTimer(batchDelayMax)
 	stopTimer := func() {
@@ -454,7 +596,7 @@ func (e *Exporter) Run(ctx context.Context) error {
 
 	// Send the currently accumulated batch to GCM asynchronously.
 	send := func() {
-		go batch.send(ctx, pendingShards, metricClient.CreateTimeSeries)
+		go batch.send(ctx, pendingShards, e.metricClient.CreateTimeSeries)
 
 		// Reset state for new batch.
 		stopTimer()
@@ -477,7 +619,7 @@ func (e *Exporter) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		// This is activated for each new sample that arrives
-		case <-e.nextc:
+		case <-e.nextCh:
 			sendIterations.Inc()
 
 			// Drain shards to fill up the batch.
@@ -511,6 +653,13 @@ func (e *Exporter) Run(ctx context.Context) error {
 				send()
 			} else {
 				timer.Reset(batchDelayMax)
+			}
+
+		case <-e.updateLeaseCh:
+			// Stop the old lease and start a new one.
+			stopLease()
+			if stopLease, err = e.replaceLease(); err != nil {
+				return errors.Wrap(err, "replace lease")
 			}
 		}
 	}
@@ -644,6 +793,9 @@ func (m *Matchers) String() string {
 }
 
 func (m *Matchers) Set(s string) error {
+	if s == "" {
+		return nil
+	}
 	ms, err := parser.ParseMetricSelector(s)
 	if err != nil {
 		return errors.Wrapf(err, "invalid metric matcher %q", s)

@@ -52,7 +52,7 @@ func (s *shard) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
 	if !s.queue.add(e) {
 		// TODO(freinartz): tail drop is not a great solution. Once we have the WAL buffer,
 		// we can just block here when enqueueing from it.
-		samplesDropped.Inc()
+		samplesDropped.WithLabelValues("queue-full").Inc()
 	}
 }
 
