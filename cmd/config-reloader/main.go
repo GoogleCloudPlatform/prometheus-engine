@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,12 +35,14 @@ import (
 
 func main() {
 	var (
+		watchedDirs      stringSlice
 		configFile       = flag.String("config-file", "", "config file to watch for changes")
 		configFileOutput = flag.String("config-file-output", "", "config file to write with interpolated environment variables")
-		watchedDir       = flag.String("watched-dir", "", "directory to watch for file changes (for rule files)")
 		reloadURLStr     = flag.String("reload-url", "http://127.0.0.1:19090/-/reload", "Prometheus reload endpoint")
 		listenAddress    = flag.String("listen-address", ":19091", "address on which to expose metrics")
 	)
+	flag.Var(&watchedDirs, "watched-dir", "directory to watch for file changes (for rule and secret files, may be repeated)")
+
 	flag.Parse()
 
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
@@ -57,12 +60,6 @@ func main() {
 		level.Error(logger).Log("msg", "parsing reloader URL failed", "err", err)
 		os.Exit(1)
 	}
-
-	var watchedDirs []string
-	if *watchedDir != "" {
-		watchedDirs = append(watchedDirs, *watchedDir)
-	}
-
 	rel := reloader.New(
 		logger,
 		metrics,
@@ -127,4 +124,15 @@ func main() {
 		level.Error(logger).Log("msg", "running reloader failed", "err", err)
 		os.Exit(1)
 	}
+}
+
+type stringSlice []string
+
+func (ss *stringSlice) String() string {
+	return strings.Join(*ss, ", ")
+}
+
+func (ss *stringSlice) Set(value string) error {
+	*ss = append(*ss, value)
+	return nil
 }

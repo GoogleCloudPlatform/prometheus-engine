@@ -381,6 +381,8 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 						Args: []string{
 							fmt.Sprintf("--config-file=%s", path.Join(configDir, configFilename)),
 							fmt.Sprintf("--config-file-output=%s", path.Join(configOutDir, configFilename)),
+							fmt.Sprintf("--watched-dir=%s", rulesDir),
+							fmt.Sprintf("--watched-dir=%s", secretsDir),
 							fmt.Sprintf("--reload-url=http://localhost:%d/-/reload", RuleEvaluatorPort),
 							fmt.Sprintf("--listen-address=:%d", RuleEvaluatorPort+1),
 						},
@@ -396,6 +398,16 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 							{
 								Name:      configOutVolumeName,
 								MountPath: configOutDir,
+							},
+							{
+								Name:      rulesVolumeName,
+								MountPath: rulesDir,
+								ReadOnly:  true,
+							},
+							{
+								Name:      secretVolumeName,
+								MountPath: secretsDir,
+								ReadOnly:  true,
 							},
 						},
 						Resources: corev1.ResourceRequirements{
