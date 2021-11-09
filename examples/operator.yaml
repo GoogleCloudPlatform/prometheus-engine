@@ -182,6 +182,7 @@ spec:
         args:
         - "--ca-selfsign=false"
         - "--public-namespace=gmp-public"
+        - "--priority-class=gmp-critical"
         - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.1-gke.1"
         - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:0.1.0-gke.0"
         - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:0.1.0-gke.0"
