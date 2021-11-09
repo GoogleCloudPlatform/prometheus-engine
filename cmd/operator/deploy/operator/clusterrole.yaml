@@ -50,6 +50,7 @@ rules:
   - daemonsets
   - validatingwebhookconfigurations
   - certificatesigningrequests
+  - clusterrules
   - rules
   - operatorconfigs
   - secrets
