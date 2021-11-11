@@ -256,6 +256,11 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 				Annotations: podAnnotations,
 			},
 			Spec: corev1.PodSpec{
+				// We want to run on every node, even with taints present.
+				Tolerations: []corev1.Toleration{
+					{Effect: "NoExecute", Operator: "Exists"},
+					{Effect: "NoSchedule", Operator: "Exists"},
+				},
 				Containers: []corev1.Container{
 					{
 						Name:  "prometheus",
@@ -379,9 +384,13 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 				},
 				ServiceAccountName: NameCollector,
 				PriorityClassName:  r.opts.PriorityClass,
-				HostNetwork:        r.opts.HostNetwork,
 			},
 		},
+	}
+	// DNS policy should be set explicitly when using hostNetwork.
+	if r.opts.HostNetwork {
+		ds.Template.Spec.HostNetwork = true
+		ds.Template.Spec.DNSPolicy = "ClusterFirstWithHostNet"
 	}
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
