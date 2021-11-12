@@ -13,20 +13,16 @@
 # limitations under the License.
 
 apiVersion: v1
-kind: ServiceAccount
+kind: Service
 metadata:
   namespace: gmp-system
-  name: collector
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: gmp-system:collector
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: gmp-system:collector
-subjects:
-- kind: ServiceAccount
-  namespace: gmp-system
-  name: collector
+  name: gmp-operator
+spec:
+  selector:
+    app.kubernetes.io/name: gmp-operator
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: gmp
+  ports:
+  - protocol: TCP
+    port: 443
+    targetPort: webhook
