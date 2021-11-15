@@ -377,7 +377,7 @@ func (e *Exporter) triggerNext() {
 	}
 }
 
-// ClientName and Version are used to identify to User Agent. TODO(maxamin): automate versioning.
+// ClientName and Version are used to identify to User Agent.
 const (
 	ClientName = "gmp-collector"
 	Version    = "v2.28.1-gmp.0"
