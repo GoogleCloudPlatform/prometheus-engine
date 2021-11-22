@@ -516,7 +516,7 @@ func NewDefaultConditions(now metav1.Time) []MonitoringCondition {
 // Rules defines Prometheus alerting and recording rules that are scoped
 // to the namespace of the resource. Only metric data from this namespace is processed
 // and all rule results have their project_id, cluster, and namespace label preserved
-// fo query processing.
+// for query processing.
 // The location, if not preserved by the rule, is set to the cluster's location.
 //
 // +genclient

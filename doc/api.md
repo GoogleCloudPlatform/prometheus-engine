@@ -20,6 +20,8 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [AlertingSpec](#alertingspec)
 * [AlertmanagerEndpoints](#alertmanagerendpoints)
 * [Authorization](#authorization)
+* [ClusterRules](#clusterrules)
+* [ClusterRulesList](#clusterruleslist)
 * [CollectionSpec](#collectionspec)
 * [ExportFilters](#exportfilters)
 * [LabelMapping](#labelmapping)
@@ -86,6 +88,32 @@ Authorization specifies a subset of the Authorization struct, that is safe for u
 | ----- | ----------- | ------ | -------- |
 | type | Set the authentication type. Defaults to Bearer, Basic will cause an error | string | false |
 | credentials | The secret's key that contains the credentials of the request | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
+
+[Back to TOC](#table-of-contents)
+
+## ClusterRules
+
+ClusterRules defines Prometheus alerting and recording rules that are scoped to the current cluster. Only metric data from the current cluster is processed and all rule results have their project_id and cluster label preserved for query processing. The location, if not preserved by the rule, is set to the cluster's location
+
+
+<em>appears in: [ClusterRulesList](#clusterruleslist)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
+| spec | Specification of desired Pod selection for target discovery by Prometheus. | [RulesSpec](#rulesspec) | true |
+| status | Most recently observed status of the resource. | [RulesStatus](#rulesstatus) | true |
+
+[Back to TOC](#table-of-contents)
+
+## ClusterRulesList
+
+ClusterRulesList is a list of ClusterRules.
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#listmeta-v1-meta) | false |
+| items |  | [][ClusterRules](#clusterrules) | true |
 
 [Back to TOC](#table-of-contents)
 
@@ -281,7 +309,7 @@ RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/pr
 
 ## Rules
 
-Rules defines Prometheus alerting and recording rules.
+Rules defines Prometheus alerting and recording rules that are scoped to the namespace of the resource. Only metric data from this namespace is processed and all rule results have their project_id, cluster, and namespace label preserved for query processing. The location, if not preserved by the rule, is set to the cluster's location.
 
 
 <em>appears in: [RulesList](#ruleslist)</em>
@@ -310,11 +338,10 @@ RulesList is a list of Rules.
 RulesSpec contains specification parameters for a Rules resource.
 
 
-<em>appears in: [Rules](#rules)</em>
+<em>appears in: [ClusterRules](#clusterrules), [Rules](#rules)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| scope | The scope at which to evaluate rules. Must be \"Cluster\" or \"Namespace\". It acts as safety mechanism against unintentionally having rules query more data than intended without requiring adjusting all selectors of the PromQL expression.\n\nAt the Cluster scope only metrics with target labels \"project_id\" and \"cluster\" matching the current one are used as input to rules. At the Namespace scope they are further restricted by the namespace the Rules resource is in. | Scope | true |
 | groups | A list of Prometheus rule groups. | [][RuleGroup](#rulegroup) | true |
 
 [Back to TOC](#table-of-contents)

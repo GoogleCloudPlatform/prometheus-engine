@@ -87,8 +87,9 @@ docker_registry_auth
 
 # Need to ensure namespace is deployed first explicitly.
 echo ">>> deploying static resources"
-kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/cmd/operator/deploy/operator/operator.yaml
-kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/cmd/operator/deploy/operator/
+kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/examples/setup.yaml
+kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/examples/operator.yaml
+kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/examples/rule-evaluator.yaml
 kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/cmd/operator/deploy/ --recursive
 
 echo ">>> executing gmp e2e tests"

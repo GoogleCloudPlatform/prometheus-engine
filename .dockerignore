@@ -2,6 +2,8 @@
 !go.mod
 !go.sum
 !cmd
+!doc
+!examples
 !hack
 !pkg
 !third_party
