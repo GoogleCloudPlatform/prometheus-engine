@@ -55,6 +55,10 @@ codegen:     ## Refresh generated CRD go interfaces.
 crds:        ## Refresh CRD OpenAPI YAML specs.
 	./hack/update-crdgen.sh
 
+.PHONY: examples
+examples:
+	./hack/update-examples.sh
+
 docgen:      ## Refresh API markdown documentation.
 	mkdir -p doc
 	which po-docgen || (go get github.com/prometheus-operator/prometheus-operator && go install -mod=mod github.com/prometheus-operator/prometheus-operator/cmd/po-docgen)

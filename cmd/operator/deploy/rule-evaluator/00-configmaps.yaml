@@ -12,12 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-rule_files:
-- "rules.yaml"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rule-evaluator
+  labels:
+    app.kubernetes.io/name: rule-evaluator
+data:
+  config.yaml: |
+    global:
+      external_labels: {}
+      evaluation_interval: 60s
 
-# Send firing alerts to a static Alertmanager running locally.
-alerting:
-  alertmanagers:
-  - static_configs:
-    - targets:
-      - localhost:9093
+    rule_files:
+    - "/etc/rules/*.yaml"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rules
+  labels:
+    app.kubernetes.io/name: rule-evaluator
+data:
+  rules.yaml: |
+    groups:
+    - name: example
+      interval: 10s
+      rules:
+      - record: job:up:sum
+        expr: sum without(instance) (up)
+      - alert: AlwaysFiring
+        expr: vector(1)

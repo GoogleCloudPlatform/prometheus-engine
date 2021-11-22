@@ -13,17 +13,11 @@
 # limitations under the License.
 
 apiVersion: v1
-kind: ConfigMap
+kind: Namespace
 metadata:
-  namespace: gmp-system
-  name: rule-evaluator
-  labels:
-    app.kubernetes.io/name: rule-evaluator
-data:
-  config.yaml: |
-    global:
-      external_labels: {}
-      evaluation_interval: 60s
-
-    rule_files:
-    - "/etc/rules/*.yaml"
+  name: gmp-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gmp-public
