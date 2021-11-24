@@ -18,7 +18,9 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"path/filepath"
+	"strconv"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -87,7 +89,6 @@ type Operator struct {
 	opts       Options
 	kubeClient kubernetes.Interface
 	manager    manager.Manager
-	certDir    string
 }
 
 // Options for the Operator.
@@ -199,8 +200,18 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 	if err := monitoringv1alpha1.AddToScheme(sc); err != nil {
 		return nil, errors.Wrap(err, "add monitoringv1alpha1 scheme")
 	}
+	host, portStr, err := net.SplitHostPort(opts.ListenAddr)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid listen address")
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid port")
+	}
 	mgr, err := ctrl.NewManager(clientConfig, manager.Options{
 		Scheme: sc,
+		Host:   host,
+		Port:   port,
 		// Don't run a metrics server with the manager. Metrics are being served
 		// explicitly in the main routine.
 		MetricsBindAddress: "0",
@@ -219,7 +230,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 		opts:       opts,
 		kubeClient: kubeClient,
 		manager:    mgr,
-		certDir:    certDir,
 	}
 	return op, nil
 }
@@ -253,10 +263,10 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 		}
 	}
 
-	if err := ioutil.WriteFile(filepath.Join(o.certDir, "tls.crt"), crt, 0666); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(o.manager.GetWebhookServer().CertDir, "tls.crt"), crt, 0666); err != nil {
 		return errors.Wrap(err, "create cert file")
 	}
-	if err := ioutil.WriteFile(filepath.Join(o.certDir, "tls.key"), key, 0666); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(o.manager.GetWebhookServer().CertDir, "tls.key"), key, 0666); err != nil {
 		return errors.Wrap(err, "create key file")
 	}
 
@@ -265,7 +275,7 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 	// Idempotently request validation webhook spec with caBundle and endpoints.
 	_, err = upsertValidatingWebhookConfig(ctx,
 		o.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
-		validatingWebhookConfig(NameOperator, o.opts.OperatorNamespace, crt,
+		validatingWebhookConfig(NameOperator, o.opts.OperatorNamespace, int32(o.manager.GetWebhookServer().Port), crt,
 			[]pathResource{{path: podEp, resource: monitoringv1alpha1.PodMonitoringResource()}}, ors...))
 	if err != nil {
 		return err

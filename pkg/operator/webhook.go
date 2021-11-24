@@ -33,7 +33,7 @@ type pathResource struct {
 // validatingWebhookConfig returns a config for a webhook that listens for
 // CREATE and UPDATE on provided resources.
 // The default policy for any failed resource admission is to Ignore.
-func validatingWebhookConfig(name, namespace string, caBundle []byte, prs []pathResource, ors ...metav1.OwnerReference) *arv1.ValidatingWebhookConfiguration {
+func validatingWebhookConfig(name, namespace string, port int32, caBundle []byte, prs []pathResource, ors ...metav1.OwnerReference) *arv1.ValidatingWebhookConfiguration {
 	var (
 		vwc = &arv1.ValidatingWebhookConfiguration{
 			// Note: this is a "namespace-less" resource.
@@ -60,6 +60,7 @@ func validatingWebhookConfig(name, namespace string, caBundle []byte, prs []path
 						Name:      name,
 						Namespace: namespace,
 						Path:      &path,
+						Port:      &port,
 					},
 					CABundle: caBundle,
 				},
