@@ -23,6 +23,7 @@ import (
 	monitoring "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	arv1 "k8s.io/api/admissionregistration/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -31,11 +32,8 @@ func TestValidatingWebhookConfig(t *testing.T) {
 		timeout     = 3 * time.Second
 		client      = fake.NewSimpleClientset()
 		ctx, cancel = context.WithTimeout(context.Background(), timeout)
-		prs         = []pathResource{
-			{
-				path:     "/podmonitorings/v1alpha1/validate",
-				resource: v1alpha1.PodMonitoringResource(),
-			},
+		gvrs        = []metav1.GroupVersionResource{
+			v1alpha1.PodMonitoringResource(),
 		}
 	)
 
@@ -59,7 +57,7 @@ func TestValidatingWebhookConfig(t *testing.T) {
 		t.Run(c.doc, func(t *testing.T) {
 			vwCfg, err := upsertValidatingWebhookConfig(ctx,
 				client.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
-				validatingWebhookConfig("gmp-operator", "gmp-system", 12345, c.caBundle, prs))
+				validatingWebhookConfig("gmp-operator", "gmp-system", 12345, c.caBundle, gvrs))
 			if err != nil {
 				t.Fatalf("upserting validtingwebhookconfig: %s", err)
 			}
@@ -74,7 +72,7 @@ func TestValidatingWebhookConfig(t *testing.T) {
 				t.Errorf("unexpected webhook config namespace: %s", ns)
 			} else if port := wh.ClientConfig.Service.Port; *port != 12345 {
 				t.Errorf("unexpected webhook config port: %v", port)
-			} else if path := *wh.ClientConfig.Service.Path; path != "/podmonitorings/v1alpha1/validate" {
+			} else if path := *wh.ClientConfig.Service.Path; path != "/validate/monitoring.googleapis.com/v1alpha1/podmonitorings" {
 				t.Errorf("unexpected webhook path: %s", path)
 			} else if crt := wh.ClientConfig.CABundle; !bytes.Equal(crt, c.caBundle) {
 				t.Errorf("unexpected caBundle: %v", crt)

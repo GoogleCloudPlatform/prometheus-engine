@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
-	scheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
@@ -275,20 +275,27 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 		return errors.Wrap(err, "create key file")
 	}
 
-	const podEp = "/podmonitorings/v1alpha1/validate"
-
+	whCfg := validatingWebhookConfig(
+		NameOperator,
+		o.opts.OperatorNamespace,
+		int32(o.manager.GetWebhookServer().Port),
+		crt,
+		[]metav1.GroupVersionResource{
+			monitoringv1alpha1.PodMonitoringResource(),
+		},
+		ors...,
+	)
 	// Idempotently request validation webhook spec with caBundle and endpoints.
-	_, err = upsertValidatingWebhookConfig(ctx,
-		o.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
-		validatingWebhookConfig(NameOperator, o.opts.OperatorNamespace, int32(o.manager.GetWebhookServer().Port), crt,
-			[]pathResource{{path: podEp, resource: monitoringv1alpha1.PodMonitoringResource()}}, ors...))
+	_, err = upsertValidatingWebhookConfig(ctx, o.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(), whCfg)
 	if err != nil {
 		return err
 	}
 
 	s := o.manager.GetWebhookServer()
-	s.Register(podEp, admission.ValidatingWebhookFor(&monitoringv1alpha1.PodMonitoring{}))
-
+	s.Register(
+		validatePath(monitoringv1alpha1.PodMonitoringResource()),
+		admission.ValidatingWebhookFor(&monitoringv1alpha1.PodMonitoring{}),
+	)
 	return nil
 }
 

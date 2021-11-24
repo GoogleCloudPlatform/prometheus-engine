@@ -25,15 +25,14 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/admissionregistration/v1"
 )
 
-type pathResource struct {
-	path     string
-	resource metav1.GroupVersionResource
+func validatePath(gvr metav1.GroupVersionResource) string {
+	return fmt.Sprintf("/validate/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
 }
 
 // validatingWebhookConfig returns a config for a webhook that listens for
 // CREATE and UPDATE on provided resources.
 // The default policy for any failed resource admission is to Ignore.
-func validatingWebhookConfig(name, namespace string, port int32, caBundle []byte, prs []pathResource, ors ...metav1.OwnerReference) *arv1.ValidatingWebhookConfiguration {
+func validatingWebhookConfig(name, namespace string, port int32, caBundle []byte, gvrs []metav1.GroupVersionResource, ors ...metav1.OwnerReference) *arv1.ValidatingWebhookConfiguration {
 	var (
 		vwc = &arv1.ValidatingWebhookConfiguration{
 			// Note: this is a "namespace-less" resource.
@@ -46,15 +45,13 @@ func validatingWebhookConfig(name, namespace string, port int32, caBundle []byte
 		sideEffects = arv1.SideEffectClassNone
 	)
 
-	// Create webhook for each endpoint.
-	for _, pr := range prs {
-		path := pr.path
-		group := pr.resource.Group
-		ver := pr.resource.Version
-		res := pr.resource.Resource
+	// Add an entry for each validator.
+	for _, gvr := range gvrs {
+		path := validatePath(gvr)
+
 		vwc.Webhooks = append(vwc.Webhooks,
 			arv1.ValidatingWebhook{
-				Name: fmt.Sprintf("%s.%s.%s.svc", res, name, namespace),
+				Name: fmt.Sprintf("%s.%s.%s.svc", gvr.Resource, name, namespace),
 				ClientConfig: arv1.WebhookClientConfig{
 					Service: &arv1.ServiceReference{
 						Name:      name,
@@ -68,9 +65,9 @@ func validatingWebhookConfig(name, namespace string, port int32, caBundle []byte
 					{
 						Operations: []arv1.OperationType{arv1.Create, arv1.Update},
 						Rule: arv1.Rule{
-							APIGroups:   []string{group},
-							APIVersions: []string{ver},
-							Resources:   []string{res},
+							APIGroups:   []string{gvr.Group},
+							APIVersions: []string{gvr.Version},
+							Resources:   []string{gvr.Resource},
 						},
 					},
 				},
