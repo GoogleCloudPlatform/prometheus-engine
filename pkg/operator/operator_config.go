@@ -303,9 +303,14 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 	if r.opts.CloudMonitoringEndpoint != "" {
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
 	}
-	if spec.QueryProjectID != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", spec.QueryProjectID))
+	// If no explicit project ID is set, use the one provided to the operator. On GKE the rule-evaluator
+	// can also auto-detect the cluster's project but this won't work in other Kubernetes environments.
+	queryProjectID := r.opts.ProjectID
+	if spec.QueryProjectID == "" {
+		queryProjectID = spec.QueryProjectID
 	}
+	evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", queryProjectID))
+
 	if spec.Credentials != nil {
 		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: spec.Credentials}))
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.credentials-file=%s", p))
