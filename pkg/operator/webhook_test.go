@@ -59,7 +59,7 @@ func TestValidatingWebhookConfig(t *testing.T) {
 		t.Run(c.doc, func(t *testing.T) {
 			vwCfg, err := upsertValidatingWebhookConfig(ctx,
 				client.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
-				validatingWebhookConfig("gmp-operator", "gmp-system", c.caBundle, prs))
+				validatingWebhookConfig("gmp-operator", "gmp-system", 12345, c.caBundle, prs))
 			if err != nil {
 				t.Fatalf("upserting validtingwebhookconfig: %s", err)
 			}
@@ -72,6 +72,8 @@ func TestValidatingWebhookConfig(t *testing.T) {
 				t.Errorf("unexpected webhook config name: %s", name)
 			} else if ns := wh.ClientConfig.Service.Namespace; ns != "gmp-system" {
 				t.Errorf("unexpected webhook config namespace: %s", ns)
+			} else if port := wh.ClientConfig.Service.Port; *port != 12345 {
+				t.Errorf("unexpected webhook config port: %v", port)
 			} else if path := *wh.ClientConfig.Service.Path; path != "/podmonitorings/v1alpha1/validate" {
 				t.Errorf("unexpected webhook path: %s", path)
 			} else if crt := wh.ClientConfig.CABundle; !bytes.Equal(crt, c.caBundle) {
