@@ -66,7 +66,7 @@ func provisionCSR(client kubernetes.Interface, fqdn string) (string, []byte, err
 	if err != nil {
 		return "", nil, err
 	}
-	name, _, err := csr.RequestCertificate(client, csrBytes, fqdn, signerName, usages, keyPair)
+	name, _, err := csr.RequestCertificate(client, csrBytes, fqdn, signerName, nil, usages, keyPair)
 	if err != nil {
 		return name, nil, err
 	}

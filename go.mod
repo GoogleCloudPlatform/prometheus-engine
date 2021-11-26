@@ -35,22 +35,21 @@ require (
 	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
 	github.com/thanos-io/thanos v0.17.2
 	github.com/uber/jaeger-client-go v2.29.1+incompatible // indirect
-	go.uber.org/zap v1.17.0
+	go.uber.org/zap v1.19.0
 	google.golang.org/api v0.48.0
 	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
-	k8s.io/api v0.21.2
-	k8s.io/apimachinery v0.21.2
+	k8s.io/api v0.22.2
+	k8s.io/apimachinery v0.22.2
 	k8s.io/client-go v12.0.0+incompatible
-	k8s.io/code-generator v0.21.2
-	k8s.io/klog/v2 v2.9.0 // indirect
-	sigs.k8s.io/controller-runtime v0.9.2
+	k8s.io/code-generator v0.22.2
+	sigs.k8s.io/controller-runtime v0.10.3
 	sigs.k8s.io/yaml v1.2.0
 )
 
 // Dependency resolution fails without adding this override. It's not entirely
 // understandable why but this appears to sufficiently fix it.
-replace k8s.io/client-go => k8s.io/client-go v0.21.2
+replace k8s.io/client-go => k8s.io/client-go v0.22.2
