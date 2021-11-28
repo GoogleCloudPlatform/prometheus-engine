@@ -37,6 +37,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -711,4 +712,25 @@ func pathForSelector(namespace string, scm *monitoringv1alpha1.SecretOrConfigMap
 		return fmt.Sprintf("%s_%s_%s_%s", "secret", namespace, scm.Secret.Name, scm.Secret.Key)
 	}
 	return ""
+}
+
+type operatorConfigValidator struct {
+	namespace string
+}
+
+func (v *operatorConfigValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
+	oc := o.(*monitoringv1alpha1.OperatorConfig)
+
+	if oc.Namespace != v.namespace || oc.Name != NameOperatorConfig {
+		return errors.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
+	}
+	return nil
+}
+
+func (v *operatorConfigValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) error {
+	return v.ValidateCreate(ctx, o)
+}
+
+func (v *operatorConfigValidator) ValidateDelete(ctx context.Context, o runtime.Object) error {
+	return nil
 }
