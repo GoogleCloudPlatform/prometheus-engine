@@ -55,6 +55,16 @@ func PodMonitoringResource() metav1.GroupVersionResource {
 	}
 }
 
+// OperatorConfigResource returns a OperatorConfig GroupVersionResource.
+// This can be used to enforce API types.
+func OperatorConfigResource() metav1.GroupVersionResource {
+	return metav1.GroupVersionResource{
+		Group:    monitoring.GroupName,
+		Version:  Version,
+		Resource: "operatorconfigs",
+	}
+}
+
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
