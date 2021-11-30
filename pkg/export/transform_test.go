@@ -55,7 +55,7 @@ func TestSampleBuilder(t *testing.T) {
 		doc        string
 		metadata   MetadataFunc
 		series     seriesMap
-		samples    []record.RefSample
+		samples    [][]record.RefSample
 		matchers   Matchers
 		wantSeries []*monitoring_pb.TimeSeries
 		wantFail   bool
@@ -68,9 +68,9 @@ func TestSampleBuilder(t *testing.T) {
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
-			samples: []record.RefSample{
-				{Ref: 123, T: 3000, V: 0.6},
-				{Ref: 123, T: 4000, V: math.Inf(1)},
+			samples: [][]record.RefSample{
+				{{Ref: 123, T: 3000, V: 0.6}},
+				{{Ref: 123, T: 4000, V: math.Inf(1)}},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				{
@@ -136,9 +136,9 @@ func TestSampleBuilder(t *testing.T) {
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
-			samples: []record.RefSample{
-				{Ref: 123, T: 3000, V: 0.6},
-				{Ref: 123, T: 4000, V: 100},
+			samples: [][]record.RefSample{
+				{{Ref: 123, T: 3000, V: 0.6}},
+				{{Ref: 123, T: 4000, V: 100}},
 			},
 			//
 			wantSeries: []*monitoring_pb.TimeSeries{
@@ -233,11 +233,11 @@ func TestSampleBuilder(t *testing.T) {
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
 			},
-			samples: []record.RefSample{
-				{Ref: 123, T: 2000, V: 5.5},
-				{Ref: 123, T: 3000, V: 8},
-				{Ref: 123, T: 4000, V: 9},
-				{Ref: 123, T: 5000, V: 7},
+			samples: [][]record.RefSample{
+				{{Ref: 123, T: 2000, V: 5.5}},
+				{{Ref: 123, T: 3000, V: 8}},
+				{{Ref: 123, T: 4000, V: 9}},
+				{{Ref: 123, T: 5000, V: 7}},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				// First sample skipped to initialize reset handling.
@@ -337,12 +337,16 @@ func TestSampleBuilder(t *testing.T) {
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
 			},
-			samples: []record.RefSample{
-				{Ref: 123, T: 2000, V: 5.5},
-				{Ref: 123, T: 2000, V: 5.5}, // duplicate
-				{Ref: 123, T: 4000, V: 9},
-				{Ref: 123, T: 5000, V: 7},
-				{Ref: 123, T: 5000, V: 7}, // duplicate
+			samples: [][]record.RefSample{
+				{
+					{Ref: 123, T: 2000, V: 5.5},
+					{Ref: 123, T: 2000, V: 5.5}, // duplicate
+				}, {
+					{Ref: 123, T: 4000, V: 9},
+				}, {
+					{Ref: 123, T: 5000, V: 7},
+					{Ref: 123, T: 5000, V: 7}, // duplicate
+				},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				// First sample skipped to initialize reset handling.
@@ -444,9 +448,9 @@ func TestSampleBuilder(t *testing.T) {
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
 			},
-			samples: []record.RefSample{
-				{Ref: 123, T: 2000, V: 5.5},
-				{Ref: 123, T: 1000, V: 5.5}, // drop old timestamp.
+			samples: [][]record.RefSample{
+				{{Ref: 123, T: 2000, V: 5.5}},
+				{{Ref: 123, T: 1000, V: 5.5}}, // drop old timestamp.
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				// First sample skipped to initialize reset handling.
@@ -463,13 +467,17 @@ func TestSampleBuilder(t *testing.T) {
 				3: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
 				4: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "quantile", "0.9"),
 			},
-			samples: []record.RefSample{
-				{Ref: 1, T: 2000, V: 1},
-				{Ref: 2, T: 2000, V: 2},
-				{Ref: 1, T: 3000, V: 21},
-				{Ref: 3, T: 3000, V: 3},
-				{Ref: 3, T: 4000, V: 4},
-				{Ref: 4, T: 4000, V: 4},
+			samples: [][]record.RefSample{
+				{
+					{Ref: 1, T: 2000, V: 1},
+					{Ref: 2, T: 2000, V: 2},
+				}, {
+					{Ref: 1, T: 3000, V: 21},
+					{Ref: 3, T: 3000, V: 3},
+				}, {
+					{Ref: 3, T: 4000, V: 4},
+					{Ref: 4, T: 4000, V: 4},
+				},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				{
@@ -595,13 +603,17 @@ func TestSampleBuilder(t *testing.T) {
 				3: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
 				4: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "quantile", "0.9"),
 			},
-			samples: []record.RefSample{
-				{Ref: 1, T: 2000, V: 1},
-				{Ref: 2, T: 2000, V: 2},
-				{Ref: 3, T: 3000, V: 3},
-				{Ref: 3, T: 3000, V: 3}, // duplicate
-				{Ref: 3, T: 4000, V: 4},
-				{Ref: 4, T: 4000, V: 4},
+			samples: [][]record.RefSample{
+				{
+					{Ref: 1, T: 2000, V: 1},
+					{Ref: 2, T: 2000, V: 2},
+				}, {
+					{Ref: 3, T: 3000, V: 3},
+					{Ref: 3, T: 3000, V: 3}, // duplicate
+				}, {
+					{Ref: 3, T: 4000, V: 4},
+					{Ref: 4, T: 4000, V: 4},
+				},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				{
@@ -708,36 +720,53 @@ func TestSampleBuilder(t *testing.T) {
 				8:  labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_sum"),
 				9:  labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_count"),
 				10: labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_bucket", "le", "2.5"),
+				11: labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_bucket", "le", "+Inf"),
+				// An incomplete histogram.
+				12: labels.FromStrings("job", "job1", "instance", "instance1", "a", "c", "__name__", "metric1_sum"),
+				13: labels.FromStrings("job", "job1", "instance", "instance1", "a", "c", "__name__", "metric1_count"),
 				// Metric with prefix and suffix matching the previous histograms but actually a distinct metric.
-				11: labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_a_count"),
+				14: labels.FromStrings("job", "job1", "instance", "instance1", "a", "b", "__name__", "metric1_a_count"),
 			},
-			samples: []record.RefSample{
-				// Mix up order of the series to test bucket sorting.
+			samples: [][]record.RefSample{
 				// First sample set, should be skipped by reset handling.
-				{Ref: 3, T: 1000, V: 2},    // 0.1
-				{Ref: 5, T: 1000, V: 6},    // 1
-				{Ref: 6, T: 1000, V: 8},    // 2.5
-				{Ref: 7, T: 1000, V: 10},   // inf
-				{Ref: 1, T: 1000, V: 55.1}, // sum
-				{Ref: 4, T: 1000, V: 5},    // 0.5
-				{Ref: 2, T: 1000, V: 10},   // count
+				// The buckets must be in ascending order for an individual histogram but otherwise
+				// no order or grouping constraints apply for series of a given histogram metric.
+				{
+					{Ref: 8, T: 1000, V: 100},  // hist2, sum
+					{Ref: 1, T: 1000, V: 55.1}, // hist1, sum
+					{Ref: 3, T: 1000, V: 2},    // hist1, 0.1
+					{Ref: 4, T: 1000, V: 5},    // hist1, 0.5
+					{Ref: 5, T: 1000, V: 6},    // hist1, 1
+					{Ref: 6, T: 1000, V: 8},    // hist1, 2.5
+					{Ref: 7, T: 1000, V: 10},   // hist1, inf
+					{Ref: 9, T: 1000, V: 10},   // hist2, count
+					{Ref: 2, T: 1000, V: 10},   // hist1, count
+					{Ref: 10, T: 1000, V: 10},  // hist2, 2.5
+					{Ref: 11, T: 1000, V: 10},  // hist2, inf
+					{Ref: 12, T: 1000, V: 10},  // hist3, sum
+					{Ref: 13, T: 1000, V: 10},  // hist3, count
+				},
 				// Second sample set should actually be emitted.
-				{Ref: 2, T: 2000, V: 21},    // count
-				{Ref: 3, T: 2000, V: 4},     // 0.1
-				{Ref: 6, T: 2000, V: 15},    // 2.5
-				{Ref: 5, T: 2000, V: 11},    // 1
-				{Ref: 1, T: 2000, V: 123.4}, // sum
-				{Ref: 7, T: 2000, V: 21},    // inf
-				{Ref: 4, T: 2000, V: 9},     // 0.5
-				// New histogram with different labels – should still work.
-				{Ref: 8, T: 1000, V: 100},
-				{Ref: 9, T: 1000, V: 10},
-				{Ref: 10, T: 1000, V: 10},
-				{Ref: 8, T: 2000, V: 115},
-				{Ref: 9, T: 2000, V: 13},
-				{Ref: 10, T: 2000, V: 10},
-				// Different metric with prefix common with previous histograms.
-				{Ref: 11, T: 1000, V: 3},
+				{
+					// Second samples for histograms should produce a distribution.
+					{Ref: 3, T: 2000, V: 4},     // hist1, 0.1
+					{Ref: 2, T: 2000, V: 21},    // hist1, count
+					{Ref: 1, T: 2000, V: 123.4}, // hist1, sum
+					{Ref: 4, T: 2000, V: 9},     // hist1, 0.5
+					{Ref: 5, T: 2000, V: 11},    // hist1, 1
+					{Ref: 6, T: 2000, V: 15},    // hist1, 2.5
+					{Ref: 7, T: 2000, V: 21},    // hist1, inf
+					{Ref: 10, T: 2000, V: 10},   // hist2, 2.5
+					{Ref: 11, T: 2000, V: 10},   // hist2, inf
+					{Ref: 9, T: 2000, V: 13},    // hist2, count
+					{Ref: 8, T: 2000, V: 115},   // hist2, sum
+					// Incomplete histogram should not produce a sample.
+					{Ref: 12, T: 2000, V: 10}, // hist3, sum
+					{Ref: 13, T: 2000, V: 10}, // hist3, count
+					// Different metric with prefix common with previous histograms must be detected
+					// as the gauge it is.
+					{Ref: 14, T: 1000, V: 3},
+				},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				// 0: skipped by reset handling.
@@ -820,7 +849,7 @@ func TestSampleBuilder(t *testing.T) {
 											},
 										},
 									},
-									BucketCounts: []int64{0},
+									BucketCounts: []int64{0, 0},
 								},
 							},
 						},
@@ -863,13 +892,16 @@ func TestSampleBuilder(t *testing.T) {
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
 				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
 			},
-			samples: []record.RefSample{
+			samples: [][]record.RefSample{
 				// Add two samples for each series as the first ones are discarded for reset
 				// handling regardless of the zero bucket count.
-				{Ref: 1, T: 1000, V: 5},
-				{Ref: 2, T: 1000, V: 2},
-				{Ref: 1, T: 2000, V: 5},
-				{Ref: 2, T: 2000, V: 2},
+				{
+					{Ref: 1, T: 1000, V: 5},
+					{Ref: 2, T: 1000, V: 2},
+				}, {
+					{Ref: 1, T: 2000, V: 5},
+					{Ref: 2, T: 2000, V: 2},
+				},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				// skipped by reset handling.
@@ -885,15 +917,18 @@ func TestSampleBuilder(t *testing.T) {
 				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
 				3: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "+Inf"),
 			},
-			samples: []record.RefSample{
+			samples: [][]record.RefSample{
 				// Add two samples for each series as the first ones are discarded for reset
 				// handling regardless of the zero bucket bounds count.
-				{Ref: 1, T: 1000, V: 5},
-				{Ref: 2, T: 1000, V: 2},
-				{Ref: 3, T: 1000, V: 2},
-				{Ref: 1, T: 2000, V: 5},
-				{Ref: 2, T: 2000, V: 2},
-				{Ref: 3, T: 2000, V: 2},
+				{
+					{Ref: 1, T: 1000, V: 5},
+					{Ref: 2, T: 1000, V: 2},
+					{Ref: 3, T: 1000, V: 2},
+				}, {
+					{Ref: 1, T: 2000, V: 5},
+					{Ref: 2, T: 2000, V: 2},
+					{Ref: 3, T: 2000, V: 2},
+				},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				// skipped by reset handling.
@@ -905,8 +940,8 @@ func TestSampleBuilder(t *testing.T) {
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
-			samples: []record.RefSample{
-				{Ref: 1, T: 1000, V: 1},
+			samples: [][]record.RefSample{
+				{{Ref: 1, T: 1000, V: 1}},
 			},
 			// If the metadata is nil we expect the series to be converted to a gauge as
 			// metadata-less series are produced by rules and any processing result of type gauge.
@@ -945,8 +980,8 @@ func TestSampleBuilder(t *testing.T) {
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
 			},
-			samples: []record.RefSample{
-				{Ref: 1, T: 1000, V: 1},
+			samples: [][]record.RefSample{
+				{{Ref: 1, T: 1000, V: 1}},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{},
 		}, {
@@ -960,13 +995,13 @@ func TestSampleBuilder(t *testing.T) {
 				3: labels.FromStrings("job", "job2", "instance", "instance1", "__name__", "metric1", "k1", "v3"),
 				4: labels.FromStrings("job", "job2", "instance", "instance1", "__name__", "metric1", "k1", "v4"),
 			},
-			samples: []record.RefSample{
+			samples: [][]record.RefSample{{
 				{Ref: 1, T: 1000, V: 1},
 				{Ref: 1, T: 2000, V: 2},
 				{Ref: 2, T: 1000, V: 1},
 				{Ref: 3, T: 1000, V: 1},
 				{Ref: 4, T: 1000, V: 1},
-			},
+			}},
 			// Series must pass either of the matchers
 			matchers: Matchers{
 				labels.Selector{
@@ -1074,29 +1109,32 @@ func TestSampleBuilder(t *testing.T) {
 				return c.series[ref]
 			}
 
-			b := &sampleBuilder{series: cache}
-
 			// Process entire input sample batch.
 			var result []*monitoring_pb.TimeSeries
 
-			for k, batch := 0, c.samples; len(batch) > 0; k++ {
-				out, tail, err := b.next(c.metadata, batch)
-				if err == nil && c.wantFail {
-					t.Fatal("expected error but got none")
+			for _, batch := range c.samples {
+				b := newSampleBuilder(cache)
+
+				for k := 0; len(batch) > 0; k++ {
+					out, tail, err := b.next(c.metadata, batch)
+					if err == nil && c.wantFail {
+						t.Fatal("expected error but got none")
+					}
+					if err != nil && !c.wantFail {
+						t.Fatalf("unexpected error: %s", err)
+					}
+					if err != nil {
+						break
+					}
+					if len(tail) >= len(batch) {
+						t.Fatalf("no sample was consumed")
+					}
+					for _, s := range out {
+						result = append(result, s.proto)
+					}
+					batch = tail
 				}
-				if err != nil && !c.wantFail {
-					t.Fatalf("unexpected error: %s", err)
-				}
-				if err != nil {
-					break
-				}
-				if len(tail) >= len(batch) {
-					t.Fatalf("no sample was consumed")
-				}
-				for _, s := range out {
-					result = append(result, s.proto)
-				}
-				batch = tail
+				b.close()
 			}
 			if diff := cmp.Diff(c.wantSeries, result, protocmp.Transform(), cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("unexpected result (-want, +got): %v", diff)
