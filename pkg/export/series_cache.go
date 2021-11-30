@@ -80,8 +80,6 @@ type seriesCacheEntry struct {
 	protos cachedProtos
 	// The well-known Prometheus metric name suffix if any.
 	suffix metricSuffix
-	// A hash of the series desccriptor
-	hash uint64
 	// Timestamp after which to refresh the cached state.
 	nextRefresh int64
 	// Unix timestamp at which the we last used the entry.

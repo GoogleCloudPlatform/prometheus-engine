@@ -16,9 +16,9 @@ package export
 
 import (
 	"math"
-	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -45,6 +45,21 @@ var (
 
 type sampleBuilder struct {
 	series *seriesCache
+
+	dists map[uint64]*distribution
+}
+
+func newSampleBuilder(c *seriesCache) *sampleBuilder {
+	return &sampleBuilder{
+		series: c,
+		dists:  make(map[uint64]*distribution, 128),
+	}
+}
+
+func (b *sampleBuilder) close() {
+	for _, d := range b.dists {
+		putDistribution(d)
+	}
 }
 
 // MetricMetadata is a copy of MetricMetadata in Prometheus's scrape package.
@@ -192,8 +207,10 @@ func (b *sampleBuilder) next(metadata MetadataFunc, samples []record.RefSample) 
 				}
 			}
 		}
-		// If we just saw the first sample for the cumulative, we initialized the reset timestamp
-		// and couldn't build a sample yet.
+		// We may not have produced a value if:
+		//
+		//   1. It was the first sample of a cumulative and we only initialized  the reset timestamp with it.
+		//   2. We could not observe all necessary series to build a full distribution sample.
 		if value != nil {
 			ts := *c.proto
 
@@ -218,163 +235,114 @@ func getTimestamp(t int64) *timestamp_pb.Timestamp {
 	}
 }
 
+// A memory pool for distributions.
+var distributionPool = sync.Pool{
+	New: func() interface{} {
+		return &distribution{}
+	},
+}
+
+func getDistribution() *distribution {
+	return distributionPool.Get().(*distribution)
+}
+
+func putDistribution(d *distribution) {
+	d.reset()
+	distributionPool.Put(d)
+}
+
 type distribution struct {
-	bounds []float64
-	values []int64
+	bounds         []float64
+	values         []int64
+	sum            float64
+	count          int64
+	timestamp      int64
+	resetTimestamp int64
+	// If all three are true, we can be sure to have observed all series for the
+	// distribution as buckets must be specified in ascending order.
+	hasSum, hasCount, hasInfBucket bool
+	// Whether to not emit a sample.
+	skip bool
 }
 
-func (d *distribution) Len() int {
-	return len(d.bounds)
+func (d *distribution) reset() {
+	d.bounds = d.bounds[:0]
+	d.values = d.values[:0]
+	d.sum, d.count = 0, 0
+	d.hasSum, d.hasCount, d.hasInfBucket = false, false, false
+	d.timestamp, d.resetTimestamp = 0, 0
+	d.skip = false
 }
 
-func (d *distribution) Less(i, j int) bool {
-	return d.bounds[i] < d.bounds[j]
-}
-
-func (d *distribution) Swap(i, j int) {
-	d.bounds[i], d.bounds[j] = d.bounds[j], d.bounds[i]
-	d.values[i], d.values[j] = d.values[j], d.values[i]
-}
-
-// buildDistribution consumes series from the beginning of the input slice that belong to a histogram
-// with the given metric name and label set.
-// It returns the reset timestamp along with the distrubution.
-func (b *sampleBuilder) buildDistribution(
-	baseName string,
-	matchLset labels.Labels,
-	samples []record.RefSample,
-	metadata MetadataFunc,
-) (*distribution_pb.Distribution, int64, []record.RefSample, error) {
-	var (
-		consumed       int
-		count, sum     float64
-		resetTimestamp int64
-		lastTimestamp  int64
-		dist           = distribution{bounds: make([]float64, 0, 16), values: make([]int64, 0, 16)}
-		skip           = false
-	)
-	// We assume that all series belonging to the histogram are sequential. Consume series
-	// until we hit a new metric.
-Loop:
-	for i, s := range samples {
-		e, ok := b.series.get(s, metadata)
-		if !ok {
-			consumed++
-			prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
-			continue
-		}
-		name := e.lset.Get("__name__")
-		// The series matches if it has the same base name, the remainder is a valid histogram suffix,
-		// and the labels aside from the le and __name__ label match up.
-		if !strings.HasPrefix(name, baseName) || !histogramLabelsEqual(e.lset, matchLset) {
-			break
-		}
-		// In general, a scrape cannot contain the same (set of) series repeatedlty but for different timestamps.
-		// It could still happen with bad clients though and we are doing it in tests for simplicity.
-		// If we detect the same series as before but for a different timestamp, return the histogram up to this
-		// series and leave the duplicate time series untouched on the input.
-		if i > 0 && s.T != lastTimestamp {
-			break
-		}
-		lastTimestamp = s.T
-
-		rt, v, ok := b.series.getResetAdjusted(s.Ref, s.T, s.V)
-
-		switch metricSuffix(name[len(baseName):]) {
-		case metricSuffixSum:
-			sum = v
-
-		case metricSuffixCount:
-			count = v
-			// We take the count series as the authoritative source for the overall reset timestamp.
-			resetTimestamp = rt
-
-		case metricSuffixBucket:
-			upper, err := strconv.ParseFloat(e.lset.Get("le"), 64)
-			if err != nil {
-				consumed++
-				prometheusSamplesDiscarded.WithLabelValues("malformed-bucket-le-label").Inc()
-				continue
-			}
-			dist.bounds = append(dist.bounds, upper)
-			dist.values = append(dist.values, int64(v))
-
-		default:
-			break Loop
-		}
-		// If a series appeared for the first time, we won't get a valid reset timestamp yet.
-		// This may happen if the histogram is entirely new or if new series appeared through bucket changes.
-		// We skip the entire histogram sample in this case.
-		if !ok {
-			skip = true
-		}
-		consumed++
+func (d *distribution) inputSampleCount() (c int) {
+	if d.hasSum {
+		c += 1
 	}
-	// If no sample was consumed at all, the input was wrong and we consume at least
-	// one sample to not get stuck in a loop.
-	if consumed == 0 {
-		prometheusSamplesDiscarded.WithLabelValues("zero-histogram-samples-processed").Inc()
-		return nil, 0, samples[1:], errors.New("no sample consumed for histogram")
+	if d.hasCount {
+		c += 1
 	}
-	// Don't emit a sample if we explicitly skip it or no reset timestamp was set because the
-	// count series was missing.
-	if skip || resetTimestamp == 0 {
-		return nil, 0, samples[consumed:], nil
-	}
-	// We do not assume that the buckets in the sample batch are in order, so we sort them again here.
-	// The code below relies on this to convert between Prometheus's and GCM's bucketing approaches.
-	sort.Sort(&dist)
+	return c + len(d.values)
+}
+
+func (d *distribution) complete() bool {
+	// We can be sure to have accumulated all series if sum, count, and infinity bucket have been populated.
+	return !d.skip && d.hasSum && d.hasCount && d.hasInfBucket
+}
+
+func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution, error) {
 	// Reuse slices we already populated to build final bounds and values.
 	var (
-		bounds           = dist.bounds[:0]
-		values           = dist.values[:0]
-		mean, dev, lower float64
-		prevVal          int64
+		bounds               = d.bounds[:0]
+		values               = d.values[:0]
+		prevBound, dev, mean float64
+		prevVal              int64
 	)
-	if count > 0 {
-		mean = sum / count
+	if d.count > 0 {
+		mean = d.sum / float64(d.count)
 	}
-	for i, upper := range dist.bounds {
-		if math.IsInf(upper, 1) {
-			upper = lower
+	for i, bound := range d.bounds {
+		if math.IsInf(bound, 1) {
+			bound = prevBound
 		} else {
-			bounds = append(bounds, upper)
+			bounds = append(bounds, bound)
 		}
 
-		val := dist.values[i] - prevVal
+		val := d.values[i] - prevVal
 		// val should never be negative and it most likely indicates a bug or a data race in a scraped
 		// metrics endpoint.
 		// It's a possible caused of the zero-count issue below so we catch it here early.
 		if val < 0 {
-			prometheusSamplesDiscarded.WithLabelValues("negative-bucket-count").Add(float64(consumed))
-			err := errors.Errorf("invalid bucket with negative count: count=%f, sum=%f, dev=%f, index=%d buckets=%v", count, sum, dev, i, dist)
-			return nil, 0, samples[consumed:], err
+			prometheusSamplesDiscarded.WithLabelValues("negative-bucket-count").Add(float64(d.inputSampleCount()))
+			err := errors.Errorf("invalid bucket with negative count %s: count=%d, sum=%f, dev=%f, index=%d, bucketVal=%d, bucketPrevVal=%d",
+				lset, d.count, d.sum, dev, i, d.values[i], prevVal)
+			return nil, err
 		}
-		x := (lower + upper) / 2
+		x := (prevBound + bound) / 2
 		dev += float64(val) * (x - mean) * (x - mean)
 
-		lower = upper
-		prevVal = dist.values[i]
+		prevBound = bound
+		prevVal = d.values[i]
 		values = append(values, val)
 	}
 	// Catch distributions which are rejected by the CreateTimeSeries API and potentially
 	// make the entire batch fail.
 	if len(bounds) == 0 {
-		prometheusSamplesDiscarded.WithLabelValues("zero-buckets-bounds").Add(float64(consumed))
-		return nil, 0, samples[consumed:], nil
+		prometheusSamplesDiscarded.WithLabelValues("zero-buckets-bounds").Add(float64(d.inputSampleCount()))
+		return nil, nil
 	}
 	// Deviation and mean must be 0 if count is 0. We've got reports about samples with a negative
 	// deviation and 0 count being sent.
 	// Return an error to allow debugging this as it shouldn't happen under normal circumstances:
 	// Deviation can only become negative if one histogram bucket has a lower value than the previous
 	// one, which violates histogram's invariant.
-	if count == 0 && (mean != 0 || dev != 0) {
-		prometheusSamplesDiscarded.WithLabelValues("zero-count-violation").Add(float64(consumed))
-		err := errors.Errorf("invalid histogram with 0 count: count=%f, sum=%f, dev=%f, buckets=%v", count, sum, dev, dist)
-		return nil, 0, samples[consumed:], err
+	if d.count == 0 && (mean != 0 || dev != 0) {
+		prometheusSamplesDiscarded.WithLabelValues("zero-count-violation").Add(float64(d.inputSampleCount()))
+		err := errors.Errorf("invalid histogram with 0 count for %s: count=%d, sum=%f, dev=%f",
+			lset, d.count, d.sum, dev)
+		return nil, err
 	}
-	d := &distribution_pb.Distribution{
-		Count:                 int64(count),
+	dp := &distribution_pb.Distribution{
+		Count:                 d.count,
 		Mean:                  mean,
 		SumOfSquaredDeviation: dev,
 		BucketOptions: &distribution_pb.Distribution_BucketOptions{
@@ -386,43 +354,108 @@ Loop:
 		},
 		BucketCounts: values,
 	}
-	return d, resetTimestamp, samples[consumed:], nil
+	return dp, nil
 }
 
-// histogramLabelsEqual checks whether two label sets for a histogram series are equal aside from their
-// le and __name__ labels.
-func histogramLabelsEqual(a, b labels.Labels) bool {
-	i, j := 0, 0
-	for i < len(a) && j < len(b) {
-		if a[i].Name == "le" || a[i].Name == "__name__" {
-			i++
-			continue
-		}
-		if b[j].Name == "le" || b[j].Name == "__name__" {
-			j++
-			continue
-		}
-		if a[i] != b[j] {
-			return false
-		}
-		i++
-		j++
+func isHistogramSeries(metric, name string) bool {
+	if !strings.HasPrefix(name, metric) {
+		return false
 	}
-	// Consume trailing le and __name__ labels so the check below passes correctly.
-	for i < len(a) {
-		if a[i].Name == "le" || a[i].Name == "__name__" {
-			i++
+	s := metricSuffix(name[len(metric):])
+	return s == metricSuffixBucket || s == metricSuffixSum || s == metricSuffixCount
+}
+
+// buildDistribution consumes series from the input slice and populates the histogram cache with it.
+// It returns when a series is consumed which completes a full distribution.
+// Once all series for a single distribution have been observed, it returns it.
+// It returns the reset timestamp along with the distrubution and the remaining samples.
+func (b *sampleBuilder) buildDistribution(
+	metric string,
+	matchLset labels.Labels,
+	samples []record.RefSample,
+	metadata MetadataFunc,
+) (*distribution_pb.Distribution, int64, []record.RefSample, error) {
+	// The Prometheus/OpenMetrics exposition format does not require all histogram series for a single distribution
+	// to be grouped together. But it does require that all series for a histogram metric in generall are grouped
+	// together and that buckets for a single histogram are specified in order.
+	// Thus, we build a cache and conclude a histogram complete once we've seen it's _sum series and its +Inf bucket
+	// series. We return for the first histogram where this condition is fulfilled.
+	consumed := 0
+Loop:
+	for _, s := range samples {
+		e, ok := b.series.get(s, metadata)
+		if !ok {
+			consumed++
+			prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
 			continue
 		}
-		break
-	}
-	for j < len(b) {
-		if b[j].Name == "le" || b[j].Name == "__name__" {
-			j++
+		name := e.lset.Get(labels.MetricName)
+		// Abort if the series is not for the intended histogram metric. All series for it must be grouped
+		// together so we can rely on no further relevant series are in the batch.
+		if !isHistogramSeries(metric, name) {
+			break
+		}
+		consumed++
+
+		// Create or update the cached distribution for the given histogram series
+		dist, ok := b.dists[e.protos.cumulative.hash]
+		if !ok {
+			dist = getDistribution()
+			dist.timestamp = s.T
+			b.dists[e.protos.cumulative.hash] = dist
+		}
+		// If there are diverging timestamps within a single batch, the histogram is not valid.
+		if s.T != dist.timestamp {
+			dist.skip = true
+			prometheusSamplesDiscarded.WithLabelValues("mismatching-histogram-timestamps").Inc()
 			continue
 		}
-		break
+
+		rt, v, ok := b.series.getResetAdjusted(s.Ref, s.T, s.V)
+		// If a series appeared for the first time, we won't get a valid reset timestamp yet.
+		// This may happen if the histogram is entirely new or if new series appeared through bucket changes.
+		// We skip the entire distribution sample in this case.
+		if !ok {
+			dist.skip = true
+			continue
+		}
+
+		switch metricSuffix(name[len(metric):]) {
+		case metricSuffixSum:
+			dist.hasSum, dist.sum = true, v
+
+		case metricSuffixCount:
+			dist.hasCount, dist.count = true, int64(v)
+			// We take the count series as the authoritative source for the overall reset timestamp.
+			dist.resetTimestamp = rt
+
+		case metricSuffixBucket:
+			bound, err := strconv.ParseFloat(e.lset.Get(labels.BucketLabel), 64)
+			if err != nil {
+				prometheusSamplesDiscarded.WithLabelValues("malformed-bucket-le-label").Inc()
+				continue
+			}
+			dist.hasInfBucket = math.IsInf(bound, 1)
+			dist.bounds = append(dist.bounds, bound)
+			dist.values = append(dist.values, int64(v))
+
+		default:
+			break Loop
+		}
+
+		if !dist.complete() {
+			continue
+		}
+		dp, err := dist.build(e.lset)
+		if err != nil {
+			return nil, 0, samples[consumed:], err
+		}
+		return dp, dist.resetTimestamp, samples[consumed:], nil
 	}
-	// If one label set still has labels left, they are not equal.
-	return i == len(a) && j == len(b)
+	if consumed == 0 {
+		prometheusSamplesDiscarded.WithLabelValues("zero-histogram-samples-processed").Inc()
+		return nil, 0, samples[1:], errors.New("no sample consumed for histogram")
+	}
+	// Batch ended without completing a further distribution
+	return nil, 0, samples[consumed:], nil
 }
