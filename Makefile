@@ -12,6 +12,11 @@ define docker_build
 	DOCKER_BUILDKIT=1 docker build $(1)
 endef
 
+define assets_diff
+	git fetch origin
+	git diff -s --exit-code origin/main -- third_party
+endef
+
 help:        ## Show this help.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
@@ -41,8 +46,7 @@ cloudbuild:  ## Build images on Google Cloud Build.
 .PHONY: assets
 assets:      ## Build and write UI assets to local go file.
 	@echo ">> writing static assets to host machine"
-	$(call docker_build, -f ./cmd/frontend/Dockerfile --target assets --tag gmp/assets .)
-	echo -e 'FROM scratch\nCOPY --from=gmp/assets /app/pkg/ui/assets_vfsdata.go pkg/ui/assets_vfsdata.go' | $(call docker_build, -o . -)
+	$(call assets_diff) || $(call docker_build, -f ./cmd/frontend/Dockerfile --target sync -o . -t gmp/assets-sync .)
 
 test:        ## Run all tests. Writes real data to GCM API under PROJECT_ID environment variable.
              ## Use GMP_CLUSTER, GMP_LOCATION to specify timeseries labels.
@@ -54,8 +58,7 @@ else
 	go test `go list ./... | grep operator/e2e` -args -project-id=${PROJECT_ID} -cluster=${GMP_CLUSTER} -location=${GMP_LOCATION}
 endif
 
-kindclean:   ## Clean previous kind state.
-kindclearn: clean
+kindclean: clean
 	docker volume rm -f gcloud-config
 
 kindtest:    ## Run e2e test suite against fresh kind k8s cluster.
@@ -71,61 +74,19 @@ kindtest: kindclean
 	docker run --rm -v gcloud-config:/root/.config gmp/kindtest ./hack/kind-test.sh
 	docker volume rm -f gcloud-config
 
-format:      ## Format code.
-             ## Set 'DRY_RUN=1' to verify if code is properly formatted.
-	@echo ">> formatting code"
-ifeq ($(DRY_RUN), 1)
-	$(call docker_build, . --target hermetic -t gmp/hermetic \
-		--build-arg RUNCMD='go mod tidy && go mod vendor && go fmt ./... && git diff --exit-code go.mod go.sum *.go')
-else
-	$(call docker_build, . --target sync -o . -t gmp/sync \
-		--build-arg RUNCMD='go mod tidy && go mod vendor && go fmt ./...')
-endif
-
 lint:        ## Lint code.
 	@echo ">> linting code"
 	DOCKER_BUILDKIT=1 docker run --rm -v $(pwd):/app -w /app golangci/golangci-lint:v1.43.0 golangci-lint run -v
 
-codegen:     ## Refresh generated CRD go interfaces.
-             ## Set 'DRY_RUN=1' to verify if latest code was regenerated.
-	@echo ">> regenerating go apis"
+presubmit:   ## Validate and regenerate changes before submitting a PR 
+             ## Use DRY_RUN=1 to only validate without regenerating changes.
+presubmit: ps assets kindtest
+ps:  
 ifeq ($(DRY_RUN), 1)
 	$(call docker_build, . --target hermetic -t gmp/hermetic \
-		--build-arg RUNCMD='./hack/update-codegen.sh && git diff --exit-code *.go')
-else
-	@echo ">>> checking if there are uncommitted api code changes"
-	git diff -s --exit-code $(API_DIR) || $(call docker_build, . --target sync -o . -t gmp/sync \
-		--build-arg RUNCMD=./hack/update-codegen.sh)
-endif
-
-crdgen:      ## Refresh CRD OpenAPI YAML specs.
-             ## Set 'DRY_RUN=1' to verify if latest manifest was regenerated.
-ifeq ($(DRY_RUN), 1)
-	$(call docker_build, . --target hermetic -t gmp/hermetic \
-		--build-arg RUNCMD='./hack/update-crdgen.sh && git diff --exit-code *.yaml')
+		--build-arg RUNCMD='./hack/presubmit.sh git diff --exit-code go.mod go.sum *.go *.yaml doc')
 else
 	$(call docker_build, . --target sync -o . -t gmp/sync \
-		--build-arg RUNCMD=./hack/update-crdgen.sh)
+		--build-arg RUNCMD='./hack/presubmit.sh')
+	rm -rf vendor && mv vendor2 vendor
 endif
-
-examples:
-ifeq ($(DRY_RUN), 1)
-	$(call docker_build, . --target hermetic -t gmp/hermetic \
-		--build-arg RUNCMD='./hack/update-examples.sh && git diff --exit-code *.yaml')
-else
-	$(call docker_build, . --target hermetic -t gmp/sync \
-		--build-arg RUNCMD='./hack/update-examples.sh')
-endif
-
-docgen:      ## Refresh API markdown documentation.
-             ## Set 'DRY_RUN=1' to verify if latest API docs were regnerated.
-ifeq ($(DRY_RUN), 1)
-	$(call docker_build, . --target hermetic -t gmp/hermetic \
-		--build-arg RUNCMD='./hack/update-docgen.sh && git diff --exit-code doc')
-else
-	$(call docker_build, . --target sync -o . -t gmp/sync \
-		--build-arg RUNCMD=./hack/update-docgen.sh)
-endif
-
-
-presubmit: codegen assets format crdgen examples docgen test kindtest

@@ -39,6 +39,5 @@ COPY --from=hermetic /workspace/go.sum go.sum
 COPY --from=hermetic /workspace/cmd cmd
 COPY --from=hermetic /workspace/doc doc
 COPY --from=hermetic /workspace/examples examples
-COPY --from=hermetic /workspace/hack hack
 COPY --from=hermetic /workspace/pkg pkg
-COPY --from=hermetic /workspace/vendor vendor
+COPY --from=hermetic /workspace/vendor vendor2

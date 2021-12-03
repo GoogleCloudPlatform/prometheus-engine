@@ -35,19 +35,20 @@ local directory `./build/bin/`.
 
 - Running `make all` will generate all the go binaries.
 - Running `make docker` will generate all the go binary Docker images.
-- Running `make presubmit` will run various checks on the repo to ensure it is
-ready to submit a pull request. This includes testing, formatting,
-and regenerating files in-place.
-  - Setting `DRY_RUN=1` won't format or regenerate any files but will return a
-  non-zero exit code if the current changes differ from what would be. This
-  can be useful in running in CI workflows.
+- Running `make test` will run unit and e2e tests.
   - Setting `DOCKER=1` here will run tests entirely within a docker environment.
   - If `DOCKER=1` is not set, end-to-end tests will be run against the current
   kubectl context. It is assumed the cluster has access to the GCM API.
   Ensure `GMP_CLUSTER` and `GMP_LOCATION` are set, e.g.
   ```
-  GMP_CLUSTER=gmp-test-cluster GMP_LOCATION=us-central1-c make presubmit
+  GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make test
   ```
+- Running `make presubmit` will run various checks on the repo to ensure it is
+ready to submit a pull request. This includes testing, formatting,
+and regenerating files in-place.
+  - Setting `DRY_RUN=1` won't regenerate any files but will return a
+  non-zero exit code if the current changes differ from what would be. This
+  can be useful in running in CI workflows.
 
 ### Dependencies
 In order to best develop and contribute to this repository, the following dependencies are

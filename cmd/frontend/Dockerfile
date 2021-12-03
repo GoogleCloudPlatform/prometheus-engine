@@ -19,3 +19,8 @@ RUN CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o frontend ./cmd/fro
 FROM gcr.io/distroless/static:latest
 COPY --from=appbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]
+
+# sync is used to copy all auto-generated files to a different context.
+# Usually this is used to mirror the changes back to the host machine.
+FROM scratch as sync
+COPY --from=assets /app/pkg/ui/assets_vfsdata.go pkg/ui/assets_vfsdata.go
