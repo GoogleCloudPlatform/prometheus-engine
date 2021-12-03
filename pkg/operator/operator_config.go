@@ -306,7 +306,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 	// If no explicit project ID is set, use the one provided to the operator. On GKE the rule-evaluator
 	// can also auto-detect the cluster's project but this won't work in other Kubernetes environments.
 	queryProjectID := r.opts.ProjectID
-	if spec.QueryProjectID == "" {
+	if spec.QueryProjectID != "" {
 		queryProjectID = spec.QueryProjectID
 	}
 	evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", queryProjectID))
