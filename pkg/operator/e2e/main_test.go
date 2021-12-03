@@ -340,7 +340,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 		// When not using GCM, we check the available replicas rather than ready ones
 		// as the rule-evaluator's readyness probe does check for connectivity to GCM.
 		if skipGCM {
-			if *deploy.Spec.Replicas != deploy.Status.AvailableReplicas {
+			if *deploy.Spec.Replicas != deploy.Status.UpdatedReplicas {
 				return false, nil
 			}
 		} else if *deploy.Spec.Replicas != deploy.Status.ReadyReplicas {

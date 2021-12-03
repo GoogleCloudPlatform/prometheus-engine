@@ -2,7 +2,7 @@ GOAPPS := $(notdir $(patsubst %/,%,$(dir $(shell find cmd -name 'main.go'))))
 
 CLOUDSDK_CONFIG?=${HOME}/.config/gcloud
 PROJECT_ID?=$(shell gcloud config get-value core/project)
-GMP_CLUSTER?=gmp-test
+GMP_CLUSTER?=gmp-test-cluster
 GMP_LOCATION?=us-central1-c
 API_DIR=pkg/operator/apis
 
