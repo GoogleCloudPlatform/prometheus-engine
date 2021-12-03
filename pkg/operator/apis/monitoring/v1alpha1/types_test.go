@@ -15,12 +15,16 @@
 package v1alpha1
 
 import (
-	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	prommodel "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/relabel"
+	yaml "gopkg.in/yaml.v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -124,7 +128,99 @@ func TestValidatePodMonitoring(t *testing.T) {
 				},
 			},
 			fail:        true,
-			errContains: "conflicts with GMP target schema",
+			errContains: `invalid PodMonitoring target labels: cannot relabel with action "replace" onto protected label "cluster"`,
+		}, {
+			// A simple error that should be caught by invoking the upstream validation. We don't
+			// have to cover everything it covers.
+			desc: "remapping onto bad label name",
+			pm: PodMonitoringSpec{
+				Endpoints: []ScrapeEndpoint{
+					{
+						Port:     intstr.FromString("web"),
+						Interval: "10s",
+					},
+				},
+				TargetLabels: TargetLabels{
+					FromPod: []LabelMapping{
+						{From: "key1", To: "foo-bar"},
+					},
+				},
+			},
+			fail:        true,
+			errContains: `"foo-bar" is invalid 'target_label' for replace action`,
+		}, {
+			desc: "metric relabeling: labelmap forbidden",
+			pm: PodMonitoringSpec{
+				Endpoints: []ScrapeEndpoint{
+					{
+						Port:     intstr.FromString("web"),
+						Interval: "10s",
+						MetricRelabeling: []RelabelingRule{
+							{
+								SourceLabels: []string{"foo", "bar"},
+								Action:       "labelmap",
+							},
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: `relabeling with action "labelmap" not allowed`,
+		}, {
+			desc: "metric relabeling: protected replace label",
+			pm: PodMonitoringSpec{
+				Endpoints: []ScrapeEndpoint{
+					{
+						Port:     intstr.FromString("web"),
+						Interval: "10s",
+						MetricRelabeling: []RelabelingRule{
+							{
+								Action:      "replace",
+								TargetLabel: "project_id",
+							},
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: `cannot relabel with action "replace" onto protected label "project_id"`,
+		}, {
+			desc: "metric relabeling: protected labelkeep",
+			pm: PodMonitoringSpec{
+				Endpoints: []ScrapeEndpoint{
+					{
+						Port:     intstr.FromString("web"),
+						Interval: "10s",
+						MetricRelabeling: []RelabelingRule{
+							{
+								Action: "labelkeep",
+								// project_id label is not kept.
+								Regex: "(cluster|location|cluster|namespace|job|instance|__address__)",
+							},
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: `regex (cluster|location|cluster|namespace|job|instance|__address__) would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
+		}, {
+			desc: "metric relabeling: protected labeldrop",
+			pm: PodMonitoringSpec{
+				Endpoints: []ScrapeEndpoint{
+					{
+						Port:     intstr.FromString("web"),
+						Interval: "10s",
+						MetricRelabeling: []RelabelingRule{
+							{
+								Action: "labeldrop",
+								Regex:  "n?amespace",
+							},
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: `regex n?amespace would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
 		},
 	}
 
@@ -202,9 +298,162 @@ func TestLabelMappingRelabelConfigs(t *testing.T) {
 			if err == nil && c.expErr {
 				t.Errorf("should have returned an error")
 			}
-			if !reflect.DeepEqual(c.expected, actual) {
-				t.Errorf("returned unexpected config")
+			if diff := cmp.Diff(c.expected, actual, cmpopts.IgnoreUnexported(relabel.Regexp{}, regexp.Regexp{})); diff != "" {
+				t.Errorf("returned unexpected config (-want, +got): %s", diff)
 			}
 		})
+	}
+}
+
+func TestPodMonitoring_ScrapeConfig(t *testing.T) {
+	// Generate YAML for one complex scrape config and make sure everything
+	// adds up. This primarily verifies that everything is included and marshalling
+	// the generated config to YAML does not produce any bad configurations due to
+	// defaulting as the Prometheus structs are misconfigured in this regard in
+	// several places.
+	pmon := &PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "ns1",
+			Name:      "name1",
+		},
+		Spec: PodMonitoringSpec{
+			Endpoints: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					MetricRelabeling: []RelabelingRule{
+						{
+							Action:       "replace",
+							SourceLabels: []string{"mlabel_1", "mlabel_2"},
+							TargetLabel:  "mlabel_3",
+						}, {
+							Action:       "hashmod",
+							SourceLabels: []string{"mlabel_1"},
+							Modulus:      3,
+							TargetLabel:  "__tmp_mod",
+						}, {
+							Action:  "keep",
+							Regex:   "foo_.+",
+							Modulus: 3,
+						},
+					},
+				},
+				{
+					Port:     intstr.FromInt(8080),
+					Interval: "10000ms",
+					Timeout:  "5s",
+					Path:     "/prometheus",
+				},
+			},
+			TargetLabels: TargetLabels{
+				FromPod: []LabelMapping{
+					{From: "key1", To: "key2"},
+					{From: "key3"},
+				},
+			},
+		},
+	}
+	scrapeCfgs, err := pmon.ScrapeConfigs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+
+	for _, sc := range scrapeCfgs {
+		b, err := yaml.Marshal(sc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, string(b))
+	}
+	want := []string{
+		`job_name: PodMonitoring/ns1/name1/web
+honor_timestamps: false
+scrape_interval: 10s
+scrape_timeout: 10s
+metrics_path: /metrics
+follow_redirects: false
+relabel_configs:
+- source_labels: [__meta_kubernetes_namespace]
+  regex: ns1
+  action: keep
+- source_labels: [__meta_kubernetes_namespace]
+  target_label: namespace
+  action: replace
+- target_label: job
+  replacement: name1
+  action: replace
+- source_labels: [__meta_kubernetes_pod_container_port_name]
+  regex: web
+  action: keep
+- source_labels: [__meta_kubernetes_pod_name, __meta_kubernetes_pod_container_port_name]
+  regex: (.+);(.+)
+  target_label: instance
+  replacement: $1:$2
+  action: replace
+- source_labels: [__meta_kubernetes_pod_label_key1]
+  target_label: key2
+  action: replace
+- source_labels: [__meta_kubernetes_pod_label_key3]
+  target_label: key3
+  action: replace
+metric_relabel_configs:
+- source_labels: [mlabel_1, mlabel_2]
+  target_label: mlabel_3
+  action: replace
+- source_labels: [mlabel_1]
+  modulus: 3
+  target_label: __tmp_mod
+  action: hashmod
+- regex: foo_.+
+  modulus: 3
+  action: keep
+kubernetes_sd_configs:
+- role: pod
+  follow_redirects: true
+  selectors:
+  - role: pod
+    field: spec.nodeName=$(NODE_NAME)
+`,
+		`job_name: PodMonitoring/ns1/name1/8080
+honor_timestamps: false
+scrape_interval: 10s
+scrape_timeout: 5s
+metrics_path: /prometheus
+follow_redirects: false
+relabel_configs:
+- source_labels: [__meta_kubernetes_namespace]
+  regex: ns1
+  action: keep
+- source_labels: [__meta_kubernetes_namespace]
+  target_label: namespace
+  action: replace
+- target_label: job
+  replacement: name1
+  action: replace
+- source_labels: [__meta_kubernetes_pod_name]
+  target_label: instance
+  replacement: $1:8080
+  action: replace
+- source_labels: [__meta_kubernetes_pod_ip]
+  target_label: __address__
+  replacement: $1:8080
+  action: replace
+- source_labels: [__meta_kubernetes_pod_label_key1]
+  target_label: key2
+  action: replace
+- source_labels: [__meta_kubernetes_pod_label_key3]
+  target_label: key3
+  action: replace
+kubernetes_sd_configs:
+- role: pod
+  follow_redirects: true
+  selectors:
+  - role: pod
+    field: spec.nodeName=$(NODE_NAME)
+`,
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("unexpected scrape config YAML (-want, +got): %s", diff)
 	}
 }
