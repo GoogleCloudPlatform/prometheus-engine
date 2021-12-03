@@ -32,6 +32,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [PodMonitoringList](#podmonitoringlist)
 * [PodMonitoringSpec](#podmonitoringspec)
 * [PodMonitoringStatus](#podmonitoringstatus)
+* [RelabelingRule](#relabelingrule)
 * [Rule](#rule)
 * [RuleEvaluatorSpec](#ruleevaluatorspec)
 * [RuleGroup](#rulegroup)
@@ -258,6 +259,25 @@ PodMonitoringStatus holds status information of a PodMonitoring resource.
 
 [Back to TOC](#table-of-contents)
 
+## RelabelingRule
+
+RelabelingRule defines a single Prometheus relabeling rule.
+
+
+<em>appears in: [ScrapeEndpoint](#scrapeendpoint)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| sourceLabels | The source labels select values from existing labels. Their content is concatenated using the configured separator and matched against the configured regular expression for the replace, keep, and drop actions. | []string | false |
+| separator | Separator placed between concatenated source label values. Defaults to ';'. | string | false |
+| targetLabel | Label to which the resulting value is written in a replace action. It is mandatory for replace actions. Regex capture groups are available. | string | false |
+| regex | Regular expression against which the extracted value is matched. Defaults to '(.*)'. | string | false |
+| modulus | Modulus to take of the hash of the source label values. | uint64 | false |
+| replacement | Replacement value against which a regex replace is performed if the regular expression matches. Regex capture groups are available. Defaults to '$1'. | string | false |
+| action | Action to perform based on regex matching. Defaults to 'replace'. | string | false |
+
+[Back to TOC](#table-of-contents)
+
 ## Rule
 
 Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
@@ -359,6 +379,7 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 | path | HTTP path to scrape metrics from. Defaults to \"/metrics\". | string | false |
 | interval | Interval at which to scrape metrics. Must be a valid Prometheus duration. | string | false |
 | timeout | Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval. | string | false |
+| metricRelabeling | Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general. | [][RelabelingRule](#relabelingrule) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -395,7 +416,7 @@ SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
 
 ## TargetLabels
 
-TargetLabels groups label mappings by Kubernetes resource.
+TargetLabels configures labels for the discovered Prometheus targets.
 
 
 <em>appears in: [PodMonitoringSpec](#podmonitoringspec)</em>

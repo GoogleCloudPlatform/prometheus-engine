@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/pkg/relabel"
+	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -223,6 +224,11 @@ func (pm *PodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err er
 const EnvVarNodeName = "NODE_NAME"
 
 func (pm *PodMonitoring) endpontScrapeConfig(index int) (*promconfig.ScrapeConfig, error) {
+	// The Prometheus configuration structs do not generally have validation methods and embed their
+	// validation logic in the UnmarshalYAML methods. To keep things reasonable we don't re-validate
+	// everything and simply do a final marshal-unmarshal cycle at the end to run all validation
+	// upstream provides at the end of this method.
+
 	// Configure how Prometheus talks to the Kubernetes API server to discover targets.
 	// This configuration is the same for all scrape jobs (esp. selectors).
 	// This ensures that Prometheus can reuse the underlying client and caches, which reduces
@@ -267,26 +273,38 @@ func (pm *PodMonitoring) endpontScrapeConfig(index int) (*promconfig.ScrapeConfi
 	sort.Strings(selectorKeys)
 
 	for _, k := range selectorKeys {
+		re, err := relabel.NewRegexp(pm.Spec.Selector.MatchLabels[k])
+		if err != nil {
+			return nil, err
+		}
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Keep,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(k)},
-			Regex:        relabel.MustNewRegexp(pm.Spec.Selector.MatchLabels[k]),
+			Regex:        re,
 		})
 	}
 	// Expression matchers are mapped to relabeling rules with the same behavior.
 	for _, exp := range pm.Spec.Selector.MatchExpressions {
 		switch exp.Operator {
 		case metav1.LabelSelectorOpIn:
+			re, err := relabel.NewRegexp(strings.Join(exp.Values, "|"))
+			if err != nil {
+				return nil, err
+			}
 			relabelCfgs = append(relabelCfgs, &relabel.Config{
 				Action:       relabel.Keep,
 				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp(strings.Join(exp.Values, "|")),
+				Regex:        re,
 			})
 		case metav1.LabelSelectorOpNotIn:
+			re, err := relabel.NewRegexp(strings.Join(exp.Values, "|"))
+			if err != nil {
+				return nil, err
+			}
 			relabelCfgs = append(relabelCfgs, &relabel.Config{
 				Action:       relabel.Drop,
 				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp(strings.Join(exp.Values, "|")),
+				Regex:        re,
 			})
 		case metav1.LabelSelectorOpExists:
 			relabelCfgs = append(relabelCfgs, &relabel.Config{
@@ -394,7 +412,16 @@ func (pm *PodMonitoring) endpontScrapeConfig(index int) (*promconfig.ScrapeConfi
 		metricsPath = ep.Path
 	}
 
-	return &promconfig.ScrapeConfig{
+	var metricRelabelCfgs []*relabel.Config
+	for _, r := range ep.MetricRelabeling {
+		rcfg, err := convertRelabelingRule(r)
+		if err != nil {
+			return nil, err
+		}
+		metricRelabelCfgs = append(metricRelabelCfgs, rcfg)
+	}
+
+	scrapeCfg := &promconfig.ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
 		JobName:                 fmt.Sprintf("PodMonitoring/%s/%s/%s", pm.Namespace, pm.Name, &ep.Port),
@@ -403,25 +430,132 @@ func (pm *PodMonitoring) endpontScrapeConfig(index int) (*promconfig.ScrapeConfi
 		ScrapeInterval:          interval,
 		ScrapeTimeout:           timeout,
 		RelabelConfigs:          relabelCfgs,
-	}, nil
+		MetricRelabelConfigs:    metricRelabelCfgs,
+	}
+	// Do a marshal/unmarshal cycle to run all upstream validation. Throw away the result
+	// to not fill in all the defaults that get set in the process.
+	b, err := yaml.Marshal(scrapeCfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "scrape config cannot be marshalled")
+	}
+	var scrapeCfgCopy promconfig.ScrapeConfig
+	if err := yaml.Unmarshal(b, &scrapeCfgCopy); err != nil {
+		return nil, errors.Wrap(err, "invalid scrape configuration")
+	}
+	return scrapeCfg, nil
+}
+
+// convertRelabelingRule converts the rule to a relabel configuration. An error is returned
+// if the rule would modify one of the protected labels.
+func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
+	rcfg := &relabel.Config{
+		// Upstream applies ToLower when digesting the config, so we allow the same.
+		Action:      relabel.Action(strings.ToLower(r.Action)),
+		TargetLabel: r.TargetLabel,
+		Separator:   r.Separator,
+		Replacement: r.Replacement,
+		Modulus:     r.Modulus,
+	}
+	for _, n := range r.SourceLabels {
+		rcfg.SourceLabels = append(rcfg.SourceLabels, prommodel.LabelName(n))
+	}
+	// We must only set the regex if its not empty. Like in other cases, the Prometheus code does
+	// not setup the structs correctly and this would default to the string "null" when marshalled,
+	// which is then interpreted as a regex again when read by Prometheus.
+	if r.Regex != "" {
+		re, err := relabel.NewRegexp(r.Regex)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid regex %q", r.Regex)
+		}
+		rcfg.Regex = re
+	}
+
+	// Validate that the protected target labels are not mutated by the provided relabeling rules.
+	switch rcfg.Action {
+	case relabel.Replace, relabel.HashMod:
+		// These actions write into the target label and it must not be a protected one.
+		if isProtectedLabel(r.TargetLabel) {
+			return nil, errors.Errorf("cannot relabel with action %q onto protected label %q", r.Action, r.TargetLabel)
+		}
+	case relabel.LabelDrop:
+		if matchesAnyProtectedLabel(rcfg.Regex) {
+			return nil, errors.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
+		}
+	case relabel.LabelKeep:
+		// Keep drops all labels that don't match the regex. So all protected labels must
+		// match keep.
+		if !matchesAllProtectedLabels(rcfg.Regex) {
+			return nil, errors.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
+		}
+	case relabel.LabelMap:
+		// It is difficult to prove for certain that labelmap does not override a protected label.
+		// Thus we just prohibit its use for now.
+		// The most feasible way to support this would probably be store all protected labels
+		// in __tmp_protected_<name> via a replace rule, then apply labelmap, then replace the
+		// __tmp label back onto the protected label.
+		return nil, errors.Errorf("relabeling with action %q not allowed", r.Action)
+	case relabel.Keep, relabel.Drop:
+		// These actions don't modify a series and are OK.
+	default:
+		return nil, errors.Errorf("unknown relabeling action %q", r.Action)
+	}
+	return rcfg, nil
+}
+
+var protectedLabels = []string{
+	export.KeyProjectID,
+	export.KeyLocation,
+	export.KeyCluster,
+	export.KeyNamespace,
+	export.KeyJob,
+	export.KeyInstance,
+	"__address__",
+}
+
+func isProtectedLabel(s string) bool {
+	for _, pl := range protectedLabels {
+		if s == pl {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesAnyProtectedLabel(re relabel.Regexp) bool {
+	for _, pl := range protectedLabels {
+		if re.MatchString(pl) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesAllProtectedLabels(re relabel.Regexp) bool {
+	for _, pl := range protectedLabels {
+		if !re.MatchString(pl) {
+			return false
+		}
+	}
+	return true
 }
 
 // labelMappingRelabelConfigs generates relabel configs using a provided mapping and resource prefix.
-func labelMappingRelabelConfigs(mappings []LabelMapping, prefix prommodel.LabelName) ([]*relabel.Config, error) {
+func labelMappingRelabelConfigs(mappings []LabelMapping, prefix string) ([]*relabel.Config, error) {
 	var relabelCfgs []*relabel.Config
 	for _, m := range mappings {
-		if collision := isPrometheusTargetLabel(m.To); collision {
-			return nil, fmt.Errorf("relabel %q to %q conflicts with GMP target schema", m.From, m.To)
-		}
 		// `To` can be unset, default to `From`.
 		if m.To == "" {
 			m.To = m.From
 		}
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{prefix + sanitizeLabelName(m.From)},
+		rcfg, err := convertRelabelingRule(RelabelingRule{
+			Action:       "replace",
+			SourceLabels: []string{prefix + string(sanitizeLabelName(m.From))},
 			TargetLabel:  m.To,
 		})
+		if err != nil {
+			return nil, err
+		}
+		relabelCfgs = append(relabelCfgs, rcfg)
 	}
 	return relabelCfgs, nil
 }
@@ -444,9 +578,14 @@ type ScrapeEndpoint struct {
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
 	// Must not be larger then the scrape interval.
 	Timeout string `json:"timeout,omitempty"`
+	// Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
+	// override protected target labels (project_id, location, cluster, namespace, job,
+	// instance, or __address__) are not permitted. The labelmap action is not permitted
+	// in general.
+	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
 }
 
-// TargetLabels groups label mappings by Kubernetes resource.
+// TargetLabels configures labels for the discovered Prometheus targets.
 type TargetLabels struct {
 	// Labels to transfer from the Kubernetes Pod to Prometheus target labels.
 	// In the case of a label mapping conflict:
@@ -462,6 +601,28 @@ type LabelMapping struct {
 	// Remapped Prometheus target label.
 	// Defaults to the same name as `From`.
 	To string `json:"to,omitempty"`
+}
+
+// RelabelingRule defines a single Prometheus relabeling rule.
+type RelabelingRule struct {
+	// The source labels select values from existing labels. Their content is concatenated
+	// using the configured separator and matched against the configured regular expression
+	// for the replace, keep, and drop actions.
+	SourceLabels []string `json:"sourceLabels,omitempty"`
+	// Separator placed between concatenated source label values. Defaults to ';'.
+	Separator string `json:"separator,omitempty"`
+	// Label to which the resulting value is written in a replace action.
+	// It is mandatory for replace actions. Regex capture groups are available.
+	TargetLabel string `json:"targetLabel,omitempty"`
+	// Regular expression against which the extracted value is matched. Defaults to '(.*)'.
+	Regex string `json:"regex,omitempty"`
+	// Modulus to take of the hash of the source label values.
+	Modulus uint64 `json:"modulus,omitempty"`
+	// Replacement value against which a regex replace is performed if the
+	// regular expression matches. Regex capture groups are available. Defaults to '$1'.
+	Replacement string `json:"replacement,omitempty"`
+	// Action to perform based on regex matching. Defaults to 'replace'.
+	Action string `json:"action,omitempty"`
 }
 
 // PodMonitoringStatus holds status information of a PodMonitoring resource.
