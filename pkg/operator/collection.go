@@ -151,6 +151,7 @@ func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec 
 			Namespace: r.opts.OperatorNamespace,
 			Labels: map[string]string{
 				LabelAppName: NameCollector,
+				KubernetesAppName: CollectorAppName,
 			},
 			Annotations: map[string]string{
 				AnnotationMetricName: componentName,
@@ -197,6 +198,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 	// health checks, priority context, security context, dynamic update strategy params...
 	podLabels := map[string]string{
 		LabelAppName: NameCollector,
+		KubernetesAppName: CollectorAppName,
 	}
 
 	podAnnotations := map[string]string{
