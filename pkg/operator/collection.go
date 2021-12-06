@@ -197,6 +197,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 	// health checks, priority context, security context, dynamic update strategy params...
 	podLabels := map[string]string{
 		LabelAppName: NameCollector,
+		KubernetesAppName: CollectorAppName,
 	}
 
 	podAnnotations := map[string]string{

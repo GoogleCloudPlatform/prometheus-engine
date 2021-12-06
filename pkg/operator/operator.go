@@ -71,6 +71,11 @@ const (
 	ImageCollector      = "gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.1-gke.1"
 	ImageConfigReloader = "gke.gcr.io/prometheus-engine/config-reloader:v0.1.1-gke.0"
 	ImageRuleEvaluator  = "gke.gcr.io/prometheus-engine/rule-evaluator:v0.1.1-gke.0"
+
+	// The k8s Application, will be exposed as component name.
+	KubernetesAppName     = "app"
+	CollectorAppName      = "managed_prometheus_collector"
+	RuleEvaluatorAppName  = "managed_prometheus_rule_evaluator"
 )
 
 var (

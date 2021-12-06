@@ -54,6 +54,7 @@ const (
 func rulesLabels() map[string]string {
 	return map[string]string{
 		LabelAppName: NameRuleEvaluator,
+		KubernetesAppName: RuleEvaluatorAppName,
 	}
 }
 
