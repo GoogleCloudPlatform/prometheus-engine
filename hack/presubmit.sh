@@ -21,8 +21,9 @@ set -o pipefail
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 
 codegen_diff() {
-  git clone https://github.com/GoogleCloudPlatform/prometheus-engine /tmp/prometheus-engine
-  git diff -s --exit-code ${SCRIPT_ROOT}/pkg/operator/apis /tmp/prometheus-engine/pkg/operator/apis
+  TMPDIR=$(mktemp -d)
+  git clone https://github.com/GoogleCloudPlatform/prometheus-engine ${TMPDIR}/prometheus-engine
+  git diff -s --exit-code ${SCRIPT_ROOT}/pkg/operator/apis ${TMPDIR}/prometheus-engine/pkg/operator/apis
 }
 
 update_codegen() {
@@ -114,12 +115,64 @@ update_examples() {
   combine ${SCRIPT_ROOT}/cmd/operator/deploy/rule-evaluator ${SCRIPT_ROOT}/examples/rule-evaluator.yaml
 }
 
-# As this command can be slow, optimize by only running if there's difference
-# from the origin/main branch.
-codegen_diff || update_codegen
-go mod tidy && go mod vendor && go fmt ${SCRIPT_ROOT}/...
-update_crdgen
-update_examples
-update_docgen
-go test `go list ${SCRIPT_ROOT}/... | grep -v operator/e2e`
-"$@"
+run_tests() {
+  go test `go list ${SCRIPT_ROOT}/... | grep -v operator/e2e`
+}
+
+reformat() {
+  go mod tidy && go mod vendor && go fmt ${SCRIPT_ROOT}/...
+}
+
+exit_msg() {
+  echo $1
+  exit 1
+}
+
+run_all() {
+  # As this command can be slow, optimize by only running if there's difference
+  # from the origin/main branch.
+  codegen_diff || update_codegen
+  reformat
+  update_crdgen
+  update_examples
+  update_docgen
+  run_tests
+}
+
+main() {
+  if [[ -z "$@" ]]; then
+    run_all
+  else
+    for opt in "$@"; do
+      case "${opt}" in
+        all)
+          run_all
+          ;;
+        codegen)
+          update_codegen
+          ;;
+        crdgen)
+          update_crdgen
+          ;;
+        diff)
+          git diff -s --exit-code doc go.mod go.sum '*.go' '*.yaml' || \
+            exit_msg "diff found - ensure regenerated code is up-to-date and committed."
+          ;;
+        docgen)
+          update_docgen
+          ;;
+        examples)
+          update_examples
+          ;;
+        format)
+          reformat
+          ;;
+        test)
+          run_tests
+          ;;
+      esac
+    done
+  fi
+}
+
+main "$@"

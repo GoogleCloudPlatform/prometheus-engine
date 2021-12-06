@@ -52,7 +52,8 @@ test:        ## Run all tests. Writes real data to GCM API under PROJECT_ID envi
              ## Use GMP_CLUSTER, GMP_LOCATION to specify timeseries labels.
 	@echo ">> running tests"
 ifeq ($(DOCKER), 1)
-	$(call docker_build, . --target hermetic -t gmp/hermetic --build-arg RUNCMD='go test `go list ./... | grep -v operator/e2e`')
+	$(call docker_build, ./hack/Dockerfile --target hermetic -t gmp/hermetic \
+	--build-arg RUNCMD='go test `go list ./... | grep -v operator/e2e`')
 else
 	go test `go list ./... | grep -v operator/e2e`
 	go test `go list ./... | grep operator/e2e` -args -project-id=${PROJECT_ID} -cluster=${GMP_CLUSTER} -location=${GMP_LOCATION}
@@ -64,7 +65,7 @@ kindclean: clean
 kindtest:    ## Run e2e test suite against fresh kind k8s cluster.
 kindtest: kindclean
 	@echo ">> building image"
-	$(call docker_build, --tag gmp/kindtest -f hack/Dockerfile --target kindtest .)
+	$(call docker_build, -f hack/Dockerfile --target kindtest -t gmp/kindtest .)
 	@echo ">> creating tmp gcloud config volume"
 	docker volume create gcloud-config
 	docker create -v gcloud-config:/data --name tmp busybox true
@@ -80,13 +81,13 @@ lint:        ## Lint code.
 
 presubmit:   ## Validate and regenerate changes before submitting a PR 
              ## Use DRY_RUN=1 to only validate without regenerating changes.
-presubmit: ps assets kindtest
+presubmit: ps assets #kindtest
 ps:  
 ifeq ($(DRY_RUN), 1)
-	$(call docker_build, . --target hermetic -t gmp/hermetic \
-		--build-arg RUNCMD='./hack/presubmit.sh git diff --exit-code go.mod go.sum *.go *.yaml doc')
+	$(call docker_build, -f ./hack/Dockerfile --target hermetic -t gmp/hermetic \
+		--build-arg RUNCMD='./hack/presubmit.sh all diff' .)
 else
-	$(call docker_build, . --target sync -o . -t gmp/sync \
-		--build-arg RUNCMD='./hack/presubmit.sh')
-	rm -rf vendor && mv vendor2 vendor
+	$(call docker_build, -f ./hack/Dockerfile --target sync -o . -t gmp/sync \
+		--build-arg RUNCMD='./hack/presubmit.sh' .)
+	rm -rf vendor && mv vendor.tmp vendor
 endif
