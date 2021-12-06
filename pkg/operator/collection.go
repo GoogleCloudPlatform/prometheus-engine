@@ -151,7 +151,6 @@ func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec 
 			Namespace: r.opts.OperatorNamespace,
 			Labels: map[string]string{
 				LabelAppName: NameCollector,
-				KubernetesAppName: CollectorAppName,
 			},
 			Annotations: map[string]string{
 				AnnotationMetricName: componentName,

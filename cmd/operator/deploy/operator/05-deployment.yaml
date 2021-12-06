@@ -25,12 +25,14 @@ spec:
   replicas: 1
   selector:
     matchLabels:
+      app: managed_prometheus_operator
       app.kubernetes.io/name: gmp-operator
       app.kubernetes.io/component: operator
       app.kubernetes.io/part-of: gmp
   template:
     metadata:
       labels:
+        app: managed_prometheus_operator
         app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/component: operator
         app.kubernetes.io/part-of: gmp
