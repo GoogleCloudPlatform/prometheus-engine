@@ -18,6 +18,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/../..
 SCRIPT_DIR=$(realpath $(dirname "${BASH_SOURCE[0]}"))
 BUILD_DIR="$SCRIPT_DIR/build"
 STATIC_DIR="$SCRIPT_DIR/static"
@@ -28,8 +29,8 @@ rm -rf $BUILD_DIR
 # which defeats the purpose of vendoring them.
 # This is because make will check whether yarn.lock and package.json are older than
 # node_modules/
-cp -r --preserve=timestamps $SCRIPT_DIR/../../third_party/prometheus_ui/base $BUILD_DIR
-cp -r $SCRIPT_DIR/../../third_party/prometheus_ui/override/* $BUILD_DIR/web/ui/react-app/
+cp -r --preserve=timestamps ${SCRIPT_ROOT}/third_party/prometheus_ui/base $BUILD_DIR
+cp -r ${SCRIPT_ROOT}/third_party/prometheus_ui/override/* $BUILD_DIR/web/ui/react-app/
 
 make -C "$BUILD_DIR" assets
 rm -rf "$STATIC_DIR/react"
