@@ -74,8 +74,8 @@ const (
 
 	// The k8s Application, will be exposed as component name.
 	KubernetesAppName     = "app"
-	CollectorAppName      = "managed_prometheus_collector"
-	RuleEvaluatorAppName  = "managed_prometheus_rule_evaluator"
+	CollectorAppName      = "managed-prometheus-collector"
+	RuleEvaluatorAppName  = "managed-prometheus-rule_evaluator"
 )
 
 var (
