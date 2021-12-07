@@ -18,6 +18,16 @@ set -o errexit
 set -o nounset
 set -o pipefail 
 
+usage() {
+      cat >&2 << EOF
+usage: $(basename "$0") [all] [codegen] [crdgen] [diff] [docgen] [examples] [format] [test]
+  $(basename "$0") executes presubmit tasks on the respository to prepare code
+  before submitting changes. Running with no arguments runs every check
+  (i.e. the 'all' subcommand).
+
+EOF
+}
+
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 
 codegen_diff() {
@@ -170,6 +180,9 @@ main() {
         test)
           run_tests
           ;;
+        *)
+          echo -e "unsupported command: \"${opt}\".\n"
+          usage
       esac
     done
   fi
