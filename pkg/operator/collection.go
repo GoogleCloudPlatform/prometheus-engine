@@ -196,7 +196,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 	// Add more configuration of a full deployment: tolerations, resource request/limit,
 	// health checks, priority context, security context, dynamic update strategy params...
 	podLabels := map[string]string{
-		LabelAppName: NameCollector,
+		LabelAppName:      NameCollector,
 		KubernetesAppName: CollectorAppName,
 	}
 
