@@ -221,6 +221,32 @@ func TestValidatePodMonitoring(t *testing.T) {
 			},
 			fail:        true,
 			errContains: `regex n?amespace would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
+		}, {
+			desc: "invalid URL",
+			pm: PodMonitoringSpec{
+				Endpoints: []ScrapeEndpoint{
+					{
+						Port:     intstr.FromString("web"),
+						Interval: "10s",
+						ProxyURL: "_:_",
+					},
+				},
+			},
+			fail:        true,
+			errContains: `invalid proxy URL`,
+		}, {
+			desc: "proxy URL with password",
+			pm: PodMonitoringSpec{
+				Endpoints: []ScrapeEndpoint{
+					{
+						Port:     intstr.FromString("web"),
+						Interval: "10s",
+						ProxyURL: "http://user:password@foo.bar/",
+					},
+				},
+			},
+			fail:        true,
+			errContains: `passwords encoded in URLs are not supported`,
 		},
 	}
 
@@ -343,6 +369,7 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 					Interval: "10000ms",
 					Timeout:  "5s",
 					Path:     "/prometheus",
+					ProxyURL: "http://foo.bar/test",
 				},
 			},
 			TargetLabels: TargetLabels{
@@ -350,6 +377,12 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 					{From: "key1", To: "key2"},
 					{From: "key3"},
 				},
+			},
+			Limits: &ScrapeLimits{
+				Samples:          1,
+				Labels:           2,
+				LabelNameLength:  3,
+				LabelValueLength: 4,
 			},
 		},
 	}
@@ -372,7 +405,12 @@ honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 10s
 metrics_path: /metrics
-follow_redirects: false
+sample_limit: 1
+label_limit: 2
+label_name_length_limit: 3
+label_value_length_limit: 4
+proxy_url: ""
+follow_redirects: true
 relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
@@ -420,7 +458,12 @@ honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 5s
 metrics_path: /prometheus
-follow_redirects: false
+sample_limit: 1
+label_limit: 2
+label_name_length_limit: 3
+label_value_length_limit: 4
+proxy_url: http://foo.bar/test
+follow_redirects: true
 relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
