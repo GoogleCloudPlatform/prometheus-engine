@@ -1,0 +1,202 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.7.0
+  creationTimestamp: null
+  name: clusterpodmonitorings.monitoring.googleapis.com
+spec:
+  group: monitoring.googleapis.com
+  names:
+    kind: ClusterPodMonitoring
+    listKind: ClusterPodMonitoringList
+    plural: clusterpodmonitorings
+    singular: clusterpodmonitoring
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ClusterPodMonitoring defines monitoring for a set of pods.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Specification of desired Pod selection for target discovery
+              by Prometheus.
+            properties:
+              endpoints:
+                items:
+                  description: ScrapeEndpoint specifies a Prometheus metrics endpoint
+                    to scrape.
+                  properties:
+                    interval:
+                      description: Interval at which to scrape metrics. Must be a
+                        valid Prometheus duration.
+                      type: string
+                    path:
+                      description: HTTP path to scrape metrics from. Defaults to "/metrics".
+                      type: string
+                    port:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: Name or number of the port to scrape.
+                      x-kubernetes-int-or-string: true
+                    timeout:
+                      description: Timeout for metrics scrapes. Must be a valid Prometheus
+                        duration. Must not be larger then the scrape interval.
+                      type: string
+                  type: object
+                type: array
+              selector:
+                description: A label selector is a label query over a set of resources.
+                  The result of matchLabels and matchExpressions are ANDed. An empty
+                  label selector matches all objects. A null label selector matches
+                  no objects.
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: A label selector requirement is a selector that
+                        contains values, a key, and an operator that relates the key
+                        and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: operator represents a key's relationship to
+                            a set of values. Valid operators are In, NotIn, Exists
+                            and DoesNotExist.
+                          type: string
+                        values:
+                          description: values is an array of string values. If the
+                            operator is In or NotIn, the values array must be non-empty.
+                            If the operator is Exists or DoesNotExist, the values
+                            array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: matchLabels is a map of {key,value} pairs. A single
+                      {key,value} in the matchLabels map is equivalent to an element
+                      of matchExpressions, whose key field is "key", the operator
+                      is "In", and the values array contains only "value". The requirements
+                      are ANDed.
+                    type: object
+                type: object
+              targetLabels:
+                description: TargetLabels groups label mappings by Kubernetes resource.
+                properties:
+                  fromPod:
+                    description: 'Labels to transfer from the Kubernetes Pod to Prometheus
+                      target labels. In the case of a label mapping conflict: - Mappings
+                      at the end of the array take precedence.'
+                    items:
+                      description: LabelMapping specifies how to transfer a label
+                        from a Kubernetes resource onto a Prometheus target.
+                      properties:
+                        from:
+                          description: Kubenetes resource label to remap.
+                          type: string
+                        to:
+                          description: Remapped Prometheus target label. Defaults
+                            to the same name as `From`.
+                          type: string
+                      required:
+                      - from
+                      type: object
+                    type: array
+                type: object
+            required:
+            - endpoints
+            - selector
+            type: object
+          status:
+            description: Most recently observed status of the resource.
+            properties:
+              conditions:
+                description: Represents the latest available observations of a podmonitor's
+                  current state.
+                items:
+                  description: MonitoringCondition describes a condition of a PodMonitoring.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another.
+                      format: date-time
+                      type: string
+                    lastUpdateTime:
+                      description: The last time this condition was updated.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human-readable message indicating details about
+                        the transition.
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: MonitoringConditionType is the type of MonitoringCondition.
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              observedGeneration:
+                description: The generation observed by the controller.
+                format: int64
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

@@ -20,6 +20,8 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [AlertingSpec](#alertingspec)
 * [AlertmanagerEndpoints](#alertmanagerendpoints)
 * [Authorization](#authorization)
+* [ClusterPodMonitoring](#clusterpodmonitoring)
+* [ClusterPodMonitoringList](#clusterpodmonitoringlist)
 * [ClusterRules](#clusterrules)
 * [ClusterRulesList](#clusterruleslist)
 * [CollectionSpec](#collectionspec)
@@ -90,6 +92,32 @@ Authorization specifies a subset of the Authorization struct, that is safe for u
 | ----- | ----------- | ------ | -------- |
 | type | Set the authentication type. Defaults to Bearer, Basic will cause an error | string | false |
 | credentials | The secret's key that contains the credentials of the request | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
+
+[Back to TOC](#table-of-contents)
+
+## ClusterPodMonitoring
+
+ClusterPodMonitoring defines monitoring for a set of pods.
+
+
+<em>appears in: [ClusterPodMonitoringList](#clusterpodmonitoringlist)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
+| spec | Specification of desired Pod selection for target discovery by Prometheus. | [PodMonitoringSpec](#podmonitoringspec) | true |
+| status | Most recently observed status of the resource. | [PodMonitoringStatus](#podmonitoringstatus) | true |
+
+[Back to TOC](#table-of-contents)
+
+## ClusterPodMonitoringList
+
+ClusterPodMonitoringList is a list of ClusterPodMonitorings.
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#listmeta-v1-meta) | false |
+| items |  | [][ClusterPodMonitoring](#clusterpodmonitoring) | true |
 
 [Back to TOC](#table-of-contents)
 
@@ -236,7 +264,7 @@ PodMonitoringList is a list of PodMonitorings.
 PodMonitoringSpec contains specification parameters for PodMonitoring.
 
 
-<em>appears in: [PodMonitoring](#podmonitoring)</em>
+<em>appears in: [ClusterPodMonitoring](#clusterpodmonitoring), [PodMonitoring](#podmonitoring)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
@@ -252,7 +280,7 @@ PodMonitoringSpec contains specification parameters for PodMonitoring.
 PodMonitoringStatus holds status information of a PodMonitoring resource.
 
 
-<em>appears in: [PodMonitoring](#podmonitoring)</em>
+<em>appears in: [ClusterPodMonitoring](#clusterpodmonitoring), [PodMonitoring](#podmonitoring)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |

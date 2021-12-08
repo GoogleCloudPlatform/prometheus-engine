@@ -105,7 +105,8 @@ func TestCollectorPodMonitoring(t *testing.T) {
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
 	t.Run("deployed", tctx.subtest(testCollectorDeployed))
-	t.Run("self-monitoring", tctx.subtest(testCollectorSelfPodMonitoring))
+	t.Run("self-podmonitoring", tctx.subtest(testCollectorSelfPodMonitoring))
+	t.Run("self-clusterpodmonitoring", tctx.subtest(testCollectorSelfClusterPodMonitoring))
 }
 
 // This is hacky.
@@ -394,14 +395,14 @@ func testCSRIssued(ctx context.Context, t *testContext) {
 	// Operator creates CSR using FQDN format.
 	var fqdn = fmt.Sprintf("system:node:%s.%s.svc", operator.NameOperator, t.namespace)
 	err := wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
-		// Use v1b1 for now as GKE 1.18 currently uses that version.
-		csr, err := t.kubeClient.CertificatesV1beta1().CertificateSigningRequests().Get(ctx, fqdn, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
+		// CSR v1 API only available in 1.19+ k8s clusters.
+		if csr, err := t.kubeClient.CertificatesV1().CertificateSigningRequests().Get(ctx, fqdn, metav1.GetOptions{}); apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
-			return false, errors.Errorf("getting CSR: %s", err)
+			return false, errors.Errorf("getting v1 CSR: %s", err)
+		} else {
+			caBundle = csr.Status.Certificate
 		}
-		caBundle = csr.Status.Certificate
 		// This field is populated once a valid certificate has been issued by the API server.
 		return len(caBundle) > 0, nil
 	})
@@ -546,6 +547,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 			},
 		},
 	}
+
 	_, err := t.operatorClient.MonitoringV1alpha1().PodMonitorings(t.namespace).Create(ctx, podmon, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create collector PodMonitoring: %s", err)
@@ -582,6 +584,68 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 	if !skipGCM {
 		t.Log("Waiting for up metrics for collector targets")
 		validateCollectorUpMetrics(ctx, t, "collector-podmon")
+	}
+}
+
+// testCollectorSelfClusterPodMonitoring sets up pod monitoring of the collector itself
+// and waits for samples to become available in Cloud Monitoring.
+func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) {
+	// The operator should configure the collector to scrape itself and its metrics
+	// should show up in Cloud Monitoring shortly after.
+	podmon := &monitoringv1alpha1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "collector-cmon",
+			OwnerReferences: t.ownerReferences,
+		},
+		Spec: monitoringv1alpha1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					operator.LabelAppName: operator.NameCollector,
+				},
+			},
+			Endpoints: []monitoringv1alpha1.ScrapeEndpoint{
+				{Port: intstr.FromString("prom-metrics"), Interval: "5s"},
+				{Port: intstr.FromString("cfg-rel-metrics"), Interval: "5s"},
+			},
+		},
+	}
+
+	_, err := t.operatorClient.MonitoringV1alpha1().ClusterPodMonitorings().Create(ctx, podmon, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("create collector ClusterPodMonitoring: %s", err)
+	}
+	t.Log("Waiting for PodMonitoring collector-podmon to be processed")
+
+	var resVer = ""
+	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
+		pm, err := t.operatorClient.MonitoringV1alpha1().ClusterPodMonitorings().Get(ctx, "collector-cmon", metav1.GetOptions{})
+		if err != nil {
+			return false, errors.Errorf("getting ClusterPodMonitoring failed: %s", err)
+		}
+		// Ensure no status update cycles.
+		// This is not a perfect check as it's possible the get call returns before the operator
+		// would sync again, however it can serve as a valuable guardrail in case sporadic test
+		// failures start happening due to update cycles.
+		if size := len(pm.Status.Conditions); size == 1 {
+			if resVer == "" {
+				resVer = pm.ResourceVersion
+				return false, nil
+			}
+			success := pm.Status.Conditions[0].Type == monitoringv1alpha1.ConfigurationCreateSuccess
+			steadyVer := resVer == pm.ResourceVersion
+			return success && steadyVer, nil
+		} else if size > 1 {
+			return false, errors.Errorf("status conditions should be of length 1, but got: %d", size)
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Errorf("unable to validate ClusterPodMonitoring status: %s", err)
+	}
+
+	if !skipGCM {
+		t.Log("Waiting for up metrics for collector targets")
+		validateCollectorUpMetrics(ctx, t, "collector-cmon")
 	}
 }
 

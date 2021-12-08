@@ -22,24 +22,28 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-var errInvalidCond = fmt.Errorf("condition needs both 'Type' and 'Status' fields set")
+var (
+	errInvalidCond     = fmt.Errorf("condition needs both 'Type' and 'Status' fields set")
+	errUnsupportedType = fmt.Errorf("unsupported type for CRD state")
+)
 
 // CRDStatusState maintains state of the statuses of CRDs the operator manages.
 type CRDStatusState struct {
-	podmons map[string]*pmState
+	pMons map[string]*pmState
+	cMons map[string]*pmState
 	// Primarily used for testing.
 	now func() metav1.Time
 }
 
 type pmState struct {
 	pm          *monitoringv1alpha1.PodMonitoring
+	cm          *monitoringv1alpha1.ClusterPodMonitoring
 	needsUpdate bool
 	conds       map[monitoringv1alpha1.MonitoringConditionType]*monitoringv1alpha1.MonitoringCondition
 }
 
-func newPMState(pm *monitoringv1alpha1.PodMonitoring, now metav1.Time) *pmState {
+func newPMState(pm *monitoringv1alpha1.PodMonitoring, cm *monitoringv1alpha1.ClusterPodMonitoring, now metav1.Time) *pmState {
 	var state = &pmState{
-		pm:          pm,
 		needsUpdate: false,
 		conds:       make(map[monitoringv1alpha1.MonitoringConditionType]*monitoringv1alpha1.MonitoringCondition),
 	}
@@ -47,9 +51,18 @@ func newPMState(pm *monitoringv1alpha1.PodMonitoring, now metav1.Time) *pmState 
 	for _, mc := range monitoringv1alpha1.NewDefaultConditions(now) {
 		state.conds[mc.Type] = &mc
 	}
-	// Overwrite with any previous state.
-	for _, mc := range pm.Status.Conditions {
-		state.conds[mc.Type] = &mc
+	if pm != nil {
+		state.pm = pm
+		// Overwrite with any previous state.
+		for _, mc := range pm.Status.Conditions {
+			state.conds[mc.Type] = &mc
+		}
+	} else if cm != nil {
+		state.cm = cm
+		// Overwrite with any previous state.
+		for _, mc := range cm.Status.Conditions {
+			state.conds[mc.Type] = &mc
+		}
 	}
 	return state
 }
@@ -58,17 +71,18 @@ func newPMState(pm *monitoringv1alpha1.PodMonitoring, now metav1.Time) *pmState 
 // length enforcement.
 func NewCRDStatusState(now func() metav1.Time) *CRDStatusState {
 	return &CRDStatusState{
-		podmons: make(map[string]*pmState),
-		now:     now,
+		pMons: make(map[string]*pmState),
+		cMons: make(map[string]*pmState),
+		now:   now,
 	}
 }
 
 // SetPodMonitoringCondition adds the provided PodMonitoring resource to the managed state
 // along with the provided condition iff the resource generation has changed or there
 // is a status condition state transition.
-func (c *CRDStatusState) SetPodMonitoringCondition(pm *monitoringv1alpha1.PodMonitoring, cond *monitoringv1alpha1.MonitoringCondition) error {
+func (c *CRDStatusState) SetPodMonitoringCondition(obj metav1.Object, obsGen int64, cond *monitoringv1alpha1.MonitoringCondition) error {
 	var (
-		specChanged      = pm.Status.ObservedGeneration != pm.Generation
+		specChanged      = obsGen != obj.GetGeneration()
 		statusTransition = false
 	)
 
@@ -80,14 +94,29 @@ func (c *CRDStatusState) SetPodMonitoringCondition(pm *monitoringv1alpha1.PodMon
 	cond.LastUpdateTime = c.now()
 
 	// Create new entry if none exists for this podmonitoring resource.
-	key, err := cache.MetaNamespaceKeyFunc(pm)
+	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
 		return err
 	}
-	state, ok := c.podmons[key]
-	if !ok {
-		state = newPMState(pm, c.now())
-		c.podmons[key] = state
+
+	// Check if state for CRD is cached already.
+	var state *pmState
+	if pm, ok := obj.(*monitoringv1alpha1.PodMonitoring); ok {
+		if s, ok := c.pMons[key]; ok {
+			state = s
+		} else {
+			state = newPMState(pm, nil, c.now())
+			c.pMons[key] = state
+		}
+	} else if cm, ok := obj.(*monitoringv1alpha1.ClusterPodMonitoring); ok {
+		if s, ok := c.cMons[key]; ok {
+			state = s
+		} else {
+			state = newPMState(nil, cm, c.now())
+			c.cMons[key] = state
+		}
+	} else {
+		return errUnsupportedType
 	}
 
 	// Check if the condition results in a transition of status state.
@@ -114,7 +143,7 @@ func (c *CRDStatusState) SetPodMonitoringCondition(pm *monitoringv1alpha1.PodMon
 func (c *CRDStatusState) PodMonitorings() []monitoringv1alpha1.PodMonitoring {
 	var pmons []monitoringv1alpha1.PodMonitoring
 
-	for _, state := range c.podmons {
+	for _, state := range c.pMons {
 		if state.needsUpdate {
 			pm := state.pm.DeepCopy()
 			pm.Status = monitoringv1alpha1.PodMonitoringStatus{
@@ -130,7 +159,29 @@ func (c *CRDStatusState) PodMonitorings() []monitoringv1alpha1.PodMonitoring {
 	return pmons
 }
 
+// ClusterPodMonitorings only returns podmonitoring resources where a status update
+// was significant.
+func (c *CRDStatusState) ClusterPodMonitorings() []monitoringv1alpha1.ClusterPodMonitoring {
+	var cmons []monitoringv1alpha1.ClusterPodMonitoring
+
+	for _, state := range c.cMons {
+		if state.needsUpdate {
+			cm := state.cm.DeepCopy()
+			cm.Status = monitoringv1alpha1.PodMonitoringStatus{
+				ObservedGeneration: cm.Generation,
+			}
+			for _, c := range state.conds {
+				cm.Status.Conditions = append(cm.Status.Conditions, *c)
+			}
+			cmons = append(cmons, *cm)
+		}
+	}
+
+	return cmons
+}
+
 // Reset clears all state.
 func (c *CRDStatusState) Reset() {
-	c.podmons = make(map[string]*pmState)
+	c.pMons = make(map[string]*pmState)
+	c.cMons = make(map[string]*pmState)
 }

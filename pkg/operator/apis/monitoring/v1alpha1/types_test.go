@@ -255,17 +255,33 @@ func TestValidatePodMonitoring(t *testing.T) {
 			pm := &PodMonitoring{
 				Spec: c.pm,
 			}
-			err := pm.ValidateCreate()
-			t.Log(err)
+			perr := pm.ValidateCreate()
+			t.Log(perr)
 
-			if err == nil && c.fail {
+			if perr == nil && c.fail {
 				t.Fatalf("expected failure but passed")
 			}
-			if err != nil && !c.fail {
-				t.Fatalf("unexpected failure: %s", err)
+			if perr != nil && !c.fail {
+				t.Fatalf("unexpected failure: %s", perr)
 			}
-			if err != nil && c.fail && !strings.Contains(err.Error(), c.errContains) {
-				t.Fatalf("expected error to contain %q but got %q", c.errContains, err)
+			if perr != nil && c.fail && !strings.Contains(perr.Error(), c.errContains) {
+				t.Fatalf("expected error to contain %q but got %q", c.errContains, perr)
+			}
+
+			cm := &ClusterPodMonitoring{
+				Spec: c.pm,
+			}
+			cerr := cm.ValidateCreate()
+			t.Log(cerr)
+
+			if cerr == nil && c.fail {
+				t.Fatalf("expected failure but passed")
+			}
+			if cerr != nil && !c.fail {
+				t.Fatalf("unexpected failure: %s", cerr)
+			}
+			if cerr != nil && c.fail && !strings.Contains(cerr.Error(), c.errContains) {
+				t.Fatalf("expected error to contain %q but got %q", c.errContains, cerr)
 			}
 		})
 	}

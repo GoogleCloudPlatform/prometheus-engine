@@ -191,6 +191,60 @@ type PodMonitoringList struct {
 	Items           []PodMonitoring `json:"items"`
 }
 
+// ClusterPodMonitoring defines monitoring for a set of pods.
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
+type ClusterPodMonitoring struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	// Specification of desired Pod selection for target discovery by
+	// Prometheus.
+	Spec PodMonitoringSpec `json:"spec"`
+	// Most recently observed status of the resource.
+	// +optional
+	Status PodMonitoringStatus `json:"status"`
+}
+
+// ClusterPodMonitoringList is a list of ClusterPodMonitorings.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ClusterPodMonitoringList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ClusterPodMonitoring `json:"items"`
+}
+
+func (cm *ClusterPodMonitoring) ValidateCreate() error {
+	if len(cm.Spec.Endpoints) == 0 {
+		return errors.New("at least one endpoint is required")
+	}
+	_, err := cm.ScrapeConfigs()
+	return err
+}
+
+func (cm *ClusterPodMonitoring) ValidateUpdate(old runtime.Object) error {
+	// Validity does not depend on state changes.
+	return cm.ValidateCreate()
+}
+
+func (cm *ClusterPodMonitoring) ValidateDelete() error {
+	// Deletions are always valid.
+	return nil
+}
+
+func (cm *ClusterPodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err error) {
+	for i := range cm.Spec.Endpoints {
+		c, err := endpontScrapeConfig(&cm.Spec, i, cm.Name, "(.*)")
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
+		}
+		res = append(res, c)
+	}
+	return res, nil
+}
+
 func (pm *PodMonitoring) ValidateCreate() error {
 	if len(pm.Spec.Endpoints) == 0 {
 		return errors.New("at least one endpoint is required")
@@ -212,7 +266,7 @@ func (pm *PodMonitoring) ValidateDelete() error {
 // ScrapeConfigs generated Prometheus scrape configs for the PodMonitoring.
 func (pm *PodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err error) {
 	for i := range pm.Spec.Endpoints {
-		c, err := pm.endpointScrapeConfig(i)
+		c, err := endpontScrapeConfig(&pm.Spec, i, pm.Name, pm.Namespace)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
 		}
@@ -225,16 +279,11 @@ func (pm *PodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err er
 // scrape configurations for a PodMonitoring resource.
 const EnvVarNodeName = "NODE_NAME"
 
-func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConfig, error) {
+func endpontScrapeConfig(spec *PodMonitoringSpec, index int, name, ns string) (*promconfig.ScrapeConfig, error) {
 	// The Prometheus configuration structs do not generally have validation methods and embed their
 	// validation logic in the UnmarshalYAML methods. To keep things reasonable we don't re-validate
 	// everything and simply do a final marshal-unmarshal cycle at the end to run all validation
 	// upstream provides at the end of this method.
-
-	// Configure how Prometheus talks to the Kubernetes API server to discover targets.
-	// This configuration is the same for all scrape jobs (esp. selectors).
-	// This ensures that Prometheus can reuse the underlying client and caches, which reduces
-	// load on the Kubernetes API server.
 	discoveryCfgs := discovery.Configs{
 		&discoverykube.SDConfig{
 			HTTPClientConfig: config.DefaultHTTPClientConfig,
@@ -252,7 +301,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConf
 		},
 	}
 
-	ep := pm.Spec.Endpoints[index]
+	ep := spec.Endpoints[index]
 
 	// TODO(freinartz): validate all generated regular expressions.
 	relabelCfgs := []*relabel.Config{
@@ -260,7 +309,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConf
 		{
 			Action:       relabel.Keep,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
-			Regex:        relabel.MustNewRegexp(pm.Namespace),
+			Regex:        relabel.MustNewRegexp(ns),
 		},
 	}
 
@@ -269,7 +318,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConf
 	// Simple equal matchers. Sort by keys first to ensure that generated configs are reproducible.
 	// (Go map iteration is non-deterministic.)
 	var selectorKeys []string
-	for k := range pm.Spec.Selector.MatchLabels {
+	for k := range spec.Selector.MatchLabels {
 		selectorKeys = append(selectorKeys, k)
 	}
 	sort.Strings(selectorKeys)
@@ -286,7 +335,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConf
 		})
 	}
 	// Expression matchers are mapped to relabeling rules with the same behavior.
-	for _, exp := range pm.Spec.Selector.MatchExpressions {
+	for _, exp := range spec.Selector.MatchExpressions {
 		switch exp.Operator {
 		case metav1.LabelSelectorOpIn:
 			re, err := relabel.NewRegexp(strings.Join(exp.Values, "|"))
@@ -331,7 +380,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConf
 	})
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
 		Action:      relabel.Replace,
-		Replacement: pm.Name,
+		Replacement: name,
 		TargetLabel: "job",
 	})
 
@@ -388,7 +437,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConf
 	}
 
 	// Incorporate k8s label remappings from CRD.
-	if pCfgs, err := labelMappingRelabelConfigs(pm.Spec.TargetLabels.FromPod, "__meta_kubernetes_pod_label_"); err != nil {
+	if pCfgs, err := labelMappingRelabelConfigs(spec.TargetLabels.FromPod, "__meta_kubernetes_pod_label_"); err != nil {
 		return nil, errors.Wrap(err, "invalid PodMonitoring target labels")
 	} else {
 		relabelCfgs = append(relabelCfgs, pCfgs...)
@@ -440,7 +489,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConf
 	scrapeCfg := &promconfig.ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
-		JobName:                 fmt.Sprintf("PodMonitoring/%s/%s/%s", pm.Namespace, pm.Name, &ep.Port),
+		JobName:                 fmt.Sprintf("PodMonitoring/%s/%s/%s", ns, name, &ep.Port),
 		ServiceDiscoveryConfigs: discoveryCfgs,
 		MetricsPath:             metricsPath,
 		Scheme:                  ep.Scheme,

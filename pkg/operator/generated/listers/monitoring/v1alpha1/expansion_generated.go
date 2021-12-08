@@ -16,6 +16,10 @@
 
 package v1alpha1
 
+// ClusterPodMonitoringListerExpansion allows custom methods to be added to
+// ClusterPodMonitoringLister.
+type ClusterPodMonitoringListerExpansion interface{}
+
 // ClusterRulesListerExpansion allows custom methods to be added to
 // ClusterRulesLister.
 type ClusterRulesListerExpansion interface{}

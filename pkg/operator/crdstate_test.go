@@ -175,7 +175,7 @@ func TestAddPodMonitoringCondition(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		t.Run(fmt.Sprintf("%s - one podmonitoring", c.doc), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s - one podmonitoring, clusterpodmonitoring", c.doc), func(t *testing.T) {
 			// Init state.
 			state := NewCRDStatusState(func() metav1.Time { return c.now })
 
@@ -186,7 +186,19 @@ func TestAddPodMonitoringCondition(t *testing.T) {
 				},
 				Status: c.currStatus,
 			}
-			err := state.SetPodMonitoringCondition(pm, c.cond)
+			err := state.SetPodMonitoringCondition(pm, pm.Status.ObservedGeneration, c.cond)
+			if err != nil {
+				t.Fatalf("setting podmonitoring state: %s", err)
+			}
+
+			cm := &monitoringv1alpha1.ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "cm1",
+					Generation: c.generation,
+				},
+				Status: c.currStatus,
+			}
+			err = state.SetPodMonitoringCondition(cm, cm.Status.ObservedGeneration, c.cond)
 			if err != nil {
 				t.Fatalf("setting podmonitoring state: %s", err)
 			}
@@ -204,9 +216,23 @@ func TestAddPodMonitoringCondition(t *testing.T) {
 			} else if pm.Name != "pm1" || pm.Generation != c.generation || !reflect.DeepEqual(pm.Status, c.currStatus) {
 				t.Errorf("podmonitoring resource mutated: %+v", pm)
 			}
+
+			// Get resolved clusterpodmonitorings.
+			cms := state.ClusterPodMonitorings()
+			if len(c.expStatus.Conditions) == 0 {
+				if size := len(cms); size != 0 {
+					t.Errorf("state should not return any resources. returned: %d", size)
+				}
+			} else if size := len(cms); size != 1 {
+				t.Errorf("more than one clusterpodmonitoring resource, got: %d", size)
+			} else if diff := cmp.Diff(cms[0].Status, c.expStatus); diff != "" {
+				t.Errorf("actual status differs from expected. diff: %s", diff)
+			} else if cm.Name != "cm1" || cm.Generation != c.generation || !reflect.DeepEqual(cm.Status, c.currStatus) {
+				t.Errorf("clusterpodmonitoring resource mutated: %+v", cm)
+			}
 		})
 		// Ensure separate podmonitoring resources state is honored.
-		t.Run(fmt.Sprintf("%s - two podmonitorings", c.doc), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s - two podmonitorings, clusterpodmonitorings", c.doc), func(t *testing.T) {
 			// Init state.
 			state := NewCRDStatusState(func() metav1.Time { return c.now })
 
@@ -226,11 +252,11 @@ func TestAddPodMonitoringCondition(t *testing.T) {
 				},
 				Status: c.currStatus,
 			}
-			err := state.SetPodMonitoringCondition(pm1, c.cond)
+			err := state.SetPodMonitoringCondition(pm1, pm1.Status.ObservedGeneration, c.cond)
 			if err != nil {
 				t.Fatalf("setting podmonitoring state: %s", err)
 			}
-			err = state.SetPodMonitoringCondition(pm2, c.cond)
+			err = state.SetPodMonitoringCondition(pm2, pm2.Status.ObservedGeneration, c.cond)
 			if err != nil {
 				t.Fatalf("setting podmonitoring state: %s", err)
 			}
@@ -242,7 +268,7 @@ func TestAddPodMonitoringCondition(t *testing.T) {
 					t.Errorf("state should not return any resources. returned: %d", size)
 				}
 			} else if size := len(pms); size != 2 {
-				t.Errorf("more than one podmonitoring resource, got: %d", size)
+				t.Errorf("expected 2 podmonitoring resources, got: %d", size)
 			} else if diff := cmp.Diff(pms[0].Status, c.expStatus); diff != "" {
 				t.Errorf("actual status differs from expected. diff: %s", diff)
 			} else if diff := cmp.Diff(pms[1].Status, c.expStatus); diff != "" {
@@ -251,6 +277,47 @@ func TestAddPodMonitoringCondition(t *testing.T) {
 				t.Errorf("podmonitoring resource mutated: %+v", pm1)
 			} else if pm2.Name != "pm1" || pm2.Generation != c.generation || !reflect.DeepEqual(pm2.Status, c.currStatus) {
 				t.Errorf("podmonitoring resource mutated: %+v", pm2)
+			}
+
+			cm1 := &monitoringv1alpha1.ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "cm1",
+					Generation: c.generation,
+				},
+				Status: c.currStatus,
+			}
+			cm2 := &monitoringv1alpha1.ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "cm2",
+					Generation: c.generation,
+				},
+				Status: c.currStatus,
+			}
+			err = state.SetPodMonitoringCondition(cm1, cm1.Status.ObservedGeneration, c.cond)
+			if err != nil {
+				t.Fatalf("setting podmonitoring state: %s", err)
+			}
+			err = state.SetPodMonitoringCondition(cm2, cm2.Status.ObservedGeneration, c.cond)
+			if err != nil {
+				t.Fatalf("setting podmonitoring state: %s", err)
+			}
+
+			// Get resolved podmonitorings.
+			cms := state.ClusterPodMonitorings()
+			if len(c.expStatus.Conditions) == 0 {
+				if size := len(cms); size != 0 {
+					t.Errorf("state should not return any resources. returned: %d", size)
+				}
+			} else if size := len(cms); size != 2 {
+				t.Errorf("expected 2 clusterpodmonitoring resources, got: %d", size)
+			} else if diff := cmp.Diff(cms[0].Status, c.expStatus); diff != "" {
+				t.Errorf("actual status differs from expected. diff: %s", diff)
+			} else if diff := cmp.Diff(cms[1].Status, c.expStatus); diff != "" {
+				t.Errorf("actual status differs from expected. diff: %s", diff)
+			} else if cm1.Name != "cm1" || cm1.Generation != c.generation || !reflect.DeepEqual(cm1.Status, c.currStatus) {
+				t.Errorf("clusterpodmonitoring resource mutated: %+v", cm1)
+			} else if cm2.Name != "cm2" || cm2.Generation != c.generation || !reflect.DeepEqual(cm2.Status, c.currStatus) {
+				t.Errorf("clusterpodmonitoring resource mutated: %+v", cm2)
 			}
 		})
 	}
@@ -263,7 +330,18 @@ func TestReset(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: fmt.Sprintf("pm-%d", i),
 			},
-		}, &monitoringv1alpha1.MonitoringCondition{
+		}, 0, &monitoringv1alpha1.MonitoringCondition{
+			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
+			Status: corev1.ConditionTrue,
+		})
+		if err != nil {
+			t.Fatalf("setting podmonitoring state: %s", err)
+		}
+		err = state.SetPodMonitoringCondition(&monitoringv1alpha1.ClusterPodMonitoring{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("pm-%d", i),
+			},
+		}, 0, &monitoringv1alpha1.MonitoringCondition{
 			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		})
@@ -274,8 +352,15 @@ func TestReset(t *testing.T) {
 	if size := len(state.PodMonitorings()); size != 5 {
 		t.Errorf("podmonitorings getter returning unexpected size: %d", size)
 	}
+	if size := len(state.ClusterPodMonitorings()); size != 5 {
+		t.Errorf("clusterpodmonitorings getter returning unexpected size: %d", size)
+	}
+
 	state.Reset()
 	if size := len(state.PodMonitorings()); size != 0 {
 		t.Errorf("podmonitorings getter returning unexpected size after reset: %d", size)
+	}
+	if size := len(state.ClusterPodMonitorings()); size != 0 {
+		t.Errorf("clusterpodmonitorings getter returning unexpected size after reset: %d", size)
 	}
 }

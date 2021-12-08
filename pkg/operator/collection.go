@@ -78,6 +78,12 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
+		// Any update to a ClusterPodMonitoring requires regenerating the config.
+		Watches(
+			&source.Kind{Type: &monitoringv1alpha1.ClusterPodMonitoring{}},
+			enqueueConst(objRequest),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		// The configuration we generate for the collectors.
 		Watches(
 			&source.Kind{Type: &corev1.ConfigMap{}},
@@ -411,6 +417,11 @@ func (r *collectionReconciler) updateCRDStatus(ctx context.Context) error {
 			return err
 		}
 	}
+	for _, pm := range r.statusState.ClusterPodMonitorings() {
+		if err := r.client.Status().Update(ctx, &pm); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -455,30 +466,59 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
 	var (
-		podmons monitoringv1alpha1.PodMonitoringList
+		pMons  monitoringv1alpha1.PodMonitoringList
+		cpMons monitoringv1alpha1.ClusterPodMonitoringList
 	)
-	if err := r.client.List(ctx, &podmons); err != nil {
+	if err := r.client.List(ctx, &pMons); err != nil {
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
 	}
 
 	// Mark status updates in batch with single timestamp.
-	for _, pm := range podmons.Items {
+	for _, pm := range pMons.Items {
 		// Reassign so we can safely get a pointer.
-		podmon := pm
+		pmon := pm
 
 		cond := &monitoringv1alpha1.MonitoringCondition{
 			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := podmon.ScrapeConfigs()
+		cfgs, err := pmon.ScrapeConfigs()
 		if err != nil {
 			logger.Error(err, "generating scrape config failed for PodMonitoring endpoint",
-				"namespace", podmon.Namespace, "name", podmon.Name)
+				"namespace", pmon.Namespace, "name", pmon.Name)
 			continue
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		if err := r.statusState.SetPodMonitoringCondition(&podmon, cond); err != nil {
+		if err := r.statusState.SetPodMonitoringCondition(&pmon, pmon.Status.ObservedGeneration, cond); err != nil {
+			// Log an error but let operator continue to avoid getting stuck
+			// on a potential bad resource.
+			logger.Error(err, "setting podmonitoring status state")
+		}
+	}
+
+	if err := r.client.List(ctx, &cpMons); err != nil {
+		return nil, errors.Wrap(err, "failed to list ClusterPodMonitorings")
+	}
+
+	// Mark status updates in batch with single timestamp.
+	for _, cm := range cpMons.Items {
+		// Reassign so we can safely get a pointer.
+		cmon := cm
+
+		cond := &monitoringv1alpha1.MonitoringCondition{
+			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
+			Status: corev1.ConditionTrue,
+		}
+		cfgs, err := cmon.ScrapeConfigs()
+		if err != nil {
+			logger.Error(err, "generating scrape config failed for PodMonitoring endpoint",
+				"namespace", cmon.Namespace, "name", cmon.Name)
+			continue
+		}
+		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
+
+		if err := r.statusState.SetPodMonitoringCondition(&cmon, cmon.Status.ObservedGeneration, cond); err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
 			logger.Error(err, "setting podmonitoring status state")
