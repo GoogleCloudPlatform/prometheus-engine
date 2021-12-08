@@ -52,9 +52,12 @@ test:        ## Run all tests. Writes real data to GCM API under PROJECT_ID envi
              ## Use GMP_CLUSTER, GMP_LOCATION to specify timeseries labels.
 	@echo ">> running tests"
 ifeq ($(DOCKER), 1)
-	$(call docker_build, ./hack/Dockerfile --target hermetic -t gmp/hermetic \
-	--build-arg RUNCMD='go test `go list ./... | grep -v operator/e2e`')
+	$(call docker_build, -f ./hack/Dockerfile --target hermetic -t gmp/hermetic \
+	--build-arg RUNCMD='go test `go list ./... | grep -v operator/e2e`' .)
 else
+	kubectl apply -f examples/setup.yaml
+	kubectl apply -f cmd/operator/deploy/operator/01-priority-class.yaml
+	kubectl apply -f cmd/operator/deploy/operator/03-clusterrole.yaml
 	go test `go list ./... | grep -v operator/e2e`
 	go test `go list ./... | grep operator/e2e` -args -project-id=${PROJECT_ID} -cluster=${GMP_CLUSTER} -location=${GMP_LOCATION}
 endif
@@ -81,7 +84,7 @@ lint:        ## Lint code.
 
 presubmit:   ## Validate and regenerate changes before submitting a PR 
              ## Use DRY_RUN=1 to only validate without regenerating changes.
-presubmit: ps assets #kindtest
+presubmit: ps assets kindtest
 ps:  
 ifeq ($(DRY_RUN), 1)
 	$(call docker_build, -f ./hack/Dockerfile --target hermetic -t gmp/hermetic \
