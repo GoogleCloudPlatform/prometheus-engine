@@ -156,6 +156,7 @@ metadata:
   namespace: gmp-system
   name: gmp-operator
   labels:
+    app: managed-prometheus-operator
     app.kubernetes.io/name: gmp-operator
     app.kubernetes.io/component: operator
     app.kubernetes.io/part-of: gmp
@@ -169,6 +170,7 @@ spec:
   template:
     metadata:
       labels:
+        app: managed-prometheus-operator
         app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/component: operator
         app.kubernetes.io/part-of: gmp
