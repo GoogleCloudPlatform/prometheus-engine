@@ -169,6 +169,7 @@ type SecretOrConfigMap struct {
 // PodMonitoring defines monitoring for a set of pods.
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:subresource:status
 type PodMonitoring struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -521,11 +522,11 @@ func NewDefaultConditions(now metav1.Time) []MonitoringCondition {
 //
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:subresource:status
 type Rules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// Specification of desired Pod selection for target discovery by
-	// Prometheus.
+	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
 	// +optional
@@ -549,11 +550,12 @@ type RulesList struct {
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
 type ClusterRules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// Specification of desired Pod selection for target discovery by
-	// Prometheus.
+	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
 	// +optional
