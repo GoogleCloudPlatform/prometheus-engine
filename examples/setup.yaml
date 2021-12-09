@@ -52,8 +52,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: Specification of desired Pod selection for target discovery
-              by Prometheus.
+            description: Specification of rules to record and alert on.
             properties:
               groups:
                 description: A list of Prometheus rule groups.
@@ -686,8 +685,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: Specification of desired Pod selection for target discovery
-              by Prometheus.
+            description: Specification of rules to record and alert on.
             properties:
               groups:
                 description: A list of Prometheus rule groups.

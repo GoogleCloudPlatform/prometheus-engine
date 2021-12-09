@@ -101,7 +101,7 @@ ClusterRules defines Prometheus alerting and recording rules that are scoped to 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
-| spec | Specification of desired Pod selection for target discovery by Prometheus. | [RulesSpec](#rulesspec) | true |
+| spec | Specification of rules to record and alert on. | [RulesSpec](#rulesspec) | true |
 | status | Most recently observed status of the resource. | [RulesStatus](#rulesstatus) | true |
 
 [Back to TOC](#table-of-contents)
@@ -317,7 +317,7 @@ Rules defines Prometheus alerting and recording rules that are scoped to the nam
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
-| spec | Specification of desired Pod selection for target discovery by Prometheus. | [RulesSpec](#rulesspec) | true |
+| spec | Specification of rules to record and alert on. | [RulesSpec](#rulesspec) | true |
 | status | Most recently observed status of the resource. | [RulesStatus](#rulesstatus) | true |
 
 [Back to TOC](#table-of-contents)

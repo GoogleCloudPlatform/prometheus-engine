@@ -526,8 +526,7 @@ func NewDefaultConditions(now metav1.Time) []MonitoringCondition {
 type Rules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// Specification of desired Pod selection for target discovery by
-	// Prometheus.
+	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
 	// +optional
@@ -556,8 +555,7 @@ type RulesList struct {
 type ClusterRules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// Specification of desired Pod selection for target discovery by
-	// Prometheus.
+	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
 	// +optional
