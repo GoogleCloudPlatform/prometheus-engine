@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
+	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
 	gax "github.com/googleapis/gax-go/v2"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
@@ -112,6 +114,79 @@ func TestBatchFillFromShardsAndSend(t *testing.T) {
 	for _, s := range shards {
 		if s.pending {
 			t.Fatalf("shard unexpectedtly pending after send")
+		}
+	}
+}
+
+func TestSampleInRange(t *testing.T) {
+	cases := []struct {
+		interval   monitoring_pb.TimeInterval
+		start, end time.Time
+		want       bool
+	}{
+		{
+			interval: monitoring_pb.TimeInterval{
+				EndTime: &timestamp_pb.Timestamp{Seconds: 100},
+			},
+			start: time.Unix(100, 0),
+			end:   time.Unix(100, 0),
+			want:  true,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				EndTime: &timestamp_pb.Timestamp{Seconds: 100},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  true,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				EndTime: &timestamp_pb.Timestamp{Seconds: 101},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  false,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				StartTime: &timestamp_pb.Timestamp{Seconds: 90},
+				EndTime:   &timestamp_pb.Timestamp{Seconds: 100},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  true,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				StartTime: &timestamp_pb.Timestamp{Seconds: 89},
+				EndTime:   &timestamp_pb.Timestamp{Seconds: 100},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  false,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				StartTime: &timestamp_pb.Timestamp{Seconds: 90},
+				EndTime:   &timestamp_pb.Timestamp{Seconds: 101},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  false,
+		}, {
+			interval: monitoring_pb.TimeInterval{
+				StartTime: &timestamp_pb.Timestamp{Seconds: 89},
+				EndTime:   &timestamp_pb.Timestamp{Seconds: 101},
+			},
+			start: time.Unix(90, 0),
+			end:   time.Unix(100, 0),
+			want:  false,
+		},
+	}
+	for _, c := range cases {
+		p := &monitoring_pb.TimeSeries{
+			Points: []*monitoring_pb.Point{
+				{Interval: &c.interval},
+			},
+		}
+		if ok := sampleInRange(p, c.start, c.end); ok != c.want {
+			t.Errorf("expected sample in range %v, got %v", c.want, ok)
 		}
 	}
 }

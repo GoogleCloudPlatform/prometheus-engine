@@ -178,6 +178,18 @@ func (c *seriesCache) forceRefresh() {
 	}
 }
 
+// clear the entire cache state.
+func (c *seriesCache) clear() {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	for ref, entry := range c.entries {
+		c.pool.release(entry.protos.gauge.proto)
+		c.pool.release(entry.protos.cumulative.proto)
+		delete(c.entries, ref)
+	}
+}
+
 // garbageCollect drops obsolete cache entries that have not been updated for
 // the given delay duration.
 func (c *seriesCache) garbageCollect(delay time.Duration) error {

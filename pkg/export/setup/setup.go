@@ -20,11 +20,25 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
-	"github.com/go-kit/kit/log"
 	"cloud.google.com/go/compute/metadata"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/lease"
+	"github.com/go-kit/kit/log"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+
+	// Blank import required to register auth handlers to talk use different auth mechanisms
+	// for talking to the Kubernetes API server.
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+)
+
+// Supported HA backend modes.
+const (
+	HABackendNone       = "none"
+	HABackendKubernetes = "kube"
 )
 
 // Generally, global state is not a good approach and actively discouraged throughout
@@ -100,7 +114,51 @@ func FromFlags(a *kingpin.Application, userAgent string) func(log.Logger, promet
 	a.Flag("export.debug.batch-size", "Maximum number of points to send in one batch to the GCM API.").
 		Default(strconv.Itoa(export.BatchSizeMax)).UintVar(&opts.BatchSize)
 
+	haBackend := a.Flag("export.ha.backend", fmt.Sprintf("Which backend to use to coordinate HA pairs that both send metric data to the GCM API. Valid values are %q or %q", HABackendNone, HABackendKubernetes)).
+		Default(HABackendNone).Enum(HABackendNone, HABackendKubernetes)
+
+	kubeConfigPath := a.Flag("export.ha.kube.config", "Path to kube config file.").
+		Default("").String()
+	kubeNamespace := a.Flag("export.ha.kube.namespace", "Namespace for the HA locking resource. Must be identical across replicas. May be set through the KUBE_NAMESPACE environment variable.").
+		Default("").OverrideDefaultFromEnvar("KUBE_NAMESPACE").String()
+	kubeName := a.Flag("export.ha.kube.name", "Name for the HA locking resource. Must be identical across replicas. May be set through the KUBE_NAME environment variable.").
+		Default("").OverrideDefaultFromEnvar("KUBE_NAME").String()
+
 	return func(logger log.Logger, metrics prometheus.Registerer) (*export.Exporter, error) {
+		switch *haBackend {
+		case HABackendNone:
+		case HABackendKubernetes:
+			kubecfg, err := loadKubeConfig(*kubeConfigPath)
+			if err != nil {
+				return nil, errors.Wrap(err, "loading kube config failed")
+			}
+			opts.Lease, err = lease.NewKubernetes(
+				logger,
+				metrics,
+				kubecfg,
+				*kubeNamespace, *kubeName,
+				&lease.Options{},
+			)
+			if err != nil {
+				return nil, errors.Wrap(err, "set up Kubernetes lease")
+			}
+		default:
+			return nil, errors.Errorf("unexpected HA backend %q", haBackend)
+		}
 		return export.New(logger, metrics, opts)
 	}
+}
+
+func loadKubeConfig(kubeconfigPath string) (*rest.Config, error) {
+	if kubeconfigPath == "" {
+		cfg, err := rest.InClusterConfig()
+		if err == nil {
+			return cfg, nil
+		}
+		// Fallback to default config.
+	}
+	rules := clientcmd.NewDefaultClientConfigLoadingRules()
+	rules.ExplicitPath = kubeconfigPath
+
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, nil).ClientConfig()
 }
