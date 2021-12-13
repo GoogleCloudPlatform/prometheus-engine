@@ -17,6 +17,7 @@ package export
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -99,7 +100,8 @@ type Exporter struct {
 	// be processed.
 	nextc chan struct{}
 
-	// The external labels may be updated asynchronously by configuration changes.
+	// The external labels may be updated asynchronously by configuration changes
+	// and must be locked with mtx.
 	mtx            sync.Mutex
 	externalLabels labels.Labels
 }
@@ -149,6 +151,45 @@ type ExporterOpts struct {
 	BatchSize uint
 	// Prefix under which metrics are written to GCM.
 	MetricTypePrefix string
+
+	// A lease on a time range for which the exporter send sample data.
+	// It is checked for on each batch provided to the Export method.
+	// If unset, data is always sent.
+	Lease Lease
+}
+
+// NopExporter returns an inactive exporter.
+func NopExporter() *Exporter {
+	return &Exporter{
+		opts: ExporterOpts{Disable: true},
+	}
+}
+
+// Lease determines a currently owned time range.
+type Lease interface {
+	// Range informs whether the caller currently holds the lease and for what time range.
+	// The range is inclusive.
+	Range() (start, end time.Time, ok bool)
+	// Run background processing until context is cancelled.
+	Run(context.Context)
+	// OnLeaderChange sets a callback that is invoked when the lease leader changes.
+	// Must be called before Run.
+	OnLeaderChange(func())
+}
+
+// alwaysLease is a lease that is always held.
+type alwaysLease struct{}
+
+func (alwaysLease) Range() (time.Time, time.Time, bool) {
+	return time.UnixMilli(math.MinInt64), time.UnixMilli(math.MaxInt64), true
+}
+
+func (alwaysLease) Run(ctx context.Context) {
+	<-ctx.Done()
+}
+
+func (alwaysLease) OnLeaderChange(f func()) {
+	// We never lose the lease as it's always owned.
 }
 
 func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.MetricClient, error) {
@@ -172,13 +213,6 @@ func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.Metric
 		clientOpts = append(clientOpts, option.WithCredentialsFile(opts.CredentialsFile))
 	}
 	return monitoring.NewMetricClient(ctx, clientOpts...)
-}
-
-// NopExporter returns an inactive exporter.
-func NopExporter() *Exporter {
-	return &Exporter{
-		opts: ExporterOpts{Disable: true},
-	}
 }
 
 // New returns a new Cloud Monitoring Exporter.
@@ -213,6 +247,9 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 	if opts.MetricTypePrefix == "" {
 		opts.MetricTypePrefix = MetricTypePrefix
 	}
+	if opts.Lease == nil {
+		opts.Lease = alwaysLease{}
+	}
 
 	metricClient, err := newMetricClient(context.Background(), opts)
 	if err != nil {
@@ -226,6 +263,10 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		shards:       make([]*shard, shardCount),
 	}
 	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, opts.Matchers)
+
+	// Whenever the lease is lost, clear the series cache so we don't start off of out-of-range
+	// reset timestamps when we gain the lease again.
+	opts.Lease.OnLeaderChange(e.seriesCache.clear)
 
 	for i := range e.shards {
 		e.shards[i] = newShard(shardBufferSize)
@@ -309,7 +350,13 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample) {
 
 	e.mtx.Lock()
 	externalLabels := e.externalLabels
+	start, end, ok := e.opts.Lease.Range()
 	e.mtx.Unlock()
+
+	if !ok {
+		prometheusSamplesDiscarded.WithLabelValues("no-ha-range").Inc()
+		return
+	}
 
 	builder := newSampleBuilder(e.seriesCache)
 	defer builder.close()
@@ -325,11 +372,27 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample) {
 			continue
 		}
 		for _, s := range samples {
-			e.enqueue(s.hash, s.proto)
+			// Only enqueue samples for within our HA range.
+			if sampleInRange(s.proto, start, end) {
+				e.enqueue(s.hash, s.proto)
+			} else {
+				samplesDropped.WithLabelValues("not-in-ha-range").Inc()
+			}
 		}
 	}
 	// Signal that new data is available.
 	e.triggerNext()
+}
+
+func sampleInRange(sample *monitoring_pb.TimeSeries, start, end time.Time) bool {
+	// A sample has exactly one point in the time series. The start timestamp may be unset for gauges.
+	if s := sample.Points[0].Interval.StartTime; s != nil && s.AsTime().Before(start) {
+		return false
+	}
+	if sample.Points[0].Interval.EndTime.AsTime().After(end) {
+		return false
+	}
+	return true
 }
 
 func (e *Exporter) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
@@ -355,6 +418,7 @@ const (
 func (e *Exporter) Run(ctx context.Context) error {
 	defer e.metricClient.Close()
 	go e.seriesCache.run(ctx)
+	go e.opts.Lease.Run(ctx)
 
 	timer := time.NewTimer(batchDelayMax)
 	stopTimer := func() {

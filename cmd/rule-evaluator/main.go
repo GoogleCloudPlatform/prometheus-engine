@@ -64,6 +64,8 @@ func main() {
 
 	a := kingpin.New("rule", "The Prometheus Rule Evaluator")
 
+	a.HelpFlag.Short('h')
+
 	var defaultProjectID string
 	if metadata.OnGCE() {
 		defaultProjectID, _ = metadata.ProjectID()
