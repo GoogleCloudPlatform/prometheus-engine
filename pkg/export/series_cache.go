@@ -56,9 +56,6 @@ type seriesCache struct {
 	// Returns nil if the reference is no longer valid.
 	getLabelsByRef func(uint64) labels.Labels
 
-	// Function to retrieve external labels for the instance.
-	getExternalLabels func() labels.Labels
-
 	// A list of metric selectors. Exported Prometheus are discarded if they
 	// don't match at least one of the matchers.
 	// If the matchers are empty, all series pass.
@@ -138,23 +135,18 @@ func newSeriesCache(
 	logger log.Logger,
 	reg prometheus.Registerer,
 	metricTypePrefix string,
-	getExternalLabels func() labels.Labels,
 	matchers Matchers,
 ) *seriesCache {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
-	if getExternalLabels == nil {
-		getExternalLabels = func() labels.Labels { return nil }
-	}
 	return &seriesCache{
-		logger:            logger,
-		now:               time.Now,
-		pool:              newPool(reg),
-		entries:           map[uint64]*seriesCacheEntry{},
-		getExternalLabels: getExternalLabels,
-		matchers:          matchers,
-		metricTypePrefix:  metricTypePrefix,
+		logger:           logger,
+		now:              time.Now,
+		pool:             newPool(reg),
+		entries:          map[uint64]*seriesCacheEntry{},
+		matchers:         matchers,
+		metricTypePrefix: metricTypePrefix,
 	}
 }
 
@@ -174,8 +166,9 @@ func (c *seriesCache) run(ctx context.Context) {
 	}
 }
 
-// invalidateAll invalidates all cache entries.
-func (c *seriesCache) invalidateAll() {
+// forceRefresh forces all series to be reconstructed on the next sample. This will not
+// invalidate counter reset state.
+func (c *seriesCache) forceRefresh() {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -201,6 +194,7 @@ func (c *seriesCache) garbageCollect(delay time.Duration) error {
 	// Since we can always re-populate cache entries, this is not worth it as it may blow
 	// up our memory usage in high-churn environments.
 	deleteBefore := start.Add(-delay).Unix()
+	i := 0
 
 	for ref, entry := range c.entries {
 		if entry.lastUsed >= deleteBefore {
@@ -209,8 +203,9 @@ func (c *seriesCache) garbageCollect(delay time.Duration) error {
 		c.pool.release(entry.protos.gauge.proto)
 		c.pool.release(entry.protos.cumulative.proto)
 		delete(c.entries, ref)
+		i++
 	}
-	level.Info(c.logger).Log("msg", "garbage collection completed", "took", time.Since(start))
+	level.Info(c.logger).Log("msg", "garbage collection completed", "took", time.Since(start), "seriesPurged", i)
 
 	return nil
 }
@@ -218,7 +213,7 @@ func (c *seriesCache) garbageCollect(delay time.Duration) error {
 // get a cache entry for the given series reference. The passed timestamp indicates when data was
 // last seen for the entry.
 // If the series cannot be converted the returned boolean is false.
-func (c *seriesCache) get(s record.RefSample, metadata MetadataFunc) (*seriesCacheEntry, bool) {
+func (c *seriesCache) get(s record.RefSample, externalLabels labels.Labels, metadata MetadataFunc) (*seriesCacheEntry, bool) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -228,7 +223,7 @@ func (c *seriesCache) get(s record.RefSample, metadata MetadataFunc) (*seriesCac
 		c.entries[s.Ref] = e
 	}
 	if e.shouldRefresh() {
-		if err := c.populate(s.Ref, e, metadata); err != nil {
+		if err := c.populate(s.Ref, e, externalLabels, metadata); err != nil {
 			level.Debug(c.logger).Log("msg", "populating series failed", "ref", s.Ref, "err", err)
 		}
 		e.setNextRefresh()
@@ -324,7 +319,7 @@ const (
 const maxLabelCount = 100
 
 // populate cached state for the given entry.
-func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, getMetadata MetadataFunc) error {
+func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, externalLabels labels.Labels, getMetadata MetadataFunc) error {
 	if entry.lset == nil {
 		entry.lset = c.getLabelsByRef(ref)
 		if entry.lset == nil {
@@ -336,7 +331,7 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, getMetadata 
 		return nil
 	}
 	// Break the series into resource and metric labels.
-	resource, metricLabels, err := c.extractResource(entry.lset)
+	resource, metricLabels, err := extractResource(externalLabels, entry.lset)
 	if err != nil {
 		return errors.Wrapf(err, "extracting resource for series %s failed", entry.lset)
 	}
@@ -464,9 +459,10 @@ func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, getMetadata 
 	return nil
 }
 
-// extractResource returns the monitored resource, the entry labels, and whether the operation succeeded.
+// extractResource returns the monitored resource, the entry labels, and whether the operation succeeded
+// for the provided external labels and Prometheus series labels.
 // The returned entry labels are a subset of `lset` without the labels that were used as resource labels.
-func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.MonitoredResource, labels.Labels, error) {
+func extractResource(externalLabels, lset labels.Labels) (*monitoredres_pb.MonitoredResource, labels.Labels, error) {
 	// Prometheus allows to configure external labels, which are attached when exporting data out of
 	// the instance to disambiguate data across instances. For us they generally include 'project_id',
 	// 'location' and 'cluster'.
@@ -488,7 +484,7 @@ func (c *seriesCache) extractResource(lset labels.Labels) (*monitoredres_pb.Moni
 	// and when they come up.
 	builder := labels.NewBuilder(lset)
 
-	for _, l := range c.getExternalLabels() {
+	for _, l := range externalLabels {
 		if !lset.Has(l.Name) {
 			builder.Set(l.Name, l.Value)
 		}

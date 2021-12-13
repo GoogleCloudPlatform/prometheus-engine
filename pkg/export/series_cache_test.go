@@ -25,7 +25,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 )
 
-func TestSeriesCache_extractResource(t *testing.T) {
+func TestExtractResource(t *testing.T) {
 	cases := []struct {
 		doc            string
 		externalLabels labels.Labels
@@ -133,10 +133,7 @@ func TestSeriesCache_extractResource(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.doc, func(t *testing.T) {
-			cache := newSeriesCache(nil, nil, metricTypePrefix, func() labels.Labels {
-				return c.externalLabels
-			}, nil)
-			resource, lset, err := cache.extractResource(c.seriesLabels)
+			resource, lset, err := extractResource(c.externalLabels, c.seriesLabels)
 			if c.wantOk && err != nil {
 				t.Errorf("expected no error but got: %s", err)
 			}
@@ -154,7 +151,7 @@ func TestSeriesCache_extractResource(t *testing.T) {
 }
 
 func TestSeriesCache_garbageCollect(t *testing.T) {
-	cache := newSeriesCache(nil, nil, metricTypePrefix, nil, nil)
+	cache := newSeriesCache(nil, nil, MetricTypePrefix, nil)
 	// Always return empty labels. This will cause cache entries to be added but not populated,
 	// which we don't need to test garbage collection.
 	cache.getLabelsByRef = func(uint64) labels.Labels { return nil }
@@ -164,8 +161,8 @@ func TestSeriesCache_garbageCollect(t *testing.T) {
 	cache.now = func() time.Time { return time.Unix(now, 0) }
 
 	// Populate some cache entries. Timestamps are converted to milliseconds.
-	cache.get(record.RefSample{Ref: 1, T: (now - 100) * 1000}, nil)
-	cache.get(record.RefSample{Ref: 2, T: (now - 101) * 1000}, nil)
+	cache.get(record.RefSample{Ref: 1, T: (now - 100) * 1000}, nil, nil)
+	cache.get(record.RefSample{Ref: 2, T: (now - 101) * 1000}, nil, nil)
 
 	cache.garbageCollect(100 * time.Second)
 

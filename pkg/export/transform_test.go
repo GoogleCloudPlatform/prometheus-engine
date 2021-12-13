@@ -1101,9 +1101,7 @@ func TestSampleBuilder(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("%d: %s", i, c.doc), func(t *testing.T) {
-			cache := newSeriesCache(nil, nil, metricTypePrefix, func() labels.Labels {
-				return externalLabels
-			}, c.matchers)
+			cache := newSeriesCache(nil, nil, MetricTypePrefix, c.matchers)
 			// Fake lookup into TSDB.
 			cache.getLabelsByRef = func(ref uint64) labels.Labels {
 				return c.series[ref]
@@ -1116,7 +1114,7 @@ func TestSampleBuilder(t *testing.T) {
 				b := newSampleBuilder(cache)
 
 				for k := 0; len(batch) > 0; k++ {
-					out, tail, err := b.next(c.metadata, batch)
+					out, tail, err := b.next(c.metadata, externalLabels, batch)
 					if err == nil && c.wantFail {
 						t.Fatal("expected error but got none")
 					}

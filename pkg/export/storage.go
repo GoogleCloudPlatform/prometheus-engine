@@ -18,9 +18,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/storage"
@@ -43,19 +41,15 @@ type Storage struct {
 	labels map[uint64]labels.Labels
 }
 
-// NewStorage returns a new Prometheus storage that's exporting data via an Exporter.
-func NewStorage(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Storage, error) {
-	exporter, err := New(logger, reg, opts)
-	if err != nil {
-		return nil, err
-	}
+// NewStorage returns a new Prometheus storage that's exporting data via the exporter.
+func NewStorage(exporter *Exporter) *Storage {
 	s := &Storage{
 		exporter: exporter,
 		labels:   map[uint64]labels.Labels{},
 	}
 	exporter.SetLabelsByIDFunc(s.labelsByID)
 
-	return s, nil
+	return s
 }
 
 // ApplyConfig applies the new configuration to the storage.
