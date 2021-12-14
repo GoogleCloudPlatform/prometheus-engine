@@ -1,0 +1,23 @@
+# Operator ClusterRole definition based on the following manifests
+# https://github.com/GoogleCloudPlatform/prometheus-engine/blob/v0.1.1/examples/operator.yaml#L66
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Namespace }}:operator
+rules:
+- apiGroups: ["", "apps", "admissionregistration.k8s.io", "monitoring.googleapis.com", "certificates.k8s.io"]
+  resources:
+  - certificatesigningrequests
+  - clusterrules
+  - configmaps
+  - daemonsets
+  - deployments
+  - operatorconfigs
+  - podmonitorings
+  - podmonitorings/status
+  - rules
+  - rules/status
+  - secrets
+  - validatingwebhookconfigurations
+  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]

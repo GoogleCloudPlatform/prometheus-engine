@@ -1,0 +1,33 @@
+operator:
+  name: operator
+  namespace: gmp-system
+  replicas: 1
+  imageTag: v0.1.1-gke.0
+  collectorImageTag: v2.28.1-gmp.1-gke.1
+  configReloaderImageTag: v0.1.1-gke.0
+  ruleEvaluatorImageTag: v0.1.1-gke.0
+  serviceAccountName: operator
+  priorityClassName: gmp-critical
+  securityContext:
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop:
+      - all
+    runAsUser: 1000
+    runAsGroup: 1000
+
+collector:
+  name: collector
+  serviceAccountName: collector
+
+frontend:
+  name: frontend
+  replicas: 2
+  imageTag: v0.1.1-gke.0
+  gcp:
+    projectId: variable
+  containerPort: 9090
+  portName: web
+  service:
+    type: ClusterIP

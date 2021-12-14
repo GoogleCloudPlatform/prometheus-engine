@@ -1,0 +1,5 @@
+apiVersion: v2
+name: gmp
+description: A Helm chart for deploying Google Managed Prometheus operator
+version: 0.0.1
+appVersion: "v0.1.1"

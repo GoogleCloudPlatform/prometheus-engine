@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gmp.name" . }}-{{ .Values.operator.name }}
+  labels:
+    {{- include "gmp.operatorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.operator.replicas }}
+  selector:
+    matchLabels:
+      {{- include "gmp.operatorSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gmp.operatorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.operator.serviceAccountName }}
+      containers:
+      - name: operator
+        image: {{ printf "gke.gcr.io/prometheus-engine/operator:%s" .Values.operator.imageTag }}
+        args:
+        - "{{ printf "--priority-class=%s" .Values.operator.priorityClassName }}"
+        - "{{ printf "--image-collector=gke.gcr.io/prometheus-engine/prometheus:%s" .Values.operator.collectorImageTag }}"
+        - "{{ printf "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:%s" .Values.operator.configReloaderImageTag }}"
+        - "{{ printf "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:%s" .Values.operator.ruleEvaluatorImageTag }}"
+        securityContext:
+          {{- toYaml .Values.operator.securityContext | nindent 10 }}

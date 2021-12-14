@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gmp.name" . }}-{{ .Values.frontend.name }}
+  labels:
+    {{- include "gmp.frontendLabels" . | nindent 4 }}  
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "gmp.frontendSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gmp.frontendLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: frontend
+        image: gke.gcr.io/prometheus-engine/frontend:{{- .Values.frontend.imageTag }}
+        args:
+        - "{{ printf "--web.listen-address=:%v" .Values.frontend.containerPort }}"
+        - "{{ printf "--query.project-id=%s" .Values.frontend.gcp.projectId }}"
+        ports:
+        - name: {{ .Values.frontend.portName }}
+          containerPort: {{ .Values.frontend.containerPort | default "9090" }}
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: {{ .Values.frontend.portName }}
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: {{ .Values.frontend.portName }}
