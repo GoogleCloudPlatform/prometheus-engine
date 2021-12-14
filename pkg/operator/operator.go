@@ -31,7 +31,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -129,8 +128,6 @@ type Options struct {
 	PriorityClass string
 	// Endpoint of the Cloud Monitoring API to be used by all collectors.
 	CloudMonitoringEndpoint string
-	// Self-sign or solicit kube-apiserver as CA to sign TLS certificate.
-	CASelfSign bool
 	// Webhook serving address.
 	ListenAddr string
 }
@@ -255,17 +252,11 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 		err      error
 		fqdn     = fmt.Sprintf("system:node:%s.%s.svc", NameOperator, o.opts.OperatorNamespace)
 	)
-	// Generate cert/key pair - self-signed CA or kube-apiserver CA.
-	if o.opts.CASelfSign {
-		crt, key, err = cert.GenerateSelfSignedCertKey(fqdn, nil, nil)
-		if err != nil {
-			return err
-		}
-	} else {
-		crt, key, err = CreateSignedKeyPair(ctx, o.kubeClient, fqdn)
-		if err != nil {
-			return err
-		}
+
+	// Generate kube-apiserver-signed certificate/key pair.
+	crt, key, err = CreateSignedKeyPair(ctx, o.kubeClient, fqdn)
+	if err != nil {
+		return err
 	}
 
 	if err := ioutil.WriteFile(filepath.Join(o.manager.GetWebhookServer().CertDir, "tls.crt"), crt, 0666); err != nil {

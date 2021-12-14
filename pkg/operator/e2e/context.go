@@ -112,7 +112,6 @@ func newTestContext(t *testing.T) *testContext {
 		OperatorNamespace: tctx.namespace,
 		PublicNamespace:   tctx.pubNamespace,
 		PriorityClass:     "gmp-critical",
-		CASelfSign:        false,
 		ListenAddr:        ":8443",
 	})
 	if err != nil {
