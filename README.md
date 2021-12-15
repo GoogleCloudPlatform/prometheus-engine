@@ -34,7 +34,7 @@ containing just that application's binary. The binary is subsequently copied to 
 local directory `./build/bin/`.
 
 - Running `make all` will generate all the go binaries.
-- Running `make docker` will generate all the go binary Docker images.
+  - Setting `DOCKER=1` here will build all the binaries as Docker images.
 - Running `make test` will run unit and e2e tests.
   - Setting `DOCKER=1` here will run tests entirely within a docker environment.
   - If `DOCKER=1` is not set, end-to-end tests will be run against the current
