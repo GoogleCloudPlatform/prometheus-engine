@@ -29,7 +29,7 @@ clean:       ## Clean build time resources, primarily docker resources.
 	for i in `docker image ls | grep ^gmp/ | awk '{print $$1}'`; do docker image rm $$i; done
 
 $(GOAPPS):   ## Build go binary in cmd/ (e.g. 'operator').
-             ## Set 'DOCKER=1' env var to build within Docker instead of natively.
+             ## Set NO_DOCKER=1 env var to build natively without Docker.
 	@echo ">> building binaries"
 ifeq ($(NO_DOCKER),1)
 	CGO_ENABLED=0 go build -mod=vendor -o ./build/bin/$@ ./cmd/$@/*.go
@@ -48,7 +48,7 @@ assets:      ## Build and write UI assets to local go file.
 	@echo ">> writing static assets to host machine"
 	$(call assets_diff) || $(call docker_build, -f ./cmd/frontend/Dockerfile --target sync -o . -t gmp/assets-sync .)
 
-test:        ## Run all tests. Writes real data to GCM API under PROJECT_ID environment variable.
+test:        ## Run all tests. Setting NO_DOCKER=1 writes real data to GCM API under PROJECT_ID environment variable.
              ## Use GMP_CLUSTER, GMP_LOCATION to specify timeseries labels.
 	@echo ">> running tests"
 ifeq ($(NO_DOCKER), 1)

@@ -25,19 +25,12 @@ is a candidate for build by running:
 ```
 make operator
 ```
-This generates in a binary in `./build/bin/`.
-
-The make target can be configured to build a Docker image for any application in `./cmd/`
-with an associated `Dockerfile`, e.g. `./cmd/operator/Dockerfile` by setting the
-environment variable `DOCKER=1`. This results in a minimal docker image
-containing just that application's binary. The binary is subsequently copied to the
-local directory `./build/bin/`.
+This triggers a Docker build and associated image. It also generates in a binary in `./build/bin/`.
 
 - Running `make all` will generate all the go binaries.
-  - Setting `DOCKER=1` here will build all the binaries as Docker images.
+  - Setting `NO_DOCKER=1` here will build all the binaries natively on the host machine.
 - Running `make test` will run unit and e2e tests.
-  - Setting `DOCKER=1` here will run tests entirely within a docker environment.
-  - If `DOCKER=1` is not set, end-to-end tests will be run against the current
+  - If `NO_DOCKER=1` is not set, end-to-end tests will be run against the current
   kubectl context. It is assumed the cluster has access to the GCM API.
   Ensure `GMP_CLUSTER` and `GMP_LOCATION` are set, e.g.
   ```
