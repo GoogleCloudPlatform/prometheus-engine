@@ -38,6 +38,10 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 )
 
+var (
+	errInvalidCond = fmt.Errorf("condition needs both 'Type' and 'Status' fields set")
+)
+
 // OperatorConfig defines configuration of the gmp-operator.
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -202,7 +206,7 @@ type ClusterPodMonitoring struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Specification of desired Pod selection for target discovery by
 	// Prometheus.
-	Spec PodMonitoringSpec `json:"spec"`
+	Spec ClusterPodMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
 	// +optional
 	Status PodMonitoringStatus `json:"status"`
@@ -234,9 +238,29 @@ func (cm *ClusterPodMonitoring) ValidateDelete() error {
 	return nil
 }
 
+func (_ *ClusterPodMonitoring) GetNamespace() string {
+	return "(.*)"
+}
+
+func (c *ClusterPodMonitoring) GetSelector() metav1.LabelSelector {
+	return c.Spec.Selector
+}
+
+func (c *ClusterPodMonitoring) GetTargetLabels() TargetLabels {
+	return c.Spec.TargetLabels
+}
+
+func (p *PodMonitoring) GetSelector() metav1.LabelSelector {
+	return p.Spec.Selector
+}
+
+func (p *PodMonitoring) GetTargetLabels() TargetLabels {
+	return p.Spec.TargetLabels
+}
+
 func (cm *ClusterPodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err error) {
-	for i := range cm.Spec.Endpoints {
-		c, err := endpontScrapeConfig(&cm.Spec, i, cm.Name, "(.*)")
+	for i, ep := range cm.Spec.Endpoints {
+		c, err := endpointScrapeConfig(cm, ep)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
 		}
@@ -265,8 +289,8 @@ func (pm *PodMonitoring) ValidateDelete() error {
 
 // ScrapeConfigs generated Prometheus scrape configs for the PodMonitoring.
 func (pm *PodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err error) {
-	for i := range pm.Spec.Endpoints {
-		c, err := endpontScrapeConfig(&pm.Spec, i, pm.Name, pm.Namespace)
+	for i, ep := range pm.Spec.Endpoints {
+		c, err := endpointScrapeConfig(pm, ep)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
 		}
@@ -275,11 +299,76 @@ func (pm *PodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err er
 	return res, nil
 }
 
+// SetPodMonitoringCondition merges the provided PodMonitoring resource to the
+//
+// along with the provided condition iff the resource generation has changed or there
+// is a status condition state transition.
+func (status *PodMonitoringStatus) SetPodMonitoringCondition(gen int64, now metav1.Time, cond *MonitoringCondition) (bool, error) {
+	var (
+		specChanged              = status.ObservedGeneration != gen
+		statusTransition, update bool
+		conds                    = make(map[MonitoringConditionType]*MonitoringCondition)
+	)
+
+	if cond.Type == "" || cond.Status == "" {
+		return update, errInvalidCond
+	}
+
+	// Set up defaults.
+	for _, mc := range NewDefaultConditions(now) {
+		conds[mc.Type] = &mc
+	}
+	// Overwrite with any previous state.
+	for _, mc := range status.Conditions {
+		conds[mc.Type] = &mc
+	}
+
+	// Set some timestamp defaults if unspecified.
+	cond.LastUpdateTime = now
+
+	// Check if the condition results in a transition of status state.
+	if old := conds[cond.Type]; old.Status == cond.Status {
+		cond.LastTransitionTime = old.LastTransitionTime
+	} else {
+		cond.LastTransitionTime = cond.LastUpdateTime
+		statusTransition = true
+	}
+
+	// Set condition.
+	conds[cond.Type] = cond
+
+	// Only update status if the spec has changed (indicated by Generation field) or
+	// if this update transitions status state.
+	if specChanged || statusTransition {
+		update = true
+		status.ObservedGeneration = gen
+		status.Conditions = status.Conditions[:0]
+		for _, c := range conds {
+			status.Conditions = append(status.Conditions, *c)
+		}
+	}
+
+	return update, nil
+}
+
 // Environment variable for the current node that needs to be interpolated in generated
 // scrape configurations for a PodMonitoring resource.
 const EnvVarNodeName = "NODE_NAME"
 
-func endpontScrapeConfig(spec *PodMonitoringSpec, index int, name, ns string) (*promconfig.ScrapeConfig, error) {
+type monitoringScrapeConfig interface {
+	GetNamespace() string
+	GetName() string
+	GetSelector() metav1.LabelSelector
+	GetTargetLabels() TargetLabels
+}
+
+func endpointScrapeConfig(msc monitoringScrapeConfig, ep ScrapeEndpoint) (*promconfig.ScrapeConfig, error) {
+	var (
+		ns           = msc.GetNamespace()
+		name         = msc.GetName()
+		sel          = msc.GetSelector()
+		targetLabels = msc.GetTargetLabels()
+	)
 	// The Prometheus configuration structs do not generally have validation methods and embed their
 	// validation logic in the UnmarshalYAML methods. To keep things reasonable we don't re-validate
 	// everything and simply do a final marshal-unmarshal cycle at the end to run all validation
@@ -301,8 +390,6 @@ func endpontScrapeConfig(spec *PodMonitoringSpec, index int, name, ns string) (*
 		},
 	}
 
-	ep := spec.Endpoints[index]
-
 	// TODO(freinartz): validate all generated regular expressions.
 	relabelCfgs := []*relabel.Config{
 		// Filter targets by namespace of the PodMonitoring configuration.
@@ -318,13 +405,13 @@ func endpontScrapeConfig(spec *PodMonitoringSpec, index int, name, ns string) (*
 	// Simple equal matchers. Sort by keys first to ensure that generated configs are reproducible.
 	// (Go map iteration is non-deterministic.)
 	var selectorKeys []string
-	for k := range spec.Selector.MatchLabels {
+	for k := range sel.MatchLabels {
 		selectorKeys = append(selectorKeys, k)
 	}
 	sort.Strings(selectorKeys)
 
 	for _, k := range selectorKeys {
-		re, err := relabel.NewRegexp(pm.Spec.Selector.MatchLabels[k])
+		re, err := relabel.NewRegexp(sel.MatchLabels[k])
 		if err != nil {
 			return nil, err
 		}
@@ -335,7 +422,7 @@ func endpontScrapeConfig(spec *PodMonitoringSpec, index int, name, ns string) (*
 		})
 	}
 	// Expression matchers are mapped to relabeling rules with the same behavior.
-	for _, exp := range spec.Selector.MatchExpressions {
+	for _, exp := range sel.MatchExpressions {
 		switch exp.Operator {
 		case metav1.LabelSelectorOpIn:
 			re, err := relabel.NewRegexp(strings.Join(exp.Values, "|"))
@@ -437,7 +524,7 @@ func endpontScrapeConfig(spec *PodMonitoringSpec, index int, name, ns string) (*
 	}
 
 	// Incorporate k8s label remappings from CRD.
-	if pCfgs, err := labelMappingRelabelConfigs(spec.TargetLabels.FromPod, "__meta_kubernetes_pod_label_"); err != nil {
+	if pCfgs, err := labelMappingRelabelConfigs(targetLabels.FromPod, "__meta_kubernetes_pod_label_"); err != nil {
 		return nil, errors.Wrap(err, "invalid PodMonitoring target labels")
 	} else {
 		relabelCfgs = append(relabelCfgs, pCfgs...)
@@ -661,6 +748,13 @@ type ScrapeLimits struct {
 	// Maximum label value length.
 	// Uses Prometheus default if left unspecified.
 	LabelValueLength uint64 `json:"labelValueLength,omitempty"`
+}
+
+// ClusterPodMonitoringSpec contains specification parameters for PodMonitoring.
+type ClusterPodMonitoringSpec struct {
+	Selector     metav1.LabelSelector `json:"selector"`
+	Endpoints    []ScrapeEndpoint     `json:"endpoints"`
+	TargetLabels TargetLabels         `json:"targetLabels,omitempty"`
 }
 
 // ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.

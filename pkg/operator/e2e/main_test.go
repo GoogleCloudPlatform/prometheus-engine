@@ -597,7 +597,7 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 			Name:            "collector-cmon",
 			OwnerReferences: t.ownerReferences,
 		},
-		Spec: monitoringv1alpha1.PodMonitoringSpec{
+		Spec: monitoringv1alpha1.ClusterPodMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					operator.LabelAppName: operator.NameCollector,

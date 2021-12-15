@@ -18,6 +18,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -32,99 +35,87 @@ func TestValidatePodMonitoring(t *testing.T) {
 	cases := []struct {
 		desc        string
 		pm          PodMonitoringSpec
+		eps         []ScrapeEndpoint
+		tls         TargetLabels
 		fail        bool
 		errContains string
 	}{
 		{
 			desc: "OK",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{
-						Port:     intstr.FromString("web"),
-						Interval: "10s",
-					},
-					{
-						Port:     intstr.FromInt(8080),
-						Interval: "10000ms",
-						Timeout:  "5s",
-					},
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
 				},
-				TargetLabels: TargetLabels{
-					FromPod: []LabelMapping{
-						{From: "key1", To: "key2"},
-						{From: "key3"},
-					},
+				{
+					Port:     intstr.FromInt(8080),
+					Interval: "10000ms",
+					Timeout:  "5s",
+				},
+			},
+			tls: TargetLabels{
+				FromPod: []LabelMapping{
+					{From: "key1", To: "key2"},
+					{From: "key3"},
 				},
 			},
 		}, {
 			desc: "port missing",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{Interval: "10s"},
-				},
+			eps: []ScrapeEndpoint{
+				{Interval: "10s"},
 			},
 			fail:        true,
 			errContains: "port must be set",
 		}, {
 			desc: "scrape interval missing",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{Port: intstr.FromString("web")},
-				},
+			eps: []ScrapeEndpoint{
+				{Port: intstr.FromString("web")},
 			},
 			fail:        true,
 			errContains: "invalid scrape interval: empty duration string",
 		}, {
 			desc: "scrape interval malformed",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{
-						Port:     intstr.FromString("web"),
-						Interval: "foo",
-					},
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "foo",
 				},
 			},
 			fail:        true,
 			errContains: "invalid scrape interval: not a valid duration string",
 		}, {
 			desc: "scrape timeout malformed",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{
-						Port:     intstr.FromString("web"),
-						Interval: "1s",
-						Timeout:  "_",
-					},
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "1s",
+					Timeout:  "_",
 				},
 			},
 			fail:        true,
 			errContains: "invalid scrape timeout: not a valid duration string",
 		}, {
 			desc: "scrape timeout greater than interval",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{
-						Port:     intstr.FromString("web"),
-						Interval: "1s",
-						Timeout:  "2s",
-					},
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "1s",
+					Timeout:  "2s",
 				},
 			},
 			fail:        true,
 			errContains: "scrape timeout 2s must not be greater than scrape interval 1s",
 		}, {
 			desc: "remapping onto prometheus_target label",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{
-						Port:     intstr.FromString("web"),
-						Interval: "10s",
-					},
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
 				},
-				TargetLabels: TargetLabels{
-					FromPod: []LabelMapping{
-						{From: "key1", To: "cluster"},
-					},
+			},
+			tls: TargetLabels{
+				FromPod: []LabelMapping{
+					{From: "key1", To: "cluster"},
 				},
 			},
 			fail:        true,
@@ -133,33 +124,29 @@ func TestValidatePodMonitoring(t *testing.T) {
 			// A simple error that should be caught by invoking the upstream validation. We don't
 			// have to cover everything it covers.
 			desc: "remapping onto bad label name",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{
-						Port:     intstr.FromString("web"),
-						Interval: "10s",
-					},
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
 				},
-				TargetLabels: TargetLabels{
-					FromPod: []LabelMapping{
-						{From: "key1", To: "foo-bar"},
-					},
+			},
+			tls: TargetLabels{
+				FromPod: []LabelMapping{
+					{From: "key1", To: "foo-bar"},
 				},
 			},
 			fail:        true,
 			errContains: `"foo-bar" is invalid 'target_label' for replace action`,
 		}, {
 			desc: "metric relabeling: labelmap forbidden",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{
-						Port:     intstr.FromString("web"),
-						Interval: "10s",
-						MetricRelabeling: []RelabelingRule{
-							{
-								SourceLabels: []string{"foo", "bar"},
-								Action:       "labelmap",
-							},
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					MetricRelabeling: []RelabelingRule{
+						{
+							SourceLabels: []string{"foo", "bar"},
+							Action:       "labelmap",
 						},
 					},
 				},
@@ -168,16 +155,14 @@ func TestValidatePodMonitoring(t *testing.T) {
 			errContains: `relabeling with action "labelmap" not allowed`,
 		}, {
 			desc: "metric relabeling: protected replace label",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{
-						Port:     intstr.FromString("web"),
-						Interval: "10s",
-						MetricRelabeling: []RelabelingRule{
-							{
-								Action:      "replace",
-								TargetLabel: "project_id",
-							},
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					MetricRelabeling: []RelabelingRule{
+						{
+							Action:      "replace",
+							TargetLabel: "project_id",
 						},
 					},
 				},
@@ -186,17 +171,15 @@ func TestValidatePodMonitoring(t *testing.T) {
 			errContains: `cannot relabel with action "replace" onto protected label "project_id"`,
 		}, {
 			desc: "metric relabeling: protected labelkeep",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{
-						Port:     intstr.FromString("web"),
-						Interval: "10s",
-						MetricRelabeling: []RelabelingRule{
-							{
-								Action: "labelkeep",
-								// project_id label is not kept.
-								Regex: "(cluster|location|cluster|namespace|job|instance|__address__)",
-							},
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					MetricRelabeling: []RelabelingRule{
+						{
+							Action: "labelkeep",
+							// project_id label is not kept.
+							Regex: "(cluster|location|cluster|namespace|job|instance|__address__)",
 						},
 					},
 				},
@@ -205,16 +188,14 @@ func TestValidatePodMonitoring(t *testing.T) {
 			errContains: `regex (cluster|location|cluster|namespace|job|instance|__address__) would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
 		}, {
 			desc: "metric relabeling: protected labeldrop",
-			pm: PodMonitoringSpec{
-				Endpoints: []ScrapeEndpoint{
-					{
-						Port:     intstr.FromString("web"),
-						Interval: "10s",
-						MetricRelabeling: []RelabelingRule{
-							{
-								Action: "labeldrop",
-								Regex:  "n?amespace",
-							},
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					MetricRelabeling: []RelabelingRule{
+						{
+							Action: "labeldrop",
+							Regex:  "n?amespace",
 						},
 					},
 				},
@@ -251,9 +232,12 @@ func TestValidatePodMonitoring(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		t.Run(c.desc, func(t *testing.T) {
+		t.Run(c.desc+"_podmonitoring", func(t *testing.T) {
 			pm := &PodMonitoring{
-				Spec: c.pm,
+				Spec: PodMonitoringSpec{
+					Endpoints:    c.eps,
+					TargetLabels: c.tls,
+				},
 			}
 			perr := pm.ValidateCreate()
 			t.Log(perr)
@@ -267,9 +251,14 @@ func TestValidatePodMonitoring(t *testing.T) {
 			if perr != nil && c.fail && !strings.Contains(perr.Error(), c.errContains) {
 				t.Fatalf("expected error to contain %q but got %q", c.errContains, perr)
 			}
+		})
 
+		t.Run(c.desc+"_clusterpodmonitoring", func(t *testing.T) {
 			cm := &ClusterPodMonitoring{
-				Spec: c.pm,
+				Spec: ClusterPodMonitoringSpec{
+					Endpoints:    c.eps,
+					TargetLabels: c.tls,
+				},
 			}
 			cerr := cm.ValidateCreate()
 			t.Log(cerr)
@@ -514,5 +503,187 @@ kubernetes_sd_configs:
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("unexpected scrape config YAML (-want, +got): %s", diff)
+	}
+}
+
+func TestAddPodMonitoringCondition(t *testing.T) {
+	var (
+		before = metav1.NewTime(time.Unix(1234, 0))
+		now    = metav1.NewTime(time.Unix(5678, 0))
+	)
+	cases := []struct {
+		doc        string
+		cond       *MonitoringCondition
+		generation int64
+		now        metav1.Time
+		curr, want *PodMonitoringStatus
+		change     bool
+	}{
+		{
+			doc:  "no previous status",
+			curr: &PodMonitoringStatus{},
+			cond: &MonitoringCondition{
+				Type:   ConfigurationCreateSuccess,
+				Status: corev1.ConditionTrue,
+			},
+			generation: 1,
+			now:        now,
+			want: &PodMonitoringStatus{
+				ObservedGeneration: 1,
+				Conditions: []MonitoringCondition{
+					{
+						Type:               ConfigurationCreateSuccess,
+						Status:             corev1.ConditionTrue,
+						LastUpdateTime:     now,
+						LastTransitionTime: now,
+					},
+				},
+			},
+			change: true,
+		},
+		{
+			doc: "matching previous status - prevent cycle",
+			curr: &PodMonitoringStatus{
+				ObservedGeneration: 1,
+				Conditions: []MonitoringCondition{
+					{
+						Type:               ConfigurationCreateSuccess,
+						Status:             corev1.ConditionTrue,
+						LastUpdateTime:     before,
+						LastTransitionTime: before,
+					},
+				},
+			},
+			cond: &MonitoringCondition{
+				Type:   ConfigurationCreateSuccess,
+				Status: corev1.ConditionTrue,
+			},
+			generation: 1,
+			now:        now,
+			want: &PodMonitoringStatus{
+				ObservedGeneration: 1,
+				Conditions: []MonitoringCondition{
+					{
+						Type:               ConfigurationCreateSuccess,
+						Status:             corev1.ConditionTrue,
+						LastUpdateTime:     before,
+						LastTransitionTime: before,
+					},
+				},
+			},
+			change: false,
+		},
+		{
+			doc: "success to success transition due to spec change",
+			curr: &PodMonitoringStatus{
+				ObservedGeneration: 1,
+				Conditions: []MonitoringCondition{
+					{
+						Type:               ConfigurationCreateSuccess,
+						Status:             corev1.ConditionTrue,
+						LastUpdateTime:     before,
+						LastTransitionTime: before,
+					},
+				},
+			},
+			cond: &MonitoringCondition{
+				Type:   ConfigurationCreateSuccess,
+				Status: corev1.ConditionTrue,
+			},
+			generation: 2,
+			now:        now,
+			want: &PodMonitoringStatus{
+				ObservedGeneration: 2,
+				Conditions: []MonitoringCondition{
+					{
+						Type:               ConfigurationCreateSuccess,
+						Status:             corev1.ConditionTrue,
+						LastUpdateTime:     now,
+						LastTransitionTime: before,
+					},
+				},
+			},
+			change: true,
+		},
+		{
+			doc: "failure to success transition due to spec fix",
+			curr: &PodMonitoringStatus{
+				ObservedGeneration: 1,
+				Conditions: []MonitoringCondition{
+					{
+						Type:               ConfigurationCreateSuccess,
+						Status:             corev1.ConditionFalse,
+						LastUpdateTime:     before,
+						LastTransitionTime: before,
+					},
+				},
+			},
+			cond: &MonitoringCondition{
+				Type:   ConfigurationCreateSuccess,
+				Status: corev1.ConditionTrue,
+			},
+			generation: 2,
+			now:        now,
+			want: &PodMonitoringStatus{
+				ObservedGeneration: 2,
+				Conditions: []MonitoringCondition{
+					{
+						Type:               ConfigurationCreateSuccess,
+						Status:             corev1.ConditionTrue,
+						LastUpdateTime:     now,
+						LastTransitionTime: now,
+					},
+				},
+			},
+			change: true,
+		},
+		{
+			doc: "success to failure transition due to status update",
+			curr: &PodMonitoringStatus{
+				ObservedGeneration: 1,
+				Conditions: []MonitoringCondition{
+					{
+						Type:               ConfigurationCreateSuccess,
+						Status:             corev1.ConditionTrue,
+						LastUpdateTime:     before,
+						LastTransitionTime: before,
+					},
+				},
+			},
+			cond: &MonitoringCondition{
+				Type:   ConfigurationCreateSuccess,
+				Status: corev1.ConditionFalse,
+			},
+			generation: 1,
+			now:        now,
+			want: &PodMonitoringStatus{
+				ObservedGeneration: 1,
+				Conditions: []MonitoringCondition{
+					{
+						Type:               ConfigurationCreateSuccess,
+						Status:             corev1.ConditionFalse,
+						LastUpdateTime:     now,
+						LastTransitionTime: now,
+					},
+				},
+			},
+			change: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.doc, func(t *testing.T) {
+			got := c.curr
+			change, err := got.SetPodMonitoringCondition(c.generation, c.now, c.cond)
+			if err != nil {
+				t.Fatalf("set podmonitoring condition: %s", err)
+			}
+
+			// Get resolved podmonitorings.
+			if change != c.change {
+				t.Errorf("unexpected change")
+			} else if diff := cmp.Diff(got, c.want); diff != "" {
+				t.Errorf("actual status differs from expected. diff: %s", diff)
+			}
+		})
 	}
 }
