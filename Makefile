@@ -91,6 +91,6 @@ ifeq ($(DRY_RUN), 1)
 		--build-arg RUNCMD='./hack/presubmit.sh all diff' .)
 else
 	$(call docker_build, -f ./hack/Dockerfile --target sync -o . -t gmp/sync \
-		--build-arg RUNCMD='./hack/presubmit.sh crdgen' .)
+		--build-arg RUNCMD='./hack/presubmit.sh' .)
 	rm -rf vendor && mv vendor.tmp vendor
 endif
