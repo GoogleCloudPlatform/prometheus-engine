@@ -29,7 +29,16 @@ else
   echo ">>> forwarding docker daemon from cloud-shell"
   gcloud alpha cloud-shell ssh -- -4 -nNT -L ${TMPDIR}/docker.sock:/var/run/docker.sock -L 6443:localhost:6443 &
   # Wait for cloud-shell to mount Docker unix socket.
-  while [ ! -f $HOME/.ssh/known_hosts ]; do echo ">>> waiting for cloud-shell docker socket mount"; sleep 2; done
+  CTR=0
+  while [ ! -f $HOME/.ssh/known_hosts ]; do
+    if [ $CTR -gt 30 ]; then
+      echo ">>> docker socket mount taking too long. exiting."
+      exit 1
+    fi
+    ((CTR=CTR+1))
+    echo ">>> waiting for cloud-shell docker socket mount"
+    sleep 2
+  done
   echo ">>> mounted docker socket at ${TMPDIR}/docker.sock"
   export DOCKER_HOST=unix://${TMPDIR}/docker.sock
   sleep 2

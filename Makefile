@@ -26,17 +26,17 @@ all: $(GOAPPS)
 clean:       ## Clean build time resources, primarily docker resources.
 	docker container prune -f
 	docker volume prune -f
-	for i in `docker image ls | grep ^gmp/ | awk '{print $$1}'`; do docker image rm $$i; done
+	for i in `docker image ls | grep ^gmp/ | awk '{print $$1}'`; do docker image rm -f $$i; done
 
 $(GOAPPS):   ## Build go binary in cmd/ (e.g. 'operator').
-             ## Set 'DOCKER=1' env var to build within Docker instead of natively.
+             ## Set NO_DOCKER=1 env var to build natively without Docker.
 	@echo ">> building binaries"
-ifeq ($(DOCKER),1)
+ifeq ($(NO_DOCKER),1)
+	CGO_ENABLED=0 go build -mod=vendor -o ./build/bin/$@ ./cmd/$@/*.go
+else
 	$(call docker_build, --tag gmp/$@ -f ./cmd/$@/Dockerfile .)
 	mkdir -p build/bin
 	echo -e 'FROM scratch\nCOPY --from=gmp/$@ /bin/$@ /$@' | $(call docker_build, -o ./build/bin -)
-else
-	CGO_ENABLED=0 go build -mod=vendor -o ./build/bin/$@ ./cmd/$@/*.go
 endif
 
 cloudbuild:  ## Build images on Google Cloud Build.
@@ -48,18 +48,18 @@ assets:      ## Build and write UI assets to local go file.
 	@echo ">> writing static assets to host machine"
 	$(call assets_diff) || $(call docker_build, -f ./cmd/frontend/Dockerfile --target sync -o . -t gmp/assets-sync .)
 
-test:        ## Run all tests. Writes real data to GCM API under PROJECT_ID environment variable.
+test:        ## Run all tests. Setting NO_DOCKER=1 writes real data to GCM API under PROJECT_ID environment variable.
              ## Use GMP_CLUSTER, GMP_LOCATION to specify timeseries labels.
 	@echo ">> running tests"
-ifeq ($(DOCKER), 1)
-	$(call docker_build, -f ./hack/Dockerfile --target hermetic -t gmp/hermetic \
-	--build-arg RUNCMD='go test `go list ./... | grep -v operator/e2e`' .)
-else
+ifeq ($(NO_DOCKER), 1)
 	kubectl apply -f examples/setup.yaml
 	kubectl apply -f cmd/operator/deploy/operator/01-priority-class.yaml
 	kubectl apply -f cmd/operator/deploy/operator/03-clusterrole.yaml
 	go test `go list ./... | grep -v operator/e2e`
 	go test `go list ./... | grep operator/e2e` -args -project-id=${PROJECT_ID} -cluster=${GMP_CLUSTER} -location=${GMP_LOCATION}
+else
+	$(call docker_build, -f ./hack/Dockerfile --target hermetic -t gmp/hermetic \
+	--build-arg RUNCMD='go test `go list ./... | grep -v operator/e2e`' .)
 endif
 
 kindclean: clean
@@ -84,7 +84,7 @@ lint:        ## Lint code.
 
 presubmit:   ## Validate and regenerate changes before submitting a PR 
              ## Use DRY_RUN=1 to only validate without regenerating changes.
-presubmit: ps assets kindtest
+presubmit: ps assets operator rule-evaluator config-reloader kindtest
 ps:  
 ifeq ($(DRY_RUN), 1)
 	$(call docker_build, -f ./hack/Dockerfile --target hermetic -t gmp/hermetic \
