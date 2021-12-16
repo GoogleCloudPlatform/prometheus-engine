@@ -26,7 +26,7 @@ all: $(GOAPPS)
 clean:       ## Clean build time resources, primarily docker resources.
 	docker container prune -f
 	docker volume prune -f
-	for i in `docker image ls | grep ^gmp/ | awk '{print $$1}'`; do docker image rm $$i; done
+	for i in `docker image ls | grep ^gmp/ | awk '{print $$1}'`; do docker image rm -f $$i; done
 
 $(GOAPPS):   ## Build go binary in cmd/ (e.g. 'operator').
              ## Set NO_DOCKER=1 env var to build natively without Docker.
