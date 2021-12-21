@@ -280,7 +280,6 @@ func (pm *PodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err er
 }
 
 // SetPodMonitoringCondition merges the provided PodMonitoring resource to the
-//
 // along with the provided condition iff the resource generation has changed or there
 // is a status condition state transition.
 func (status *PodMonitoringStatus) SetPodMonitoringCondition(gen int64, now metav1.Time, cond *MonitoringCondition) (bool, error) {
