@@ -40,6 +40,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [RulesList](#ruleslist)
 * [RulesSpec](#rulesspec)
 * [ScrapeEndpoint](#scrapeendpoint)
+* [ScrapeLimits](#scrapelimits)
 * [SecretOrConfigMap](#secretorconfigmap)
 * [TLSConfig](#tlsconfig)
 * [TargetLabels](#targetlabels)
@@ -239,9 +240,10 @@ PodMonitoringSpec contains specification parameters for PodMonitoring.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| selector |  | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#labelselector-v1-meta) | true |
-| endpoints |  | [][ScrapeEndpoint](#scrapeendpoint) | true |
-| targetLabels |  | [TargetLabels](#targetlabels) | false |
+| selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#labelselector-v1-meta) | true |
+| endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
+| targetLabels | Label to add to the Prometheus target for discovered endpoints. | [TargetLabels](#targetlabels) | false |
+| limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -376,10 +378,29 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | port | Name or number of the port to scrape. | intstr.IntOrString | false |
+| scheme | Protocol scheme to use to scrape. | string | false |
 | path | HTTP path to scrape metrics from. Defaults to \"/metrics\". | string | false |
+| params | HTTP GET params to use when scraping. | map[string][]string | false |
+| proxyUrl | Proxy URL to scrape through. Encoded passwords are not supported. | string | false |
 | interval | Interval at which to scrape metrics. Must be a valid Prometheus duration. | string | false |
 | timeout | Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval. | string | false |
 | metricRelabeling | Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general. | [][RelabelingRule](#relabelingrule) | false |
+
+[Back to TOC](#table-of-contents)
+
+## ScrapeLimits
+
+ScrapeLimits limits applied to scraped targets.
+
+
+<em>appears in: [PodMonitoringSpec](#podmonitoringspec)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| samples | Maximum number of samples accepted within a single scrape. | uint64 | false |
+| labels | Maximum number of labels accepted for a single sample. | uint64 | false |
+| labelNameLength | Maximum label name length. | uint64 | false |
+| labelValueLength | Maximum label value length. | uint64 | false |
 
 [Back to TOC](#table-of-contents)
 

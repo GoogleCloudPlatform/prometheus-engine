@@ -16,6 +16,7 @@ package v1alpha1
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -208,9 +209,10 @@ func (pm *PodMonitoring) ValidateDelete() error {
 	return nil
 }
 
+// ScrapeConfigs generated Prometheus scrape configs for the PodMonitoring.
 func (pm *PodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err error) {
 	for i := range pm.Spec.Endpoints {
-		c, err := pm.endpontScrapeConfig(i)
+		c, err := pm.endpointScrapeConfig(i)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
 		}
@@ -223,7 +225,7 @@ func (pm *PodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err er
 // scrape configurations for a PodMonitoring resource.
 const EnvVarNodeName = "NODE_NAME"
 
-func (pm *PodMonitoring) endpontScrapeConfig(index int) (*promconfig.ScrapeConfig, error) {
+func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConfig, error) {
 	// The Prometheus configuration structs do not generally have validation methods and embed their
 	// validation logic in the UnmarshalYAML methods. To keep things reasonable we don't re-validate
 	// everything and simply do a final marshal-unmarshal cycle at the end to run all validation
@@ -421,16 +423,39 @@ func (pm *PodMonitoring) endpontScrapeConfig(index int) (*promconfig.ScrapeConfi
 		metricRelabelCfgs = append(metricRelabelCfgs, rcfg)
 	}
 
+	proxyURL, err := url.Parse(ep.ProxyURL)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid proxy URL")
+	}
+	// Marshalling the config will redact the password, so we don't support those.
+	// It's not a good idea anyway and we will later support basic auth based on secrets to
+	// cover the general use case.
+	if _, ok := proxyURL.User.Password(); ok {
+		return nil, errors.New("passwords encoded in URLs are not supported")
+	}
+	// Initialize from default as encode/decode does not work correctly with the type definition.
+	httpCfg := config.DefaultHTTPClientConfig
+	httpCfg.ProxyURL.URL = proxyURL
+
 	scrapeCfg := &promconfig.ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
 		JobName:                 fmt.Sprintf("PodMonitoring/%s/%s/%s", pm.Namespace, pm.Name, &ep.Port),
 		ServiceDiscoveryConfigs: discoveryCfgs,
 		MetricsPath:             metricsPath,
+		Scheme:                  ep.Scheme,
+		Params:                  ep.Params,
+		HTTPClientConfig:        httpCfg,
 		ScrapeInterval:          interval,
 		ScrapeTimeout:           timeout,
 		RelabelConfigs:          relabelCfgs,
 		MetricRelabelConfigs:    metricRelabelCfgs,
+	}
+	if pm.Spec.Limits != nil {
+		scrapeCfg.SampleLimit = uint(pm.Spec.Limits.Samples)
+		scrapeCfg.LabelLimit = uint(pm.Spec.Limits.Labels)
+		scrapeCfg.LabelNameLengthLimit = uint(pm.Spec.Limits.LabelNameLength)
+		scrapeCfg.LabelValueLengthLimit = uint(pm.Spec.Limits.LabelValueLength)
 	}
 	// Do a marshal/unmarshal cycle to run all upstream validation. Throw away the result
 	// to not fill in all the defaults that get set in the process.
@@ -562,17 +587,45 @@ func labelMappingRelabelConfigs(mappings []LabelMapping, prefix string) ([]*rela
 
 // PodMonitoringSpec contains specification parameters for PodMonitoring.
 type PodMonitoringSpec struct {
-	Selector     metav1.LabelSelector `json:"selector"`
-	Endpoints    []ScrapeEndpoint     `json:"endpoints"`
-	TargetLabels TargetLabels         `json:"targetLabels,omitempty"`
+	// Label selector that specifies which pods are selected for this monitoring
+	// configuration.
+	Selector metav1.LabelSelector `json:"selector"`
+	// The endpoints to scrape on the selected pods.
+	Endpoints []ScrapeEndpoint `json:"endpoints"`
+	// Label to add to the Prometheus target for discovered endpoints.
+	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
+	// Limits to apply at scrape time.
+	Limits *ScrapeLimits `json:"limits,omitempty"`
+}
+
+// ScrapeLimits limits applied to scraped targets.
+type ScrapeLimits struct {
+	// Maximum number of samples accepted within a single scrape.
+	// Uses Prometheus default if left unspecified.
+	Samples uint64 `json:"samples,omitempty"`
+	// Maximum number of labels accepted for a single sample.
+	// Uses Prometheus default if left unspecified.
+	Labels uint64 `json:"labels,omitempty"`
+	// Maximum label name length.
+	// Uses Prometheus default if left unspecified.
+	LabelNameLength uint64 `json:"labelNameLength,omitempty"`
+	// Maximum label value length.
+	// Uses Prometheus default if left unspecified.
+	LabelValueLength uint64 `json:"labelValueLength,omitempty"`
 }
 
 // ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 type ScrapeEndpoint struct {
 	// Name or number of the port to scrape.
 	Port intstr.IntOrString `json:"port,omitempty"`
+	// Protocol scheme to use to scrape.
+	Scheme string `json:"scheme,omitempty"`
 	// HTTP path to scrape metrics from. Defaults to "/metrics".
 	Path string `json:"path,omitempty"`
+	// HTTP GET params to use when scraping.
+	Params map[string][]string `json:"params,omitempty"`
+	// Proxy URL to scrape through. Encoded passwords are not supported.
+	ProxyURL string `json:"proxyUrl,omitempty"`
 	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
 	Interval string `json:"interval,omitempty"`
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
