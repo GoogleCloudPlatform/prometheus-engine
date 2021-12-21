@@ -55,7 +55,6 @@ echo ">>> deploying static resources"
 kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/examples/setup.yaml
 kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/examples/operator.yaml
 kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/examples/rule-evaluator.yaml
-kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/cmd/operator/deploy/ --recursive
 
 echo ">>> executing gmp e2e tests"
 go test -v ${SCRIPT_ROOT}/pkg/operator/e2e -args -project-id=test-proj -cluster=test-cluster -location=test-loc -skip-gcm

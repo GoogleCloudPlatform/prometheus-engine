@@ -397,10 +397,10 @@ ScrapeLimits limits applied to scraped targets.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| samples | Maximum number of samples accepted within a single scrape. | uint64 | false |
-| labels | Maximum number of labels accepted for a single sample. | uint64 | false |
-| labelNameLength | Maximum label name length. | uint64 | false |
-| labelValueLength | Maximum label value length. | uint64 | false |
+| samples | Maximum number of samples accepted within a single scrape. Uses Prometheus default if left unspecified. | uint64 | false |
+| labels | Maximum number of labels accepted for a single sample. Uses Prometheus default if left unspecified. | uint64 | false |
+| labelNameLength | Maximum label name length. Uses Prometheus default if left unspecified. | uint64 | false |
+| labelValueLength | Maximum label value length. Uses Prometheus default if left unspecified. | uint64 | false |
 
 [Back to TOC](#table-of-contents)
 
