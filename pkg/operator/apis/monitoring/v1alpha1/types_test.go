@@ -409,7 +409,6 @@ sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
 label_value_length_limit: 4
-proxy_url: ""
 follow_redirects: true
 relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
