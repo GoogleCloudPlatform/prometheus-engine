@@ -138,20 +138,23 @@ spec:
                 description: Limits to apply at scrape time.
                 properties:
                   labelNameLength:
-                    description: Maximum label name length.
+                    description: Maximum label name length. Uses Prometheus default
+                      if left unspecified.
                     format: int64
                     type: integer
                   labelValueLength:
-                    description: Maximum label value length.
+                    description: Maximum label value length. Uses Prometheus default
+                      if left unspecified.
                     format: int64
                     type: integer
                   labels:
                     description: Maximum number of labels accepted for a single sample.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                     type: integer
                   samples:
                     description: Maximum number of samples accepted within a single
-                      scrape.
+                      scrape. Uses Prometheus default if left unspecified.
                     format: int64
                     type: integer
                 type: object
@@ -201,7 +204,7 @@ spec:
                     type: object
                 type: object
               targetLabels:
-                description: Label to add to the Prometheus target for discovered
+                description: Labels to add to the Prometheus target for discovered
                   endpoints.
                 properties:
                   fromPod:

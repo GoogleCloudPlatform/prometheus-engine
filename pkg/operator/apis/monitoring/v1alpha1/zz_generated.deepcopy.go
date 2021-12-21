@@ -168,6 +168,11 @@ func (in *ClusterPodMonitoringSpec) DeepCopyInto(out *ClusterPodMonitoringSpec) 
 		}
 	}
 	in.TargetLabels.DeepCopyInto(&out.TargetLabels)
+	if in.Limits != nil {
+		in, out := &in.Limits, &out.Limits
+		*out = new(ScrapeLimits)
+		**out = **in
+	}
 	return
 }
 

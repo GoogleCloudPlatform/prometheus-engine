@@ -131,9 +131,10 @@ ClusterPodMonitoringSpec contains specification parameters for PodMonitoring.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| selector |  | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#labelselector-v1-meta) | true |
-| endpoints |  | [][ScrapeEndpoint](#scrapeendpoint) | true |
-| targetLabels |  | [TargetLabels](#targetlabels) | false |
+| selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#labelselector-v1-meta) | true |
+| endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
+| targetLabels | Labels to add to the Prometheus target for discovered endpoints | [TargetLabels](#targetlabels) | false |
+| limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -286,7 +287,7 @@ PodMonitoringSpec contains specification parameters for PodMonitoring.
 | ----- | ----------- | ------ | -------- |
 | selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#labelselector-v1-meta) | true |
 | endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
-| targetLabels | Label to add to the Prometheus target for discovered endpoints. | [TargetLabels](#targetlabels) | false |
+| targetLabels | Labels to add to the Prometheus target for discovered endpoints. | [TargetLabels](#targetlabels) | false |
 | limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
 
 [Back to TOC](#table-of-contents)
@@ -437,14 +438,14 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 ScrapeLimits limits applied to scraped targets.
 
 
-<em>appears in: [PodMonitoringSpec](#podmonitoringspec)</em>
+<em>appears in: [ClusterPodMonitoringSpec](#clusterpodmonitoringspec), [PodMonitoringSpec](#podmonitoringspec)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| samples | Maximum number of samples accepted within a single scrape. | uint64 | false |
-| labels | Maximum number of labels accepted for a single sample. | uint64 | false |
-| labelNameLength | Maximum label name length. | uint64 | false |
-| labelValueLength | Maximum label value length. | uint64 | false |
+| samples | Maximum number of samples accepted within a single scrape. Uses Prometheus default if left unspecified. | uint64 | false |
+| labels | Maximum number of labels accepted for a single sample. Uses Prometheus default if left unspecified. | uint64 | false |
+| labelNameLength | Maximum label name length. Uses Prometheus default if left unspecified. | uint64 | false |
+| labelValueLength | Maximum label value length. Uses Prometheus default if left unspecified. | uint64 | false |
 
 [Back to TOC](#table-of-contents)
 
