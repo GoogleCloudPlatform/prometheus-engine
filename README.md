@@ -33,7 +33,7 @@ This triggers a Docker build and associated image. It also generates in a binary
   kubectl context. It is assumed the cluster has access to the GCM API.
   Ensure `GMP_CLUSTER` and `GMP_LOCATION` are set, e.g.
   ```
-  NO_DOCKER`1 GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make test
+  NO_DOCKER=1 GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make test
   ```
 - Running `make presubmit` will run various checks on the repo to ensure it is
 ready to submit a pull request. This includes testing, formatting,
