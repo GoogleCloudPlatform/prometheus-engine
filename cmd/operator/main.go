@@ -73,8 +73,6 @@ func main() {
 			"Priority class at which the collector pods are run.")
 		gcmEndpoint = flag.String("cloud-monitoring-endpoint", "",
 			"Override for the Cloud Monitoring endpoint to use for all collectors.")
-		caSelfSign = flag.Bool("ca-selfsign", true,
-			"Whether to self-sign or have kube-apiserver sign certificate key pair for TLS.")
 		webhookAddr = flag.String("webhook-addr", ":8443",
 			"Address to listen to for incoming kube admission webhook connections.")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
@@ -108,7 +106,6 @@ func main() {
 		HostNetwork:             *hostNetwork,
 		PriorityClass:           *priorityClass,
 		CloudMonitoringEndpoint: *gcmEndpoint,
-		CASelfSign:              *caSelfSign,
 		ListenAddr:              *webhookAddr,
 	})
 	if err != nil {
