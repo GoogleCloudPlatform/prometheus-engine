@@ -25,13 +25,9 @@ steps:
 - name: 'gcr.io/cloud-builders/docker'
   id: 'build-frontend'
   args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/frontend:$TAG_NAME', '-f', 'cmd/frontend/Dockerfile', '.']
-- name: 'gcr.io/cloud-builders/docker'
-  id: 'build-example-app'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/example-app:$TAG_NAME', '-f', 'cmd/example-app/Dockerfile', '.']
 
 images:
 - 'gcr.io/$PROJECT_ID/prometheus-engine/config-reloader:$TAG_NAME'
 - 'gcr.io/$PROJECT_ID/prometheus-engine/rule-evaluator:$TAG_NAME'
 - 'gcr.io/$PROJECT_ID/prometheus-engine/operator:$TAG_NAME'
 - 'gcr.io/$PROJECT_ID/prometheus-engine/frontend:$TAG_NAME'
-- 'gcr.io/$PROJECT_ID/prometheus-engine/example-app:$TAG_NAME'

@@ -9,7 +9,6 @@ For more documentation and to get started, go to [g.co/cloud/managedprometheus](
 ## Binaries
 
 * **[config-reloader](cmd/config-reloader)**: An auxiliary binary to initiate reload on configuration file changes.
-* **[example-app](cmd/example-app)**: An application exposing synthetic metrics.
 * **[frontend](cmd/frontend)**: An authorizing proxy for the Prometheus-compatible query API of GMP. It additionally hosts a query UI.
 * **[operator](cmd/operator)**: A Kubernetes operator for managed metric collection for GMP.
 * **[rule-evaluator](cmd/rule-evaluator)**: A Prometheus rule evaluation engine that evaluates against GMP.
@@ -30,11 +29,11 @@ This triggers a Docker build and associated image. It also generates in a binary
 - Running `make all` will generate all the go binaries.
   - Setting `NO_DOCKER=1` here will build all the binaries natively on the host machine.
 - Running `make test` will run unit and e2e tests.
-  - If `NO_DOCKER=1` is not set, end-to-end tests will be run against the current
+  - If `NO_DOCKER=1` is set, end-to-end tests will be run against the current
   kubectl context. It is assumed the cluster has access to the GCM API.
   Ensure `GMP_CLUSTER` and `GMP_LOCATION` are set, e.g.
   ```
-  GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make test
+  NO_DOCKER=1 GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make test
   ```
 - Running `make presubmit` will run various checks on the repo to ensure it is
 ready to submit a pull request. This includes testing, formatting,

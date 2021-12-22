@@ -68,25 +68,16 @@ popd
 Deploy the base monitoring stack:
 
 ```bash
-kubectl apply -f "$BASE_DIR/cmd/operator/deploy/operator/" &&
+kubectl apply -f "$BASE_DIR/examples/setup.yaml" &&
 sleep 3 &&
-kubectl apply -f "$BASE_DIR/cmd/operator/deploy/" --recursive
+kubectl apply -f "$BASE_DIR/examples/operator.yaml"
 ```
 
-Next, define a size of our example workload and deploy it. You may rerun this step
-as needed to change size.
+Next, define a [size](./../examples/example-app.yaml#L25) of our example
+workload and deploy it. You may rerun this step as needed to change size.
 
 ```bash
-APP_DEPLOYMENTS=3
-APP_REPLICAS=30
-APP_CPU_BURN=0 # Burn CPU operations to simulate resource pressure
-APP_MEM_BALLAST=0 # Memory usage in megabytes
-
-for i in $(seq 1 $APP_DEPLOYMENTS); do 
-  REPLICAS=$APP_REPLICAS IMAGE_TAG=$IMAGE_TAG INDEX=$i CPU_BURN=$APP_CPU_BURN MEM_BALLAST=$APP_MEM_BALLAST PROJECT_ID=$PROJECT_ID \
-    envsubst < "$BASE_DIR/bench/deployment.yaml" | kubectl apply -f -;
-done
-kubectl apply -f "$BASE_DIR/bench/pod_monitoring.yaml" 
+kubectl apply -f "$BASE_DIR/examples/pod-monitoring.yaml" 
 ```
 
 Lastly, we run the operator locally. Doing that instead of deploying it inside of the cluster
@@ -99,12 +90,10 @@ go run $BASE_DIR/cmd/operator/*.go \
   --image-collector="$PROMETHEUS_IMAGE" \
   --image-config-reloader="$RELOADER_IMAGE" \
   --priority-class=gmp-critical \
-  --cloud-monitoring-endpoint=staging-monitoring.sandbox.googleapis.com:443
 ```
 
 You may terminate the operator, rebuild images as needed by following the steps above, and
 start it again to deploy the new versions.
-
 
 ## Teardown
 
@@ -176,8 +165,8 @@ rate(prometheus_tsdb_head_samples_appended_total[2m])
 
 # Rate at which GCM samples are exported. This is expected to be lower as histogram series
 # map to a single GCM distribution.
-rate(gcm_collector_samples_exported_total[2m])
+rate(gcm_export_samples_exported_total[2m])
 
 # Rate at which samples are dropped in the collector because they cannot be exported fast enough.
-rate(gcm_collector_samples_dropped_total[2m])
+rate(gcm_export_samples_dropped_total[2m])
 ```
