@@ -145,7 +145,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	// Reconcile any status updates.
 	for _, obj := range r.statusUpdates {
 		if err := r.client.Status().Update(ctx, obj); err != nil {
-			logger.Error(err, "update status")
+			logger.Error(err, "update status", "obj", obj)
 		}
 	}
 	// Reset status updates for next reconcile loop.
