@@ -78,6 +78,12 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
+		// Any update to a ClusterPodMonitoring requires regenerating the config.
+		Watches(
+			&source.Kind{Type: &monitoringv1alpha1.ClusterPodMonitoring{}},
+			enqueueConst(objRequest),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		// The configuration we generate for the collectors.
 		Watches(
 			&source.Kind{Type: &corev1.ConfigMap{}},
@@ -100,24 +106,21 @@ func setupCollectionControllers(op *Operator) error {
 }
 
 type collectionReconciler struct {
-	client client.Client
-	opts   Options
-	// Internal bookkeeping for sending status updates to processed CRDs.
-	statusState *CRDStatusState
+	client        client.Client
+	opts          Options
+	statusUpdates []client.Object
 }
 
 func newCollectionReconciler(c client.Client, opts Options) *collectionReconciler {
 	return &collectionReconciler{
-		client:      c,
-		opts:        opts,
-		statusState: NewCRDStatusState(metav1.Now),
+		client: c,
+		opts:   opts,
 	}
 }
 
 func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	logr.FromContext(ctx).Info("reconciling collection")
-
-	r.statusState.Reset()
+	logger := logr.FromContext(ctx)
+	logger.Info("reconciling collection")
 
 	var config monitoringv1alpha1.OperatorConfig
 	// Fetch OperatorConfig if it exists.
@@ -138,9 +141,16 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	if err := r.ensureCollectorConfig(ctx, &config.Collection); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure collector config")
 	}
-	if err := r.updateCRDStatus(ctx); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "update crd status")
+
+	// Reconcile any status updates.
+	for _, obj := range r.statusUpdates {
+		if err := r.client.Status().Update(ctx, obj); err != nil {
+			logger.Error(err, "update status", "obj", obj)
+		}
 	}
+	// Reset status updates for next reconcile loop.
+	r.statusUpdates = r.statusUpdates[:0]
+
 	return reconcile.Result{}, nil
 }
 
@@ -402,18 +412,6 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 	}
 }
 
-// updateCRDStatus iterates through parsed CRDs and updates their statuses.
-// If an error is encountered from performing an update, the function returns
-// the error immediately and does not attempt updates on subsequent CRDs.
-func (r *collectionReconciler) updateCRDStatus(ctx context.Context) error {
-	for _, pm := range r.statusState.PodMonitorings() {
-		if err := r.client.Status().Update(ctx, &pm); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // ensureCollectorConfig generates the collector config and creates or updates it.
 func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1alpha1.CollectionSpec) error {
 	cfg, err := r.makeCollectorConfig(ctx, spec)
@@ -455,33 +453,85 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
 	var (
-		podmons monitoringv1alpha1.PodMonitoringList
+		podMons        monitoringv1alpha1.PodMonitoringList
+		clusterPodMons monitoringv1alpha1.ClusterPodMonitoringList
+		cond           *monitoringv1alpha1.MonitoringCondition
 	)
-	if err := r.client.List(ctx, &podmons); err != nil {
+	if err := r.client.List(ctx, &podMons); err != nil {
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
 	}
 
 	// Mark status updates in batch with single timestamp.
-	for _, pm := range podmons.Items {
+	for _, pm := range podMons.Items {
 		// Reassign so we can safely get a pointer.
-		podmon := pm
+		pmon := pm
 
-		cond := &monitoringv1alpha1.MonitoringCondition{
+		cond = &monitoringv1alpha1.MonitoringCondition{
 			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := podmon.ScrapeConfigs()
+		cfgs, err := pmon.ScrapeConfigs()
 		if err != nil {
-			logger.Error(err, "generating scrape config failed for PodMonitoring endpoint",
-				"namespace", podmon.Namespace, "name", podmon.Name)
+			msg := "generating scrape config failed for PodMonitoring endpoint"
+			cond = &monitoringv1alpha1.MonitoringCondition{
+				Type:    monitoringv1alpha1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Reason:  "ScrapeConfigError",
+				Message: msg,
+			}
+			logger.Error(err, msg, "namespace", pmon.Namespace, "name", pmon.Name)
 			continue
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		if err := r.statusState.SetPodMonitoringCondition(&podmon, cond); err != nil {
+		change, err := pmon.Status.SetPodMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
+		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
 			logger.Error(err, "setting podmonitoring status state")
+		}
+
+		if change {
+			r.statusUpdates = append(r.statusUpdates, &pmon)
+		}
+	}
+
+	if err := r.client.List(ctx, &clusterPodMons); err != nil {
+		return nil, errors.Wrap(err, "failed to list ClusterPodMonitorings")
+	}
+
+	// Mark status updates in batch with single timestamp.
+	for _, cm := range clusterPodMons.Items {
+		// Reassign so we can safely get a pointer.
+		cmon := cm
+
+		cond = &monitoringv1alpha1.MonitoringCondition{
+			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
+			Status: corev1.ConditionTrue,
+		}
+		cfgs, err := cmon.ScrapeConfigs()
+		if err != nil {
+			msg := "generating scrape config failed for PodMonitoring endpoint"
+			cond = &monitoringv1alpha1.MonitoringCondition{
+				Type:    monitoringv1alpha1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Reason:  "ScrapeConfigError",
+				Message: msg,
+			}
+			logger.Error(err, msg, "namespace", cmon.Namespace, "name", cmon.Name)
+			continue
+		}
+		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
+
+		change, err := cmon.Status.SetPodMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
+		if err != nil {
+			// Log an error but let operator continue to avoid getting stuck
+			// on a potential bad resource.
+			logger.Error(err, "setting podmonitoring status state")
+		}
+
+		if change {
+			r.statusUpdates = append(r.statusUpdates, &cmon)
 		}
 	}
 

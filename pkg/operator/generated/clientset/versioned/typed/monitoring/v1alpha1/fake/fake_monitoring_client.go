@@ -26,6 +26,10 @@ type FakeMonitoringV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeMonitoringV1alpha1) ClusterPodMonitorings() v1alpha1.ClusterPodMonitoringInterface {
+	return &FakeClusterPodMonitorings{c}
+}
+
 func (c *FakeMonitoringV1alpha1) ClusterRules() v1alpha1.ClusterRulesInterface {
 	return &FakeClusterRules{c}
 }

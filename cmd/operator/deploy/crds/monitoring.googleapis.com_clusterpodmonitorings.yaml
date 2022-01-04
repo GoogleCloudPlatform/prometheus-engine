@@ -17,20 +17,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.7.0
   creationTimestamp: null
-  name: podmonitorings.monitoring.googleapis.com
+  name: clusterpodmonitorings.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
   names:
-    kind: PodMonitoring
-    listKind: PodMonitoringList
-    plural: podmonitorings
-    singular: podmonitoring
-  scope: Namespaced
+    kind: ClusterPodMonitoring
+    listKind: ClusterPodMonitoringList
+    plural: clusterpodmonitorings
+    singular: clusterpodmonitoring
+  scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: PodMonitoring defines monitoring for a set of pods.
+        description: ClusterPodMonitoring defines monitoring for a set of pods.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -205,7 +205,7 @@ spec:
                 type: object
               targetLabels:
                 description: Labels to add to the Prometheus target for discovered
-                  endpoints.
+                  endpoints
                 properties:
                   fromPod:
                     description: 'Labels to transfer from the Kubernetes Pod to Prometheus

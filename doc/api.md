@@ -20,6 +20,9 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [AlertingSpec](#alertingspec)
 * [AlertmanagerEndpoints](#alertmanagerendpoints)
 * [Authorization](#authorization)
+* [ClusterPodMonitoring](#clusterpodmonitoring)
+* [ClusterPodMonitoringList](#clusterpodmonitoringlist)
+* [ClusterPodMonitoringSpec](#clusterpodmonitoringspec)
 * [ClusterRules](#clusterrules)
 * [ClusterRulesList](#clusterruleslist)
 * [CollectionSpec](#collectionspec)
@@ -90,6 +93,48 @@ Authorization specifies a subset of the Authorization struct, that is safe for u
 | ----- | ----------- | ------ | -------- |
 | type | Set the authentication type. Defaults to Bearer, Basic will cause an error | string | false |
 | credentials | The secret's key that contains the credentials of the request | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
+
+[Back to TOC](#table-of-contents)
+
+## ClusterPodMonitoring
+
+ClusterPodMonitoring defines monitoring for a set of pods.
+
+
+<em>appears in: [ClusterPodMonitoringList](#clusterpodmonitoringlist)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
+| spec | Specification of desired Pod selection for target discovery by Prometheus. | [ClusterPodMonitoringSpec](#clusterpodmonitoringspec) | true |
+| status | Most recently observed status of the resource. | [PodMonitoringStatus](#podmonitoringstatus) | true |
+
+[Back to TOC](#table-of-contents)
+
+## ClusterPodMonitoringList
+
+ClusterPodMonitoringList is a list of ClusterPodMonitorings.
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#listmeta-v1-meta) | false |
+| items |  | [][ClusterPodMonitoring](#clusterpodmonitoring) | true |
+
+[Back to TOC](#table-of-contents)
+
+## ClusterPodMonitoringSpec
+
+ClusterPodMonitoringSpec contains specification parameters for PodMonitoring.
+
+
+<em>appears in: [ClusterPodMonitoring](#clusterpodmonitoring)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#labelselector-v1-meta) | true |
+| endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
+| targetLabels | Labels to add to the Prometheus target for discovered endpoints | [TargetLabels](#targetlabels) | false |
+| limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -242,7 +287,7 @@ PodMonitoringSpec contains specification parameters for PodMonitoring.
 | ----- | ----------- | ------ | -------- |
 | selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#labelselector-v1-meta) | true |
 | endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
-| targetLabels | Label to add to the Prometheus target for discovered endpoints. | [TargetLabels](#targetlabels) | false |
+| targetLabels | Labels to add to the Prometheus target for discovered endpoints. | [TargetLabels](#targetlabels) | false |
 | limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
 
 [Back to TOC](#table-of-contents)
@@ -252,7 +297,7 @@ PodMonitoringSpec contains specification parameters for PodMonitoring.
 PodMonitoringStatus holds status information of a PodMonitoring resource.
 
 
-<em>appears in: [PodMonitoring](#podmonitoring)</em>
+<em>appears in: [ClusterPodMonitoring](#clusterpodmonitoring), [PodMonitoring](#podmonitoring)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
@@ -373,7 +418,7 @@ RulesSpec contains specification parameters for a Rules resource.
 ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 
 
-<em>appears in: [PodMonitoringSpec](#podmonitoringspec)</em>
+<em>appears in: [ClusterPodMonitoringSpec](#clusterpodmonitoringspec), [PodMonitoringSpec](#podmonitoringspec)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
@@ -393,7 +438,7 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 ScrapeLimits limits applied to scraped targets.
 
 
-<em>appears in: [PodMonitoringSpec](#podmonitoringspec)</em>
+<em>appears in: [ClusterPodMonitoringSpec](#clusterpodmonitoringspec), [PodMonitoringSpec](#podmonitoringspec)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
@@ -440,7 +485,7 @@ SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
 TargetLabels configures labels for the discovered Prometheus targets.
 
 
-<em>appears in: [PodMonitoringSpec](#podmonitoringspec)</em>
+<em>appears in: [ClusterPodMonitoringSpec](#clusterpodmonitoringspec), [PodMonitoringSpec](#podmonitoringspec)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
