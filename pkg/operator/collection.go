@@ -119,7 +119,8 @@ func newCollectionReconciler(c client.Client, opts Options) *collectionReconcile
 }
 
 func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	logr.FromContext(ctx).Info("reconciling collection")
+	logger := logr.FromContext(ctx)
+	logger.Info("reconciling collection")
 
 	var config monitoringv1alpha1.OperatorConfig
 	// Fetch OperatorConfig if it exists.
@@ -144,9 +145,11 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	// Reconcile any status updates.
 	for _, obj := range r.statusUpdates {
 		if err := r.client.Status().Update(ctx, obj); err != nil {
-			return reconcile.Result{}, errors.Wrap(err, "update status")
+			logger.Error(err, "update status")
 		}
 	}
+	// Reset status updates for next reconcile loop.
+	r.statusUpdates = r.statusUpdates[:0]
 
 	return reconcile.Result{}, nil
 }
