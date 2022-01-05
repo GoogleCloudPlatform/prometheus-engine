@@ -52,9 +52,9 @@ kind create cluster --config=${SCRIPT_ROOT}/hack/kind-config.yaml
 
 # Need to ensure namespace is deployed first explicitly.
 echo ">>> deploying static resources"
-kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/examples/setup.yaml
-kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/examples/operator.yaml
-kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/examples/rule-evaluator.yaml
+kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/manifests/setup.yaml
+kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/manifests/operator.yaml
+kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/manifests/rule-evaluator.yaml
 
 echo ">>> executing gmp e2e tests"
 go test -v ${SCRIPT_ROOT}/pkg/operator/e2e -args -project-id=test-proj -cluster=test-cluster -location=test-loc -skip-gcm
