@@ -205,6 +205,12 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 	// TODO(freinartz): this just fills in the bare minimum to get semantics right.
 	// Add more configuration of a full deployment: tolerations, resource request/limit,
 	// health checks, priority context, security context, dynamic update strategy params...
+
+	// DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
+	// see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
+	podLabelSelector := map[string]string{
+		LabelAppName: NameCollector,
+	}
 	podLabels := map[string]string{
 		LabelAppName:      NameCollector,
 		KubernetesAppName: CollectorAppName,
@@ -259,7 +265,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 
 	ds := appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
-			MatchLabels: podLabels,
+			MatchLabels: podLabelSelector,
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
