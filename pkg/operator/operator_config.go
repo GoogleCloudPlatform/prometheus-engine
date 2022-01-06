@@ -601,24 +601,35 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 		}
 		cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
 			Action:       relabel.Keep,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_service_name"},
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_endpoints_name"},
 			Regex:        svcNameRE,
 		})
-		portRE, err := relabel.NewRegexp(am.Port.String())
-		if err != nil {
-			return nil, nil, errors.Errorf("cannot build regex from port %q: %s", am.Port, err)
-		}
 		if am.Port.StrVal != "" {
+			re, err := relabel.NewRegexp(am.Port.String())
+			if err != nil {
+				return nil, nil, errors.Wrapf(err, "cannot build regex from port %q", am.Port)
+			}
 			cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
 				Action:       relabel.Keep,
 				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_endpoint_port_name"},
-				Regex:        portRE,
+				Regex:        re,
 			})
 		} else if am.Port.IntVal != 0 {
+			// The endpoints object does not provide a meta label for the port number. If the endpoint
+			// is backed by a pod we can inspect the pod port number label, but to make it work in general
+			// we simply override the port in the address label.
+			// If the endpoints has multiple ports, this will create duplicate targets but they will be
+			// deduplicated by the discovery engine.
+			re, err := relabel.NewRegexp(`(.+):\d+`)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "building address regex failed")
+			}
 			cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
-				Action:       relabel.Keep,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_port_number"},
-				Regex:        portRE,
+				Action:       relabel.Replace,
+				SourceLabels: prommodel.LabelNames{"__address__"},
+				Regex:        re,
+				TargetLabel:  "__address__",
+				Replacement:  fmt.Sprintf("$1:%d", am.Port.IntVal),
 			})
 		}
 
