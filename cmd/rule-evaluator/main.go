@@ -68,8 +68,14 @@ func main() {
 		defaultProjectID, _ = metadata.ProjectID()
 	}
 
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(
+		prometheus.NewGoCollector(),
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+	)
+
 	exporterOptions := export.NewFlagOptions(a)
-	notifierOptions := notifier.Options{}
+	notifierOptions := notifier.Options{Registerer: reg}
 
 	projectID := a.Flag("query.project-id", "Project ID of the Google Cloud Monitoring workspace to evaluate rules against.").
 		Default(defaultProjectID).String()
@@ -109,12 +115,6 @@ func main() {
 		level.Error(logger).Log("msg", fmt.Sprintf("Error loading config (--config.file=%s)", *configFile), "err", err)
 		os.Exit(2)
 	}
-
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(
-		prometheus.NewGoCollector(),
-		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
-	)
 
 	destination, err := export.NewStorage(logger, reg, *exporterOptions)
 	if err != nil {
