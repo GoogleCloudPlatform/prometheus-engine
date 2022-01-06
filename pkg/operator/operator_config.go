@@ -304,6 +304,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
 		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
 	}
+
 	if r.opts.ProjectID != "" {
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
 	}
@@ -334,10 +335,16 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 	}
 	replicas := int32(1)
 
+	// DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
+	// see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
+	podLabelSelector := map[string]string{
+		LabelAppName: NameRuleEvaluator,
+	}
+
 	deploy := appsv1.DeploymentSpec{
 		Replicas: &replicas,
 		Selector: &metav1.LabelSelector{
-			MatchLabels: rulesLabels(),
+			MatchLabels: podLabelSelector,
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
