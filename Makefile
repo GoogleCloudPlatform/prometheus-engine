@@ -52,7 +52,7 @@ test:        ## Run all tests. Setting NO_DOCKER=1 writes real data to GCM API u
              ## Use GMP_CLUSTER, GMP_LOCATION to specify timeseries labels.
 	@echo ">> running tests"
 ifeq ($(NO_DOCKER), 1)
-	kubectl apply -f examples/setup.yaml
+	kubectl apply -f manifests/setup.yaml
 	kubectl apply -f cmd/operator/deploy/operator/01-priority-class.yaml
 	kubectl apply -f cmd/operator/deploy/operator/03-clusterrole.yaml
 	go test `go list ./... | grep -v operator/e2e`
@@ -84,7 +84,7 @@ lint:        ## Lint code.
 
 presubmit:   ## Validate and regenerate changes before submitting a PR 
              ## Use DRY_RUN=1 to only validate without regenerating changes.
-presubmit: ps assets operator rule-evaluator config-reloader kindtest
+presubmit: ps assets config-reloader operator rule-evaluator kindtest
 ps:  
 ifeq ($(DRY_RUN), 1)
 	$(call docker_build, -f ./hack/Dockerfile --target hermetic -t gmp/hermetic \

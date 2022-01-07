@@ -51,6 +51,8 @@ rules:
   - operatorconfigs
   - podmonitorings
   - podmonitorings/status
+  - clusterpodmonitorings
+  - clusterpodmonitorings/status
   - rules
   - rules/status
   - secrets
