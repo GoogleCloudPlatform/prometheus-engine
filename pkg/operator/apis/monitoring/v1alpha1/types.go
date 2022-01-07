@@ -779,19 +779,22 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int) (*promconfig.Scr
 		metricRelabelCfgs = append(metricRelabelCfgs, rcfg)
 	}
 
-	proxyURL, err := url.Parse(ep.ProxyURL)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid proxy URL")
-	}
-	// Marshalling the config will redact the password, so we don't support those.
-	// It's not a good idea anyway and we will later support basic auth based on secrets to
-	// cover the general use case.
-	if _, ok := proxyURL.User.Password(); ok {
-		return nil, errors.New("passwords encoded in URLs are not supported")
-	}
-	// Initialize from default as encode/decode does not work correctly with the type definition.
 	httpCfg := config.DefaultHTTPClientConfig
-	httpCfg.ProxyURL.URL = proxyURL
+	if ep.ProxyURL != "" {
+
+		proxyURL, err := url.Parse(ep.ProxyURL)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid proxy URL")
+		}
+		// Marshalling the config will redact the password, so we don't support those.
+		// It's not a good idea anyway and we will later support basic auth based on secrets to
+		// cover the general use case.
+		if _, ok := proxyURL.User.Password(); ok {
+			return nil, errors.New("passwords encoded in URLs are not supported")
+		}
+		// Initialize from default as encode/decode does not work correctly with the type definition.
+		httpCfg.ProxyURL.URL = proxyURL
+	}
 
 	scrapeCfg := &promconfig.ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
