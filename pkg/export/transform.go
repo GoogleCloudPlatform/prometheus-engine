@@ -15,6 +15,7 @@
 package export
 
 import (
+	"sort"
 	"math"
 	"strconv"
 	"strings"
@@ -289,7 +290,28 @@ func (d *distribution) complete() bool {
 	return !d.skip && d.hasSum && d.hasCount && d.hasInfBucket
 }
 
+func (d *distribution) Len() int {
+	return len(d.bounds)
+}
+
+func (d *distribution) Less(i, j int) bool {
+	return d.bounds[i] < d.bounds[j]
+}
+
+func (d *distribution) Swap(i, j int) {
+	d.bounds[i], d.bounds[j] = d.bounds[j], d.bounds[i]
+	d.values[i], d.values[j] = d.values[j], d.values[i]
+}
+
 func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution, error) {
+	// The exposition format in general requires buckets to be in-order but we observed
+	// some cases in the wild where this was not the case.
+	// Ensure sorting here to gracefully handle those cases sometimes. This cannot handle
+	// all cases. Specifically, if buckets are out-of-order distribution.complete() may
+	// return true before all buckets have been read. Then we will send a distribution
+	// with only a subset of buckets.
+	sort.Sort(d)
+
 	// Reuse slices we already populated to build final bounds and values.
 	var (
 		bounds               = d.bounds[:0]
