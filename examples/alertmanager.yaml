@@ -1,0 +1,171 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https:#www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: alertmanager
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: alertmanager
+  serviceName: alertmanager-mesh
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+      - name: alertmanager
+        args:
+        - --config.file=/etc/alertmanager/config/alertmanager.yaml
+        - --storage.path=/alertmanager
+        - --data.retention=120h
+        - --cluster.listen-address=[$(POD_IP)]:9094
+        - --web.listen-address=:9093
+        - --web.route-prefix=/
+        - --cluster.peer=alertmanager-0.alertmanager-mesh:9094
+        - --cluster.peer=alertmanager-1.alertmanager-mesh:9094
+        - --cluster.peer=alertmanager-2.alertmanager-mesh:9094
+        - --cluster.reconnect-timeout=5m
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        image: quay.io/prometheus/alertmanager:v0.21.0
+        ports:
+        - containerPort: 9093
+          name: web
+          protocol: TCP
+        - containerPort: 9094
+          name: mesh-tcp
+          protocol: TCP
+        - containerPort: 9094
+          name: mesh-udp
+          protocol: UDP
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: web
+            scheme: HTTP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+          limits:
+            memory: 3000Mi
+        volumeMounts:
+        - mountPath: /etc/alertmanager/config
+          name: config
+        - mountPath: /alertmanager
+          name: db
+      - args:
+        - --listen-address=:8080
+        - --reload-url=http://localhost:9093/-/reload
+        - --watched-dir=/etc/alertmanager/config
+        command:
+        - /bin/prometheus-config-reloader
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: SHARD
+          value: "-1"
+        image: quay.io/prometheus-operator/prometheus-config-reloader:v0.44.1
+        imagePullPolicy: IfNotPresent
+        name: config-reloader
+        ports:
+        - containerPort: 8080
+          name: reloader-web
+        resources:
+          requests:
+            cpu: 50m
+            memory: 25Mi
+          limits:
+            cpu: 100m
+            memory: 50Mi
+        volumeMounts:
+        - mountPath: /etc/alertmanager/config
+          name: config
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: alertmanager
+      - emptyDir: {}
+        name: db
+      securityContext:
+        fsGroup: 2000
+        runAsNonRoot: true
+        runAsUser: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-mesh
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: alertmanager
+  ports:
+  - name: tcp-mesh
+    port: 9094
+    protocol: TCP
+    targetPort: 9094
+  - name: udp-mesh
+    port: 9094
+    protocol: UDP
+    targetPort: 9094
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+spec:
+  type: ClusterIP
+  selector:
+    app: alertmanager
+  # Ensure that users don't hit different replicas and experience
+  # inconsitencies due to eventually consistent data replication.
+  sessionAffinity: ClientIP
+  ports:
+  - name: web
+    port: 9093
+    protocol: TCP
+    targetPort: web
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager
+data:
+  # A minimal example config, customize to your needs.
+  alertmanager.yaml: |-
+    global:
+      resolve_timeout: 5m
+    receivers:
+    - name: default
+    route:
+      group_by:
+      - namespace
+      group_interval: 5m
+      group_wait: 30s
+      receiver: default
+      repeat_interval: 12h
