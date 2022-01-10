@@ -26,6 +26,7 @@ type MonitoringV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ClusterPodMonitoringsGetter
 	ClusterRulesGetter
+	GlobalRulesGetter
 	OperatorConfigsGetter
 	PodMonitoringsGetter
 	RulesGetter
@@ -42,6 +43,10 @@ func (c *MonitoringV1alpha1Client) ClusterPodMonitorings() ClusterPodMonitoringI
 
 func (c *MonitoringV1alpha1Client) ClusterRules() ClusterRulesInterface {
 	return newClusterRules(c)
+}
+
+func (c *MonitoringV1alpha1Client) GlobalRules() GlobalRulesInterface {
+	return newGlobalRules(c)
 }
 
 func (c *MonitoringV1alpha1Client) OperatorConfigs(namespace string) OperatorConfigInterface {

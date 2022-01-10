@@ -65,6 +65,36 @@ func OperatorConfigResource() metav1.GroupVersionResource {
 	}
 }
 
+// GlobalRulesResource returns a GlobalRules GroupVersionResource.
+// This can be used to enforce API types.
+func GlobalRulesResource() metav1.GroupVersionResource {
+	return metav1.GroupVersionResource{
+		Group:    monitoring.GroupName,
+		Version:  Version,
+		Resource: "globalrules",
+	}
+}
+
+// ClusterRulesResource returns a ClusterRules GroupVersionResource.
+// This can be used to enforce API types.
+func ClusterRulesResource() metav1.GroupVersionResource {
+	return metav1.GroupVersionResource{
+		Group:    monitoring.GroupName,
+		Version:  Version,
+		Resource: "clusterrules",
+	}
+}
+
+// RulesResource returns a Rules GroupVersionResource.
+// This can be used to enforce API types.
+func RulesResource() metav1.GroupVersionResource {
+	return metav1.GroupVersionResource{
+		Group:    monitoring.GroupName,
+		Version:  Version,
+		Resource: "rules",
+	}
+}
+
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
@@ -76,6 +106,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&RulesList{},
 		&ClusterRules{},
 		&ClusterRulesList{},
+		&GlobalRules{},
+		&GlobalRulesList{},
 		&OperatorConfig{},
 		&OperatorConfigList{},
 	)

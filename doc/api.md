@@ -27,6 +27,8 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [ClusterRulesList](#clusterruleslist)
 * [CollectionSpec](#collectionspec)
 * [ExportFilters](#exportfilters)
+* [GlobalRules](#globalrules)
+* [GlobalRulesList](#globalruleslist)
 * [LabelMapping](#labelmapping)
 * [MonitoringCondition](#monitoringcondition)
 * [OperatorConfig](#operatorconfig)
@@ -140,7 +142,7 @@ ClusterPodMonitoringSpec contains specification parameters for PodMonitoring.
 
 ## ClusterRules
 
-ClusterRules defines Prometheus alerting and recording rules that are scoped to the current cluster. Only metric data from the current cluster is processed and all rule results have their project_id and cluster label preserved for query processing. The location, if not preserved by the rule, is set to the cluster's location
+ClusterRules defines Prometheus alerting and recording rules that are scoped to the current cluster. Only metric data from the current cluster is processed and all rule results have their project_id and cluster label preserved for query processing. If the location label is not preserved by the rule, it defaults to the cluster's location.
 
 
 <em>appears in: [ClusterRulesList](#clusterruleslist)</em>
@@ -189,6 +191,32 @@ ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | matchOneOf | A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data.\n\nExample: `[\"{job='prometheus'}\", \"{__name__=~'job:.*'}\"]` | []string | false |
+
+[Back to TOC](#table-of-contents)
+
+## GlobalRules
+
+GlobalRules defines Prometheus alerting and recording rules that are scoped to all data in the queried project. If the project_id or location labels are not preserved by the rule, they default to the values of the cluster.
+
+
+<em>appears in: [GlobalRulesList](#globalruleslist)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
+| spec | Specification of rules to record and alert on. | [RulesSpec](#rulesspec) | true |
+| status | Most recently observed status of the resource. | [RulesStatus](#rulesstatus) | true |
+
+[Back to TOC](#table-of-contents)
+
+## GlobalRulesList
+
+GlobalRulesList is a list of GlobalRules.
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#listmeta-v1-meta) | false |
+| items |  | [][GlobalRules](#globalrules) | true |
 
 [Back to TOC](#table-of-contents)
 
@@ -376,7 +404,7 @@ RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/pr
 
 ## Rules
 
-Rules defines Prometheus alerting and recording rules that are scoped to the namespace of the resource. Only metric data from this namespace is processed and all rule results have their project_id, cluster, and namespace label preserved for query processing. The location, if not preserved by the rule, is set to the cluster's location.
+Rules defines Prometheus alerting and recording rules that are scoped to the namespace of the resource. Only metric data from this namespace is processed and all rule results have their project_id, cluster, and namespace label preserved for query processing. If the location label is not preserved by the rule, it defaults to the cluster's location.
 
 
 <em>appears in: [RulesList](#ruleslist)</em>
@@ -405,7 +433,7 @@ RulesList is a list of Rules.
 RulesSpec contains specification parameters for a Rules resource.
 
 
-<em>appears in: [ClusterRules](#clusterrules), [Rules](#rules)</em>
+<em>appears in: [ClusterRules](#clusterrules), [GlobalRules](#globalrules), [Rules](#rules)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |

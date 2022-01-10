@@ -1104,7 +1104,7 @@ func NewDefaultConditions(now metav1.Time) []MonitoringCondition {
 // to the namespace of the resource. Only metric data from this namespace is processed
 // and all rule results have their project_id, cluster, and namespace label preserved
 // for query processing.
-// The location, if not preserved by the rule, is set to the cluster's location.
+// If the location label is not preserved by the rule, it defaults to the cluster's location.
 //
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -1131,7 +1131,7 @@ type RulesList struct {
 // to the current cluster. Only metric data from the current cluster is processed
 // and all rule results have their project_id and cluster label preserved
 // for query processing.
-// The location, if not preserved by the rule, is set to the cluster's location
+// If the location label is not preserved by the rule, it defaults to the cluster's location.
 //
 // +genclient
 // +genclient:nonNamespaced
@@ -1154,6 +1154,34 @@ type ClusterRulesList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ClusterRules `json:"items"`
+}
+
+// GlobalRules defines Prometheus alerting and recording rules that are scoped
+// to all data in the queried project.
+// If the project_id or location labels are not preserved by the rule, they default to
+// the values of the cluster.
+//
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
+type GlobalRules struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	// Specification of rules to record and alert on.
+	Spec RulesSpec `json:"spec"`
+	// Most recently observed status of the resource.
+	// +optional
+	Status RulesStatus `json:"status"`
+}
+
+// GlobalRulesList is a list of GlobalRules.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type GlobalRulesList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []GlobalRules `json:"items"`
 }
 
 // RulesSpec contains specification parameters for a Rules resource.
