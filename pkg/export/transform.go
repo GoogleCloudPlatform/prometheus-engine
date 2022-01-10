@@ -15,8 +15,8 @@
 package export
 
 import (
-	"sort"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"

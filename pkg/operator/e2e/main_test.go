@@ -296,12 +296,14 @@ alerting:
           timeout: 30s
           api_version: v2
           relabel_configs:
-            - source_labels: [__meta_kubernetes_service_name]
+            - source_labels: [__meta_kubernetes_endpoints_name]
               regex: test-am
               action: keep
-            - source_labels: [__meta_kubernetes_pod_container_port_number]
-              regex: "19093"
-              action: keep
+            - source_labels: [__address__]
+              regex: (.+):\d+
+              target_label: __address__
+              replacement: $1:19093
+              action: replace
           kubernetes_sd_configs:
             - role: endpoints
               follow_redirects: true
