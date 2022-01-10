@@ -34,6 +34,10 @@ func (c *FakeMonitoringV1alpha1) ClusterRules() v1alpha1.ClusterRulesInterface {
 	return &FakeClusterRules{c}
 }
 
+func (c *FakeMonitoringV1alpha1) GlobalRules() v1alpha1.GlobalRulesInterface {
+	return &FakeGlobalRules{c}
+}
+
 func (c *FakeMonitoringV1alpha1) OperatorConfigs(namespace string) v1alpha1.OperatorConfigInterface {
 	return &FakeOperatorConfigs{c, namespace}
 }

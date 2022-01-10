@@ -17,24 +17,23 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.7.0
   creationTimestamp: null
-  name: clusterrules.monitoring.googleapis.com
+  name: globalrules.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
   names:
-    kind: ClusterRules
-    listKind: ClusterRulesList
-    plural: clusterrules
-    singular: clusterrules
+    kind: GlobalRules
+    listKind: GlobalRulesList
+    plural: globalrules
+    singular: globalrules
   scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterRules defines Prometheus alerting and recording rules
-          that are scoped to the current cluster. Only metric data from the current
-          cluster is processed and all rule results have their project_id and cluster
-          label preserved for query processing. If the location label is not preserved
-          by the rule, it defaults to the cluster's location.
+        description: GlobalRules defines Prometheus alerting and recording rules that
+          are scoped to all data in the queried project. If the project_id or location
+          labels are not preserved by the rule, they default to the values of the
+          cluster.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation

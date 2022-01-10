@@ -59,7 +59,7 @@ update_codegen() {
     github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
     monitoring:v1alpha1 \
     --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt \
-    --plural-exceptions "Rules:Rules,ClusterRules:ClusterRules" \
+    --plural-exceptions "Rules:Rules,ClusterRules:ClusterRules,GlobalRules:GlobalRules" \
     --output-base "${SCRIPT_ROOT}"
   
   cp -r $SCRIPT_ROOT/github.com/GoogleCloudPlatform/prometheus-engine/* $SCRIPT_ROOT

@@ -26,6 +26,8 @@ type Interface interface {
 	ClusterPodMonitorings() ClusterPodMonitoringInformer
 	// ClusterRules returns a ClusterRulesInformer.
 	ClusterRules() ClusterRulesInformer
+	// GlobalRules returns a GlobalRulesInformer.
+	GlobalRules() GlobalRulesInformer
 	// OperatorConfigs returns a OperatorConfigInformer.
 	OperatorConfigs() OperatorConfigInformer
 	// PodMonitorings returns a PodMonitoringInformer.
@@ -53,6 +55,11 @@ func (v *version) ClusterPodMonitorings() ClusterPodMonitoringInformer {
 // ClusterRules returns a ClusterRulesInformer.
 func (v *version) ClusterRules() ClusterRulesInformer {
 	return &clusterRulesInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// GlobalRules returns a GlobalRulesInformer.
+func (v *version) GlobalRules() GlobalRulesInformer {
+	return &globalRulesInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // OperatorConfigs returns a OperatorConfigInformer.

@@ -205,6 +205,29 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 		cm.Data[filename] = string(result)
 	}
 
+	var globalRulesList monitoringv1alpha1.GlobalRulesList
+	if err := r.client.List(ctx, &globalRulesList); err != nil {
+		return errors.Wrap(err, "list global rules")
+	}
+	for _, apiRules := range globalRulesList.Items {
+		rulesLogger := logger.WithValues("global_rules_name", apiRules.Name)
+
+		rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
+		if err != nil {
+			rulesLogger.Error(err, "converting rules failed")
+			// TODO(freinartz): update resource condition.
+			continue
+		}
+		result, err := yaml.Marshal(rs)
+		if err != nil {
+			rulesLogger.Error(err, "marshalling rules failed")
+			// TODO(freinartz): update resource condition.
+			continue
+		}
+		filename := fmt.Sprintf("globalrules__%s.yaml", apiRules.Name)
+		cm.Data[filename] = string(result)
+	}
+
 	// Create or update generated rule ConfigMap.
 	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, cm); err != nil {

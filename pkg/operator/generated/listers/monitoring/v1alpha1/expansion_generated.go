@@ -24,6 +24,10 @@ type ClusterPodMonitoringListerExpansion interface{}
 // ClusterRulesLister.
 type ClusterRulesListerExpansion interface{}
 
+// GlobalRulesListerExpansion allows custom methods to be added to
+// GlobalRulesLister.
+type GlobalRulesListerExpansion interface{}
+
 // OperatorConfigListerExpansion allows custom methods to be added to
 // OperatorConfigLister.
 type OperatorConfigListerExpansion interface{}

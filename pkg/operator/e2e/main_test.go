@@ -750,6 +750,30 @@ func testRulesGeneration(ctx context.Context, t *testContext) {
 	// to be present in the generated rule file.
 	content := replace(`
 apiVersion: monitoring.googleapis.com/v1alpha1
+kind: GlobalRules
+metadata:
+  name: global-rules
+spec:
+  groups:
+  - name: group-1
+    rules:
+    - record: bar
+      expr: avg(up)
+      labels:
+        flavor: test
+`)
+	var globalRules monitoringv1alpha1.GlobalRules
+	if err := kyaml.Unmarshal([]byte(content), &globalRules); err != nil {
+		t.Fatal(err)
+	}
+	globalRules.OwnerReferences = t.ownerReferences
+
+	if _, err := t.operatorClient.MonitoringV1alpha1().GlobalRules().Create(context.TODO(), &globalRules, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	content = replace(`
+apiVersion: monitoring.googleapis.com/v1alpha1
 kind: ClusterRules
 metadata:
   name: {namespace}-cluster-rules
@@ -800,6 +824,14 @@ spec:
 	}
 
 	want := map[string]string{
+		replace("globalrules__global-rules.yaml"): replace(`groups:
+    - name: group-1
+      rules:
+        - record: bar
+          expr: avg(up)
+          labels:
+            flavor: test
+`),
 		replace("clusterrules__{namespace}-cluster-rules.yaml"): replace(`groups:
     - name: group-1
       rules:
