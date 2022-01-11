@@ -3,7 +3,7 @@
 FROM golang:1.17-buster as deps
 WORKDIR /workspace
 # Have to clone and install this as the go.mod uses replace directives.
-RUN git clone --depth 1 --branch v0.50.0 https://github.com/prometheus-operator/prometheus-operator  \
+RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
   && cd prometheus-operator \
   && go install ./cmd/po-docgen
 RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.7.0
