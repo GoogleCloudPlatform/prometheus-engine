@@ -92,7 +92,7 @@ Authorization specifies a subset of the Authorization struct, that is safe for u
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | type | Set the authentication type. Defaults to Bearer, Basic will cause an error | string | false |
-| credentials | The secret's key that contains the credentials of the request | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
+| credentials | The secret's key that contains the credentials of the request | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -105,7 +105,7 @@ ClusterPodMonitoring defines monitoring for a set of pods.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#objectmeta-v1-meta) | false |
 | spec | Specification of desired Pod selection for target discovery by Prometheus. | [ClusterPodMonitoringSpec](#clusterpodmonitoringspec) | true |
 | status | Most recently observed status of the resource. | [PodMonitoringStatus](#podmonitoringstatus) | true |
 
@@ -117,7 +117,7 @@ ClusterPodMonitoringList is a list of ClusterPodMonitorings.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#listmeta-v1-meta) | false |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#listmeta-v1-meta) | false |
 | items |  | [][ClusterPodMonitoring](#clusterpodmonitoring) | true |
 
 [Back to TOC](#table-of-contents)
@@ -131,7 +131,7 @@ ClusterPodMonitoringSpec contains specification parameters for PodMonitoring.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#labelselector-v1-meta) | true |
+| selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#labelselector-v1-meta) | true |
 | endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
 | targetLabels | Labels to add to the Prometheus target for discovered endpoints | [TargetLabels](#targetlabels) | false |
 | limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
@@ -147,7 +147,7 @@ ClusterRules defines Prometheus alerting and recording rules that are scoped to 
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#objectmeta-v1-meta) | false |
 | spec | Specification of rules to record and alert on. | [RulesSpec](#rulesspec) | true |
 | status | Most recently observed status of the resource. | [RulesStatus](#rulesstatus) | true |
 
@@ -159,7 +159,7 @@ ClusterRulesList is a list of ClusterRules.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#listmeta-v1-meta) | false |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#listmeta-v1-meta) | false |
 | items |  | [][ClusterRules](#clusterrules) | true |
 
 [Back to TOC](#table-of-contents)
@@ -175,7 +175,7 @@ CollectionSpec specifies how the operator configures collection of metric data.
 | ----- | ----------- | ------ | -------- |
 | externalLabels | ExternalLabels specifies external labels that are attached to all scraped data before being written to Cloud Monitoring. The precedence behavior matches that of Prometheus. | map[string]string | false |
 | filter | Filter limits which metric data is sent to Cloud Monitoring. | [ExportFilters](#exportfilters) | false |
-| credentials | A reference to GCP service account credentials with which Prometheus collectors are run. It needs to have metric write permissions for all project IDs to which data is written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
+| credentials | A reference to GCP service account credentials with which Prometheus collectors are run. It needs to have metric write permissions for all project IDs to which data is written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -233,7 +233,7 @@ OperatorConfig defines configuration of the gmp-operator.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#objectmeta-v1-meta) | false |
 | rules | Rules specifies how the operator configures and deployes rule-evaluator. | [RuleEvaluatorSpec](#ruleevaluatorspec) | false |
 | collection | Collection specifies how the operator configures collection. | [CollectionSpec](#collectionspec) | false |
 
@@ -245,7 +245,7 @@ OperatorConfigList is a list of OperatorConfigs.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#listmeta-v1-meta) | false |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#listmeta-v1-meta) | false |
 | items |  | [][OperatorConfig](#operatorconfig) | true |
 
 [Back to TOC](#table-of-contents)
@@ -259,7 +259,7 @@ PodMonitoring defines monitoring for a set of pods.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#objectmeta-v1-meta) | false |
 | spec | Specification of desired Pod selection for target discovery by Prometheus. | [PodMonitoringSpec](#podmonitoringspec) | true |
 | status | Most recently observed status of the resource. | [PodMonitoringStatus](#podmonitoringstatus) | true |
 
@@ -271,7 +271,7 @@ PodMonitoringList is a list of PodMonitorings.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#listmeta-v1-meta) | false |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#listmeta-v1-meta) | false |
 | items |  | [][PodMonitoring](#podmonitoring) | true |
 
 [Back to TOC](#table-of-contents)
@@ -285,7 +285,7 @@ PodMonitoringSpec contains specification parameters for PodMonitoring.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#labelselector-v1-meta) | true |
+| selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#labelselector-v1-meta) | true |
 | endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
 | targetLabels | Labels to add to the Prometheus target for discovered endpoints. | [TargetLabels](#targetlabels) | false |
 | limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
@@ -355,7 +355,7 @@ RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
 | externalLabels | ExternalLabels specifies external labels that are attached to any rule results and alerts produced by rules. The precedence behavior matches that of Prometheus. | map[string]string | false |
 | queryProjectID | QueryProjectID is the GCP project ID to evaluate rules against. If left blank, the rule-evaluator will try attempt to infer the Project ID from the environment. | string | false |
 | alerting | Alerting contains how the rule-evaluator configures alerting. | [AlertingSpec](#alertingspec) | false |
-| credentials | A reference to GCP service account credentials with which the rule evaluator container is run. It needs to have metric read permissions against queryProjectId and metric write permissions against all projects to which rule results are written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
+| credentials | A reference to GCP service account credentials with which the rule evaluator container is run. It needs to have metric read permissions against queryProjectId and metric write permissions against all projects to which rule results are written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -383,7 +383,7 @@ Rules defines Prometheus alerting and recording rules that are scoped to the nam
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#objectmeta-v1-meta) | false |
 | spec | Specification of rules to record and alert on. | [RulesSpec](#rulesspec) | true |
 | status | Most recently observed status of the resource. | [RulesStatus](#rulesstatus) | true |
 
@@ -395,7 +395,7 @@ RulesList is a list of Rules.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#listmeta-v1-meta) | false |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#listmeta-v1-meta) | false |
 | items |  | [][Rules](#rules) | true |
 
 [Back to TOC](#table-of-contents)
@@ -458,7 +458,7 @@ SecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mu
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| secret | Secret containing data to use for the targets. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
+| secret | Secret containing data to use for the targets. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
 | configMap | ConfigMap containing data to use for the targets. | *v1.ConfigMapKeySelector | false |
 
 [Back to TOC](#table-of-contents)
@@ -474,7 +474,7 @@ SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
 | ----- | ----------- | ------ | -------- |
 | ca | Struct containing the CA cert to use for the targets. | *[SecretOrConfigMap](#secretorconfigmap) | false |
 | cert | Struct containing the client cert file for the targets. | *[SecretOrConfigMap](#secretorconfigmap) | false |
-| keySecret | Secret containing the client key file for the targets. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#secretkeyselector-v1-core) | false |
+| keySecret | Secret containing the client key file for the targets. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
 | serverName | Used to verify the hostname for the targets. | string | false |
 | insecureSkipVerify | Disable target certificate validation. | bool | false |
 
