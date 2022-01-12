@@ -16,6 +16,7 @@ package operator
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -126,6 +127,10 @@ type Options struct {
 	HostNetwork bool
 	// Priority class for the collector pods.
 	PriorityClass string
+	// Certificate of the server in base 64.
+	Cert string
+	// Key of the server in base 64.
+	Key string
 	// Endpoint of the Cloud Monitoring API to be used by all collectors.
 	CloudMonitoringEndpoint string
 	// Webhook serving address.
@@ -240,30 +245,9 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 // custom resources and registers handlers with the webhook server.
 // The passsed owner references are set on the created WebhookConfiguration resources.
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.OwnerReference) error {
-	// Persisting TLS keypair to a k8s secret seems like unnecessary state to manage.
-	// It's fairly trivial to re-generate the cert and private
-	// key on each startup. Also no other GMP resources aside from the operator
-	// rely on the keypair.
-	// A downside to this approach is re-writing the validation webhook config
-	// every time with the new caBundle. This should only happen when the operator
-	// restarts, which should be infrequent.
-	var (
-		crt, key []byte
-		err      error
-		fqdn     = fmt.Sprintf("system:node:%s.%s.svc", NameOperator, o.opts.OperatorNamespace)
-	)
-
-	// Generate kube-apiserver-signed certificate/key pair.
-	crt, key, err = CreateSignedKeyPair(ctx, o.kubeClient, fqdn)
+	crt, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().CertDir)
 	if err != nil {
 		return err
-	}
-
-	if err := ioutil.WriteFile(filepath.Join(o.manager.GetWebhookServer().CertDir, "tls.crt"), crt, 0666); err != nil {
-		return errors.Wrap(err, "create cert file")
-	}
-	if err := ioutil.WriteFile(filepath.Join(o.manager.GetWebhookServer().CertDir, "tls.key"), key, 0666); err != nil {
-		return errors.Wrap(err, "create key file")
 	}
 
 	whCfg := validatingWebhookConfig(
@@ -319,6 +303,43 @@ func (o *Operator) Run(ctx context.Context, ors ...metav1.OwnerReference) error 
 	o.logger.Info("starting GMP operator")
 
 	return o.manager.Start(ctx)
+}
+
+// ensureCerts writes the cert/key files to the specified directory.
+// If cert/key are not avalilable, generate them.
+func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) {
+	var (
+		crt, key []byte
+		err      error
+	)
+	if (len(o.opts.Key) == 0 && len(o.opts.Cert) > 0) || (len(o.opts.Cert) == 0 && len(o.opts.Key) > 0) {
+		return nil, errors.Errorf("Flags key-base64 and cert-base64 must both be set.")
+	} else if len(o.opts.Key) > 0 && len(o.opts.Cert) > 0 {
+		crt, err = base64.StdEncoding.DecodeString(o.opts.Cert)
+		if err != nil {
+			return nil, errors.Wrap(err, "decoding TLS certificate")
+		}
+		key, err = base64.StdEncoding.DecodeString(o.opts.Key)
+		if err != nil {
+			return nil, errors.Wrap(err, "decoding TLS key")
+		}
+	} else {
+		// Generate kube-apiserver-signed certificate/key pair.
+		fqdn := fmt.Sprintf("system:node:%s.%s.svc", NameOperator, o.opts.OperatorNamespace)
+		crt, key, err = CreateSignedKeyPair(ctx, o.kubeClient, fqdn)
+		if err != nil {
+			return nil, errors.Wrap(err, "generating kube-apiserver-signed certificate/key pair")
+		}
+	}
+
+	if err := ioutil.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
+		return nil, errors.Wrap(err, "create cert file")
+	}
+	if err := ioutil.WriteFile(filepath.Join(dir, "tls.key"), key, 0666); err != nil {
+		return nil, errors.Wrap(err, "create key file")
+	}
+
+	return crt, nil
 }
 
 // namespacedNamePredicate is an event filter predicate that only allows events with
