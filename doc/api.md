@@ -203,7 +203,7 @@ GlobalRules defines Prometheus alerting and recording rules that are scoped to a
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#objectmeta-v1-meta) | false |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#objectmeta-v1-meta) | false |
 | spec | Specification of rules to record and alert on. | [RulesSpec](#rulesspec) | true |
 | status | Most recently observed status of the resource. | [RulesStatus](#rulesstatus) | true |
 
@@ -215,7 +215,7 @@ GlobalRulesList is a list of GlobalRules.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.17/#listmeta-v1-meta) | false |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#listmeta-v1-meta) | false |
 | items |  | [][GlobalRules](#globalrules) | true |
 
 [Back to TOC](#table-of-contents)
