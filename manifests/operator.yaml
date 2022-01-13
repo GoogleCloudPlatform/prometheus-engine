@@ -72,9 +72,12 @@ rules:
   resources:
   - certificatesigningrequests
   - clusterrules
+  - clusterrules/status
   - configmaps
   - daemonsets
   - deployments
+  - globalrules
+  - globalrules/status
   - operatorconfigs
   - podmonitorings
   - podmonitorings/status

@@ -45,9 +45,12 @@ rules:
 # properly at the controller/manager level.
   - certificatesigningrequests
   - clusterrules
+  - clusterrules/status
   - configmaps
   - daemonsets
   - deployments
+  - globalrules
+  - globalrules/status
   - operatorconfigs
   - podmonitorings
   - podmonitorings/status
