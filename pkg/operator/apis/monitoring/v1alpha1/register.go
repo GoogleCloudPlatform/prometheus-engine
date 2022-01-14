@@ -55,6 +55,16 @@ func PodMonitoringResource() metav1.GroupVersionResource {
 	}
 }
 
+// ClusterPodMonitoringResource returns a ClusterPodMonitoring GroupVersionResource.
+// This can be used to enforce API types.
+func ClusterPodMonitoringResource() metav1.GroupVersionResource {
+	return metav1.GroupVersionResource{
+		Group:    monitoring.GroupName,
+		Version:  Version,
+		Resource: "clusterpodmonitorings",
+	}
+}
+
 // OperatorConfigResource returns a OperatorConfig GroupVersionResource.
 // This can be used to enforce API types.
 func OperatorConfigResource() metav1.GroupVersionResource {
