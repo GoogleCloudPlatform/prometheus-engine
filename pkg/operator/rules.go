@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -135,7 +136,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 
 	// Generate a final rule file for each Rules resource.
 	//
-	// Depending on the scope level (cluster, namespace) the rules will be generated
+	// Depending on the scope level (global, cluster, namespace) the rules will be generated
 	// so that queries are constrained to the appropriate project_id, cluster, and namespace
 	// labels and that they are preserved through query aggregations and appear on the
 	// output data.
@@ -146,62 +147,27 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 	if err := r.client.List(ctx, &rulesList); err != nil {
 		return errors.Wrap(err, "list rules")
 	}
-	for _, apiRules := range rulesList.Items {
-		rulesLogger := logger.WithValues("rules_namespace", apiRules.Namespace, "rules_name", apiRules.Name)
-
-		rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
+	for _, rs := range rulesList.Items {
+		result, err := generateRules(&rs, r.opts)
 		if err != nil {
-			rulesLogger.Error(err, "converting rules failed")
 			// TODO(freinartz): update resource condition.
-			continue
+			logger.Error(err, "converting rules failed", "rules_namespace", rs.Namespace, "rules_name", rs.Name)
 		}
-		if err := rules.Scope(&rs, map[string]string{
-			export.KeyProjectID: r.opts.ProjectID,
-			export.KeyCluster:   r.opts.Cluster,
-			export.KeyNamespace: apiRules.Namespace,
-		}); err != nil {
-			rulesLogger.Error(err, "isolating rules failed")
-			// TODO(freinartz): update resource condition.
-			continue
-		}
-		result, err := yaml.Marshal(rs)
-		if err != nil {
-			rulesLogger.Error(err, "marshalling rules failed")
-			// TODO(freinartz): update resource condition.
-			continue
-		}
-		filename := fmt.Sprintf("rules__%s__%s.yaml", apiRules.Namespace, apiRules.Name)
-		cm.Data[filename] = string(result)
+		filename := fmt.Sprintf("rules__%s__%s.yaml", rs.Namespace, rs.Name)
+		cm.Data[filename] = result
 	}
 
 	var clusterRulesList monitoringv1alpha1.ClusterRulesList
 	if err := r.client.List(ctx, &clusterRulesList); err != nil {
 		return errors.Wrap(err, "list cluster rules")
 	}
-	for _, apiRules := range clusterRulesList.Items {
-		rulesLogger := logger.WithValues("cluster_rules_name", apiRules.Name)
-
-		rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
+	for _, rs := range clusterRulesList.Items {
+		result, err := generateClusterRules(&rs, r.opts)
 		if err != nil {
-			rulesLogger.Error(err, "converting rules failed")
 			// TODO(freinartz): update resource condition.
-			continue
+			logger.Error(err, "converting rules failed", "clusterrules_name", rs.Name)
 		}
-		if err := rules.Scope(&rs, map[string]string{
-			export.KeyProjectID: r.opts.ProjectID,
-			export.KeyCluster:   r.opts.Cluster,
-		}); err != nil {
-			rulesLogger.Error(err, "isolating rules failed")
-			// TODO(freinartz): update resource condition.
-			continue
-		}
-		result, err := yaml.Marshal(rs)
-		if err != nil {
-			rulesLogger.Error(err, "marshalling rules failed")
-			// TODO(freinartz): update resource condition.
-			continue
-		}
-		filename := fmt.Sprintf("clusterrules__%s.yaml", apiRules.Name)
+		filename := fmt.Sprintf("clusterrules__%s.yaml", rs.Name)
 		cm.Data[filename] = string(result)
 	}
 
@@ -209,22 +175,13 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 	if err := r.client.List(ctx, &globalRulesList); err != nil {
 		return errors.Wrap(err, "list global rules")
 	}
-	for _, apiRules := range globalRulesList.Items {
-		rulesLogger := logger.WithValues("global_rules_name", apiRules.Name)
-
-		rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
+	for _, rs := range globalRulesList.Items {
+		result, err := generateGlobalRules(&rs)
 		if err != nil {
-			rulesLogger.Error(err, "converting rules failed")
 			// TODO(freinartz): update resource condition.
-			continue
+			logger.Error(err, "converting rules failed", "globalrules_name", rs.Name)
 		}
-		result, err := yaml.Marshal(rs)
-		if err != nil {
-			rulesLogger.Error(err, "marshalling rules failed")
-			// TODO(freinartz): update resource condition.
-			continue
-		}
-		filename := fmt.Sprintf("globalrules__%s.yaml", apiRules.Name)
+		filename := fmt.Sprintf("globalrules__%s.yaml", rs.Name)
 		cm.Data[filename] = string(result)
 	}
 
@@ -236,5 +193,103 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 	} else if err != nil {
 		return errors.Wrap(err, "update generated rules")
 	}
+	return nil
+}
+
+func generateRules(apiRules *monitoringv1alpha1.Rules, opts Options) (string, error) {
+	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
+	if err != nil {
+		return "", errors.Wrap(err, "converting rules failed")
+	}
+	if err := rules.Scope(&rs, map[string]string{
+		export.KeyProjectID: opts.ProjectID,
+		export.KeyCluster:   opts.Cluster,
+		export.KeyNamespace: apiRules.Namespace,
+	}); err != nil {
+		return "", errors.Wrap(err, "isolating rules failed")
+	}
+	result, err := yaml.Marshal(rs)
+	if err != nil {
+		return "", errors.Wrap(err, "marshalling rules failed")
+	}
+	return string(result), nil
+}
+
+func generateClusterRules(apiRules *monitoringv1alpha1.ClusterRules, opts Options) (string, error) {
+	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
+	if err != nil {
+		return "", errors.Wrap(err, "converting rules failed")
+	}
+	if err := rules.Scope(&rs, map[string]string{
+		export.KeyProjectID: opts.ProjectID,
+		export.KeyCluster:   opts.Cluster,
+	}); err != nil {
+		return "", errors.Wrap(err, "isolating rules failed")
+	}
+	result, err := yaml.Marshal(rs)
+	if err != nil {
+		return "", errors.Wrap(err, "marshalling rules failed")
+	}
+	return string(result), nil
+}
+
+func generateGlobalRules(apiRules *monitoringv1alpha1.GlobalRules) (string, error) {
+	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
+	if err != nil {
+		return "", errors.Wrap(err, "converting rules failed")
+	}
+	result, err := yaml.Marshal(rs)
+	if err != nil {
+		return "", errors.Wrap(err, "marshalling rules failed")
+	}
+	return string(result), nil
+}
+
+type rulesValidator struct {
+	opts Options
+}
+
+func (v *rulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
+	_, err := generateRules(o.(*monitoringv1alpha1.Rules), v.opts)
+	return err
+}
+
+func (v *rulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) error {
+	return v.ValidateCreate(ctx, o)
+}
+
+func (v *rulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) error {
+	return nil
+}
+
+type clusterRulesValidator struct {
+	opts Options
+}
+
+func (v *clusterRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
+	_, err := generateClusterRules(o.(*monitoringv1alpha1.ClusterRules), v.opts)
+	return err
+}
+
+func (v *clusterRulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) error {
+	return v.ValidateCreate(ctx, o)
+}
+
+func (v *clusterRulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) error {
+	return nil
+}
+
+type globalRulesValidator struct{}
+
+func (v *globalRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
+	_, err := generateGlobalRules(o.(*monitoringv1alpha1.GlobalRules))
+	return err
+}
+
+func (v *globalRulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) error {
+	return v.ValidateCreate(ctx, o)
+}
+
+func (v *globalRulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) error {
 	return nil
 }

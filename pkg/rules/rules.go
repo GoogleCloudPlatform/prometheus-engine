@@ -20,12 +20,14 @@ import (
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/pkg/rulefmt"
 	"github.com/prometheus/prometheus/promql/parser"
+	yaml "gopkg.in/yaml.v2"
 
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 )
 
 // FromAPIRules constructs rule groups from a list of rule groups in the
-// resource API format.
+// resource API format. It ensures that the groups are valid according to the
+// Prometheus upstream validation logic.
 func FromAPIRules(groups []monitoringv1alpha1.RuleGroup) (result rulefmt.RuleGroups, err error) {
 	for _, g := range groups {
 		var rules []rulefmt.RuleNode
@@ -61,6 +63,15 @@ func FromAPIRules(groups []monitoringv1alpha1.RuleGroup) (result rulefmt.RuleGro
 			}
 		}
 		result.Groups = append(result.Groups, group)
+	}
+	// Do a marshal/unmarshal cycle to run the upstream validation.
+	b, err := yaml.Marshal(result)
+	if err != nil {
+		return result, err
+	}
+	var validate rulefmt.RuleGroups
+	if err := yaml.Unmarshal(b, &validate); err != nil {
+		return result, errors.Wrap(err, "loading rules failed")
 	}
 	return result, nil
 }
