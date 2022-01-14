@@ -28,19 +28,6 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: gmp-system:operator-csr
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: gmp-system:csr-approver
-subjects:
-- kind: ServiceAccount
-  namespace: gmp-system
-  name: operator
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
   name: gmp-system:collector
 roleRef:
   apiGroup: rbac.authorization.k8s.io
