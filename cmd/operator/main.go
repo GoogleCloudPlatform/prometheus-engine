@@ -73,8 +73,8 @@ func main() {
 			"Priority class at which the collector pods are run.")
 		gcmEndpoint = flag.String("cloud-monitoring-endpoint", "",
 			"Override for the Cloud Monitoring endpoint to use for all collectors.")
-		cert        = flag.String("tls-cert-base64", "", "The base64-encoded TLS certificate.")
-		key         = flag.String("tls-key-base64", "", "The base64-encoded TLS key.")
+		tlsCert     = flag.String("tls-cert-base64", "", "The base64-encoded TLS certificate.")
+		tlsKey      = flag.String("tls-key-base64", "", "The base64-encoded TLS key.")
 		webhookAddr = flag.String("webhook-addr", ":8443",
 			"Address to listen to for incoming kube admission webhook connections.")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
@@ -108,8 +108,8 @@ func main() {
 		HostNetwork:             *hostNetwork,
 		PriorityClass:           *priorityClass,
 		CloudMonitoringEndpoint: *gcmEndpoint,
-		Cert:                    *cert,
-		Key:                     *key,
+		TLSCert:                 *tlsCert,
+		TLSKey:                  *tlsKey,
 		ListenAddr:              *webhookAddr,
 	})
 	if err != nil {
