@@ -19,7 +19,6 @@
 package e2e
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -107,19 +106,6 @@ func TestCollectorPodMonitoring(t *testing.T) {
 	t.Run("deployed", tctx.subtest(testCollectorDeployed))
 	t.Run("self-podmonitoring", tctx.subtest(testCollectorSelfPodMonitoring))
 	t.Run("self-clusterpodmonitoring", tctx.subtest(testCollectorSelfClusterPodMonitoring))
-}
-
-// This is hacky.
-// This is set during the subtest call to `testCSRIssued` and
-// validated against in `testValidatingWebhookConfig`.
-var caBundle []byte
-
-func TestCSRWithValidatingWebhookConfig(t *testing.T) {
-	tctx := newTestContext(t)
-
-	t.Cleanup(func() { caBundle = []byte{} })
-	t.Run("certificate issue", tctx.subtest(testCSRIssued))
-	t.Run("validatingwebhook configuration valid", tctx.subtest(testValidatingWebhookConfig))
 }
 
 func TestRuleEvaluation(t *testing.T) {
@@ -391,33 +377,16 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 	}
 }
 
-// testCSRIssued checks to see if the kube-apiserver issued a valid
-// certificate from the CSR.
-func testCSRIssued(ctx context.Context, t *testContext) {
-	// Operator creates CSR using FQDN format.
-	var fqdn = fmt.Sprintf("system:node:%s.%s.svc", operator.NameOperator, t.namespace)
-	err := wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
-		// CSR v1 API only available in 1.19+ k8s clusters.
-		if csr, err := t.kubeClient.CertificatesV1().CertificateSigningRequests().Get(ctx, fqdn, metav1.GetOptions{}); apierrors.IsNotFound(err) {
-			return false, nil
-		} else if err != nil {
-			return false, errors.Errorf("getting v1 CSR: %s", err)
-		} else {
-			caBundle = csr.Status.Certificate
-		}
-		// This field is populated once a valid certificate has been issued by the API server.
-		return len(caBundle) > 0, nil
-	})
-	if err != nil {
-		t.Fatalf("waiting for CSR issued certificate: %s", err)
-	}
-}
+// TestValidatingWebhookConfig checks to see if the validating webhook configuration
+// is created with a caBundle.
+func TestValidatingWebhookConfig(t *testing.T) {
+	tctx := newTestContext(t)
 
-// testValidatingWebhookConfig checks to see if the validating webhook configuration
-// was created with the issued CSR caBundle.
-func testValidatingWebhookConfig(ctx context.Context, t *testContext) {
+	// The created VWC is not scoped to the test at it has a fixed name. In the future it should be encode
+	// the operator namespace in the name so we can make sure we check the resource instance produced by the
+	// operator instance for this test case.
 	err := wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
-		vwc, err := t.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, operator.NameOperator, metav1.GetOptions{})
+		vwc, err := tctx.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.Background(), operator.NameOperator, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
@@ -425,8 +394,8 @@ func testValidatingWebhookConfig(ctx context.Context, t *testContext) {
 		}
 		// Verify all webhooks use correct caBundle from issued CSR.
 		for _, wh := range vwc.Webhooks {
-			if whBundle := wh.ClientConfig.CABundle; bytes.Compare(whBundle, caBundle) != 0 {
-				return false, errors.Errorf("caBundle from CSR: %v mismatches with webhook: %v", caBundle, whBundle)
+			if len(wh.ClientConfig.CABundle) == 0 {
+				return false, errors.Errorf("no CA bundle provided in webhook configuration")
 			}
 		}
 		return true, nil
@@ -469,11 +438,12 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 		t.Fatalf("create rules operatorconfig: %s", err)
 	}
 
-	err = wait.Poll(time.Second, 3*time.Minute, func() (bool, error) {
+	err = wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
 		ds, err := t.kubeClient.AppsV1().DaemonSets(t.namespace).Get(ctx, operator.NameCollector, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
+			t.Log(errors.Errorf("getting collector DaemonSet failed: %s", err))
 			return false, errors.Errorf("getting collector DaemonSet failed: %s", err)
 		}
 		// At first creation the DaemonSet may appear with 0 desired replicas. This should
@@ -517,10 +487,12 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			sort.Strings(c.Args)
 
 			if diff := cmp.Diff(wantArgs, c.Args); diff != "" {
+				t.Log(errors.Errorf("unexpected flags (-want, +got): %s", diff))
 				return false, errors.Errorf("unexpected flags (-want, +got): %s", diff)
 			}
 			return true, nil
 		}
+		t.Log(errors.New("no container with name prometheus found"))
 		return false, errors.New("no container with name prometheus found")
 	})
 	if err != nil {

@@ -16,54 +16,12 @@ package operator
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 	"time"
-
-	v1 "k8s.io/api/certificates/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes/fake"
 )
-
-// Mock asynchronous kube-apiserver.
-func mockKubeAPIServer(ctx context.Context, client *fake.Clientset, t *testing.T) {
-	var (
-		csr       *v1.CertificateSigningRequest
-		timeout   = 3 * time.Second
-		fqdn      = fmt.Sprintf("system:node:%s.%s.svc", NameOperator, "test-ns")
-		certBytes = []byte{1, 2, 3, 4}
-	)
-	apiV1 := client.CertificatesV1().CertificateSigningRequests()
-	// Block until kube client has newly-created CSR.
-	if err := wait.Poll(50*time.Millisecond, timeout, func() (bool, error) {
-		var gerr error
-		// Ignore any errors coming from get API call as
-		csr, gerr = apiV1.Get(ctx, fqdn, metav1.GetOptions{})
-		if apierrors.IsNotFound(gerr) {
-			return false, nil
-		}
-		// Check if certificate has been approved by the signing function.
-		if len(csr.Status.Conditions) < 1 {
-			return false, nil
-		} else {
-			return csr.Status.Conditions[0].Type == v1.CertificateApproved, nil
-		}
-	}); err != nil {
-		t.Errorf("timeout waiting for CSR: %s", err)
-	}
-
-	// Mock the kube-apiserver issuing the certificate by writing toy data to status.
-	// This will unblock the keypair generation goroutine.
-	csr.Status.Certificate = certBytes
-	if _, err := apiV1.UpdateStatus(ctx, csr, metav1.UpdateOptions{}); err != nil {
-		t.Errorf("updating csr while issuing cert: %s", err)
-	}
-}
 
 func readKeyAndCertFiles(dir string, t *testing.T) ([]byte, []byte) {
 	outCert, err := ioutil.ReadFile(path.Join(dir, "tls.crt"))
@@ -93,24 +51,24 @@ func TestEnsureCertsExplicit(t *testing.T) {
 	}{
 		{
 			desc:       "input key/cert",
-			opts:       Options{Key: "a2V5", Cert: "Y2VydA==", OperatorNamespace: "test-ns"},
+			opts:       Options{TLSKey: "a2V5", TLSCert: "Y2VydA==", OperatorNamespace: "test-ns"},
 			expectCert: "cert",
 			expectKey:  "key",
 			expectErr:  false,
 		},
 		{
 			desc:      "bad cert",
-			opts:      Options{Cert: "not a cert", Key: "not a key", OperatorNamespace: "test-ns"},
+			opts:      Options{TLSCert: "not a cert", TLSKey: "not a key", OperatorNamespace: "test-ns"},
 			expectErr: true,
 		},
 		{
 			desc:      "cert and no key",
-			opts:      Options{Cert: "cert", Key: "", OperatorNamespace: "test-ns"},
+			opts:      Options{TLSCert: "cert", TLSKey: "", OperatorNamespace: "test-ns"},
 			expectErr: true,
 		},
 		{
 			desc:      "no cert and key",
-			opts:      Options{Cert: "", Key: "key", OperatorNamespace: "test-ns"},
+			opts:      Options{TLSCert: "", TLSKey: "key", OperatorNamespace: "test-ns"},
 			expectErr: true,
 		},
 	} {
@@ -130,16 +88,16 @@ func TestEnsureCertsExplicit(t *testing.T) {
 			if string(outCert) != string(cert) {
 				t.Errorf("want ensureCerts cert %v; got %v", string(cert), string(outCert))
 			} else if string(outCert) != tc.expectCert {
-				t.Errorf("want file cert %v; got %v", tc.opts.Cert, string(outCert))
+				t.Errorf("want file cert %v; got %v", tc.opts.TLSCert, string(outCert))
 			}
 			if string(outKey) != tc.expectKey {
-				t.Errorf("want key %v; got %v", tc.opts.Key, string(outKey))
+				t.Errorf("want key %v; got %v", tc.opts.TLSKey, string(outKey))
 			}
 		})
 	}
 }
 
-func TestEnsureCertsServerSigned(t *testing.T) {
+func TestEnsureCertsSelfSigned(t *testing.T) {
 	var (
 		timeout     = 3 * time.Second
 		ctx, cancel = context.WithTimeout(context.Background(), timeout)
@@ -152,44 +110,34 @@ func TestEnsureCertsServerSigned(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	client := fake.NewSimpleClientset()
-	go mockKubeAPIServer(ctx, client, t)
-
 	for _, tc := range []struct {
-		desc       string
-		opts       Options
-		expectCert []byte
-		expectErr  bool
+		desc      string
+		opts      Options
+		expectErr bool
 	}{
 		{
-			desc:       "self generate keys/cert",
-			opts:       Options{Cert: "", Key: "", OperatorNamespace: "test-ns"},
-			expectCert: []byte{1, 2, 3, 4},
-			expectErr:  false,
+			desc:      "self generate keys/cert",
+			opts:      Options{TLSCert: "", TLSKey: "", OperatorNamespace: "test-ns"},
+			expectErr: false,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			op := Operator{
-				opts:       tc.opts,
-				kubeClient: client,
-			}
-			cert, err := op.ensureCerts(ctx, dir)
+			op := Operator{opts: tc.opts}
+
+			_, err := op.ensureCerts(ctx, dir)
 			if err != nil {
 				if !tc.expectErr {
 					t.Fatalf("want err: %v; got %v", tc.expectErr, err)
 				}
 				return
 			}
-			// Test outputed files.
+			// Cert and key will be randomly generated, check if they exisits.
 			outCert, outKey := readKeyAndCertFiles(dir, t)
-			if string(outCert) != string(cert) {
-				t.Errorf("want ensureCerts cert %v; got %v", tc.expectCert, outCert)
-			} else if string(outCert) != string(tc.expectCert) {
-				t.Errorf("want file cert %v; got %v", tc.expectCert, outCert)
+			if len(outKey) == 0 {
+				t.Errorf("expected generated key but was empty")
 			}
-			// Key will be randomly generated, check if it exisits.
-			if len(outKey) < 1 {
-				t.Errorf("invalid private key generated: priv: %v", outKey)
+			if len(outCert) == 0 {
+				t.Errorf("expected generated cert but was empty")
 			}
 		})
 	}

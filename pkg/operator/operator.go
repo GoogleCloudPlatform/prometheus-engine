@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -128,9 +129,9 @@ type Options struct {
 	// Priority class for the collector pods.
 	PriorityClass string
 	// Certificate of the server in base 64.
-	Cert string
+	TLSCert string
 	// Key of the server in base 64.
-	Key string
+	TLSKey string
 	// Endpoint of the Cloud Monitoring API to be used by all collectors.
 	CloudMonitoringEndpoint string
 	// Webhook serving address.
@@ -317,24 +318,28 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 		crt, key []byte
 		err      error
 	)
-	if (len(o.opts.Key) == 0 && len(o.opts.Cert) > 0) || (len(o.opts.Cert) == 0 && len(o.opts.Key) > 0) {
-		return nil, errors.Errorf("Flags key-base64 and cert-base64 must both be set.")
-	} else if len(o.opts.Key) > 0 && len(o.opts.Cert) > 0 {
-		crt, err = base64.StdEncoding.DecodeString(o.opts.Cert)
+	if o.opts.TLSKey != "" && o.opts.TLSCert != "" {
+		crt, err = base64.StdEncoding.DecodeString(o.opts.TLSCert)
 		if err != nil {
 			return nil, errors.Wrap(err, "decoding TLS certificate")
 		}
-		key, err = base64.StdEncoding.DecodeString(o.opts.Key)
+		key, err = base64.StdEncoding.DecodeString(o.opts.TLSKey)
 		if err != nil {
 			return nil, errors.Wrap(err, "decoding TLS key")
 		}
-	} else {
-		// Generate kube-apiserver-signed certificate/key pair.
-		fqdn := fmt.Sprintf("system:node:%s.%s.svc", NameOperator, o.opts.OperatorNamespace)
-		crt, key, err = CreateSignedKeyPair(ctx, o.kubeClient, fqdn)
+	} else if o.opts.TLSKey == "" && o.opts.TLSCert == "" {
+		// Generate a self-signed pair if none was explicitly provided. It will be valid
+		// for 1 year.
+		// TODO(freinartz): re-generate at runtime and update the ValidatingWebhookConfiguration
+		// at runtime whenever the files change.
+		fqdn := fmt.Sprintf("%s.%s.svc", NameOperator, o.opts.OperatorNamespace)
+
+		crt, key, err = cert.GenerateSelfSignedCertKey(fqdn, nil, nil)
 		if err != nil {
-			return nil, errors.Wrap(err, "generating kube-apiserver-signed certificate/key pair")
+			return nil, errors.Wrap(err, "generate self-signed TLS key pair")
 		}
+	} else {
+		return nil, errors.Errorf("Flags key-base64 and cert-base64 must both be set.")
 	}
 
 	if err := ioutil.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
@@ -343,7 +348,6 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 	if err := ioutil.WriteFile(filepath.Join(dir, "tls.key"), key, 0666); err != nil {
 		return nil, errors.Wrap(err, "create key file")
 	}
-
 	return crt, nil
 }
 
