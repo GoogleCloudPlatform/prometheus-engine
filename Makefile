@@ -5,10 +5,6 @@ PROJECT_ID?=$(shell gcloud config get-value core/project)
 GMP_CLUSTER?=gmp-test-cluster
 GMP_LOCATION?=us-central1-c
 API_DIR=pkg/operator/apis
-# For now assume the docker daemon is mounted through a unix socket.
-# TODO(pintohutch): will this work if using a remote docker over tcp?
-DOCKER_HOST?=unix:///var/run/docker.sock
-DOCKER_VOLUME:=$(DOCKER_HOST:unix://%=%)
 
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
@@ -66,14 +62,21 @@ else
 	--build-arg RUNCMD='go test `go list ./... | grep -v operator/e2e`' .)
 endif
 
+kindclean: clean
+	docker volume rm -f gcloud-config
+
 kindtest:    ## Run e2e test suite against fresh kind k8s cluster.
-kindtest: clean
+kindtest: kindclean
 	@echo ">> building image"
 	$(call docker_build, -f hack/Dockerfile --target kindtest -t gmp/kindtest .)
+	@echo ">> creating tmp gcloud config volume"
+	docker volume create gcloud-config
+	docker create -v gcloud-config:/data --name tmp busybox true
+	docker cp $(CLOUDSDK_CONFIG) tmp:/data
+	docker rm tmp
 	@echo ">> running container"
-# We lose some isolation by sharing the host network with the kind containers.
-# However, we avoid a gcloud-shell "Dockerception" and save on build times.
-	docker run --network host --rm -v $(DOCKER_VOLUME):/var/run/docker.sock gmp/kindtest ./hack/kind-test.sh
+	docker run --rm -v gcloud-config:/root/.config gmp/kindtest ./hack/kind-test.sh
+	docker volume rm -f gcloud-config
 
 lint:        ## Lint code.
 	@echo ">> linting code"
