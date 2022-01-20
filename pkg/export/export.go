@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -131,6 +132,8 @@ type ExporterOpts struct {
 	CredentialsFile string
 	// Disable authentication (for debugging purposes).
 	DisableAuth bool
+	// A user agent string added as a suffix to the regular user agent.
+	UserAgent string
 
 	// Default monitored resource fields set on exported data.
 	ProjectID string
@@ -152,7 +155,7 @@ type ExporterOpts struct {
 
 // NewFlagOptions returns new exporter options that are populated through flags
 // registered in the given application.
-func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
+func NewFlagOptions(a *kingpin.Application, userAgent string) *ExporterOpts {
 	var opts ExporterOpts
 
 	// Default target fields if we can detect them in GCP.
@@ -174,6 +177,9 @@ func NewFlagOptions(a *kingpin.Application) *ExporterOpts {
 
 	a.Flag("export.label.project-id", fmt.Sprintf("Default project ID set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", KeyProjectID)).
 		Default(opts.ProjectID).StringVar(&opts.ProjectID)
+
+	a.Flag("export.user-agent", "Override for the user agent used for requests against the GCM API.").
+		Default(userAgent).StringVar(&opts.UserAgent)
 
 	// The location and cluster flag should probably not be used. On the other hand, they make it easy
 	// to populate these important values in the monitored resource without interfering with existing
@@ -404,7 +410,8 @@ func (e *Exporter) Run(ctx context.Context) error {
 	}
 
 	// Identity User Agent for all gRPC requests.
-	clientOpts = append(clientOpts, option.WithUserAgent(ClientName+"/"+Version))
+	ua := strings.TrimSpace(fmt.Sprintf("%s/%s %s", ClientName, Version, e.opts.UserAgent))
+	clientOpts = append(clientOpts, option.WithUserAgent(ua))
 
 	metricClient, err := monitoring.NewMetricClient(ctx, clientOpts...)
 	if err != nil {

@@ -74,7 +74,10 @@ func main() {
 		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
 	)
 
-	exporterOptions := export.NewFlagOptions(a)
+	// The rule-evaluator version is identical to the export library version for now, so
+	// we reuse that constant.
+	// TODO(freinartz): a linked built-time variable would be preferable.
+	exporterOptions := export.NewFlagOptions(a, fmt.Sprintf("rule-evaluator/%s", export.Version))
 	notifierOptions := notifier.Options{Registerer: reg}
 
 	projectID := a.Flag("query.project-id", "Project ID of the Google Cloud Monitoring workspace to evaluate rules against.").
