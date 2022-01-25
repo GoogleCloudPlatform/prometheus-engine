@@ -33,12 +33,20 @@ import (
 
 var (
 	leaseHolder = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "prometheus_engine_lease_holder",
+		Name: "prometheus_engine_lease_is_held",
 		Help: "A boolean metric indicating whether the lease with the given key is currently held.",
+	}, []string{"key"})
+
+	leaseFailingOpen = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "prometheus_engine_lease_failing_open",
+		Help: "A boolean metric indicating whether the lease is currently in fail-open state.",
 	}, []string{"key"})
 )
 
 // Lease implements a lease on time ranges for different backends.
+// If the lease backend has intermittent failure, the lease will attempt
+// to gracefully fail open by extending the lease of the most recent lease holder.
+// This is done in best-effort manner.
 type Lease struct {
 	logger log.Logger
 	opts   Options
@@ -139,8 +147,10 @@ func New(
 	}
 	if metrics != nil {
 		metrics.Register(leaseHolder)
+		metrics.Register(leaseFailingOpen)
 	}
 	leaseHolder.WithLabelValues(lock.Describe()).Set(0)
+	leaseFailingOpen.WithLabelValues(lock.Describe()).Set(0)
 
 	wlock := newWrappedLock(lock)
 
@@ -182,7 +192,47 @@ func New(
 }
 
 func (l *Lease) Range() (start, end time.Time, ok bool) {
-	return l.lock.Range()
+	// If we've previously been the leader but the end timestamp expired, it means we
+	// couldn't successfully communicate with the backend to extend the lease or determine
+	// that someone else got it.
+	// We fail open by pretending that we did extend the lease until we
+	// can either extend/reacquire the lease or observe that someone else acquired it.
+	//
+	// This ensures that transient backend downtimes are generally unnoticeable. It does however
+	// not protect against correlated failures, e.g. if all leaders restart while the
+	// backend is unavailable. This should rarely be an issue.
+	//
+	// Also letting non-leader replicas fail open would handle more cases gracefully.
+	// However, it also has a ramining risk of leaving the replicas jointly in a bad state:
+	// Suppose replica A acquires the lease and writes samples with start timestamp T.
+	// Replica B starts but cannot reach the backend, it fails open despite not being the
+	// leader before and writes with start timestamp T+1.
+	// Now B reaches the lease backend, cannot get the lease and stops sending data. Replica
+	// A will keep sending data as the leader but has an older start timestamp, that causes
+	// write conflicts. It will indefinitely not be able to write cumulative samples.
+	//
+	// We could possibly address this in the future by customizing the lease implementation
+	// to consider each leader candidates' earliest possible start timestamp and force-acquire
+	// the lease if it is more recent than the one of the current leader.
+	// For now our taken approach prevents this, as we do rely on a previously agreed-upon start
+	// timestamp during a failure scenario.
+
+	// IsLeader checks whether the last observed record matches the own identity.
+	// It does not check timestamps and thus keeps returning true if we were the leader
+	// previously and currently cannot talk to the backend.
+	if !l.elector.IsLeader() {
+		return time.Time{}, time.Time{}, false
+	}
+	start, end = l.lock.lastRange()
+	now := time.Now()
+
+	if end.Before(now) {
+		leaseFailingOpen.WithLabelValues(l.lock.Describe()).Set(1)
+		end = now.Add(l.opts.LeaseDuration)
+	} else {
+		leaseFailingOpen.WithLabelValues(l.lock.Describe()).Set(0)
+	}
+	return start, end, true
 }
 
 // Run starts trying to acquire and hold the lease until the context is canceled.
@@ -205,27 +255,26 @@ func (l *Lease) OnLeaderChange(f func()) {
 }
 
 // wrappedLock wraps a LeaseLock implementation and caches the time
-// range during which the lease was owned.
+// range of the last successful update of the lease record.
 type wrappedLock struct {
 	resourcelock.Interface
 
 	mtx        sync.Mutex
 	start, end time.Time
-	owned      bool
 }
 
 func newWrappedLock(lock resourcelock.Interface) *wrappedLock {
 	return &wrappedLock{Interface: lock}
 }
 
-// Create attempts to create a Lease
+// Create attempts to create a leader election record.
 func (l *wrappedLock) Create(ctx context.Context, ler resourcelock.LeaderElectionRecord) error {
 	err := l.Interface.Create(ctx, ler)
 	l.update(ler, err)
 	return err
 }
 
-// Update will update an existing Lease spec.
+// Update will update an existing leader election record.
 func (l *wrappedLock) Update(ctx context.Context, ler resourcelock.LeaderElectionRecord) error {
 	err := l.Interface.Update(ctx, ler)
 	l.update(ler, err)
@@ -234,22 +283,19 @@ func (l *wrappedLock) Update(ctx context.Context, ler resourcelock.LeaderElectio
 
 // update the cached state on the create/update result for the record.
 func (l *wrappedLock) update(ler resourcelock.LeaderElectionRecord, err error) {
+	// If the update was successful, the lease is owned by us and we can update the range.
+	if err != nil {
+		return
+	}
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	// Update causes an error due to transient failure or due to conflicts, i.e. because
-	// someone else is holding the lease. If it is nil, we are the lease holder.
-	l.owned = err == nil
-	if l.owned {
-		l.start = ler.AcquireTime.Time
-		l.end = ler.RenewTime.Time.Add(time.Duration(ler.LeaseDurationSeconds) * time.Second)
-	} else {
-		l.start, l.end = time.Time{}, time.Time{}
-	}
+	l.start = ler.AcquireTime.Time
+	l.end = ler.RenewTime.Time.Add(time.Duration(ler.LeaseDurationSeconds) * time.Second)
 }
 
-func (l *wrappedLock) Range() (start, end time.Time, owned bool) {
+func (l *wrappedLock) lastRange() (time.Time, time.Time) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
-	return l.start, l.end, l.owned
+	return l.start, l.end
 }
