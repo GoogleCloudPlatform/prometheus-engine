@@ -626,13 +626,16 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 // validateCollectorUpMetrics checks whether the scrape-time up metrics for all collector
 // pods can be queried from GCM.
 func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string) {
-	// The project and cluster name in which we look for the metric data must
+	// The project, location, and cluster name in which we look for the metric data must
 	// be provided by the user. Check this only in this test so tests that don't need these
 	// flags can still be run without them.
 	// They can be configured on the operator but our current test setup (targeting GKE)
 	// relies on the operator inferring them from the environment.
 	if projectID == "" {
 		t.Fatalf("no project specified (--project-id flag)")
+	}
+	if location == "" {
+		t.Fatalf("no location specified (--location flag)")
 	}
 	if cluster == "" {
 		t.Fatalf("no cluster name specified (--cluster flag)")
@@ -674,6 +677,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 					Filter: fmt.Sprintf(`
 				resource.type = "prometheus_target" AND
 				resource.labels.project_id = "%s" AND
+				resource.label.location = "%s" AND
 				resource.labels.cluster = "%s" AND
 				resource.labels.namespace = "%s" AND
 				resource.labels.job = "%s" AND
@@ -681,7 +685,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 				metric.type = "prometheus.googleapis.com/up/gauge" AND
 				metric.labels.external_key = "external_val"
 				`,
-						projectID, cluster, t.namespace, job, pod.Name, port,
+						projectID, location, cluster, t.namespace, job, pod.Name, port,
 					),
 					Interval: &gcmpb.TimeInterval{
 						EndTime:   timestamppb.New(now),
@@ -717,6 +721,7 @@ func testRulesGeneration(ctx context.Context, t *testContext) {
 	replace := strings.NewReplacer(
 		"{project_id}", projectID,
 		"{cluster}", cluster,
+		"{location}", location,
 		"{namespace}", t.namespace,
 	).Replace
 
@@ -810,20 +815,22 @@ spec:
     - name: group-1
       rules:
         - record: foo
-          expr: sum(up{cluster="{cluster}",project_id="{project_id}"})
+          expr: sum(up{cluster="{cluster}",location="{location}",project_id="{project_id}"})
           labels:
             cluster: {cluster}
             flavor: test
+            location: {location}
             project_id: {project_id}
 `),
 		replace("rules__{namespace}__rules.yaml"): replace(`groups:
     - name: group-1
       rules:
         - alert: Bar
-          expr: avg(down{cluster="{cluster}",namespace="{namespace}",project_id="{project_id}"}) > 1
+          expr: avg(down{cluster="{cluster}",location="{location}",namespace="{namespace}",project_id="{project_id}"}) > 1
           labels:
             cluster: {cluster}
             flavor: test
+            location: {location}
             namespace: {namespace}
             project_id: {project_id}
           annotations:
@@ -832,6 +839,7 @@ spec:
           expr: vector(1)
           labels:
             cluster: {cluster}
+            location: {location}
             namespace: {namespace}
             project_id: {project_id}
 `),
@@ -863,11 +871,14 @@ spec:
 }
 
 func testValidateRuleEvaluationMetrics(ctx context.Context, t *testContext) {
-	// The project and cluster name in which we look for the metric data must
+	// The project, location and cluster name in which we look for the metric data must
 	// be provided by the user. Check this only in this test so tests that don't need these
 	// flags can still be run without them.
 	if projectID == "" {
 		t.Fatalf("no project specified (--project-id flag)")
+	}
+	if location == "" {
+		t.Fatalf("no location specified (--location flag)")
 	}
 	if cluster == "" {
 		t.Fatalf("no cluster name specified (--cluster flag)")
@@ -889,11 +900,12 @@ func testValidateRuleEvaluationMetrics(ctx context.Context, t *testContext) {
 			Filter: fmt.Sprintf(`
 				resource.type = "prometheus_target" AND
 				resource.labels.project_id = "%s" AND
+				resource.labels.location = "%s" AND
 				resource.labels.cluster = "%s" AND
 				resource.labels.namespace = "%s" AND
 				metric.type = "prometheus.googleapis.com/always_one/gauge"
 				`,
-				projectID, cluster, t.namespace,
+				projectID, location, cluster, t.namespace,
 			),
 			Interval: &gcmpb.TimeInterval{
 				EndTime:   timestamppb.New(now),

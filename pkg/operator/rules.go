@@ -204,6 +204,7 @@ func generateRules(apiRules *monitoringv1alpha1.Rules, opts Options) (string, er
 	if err := rules.Scope(&rs, map[string]string{
 		export.KeyProjectID: opts.ProjectID,
 		export.KeyCluster:   opts.Cluster,
+		export.KeyLocation:  opts.Location,
 		export.KeyNamespace: apiRules.Namespace,
 	}); err != nil {
 		return "", errors.Wrap(err, "isolating rules failed")
@@ -222,6 +223,7 @@ func generateClusterRules(apiRules *monitoringv1alpha1.ClusterRules, opts Option
 	}
 	if err := rules.Scope(&rs, map[string]string{
 		export.KeyProjectID: opts.ProjectID,
+		export.KeyLocation:  opts.Location,
 		export.KeyCluster:   opts.Cluster,
 	}); err != nil {
 		return "", errors.Wrap(err, "isolating rules failed")
