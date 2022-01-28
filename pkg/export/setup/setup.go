@@ -73,9 +73,21 @@ func FromFlags(a *kingpin.Application, userAgent string) func(log.Logger, promet
 	// Default target fields if we can detect them in GCP.
 	if metadata.OnGCE() {
 		opts.ProjectID, _ = metadata.ProjectID()
-		// These attributes are set for GKE nodes.
 		opts.Location, _ = metadata.InstanceAttributeValue("cluster-location")
-		opts.Cluster, _ = metadata.InstanceAttributeValue("cluster-name")
+		// These attributes are set for GKE nodes. For the location, we first check
+		// the clustr location, which may be a zone or a region. We must always use that value
+		// to avoid collisions with other clusters, as the same cluster name may be reused
+		// in different locations.
+		// In particular, we cannot set the location to the node's zone for a regional cluster,
+		// even though this would provide more accuracy, as there may also be a zonal cluster
+		// with the same name.
+		// We only fallback to the node zone as the location if no cluster location exists to
+		// default for deployments on GCE.
+		if loc, _ := metadata.InstanceAttributeValue("cluster-name"); loc != "" {
+			opts.Location = loc
+		} else {
+			opts.Location, _ = metadata.Zone()
+		}
 	}
 
 	a.Flag("export.disable", "Disable exporting to GCM.").
