@@ -45,15 +45,17 @@ func main() {
 	var (
 		defaultProjectID string
 		defaultCluster   string
+		defaultLocation  string
 	)
 	if metadata.OnGCE() {
 		defaultProjectID, _ = metadata.ProjectID()
 		defaultCluster, _ = metadata.InstanceAttributeValue("cluster-name")
+		defaultLocation, _ = metadata.InstanceAttributeValue("cluster-location")
 	}
 	var (
 		logVerbosity      = flag.Int("v", 0, "Logging verbosity")
 		projectID         = flag.String("project-id", defaultProjectID, "Project ID of the cluster. May be left empty on GKE.")
-		location          = flag.String("location", "", "GCP location of the cluster. Maybe be left empty on GKE.")
+		location          = flag.String("location", defaultLocation, "GCP location of the cluster. Maybe be left empty on GKE.")
 		cluster           = flag.String("cluster", defaultCluster, "Name of the cluster the operator acts on. May be left empty on GKE.")
 		operatorNamespace = flag.String("operator-namespace", operator.DefaultOperatorNamespace,
 			"Namespace in which the operator manages its resources.")
