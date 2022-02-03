@@ -274,7 +274,26 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 		return err
 	}
 
+	dwhCfg := mutatingWebhookConfig(
+		NameOperator,
+		o.opts.OperatorNamespace,
+		int32(o.manager.GetWebhookServer().Port),
+		crt,
+		[]metav1.GroupVersionResource{
+			monitoringv1alpha1.PodMonitoringResource(),
+			monitoringv1alpha1.ClusterPodMonitoringResource(),
+		},
+		ors...,
+	)
+	// Idempotently request validation webhook spec with caBundle and endpoints.
+	_, err = upsertMutatingWebhookConfig(ctx, o.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations(), dwhCfg)
+	if err != nil {
+		return err
+	}
+
 	s := o.manager.GetWebhookServer()
+
+	// Validating webhooks.
 	s.Register(
 		validatePath(monitoringv1alpha1.PodMonitoringResource()),
 		admission.ValidatingWebhookFor(&monitoringv1alpha1.PodMonitoring{}),
@@ -305,6 +324,17 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 		validatePath(monitoringv1alpha1.GlobalRulesResource()),
 		admission.WithCustomValidator(&monitoringv1alpha1.GlobalRules{}, &globalRulesValidator{}),
 	)
+
+	// Defaulting webhooks.
+	s.Register(
+		defaultPath(monitoringv1alpha1.PodMonitoringResource()),
+		admission.WithCustomDefaulter(&monitoringv1alpha1.PodMonitoring{}, &podMonitoringDefaulter{}),
+	)
+	s.Register(
+		defaultPath(monitoringv1alpha1.ClusterPodMonitoringResource()),
+		admission.WithCustomDefaulter(&monitoringv1alpha1.ClusterPodMonitoring{}, &clusterPodMonitoringDefaulter{}),
+	)
+
 	return nil
 }
 

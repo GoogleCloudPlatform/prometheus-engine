@@ -432,6 +432,39 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConf
 		}
 	}
 
+	metadataLabels := map[string]struct{}{}
+	// The metadata list must be always set in general but we allow the null case
+	// for backwards compatibility and won't add any labels in that case.
+	if pm.Spec.TargetLabels.Metadata != nil {
+		for _, l := range *pm.Spec.TargetLabels.Metadata {
+			if allowed := []string{"pod", "container", "node"}; !containsString(allowed, l) {
+				return nil, errors.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
+			}
+			metadataLabels[l] = struct{}{}
+		}
+	}
+	if _, ok := metadataLabels["pod"]; ok {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
+			TargetLabel:  "pod",
+		})
+	}
+	if _, ok := metadataLabels["container"]; ok {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_name"},
+			TargetLabel:  "container",
+		})
+	}
+	if _, ok := metadataLabels["node"]; ok {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_node_name"},
+			TargetLabel:  "node",
+		})
+	}
+
 	// Set a clean namespace, job, and instance label that provide sufficient uniqueness.
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
 		Action:       relabel.Replace,
@@ -679,12 +712,51 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int) (*promconfig.Scr
 		}
 	}
 
-	// Set a clean namespace, job, and instance label that provide sufficient uniqueness.
-	relabelCfgs = append(relabelCfgs, &relabel.Config{
-		Action:       relabel.Replace,
-		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
-		TargetLabel:  "namespace",
-	})
+	metadataLabels := map[string]struct{}{}
+	// The metadata list must be always set in general but we allow the null case
+	// for backwards compatibility. In that case we must always add the namespace label.
+	if cm.Spec.TargetLabels.Metadata == nil {
+		metadataLabels = map[string]struct{}{
+			"namespace": struct{}{},
+		}
+	} else {
+		for _, l := range *cm.Spec.TargetLabels.Metadata {
+			if allowed := []string{"namespace", "pod", "container", "node"}; !containsString(allowed, l) {
+				return nil, errors.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
+			}
+			metadataLabels[l] = struct{}{}
+		}
+	}
+	if _, ok := metadataLabels["namespace"]; ok {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
+			TargetLabel:  "namespace",
+		})
+	}
+	if _, ok := metadataLabels["pod"]; ok {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
+			TargetLabel:  "pod",
+		})
+	}
+	if _, ok := metadataLabels["container"]; ok {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_name"},
+			TargetLabel:  "container",
+		})
+	}
+	if _, ok := metadataLabels["node"]; ok {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_node_name"},
+			TargetLabel:  "node",
+		})
+	}
+
+	// Set a clean job and instance label that provide sufficient uniqueness.
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
 		Action:      relabel.Replace,
 		Replacement: cm.Name,
@@ -897,12 +969,7 @@ var protectedLabels = []string{
 }
 
 func isProtectedLabel(s string) bool {
-	for _, pl := range protectedLabels {
-		if s == pl {
-			return true
-		}
-	}
-	return false
+	return containsString(protectedLabels, s)
 }
 
 func matchesAnyProtectedLabel(re relabel.Regexp) bool {
@@ -921,6 +988,15 @@ func matchesAllProtectedLabels(re relabel.Regexp) bool {
 		}
 	}
 	return true
+}
+
+func containsString(ss []string, s string) bool {
+	for _, x := range ss {
+		if s == x {
+			return true
+		}
+	}
+	return false
 }
 
 // labelMappingRelabelConfigs generates relabel configs using a provided mapping and resource prefix.
@@ -1012,9 +1088,18 @@ type ScrapeEndpoint struct {
 
 // TargetLabels configures labels for the discovered Prometheus targets.
 type TargetLabels struct {
+	// Pod metadata labels that are set on all scraped targets.
+	// Permitted keys are `pod`, `container`, and `node` for PodMonitoring and
+	// `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring.
+	//
+	// Defaults to [pod, container] for PodMonitoring and [namespace, pod, container]
+	// for ClusterPodMonitoring.
+	// If set to null, it will be interpreted as the empty list for PodMonitoring
+	// and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
+	// only.
+	Metadata *[]string `json:"metadata,omitempty"`
 	// Labels to transfer from the Kubernetes Pod to Prometheus target labels.
-	// In the case of a label mapping conflict:
-	// - Mappings at the end of the array take precedence.
+	// Mappings are applied in order.
 	FromPod []LabelMapping `json:"fromPod,omitempty"`
 }
 

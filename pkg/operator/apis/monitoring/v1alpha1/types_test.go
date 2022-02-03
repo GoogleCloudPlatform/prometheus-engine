@@ -31,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func TestValidatePodMonitoring(t *testing.T) {
+func TestValidatePodMonitoringCommon(t *testing.T) {
 	cases := []struct {
 		desc        string
 		pm          PodMonitoringSpec
@@ -54,6 +54,7 @@ func TestValidatePodMonitoring(t *testing.T) {
 				},
 			},
 			tls: TargetLabels{
+				Metadata: nil, // explicit unset must work for backward compatibility.
 				FromPod: []LabelMapping{
 					{From: "key1", To: "key2"},
 					{From: "key3"},
@@ -224,6 +225,17 @@ func TestValidatePodMonitoring(t *testing.T) {
 			},
 			fail:        true,
 			errContains: `passwords encoded in URLs are not supported`,
+		}, {
+			desc: "OK metadata labels empty",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+				},
+			},
+			tls: TargetLabels{
+				Metadata: stringSlicePtr(),
+			},
 		},
 	}
 
@@ -270,6 +282,130 @@ func TestValidatePodMonitoring(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidatePodMonitoring(t *testing.T) {
+	cases := []struct {
+		desc        string
+		pm          PodMonitoringSpec
+		eps         []ScrapeEndpoint
+		tls         TargetLabels
+		fail        bool
+		errContains string
+	}{
+		{
+			desc: "OK metadata labels",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+				},
+			},
+			tls: TargetLabels{
+				Metadata: stringSlicePtr("pod", "node", "container"),
+			},
+		}, {
+			desc: "bad metadata label",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+				},
+			},
+			tls: TargetLabels{
+				Metadata: stringSlicePtr("foo", "pod", "node", "container"),
+			},
+			fail:        true,
+			errContains: `label "foo" not allowed, must be one of [pod container node]`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			pm := &PodMonitoring{
+				Spec: PodMonitoringSpec{
+					Endpoints:    c.eps,
+					TargetLabels: c.tls,
+				},
+			}
+			perr := pm.ValidateCreate()
+			t.Log(perr)
+
+			if perr == nil && c.fail {
+				t.Fatalf("expected failure but passed")
+			}
+			if perr != nil && !c.fail {
+				t.Fatalf("unexpected failure: %s", perr)
+			}
+			if perr != nil && c.fail && !strings.Contains(perr.Error(), c.errContains) {
+				t.Fatalf("expected error to contain %q but got %q", c.errContains, perr)
+			}
+		})
+	}
+}
+
+func TestValidateClusterPodMonitoring(t *testing.T) {
+	cases := []struct {
+		desc        string
+		pm          PodMonitoringSpec
+		eps         []ScrapeEndpoint
+		tls         TargetLabels
+		fail        bool
+		errContains string
+	}{
+		{
+			desc: "OK metadata labels",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+				},
+			},
+			tls: TargetLabels{
+				Metadata: stringSlicePtr("namespace", "pod", "node", "container"),
+			},
+		}, {
+			desc: "bad metadata label",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+				},
+			},
+			tls: TargetLabels{
+				Metadata: stringSlicePtr("namespace", "foo", "pod", "node", "container"),
+			},
+			fail:        true,
+			errContains: `label "foo" not allowed, must be one of [namespace pod container node]`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.desc+"", func(t *testing.T) {
+			pm := &ClusterPodMonitoring{
+				Spec: ClusterPodMonitoringSpec{
+					Endpoints:    c.eps,
+					TargetLabels: c.tls,
+				},
+			}
+			perr := pm.ValidateCreate()
+			t.Log(perr)
+
+			if perr == nil && c.fail {
+				t.Fatalf("expected failure but passed")
+			}
+			if perr != nil && !c.fail {
+				t.Fatalf("unexpected failure: %s", perr)
+			}
+			if perr != nil && c.fail && !strings.Contains(perr.Error(), c.errContains) {
+				t.Fatalf("expected error to contain %q but got %q", c.errContains, perr)
+			}
+		})
+	}
+}
+
+func stringSlicePtr(s ...string) *[]string {
+	return &s
 }
 
 func TestLabelMappingRelabelConfigs(t *testing.T) {
