@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/prometheus/pkg/labels"
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -547,4 +548,28 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	})
 
 	return cfg, nil
+}
+
+type podMonitoringDefaulter struct {}
+
+func (d *podMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) error {
+	pm := o.(*monitoringv1alpha1.PodMonitoring)
+
+	if pm.Spec.TargetLabels.Metadata == nil {
+		md := []string{"pod", "container"}
+		pm.Spec.TargetLabels.Metadata = &md
+	}
+	return nil
+}
+
+type clusterPodMonitoringDefaulter struct {}
+
+func (d *clusterPodMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) error {
+	pm := o.(*monitoringv1alpha1.PodMonitoring)
+
+	if pm.Spec.TargetLabels.Metadata == nil {
+		md := []string{"namespace", "pod", "container"}
+		pm.Spec.TargetLabels.Metadata = &md
+	}
+	return nil
 }
