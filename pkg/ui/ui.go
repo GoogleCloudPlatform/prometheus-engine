@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"path"
 
 	"github.com/prometheus/common/server"
@@ -30,11 +31,11 @@ import (
 	_ "github.com/shurcooL/vfsgen"
 )
 
-func Handler() http.Handler {
+func Handler(externalURL *url.URL) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/graph", http.StatusFound)
+		http.Redirect(w, r, path.Join(externalURL.Path, "/graph"), http.StatusFound)
 	})
 
 	// Serve UI index.
