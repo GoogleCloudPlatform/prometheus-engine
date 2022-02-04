@@ -43,14 +43,23 @@ func TestEnsureCertsExplicit(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	for _, tc := range []struct {
-		desc       string
-		opts       Options
-		expectCert string
-		expectKey  string
-		expectErr  bool
+		desc         string
+		opts         Options
+		expectCert   string
+		expectKey    string
+		expectCaCert string
+		expectErr    bool
 	}{
 		{
-			desc:       "input key/cert",
+			desc:         "input key/cert/ca",
+			opts:         Options{TLSKey: "a2V5", TLSCert: "Y2VydA==", CACert: "Y2FjZXJ0", OperatorNamespace: "test-ns"},
+			expectCert:   "cert",
+			expectKey:    "key",
+			expectCaCert: "cacert",
+			expectErr:    false,
+		},
+		{
+			desc:       "cert/key and no CA",
 			opts:       Options{TLSKey: "a2V5", TLSCert: "Y2VydA==", OperatorNamespace: "test-ns"},
 			expectCert: "cert",
 			expectKey:  "key",
@@ -58,17 +67,22 @@ func TestEnsureCertsExplicit(t *testing.T) {
 		},
 		{
 			desc:      "bad cert",
-			opts:      Options{TLSCert: "not a cert", TLSKey: "not a key", OperatorNamespace: "test-ns"},
+			opts:      Options{TLSCert: "not a cert", TLSKey: "not a key", CACert: "not a CA", OperatorNamespace: "test-ns"},
 			expectErr: true,
 		},
 		{
-			desc:      "cert and no key",
-			opts:      Options{TLSCert: "cert", TLSKey: "", OperatorNamespace: "test-ns"},
+			desc:      "cert and no key/ca",
+			opts:      Options{TLSCert: "cert", OperatorNamespace: "test-ns"},
 			expectErr: true,
 		},
 		{
-			desc:      "no cert and key",
-			opts:      Options{TLSCert: "", TLSKey: "key", OperatorNamespace: "test-ns"},
+			desc:      "key and no cert/ca",
+			opts:      Options{TLSKey: "key", OperatorNamespace: "test-ns"},
+			expectErr: true,
+		},
+		{
+			desc:      "ca and no cert/key",
+			opts:      Options{CACert: "CAcert", OperatorNamespace: "test-ns"},
 			expectErr: true,
 		},
 	} {
@@ -76,22 +90,23 @@ func TestEnsureCertsExplicit(t *testing.T) {
 			op := Operator{
 				opts: tc.opts,
 			}
-			cert, err := op.ensureCerts(context.Background(), dir)
-			if err != nil {
-				if !tc.expectErr {
-					t.Fatalf("want err: %v; got %v", tc.expectErr, err)
-				}
+			caBundle, err := op.ensureCerts(context.Background(), dir)
+			if (err == nil && tc.expectErr) || (err != nil && !tc.expectErr) {
+				t.Fatalf("want err: %v; got %v", tc.expectErr, err)
+			}
+			if err != nil && tc.expectErr {
 				return
 			}
 			// Test outputed files.
 			outCert, outKey := readKeyAndCertFiles(dir, t)
-			if string(outCert) != string(cert) {
-				t.Errorf("want ensureCerts cert %v; got %v", string(cert), string(outCert))
-			} else if string(outCert) != tc.expectCert {
-				t.Errorf("want file cert %v; got %v", tc.opts.TLSCert, string(outCert))
+			if string(outCert) != tc.expectCert {
+				t.Errorf("want cert: %v; got %v", tc.opts.TLSCert, string(outCert))
 			}
 			if string(outKey) != tc.expectKey {
-				t.Errorf("want key %v; got %v", tc.opts.TLSKey, string(outKey))
+				t.Errorf("want key: %v; got %v", tc.opts.TLSKey, string(outKey))
+			}
+			if string(caBundle) != tc.expectCaCert {
+				t.Errorf("want ca: %v; got %v", string(caBundle), string(outCert))
 			}
 		})
 	}
@@ -124,11 +139,11 @@ func TestEnsureCertsSelfSigned(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			op := Operator{opts: tc.opts}
 
-			_, err := op.ensureCerts(ctx, dir)
-			if err != nil {
-				if !tc.expectErr {
-					t.Fatalf("want err: %v; got %v", tc.expectErr, err)
-				}
+			caBundle, err := op.ensureCerts(ctx, dir)
+			if (err == nil && tc.expectErr) || (err != nil && !tc.expectErr) {
+				t.Fatalf("want err: %v; got %v", tc.expectErr, err)
+			}
+			if err != nil && tc.expectErr {
 				return
 			}
 			// Cert and key will be randomly generated, check if they exisits.
@@ -138,6 +153,10 @@ func TestEnsureCertsSelfSigned(t *testing.T) {
 			}
 			if len(outCert) == 0 {
 				t.Errorf("expected generated cert but was empty")
+			}
+			// self-generate case, ca is equal to crt.
+			if string(outCert) != string(caBundle) {
+				t.Errorf("want ca: %v; got %v", string(outCert), string(caBundle))
 			}
 		})
 	}

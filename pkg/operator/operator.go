@@ -132,6 +132,8 @@ type Options struct {
 	TLSCert string
 	// Key of the server in base 64.
 	TLSKey string
+	// Certificate authority in base 64.
+	CACert string
 	// Endpoint of the Cloud Monitoring API to be used by all collectors.
 	CloudMonitoringEndpoint string
 	// Webhook serving address.
@@ -246,7 +248,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 // custom resources and registers handlers with the webhook server.
 // The passsed owner references are set on the created WebhookConfiguration resources.
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.OwnerReference) error {
-	crt, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().CertDir)
+	caBundle, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().CertDir)
 	if err != nil {
 		return err
 	}
@@ -255,7 +257,7 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 		NameOperator,
 		o.opts.OperatorNamespace,
 		int32(o.manager.GetWebhookServer().Port),
-		crt,
+		caBundle,
 		[]metav1.GroupVersionResource{
 			monitoringv1alpha1.PodMonitoringResource(),
 			monitoringv1alpha1.ClusterPodMonitoringResource(),
@@ -334,8 +336,8 @@ func (o *Operator) Run(ctx context.Context, ors ...metav1.OwnerReference) error 
 // If cert/key are not avalilable, generate them.
 func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) {
 	var (
-		crt, key []byte
-		err      error
+		crt, key, caData []byte
+		err              error
 	)
 	if o.opts.TLSKey != "" && o.opts.TLSCert != "" {
 		crt, err = base64.StdEncoding.DecodeString(o.opts.TLSCert)
@@ -346,7 +348,13 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 		if err != nil {
 			return nil, errors.Wrap(err, "decoding TLS key")
 		}
-	} else if o.opts.TLSKey == "" && o.opts.TLSCert == "" {
+		if o.opts.CACert != "" {
+			caData, err = base64.StdEncoding.DecodeString(o.opts.CACert)
+			if err != nil {
+				return nil, errors.Wrap(err, "decoding certificate authority")
+			}
+		}
+	} else if o.opts.TLSKey == "" && o.opts.TLSCert == "" && o.opts.CACert == "" {
 		// Generate a self-signed pair if none was explicitly provided. It will be valid
 		// for 1 year.
 		// TODO(freinartz): re-generate at runtime and update the ValidatingWebhookConfiguration
@@ -357,17 +365,19 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 		if err != nil {
 			return nil, errors.Wrap(err, "generate self-signed TLS key pair")
 		}
+		// Use crt as the ca in the the self-sign case.
+		caData = crt
 	} else {
 		return nil, errors.Errorf("Flags key-base64 and cert-base64 must both be set.")
 	}
-
+	// Create cert/key files.
 	if err := ioutil.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
 		return nil, errors.Wrap(err, "create cert file")
 	}
 	if err := ioutil.WriteFile(filepath.Join(dir, "tls.key"), key, 0666); err != nil {
 		return nil, errors.Wrap(err, "create key file")
 	}
-	return crt, nil
+	return caData, nil
 }
 
 // namespacedNamePredicate is an event filter predicate that only allows events with
