@@ -96,6 +96,9 @@ func FromFlags(a *kingpin.Application, userAgent string) func(log.Logger, promet
 	a.Flag("export.endpoint", "GCM API endpoint to send metric data to.").
 		Default("monitoring.googleapis.com:443").StringVar(&opts.Endpoint)
 
+	a.Flag("export.compression", "The compression format to use for gRPC requests ('none' or 'gzip').").
+		Default(export.CompressionNone).EnumVar(&opts.Compression, export.CompressionNone, export.CompressionGZIP)
+
 	a.Flag("export.credentials-file", "Credentials file for authentication with the GCM API.").
 		Default("").StringVar(&opts.CredentialsFile)
 

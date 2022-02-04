@@ -46,6 +46,7 @@ func main() {
 	srv := grpc.NewServer(
 		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
 		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+		grpc.RPCDecompressor(grpc.NewGZIPDecompressor()),
 	)
 	monitoring_pb.RegisterMetricServiceServer(srv, &server{latency: *backendLatency})
 

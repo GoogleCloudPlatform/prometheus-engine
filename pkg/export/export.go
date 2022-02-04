@@ -36,6 +36,7 @@ import (
 	"google.golang.org/api/option"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/encoding/gzip"
 )
 
 var (
@@ -122,12 +123,20 @@ const (
 	MetricTypePrefix = "prometheus.googleapis.com"
 )
 
+// Supported gRPC compression formats.
+const (
+	CompressionNone = "none"
+	CompressionGZIP = "gzip"
+)
+
 // ExporterOpts holds options for an exporter.
 type ExporterOpts struct {
 	// Whether to disable exporting of metrics.
 	Disable bool
 	// GCM API endpoint to send metric data to.
 	Endpoint string
+	// Compression format to use for gRPC requests.
+	Compression string
 	// Credentials file for authentication with the GCM API.
 	CredentialsFile string
 	// Disable authentication (for debugging purposes).
@@ -212,7 +221,15 @@ func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.Metric
 	if opts.CredentialsFile != "" {
 		clientOpts = append(clientOpts, option.WithCredentialsFile(opts.CredentialsFile))
 	}
-	return monitoring.NewMetricClient(ctx, clientOpts...)
+	client, err := monitoring.NewMetricClient(ctx, clientOpts...)
+	if err != nil {
+		return nil, err
+	}
+	if opts.Compression == CompressionGZIP {
+		client.CallOptions.CreateTimeSeries = append(client.CallOptions.CreateTimeSeries,
+			gax.WithGRPCOptions(grpc.UseCompressor(gzip.Name)))
+	}
+	return client, nil
 }
 
 // New returns a new Cloud Monitoring Exporter.
