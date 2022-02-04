@@ -312,10 +312,11 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 	// with only a subset of buckets.
 	sort.Sort(d)
 
-	// Reuse slices we already populated to build final bounds and values.
+	// Populate new values and bounds slices for the final proto as d will be returned to
+	// the memory pool while the proto will be enqueued for sending.
 	var (
-		bounds               = d.bounds[:0]
-		values               = d.values[:0]
+		bounds               = make([]float64, 0, len(d.bounds))
+		values               = make([]int64, 0, len(d.values))
 		prevBound, dev, mean float64
 		prevVal              int64
 	)
