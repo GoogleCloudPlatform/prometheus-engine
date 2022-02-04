@@ -478,6 +478,7 @@ google.golang.org/grpc/credentials/alts/internal/proto/grpc_gcp
 google.golang.org/grpc/credentials/google
 google.golang.org/grpc/credentials/oauth
 google.golang.org/grpc/encoding
+google.golang.org/grpc/encoding/gzip
 google.golang.org/grpc/encoding/proto
 google.golang.org/grpc/grpclog
 google.golang.org/grpc/internal
