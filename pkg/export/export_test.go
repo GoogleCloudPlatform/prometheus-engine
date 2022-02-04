@@ -17,12 +17,16 @@ package export
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/google/go-cmp/cmp"
 	gax "github.com/googleapis/gax-go/v2"
+	"github.com/prometheus/prometheus/pkg/textparse"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 )
@@ -188,5 +192,125 @@ func TestSampleInRange(t *testing.T) {
 		if ok := sampleInRange(p, c.start, c.end); ok != c.want {
 			t.Errorf("expected sample in range %v, got %v", c.want, ok)
 		}
+	}
+}
+
+func TestExporter_wrapMetadata(t *testing.T) {
+	cases := []struct {
+		desc   string
+		mf     MetadataFunc
+		metric string
+		want   MetricMetadata
+		wantOK bool
+	}{
+		{
+			desc:   "nil MetadataFunc always defaults to gauge",
+			mf:     nil,
+			metric: "some_metric",
+			want:   MetricMetadata{Metric: "some_metric", Type: textparse.MetricTypeGauge},
+			wantOK: true,
+		}, {
+			desc:   "nil MetadataFunc preserves synthetic metric metadata",
+			mf:     nil,
+			metric: "up",
+			want: MetricMetadata{
+				Metric: "up",
+				Type:   textparse.MetricTypeGauge,
+				Help:   "Up indicates whether the last target scrape was successful.",
+			},
+			wantOK: true,
+		}, {
+			desc: "synthetic metric metadata precedence",
+			mf: func(string) (MetricMetadata, bool) {
+				return MetricMetadata{
+					Metric: "up",
+					Type:   textparse.MetricTypeCounter,
+				}, false
+			},
+			metric: "up",
+			want: MetricMetadata{
+				Metric: "up",
+				Type:   textparse.MetricTypeGauge,
+				Help:   "Up indicates whether the last target scrape was successful.",
+			},
+			wantOK: true,
+		}, {
+			desc: "regular metadata is returned as is",
+			mf: func(string) (MetricMetadata, bool) {
+				return MetricMetadata{
+					Metric: "some_metric",
+					Type:   textparse.MetricTypeCounter,
+					Help:   "useful help",
+				}, true
+			},
+			metric: "some_metric",
+			want: MetricMetadata{
+				Metric: "some_metric",
+				Type:   textparse.MetricTypeCounter,
+				Help:   "useful help",
+			},
+			wantOK: true,
+		}, {
+			desc: "not found metadata defaults to untyped",
+			mf: func(string) (MetricMetadata, bool) {
+				return MetricMetadata{}, false
+			},
+			metric: "some_metric",
+			want: MetricMetadata{
+				Metric: "some_metric",
+				Type:   textparse.MetricTypeUnknown,
+			},
+			wantOK: true,
+		}, {
+			desc: "not found metadata returns false if base name has metadata (_sum)",
+			mf: func(m string) (MetricMetadata, bool) {
+				if m == "foo" {
+					return MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
+				}
+				return MetricMetadata{}, false
+			},
+			metric: "foo_sum",
+			want:   MetricMetadata{},
+			wantOK: false,
+		}, {
+			desc: "not found metadata returns false if base name has metadata (_bucket)",
+			mf: func(m string) (MetricMetadata, bool) {
+				if m == "foo" {
+					return MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
+				}
+				return MetricMetadata{}, false
+			},
+			metric: "foo_bucket",
+			want:   MetricMetadata{},
+			wantOK: false,
+		}, {
+			desc: "not found metadata returns false if base name has metadata (_count)",
+			mf: func(m string) (MetricMetadata, bool) {
+				if m == "foo" {
+					return MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
+				}
+				return MetricMetadata{}, false
+			},
+			metric: "foo_count",
+			want:   MetricMetadata{},
+			wantOK: false,
+		},
+	}
+
+	e, err := New(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			got, ok := e.wrapMetadata(c.mf)(c.metric)
+			if ok != c.wantOK {
+				t.Fatalf("MetadataFunc unexpectedly ok=%v, want ok=%v", ok, c.wantOK)
+			}
+			if diff := cmp.Diff(c.want, got); diff != "" {
+				t.Fatalf("unexpected metadata (-want,+got): %s", diff)
+			}
+		})
 	}
 }

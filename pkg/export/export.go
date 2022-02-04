@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/pkg/textparse"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
@@ -93,7 +94,6 @@ type Exporter struct {
 
 	metricClient *monitoring.MetricClient
 	seriesCache  *seriesCache
-	builder      *sampleBuilder
 	shards       []*shard
 
 	// Channel for signaling that there may be more work items to
@@ -104,6 +104,9 @@ type Exporter struct {
 	// and must be locked with mtx.
 	mtx            sync.Mutex
 	externalLabels labels.Labels
+	// A set of metrics for which we defaulted the metadata to untyped and have
+	// issued a warning about that.
+	warnedUntypedMetrics map[string]struct{}
 }
 
 const (
@@ -256,11 +259,12 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		return nil, errors.Wrap(err, "create metric client")
 	}
 	e := &Exporter{
-		logger:       logger,
-		opts:         opts,
-		metricClient: metricClient,
-		nextc:        make(chan struct{}, 1),
-		shards:       make([]*shard, shardCount),
+		logger:               logger,
+		opts:                 opts,
+		metricClient:         metricClient,
+		nextc:                make(chan struct{}, 1),
+		shards:               make([]*shard, shardCount),
+		warnedUntypedMetrics: map[string]struct{}{},
 	}
 	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, opts.Matchers)
 
@@ -347,6 +351,8 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample) {
 	if e.opts.Disable {
 		return
 	}
+
+	metadata = e.wrapMetadata(metadata)
 
 	e.mtx.Lock()
 	externalLabels := e.externalLabels
@@ -542,6 +548,135 @@ func WithMetadataFunc(ctx context.Context, mf MetadataFunc) context.Context {
 func MetadataFuncFromContext(ctx context.Context) (MetadataFunc, bool) {
 	mf, ok := ctx.Value(ctxKeyMetadata).(MetadataFunc)
 	return mf, ok
+}
+
+// MetricMetadata is a copy of MetricMetadata in Prometheus's scrape package.
+// It is copied to break a dependency cycle.
+type MetricMetadata struct {
+	Metric string
+	Type   textparse.MetricType
+	Help   string
+	Unit   string
+}
+
+// MetadataFunc gets metadata for a specific metric name.
+type MetadataFunc func(metric string) (MetricMetadata, bool)
+
+func (e *Exporter) wrapMetadata(f MetadataFunc) MetadataFunc {
+	// Metadata is nil for metrics ingested through recording or alerting rules.
+	// Unless the rule literally does no processing at all, this always means the
+	// resulting data is a gauge.
+	// This makes it safe to assume a gauge type here in the absence of any other
+	// metadata.
+	// In the future we might want to propagate the rule definition and add it as
+	// help text here to easily understand what produced the metric.
+	if f == nil {
+		f = gaugeMetadata
+	}
+	// Ensure that we always cover synthetic scrape metrics and in doubt fallback
+	// to untyped metrics. The wrapping order is important!
+	f = withScrapeMetricMetadata(f)
+	f = e.withUntypedDefaultMetadata(f)
+
+	return f
+}
+
+// gaugeMetadata is a MetadataFunc that always returns the gauge type.
+// Help and Unit are left empty.
+func gaugeMetadata(metric string) (MetricMetadata, bool) {
+	return MetricMetadata{
+		Metric: metric,
+		Type:   textparse.MetricTypeGauge,
+	}, true
+}
+
+// untypedMetadata is a MetadataFunc that always returns the untyped/unknown type.
+// Help and Unit are left empty.
+func untypedMetadata(metric string) (MetricMetadata, bool) {
+	return MetricMetadata{
+		Metric: metric,
+		Type:   textparse.MetricTypeUnknown,
+	}, true
+}
+
+// Metrics Prometheus writes at scrape time for which no metadata is exposed.
+var internalMetricMetadata = map[string]MetricMetadata{
+	"up": {
+		Metric: "up",
+		Type:   textparse.MetricTypeGauge,
+		Help:   "Up indicates whether the last target scrape was successful.",
+	},
+	"scrape_samples_scraped": {
+		Metric: "scrape_samples_scraped",
+		Type:   textparse.MetricTypeGauge,
+		Help:   "How many samples were scraped during the last successful scrape.",
+	},
+	"scrape_duration_seconds": {
+		Metric: "scrape_duration_seconds",
+		Type:   textparse.MetricTypeGauge,
+		Help:   "Duration of the last scrape.",
+	},
+	"scrape_samples_post_metric_relabeling": {
+		Metric: "scrape_samples_post_metric_relabeling",
+		Type:   textparse.MetricTypeGauge,
+		Help:   "How many samples were ingested after relabeling.",
+	},
+	"scrape_series_added": {
+		Metric: "scrape_series_added",
+		Type:   textparse.MetricTypeGauge,
+		Help:   "Number of new series added in the last scrape.",
+	},
+}
+
+// withScrapeMetricMetadata wraps a MetadataFunc and additionally returns metadata
+// about Prometheues's synthetic scrape-time metrics.
+func withScrapeMetricMetadata(f MetadataFunc) MetadataFunc {
+	return func(metric string) (MetricMetadata, bool) {
+		md, ok := internalMetricMetadata[metric]
+		if ok {
+			return md, true
+		}
+		return f(metric)
+	}
+}
+
+// withUntypedDefaultMetadata returns a MetadataFunc that returns the untyped
+// type, if no metadata is found through f.
+// It logs a warning once per metric name where a default to untyped happened
+// as this is generally undesirable.
+//
+// For Prometheus this primarily handles cases where metric relabeling is used to
+// create new metric names on the fly, for which no metadata is known.
+// This allows ingesting this data in a best-effort manner.
+func (e *Exporter) withUntypedDefaultMetadata(f MetadataFunc) MetadataFunc {
+	return func(metric string) (MetricMetadata, bool) {
+		md, ok := f(metric)
+		if ok {
+			return md, true
+		}
+		// The metric name may contain suffixes (_sum, _bucket, _count), which need to be stripped
+		// to find the matching metadata. Before we can assume that not metadata exist, we've
+		// to verify that the base name is not found either.
+		// Our transformation logic applies the same lookup sequence. Without this step
+		// we'd incorrectly return the untyped metadata for all those sub-series.
+		if baseName, _, ok := splitMetricSuffix(metric); ok {
+			if _, ok := f(baseName); ok {
+				// There is metadata for the underlying metric, return false and let the
+				// conversion logic do its thing.
+				return MetricMetadata{}, false
+			}
+		}
+		// We only log a message the first time for each metric. We check this against a global cache
+		// as the total number of unique observed names is generally negligible.
+		e.mtx.Lock()
+		defer e.mtx.Unlock()
+
+		if _, ok := e.warnedUntypedMetrics[metric]; !ok {
+			level.Warn(e.logger).Log("msg", "no metadata found, defaulting to untyped metric", "metric_name", metric)
+			e.warnedUntypedMetrics[metric] = struct{}{}
+		}
+		return untypedMetadata(metric)
+	}
 }
 
 // batch accumulates a batch of samples to be sent to GCM. Once the batch is full

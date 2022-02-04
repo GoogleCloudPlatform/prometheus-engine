@@ -935,46 +935,6 @@ func TestSampleBuilder(t *testing.T) {
 				// skipped due to zero buckets.
 			},
 		}, {
-			doc:      "metadata is nil",
-			metadata: nil,
-			series: seriesMap{
-				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
-			},
-			samples: [][]record.RefSample{
-				{{Ref: 1, T: 1000, V: 1}},
-			},
-			// If the metadata is nil we expect the series to be converted to a gauge as
-			// metadata-less series are produced by rules and any processing result of type gauge.
-			wantSeries: []*monitoring_pb.TimeSeries{
-				{
-					Resource: &monitoredres_pb.MonitoredResource{
-						Type: "prometheus_target",
-						Labels: map[string]string{
-							"project_id": "example-project",
-							"location":   "europe",
-							"cluster":    "foo-cluster",
-							"namespace":  "",
-							"job":        "job1",
-							"instance":   "instance1",
-						},
-					},
-					Metric: &metric_pb.Metric{
-						Type:   "prometheus.googleapis.com/metric1/gauge",
-						Labels: map[string]string{"k1": "v1"},
-					},
-					MetricKind: metric_pb.MetricDescriptor_GAUGE,
-					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
-					Points: []*monitoring_pb.Point{{
-						Interval: &monitoring_pb.TimeInterval{
-							EndTime: &timestamp_pb.Timestamp{Seconds: 1},
-						},
-						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{1},
-						},
-					}},
-				},
-			},
-		}, {
 			doc:      "no metric metadata",
 			metadata: testMetadataFunc(metricMetadataMap{}),
 			series: seriesMap{
