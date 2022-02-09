@@ -22,10 +22,13 @@ import (
 	"net"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	arv1 "k8s.io/api/admissionregistration/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
@@ -35,6 +38,7 @@ import (
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -246,50 +250,42 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 
 // setupAdmissionWebhooks configures validating webhooks for the operator-managed
 // custom resources and registers handlers with the webhook server.
-// The passsed owner references are set on the created WebhookConfiguration resources.
-func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.OwnerReference) error {
+func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
+	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
+	// in previous versions.
+	err := o.manager.GetClient().Delete(ctx, &arv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
+	})
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.logger.Error(err, "msg", "Deleting legacy ValidatingWebhookConfiguration failed")
+	}
+
+	// Write provided cert files.
 	caBundle, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().CertDir)
 	if err != nil {
 		return err
 	}
 
-	whCfg := validatingWebhookConfig(
-		NameOperator,
-		o.opts.OperatorNamespace,
-		int32(o.manager.GetWebhookServer().Port),
-		caBundle,
-		[]metav1.GroupVersionResource{
-			monitoringv1alpha1.PodMonitoringResource(),
-			monitoringv1alpha1.ClusterPodMonitoringResource(),
-			monitoringv1alpha1.OperatorConfigResource(),
-			monitoringv1alpha1.RulesResource(),
-			monitoringv1alpha1.ClusterRulesResource(),
-			monitoringv1alpha1.GlobalRulesResource(),
-		},
-		ors...,
-	)
-	// Idempotently request validation webhook spec with caBundle and endpoints.
-	_, err = upsertValidatingWebhookConfig(ctx, o.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(), whCfg)
-	if err != nil {
-		return err
-	}
+	// Keep setting the caBundle in the expected webhook configurations.
+	go func() {
+		// Initial sleep for the client to initialize before our first calls.
+		// Ideally we could explicitly wait for it.
+		time.Sleep(5 * time.Second)
 
-	dwhCfg := mutatingWebhookConfig(
-		NameOperator,
-		o.opts.OperatorNamespace,
-		int32(o.manager.GetWebhookServer().Port),
-		crt,
-		[]metav1.GroupVersionResource{
-			monitoringv1alpha1.PodMonitoringResource(),
-			monitoringv1alpha1.ClusterPodMonitoringResource(),
-		},
-		ors...,
-	)
-	// Idempotently request validation webhook spec with caBundle and endpoints.
-	_, err = upsertMutatingWebhookConfig(ctx, o.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations(), dwhCfg)
-	if err != nil {
-		return err
-	}
+		for {
+			if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil {
+				o.logger.Error(err, "msg", "Setting CA bundle for ValidatingWebhookConfiguration failed")
+			}
+			if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
+				o.logger.Error(err, "msg", "Setting CA bundle for MutatingWebhookConfiguration failed")
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Minute):
+			}
+		}
+	}()
 
 	s := o.manager.GetWebhookServer()
 
@@ -324,7 +320,6 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 		validatePath(monitoringv1alpha1.GlobalRulesResource()),
 		admission.WithCustomValidator(&monitoringv1alpha1.GlobalRules{}, &globalRulesValidator{}),
 	)
-
 	// Defaulting webhooks.
 	s.Register(
 		defaultPath(monitoringv1alpha1.PodMonitoringResource()),
@@ -334,17 +329,16 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context, ors ...metav1.Own
 		defaultPath(monitoringv1alpha1.ClusterPodMonitoringResource()),
 		admission.WithCustomDefaulter(&monitoringv1alpha1.ClusterPodMonitoring{}, &clusterPodMonitoringDefaulter{}),
 	)
-
 	return nil
 }
 
 // Run the reconciliation loop of the operator.
 // The passed owner references are set on cluster-wide resources created by the
 // operator.
-func (o *Operator) Run(ctx context.Context, ors ...metav1.OwnerReference) error {
+func (o *Operator) Run(ctx context.Context) error {
 	defer runtimeutil.HandleCrash()
 
-	if err := o.setupAdmissionWebhooks(ctx, ors...); err != nil {
+	if err := o.setupAdmissionWebhooks(ctx); err != nil {
 		return errors.Wrap(err, "init admission resources")
 	}
 	if err := setupCollectionControllers(o); err != nil {
@@ -447,4 +441,50 @@ func (e enqueueConst) Delete(_ event.DeleteEvent, q workqueue.RateLimitingInterf
 
 func (e enqueueConst) Generic(_ event.GenericEvent, q workqueue.RateLimitingInterface) {
 	q.Add(reconcile.Request(e))
+}
+
+func validatePath(gvr metav1.GroupVersionResource) string {
+	return fmt.Sprintf("/validate/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
+}
+
+func defaultPath(gvr metav1.GroupVersionResource) string {
+	return fmt.Sprintf("/default/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
+}
+
+func (o *Operator) webhookConfigName() string {
+	return fmt.Sprintf("%s.%s.monitoring.googleapis.com", NameOperator, o.opts.OperatorNamespace)
+}
+
+func (o *Operator) setValidatingWebhookCABundle(ctx context.Context, caBundle []byte) error {
+	c := o.manager.GetClient()
+	var vwc arv1.ValidatingWebhookConfiguration
+
+	err := c.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &vwc)
+	if apierrors.IsNotFound(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	for i := range vwc.Webhooks {
+		vwc.Webhooks[i].ClientConfig.CABundle = caBundle
+	}
+	return c.Update(ctx, &vwc)
+}
+
+func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []byte) error {
+	c := o.manager.GetClient()
+	var mwc arv1.MutatingWebhookConfiguration
+
+	err := c.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &mwc)
+	if apierrors.IsNotFound(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	for i := range mwc.Webhooks {
+		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
+	}
+	return c.Update(ctx, &mwc)
 }
