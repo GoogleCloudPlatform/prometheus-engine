@@ -26,11 +26,11 @@ import (
 	"github.com/prometheus/prometheus/pkg/labels"
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -550,7 +550,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	return cfg, nil
 }
 
-type podMonitoringDefaulter struct {}
+type podMonitoringDefaulter struct{}
 
 func (d *podMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) error {
 	pm := o.(*monitoringv1alpha1.PodMonitoring)
@@ -562,7 +562,7 @@ func (d *podMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) 
 	return nil
 }
 
-type clusterPodMonitoringDefaulter struct {}
+type clusterPodMonitoringDefaulter struct{}
 
 func (d *clusterPodMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) error {
 	pm := o.(*monitoringv1alpha1.PodMonitoring)
