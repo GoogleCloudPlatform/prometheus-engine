@@ -119,7 +119,7 @@ func newTestContext(t *testing.T) *testContext {
 	}
 
 	go func() {
-		if err := op.Run(ctx, tctx.ownerReferences...); err != nil {
+		if err := op.Run(ctx); err != nil {
 			// Since we aren't in the main test goroutine we cannot fail with Fatal here.
 			t.Errorf("running operator: %s", err)
 		}
