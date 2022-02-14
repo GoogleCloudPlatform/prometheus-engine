@@ -268,6 +268,11 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 
 	// Keep setting the caBundle in the expected webhook configurations.
 	go func() {
+		// Only inject if we've an explicit CA bundle ourselves. Otherwise the webhook configs
+		// may already have been created with one.
+		if len(caBundle) == 0 {
+			return
+		}
 		// Initial sleep for the client to initialize before our first calls.
 		// Ideally we could explicitly wait for it.
 		time.Sleep(5 * time.Second)
