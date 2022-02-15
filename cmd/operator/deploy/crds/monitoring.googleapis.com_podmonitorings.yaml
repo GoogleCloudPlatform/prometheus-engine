@@ -208,9 +208,8 @@ spec:
                   endpoints.
                 properties:
                   fromPod:
-                    description: 'Labels to transfer from the Kubernetes Pod to Prometheus
-                      target labels. In the case of a label mapping conflict: - Mappings
-                      at the end of the array take precedence.'
+                    description: Labels to transfer from the Kubernetes Pod to Prometheus
+                      target labels. Mappings are applied in order.
                     items:
                       description: LabelMapping specifies how to transfer a label
                         from a Kubernetes resource onto a Prometheus target.
@@ -225,6 +224,18 @@ spec:
                       required:
                       - from
                       type: object
+                    type: array
+                  metadata:
+                    description: "Pod metadata labels that are set on all scraped
+                      targets. Permitted keys are `pod`, `container`, and `node` for
+                      PodMonitoring and `pod`, `container`, `node`, and `namespace`
+                      for ClusterPodMonitoring. \n Defaults to [pod, container] for
+                      PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring.
+                      If set to null, it will be interpreted as the empty list for
+                      PodMonitoring and to [namespace] for ClusterPodMonitoring. This
+                      is for backwards-compatibility only."
+                    items:
+                      type: string
                     type: array
                 type: object
             required:

@@ -32,7 +32,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/cert"
@@ -83,22 +82,12 @@ const (
 	RuleEvaluatorAppName = "managed-prometheus-rule-evaluator"
 )
 
-var (
-	metricOperatorSyncLatency = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name:      "operator_sync_latency",
-			Namespace: "gmp_operator",
-			Help:      "The time it takes for operator to synchronize with managed CRDs (s).",
-		},
-	)
-)
-
 // Operator to implement managed collection for Google Prometheus Engine.
 type Operator struct {
-	logger     logr.Logger
-	opts       Options
-	kubeClient kubernetes.Interface
-	manager    manager.Manager
+	logger  logr.Logger
+	opts    Options
+	client  client.Client
+	manager manager.Manager
 }
 
 // Options for the Operator.
@@ -196,10 +185,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 	if err := opts.defaultAndValidate(logger); err != nil {
 		return nil, errors.Wrap(err, "invalid options")
 	}
-	kubeClient, err := kubernetes.NewForConfig(clientConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "build Kubernetes clientset")
-	}
 	// Create temporary directory to store webhook serving cert files.
 	certDir, err := ioutil.TempDir("", "operator-cert")
 	if err != nil {
@@ -234,16 +219,16 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 	if err != nil {
 		return nil, errors.Wrap(err, "create controller manager")
 	}
-
-	if registry != nil {
-		registry.MustRegister(metricOperatorSyncLatency)
+	client, err := client.New(clientConfig, client.Options{Scheme: sc})
+	if err != nil {
+		return nil, errors.Wrap(err, "create client")
 	}
 
 	op := &Operator{
-		logger:     logger,
-		opts:       opts,
-		kubeClient: kubeClient,
-		manager:    mgr,
+		logger:  logger,
+		opts:    opts,
+		client:  client,
+		manager: mgr,
 	}
 	return op, nil
 }
@@ -253,7 +238,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
 	// in previous versions.
-	err := o.manager.GetClient().Delete(ctx, &arv1.ValidatingWebhookConfiguration{
+	err := o.client.Delete(ctx, &arv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
 	})
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -461,10 +446,8 @@ func (o *Operator) webhookConfigName() string {
 }
 
 func (o *Operator) setValidatingWebhookCABundle(ctx context.Context, caBundle []byte) error {
-	c := o.manager.GetClient()
 	var vwc arv1.ValidatingWebhookConfiguration
-
-	err := c.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &vwc)
+	err := o.client.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &vwc)
 	if apierrors.IsNotFound(err) {
 		return nil
 	} else if err != nil {
@@ -474,14 +457,12 @@ func (o *Operator) setValidatingWebhookCABundle(ctx context.Context, caBundle []
 	for i := range vwc.Webhooks {
 		vwc.Webhooks[i].ClientConfig.CABundle = caBundle
 	}
-	return c.Update(ctx, &vwc)
+	return o.client.Update(ctx, &vwc)
 }
 
 func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []byte) error {
-	c := o.manager.GetClient()
 	var mwc arv1.MutatingWebhookConfiguration
-
-	err := c.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &mwc)
+	err := o.client.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &mwc)
 	if apierrors.IsNotFound(err) {
 		return nil
 	} else if err != nil {
@@ -491,5 +472,5 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 	for i := range mwc.Webhooks {
 		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
 	}
-	return c.Update(ctx, &mwc)
+	return o.client.Update(ctx, &mwc)
 }
