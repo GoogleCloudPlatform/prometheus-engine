@@ -47,21 +47,38 @@ rules:
   - daemonsets
   - deployments
   verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+# Permission to inject CA bundles into webhook configs of fixed name.
 - apiGroups: ["admissionregistration.k8s.io"]
   resources:
   - validatingwebhookconfigurations
-  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - mutatingwebhookconfigurations
+  resourceNames:
+  - gmp-operator.gmp-system.monitoring.googleapis.com
+  verbs: ["get", "patch", "update", "watch"]
+# Permission to delete legacy wehbook config the operator directly created
+# in previous versions.
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources:
+  - validatingwebhookconfigurations
+  - mutatingwebhookconfigurations
+  resourceNames:
+  - gmp-operator
+  verbs: ["delete"]
+# Resources controlled by the operator.
 - apiGroups: ["monitoring.googleapis.com"]
   resources:
   - clusterpodmonitorings
-  - clusterpodmonitorings/status
   - clusterrules
-  - clusterrules/status
   - globalrules
-  - globalrules/status
   - operatorconfigs
   - podmonitorings
-  - podmonitorings/status
   - rules
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["monitoring.googleapis.com"]
+  resources:
+  - clusterpodmonitorings/status
+  - clusterrules/status
+  - globalrules/status
+  - podmonitorings/status
   - rules/status
-  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  verbs: ["get", "patch", "update"]

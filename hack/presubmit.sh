@@ -85,9 +85,9 @@ update_crdgen() {
 
   API_DIR=${SCRIPT_ROOT}/pkg/operator/apis/...
   CRD_DIR=${SCRIPT_ROOT}/cmd/operator/deploy/crds
-  MANIFESTS_DIR=${SCRIPT_ROOT}/manifests
 
-  controller-gen crd paths=$API_DIR output:crd:artifacts:config=$CRD_DIR
+  controller-gen crd paths=./$API_DIR output:crd:dir=$CRD_DIR
+
   CRD_YAMLS=$(find ${CRD_DIR} -iname '*.yaml' | sort)
   for i in $CRD_YAMLS; do
     sed -i '0,/---/{/---/d}' $i

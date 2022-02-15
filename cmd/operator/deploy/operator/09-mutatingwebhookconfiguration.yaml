@@ -17,7 +17,7 @@ kind: MutatingWebhookConfiguration
 metadata:
   name: gmp-operator.gmp-system.monitoring.googleapis.com
 webhooks:
-- name: podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: default.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
@@ -39,7 +39,7 @@ webhooks:
     - UPDATE
     resources:
     - podmonitorings
-- name: clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: default.clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:

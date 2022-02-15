@@ -17,7 +17,7 @@ kind: ValidatingWebhookConfiguration
 metadata:
   name: gmp-operator.gmp-system.monitoring.googleapis.com
 webhooks:
-- name: podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
@@ -39,7 +39,7 @@ webhooks:
     - UPDATE
     resources:
     - podmonitorings
-- name: clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
@@ -61,7 +61,7 @@ webhooks:
     - UPDATE
     resources:
     - clusterpodmonitorings
-- name: rules.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.rules.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
@@ -83,8 +83,7 @@ webhooks:
     - UPDATE
     resources:
     - rules
-    - podmonitorings
-- name: clusterrules.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.clusterrules.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
@@ -106,8 +105,7 @@ webhooks:
     - UPDATE
     resources:
     - clusterrules
-    - podmonitorings
-- name: globalrules.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.globalrules.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
@@ -129,7 +127,7 @@ webhooks:
     - UPDATE
     resources:
     - globalrules
-- name: operatorconfigs.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.operatorconfigs.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
