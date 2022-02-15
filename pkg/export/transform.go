@@ -183,7 +183,7 @@ type distribution struct {
 	bounds         []float64
 	values         []int64
 	sum            float64
-	count          int64
+	count          float64
 	timestamp      int64
 	resetTimestamp int64
 	// If all three are true, we can be sure to have observed all series for the
@@ -247,9 +247,20 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 		prevBound, dev, mean float64
 		prevVal              int64
 	)
-	if d.count > 0 {
-		mean = d.sum / float64(d.count)
+	// Some client libraries have race conditions causing a mismatch in counts across buckets and count
+	// series. The most common case seems to be count mismatching while the buckets are consistent.
+	// We handle this here by always picking the inf bucket value.
+	// This help ingesting samples that would otherwise be dropped.
+	d.count = float64(d.values[len(d.bounds)-1])
+
+	// In principle, the count and sum series could theoretically be NaN.
+	// For the sum series this has been observed in the wild.
+	// As NaN is not a permitted mean value in Cloud Monitoring, we leave it at the default 0 in this case.
+	// For the count we overrode it with the inf bucket value anyway and thus don't need special handling.
+	if !math.IsNaN(d.sum) && d.count > 0 {
+		mean = d.sum / d.count
 	}
+
 	for i, bound := range d.bounds {
 		if math.IsInf(bound, 1) {
 			bound = prevBound
@@ -263,7 +274,7 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 		// It's a possible caused of the zero-count issue below so we catch it here early.
 		if val < 0 {
 			prometheusSamplesDiscarded.WithLabelValues("negative-bucket-count").Add(float64(d.inputSampleCount()))
-			err := errors.Errorf("invalid bucket with negative count %s: count=%d, sum=%f, dev=%f, index=%d, bucketVal=%d, bucketPrevVal=%d",
+			err := errors.Errorf("invalid bucket with negative count %s: count=%f, sum=%f, dev=%f, index=%d, bucketVal=%d, bucketPrevVal=%d",
 				lset, d.count, d.sum, dev, i, d.values[i], prevVal)
 			return nil, err
 		}
@@ -287,12 +298,12 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 	// one, which violates histogram's invariant.
 	if d.count == 0 && (mean != 0 || dev != 0) {
 		prometheusSamplesDiscarded.WithLabelValues("zero-count-violation").Add(float64(d.inputSampleCount()))
-		err := errors.Errorf("invalid histogram with 0 count for %s: count=%d, sum=%f, dev=%f",
+		err := errors.Errorf("invalid histogram with 0 count for %s: count=%f, sum=%f, dev=%f",
 			lset, d.count, d.sum, dev)
 		return nil, err
 	}
 	dp := &distribution_pb.Distribution{
-		Count:                 d.count,
+		Count:                 int64(d.count),
 		Mean:                  mean,
 		SumOfSquaredDeviation: dev,
 		BucketOptions: &distribution_pb.Distribution_BucketOptions{
@@ -371,12 +382,15 @@ Loop:
 			continue
 		}
 
+		// All series can in principle have a NaN value (staleness NaNs already filtered).
+		// We permit this for sum and count as we handle it explicitly when building the distribution.
+		// For buckets there's not sensible way to handle it however and we discard those bucket samples.
 		switch metricSuffix(name[len(metric):]) {
 		case metricSuffixSum:
 			dist.hasSum, dist.sum = true, v
 
 		case metricSuffixCount:
-			dist.hasCount, dist.count = true, int64(v)
+			dist.hasCount, dist.count = true, v
 			// We take the count series as the authoritative source for the overall reset timestamp.
 			dist.resetTimestamp = rt
 
@@ -384,6 +398,10 @@ Loop:
 			bound, err := strconv.ParseFloat(e.lset.Get(labels.BucketLabel), 64)
 			if err != nil {
 				prometheusSamplesDiscarded.WithLabelValues("malformed-bucket-le-label").Inc()
+				continue
+			}
+			if math.IsNaN(v) {
+				prometheusSamplesDiscarded.WithLabelValues("NaN-bucket-value").Inc()
 				continue
 			}
 			dist.hasInfBucket = math.IsInf(bound, 1)
