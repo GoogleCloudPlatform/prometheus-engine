@@ -31,10 +31,12 @@ import (
 	exportsetup "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export/setup"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
 	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
+	"google.golang.org/grpc"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/client_golang/api"
@@ -44,7 +46,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
-
 	// Import to enable 'kubernetes_sd_configs' to SD config register.
 	_ "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/notifier"
@@ -133,8 +134,12 @@ func main() {
 	ctxRuleManger := context.Background()
 	ctxDiscover, cancelDiscover := context.WithCancel(context.Background())
 
+	grpc_prometheus.EnableClientHandlingTimeHistogram()
+
 	opts := []option.ClientOption{
 		option.WithScopes("https://www.googleapis.com/auth/monitoring.read"),
+		option.WithUserAgent(fmt.Sprintf("rule-evaluator/%s", export.Version)),
+		option.WithGRPCDialOption(grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor)),
 	}
 	if *queryCredentialsFile != "" {
 		opts = append(opts, option.WithCredentialsFile(*queryCredentialsFile))
