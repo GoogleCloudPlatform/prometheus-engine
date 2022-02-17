@@ -164,13 +164,13 @@ spec:
       serviceAccountName: operator
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.2.3-gke.0
+        image: gke.gcr.io/prometheus-engine/operator:v0.3.0-gke.0
         args:
         - "--public-namespace=gmp-public"
         - "--priority-class=gmp-critical"
-        - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.3-gke.0"
-        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.2.3-gke.0"
-        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.2.3-gke.0"
+        - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.4-gke.0"
+        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.3.0-gke.0"
+        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.3.0-gke.0"
         ports:
         - name: webhook
           # Note this should match the --listen-addr flag passed in to the operator args.
