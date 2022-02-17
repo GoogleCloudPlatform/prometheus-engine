@@ -565,7 +565,7 @@ func (d *podMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) 
 type clusterPodMonitoringDefaulter struct{}
 
 func (d *clusterPodMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) error {
-	pm := o.(*monitoringv1alpha1.PodMonitoring)
+	pm := o.(*monitoringv1alpha1.ClusterPodMonitoring)
 
 	if pm.Spec.TargetLabels.Metadata == nil {
 		md := []string{"namespace", "pod", "container"}

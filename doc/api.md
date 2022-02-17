@@ -517,6 +517,9 @@ TargetLabels configures labels for the discovered Prometheus targets.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| fromPod | Labels to transfer from the Kubernetes Pod to Prometheus target labels. In the case of a label mapping conflict: - Mappings at the end of the array take precedence. | [][LabelMapping](#labelmapping) | false |
+| metadata | Pod metadata labels that are set on all scraped targets. Permitted keys are `pod`, `container`, and `node` for PodMonitoring and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring.\n\nDefaults to [pod, contain
+er] for PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring. If set to null, it will be interpreted as the empty list for PodMonitoring and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility only.
+ | *[]string | false |
+| fromPod | Labels to transfer from the Kubernetes Pod to Prometheus target labels. Mappings are applied in order. | [][LabelMapping](#labelmapping) | false |
 
 [Back to TOC](#table-of-contents)
