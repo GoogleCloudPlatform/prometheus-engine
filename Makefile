@@ -12,11 +12,6 @@ define docker_build
 	DOCKER_BUILDKIT=1 docker build $(1)
 endef
 
-define assets_diff
-	git fetch origin
-	git diff -s --exit-code origin/main -- third_party
-endef
-
 help:        ## Show this help.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
@@ -31,8 +26,8 @@ clean:       ## Clean build time resources, primarily docker resources.
 $(GOAPPS):   ## Build go binary in cmd/ (e.g. 'operator').
              ## Set NO_DOCKER=1 env var to build natively without Docker.
 	@echo ">> building binaries"
-ifeq ($(NO_DOCKER),1)
-	CGO_ENABLED=0 go build -mod=vendor -o ./build/bin/$@ ./cmd/$@/*.go
+ifeq ($(NO_DOCKER), 1)
+	CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o ./build/bin/$@ ./cmd/$@/*.go
 else
 	$(call docker_build, --tag gmp/$@ -f ./cmd/$@/Dockerfile .)
 	mkdir -p build/bin
@@ -45,8 +40,12 @@ cloudbuild:  ## Build images on Google Cloud Build.
 
 .PHONY: assets
 assets:      ## Build and write UI assets to local go file.
+ifeq ($(NO_DOCKER), 1)
+	pkg/ui/build.sh
+else
 	@echo ">> writing static assets to host machine"
-	$(call assets_diff) || $(call docker_build, -f ./cmd/frontend/Dockerfile --target sync -o . -t gmp/assets-sync .)
+	$(call docker_build, -f ./cmd/frontend/Dockerfile --target sync -o . -t gmp/assets-sync .)
+endif
 
 test:        ## Run all tests. Setting NO_DOCKER=1 writes real data to GCM API under PROJECT_ID environment variable.
              ## Use GMP_CLUSTER, GMP_LOCATION to specify timeseries labels.
