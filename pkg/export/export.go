@@ -120,7 +120,7 @@ const (
 	BatchSizeMax = 200
 	// Time after an accumulating batch is flushed to GCM. This avoids data being
 	// held indefinititely if not enough new data flows in to fill up the batch.
-	batchDelayMax = 5 * time.Second
+	batchDelayMax = 50 * time.Millisecond
 
 	// Prefix for GCM metric.
 	MetricTypePrefix = "prometheus.googleapis.com"
@@ -477,27 +477,27 @@ func (e *Exporter) Run(ctx context.Context) error {
 	// to cover a large range of potential throughput and latency combinations without requiring
 	// user configuration or, even worse, runtime changes to the shard number.
 
-	// The batch and the shards that have contributed data to it so far.
-	var (
-		batch         = newBatch(e.logger, e.opts.BatchSize)
-		pendingShards = make([]*shard, 0, shardCount)
-	)
+	curBatch := newBatch(e.logger, e.opts.BatchSize)
 
 	// Send the currently accumulated batch to GCM asynchronously.
 	send := func() {
-		go batch.send(ctx, pendingShards, e.metricClient.CreateTimeSeries)
+		// Send the batch and once it completed, trigger next to process remaining data in the
+		// shards that were part of the batch. This ensures that if we didn't take all samples
+		// from a shard when filling the batch, we'll come back for them and any queue built-up
+		// gets sent eventually.
+		go func(ctx context.Context, b *batch) {
+			b.send(ctx, e.metricClient.CreateTimeSeries)
+			// We could only trigger if we didn't fully empty shards in this batch.
+			// Benchmarking showed no beneficial impact of this optimization.
+			e.triggerNext()
+		}(ctx, curBatch)
 
 		// Reset state for new batch.
 		stopTimer()
 		timer.Reset(batchDelayMax)
 
-		pendingShards = make([]*shard, 0, shardCount)
-		batch = newBatch(e.logger, e.opts.BatchSize)
+		curBatch = newBatch(e.logger, e.opts.BatchSize)
 	}
-
-	// Starting index when iterating over shards. This ensures we don't always start at 0 so that
-	// some shards may never be sent in a busy collector.
-	shardOffset := 0
 
 	for {
 		select {
@@ -519,26 +519,16 @@ func (e *Exporter) Run(ctx context.Context) error {
 			// If this becomes a problem (especially when we grow maximum batch size), consider
 			// adding a heuristic to send partial batches in favor of limiting the number of
 			// shards they span.
-			i := 0
-			for ; i < len(e.shards); i++ {
-				shardOffset = (shardOffset + 1) % len(e.shards)
-				shard := e.shards[shardOffset]
-
-				if took := shard.fill(batch); took > 0 {
-					pendingShards = append(pendingShards, shard)
-				}
-				if batch.full() {
+			for _, shard := range e.shards {
+				shard.fill(curBatch)
+				if curBatch.full() {
 					send()
 				}
-			}
-			// If we didn't make a full pass over all shards, there may be more work.
-			if i < len(e.shards) {
-				e.triggerNext()
 			}
 
 		case <-timer.C:
 			// Flush batch that has been pending for too long.
-			if !batch.empty() {
+			if !curBatch.empty() {
 				send()
 			} else {
 				timer.Reset(batchDelayMax)
@@ -703,6 +693,7 @@ type batch struct {
 	maxSize uint
 
 	m       map[string][]*monitoring_pb.TimeSeries
+	shards  []*shard
 	oneFull bool
 	total   int
 }
@@ -715,7 +706,12 @@ func newBatch(logger log.Logger, maxSize uint) *batch {
 		logger:  logger,
 		maxSize: maxSize,
 		m:       make(map[string][]*monitoring_pb.TimeSeries, 1),
+		shards:  make([]*shard, 0, shardCount/2),
 	}
+}
+
+func (b *batch) addShard(s *shard) {
+	b.shards = append(b.shards, s)
 }
 
 // add a new sample to the batch. Must only be called after full() returned false.
@@ -756,7 +752,6 @@ func (b *batch) empty() bool {
 // requests have completed and notifies the pending shards.
 func (b batch) send(
 	ctx context.Context,
-	pendingShards []*shard,
 	sendOne func(context.Context, *monitoring_pb.CreateTimeSeriesRequest, ...gax.CallOption) error,
 ) {
 	// Set timeout so slow requests in the batch do not block overall progress indefinitely.
@@ -791,7 +786,7 @@ func (b batch) send(
 	}
 	wg.Wait()
 
-	for _, s := range pendingShards {
+	for _, s := range b.shards {
 		s.notifyDone()
 	}
 }
