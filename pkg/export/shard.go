@@ -58,7 +58,7 @@ func (s *shard) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
 
 // fill adds samples to the batch until its capacity is reached or the shard
 // has no more samples for series that are not in the batch yet.
-func (s *shard) fill(batch *batch) int {
+func (s *shard) fill(batch *batch) (took, remaining int) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -66,7 +66,7 @@ func (s *shard) fill(batch *batch) int {
 
 	if s.pending {
 		shardProcessPending.Inc()
-		return 0
+		return 0, s.queue.length()
 	}
 	n := 0
 
@@ -90,6 +90,7 @@ func (s *shard) fill(batch *batch) int {
 
 	if n > 0 {
 		s.setPending(true)
+		batch.addShard(s)
 		shardProcessSamplesTaken.Observe(float64(n))
 	}
 	// Clear seen cache. Because the shard is now pending, we won't add any more data
@@ -97,7 +98,7 @@ func (s *shard) fill(batch *batch) int {
 	for k := range s.seen {
 		delete(s.seen, k)
 	}
-	return n
+	return n, s.queue.length()
 }
 
 func (s *shard) setPending(b bool) {

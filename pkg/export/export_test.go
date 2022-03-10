@@ -17,18 +17,26 @@ package export
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"github.com/go-kit/kit/log"
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/go-cmp/cmp"
 	gax "github.com/googleapis/gax-go/v2"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/pkg/textparse"
+	"github.com/prometheus/prometheus/tsdb/record"
+	"google.golang.org/api/option"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
+	empty_pb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestBatchAdd(t *testing.T) {
@@ -110,7 +118,7 @@ func TestBatchFillFromShardsAndSend(t *testing.T) {
 		mtx.Unlock()
 		return nil
 	}
-	b.send(context.Background(), shards, sendOne)
+	b.send(context.Background(), sendOne)
 
 	if want := 10000; receivedSamples != want {
 		t.Fatalf("unexpected number of received samples (want=%d, got=%d)", want, receivedSamples)
@@ -312,5 +320,70 @@ func TestExporter_wrapMetadata(t *testing.T) {
 				t.Fatalf("unexpected metadata (-want,+got): %s", diff)
 			}
 		})
+	}
+}
+
+type testMetricService struct {
+	monitoring_pb.MetricServiceServer // Inherit all interface methods
+	samples                           []*monitoring_pb.TimeSeries
+}
+
+func (srv *testMetricService) CreateTimeSeries(ctx context.Context, req *monitoring_pb.CreateTimeSeriesRequest) (*empty_pb.Empty, error) {
+	srv.samples = append(srv.samples, req.TimeSeries...)
+	return &empty_pb.Empty{}, nil
+}
+
+func TestExporter_drainBacklog(t *testing.T) {
+	var (
+		srv          = grpc.NewServer()
+		listener     = bufconn.Listen(1e6)
+		metricServer = &testMetricService{}
+	)
+	monitoring_pb.RegisterMetricServiceServer(srv, metricServer)
+
+	go srv.Serve(listener)
+	defer srv.Stop()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}
+	metricClient, err := monitoring.NewMetricClient(ctx,
+		option.WithoutAuthentication(),
+		option.WithGRPCDialOption(grpc.WithInsecure()),
+		option.WithGRPCDialOption(grpc.WithContextDialer(bufDialer)),
+	)
+	if err != nil {
+		t.Fatalf("Creating metric client failed: %s", err)
+	}
+
+	e, err := New(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{})
+	if err != nil {
+		t.Fatalf("Creating Exporter failed: %s", err)
+	}
+	e.metricClient = metricClient
+
+	e.SetLabelsByIDFunc(func(i uint64) labels.Labels {
+		return labels.FromStrings("project_id", "test", "location", "test")
+	})
+
+	// Fill a single shard with samples.
+	for i := 0; i < 50; i++ {
+		e.Export(nil, []record.RefSample{
+			{Ref: 1, T: int64(i), V: float64(i)},
+		})
+	}
+
+	go e.Run(ctx)
+	// As our samples are all for the same series, each batch can only contain a single sample.
+	// The exporter waits for the batch delay duration before sending it.
+	// We sleep for an appropriate multiple of it to allow it to drain the shard.
+	time.Sleep(55 * batchDelayMax)
+
+	// Check that we received all samples that went in.
+	if got, want := len(metricServer.samples), 50; got != want {
+		t.Fatalf("got %d, want %d", got, want)
 	}
 }
