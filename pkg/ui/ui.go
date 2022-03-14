@@ -57,7 +57,7 @@ func Handler(externalURL *url.URL) http.Handler {
 				return
 			}
 			idx = bytes.ReplaceAll(idx, []byte("CONSOLES_LINK_PLACEHOLDER"), []byte(""))
-			idx = bytes.ReplaceAll(idx, []byte("TITLE_PLACEHOLDER"), []byte("Google Cloud Prometheus Engine"))
+			idx = bytes.ReplaceAll(idx, []byte("TITLE_PLACEHOLDER"), []byte("Google Cloud Managed Service for Prometheus"))
 
 			w.Write(idx)
 		})
