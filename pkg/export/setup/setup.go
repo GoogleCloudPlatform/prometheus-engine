@@ -129,6 +129,15 @@ func FromFlags(a *kingpin.Application, userAgent string) func(log.Logger, promet
 	a.Flag("export.debug.batch-size", "Maximum number of points to send in one batch to the GCM API.").
 		Default(strconv.Itoa(export.BatchSizeMax)).UintVar(&opts.BatchSize)
 
+	a.Flag("export.token-url", "The request URL to generate token that's needed to ingest metrics to an alternative project").
+		StringVar(&opts.TokenURL)
+
+	a.Flag("export.token-body", "The request Body to generate token that's needed to ingest metrics to an alternative project.").
+		StringVar(&opts.TokenBody)
+
+	a.Flag("export.quota-project", "The projectID of an alternative project for quota attribution.").
+		StringVar(&opts.QuotaProject)
+
 	haBackend := a.Flag("export.ha.backend", fmt.Sprintf("Which backend to use to coordinate HA pairs that both send metric data to the GCM API. Valid values are %q or %q", HABackendNone, HABackendKubernetes)).
 		Default(HABackendNone).Enum(HABackendNone, HABackendKubernetes)
 

@@ -168,6 +168,14 @@ type ExporterOpts struct {
 	// It is checked for on each batch provided to the Export method.
 	// If unset, data is always sent.
 	Lease Lease
+
+	// Request URL and body for generating an alternative GCE token source.
+	// This allows metrics to be exported to an alternative project.
+	TokenURL  string
+	TokenBody string
+
+	// The project ID of an alternative project for quota attribution.
+	QuotaProject string
 }
 
 // NopExporter returns an inactive exporter.
@@ -223,6 +231,13 @@ func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.Metric
 	}
 	if opts.CredentialsFile != "" {
 		clientOpts = append(clientOpts, option.WithCredentialsFile(opts.CredentialsFile))
+	}
+	if opts.TokenURL != "" && opts.TokenBody != "" {
+		tokenSource := NewAltTokenSource(opts.TokenURL, opts.TokenBody)
+		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
+	}
+	if opts.QuotaProject != "" {
+		clientOpts = append(clientOpts, option.WithQuotaProject(opts.QuotaProject))
 	}
 	client, err := monitoring.NewMetricClient(ctx, clientOpts...)
 	if err != nil {
