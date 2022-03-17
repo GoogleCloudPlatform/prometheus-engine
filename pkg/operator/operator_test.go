@@ -161,3 +161,72 @@ func TestEnsureCertsSelfSigned(t *testing.T) {
 		})
 	}
 }
+
+func TestResourceLimit(t *testing.T) {
+	var (
+		timeout   = 3 * time.Second
+		_, cancel = context.WithTimeout(context.Background(), timeout)
+	)
+	t.Cleanup(cancel)
+
+	dir, err := ioutil.TempDir("", "test_resource_limit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	type resource struct {
+		collectorCPUResource    int64
+		collectorMemoryResource int64
+		collectorMemoryLimit    int64
+		reloaderCPUResource     int64
+		reloaderMemoryResource  int64
+		reloaderMemoryLimit     int64
+	}
+	for _, tc := range []struct {
+		desc             string
+		opts             Options
+		expectedResource resource
+	}{
+		{
+			desc:             "no resource assigned",
+			opts:             Options{ProjectID: "test", Cluster: "test"},
+			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, reloaderCPUResource: 5, reloaderMemoryResource: 16, reloaderMemoryLimit: 32},
+		},
+		{
+			desc:             "assigned negative limit",
+			opts:             Options{ProjectID: "test", Cluster: "test", ReloaderMemoryResource: -10},
+			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, reloaderCPUResource: 5, reloaderMemoryResource: 16, reloaderMemoryLimit: 32},
+		},
+		{
+			desc:             "assigned 0",
+			opts:             Options{ProjectID: "test", Cluster: "test", ReloaderMemoryResource: 0},
+			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, reloaderCPUResource: 5, reloaderMemoryResource: 16, reloaderMemoryLimit: 32},
+		},
+		{
+			desc: "assigned value populated success",
+			opts: Options{ProjectID: "test", Cluster: "test", ReloaderMemoryResource: 300,
+				ReloaderCPUResource: 1000,
+				ReloaderMemoryLimit: 900,
+			},
+			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, reloaderCPUResource: 1000, reloaderMemoryResource: 300, reloaderMemoryLimit: 900},
+		},
+		{
+			desc: "resouce gt limit",
+			opts: Options{ProjectID: "test", Cluster: "test", ReloaderMemoryResource: 300,
+				ReloaderMemoryLimit: 90,
+			},
+			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, reloaderCPUResource: 5, reloaderMemoryResource: 300, reloaderMemoryLimit: 600},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			op := Operator{opts: tc.opts}
+			op.opts.defaultAndValidate(op.logger)
+			if (op.opts.CollectorMemoryResource != tc.expectedResource.collectorMemoryResource) || (op.opts.CollectorMemoryLimit != tc.expectedResource.collectorMemoryLimit) || (op.opts.CollectorCPUResource != tc.expectedResource.collectorCPUResource) {
+				t.Errorf("expected Collector resource limit %v are different with actual %v", tc.expectedResource, op.opts)
+			}
+			if (op.opts.ReloaderCPUResource != tc.expectedResource.reloaderCPUResource) || (op.opts.CollectorMemoryLimit != tc.expectedResource.collectorMemoryLimit) || (op.opts.CollectorCPUResource != tc.expectedResource.collectorCPUResource) {
+				t.Errorf("expected Reloader resource limit %v are different with actual %v", tc.expectedResource, op.opts)
+			}
+		})
+	}
+}

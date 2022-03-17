@@ -322,12 +322,12 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewScaledQuantity(100, resource.Milli),
-								corev1.ResourceMemory: *resource.NewScaledQuantity(200, resource.Mega),
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(r.opts.CollectorCPUResource, resource.Milli),
+								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.CollectorMemoryResource, resource.Mega),
 							},
 							// Set no limit on CPU as it's a throttled resource.
 							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(3000, resource.Mega),
+								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.CollectorMemoryLimit, resource.Mega),
 							},
 						},
 					}, {
@@ -365,12 +365,12 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewScaledQuantity(5, resource.Milli),
-								corev1.ResourceMemory: *resource.NewScaledQuantity(16, resource.Mega),
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(r.opts.ReloaderCPUResource, resource.Milli),
+								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.ReloaderMemoryResource, resource.Mega),
 							},
 							// Set no limit on CPU as it's a throttled resource.
 							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
+								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.CollectorMemoryLimit, resource.Mega),
 							},
 						},
 					},
