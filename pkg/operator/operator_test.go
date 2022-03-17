@@ -161,6 +161,7 @@ func TestEnsureCertsSelfSigned(t *testing.T) {
 		})
 	}
 }
+<<<<<<< HEAD
 
 func TestResourceLimit(t *testing.T) {
 	var (
@@ -272,3 +273,5 @@ func TestResourceLimit(t *testing.T) {
 		})
 	}
 }
+=======
+>>>>>>> 52e69a54 (Revert "parametrize daemonset resource and limit")
