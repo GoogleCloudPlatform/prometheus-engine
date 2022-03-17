@@ -131,19 +131,6 @@ type Options struct {
 	CloudMonitoringEndpoint string
 	// Webhook serving address.
 	ListenAddr string
-
-	// Collector memory resource
-	CollectorMemoryResource int64
-	// Collector CPU resource
-	CollectorCPUResource int64
-	// Collector memory limit
-	CollectorMemoryLimit int64
-	// Reloader memory resource
-	ReloaderMemoryResource int64
-	// Reloader CPU resource
-	ReloaderCPUResource int64
-	// Reloader memory limit
-	ReloaderMemoryLimit int64
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -189,25 +176,6 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	if o.ImageRuleEvaluator != ImageRuleEvaluator {
 		logger.Info("not using the canonical rule-evaluator image",
 			"expected", ImageRuleEvaluator, "got", o.ImageRuleEvaluator)
-	}
-	if o.CollectorCPUResource <= 0 {
-		o.CollectorCPUResource = 100
-	}
-	if o.CollectorMemoryResource <= 0 {
-		o.CollectorMemoryResource = 200
-	}
-	if o.CollectorMemoryLimit <= o.CollectorMemoryResource {
-		o.CollectorMemoryLimit = o.CollectorMemoryResource * 15
-	}
-
-	if o.ReloaderCPUResource <= 0 {
-		o.ReloaderCPUResource = 5
-	}
-	if o.ReloaderMemoryResource <= 0 {
-		o.ReloaderMemoryResource = 16
-	}
-	if o.ReloaderMemoryLimit <= o.ReloaderMemoryResource {
-		o.ReloaderMemoryLimit = o.ReloaderMemoryResource * 2
 	}
 	return nil
 }
