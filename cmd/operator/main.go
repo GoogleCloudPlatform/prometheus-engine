@@ -81,13 +81,6 @@ func main() {
 		webhookAddr = flag.String("webhook-addr", ":8443",
 			"Address to listen to for incoming kube admission webhook connections.")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
-
-		collectorMemoryResource = flag.Int64("collector-memory-resource", 200, "The Memory Resource of collector pod.")
-		collectorMemoryLimit    = flag.Int64("collector-memory-limit", 3000, "The Memory Limit of collector pod.")
-		collectorCPUResource    = flag.Int64("collector-cpu-resource", 100, "The CPU Resource of collector pod.")
-		reloaderMemoryResource  = flag.Int64("collector-reloader-resource", 16, "The Memory Resource of reloader pod.")
-		reloaderMemoryLimit     = flag.Int64("reloader-memory-limit", 3000, "The Memory Limit of reloader pod.")
-		reloaderCPUResource     = flag.Int64("collector-reloader-resource", 5, "The CPU Resource of reloader pod.")
 	)
 	flag.Parse()
 
@@ -122,12 +115,6 @@ func main() {
 		TLSKey:                  *tlsKey,
 		CACert:                  *caCert,
 		ListenAddr:              *webhookAddr,
-		CollectorMemoryResource: *collectorMemoryResource,
-		CollectorMemoryLimit:    *collectorMemoryLimit,
-		CollectorCPUResource:    *collectorCPUResource,
-		ReloaderCPUResource:     *reloaderCPUResource,
-		ReloaderMemoryResource:  *reloaderMemoryResource,
-		ReloaderMemoryLimit:     *reloaderMemoryLimit,
 	})
 	if err != nil {
 		logger.Error(err, "instantiating operator failed")
