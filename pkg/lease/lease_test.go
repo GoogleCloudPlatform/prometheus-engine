@@ -59,10 +59,7 @@ func TestWrappedLock_Update(t *testing.T) {
 			wl := &wrappedLock{}
 
 			wl.update(c.record, c.err)
-			start, end, ok := wl.Range()
-			if ok != c.wantOK {
-				t.Fatalf("unexpected 'ok': want %v, got %v", c.wantOK, ok)
-			}
+			start, end := wl.lastRange()
 			if !start.Equal(c.wantStart) {
 				t.Fatalf("unexpected 'start: want %v, got %v", c.wantStart, start)
 			}
