@@ -131,8 +131,6 @@ type Options struct {
 	CloudMonitoringEndpoint string
 	// Webhook serving address.
 	ListenAddr string
-<<<<<<< HEAD
-
 	// Collector memory resource
 	CollectorMemoryResource int64
 	// Collector CPU resource
@@ -145,8 +143,6 @@ type Options struct {
 	EvaluatorCPUResource int64
 	// Evaluator memory limit
 	EvaluatorMemoryLimit int64
-=======
->>>>>>> 52e69a54 (Revert "parametrize daemonset resource and limit")
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -193,7 +189,6 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		logger.Info("not using the canonical rule-evaluator image",
 			"expected", ImageRuleEvaluator, "got", o.ImageRuleEvaluator)
 	}
-<<<<<<< HEAD
 	if o.CollectorCPUResource <= 0 {
 		o.CollectorCPUResource = 100
 	}
@@ -206,6 +201,7 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		} else {
 			o.CollectorMemoryLimit = o.CollectorMemoryResource * 2
 		}
+		o.CollectorMemoryLimit = o.CollectorMemoryResource * 15
 	}
 
 	if o.EvaluatorCPUResource <= 0 {
@@ -217,8 +213,6 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	if o.EvaluatorMemoryLimit <= o.EvaluatorMemoryResource {
 		o.EvaluatorMemoryLimit = o.EvaluatorMemoryResource * 15
 	}
-=======
->>>>>>> 52e69a54 (Revert "parametrize daemonset resource and limit")
 	return nil
 }
 
