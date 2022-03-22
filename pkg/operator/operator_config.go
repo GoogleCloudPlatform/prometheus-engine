@@ -395,12 +395,12 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewScaledQuantity(100, resource.Milli),
-								corev1.ResourceMemory: *resource.NewScaledQuantity(200, resource.Mega),
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(r.opts.EvaluatorCPUResource, resource.Milli),
+								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.EvaluatorMemoryResource, resource.Mega),
 							},
 							// Set no limit on CPU as it's a throttled resource.
 							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(1, resource.Giga),
+								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.EvaluatorMemoryLimit, resource.Mega),
 							},
 						},
 					}, {

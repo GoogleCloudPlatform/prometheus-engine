@@ -82,12 +82,12 @@ func main() {
 			"Address to listen to for incoming kube admission webhook connections.")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
 
-		collectorMemoryResource = flag.Int64("collector-memory-resource", 200, "The Memory Resource of collector pod.")
-		collectorMemoryLimit    = flag.Int64("collector-memory-limit", 3000, "The Memory Limit of collector pod.")
-		collectorCPUResource    = flag.Int64("collector-cpu-resource", 100, "The CPU Resource of collector pod.")
-		reloaderMemoryResource  = flag.Int64("collector-reloader-resource", 16, "The Memory Resource of reloader pod.")
-		reloaderMemoryLimit     = flag.Int64("reloader-memory-limit", 3000, "The Memory Limit of reloader pod.")
-		reloaderCPUResource     = flag.Int64("collector-reloader-resource", 5, "The CPU Resource of reloader pod.")
+		collectorMemoryResource = flag.Int64("collector-memory-resource", 200, "The Memory Resource of collector pod, in mega bytes")
+		collectorMemoryLimit    = flag.Int64("collector-memory-limit", 3000, "The Memory Limit of collector pod, in mega bytes.")
+		collectorCPUResource    = flag.Int64("collector-cpu-resource", 100, "The CPU Resource of collector pod, in milli cpu.")
+		evaluatorMemoryResource = flag.Int64("collector-evaluator-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
+		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytesv.")
+		evaluatorCPUResource    = flag.Int64("collector-evaluator-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
 	)
 	flag.Parse()
 
@@ -125,9 +125,9 @@ func main() {
 		CollectorMemoryResource: *collectorMemoryResource,
 		CollectorMemoryLimit:    *collectorMemoryLimit,
 		CollectorCPUResource:    *collectorCPUResource,
-		ReloaderCPUResource:     *reloaderCPUResource,
-		ReloaderMemoryResource:  *reloaderMemoryResource,
-		ReloaderMemoryLimit:     *reloaderMemoryLimit,
+		EvaluatorCPUResource:    *evaluatorCPUResource,
+		EvaluatorMemoryResource: *evaluatorMemoryResource,
+		EvaluatorMemoryLimit:    *evaluatorMemoryLimit,
 	})
 	if err != nil {
 		logger.Error(err, "instantiating operator failed")
