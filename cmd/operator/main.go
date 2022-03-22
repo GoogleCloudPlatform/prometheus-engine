@@ -82,12 +82,12 @@ func main() {
 			"Address to listen to for incoming kube admission webhook connections.")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
 
-		collectorMemoryResource = flag.Int64("collector-memory-resource", 200, "The minimum memory resource requests required of collector pod, in MB")
-		collectorMemoryLimit    = flag.Int64("collector-memory-limit", 3000, "The memory limit of collector pod, in MB.")
-		collectorCPUResource    = flag.Int64("collector-cpu-resource", 100, "The minimum CPU resource requests required of collector pod, in milli cpu.")
-		evaluatorMemoryResource = flag.Int64("evaluator-memory-resource", 200, "The minimum memory resource of evaluator pod, in MB.")
-		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The memory limit of evaluator pod, in MB.")
-		evaluatorCPUResource    = flag.Int64("evaluator-cpu-resource", 100, "The minimum CPU resource requests required of evaluator pod, in milli cpu.")
+		collectorMemoryResource = flag.Int64("collector-memory-resource", 200, "The Memory Resource of collector pod, in mega bytes")
+		collectorMemoryLimit    = flag.Int64("collector-memory-limit", 3000, "The Memory Limit of collector pod, in mega bytes.")
+		collectorCPUResource    = flag.Int64("collector-cpu-resource", 100, "The CPU Resource of collector pod, in milli cpu.")
+		evaluatorMemoryResource = flag.Int64("collector-evaluator-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
+		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytesv.")
+		evaluatorCPUResource    = flag.Int64("collector-evaluator-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
 	)
 	flag.Parse()
 

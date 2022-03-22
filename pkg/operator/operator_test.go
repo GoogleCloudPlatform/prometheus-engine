@@ -161,7 +161,6 @@ func TestEnsureCertsSelfSigned(t *testing.T) {
 		})
 	}
 }
-<<<<<<< HEAD
 
 func TestResourceLimit(t *testing.T) {
 	var (
@@ -259,6 +258,34 @@ func TestResourceLimit(t *testing.T) {
 				evaluatorCPUResource:    100,
 				evaluatorMemoryResource: 300,
 				evaluatorMemoryLimit:    600},
+			desc:             "no resource assigned",
+			opts:             Options{ProjectID: "test", Cluster: "test"},
+			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, evaluatorCPUResource: 100, evaluatorMemoryResource: 200, evaluatorMemoryLimit: 1000},
+		},
+		{
+			desc:             "assigned negative limit",
+			opts:             Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: -10},
+			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, evaluatorCPUResource: 100, evaluatorMemoryResource: 200, evaluatorMemoryLimit: 1000},
+		},
+		{
+			desc:             "assigned 0",
+			opts:             Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: 0},
+			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, evaluatorCPUResource: 100, evaluatorMemoryResource: 200, evaluatorMemoryLimit: 1000},
+		},
+		{
+			desc: "assigned value populated success",
+			opts: Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: 300,
+				EvaluatorCPUResource: 1000,
+				EvaluatorMemoryLimit: 900,
+			},
+			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, evaluatorCPUResource: 1000, evaluatorMemoryResource: 300, evaluatorMemoryLimit: 900},
+		},
+		{
+			desc: "resouce gt limit",
+			opts: Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: 300,
+				EvaluatorMemoryLimit: 90,
+			},
+			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, evaluatorCPUResource: 100, evaluatorMemoryResource: 300, evaluatorMemoryLimit: 600},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -273,5 +300,3 @@ func TestResourceLimit(t *testing.T) {
 		})
 	}
 }
-=======
->>>>>>> 52e69a54 (Revert "parametrize daemonset resource and limit")
