@@ -129,10 +129,10 @@ func FromFlags(a *kingpin.Application, userAgent string) func(log.Logger, promet
 	a.Flag("export.debug.batch-size", "Maximum number of points to send in one batch to the GCM API.").
 		Default(strconv.Itoa(export.BatchSizeMax)).UintVar(&opts.BatchSize)
 
-	a.Flag("export.token-url", "The request URL to generate token that's needed to ingest metrics to an alternative project").
+	a.Flag("export.token-url", "The request URL to generate token that's needed to ingest metrics to the project").
 		StringVar(&opts.TokenURL)
 
-	a.Flag("export.token-body", "The request Body to generate token that's needed to ingest metrics to an alternative project.").
+	a.Flag("export.token-body", "The request Body to generate token that's needed to ingest metrics to the project.").
 		StringVar(&opts.TokenBody)
 
 	a.Flag("export.quota-project", "The projectID of an alternative project for quota attribution.").
