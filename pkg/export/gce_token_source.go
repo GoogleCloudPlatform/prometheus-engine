@@ -22,10 +22,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/time/rate"
 	"google.golang.org/api/googleapi"
-	"k8s.io/client-go/util/flowcontrol"
 )
 
 const (
@@ -40,12 +41,17 @@ type AltTokenSource struct {
 	oauthClient *http.Client
 	tokenURL    string
 	tokenBody   string
-	throttle    flowcontrol.RateLimiter
+	throttle    *rate.Limiter
 }
 
 // Token returns a token which may be used for authentication
 func (a *AltTokenSource) Token() (*oauth2.Token, error) {
-	a.throttle.Accept()
+	r := a.throttle.Reserve()
+	if !r.OK() {
+		return nil, errors.Errorf("Rate limiter (rate: %f, burst: %d) cannot provide the requested token.",
+			a.throttle.Limit(), a.throttle.Burst())
+	}
+	time.Sleep(r.Delay())
 	return a.token()
 }
 func (a *AltTokenSource) token() (*oauth2.Token, error) {
@@ -81,7 +87,7 @@ func NewAltTokenSource(tokenURL, tokenBody string) oauth2.TokenSource {
 		oauthClient: client,
 		tokenURL:    tokenURL,
 		tokenBody:   tokenBody,
-		throttle:    flowcontrol.NewTokenBucketRateLimiter(tokenURLQPS, tokenURLBurst),
+		throttle:    rate.NewLimiter(tokenURLQPS, tokenURLBurst),
 	}
 	return oauth2.ReuseTokenSource( /* token */ nil, a)
 }
