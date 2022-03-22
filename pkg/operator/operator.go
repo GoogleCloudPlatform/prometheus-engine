@@ -138,12 +138,12 @@ type Options struct {
 	CollectorCPUResource int64
 	// Collector memory limit
 	CollectorMemoryLimit int64
-	// Reloader memory resource
-	ReloaderMemoryResource int64
-	// Reloader CPU resource
-	ReloaderCPUResource int64
-	// Reloader memory limit
-	ReloaderMemoryLimit int64
+	// Evaluator memory resource
+	EvaluatorMemoryResource int64
+	// Evaluator CPU resource
+	EvaluatorCPUResource int64
+	// Evaluator memory limit
+	EvaluatorMemoryLimit int64
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -200,14 +200,14 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		o.CollectorMemoryLimit = o.CollectorMemoryResource * 15
 	}
 
-	if o.ReloaderCPUResource <= 0 {
-		o.ReloaderCPUResource = 5
+	if o.EvaluatorCPUResource <= 0 {
+		o.EvaluatorCPUResource = 100
 	}
-	if o.ReloaderMemoryResource <= 0 {
-		o.ReloaderMemoryResource = 16
+	if o.EvaluatorMemoryResource <= 0 {
+		o.EvaluatorMemoryResource = 200
 	}
-	if o.ReloaderMemoryLimit <= o.ReloaderMemoryResource {
-		o.ReloaderMemoryLimit = o.ReloaderMemoryResource * 2
+	if o.EvaluatorMemoryLimit <= o.EvaluatorMemoryResource {
+		o.EvaluatorMemoryLimit = o.EvaluatorMemoryResource * 15
 	}
 	return nil
 }
