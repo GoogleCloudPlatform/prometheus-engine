@@ -64,6 +64,40 @@ rules:
   verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gmp-system
+  name: operator
+rules:
+- apiGroups: [""]
+  resources:
+  - secrets
+  verbs: ["create", "patch", "update"]
+  resourceNames:
+  - collection
+  - rules
+- apiGroups: [""]
+  resources:
+  - configmaps
+  verbs: ["create", "patch", "update"]
+  resourceNames:
+  - collector
+  - rule-evaluator
+  - rules-generated
+- apiGroups: ["apps"]
+  resources:
+  - daemonsets
+  verbs: ["create", "patch", "update"]
+  resourceNames:
+  - collector
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  verbs: ["create", "patch", "update"]
+  resourceNames:
+  - rule-evaluator
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: gmp-system:operator
@@ -72,12 +106,12 @@ rules:
   resources:
   - configmaps
   - secrets
-  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["apps"]
   resources:
   - daemonsets
   - deployments
-  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["admissionregistration.k8s.io"]
   resources:
   - validatingwebhookconfigurations
@@ -121,6 +155,19 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   namespace: gmp-system
+  name: operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: gmp-system
+  name: operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: operator
+subjects:
+- kind: ServiceAccount
   name: operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
