@@ -80,6 +80,9 @@ const (
 	KubernetesAppName    = "app"
 	CollectorAppName     = "managed-prometheus-collector"
 	RuleEvaluatorAppName = "managed-prometheus-rule-evaluator"
+
+	// The operator version, will be exposed as part of the user agent information.
+	Version = "0.3.3"
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.
@@ -143,6 +146,8 @@ type Options struct {
 	EvaluatorCPUResource int64
 	// Evaluator memory limit
 	EvaluatorMemoryLimit int64
+	// Environment Operator runs on.
+	OperatorEnv string
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -212,6 +217,9 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	}
 	if o.EvaluatorMemoryLimit <= o.EvaluatorMemoryResource {
 		o.EvaluatorMemoryLimit = o.EvaluatorMemoryResource * 15
+	}
+	if o.OperatorEnv == "" {
+		o.OperatorEnv = "prod"
 	}
 	return nil
 }
