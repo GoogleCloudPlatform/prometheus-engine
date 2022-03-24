@@ -197,7 +197,11 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		o.CollectorMemoryResource = 200
 	}
 	if o.CollectorMemoryLimit <= o.CollectorMemoryResource {
-		o.CollectorMemoryLimit = o.CollectorMemoryResource * 15
+		if o.CollectorMemoryResource*2 < 3000 {
+			o.CollectorMemoryLimit = 3000
+		} else {
+			o.CollectorMemoryLimit = o.CollectorMemoryResource * 2
+		}
 	}
 
 	if o.EvaluatorCPUResource <= 0 {
