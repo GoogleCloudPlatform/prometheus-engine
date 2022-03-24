@@ -320,6 +320,11 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 	if r.opts.CloudMonitoringEndpoint != "" {
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
 	}
+
+	if r.opts.OperatorEnv != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=Prometheus-Rule-Evaluator/%s/%s", Version, r.opts.OperatorEnv))
+
+	}
 	// If no explicit project ID is set, use the one provided to the operator. On GKE the rule-evaluator
 	// can also auto-detect the cluster's project but this won't work in other Kubernetes environments.
 	queryProjectID := r.opts.ProjectID
