@@ -4,7 +4,6 @@ go 1.17
 
 require (
 	cloud.google.com/go v0.83.0
-	github.com/go-kit/kit v0.10.0
 	github.com/go-kit/log v0.1.0
 	github.com/go-logr/logr v0.4.0
 	github.com/golang/protobuf v1.5.2
@@ -62,6 +61,7 @@ require (
 	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
 	github.com/evanphx/json-patch v4.11.0+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
+	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.0 // indirect
 	github.com/go-logr/zapr v0.4.0 // indirect
 	github.com/go-openapi/analysis v0.20.0 // indirect
