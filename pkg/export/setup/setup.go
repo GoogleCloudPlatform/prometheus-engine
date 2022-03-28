@@ -23,7 +23,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/lease"
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"

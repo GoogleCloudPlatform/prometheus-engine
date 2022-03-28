@@ -23,8 +23,8 @@ import (
 	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	gax "github.com/googleapis/gax-go/v2"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/pkg/errors"

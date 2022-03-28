@@ -24,7 +24,7 @@ import (
 	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/go-cmp/cmp"
 	gax "github.com/googleapis/gax-go/v2"
