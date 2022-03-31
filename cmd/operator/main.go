@@ -87,7 +87,7 @@ func main() {
 		collectorCPUResource    = flag.Int64("collector-cpu-resource", 100, "The CPU Resource of collector pod, in milli cpu.")
 		evaluatorMemoryResource = flag.Int64("collector-evaluator-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
 		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytesv.")
-		evaluatorCPUResource    = flag.Int64("collector-evaluator-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
+		evaluatorCPUResource    = flag.Int64("evaluator-cpu-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
 	)
 	flag.Parse()
 
