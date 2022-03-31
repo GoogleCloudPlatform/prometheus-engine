@@ -85,7 +85,7 @@ func main() {
 		collectorMemoryResource = flag.Int64("collector-memory-resource", 200, "The Memory Resource of collector pod, in mega bytes")
 		collectorMemoryLimit    = flag.Int64("collector-memory-limit", 3000, "The Memory Limit of collector pod, in mega bytes.")
 		collectorCPUResource    = flag.Int64("collector-cpu-resource", 100, "The CPU Resource of collector pod, in milli cpu.")
-		evaluatorMemoryResource = flag.Int64("collector-evaluator-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
+		evaluatorMemoryResource = flag.Int64("evaluator-memory-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
 		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytesv.")
 		evaluatorCPUResource    = flag.Int64("evaluator-cpu-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
 	)
