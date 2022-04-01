@@ -88,7 +88,7 @@ update_crdgen() {
 
   # Currently this will regenerate the status section of the CRD, which is
   # not ideal.
-  # There is an open issue: https://github.com/kubernetes-sigs/controller-tools/issues/456
+  # There is an open issue: https://github.com/kubernetes-sigs/controller-tools/issues/456.
   # Until then, we have to manually delete the status field in the generated CRD yamls.
   controller-gen crd paths=./$API_DIR output:crd:dir=$CRD_DIR
 
