@@ -167,7 +167,7 @@ func FromFlags(a *kingpin.Application, userAgent string) func(log.Logger, promet
 				return nil, errors.Wrap(err, "set up Kubernetes lease")
 			}
 		default:
-			return nil, errors.Errorf("unexpected HA backend %q", haBackend)
+			return nil, errors.Errorf("unexpected HA backend %q", *haBackend)
 		}
 		return export.New(logger, metrics, opts)
 	}
