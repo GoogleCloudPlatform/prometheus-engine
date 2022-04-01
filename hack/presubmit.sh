@@ -86,6 +86,10 @@ update_crdgen() {
   API_DIR=${SCRIPT_ROOT}/pkg/operator/apis/...
   CRD_DIR=${SCRIPT_ROOT}/cmd/operator/deploy/crds
 
+  # Currently this will regenerate the status section of the CRD, which is
+  # not ideal.
+  # There is an open issue: https://github.com/kubernetes-sigs/controller-tools/issues/456
+  # Until then, we have to manually delete the status field in the generated CRD yamls.
   controller-gen crd paths=./$API_DIR output:crd:dir=$CRD_DIR
 
   CRD_YAMLS=$(find ${CRD_DIR} -iname '*.yaml' | sort)
@@ -120,7 +124,8 @@ update_manifests() {
 }
 
 run_tests() {
-  go test `go list ${SCRIPT_ROOT}/... | grep -v operator/e2e`
+  echo ">>> running unit tests"
+  go test `go list ${SCRIPT_ROOT}/... | grep -v operator/e2e | grep -v export/bench`
 }
 
 reformat() {

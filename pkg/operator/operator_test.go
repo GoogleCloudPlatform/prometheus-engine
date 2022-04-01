@@ -182,7 +182,7 @@ func TestResourceLimit(t *testing.T) {
 		evaluatorMemoryResource int64
 		evaluatorMemoryLimit    int64
 	}
-	for _, tc := range []struct {
+	cases := []struct {
 		desc             string
 		opts             Options
 		expectedResource resource
@@ -258,44 +258,92 @@ func TestResourceLimit(t *testing.T) {
 				evaluatorCPUResource:    100,
 				evaluatorMemoryResource: 300,
 				evaluatorMemoryLimit:    600},
-			desc:             "no resource assigned",
-			opts:             Options{ProjectID: "test", Cluster: "test"},
-			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, evaluatorCPUResource: 100, evaluatorMemoryResource: 200, evaluatorMemoryLimit: 1000},
 		},
 		{
-			desc:             "assigned negative limit",
-			opts:             Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: -10},
-			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, evaluatorCPUResource: 100, evaluatorMemoryResource: 200, evaluatorMemoryLimit: 1000},
+			desc: "no resource assigned",
+			opts: Options{ProjectID: "test", Cluster: "test"},
+			expectedResource: resource{
+				collectorCPUResource:    100,
+				collectorMemoryResource: 200,
+				collectorMemoryLimit:    3000,
+				evaluatorCPUResource:    100,
+				evaluatorMemoryResource: 200,
+				evaluatorMemoryLimit:    1000,
+			},
 		},
 		{
-			desc:             "assigned 0",
-			opts:             Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: 0},
-			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, evaluatorCPUResource: 100, evaluatorMemoryResource: 200, evaluatorMemoryLimit: 1000},
+			desc: "assigned negative limit",
+			opts: Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: -10},
+			expectedResource: resource{
+				collectorCPUResource:    100,
+				collectorMemoryResource: 200,
+				collectorMemoryLimit:    3000,
+				evaluatorCPUResource:    100,
+				evaluatorMemoryResource: 200,
+				evaluatorMemoryLimit:    1000,
+			},
+		},
+		{
+			desc: "assigned 0",
+			opts: Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: 0},
+			expectedResource: resource{
+				collectorCPUResource:    100,
+				collectorMemoryResource: 200,
+				collectorMemoryLimit:    3000,
+				evaluatorCPUResource:    100,
+				evaluatorMemoryResource: 200,
+				evaluatorMemoryLimit:    1000,
+			},
 		},
 		{
 			desc: "assigned value populated success",
-			opts: Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: 300,
-				EvaluatorCPUResource: 1000,
-				EvaluatorMemoryLimit: 900,
+			opts: Options{
+				ProjectID:               "test",
+				Cluster:                 "test",
+				EvaluatorMemoryResource: 300,
+				EvaluatorCPUResource:    1000,
+				EvaluatorMemoryLimit:    900,
 			},
-			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, evaluatorCPUResource: 1000, evaluatorMemoryResource: 300, evaluatorMemoryLimit: 900},
+			expectedResource: resource{
+				collectorCPUResource:    100,
+				collectorMemoryResource: 200,
+				collectorMemoryLimit:    3000,
+				evaluatorCPUResource:    1000,
+				evaluatorMemoryResource: 300,
+				evaluatorMemoryLimit:    900,
+			},
 		},
 		{
 			desc: "resouce gt limit",
-			opts: Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: 300,
-				EvaluatorMemoryLimit: 90,
+			opts: Options{
+				ProjectID:               "test",
+				Cluster:                 "test",
+				EvaluatorMemoryResource: 300,
+				EvaluatorMemoryLimit:    90,
 			},
-			expectedResource: resource{collectorCPUResource: 100, collectorMemoryResource: 200, collectorMemoryLimit: 3000, evaluatorCPUResource: 100, evaluatorMemoryResource: 300, evaluatorMemoryLimit: 600},
+			expectedResource: resource{
+				collectorCPUResource:    100,
+				collectorMemoryResource: 200,
+				collectorMemoryLimit:    3000,
+				evaluatorCPUResource:    100,
+				evaluatorMemoryResource: 300,
+				evaluatorMemoryLimit:    600,
+			},
 		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			op := Operator{opts: tc.opts}
+	}
+	for _, c := range cases {
+		t.Run(c.desc, func(t *testing.T) {
+			op := Operator{opts: c.opts}
 			op.opts.defaultAndValidate(op.logger)
-			if (op.opts.CollectorMemoryResource != tc.expectedResource.collectorMemoryResource) || (op.opts.CollectorMemoryLimit != tc.expectedResource.collectorMemoryLimit) || (op.opts.CollectorCPUResource != tc.expectedResource.collectorCPUResource) {
-				t.Errorf("expected Collector resource limit %v are different with actual %v", tc.expectedResource, op.opts)
+			if (op.opts.CollectorMemoryResource != c.expectedResource.collectorMemoryResource) ||
+				(op.opts.CollectorMemoryLimit != c.expectedResource.collectorMemoryLimit) ||
+				(op.opts.CollectorCPUResource != c.expectedResource.collectorCPUResource) {
+				t.Errorf("expected Collector resource limit %v are different with actual %v", c.expectedResource, op.opts)
 			}
-			if (op.opts.EvaluatorCPUResource != tc.expectedResource.evaluatorCPUResource) || (op.opts.CollectorMemoryLimit != tc.expectedResource.collectorMemoryLimit) || (op.opts.CollectorCPUResource != tc.expectedResource.collectorCPUResource) {
-				t.Errorf("expected Evaluator resource limit %v are different with actual %v", tc.expectedResource, op.opts)
+			if (op.opts.EvaluatorCPUResource != c.expectedResource.evaluatorCPUResource) ||
+				(op.opts.CollectorMemoryLimit != c.expectedResource.collectorMemoryLimit) ||
+				(op.opts.CollectorCPUResource != c.expectedResource.collectorCPUResource) {
+				t.Errorf("expected Evaluator resource limit %v are different with actual %v", c.expectedResource, op.opts)
 			}
 		})
 	}

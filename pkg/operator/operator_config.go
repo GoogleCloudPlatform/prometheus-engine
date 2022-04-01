@@ -352,6 +352,12 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 				Annotations: rulesAnnotations(),
 			},
 			Spec: corev1.PodSpec{
+				// The managed collection binaries are only being built for
+				// amd64 arch on Linux.
+				NodeSelector: map[string]string{
+					corev1.LabelOSStable:   "linux",
+					corev1.LabelArchStable: "amd64",
+				},
 				Containers: []corev1.Container{
 					{
 						Name:  "evaluator",
