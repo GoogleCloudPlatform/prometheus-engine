@@ -72,6 +72,9 @@ spec:
         app: prometheus
         prometheus: test
     spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        kubernetes.io/os: linux
       containers:
       - name: prometheus
         image: gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.7-gke.0
