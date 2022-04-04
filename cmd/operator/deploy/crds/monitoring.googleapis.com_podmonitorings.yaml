@@ -132,6 +132,8 @@ spec:
                       description: Timeout for metrics scrapes. Must be a valid Prometheus
                         duration. Must not be larger then the scrape interval.
                       type: string
+                  required:
+                  - port
                   type: object
                 type: array
               limits:
@@ -226,14 +228,14 @@ spec:
                       type: object
                     type: array
                   metadata:
-                    description: "Pod metadata labels that are set on all scraped
-                      targets. Permitted keys are `pod`, `container`, and `node` for
-                      PodMonitoring and `pod`, `container`, `node`, and `namespace`
-                      for ClusterPodMonitoring. \n Defaults to [pod, container] for
-                      PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring.
-                      If set to null, it will be interpreted as the empty list for
-                      PodMonitoring and to [namespace] for ClusterPodMonitoring. This
-                      is for backwards-compatibility only."
+                    description: Pod metadata labels that are set on all scraped targets.
+                      Permitted keys are `pod`, `container`, and `node` for PodMonitoring
+                      and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring.
+                      Defaults to [pod, container] for PodMonitoring and [namespace,
+                      pod, container] for ClusterPodMonitoring. If set to null, it
+                      will be interpreted as the empty list for PodMonitoring and
+                      to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
+                      only.
                     items:
                       type: string
                     type: array

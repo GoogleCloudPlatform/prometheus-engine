@@ -279,6 +279,12 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 					{Effect: "NoExecute", Operator: "Exists"},
 					{Effect: "NoSchedule", Operator: "Exists"},
 				},
+				// The managed collection binaries are only being built for
+				// amd64 arch on Linux.
+				NodeSelector: map[string]string{
+					corev1.LabelOSStable:   "linux",
+					corev1.LabelArchStable: "amd64",
+				},
 				Containers: []corev1.Container{
 					{
 						Name:  "prometheus",

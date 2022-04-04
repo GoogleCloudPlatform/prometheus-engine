@@ -26,6 +26,9 @@ spec:
       labels:
         app: frontend
     spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
       containers:
       - name: frontend
         image: "gke.gcr.io/prometheus-engine/frontend:v0.3.3-gke.0"

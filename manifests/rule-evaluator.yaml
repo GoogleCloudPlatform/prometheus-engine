@@ -61,6 +61,9 @@ spec:
       labels:
         app.kubernetes.io/name: rule-evaluator
     spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
       containers:
       - name: evaluator
         image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.3.3-gke.0

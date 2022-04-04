@@ -1065,7 +1065,7 @@ type ClusterPodMonitoringSpec struct {
 // ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 type ScrapeEndpoint struct {
 	// Name or number of the port to scrape.
-	Port intstr.IntOrString `json:"port,omitempty"`
+	Port intstr.IntOrString `json:"port"`
 	// Protocol scheme to use to scrape.
 	Scheme string `json:"scheme,omitempty"`
 	// HTTP path to scrape metrics from. Defaults to "/metrics".
@@ -1091,7 +1091,6 @@ type TargetLabels struct {
 	// Pod metadata labels that are set on all scraped targets.
 	// Permitted keys are `pod`, `container`, and `node` for PodMonitoring and
 	// `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring.
-	//
 	// Defaults to [pod, container] for PodMonitoring and [namespace, pod, container]
 	// for ClusterPodMonitoring.
 	// If set to null, it will be interpreted as the empty list for PodMonitoring

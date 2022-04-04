@@ -450,7 +450,7 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| port | Name or number of the port to scrape. | intstr.IntOrString | false |
+| port | Name or number of the port to scrape. | intstr.IntOrString | true |
 | scheme | Protocol scheme to use to scrape. | string | false |
 | path | HTTP path to scrape metrics from. Defaults to \"/metrics\". | string | false |
 | params | HTTP GET params to use when scraping. | map[string][]string | false |
@@ -517,9 +517,7 @@ TargetLabels configures labels for the discovered Prometheus targets.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata | Pod metadata labels that are set on all scraped targets. Permitted keys are `pod`, `container`, and `node` for PodMonitoring and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring.\n\nDefaults to [pod, contain
-er] for PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring. If set to null, it will be interpreted as the empty list for PodMonitoring and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility only.
- | *[]string | false |
+| metadata | Pod metadata labels that are set on all scraped targets. Permitted keys are `pod`, `container`, and `node` for PodMonitoring and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. Defaults to [pod, container] for PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring. If set to null, it will be interpreted as the empty list for PodMonitoring and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility only. | *[]string | false |
 | fromPod | Labels to transfer from the Kubernetes Pod to Prometheus target labels. Mappings are applied in order. | [][LabelMapping](#labelmapping) | false |
 
 [Back to TOC](#table-of-contents)
