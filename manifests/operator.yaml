@@ -162,6 +162,7 @@ spec:
         app.kubernetes.io/part-of: gmp
     spec:
       serviceAccountName: operator
+      automountServiceAccountToken: true
       containers:
       - name: operator
         image: gke.gcr.io/prometheus-engine/operator:v0.3.3-gke.0

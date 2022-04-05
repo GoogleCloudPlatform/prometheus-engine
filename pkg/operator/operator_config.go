@@ -496,9 +496,10 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 				// Collector service account used for K8s endpoints-based SD.
 				// TODO(pintohutch): confirm minimum serviceAccount credentials needed for rule-evaluator
 				// and create dedicated serviceAccount.
-				ServiceAccountName: NameCollector,
-				PriorityClassName:  r.opts.PriorityClass,
-				HostNetwork:        r.opts.HostNetwork,
+				ServiceAccountName:           NameCollector,
+				AutomountServiceAccountToken: &TrueVar,
+				PriorityClassName:            r.opts.PriorityClass,
+				HostNetwork:                  r.opts.HostNetwork,
 			},
 		},
 	}
