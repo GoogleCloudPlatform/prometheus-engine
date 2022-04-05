@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -64,6 +65,8 @@ const (
 	configDir           = "/prometheus/config"
 	configOutVolumeName = "config-out"
 	configFilename      = "config.yaml"
+	storageVolumeName   = "storage"
+	storageDir          = "/prometheus/data"
 
 	// The well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
@@ -522,4 +525,21 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
 	}
 	return o.client.Update(ctx, &mwc)
+}
+
+func minimalSecurityContext() *corev1.SecurityContext {
+	id := int64(1000)
+	t := true
+	f := false
+
+	return &corev1.SecurityContext{
+		RunAsUser:                &id,
+		RunAsGroup:               &id,
+		RunAsNonRoot:             &t,
+		Privileged:               &f,
+		AllowPrivilegeEscalation: &f,
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"all"},
+		},
+	}
 }
