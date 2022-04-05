@@ -223,7 +223,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 
 	collectorArgs := []string{
 		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
-		"--storage.tsdb.path=/prometheus/data",
+		fmt.Sprintf("--storage.tsdb.path=%s", storageDir),
 		"--storage.tsdb.no-lockfile",
 		// Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
 		// the containers memory usage. We could lower it further if this becomes problematic, but
@@ -317,6 +317,9 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
+								Name:      storageVolumeName,
+								MountPath: storageDir,
+							}, {
 								Name:      configOutVolumeName,
 								MountPath: configOutDir,
 								ReadOnly:  true,
@@ -336,6 +339,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 								corev1.ResourceMemory: *resource.NewScaledQuantity(3000, resource.Mega),
 							},
 						},
+						SecurityContext: minimalSecurityContext(),
 					}, {
 						Name:  "config-reloader",
 						Image: r.opts.ImageConfigReloader,
@@ -379,10 +383,16 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
 							},
 						},
+						SecurityContext: minimalSecurityContext(),
 					},
 				},
 				Volumes: []corev1.Volume{
 					{
+						Name: storageVolumeName,
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					}, {
 						Name: configVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{

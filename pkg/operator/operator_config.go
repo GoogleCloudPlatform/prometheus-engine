@@ -409,6 +409,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.EvaluatorMemoryLimit, resource.Mega),
 							},
 						},
+						SecurityContext: minimalSecurityContext(),
 					}, {
 						Name:  "config-reloader",
 						Image: r.opts.ImageConfigReloader,
@@ -454,6 +455,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
 							},
 						},
+						SecurityContext: minimalSecurityContext(),
 					},
 				},
 				Volumes: []corev1.Volume{
