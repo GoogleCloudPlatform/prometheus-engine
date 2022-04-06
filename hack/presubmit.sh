@@ -51,13 +51,13 @@ update_codegen() {
   # of the second invocation.
   bash "${CODEGEN_PKG}"/generate-groups.sh "deepcopy" \
     github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
-    monitoring:v1alpha1 \
+    monitoring:v1alpha1,v1 \
     --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt \
     --output-base "${SCRIPT_ROOT}"
   
   bash "${CODEGEN_PKG}"/generate-groups.sh "client,informer,lister" \
     github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
-    monitoring:v1alpha1 \
+    monitoring:v1alpha1,v1 \
     --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt \
     --plural-exceptions "Rules:Rules,ClusterRules:ClusterRules,GlobalRules:GlobalRules" \
     --output-base "${SCRIPT_ROOT}"
