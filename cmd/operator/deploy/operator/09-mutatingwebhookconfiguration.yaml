@@ -25,7 +25,7 @@ webhooks:
     service:
       namespace: gmp-system
       name: gmp-operator
-      path: /default/monitoring.googleapis.com/v1alpha1/podmonitorings
+      path: /default/monitoring.googleapis.com/v1/podmonitorings
       port: 8443
   failurePolicy: Fail
   sideEffects: None
@@ -33,7 +33,7 @@ webhooks:
   - apiGroups:
     - monitoring.googleapis.com
     apiVersions:
-    - v1alpha1
+    - v1
     operations:
     - CREATE
     - UPDATE
@@ -47,7 +47,7 @@ webhooks:
     service:
       namespace: gmp-system
       name: gmp-operator
-      path: /default/monitoring.googleapis.com/v1alpha1/clusterpodmonitorings
+      path: /default/monitoring.googleapis.com/v1/clusterpodmonitorings
       port: 8443
   failurePolicy: Fail
   sideEffects: None
@@ -55,7 +55,7 @@ webhooks:
   - apiGroups:
     - monitoring.googleapis.com
     apiVersions:
-    - v1alpha1
+    - v1
     operations:
     - CREATE
     - UPDATE
