@@ -195,7 +195,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 			Key: "key.json",
 		}
 	}
-	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
+	_, err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
 	}
@@ -510,7 +510,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			Key: "key.json",
 		}
 	}
-	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
+	_, err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
 	}
@@ -599,7 +599,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 		},
 	}
 
-	_, err := t.operatorClient.MonitoringV1alpha1().PodMonitorings(t.namespace).Create(ctx, podmon, metav1.CreateOptions{})
+	_, err := t.operatorClient.MonitoringV1().PodMonitorings(t.namespace).Create(ctx, podmon, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create collector PodMonitoring: %s", err)
 	}
@@ -607,7 +607,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 
 	var resVer = ""
 	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-		pm, err := t.operatorClient.MonitoringV1alpha1().PodMonitorings(t.namespace).Get(ctx, "collector-podmon", metav1.GetOptions{})
+		pm, err := t.operatorClient.MonitoringV1().PodMonitorings(t.namespace).Get(ctx, "collector-podmon", metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Errorf("getting PodMonitoring failed: %s", err)
 		}
@@ -661,7 +661,7 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 		},
 	}
 
-	_, err := t.operatorClient.MonitoringV1alpha1().ClusterPodMonitorings().Create(ctx, podmon, metav1.CreateOptions{})
+	_, err := t.operatorClient.MonitoringV1().ClusterPodMonitorings().Create(ctx, podmon, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create collector ClusterPodMonitoring: %s", err)
 	}
@@ -669,7 +669,7 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 
 	var resVer = ""
 	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-		pm, err := t.operatorClient.MonitoringV1alpha1().ClusterPodMonitorings().Get(ctx, "collector-cmon", metav1.GetOptions{})
+		pm, err := t.operatorClient.MonitoringV1().ClusterPodMonitorings().Get(ctx, "collector-cmon", metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Errorf("getting ClusterPodMonitoring failed: %s", err)
 		}
@@ -824,7 +824,7 @@ spec:
 	}
 	globalRules.OwnerReferences = t.ownerReferences
 
-	if _, err := t.operatorClient.MonitoringV1alpha1().GlobalRules().Create(context.TODO(), &globalRules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.MonitoringV1().GlobalRules().Create(context.TODO(), &globalRules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -848,7 +848,7 @@ spec:
 	}
 	clusterRules.OwnerReferences = t.ownerReferences
 
-	if _, err := t.operatorClient.MonitoringV1alpha1().ClusterRules().Create(context.TODO(), &clusterRules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.MonitoringV1().ClusterRules().Create(context.TODO(), &clusterRules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -875,7 +875,7 @@ spec:
 	if err := kyaml.Unmarshal([]byte(content), &rules); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := t.operatorClient.MonitoringV1alpha1().Rules(t.namespace).Create(context.TODO(), &rules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.MonitoringV1().Rules(t.namespace).Create(context.TODO(), &rules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
