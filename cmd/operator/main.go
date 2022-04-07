@@ -88,7 +88,7 @@ func main() {
 		evaluatorMemoryResource = flag.Int64("evaluator-memory-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
 		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytesv.")
 		evaluatorCPUResource    = flag.Int64("evaluator-cpu-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
-		operatorDeployment      = flag.String("opeator-deployment", "kubectl-deployed", "the environment operator runs on.")
+		mode                    = flag.String("mode", "kubectl", "how managed collection was provisioned.")
 	)
 	flag.Parse()
 
@@ -98,6 +98,15 @@ func main() {
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		logger.Error(err, "loading kubeconfig failed")
+		os.Exit(1)
+	}
+	switch *mode {
+	// repo manifest always defaults to "kubectl".
+	case "kubectl":
+	case "gcloud":
+	case "gcloud-auto":
+	default:
+		logger.Error(err, "--mode must be one of {'kubectl', 'gcloud', 'gcloud-auto'}")
 		os.Exit(1)
 	}
 
@@ -129,7 +138,7 @@ func main() {
 		EvaluatorCPUResource:    *evaluatorCPUResource,
 		EvaluatorMemoryResource: *evaluatorMemoryResource,
 		EvaluatorMemoryLimit:    *evaluatorMemoryLimit,
-		OperatorDeployment:      *operatorDeployment,
+		Mode:                    *mode,
 	})
 	if err != nil {
 		logger.Error(err, "instantiating operator failed")
