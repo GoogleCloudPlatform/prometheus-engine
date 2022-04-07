@@ -22,13 +22,13 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	yaml "gopkg.in/yaml.v2"
 
-	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
 
 // FromAPIRules constructs rule groups from a list of rule groups in the
 // resource API format. It ensures that the groups are valid according to the
 // Prometheus upstream validation logic.
-func FromAPIRules(groups []monitoringv1alpha1.RuleGroup) (result rulefmt.RuleGroups, err error) {
+func FromAPIRules(groups []monitoringv1.RuleGroup) (result rulefmt.RuleGroups, err error) {
 	for _, g := range groups {
 		var rules []rulefmt.RuleNode
 

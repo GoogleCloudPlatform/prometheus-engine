@@ -40,7 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
 
 func setupCollectionControllers(op *Operator) error {
@@ -70,18 +70,18 @@ func setupCollectionControllers(op *Operator) error {
 		// OperatorConfig is our root resource that ensures we reconcile
 		// at least once initially.
 		For(
-			&monitoringv1alpha1.OperatorConfig{},
+			&monitoringv1.OperatorConfig{},
 			builder.WithPredicates(objFilterOperatorConfig),
 		).
 		// Any update to a PodMonitoring requires regenerating the config.
 		Watches(
-			&source.Kind{Type: &monitoringv1alpha1.PodMonitoring{}},
+			&source.Kind{Type: &monitoringv1.PodMonitoring{}},
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
 		// Any update to a ClusterPodMonitoring requires regenerating the config.
 		Watches(
-			&source.Kind{Type: &monitoringv1alpha1.ClusterPodMonitoring{}},
+			&source.Kind{Type: &monitoringv1.ClusterPodMonitoring{}},
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
@@ -123,7 +123,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	logger := logr.FromContext(ctx)
 	logger.Info("reconciling collection")
 
-	var config monitoringv1alpha1.OperatorConfig
+	var config monitoringv1.OperatorConfig
 	// Fetch OperatorConfig if it exists.
 	if err := r.client.Get(ctx, req.NamespacedName, &config); apierrors.IsNotFound(err) {
 		logr.FromContext(ctx).Info("no operatorconfig created yet")
@@ -155,7 +155,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	return reconcile.Result{}, nil
 }
 
-func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec *monitoringv1alpha1.CollectionSpec) error {
+func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec *monitoringv1.CollectionSpec) error {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      CollectionSecretName,
@@ -170,7 +170,7 @@ func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec 
 		Data: make(map[string][]byte),
 	}
 	if spec.Credentials != nil {
-		p := pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: spec.Credentials})
+		p := pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials})
 		b, err := getSecretKeyBytes(ctx, r.client, r.opts.PublicNamespace, spec.Credentials)
 		if err != nil {
 			return err
@@ -189,7 +189,7 @@ func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec 
 }
 
 // ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
-func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spec *monitoringv1alpha1.CollectionSpec) error {
+func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spec *monitoringv1.CollectionSpec) error {
 	ds := r.makeCollectorDaemonSet(spec)
 
 	if err := r.client.Update(ctx, ds); apierrors.IsNotFound(err) {
@@ -202,7 +202,7 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 	return nil
 }
 
-func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.CollectionSpec) *appsv1.DaemonSet {
+func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.CollectionSpec) *appsv1.DaemonSet {
 	// TODO(freinartz): this just fills in the bare minimum to get semantics right.
 	// Add more configuration of a full deployment: tolerations, resource request/limit,
 	// health checks, priority context, security context, dynamic update strategy params...
@@ -256,7 +256,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
 	}
 	if spec.Credentials != nil {
-		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: spec.Credentials}))
+		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", p))
 	}
 	// Populate export filtering from OperatorConfig.
@@ -348,7 +348,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 						// Pass node name so the config can filter for targets on the local node,
 						Env: []corev1.EnvVar{
 							{
-								Name: monitoringv1alpha1.EnvVarNodeName,
+								Name: monitoringv1.EnvVarNodeName,
 								ValueFrom: &corev1.EnvVarSource{
 									FieldRef: &corev1.ObjectFieldSelector{
 										FieldPath: "spec.nodeName",
@@ -426,7 +426,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 }
 
 // ensureCollectorConfig generates the collector config and creates or updates it.
-func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1alpha1.CollectionSpec) error {
+func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec) error {
 	cfg, err := r.makeCollectorConfig(ctx, spec)
 	if err != nil {
 		return errors.Wrap(err, "generate Prometheus config")
@@ -455,7 +455,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	return nil
 }
 
-func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1alpha1.CollectionSpec) (*promconfig.Config, error) {
+func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec) (*promconfig.Config, error) {
 	logger := logr.FromContext(ctx)
 
 	cfg := &promconfig.Config{
@@ -466,9 +466,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
 	var (
-		podMons        monitoringv1alpha1.PodMonitoringList
-		clusterPodMons monitoringv1alpha1.ClusterPodMonitoringList
-		cond           *monitoringv1alpha1.MonitoringCondition
+		podMons        monitoringv1.PodMonitoringList
+		clusterPodMons monitoringv1.ClusterPodMonitoringList
+		cond           *monitoringv1.MonitoringCondition
 	)
 	if err := r.client.List(ctx, &podMons); err != nil {
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
@@ -479,15 +479,15 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		// Reassign so we can safely get a pointer.
 		pmon := pm
 
-		cond = &monitoringv1alpha1.MonitoringCondition{
-			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
+		cond = &monitoringv1.MonitoringCondition{
+			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
 		cfgs, err := pmon.ScrapeConfigs()
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
-			cond = &monitoringv1alpha1.MonitoringCondition{
-				Type:    monitoringv1alpha1.ConfigurationCreateSuccess,
+			cond = &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
 				Reason:  "ScrapeConfigError",
 				Message: msg,
@@ -518,15 +518,15 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		// Reassign so we can safely get a pointer.
 		cmon := cm
 
-		cond = &monitoringv1alpha1.MonitoringCondition{
-			Type:   monitoringv1alpha1.ConfigurationCreateSuccess,
+		cond = &monitoringv1.MonitoringCondition{
+			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
 		cfgs, err := cmon.ScrapeConfigs()
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
-			cond = &monitoringv1alpha1.MonitoringCondition{
-				Type:    monitoringv1alpha1.ConfigurationCreateSuccess,
+			cond = &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
 				Reason:  "ScrapeConfigError",
 				Message: msg,
@@ -559,7 +559,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 type podMonitoringDefaulter struct{}
 
 func (d *podMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) error {
-	pm := o.(*monitoringv1alpha1.PodMonitoring)
+	pm := o.(*monitoringv1.PodMonitoring)
 
 	if pm.Spec.TargetLabels.Metadata == nil {
 		md := []string{"pod", "container"}
@@ -571,7 +571,7 @@ func (d *podMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) 
 type clusterPodMonitoringDefaulter struct{}
 
 func (d *clusterPodMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) error {
-	pm := o.(*monitoringv1alpha1.ClusterPodMonitoring)
+	pm := o.(*monitoringv1.ClusterPodMonitoring)
 
 	if pm.Spec.TargetLabels.Metadata == nil {
 		md := []string{"namespace", "pod", "container"}
