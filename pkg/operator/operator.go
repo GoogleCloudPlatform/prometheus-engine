@@ -147,7 +147,7 @@ type Options struct {
 	// Evaluator memory limit
 	EvaluatorMemoryLimit int64
 	// Environment Operator runs on.
-	OperatorEnv string
+	OperatorDeployment string
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -218,8 +218,8 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	if o.EvaluatorMemoryLimit <= o.EvaluatorMemoryResource {
 		o.EvaluatorMemoryLimit = o.EvaluatorMemoryResource * 15
 	}
-	if o.OperatorEnv == "" {
-		o.OperatorEnv = "prod"
+	if o.OperatorDeployment == "" {
+		o.OperatorDeployment = "kubectl-deployed"
 	}
 	return nil
 }
