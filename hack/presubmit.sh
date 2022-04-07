@@ -95,6 +95,7 @@ update_crdgen() {
   CRD_YAMLS=$(find ${CRD_DIR} -iname '*.yaml' | sort)
   for i in $CRD_YAMLS; do
     sed -i '0,/---/{/---/d}' $i
+    sed -i '/^status:*/,$d' $i
     echo "$(cat ${SCRIPT_ROOT}/hack/boilerplate.txt)$(cat $i)" > $i
   done
 
