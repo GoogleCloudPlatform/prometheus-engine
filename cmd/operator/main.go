@@ -88,7 +88,7 @@ func main() {
 		evaluatorMemoryResource = flag.Int64("evaluator-memory-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
 		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytesv.")
 		evaluatorCPUResource    = flag.Int64("evaluator-cpu-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
-		operatorEnv = flag.String("opeator-env", "prod", "the environment operator runs on.")
+		operatorDeployment      = flag.String("opeator-deployment", "kubectl-deployed", "the environment operator runs on.")
 	)
 	flag.Parse()
 
@@ -129,7 +129,7 @@ func main() {
 		EvaluatorCPUResource:    *evaluatorCPUResource,
 		EvaluatorMemoryResource: *evaluatorMemoryResource,
 		EvaluatorMemoryLimit:    *evaluatorMemoryLimit,
-		OperatorEnv:             *operatorEnv,
+		OperatorDeployment:      *operatorDeployment,
 	})
 	if err != nil {
 		logger.Error(err, "instantiating operator failed")

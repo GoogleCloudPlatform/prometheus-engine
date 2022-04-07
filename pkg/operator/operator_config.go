@@ -321,8 +321,8 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
 	}
 
-	if r.opts.OperatorEnv != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=rule-evaluator/%s (env:%s)", Version, r.opts.OperatorEnv))
+	if r.opts.OperatorDeployment != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=rule-evaluator/%s (deployment:%s)", Version, r.opts.OperatorDeployment))
 
 	}
 	// If no explicit project ID is set, use the one provided to the operator. On GKE the rule-evaluator
