@@ -20,8 +20,6 @@ import (
 	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned/typed/monitoring/v1"
 	fakemonitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned/typed/monitoring/v1/fake"
-	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned/typed/monitoring/v1alpha1"
-	fakemonitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned/typed/monitoring/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -78,11 +76,6 @@ var (
 	_ clientset.Interface = &Clientset{}
 	_ testing.FakeClient  = &Clientset{}
 )
-
-// MonitoringV1alpha1 retrieves the MonitoringV1alpha1Client
-func (c *Clientset) MonitoringV1alpha1() monitoringv1alpha1.MonitoringV1alpha1Interface {
-	return &fakemonitoringv1alpha1.FakeMonitoringV1alpha1{Fake: &c.Fake}
-}
 
 // MonitoringV1 retrieves the MonitoringV1Client
 func (c *Clientset) MonitoringV1() monitoringv1.MonitoringV1Interface {

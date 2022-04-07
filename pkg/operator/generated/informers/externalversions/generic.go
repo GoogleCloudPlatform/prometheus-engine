@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	v1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	v1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -64,20 +63,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Monitoring().V1().PodMonitorings().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("rules"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Monitoring().V1().Rules().Informer()}, nil
-
-		// Group=monitoring.googleapis.com, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("clusterpodmonitorings"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Monitoring().V1alpha1().ClusterPodMonitorings().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("clusterrules"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Monitoring().V1alpha1().ClusterRules().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("globalrules"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Monitoring().V1alpha1().GlobalRules().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("operatorconfigs"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Monitoring().V1alpha1().OperatorConfigs().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("podmonitorings"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Monitoring().V1alpha1().PodMonitorings().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("rules"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Monitoring().V1alpha1().Rules().Informer()}, nil
 
 	}
 
