@@ -51,13 +51,13 @@ update_codegen() {
   # of the second invocation.
   bash "${CODEGEN_PKG}"/generate-groups.sh "deepcopy" \
     github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
-    monitoring:v1alpha1 \
+    monitoring:v1 \
     --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt \
     --output-base "${SCRIPT_ROOT}"
   
   bash "${CODEGEN_PKG}"/generate-groups.sh "client,informer,lister" \
     github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
-    monitoring:v1alpha1 \
+    monitoring:v1 \
     --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt \
     --plural-exceptions "Rules:Rules,ClusterRules:ClusterRules,GlobalRules:GlobalRules" \
     --output-base "${SCRIPT_ROOT}"
@@ -95,6 +95,7 @@ update_crdgen() {
   CRD_YAMLS=$(find ${CRD_DIR} -iname '*.yaml' | sort)
   for i in $CRD_YAMLS; do
     sed -i '0,/---/{/---/d}' $i
+    sed -i '/^status:*/,$d' $i
     echo "$(cat ${SCRIPT_ROOT}/hack/boilerplate.txt)$(cat $i)" > $i
   done
 
@@ -107,7 +108,7 @@ update_docgen() {
   which po-docgen || (go get github.com/prometheus-operator/prometheus-operator \
     && go install -mod=mod github.com/prometheus-operator/prometheus-operator/cmd/po-docgen)
   mkdir -p doc
-  po-docgen api ./pkg/operator/apis/monitoring/v1alpha1/types.go > doc/api.md
+  po-docgen api ./pkg/operator/apis/monitoring/v1/types.go > doc/api.md
   sed -i 's/Prometheus Operator/GMP CRDs/g' doc/api.md
 }
 
