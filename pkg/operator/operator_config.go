@@ -497,7 +497,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 				// TODO(pintohutch): confirm minimum serviceAccount credentials needed for rule-evaluator
 				// and create dedicated serviceAccount.
 				ServiceAccountName:           NameCollector,
-				AutomountServiceAccountToken: &TrueVar,
+				AutomountServiceAccountToken: ptr(true),
 				PriorityClassName:            r.opts.PriorityClass,
 				HostNetwork:                  r.opts.HostNetwork,
 			},
