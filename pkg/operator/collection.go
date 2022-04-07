@@ -264,7 +264,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.match=%s", matcher))
 	}
 	if r.opts.OperatorEnv != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-collector/%s{%s}", Version, r.opts.OperatorEnv))
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-collector/%s (env:%s)", Version, r.opts.OperatorEnv))
 	}
 
 	ds := appsv1.DaemonSetSpec{
