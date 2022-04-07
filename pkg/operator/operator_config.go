@@ -322,7 +322,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 	}
 
 	if r.opts.OperatorEnv != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=Prometheus-Rule-Evaluator/%s/%s", Version, r.opts.OperatorEnv))
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=rule-evaluator/%s{%s}", Version, r.opts.OperatorEnv))
 
 	}
 	// If no explicit project ID is set, use the one provided to the operator. On GKE the rule-evaluator
