@@ -53,7 +53,13 @@ kind create cluster --config=${SCRIPT_ROOT}/hack/kind-config.yaml
 # Need to ensure namespace is deployed first explicitly.
 echo ">>> deploying static resources"
 kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/manifests/setup.yaml
-kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/manifests/operator.yaml
+
+# TODO(pintohutch): find a way to incorporate webhooks back into our kind tests.
+# This is a workaround for now.
+for m in `ls -d ${SCRIPT_ROOT}/cmd/operator/deploy/operator/* | grep -v webhook`
+do
+  kubectl --context kind-kind apply -f $m
+done
 kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/manifests/rule-evaluator.yaml
 
 echo ">>> executing gmp e2e tests"

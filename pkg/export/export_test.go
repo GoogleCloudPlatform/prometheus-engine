@@ -305,7 +305,7 @@ func TestExporter_wrapMetadata(t *testing.T) {
 		},
 	}
 
-	e, err := New(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{})
+	e, err := New(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,7 +359,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 		t.Fatalf("Creating metric client failed: %s", err)
 	}
 
-	e, err := New(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{})
+	e, err := New(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
 	if err != nil {
 		t.Fatalf("Creating Exporter failed: %s", err)
 	}
