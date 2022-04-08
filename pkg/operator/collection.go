@@ -43,6 +43,10 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
 
+func ptr(b bool) *bool {
+	return &b
+}
+
 func setupCollectionControllers(op *Operator) error {
 	// The singleton OperatorConfig is the request object we reconcile against.
 	objRequest := reconcile.Request{
@@ -406,8 +410,9 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 						},
 					},
 				},
-				ServiceAccountName: NameCollector,
-				PriorityClassName:  r.opts.PriorityClass,
+				ServiceAccountName:           NameCollector,
+				AutomountServiceAccountToken: ptr(true),
+				PriorityClassName:            r.opts.PriorityClass,
 			},
 		},
 	}

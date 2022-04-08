@@ -26,6 +26,7 @@ spec:
       labels:
         app: frontend
     spec:
+      automountServiceAccountToken: true
       nodeSelector:
         kubernetes.io/os: linux
         kubernetes.io/arch: amd64

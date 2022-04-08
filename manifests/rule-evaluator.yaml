@@ -61,6 +61,7 @@ spec:
       labels:
         app.kubernetes.io/name: rule-evaluator
     spec:
+      automountServiceAccountToken: true
       nodeSelector:
         kubernetes.io/os: linux
         kubernetes.io/arch: amd64
@@ -103,7 +104,6 @@ spec:
         - --reload-url=http://localhost:9092/-/reload
         - --listen-address=:9093
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.3.3-gke.0
-        name: config-reloader
         ports:
         - containerPort: 9093
           name: cfg-rel-metrics
