@@ -72,6 +72,7 @@ spec:
         app: prometheus
         prometheus: test
     spec:
+      automountServiceAccountToken: true
       nodeSelector:
         kubernetes.io/arch: amd64
         kubernetes.io/os: linux

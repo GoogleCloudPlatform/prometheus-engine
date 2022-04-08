@@ -61,6 +61,7 @@ spec:
       labels:
         app.kubernetes.io/name: rule-evaluator
     spec:
+      automountServiceAccountToken: true
       nodeSelector:
         kubernetes.io/os: linux
         kubernetes.io/arch: amd64
