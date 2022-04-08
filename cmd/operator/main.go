@@ -103,8 +103,8 @@ func main() {
 	switch *mode {
 	// repo manifest always defaults to "kubectl".
 	case "kubectl":
-	case "gcloud":
-	case "gcloud-auto":
+	case "gke":
+	case "gke-auto":
 	default:
 		logger.Error(err, "--mode must be one of {'kubectl', 'gcloud', 'gcloud-auto'}")
 		os.Exit(1)
