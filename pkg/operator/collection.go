@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
+	export "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 )
 
 func setupCollectionControllers(op *Operator) error {
@@ -264,9 +265,9 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.match=%s", matcher))
 	}
 	if r.opts.Mode != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s prometheus-collector/%s (mode:%s)", ExporterVersion, CollectorVersion, r.opts.Mode))
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s prometheus-collector/%s (mode:%s)", export.Version, CollectorVersion, r.opts.Mode))
 	} else {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s prometheus-collector/%s", ExporterVersion, CollectorVersion))
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s prometheus-collector/%s", export.Version, CollectorVersion))
 	}
 
 	ds := appsv1.DaemonSetSpec{

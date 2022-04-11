@@ -81,9 +81,6 @@ const (
 	CollectorAppName     = "managed-prometheus-collector"
 	RuleEvaluatorAppName = "managed-prometheus-rule-evaluator"
 
-	// The Exporter version, will be exposed as part of the user agent information.
-	ExporterVersion = "0.3.3"
-
 	// The Collector version, will be exposed as part of the user agent information.
 	CollectorVersion = "2.28.1-gmp.7"
 )
@@ -220,6 +217,14 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	}
 	if o.EvaluatorMemoryLimit <= o.EvaluatorMemoryResource {
 		o.EvaluatorMemoryLimit = o.EvaluatorMemoryResource * 15
+	}
+	switch *mode {
+	// repo manifest always defaults to "kubectl".
+	case "kubectl":
+	case "gke":
+	case "gke-auto":
+	default:
+		return errors.New("--mode must be one of {'kubectl', 'gke', 'gke-auto'}")
 	}
 	return nil
 }
