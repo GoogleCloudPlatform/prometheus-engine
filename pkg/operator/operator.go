@@ -218,7 +218,7 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	if o.EvaluatorMemoryLimit <= o.EvaluatorMemoryResource {
 		o.EvaluatorMemoryLimit = o.EvaluatorMemoryResource * 15
 	}
-	switch *mode {
+	switch o.Mode {
 	// repo manifest always defaults to "kubectl".
 	case "kubectl":
 	case "gke":

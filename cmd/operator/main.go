@@ -100,15 +100,6 @@ func main() {
 		logger.Error(err, "loading kubeconfig failed")
 		os.Exit(1)
 	}
-	switch *mode {
-	// repo manifest always defaults to "kubectl".
-	case "kubectl":
-	case "gke":
-	case "gke-auto":
-	default:
-		logger.Error(err, "--mode must be one of {'kubectl', 'gcloud', 'gcloud-auto'}")
-		os.Exit(1)
-	}
 
 	// controller-runtime creates a registry against which its metrics are registered globally.
 	// Using it as our non-global registry is the easiest way to combine metrics into a single
