@@ -915,11 +915,16 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 	for _, n := range r.SourceLabels {
 		rcfg.SourceLabels = append(rcfg.SourceLabels, prommodel.LabelName(n))
 	}
+	// Instantiate the default regex Prometheus uses so that the checks below can be run
+	// if no explicit value is provided.
+	re := relabel.MustNewRegexp(`(.*)`)
+
 	// We must only set the regex if its not empty. Like in other cases, the Prometheus code does
 	// not setup the structs correctly and this would default to the string "null" when marshalled,
 	// which is then interpreted as a regex again when read by Prometheus.
 	if r.Regex != "" {
-		re, err := relabel.NewRegexp(r.Regex)
+		var err error
+		re, err = relabel.NewRegexp(r.Regex)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid regex %q", r.Regex)
 		}
@@ -934,13 +939,13 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 			return nil, errors.Errorf("cannot relabel with action %q onto protected label %q", r.Action, r.TargetLabel)
 		}
 	case relabel.LabelDrop:
-		if matchesAnyProtectedLabel(rcfg.Regex) {
+		if matchesAnyProtectedLabel(re) {
 			return nil, errors.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
 		}
 	case relabel.LabelKeep:
 		// Keep drops all labels that don't match the regex. So all protected labels must
 		// match keep.
-		if !matchesAllProtectedLabels(rcfg.Regex) {
+		if !matchesAllProtectedLabels(re) {
 			return nil, errors.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
 		}
 	case relabel.LabelMap:
