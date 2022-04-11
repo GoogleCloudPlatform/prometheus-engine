@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+	export "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 )
 
 // Base resource names which may be used for multiple different resource kinds
@@ -322,9 +323,9 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 	}
 
 	if r.opts.Mode != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s rule-evaluator/%s (mode:%s)", ExporterVersion, CollectorVersion, r.opts.Mode))
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s rule-evaluator/%s (mode:%s)", export.Version, CollectorVersion, r.opts.Mode))
 	} else {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s rule-evaluator/%s", ExporterVersion, CollectorVersion))
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s rule-evaluator/%s", export.Version, CollectorVersion))
 	}
 	// If no explicit project ID is set, use the one provided to the operator. On GKE the rule-evaluator
 	// can also auto-detect the cluster's project but this won't work in other Kubernetes environments.
