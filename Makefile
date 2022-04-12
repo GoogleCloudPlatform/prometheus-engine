@@ -31,7 +31,7 @@ ifeq ($(NO_DOCKER), 1)
 else
 	$(call docker_build, --tag gmp/$@ -f ./cmd/$@/Dockerfile .)
 	mkdir -p build/bin
-	echo -e 'FROM scratch\nCOPY --from=gmp/$@ /bin/$@ /$@' | $(call docker_build, -o ./build/bin -)
+	printf 'FROM scratch\nCOPY --from=gmp/$@ /bin/$@ /$@' | $(call docker_build, -o ./build/bin -)
 endif
 
 cloudbuild:  ## Build images on Google Cloud Build.

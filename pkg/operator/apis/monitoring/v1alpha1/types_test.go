@@ -203,6 +203,34 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 			},
 			fail:        true,
 			errContains: `regex n?amespace would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
+		},  {
+			desc: "metric relabeling: labeldrop default regex",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					MetricRelabeling: []RelabelingRule{
+						{
+							Action: "labeldrop",
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: `regex  would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
+		},  {
+			desc: "metric relabeling: labelkeep default regex",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					MetricRelabeling: []RelabelingRule{
+						{
+							Action: "labelkeep",
+						},
+					},
+				},
+			},
 		}, {
 			desc: "invalid URL",
 			eps: []ScrapeEndpoint{

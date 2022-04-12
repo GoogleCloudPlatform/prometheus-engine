@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -64,6 +65,8 @@ const (
 	configDir           = "/prometheus/config"
 	configOutVolumeName = "config-out"
 	configFilename      = "config.yaml"
+	storageVolumeName   = "storage"
+	storageDir          = "/prometheus/data"
 
 	// The well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
@@ -80,6 +83,9 @@ const (
 	KubernetesAppName    = "app"
 	CollectorAppName     = "managed-prometheus-collector"
 	RuleEvaluatorAppName = "managed-prometheus-rule-evaluator"
+
+	// The Collector version, will be exposed as part of the user agent information.
+	CollectorVersion = "2.28.1-gmp.7"
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.
@@ -143,6 +149,8 @@ type Options struct {
 	EvaluatorCPUResource int64
 	// Evaluator memory limit
 	EvaluatorMemoryLimit int64
+	// How managed collection was provisioned.
+	Mode string
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -212,6 +220,14 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	}
 	if o.EvaluatorMemoryLimit <= o.EvaluatorMemoryResource {
 		o.EvaluatorMemoryLimit = o.EvaluatorMemoryResource * 15
+	}
+	switch o.Mode {
+	// repo manifest always defaults to "kubectl".
+	case "kubectl":
+	case "gke":
+	case "gke-auto":
+	default:
+		return errors.New("--mode must be one of {'kubectl', 'gke', 'gke-auto'}")
 	}
 	return nil
 }
@@ -509,4 +525,21 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
 	}
 	return o.client.Update(ctx, &mwc)
+}
+
+func minimalSecurityContext() *corev1.SecurityContext {
+	id := int64(1000)
+	t := true
+	f := false
+
+	return &corev1.SecurityContext{
+		RunAsUser:                &id,
+		RunAsGroup:               &id,
+		RunAsNonRoot:             &t,
+		Privileged:               &f,
+		AllowPrivilegeEscalation: &f,
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"all"},
+		},
+	}
 }

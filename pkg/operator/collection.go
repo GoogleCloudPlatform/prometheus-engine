@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	export "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 )
 
 func ptr(b bool) *bool {
@@ -52,7 +53,7 @@ func setupCollectionControllers(op *Operator) error {
 	objRequest := reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Namespace: op.opts.PublicNamespace,
-			Name:      NameOperatorConfig,
+			Name:      NameOperatorConfig,  
 		},
 	}
 	// Default OperatorConfig filter.
@@ -227,7 +228,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 
 	collectorArgs := []string{
 		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
-		"--storage.tsdb.path=/prometheus/data",
+		fmt.Sprintf("--storage.tsdb.path=%s", storageDir),
 		"--storage.tsdb.no-lockfile",
 		// Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
 		// the containers memory usage. We could lower it further if this becomes problematic, but
@@ -266,6 +267,11 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 	// Populate export filtering from OperatorConfig.
 	for _, matcher := range spec.Filter.MatchOneOf {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.match=%s", matcher))
+	}
+	if r.opts.Mode != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s prometheus-collector/%s (mode:%s)", export.Version, CollectorVersion, r.opts.Mode))
+	} else {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s prometheus-collector/%s", export.Version, CollectorVersion))
 	}
 
 	ds := appsv1.DaemonSetSpec{
@@ -321,6 +327,9 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 						},
 						VolumeMounts: []corev1.VolumeMount{
 							{
+								Name:      storageVolumeName,
+								MountPath: storageDir,
+							}, {
 								Name:      configOutVolumeName,
 								MountPath: configOutDir,
 								ReadOnly:  true,
@@ -340,6 +349,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 								corev1.ResourceMemory: *resource.NewScaledQuantity(3000, resource.Mega),
 							},
 						},
+						SecurityContext: minimalSecurityContext(),
 					}, {
 						Name:  "config-reloader",
 						Image: r.opts.ImageConfigReloader,
@@ -383,10 +393,16 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
 							},
 						},
+						SecurityContext: minimalSecurityContext(),
 					},
 				},
 				Volumes: []corev1.Volume{
 					{
+						Name: storageVolumeName,
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					}, {
 						Name: configVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
