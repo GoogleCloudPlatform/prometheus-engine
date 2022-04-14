@@ -113,6 +113,7 @@ func newTestContext(t *testing.T) *testContext {
 		PublicNamespace:   tctx.pubNamespace,
 		PriorityClass:     "gmp-critical",
 		ListenAddr:        ":8443",
+		Mode:              "kubectl",
 	})
 	if err != nil {
 		t.Fatalf("instantiating operator: %s", err)
