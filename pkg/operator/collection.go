@@ -268,11 +268,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1alpha1.C
 	for _, matcher := range spec.Filter.MatchOneOf {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.match=%s", matcher))
 	}
-	if r.opts.Mode != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s prometheus-collector/%s (mode:%s)", export.Version, CollectorVersion, r.opts.Mode))
-	} else {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s prometheus-collector/%s", export.Version, CollectorVersion))
-	}
+	collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus-engine-export/%s prometheus-collector/%s (mode:%s)", export.Version, CollectorVersion, r.opts.Mode))
 
 	ds := appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
