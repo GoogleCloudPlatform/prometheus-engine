@@ -203,7 +203,7 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 			},
 			fail:        true,
 			errContains: `regex n?amespace would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
-		},  {
+		}, {
 			desc: "metric relabeling: labeldrop default regex",
 			eps: []ScrapeEndpoint{
 				{
@@ -218,7 +218,7 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 			},
 			fail:        true,
 			errContains: `regex  would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
-		},  {
+		}, {
 			desc: "metric relabeling: labelkeep default regex",
 			eps: []ScrapeEndpoint{
 				{
@@ -745,9 +745,6 @@ label_value_length_limit: 4
 follow_redirects: true
 relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
-  regex: (.*)
-  action: keep
-- source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
 - target_label: job
@@ -797,9 +794,6 @@ label_value_length_limit: 4
 proxy_url: http://foo.bar/test
 follow_redirects: true
 relabel_configs:
-- source_labels: [__meta_kubernetes_namespace]
-  regex: (.*)
-  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
