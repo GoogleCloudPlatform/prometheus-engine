@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"path"
 	"sort"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -34,11 +35,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -198,253 +197,53 @@ func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec 
 	return nil
 }
 
-// ensureCollectorDaemonSet generates the collector daemon set and creates or updates it.
+// ensureCollectorDaemonSet populates the collector DaemonSet with operator-provided values.
 func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spec *monitoringv1.CollectionSpec) error {
-	ds := r.makeCollectorDaemonSet(spec)
+	logger, _ := logr.FromContext(ctx)
 
-	if err := r.client.Update(ctx, ds); apierrors.IsNotFound(err) {
-		if err := r.client.Create(ctx, ds); err != nil {
-			return errors.Wrap(err, "create collector DaemonSet")
-		}
-	} else if err != nil {
-		return errors.Wrap(err, "update collector DaemonSet")
+	var ds appsv1.DaemonSet
+	err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: NameCollector}, &ds)
+	// Some users deliberately not want to run the collectors. Only emit a warning but don't cause
+	// retries as this logic gets re-triggered anyway if the DaemonSet is created later.
+	if apierrors.IsNotFound(err) {
+		logger.Error(err, "collector DaemonSet does not exist")
+		return nil
 	}
-	return nil
-}
-
-func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.CollectionSpec) *appsv1.DaemonSet {
-	// TODO(freinartz): this just fills in the bare minimum to get semantics right.
-	// Add more configuration of a full deployment: tolerations, resource request/limit,
-	// health checks, priority context, security context, dynamic update strategy params...
-
-	// DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
-	// see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
-	podLabelSelector := map[string]string{
-		LabelAppName: NameCollector,
-	}
-	podLabels := map[string]string{
-		LabelAppName:      NameCollector,
-		KubernetesAppName: CollectorAppName,
+	if err != nil {
+		return err
 	}
 
-	podAnnotations := map[string]string{
-		AnnotationMetricName: componentName,
-	}
-
-	collectorArgs := []string{
-		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
-		fmt.Sprintf("--storage.tsdb.path=%s", storageDir),
-		"--storage.tsdb.no-lockfile",
-		// Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
-		// the containers memory usage. We could lower it further if this becomes problematic, but
-		// it the window for local data is quite convenient for debugging.
-		"--storage.tsdb.retention.time=30m",
-		"--storage.tsdb.wal-compression",
-		// Effectively disable compaction and make blocks short enough so that our retention window
-		// can be kept in practice.
-		"--storage.tsdb.min-block-duration=10m",
-		"--storage.tsdb.max-block-duration=10m",
-		fmt.Sprintf("--web.listen-address=:%d", r.opts.CollectorPort),
-		"--web.enable-lifecycle",
-		"--web.route-prefix=/",
-	}
-
-	// Check for explicitly-set pass-through args.
-	if r.opts.ProjectID != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
-	}
-	if r.opts.Location != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.Location))
-	}
-	if r.opts.Cluster != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.Cluster))
-	}
-	if r.opts.DisableExport {
-		collectorArgs = append(collectorArgs, "--export.disable")
-	}
-	if r.opts.CloudMonitoringEndpoint != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
-	}
-	if spec.Credentials != nil {
-		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", p))
+	flags := []string{
+		fmt.Sprintf("--export.label.project-id=%q", r.opts.ProjectID),
+		fmt.Sprintf("--export.label.location=%q", r.opts.Location),
+		fmt.Sprintf("--export.label.cluster=%q", r.opts.Cluster),
 	}
 	// Populate export filtering from OperatorConfig.
 	for _, matcher := range spec.Filter.MatchOneOf {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.match=%s", matcher))
+		flags = append(flags, fmt.Sprintf("--export.match=%q", matcher))
 	}
-	collectorArgs = append(collectorArgs, fmt.Sprintf("--export.user-agent=prometheus/%s (mode:%s)", CollectorVersion, r.opts.Mode))
+	if spec.Credentials != nil {
+		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
+		flags = append(flags, fmt.Sprintf("--export.credentials-file=%q", p))
+	}
 
-	ds := appsv1.DaemonSetSpec{
-		Selector: &metav1.LabelSelector{
-			MatchLabels: podLabelSelector,
-		},
-		Template: corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels:      podLabels,
-				Annotations: podAnnotations,
-			},
-			Spec: corev1.PodSpec{
-				// We want to run on every node, even with taints present.
-				Tolerations: []corev1.Toleration{
-					{Effect: "NoExecute", Operator: "Exists"},
-					{Effect: "NoSchedule", Operator: "Exists"},
-				},
-				// The managed collection binaries are only being built for
-				// amd64 arch on Linux.
-				NodeSelector: map[string]string{
-					corev1.LabelOSStable:   "linux",
-					corev1.LabelArchStable: "amd64",
-				},
-				Containers: []corev1.Container{
-					{
-						Name:  "prometheus",
-						Image: r.opts.ImageCollector,
-						// Set an aggressive GC threshold (default is 100%). Since the collector has a lot of
-						// long-lived allocations, this still doesn't result in a high GC rate (compared to stateless
-						// RPC applications) and gives us a more balanced ratio of memory and CPU usage.
-						Env: []corev1.EnvVar{
-							{Name: "GOGC", Value: "25"},
-						},
-						Args: collectorArgs,
-						Ports: []corev1.ContainerPort{
-							{Name: "prom-metrics", ContainerPort: r.opts.CollectorPort},
-						},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/-/healthy",
-									Port: intstr.FromInt(int(r.opts.CollectorPort)),
-								},
-							},
-						},
-						ReadinessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/-/ready",
-									Port: intstr.FromInt(int(r.opts.CollectorPort)),
-								},
-							},
-						},
-						VolumeMounts: []corev1.VolumeMount{
-							{
-								Name:      storageVolumeName,
-								MountPath: storageDir,
-							}, {
-								Name:      configOutVolumeName,
-								MountPath: configOutDir,
-								ReadOnly:  true,
-							}, {
-								Name:      secretVolumeName,
-								MountPath: secretsDir,
-								ReadOnly:  true,
-							},
-						},
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewScaledQuantity(100, resource.Milli),
-								corev1.ResourceMemory: *resource.NewScaledQuantity(200, resource.Mega),
-							},
-							// Set no limit on CPU as it's a throttled resource.
-							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(3000, resource.Mega),
-							},
-						},
-						SecurityContext: minimalSecurityContext(),
-					}, {
-						Name:  "config-reloader",
-						Image: r.opts.ImageConfigReloader,
-						Args: []string{
-							fmt.Sprintf("--config-file=%s", path.Join(configDir, configFilename)),
-							fmt.Sprintf("--config-file-output=%s", path.Join(configOutDir, configFilename)),
-							fmt.Sprintf("--reload-url=http://localhost:%d/-/reload", r.opts.CollectorPort),
-							fmt.Sprintf("--listen-address=:%d", r.opts.CollectorPort+1),
-						},
-						// Pass node name so the config can filter for targets on the local node,
-						Env: []corev1.EnvVar{
-							{
-								Name: monitoringv1.EnvVarNodeName,
-								ValueFrom: &corev1.EnvVarSource{
-									FieldRef: &corev1.ObjectFieldSelector{
-										FieldPath: "spec.nodeName",
-									},
-								},
-							},
-						},
-						Ports: []corev1.ContainerPort{
-							{Name: "cfg-rel-metrics", ContainerPort: r.opts.CollectorPort + 1},
-						},
-						VolumeMounts: []corev1.VolumeMount{
-							{
-								Name:      configVolumeName,
-								MountPath: configDir,
-								ReadOnly:  true,
-							}, {
-								Name:      configOutVolumeName,
-								MountPath: configOutDir,
-							},
-						},
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewScaledQuantity(5, resource.Milli),
-								corev1.ResourceMemory: *resource.NewScaledQuantity(16, resource.Mega),
-							},
-							// Set no limit on CPU as it's a throttled resource.
-							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
-							},
-						},
-						SecurityContext: minimalSecurityContext(),
-					},
-				},
-				Volumes: []corev1.Volume{
-					{
-						Name: storageVolumeName,
-						VolumeSource: corev1.VolumeSource{
-							EmptyDir: &corev1.EmptyDirVolumeSource{},
-						},
-					}, {
-						Name: configVolumeName,
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: NameCollector,
-								},
-							},
-						},
-					}, {
-						Name: configOutVolumeName,
-						VolumeSource: corev1.VolumeSource{
-							EmptyDir: &corev1.EmptyDirVolumeSource{},
-						},
-					}, {
-						// Mirrored config secrets (config specified as filepaths).
-						Name: secretVolumeName,
-						VolumeSource: corev1.VolumeSource{
-							Secret: &corev1.SecretVolumeSource{
-								SecretName: CollectionSecretName,
-							},
-						},
-					},
-				},
-				ServiceAccountName:           NameCollector,
-				AutomountServiceAccountToken: ptr(true),
-				PriorityClassName:            r.opts.PriorityClass,
-			},
-		},
+	// Set EXTRA_ARGS envvar in Prometheus container.
+	for i, c := range ds.Spec.Template.Spec.Containers {
+		if c.Name != "prometheus" {
+			continue
+		}
+		var repl []corev1.EnvVar
+
+		for _, ev := range c.Env {
+			if ev.Name != "EXTRA_ARGS" {
+				repl = append(repl, ev)
+			}
+		}
+		repl = append(repl, corev1.EnvVar{Name: "EXTRA_ARGS", Value: strings.Join(flags, " ")})
+
+		ds.Spec.Template.Spec.Containers[i].Env = repl
 	}
-	// DNS policy should be set explicitly when using hostNetwork.
-	if r.opts.HostNetwork {
-		ds.Template.Spec.HostNetwork = true
-		ds.Template.Spec.DNSPolicy = "ClusterFirstWithHostNet"
-	}
-	return &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.opts.OperatorNamespace,
-			Name:      NameCollector,
-		},
-		Spec: ds,
-	}
+	return r.client.Update(ctx, &ds)
 }
 
 // ensureCollectorConfig generates the collector config and creates or updates it.

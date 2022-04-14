@@ -78,7 +78,7 @@ spec:
         kubernetes.io/os: linux
       containers:
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.7-gke.0
+        image: gcr.io/gpe-test-1/prometheus-engine/prometheus:v2.35.0-gmp.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --storage.tsdb.path=/prometheus/data

@@ -62,33 +62,12 @@ func main() {
 		publicNamespace = flag.String("public-namespace", operator.DefaultPublicNamespace,
 			"Namespace in which the operator reads user-provided resources.")
 
-		imageCollector = flag.String("image-collector", operator.ImageCollector,
-			unstableFlagHelp("Override for the container image of the collector."))
-		imageConfigReloader = flag.String("image-config-reloader", operator.ImageConfigReloader,
-			unstableFlagHelp("Override for the container image of the config reloader."))
-		imageRuleEvaluator = flag.String("image-rule-evaluator", operator.ImageRuleEvaluator,
-			unstableFlagHelp("Override for the container image of the rule evaluator."))
-
-		hostNetwork = flag.Bool("host-network", false,
-			"Whether pods are deployed with hostNetwork enabled. If true, GKE clusters with Workload Identity will not require additional permission for the components deployed by the operator. Must be false on GKE Autopilot clusters.")
-		priorityClass = flag.String("priority-class", "",
-			"Priority class at which the collector pods are run.")
-		gcmEndpoint = flag.String("cloud-monitoring-endpoint", "",
-			"Override for the Cloud Monitoring endpoint to use for all collectors.")
 		tlsCert     = flag.String("tls-cert-base64", "", "The base64-encoded TLS certificate.")
 		tlsKey      = flag.String("tls-key-base64", "", "The base64-encoded TLS key.")
 		caCert      = flag.String("ca-cert-base64", "", "The base64-encoded certificate authority.")
 		webhookAddr = flag.String("webhook-addr", ":10250",
 			"Address to listen to for incoming kube admission webhook connections.")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
-
-		collectorMemoryResource = flag.Int64("collector-memory-resource", 200, "The Memory Resource of collector pod, in mega bytes")
-		collectorMemoryLimit    = flag.Int64("collector-memory-limit", 3000, "The Memory Limit of collector pod, in mega bytes.")
-		collectorCPUResource    = flag.Int64("collector-cpu-resource", 100, "The CPU Resource of collector pod, in milli cpu.")
-		evaluatorMemoryResource = flag.Int64("evaluator-memory-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
-		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytesv.")
-		evaluatorCPUResource    = flag.Int64("evaluator-cpu-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
-		mode                    = flag.String("mode", "kubectl", "how managed collection was provisioned.")
 	)
 	flag.Parse()
 
@@ -108,28 +87,15 @@ func main() {
 	metrics := ctrlmetrics.Registry
 
 	op, err := operator.New(logger, cfg, metrics, operator.Options{
-		ProjectID:               *projectID,
-		Location:                *location,
-		Cluster:                 *cluster,
-		OperatorNamespace:       *operatorNamespace,
-		PublicNamespace:         *publicNamespace,
-		ImageCollector:          *imageCollector,
-		ImageConfigReloader:     *imageConfigReloader,
-		ImageRuleEvaluator:      *imageRuleEvaluator,
-		HostNetwork:             *hostNetwork,
-		PriorityClass:           *priorityClass,
-		CloudMonitoringEndpoint: *gcmEndpoint,
-		TLSCert:                 *tlsCert,
-		TLSKey:                  *tlsKey,
-		CACert:                  *caCert,
-		ListenAddr:              *webhookAddr,
-		CollectorMemoryResource: *collectorMemoryResource,
-		CollectorMemoryLimit:    *collectorMemoryLimit,
-		CollectorCPUResource:    *collectorCPUResource,
-		EvaluatorCPUResource:    *evaluatorCPUResource,
-		EvaluatorMemoryResource: *evaluatorMemoryResource,
-		EvaluatorMemoryLimit:    *evaluatorMemoryLimit,
-		Mode:                    *mode,
+		ProjectID:         *projectID,
+		Location:          *location,
+		Cluster:           *cluster,
+		OperatorNamespace: *operatorNamespace,
+		PublicNamespace:   *publicNamespace,
+		TLSCert:           *tlsCert,
+		TLSKey:            *tlsKey,
+		CACert:            *caCert,
+		ListenAddr:        *webhookAddr,
 	})
 	if err != nil {
 		logger.Error(err, "instantiating operator failed")

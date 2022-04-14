@@ -58,34 +58,17 @@ const (
 	NameOperator  = "gmp-operator"
 	componentName = "managed_prometheus"
 
-	// Prometheus configuration file and volume mounts.
-	// Used in both collectors and rule-evaluator.
-	configOutDir        = "/prometheus/config_out"
-	configVolumeName    = "config"
-	configDir           = "/prometheus/config"
-	configOutVolumeName = "config-out"
-	configFilename      = "config.yaml"
-	storageVolumeName   = "storage"
-	storageDir          = "/prometheus/data"
+	// Filename for configuration files.
+	configFilename = "config.yaml"
 
 	// The well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
 	// The component name, will be exposed as metric name.
 	AnnotationMetricName = "components.gke.io/component-name"
 
-	// The official images to be used with this version of the operator. For debugging
-	// and emergency use cases they may be overwritten through options.
-	ImageCollector      = "gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.7-gke.0"
-	ImageConfigReloader = "gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0"
-	ImageRuleEvaluator  = "gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.1-gke.0"
-
 	// The k8s Application, will be exposed as component name.
 	KubernetesAppName    = "app"
-	CollectorAppName     = "managed-prometheus-collector"
 	RuleEvaluatorAppName = "managed-prometheus-rule-evaluator"
-
-	// The Collector version, will be exposed as part of the user agent information.
-	CollectorVersion = "2.28.1-gmp.7"
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.
@@ -104,53 +87,19 @@ type Options struct {
 	Location string
 	// Name of the cluster the operator acts on.
 	Cluster string
-	// Disable exporting to GCM (mostly for testing).
-	DisableExport bool
 	// Namespace to which the operator deploys any associated resources.
 	OperatorNamespace string
 	// Namespace to which the operator looks for user-specified configuration
 	// data, like Secrets and ConfigMaps.
 	PublicNamespace string
-	// Listening port of the collector. Configurable to allow multiple
-	// simultanious collector deployments for testing purposes while each
-	// collector runs on the host network.
-	CollectorPort int32
-	// Image for the Prometheus collector container.
-	ImageCollector string
-	// Image for the Prometheus config reloader.
-	ImageConfigReloader string
-	// Image for the Prometheus rule-evaluator.
-	ImageRuleEvaluator string
-	// Whether to deploy pods with hostNetwork enabled. This allow pods to run with the GCE compute
-	// default service account even on GKE clusters with Workload Identity enabled.
-	// It must be set to false for GKE Autopilot clusters.
-	HostNetwork bool
-	// Priority class for the collector pods.
-	PriorityClass string
 	// Certificate of the server in base 64.
 	TLSCert string
 	// Key of the server in base 64.
 	TLSKey string
 	// Certificate authority in base 64.
 	CACert string
-	// Endpoint of the Cloud Monitoring API to be used by all collectors.
-	CloudMonitoringEndpoint string
 	// Webhook serving address.
 	ListenAddr string
-	// Collector memory resource
-	CollectorMemoryResource int64
-	// Collector CPU resource
-	CollectorCPUResource int64
-	// Collector memory limit
-	CollectorMemoryLimit int64
-	// Evaluator memory resource
-	EvaluatorMemoryResource int64
-	// Evaluator CPU resource
-	EvaluatorCPUResource int64
-	// Evaluator memory limit
-	EvaluatorMemoryLimit int64
-	// How managed collection was provisioned.
-	Mode string
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -163,18 +112,6 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		// resources in a single namespace.
 		o.PublicNamespace = DefaultOperatorNamespace
 	}
-	if o.CollectorPort == 0 {
-		o.CollectorPort = 19090
-	}
-	if o.ImageCollector == "" {
-		o.ImageCollector = ImageCollector
-	}
-	if o.ImageConfigReloader == "" {
-		o.ImageConfigReloader = ImageConfigReloader
-	}
-	if o.ImageRuleEvaluator == "" {
-		o.ImageRuleEvaluator = ImageRuleEvaluator
-	}
 
 	// ProjectID and Cluster must be always be set. Collectors and rule-evaluator can
 	// auto-discover them but we need them in the operator to scope generated rules.
@@ -183,53 +120,6 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	}
 	if o.Cluster == "" {
 		return errors.New("Cluster must be set")
-	}
-
-	if o.ImageCollector != ImageCollector {
-		logger.Info("not using the canonical collector image",
-			"expected", ImageCollector, "got", o.ImageCollector)
-	}
-	if o.ImageConfigReloader != ImageConfigReloader {
-		logger.Info("not using the canonical config reloader image",
-			"expected", ImageConfigReloader, "got", o.ImageConfigReloader)
-	}
-	if o.ImageRuleEvaluator != ImageRuleEvaluator {
-		logger.Info("not using the canonical rule-evaluator image",
-			"expected", ImageRuleEvaluator, "got", o.ImageRuleEvaluator)
-	}
-	if o.CollectorCPUResource <= 0 {
-		o.CollectorCPUResource = 100
-	}
-	if o.CollectorMemoryResource <= 0 {
-		o.CollectorMemoryResource = 200
-	}
-	if o.CollectorMemoryLimit <= o.CollectorMemoryResource {
-		if o.CollectorMemoryResource*2 < 3000 {
-			o.CollectorMemoryLimit = 3000
-		} else {
-			o.CollectorMemoryLimit = o.CollectorMemoryResource * 2
-		}
-		o.CollectorMemoryLimit = o.CollectorMemoryResource * 15
-	}
-
-	if o.EvaluatorCPUResource <= 0 {
-		o.EvaluatorCPUResource = 100
-	}
-	if o.EvaluatorMemoryResource <= 0 {
-		o.EvaluatorMemoryResource = 200
-	}
-	if o.EvaluatorMemoryLimit <= o.EvaluatorMemoryResource {
-		o.EvaluatorMemoryLimit = o.EvaluatorMemoryResource * 15
-	}
-	switch o.Mode {
-	// repo manifest always defaults to "kubectl".
-	case "kubectl":
-	case "gke":
-	case "gke-auto":
-	case "on-prem":
-	case "baremetal":
-	default:
-		return errors.New("--mode must be one of {'kubectl', 'gke', 'gke-auto', 'on-prem', 'baremetal}")
 	}
 	return nil
 }

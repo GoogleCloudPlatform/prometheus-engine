@@ -22,7 +22,6 @@ import (
 	"path"
 	"strings"
 
-	export "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -38,11 +37,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -296,242 +293,64 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Contex
 
 // ensureRuleEvaluatorDeployment reconciles the Deployment for rule-evaluator.
 func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Context, spec *monitoringv1.RuleEvaluatorSpec) error {
-	deploy := r.makeRuleEvaluatorDeployment(spec)
+	logger, _ := logr.FromContext(ctx)
 
-	// Upsert rule-evaluator Deployment.
-	// We've to use Patch() as Update() with update we'll get stuck in an infinite loop as each
-	// update increases the generation since we override the managed fields metadata, which is
-	// set by the kube-controller-manager, which wants to own an annotation on deployments.
-	if err := r.client.Patch(ctx, deploy, client.Merge); apierrors.IsNotFound(err) {
-		if err := r.client.Create(ctx, deploy); err != nil {
-			return errors.Wrap(err, "create rule-evaluator deployment")
-		}
-	} else if err != nil {
-		return errors.Wrap(err, "update rule-evaluator deployment")
+	var deploy appsv1.Deployment
+	err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: NameRuleEvaluator}, &deploy)
+	// Some users deliberately not want to run the rule-evaluator. Only emit a warning but don't cause
+	// retries as this logic gets re-triggered anyway if the DaemonSet is created later.
+	if apierrors.IsNotFound(err) {
+		logger.Error(err, "rule-evaluator Deployment does not exist")
+		return nil
 	}
-	return nil
-}
-
-// makeRuleEvaluatorDeployment creates the Deployment for rule-evaluator.
-func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv1.RuleEvaluatorSpec) *appsv1.Deployment {
-	evaluatorArgs := []string{
-		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
-		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
+	if err != nil {
+		return err
 	}
 
-	if r.opts.ProjectID != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
+	flags := []string{
+		fmt.Sprintf("--export.label.project-id=%q", r.opts.ProjectID),
+		fmt.Sprintf("--export.label.location=%q", r.opts.Location),
+		fmt.Sprintf("--export.label.cluster=%q", r.opts.Cluster),
 	}
-	if r.opts.Location != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.Location))
-	}
-	if r.opts.Cluster != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.Cluster))
-	}
-	if r.opts.DisableExport {
-		evaluatorArgs = append(evaluatorArgs, "--export.disable")
-	}
-	if r.opts.CloudMonitoringEndpoint != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
-	}
-	evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=rule-evaluator/%s (mode:%s)", export.Version, r.opts.Mode))
-
 	// If no explicit project ID is set, use the one provided to the operator. On GKE the rule-evaluator
 	// can also auto-detect the cluster's project but this won't work in other Kubernetes environments.
 	queryProjectID := r.opts.ProjectID
 	if spec.QueryProjectID != "" {
 		queryProjectID = spec.QueryProjectID
 	}
-	evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", queryProjectID))
+	flags = append(flags, fmt.Sprintf("--query.project-id=%q", queryProjectID))
 
 	if spec.Credentials != nil {
 		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.credentials-file=%s", p))
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.credentials-file=%s", p))
+		flags = append(flags, fmt.Sprintf("--export.credentials-file=%q", p))
+		flags = append(flags, fmt.Sprintf("--query.credentials-file=%q", p))
 	}
 	if spec.GeneratorURL != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.generator-url=%s", spec.GeneratorURL))
+		flags = append(flags, fmt.Sprintf("--query.generator-url=%q", spec.GeneratorURL))
 	}
 
-	replicas := int32(1)
+	// Set EXTRA_ARGS envvar in evaluator container.
+	for i, c := range deploy.Spec.Template.Spec.Containers {
+		if c.Name != "evaluator" {
+			continue
+		}
+		var repl []corev1.EnvVar
 
-	// DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
-	// see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
-	podLabelSelector := map[string]string{
-		LabelAppName: NameRuleEvaluator,
+		for _, ev := range c.Env {
+			if ev.Name != "EXTRA_ARGS" {
+				repl = append(repl, ev)
+			}
+		}
+		repl = append(repl, corev1.EnvVar{Name: "EXTRA_ARGS", Value: strings.Join(flags, " ")})
+
+		deploy.Spec.Template.Spec.Containers[i].Env = repl
 	}
 
-	deploy := appsv1.DeploymentSpec{
-		Replicas: &replicas,
-		Selector: &metav1.LabelSelector{
-			MatchLabels: podLabelSelector,
-		},
-		Template: corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels:      rulesLabels(),
-				Annotations: rulesAnnotations(),
-			},
-			Spec: corev1.PodSpec{
-				// The managed collection binaries are only being built for
-				// amd64 arch on Linux.
-				NodeSelector: map[string]string{
-					corev1.LabelOSStable:   "linux",
-					corev1.LabelArchStable: "amd64",
-				},
-				Containers: []corev1.Container{
-					{
-						Name:  "evaluator",
-						Image: r.opts.ImageRuleEvaluator,
-						Args:  evaluatorArgs,
-						Ports: []corev1.ContainerPort{
-							{Name: "r-eval-metrics", ContainerPort: RuleEvaluatorPort},
-						},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/-/healthy",
-									Port: intstr.FromInt(RuleEvaluatorPort),
-								},
-							},
-						},
-						ReadinessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/-/ready",
-									Port: intstr.FromInt(RuleEvaluatorPort),
-								},
-							},
-						},
-						VolumeMounts: []corev1.VolumeMount{
-							{
-								Name:      configOutVolumeName,
-								MountPath: configOutDir,
-								ReadOnly:  true,
-							},
-							{
-								Name:      rulesVolumeName,
-								MountPath: rulesDir,
-								ReadOnly:  true,
-							},
-							{
-								Name:      secretVolumeName,
-								MountPath: secretsDir,
-								ReadOnly:  true,
-							},
-						},
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewScaledQuantity(r.opts.EvaluatorCPUResource, resource.Milli),
-								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.EvaluatorMemoryResource, resource.Mega),
-							},
-							// Set no limit on CPU as it's a throttled resource.
-							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.EvaluatorMemoryLimit, resource.Mega),
-							},
-						},
-						SecurityContext: minimalSecurityContext(),
-					}, {
-						Name:  "config-reloader",
-						Image: r.opts.ImageConfigReloader,
-						Args: []string{
-							fmt.Sprintf("--config-file=%s", path.Join(configDir, configFilename)),
-							fmt.Sprintf("--config-file-output=%s", path.Join(configOutDir, configFilename)),
-							fmt.Sprintf("--watched-dir=%s", rulesDir),
-							fmt.Sprintf("--watched-dir=%s", secretsDir),
-							fmt.Sprintf("--reload-url=http://localhost:%d/-/reload", RuleEvaluatorPort),
-							fmt.Sprintf("--listen-address=:%d", RuleEvaluatorPort+1),
-						},
-						Ports: []corev1.ContainerPort{
-							{Name: "cfg-rel-metrics", ContainerPort: RuleEvaluatorPort + 1},
-						},
-						VolumeMounts: []corev1.VolumeMount{
-							{
-								Name:      configVolumeName,
-								MountPath: configDir,
-								ReadOnly:  true,
-							},
-							{
-								Name:      configOutVolumeName,
-								MountPath: configOutDir,
-							},
-							{
-								Name:      rulesVolumeName,
-								MountPath: rulesDir,
-								ReadOnly:  true,
-							},
-							{
-								Name:      secretVolumeName,
-								MountPath: secretsDir,
-								ReadOnly:  true,
-							},
-						},
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewScaledQuantity(5, resource.Milli),
-								corev1.ResourceMemory: *resource.NewScaledQuantity(16, resource.Mega),
-							},
-							// Set no limit on CPU as it's a throttled resource.
-							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
-							},
-						},
-						SecurityContext: minimalSecurityContext(),
-					},
-				},
-				Volumes: []corev1.Volume{
-					{
-						// Rule-evaluator input Prometheus config.
-						Name: configVolumeName,
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: NameRuleEvaluator,
-								},
-							},
-						},
-					}, {
-						// Generated rule-evaluator output Prometheus config.
-						Name: configOutVolumeName,
-						VolumeSource: corev1.VolumeSource{
-							EmptyDir: &corev1.EmptyDirVolumeSource{},
-						},
-					}, {
-						// Generated rules yaml files via the "rules" runtime controller.
-						Name: rulesVolumeName,
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: nameRulesGenerated,
-								},
-							},
-						},
-					}, {
-						// Mirrored config secrets (config specified as filepaths).
-						Name: secretVolumeName,
-						VolumeSource: corev1.VolumeSource{
-							Secret: &corev1.SecretVolumeSource{
-								SecretName: RulesSecretName,
-							},
-						},
-					},
-				},
-				// Collector service account used for K8s endpoints-based SD.
-				// TODO(pintohutch): confirm minimum serviceAccount credentials needed for rule-evaluator
-				// and create dedicated serviceAccount.
-				ServiceAccountName:           NameCollector,
-				AutomountServiceAccountToken: ptr(true),
-				PriorityClassName:            r.opts.PriorityClass,
-				HostNetwork:                  r.opts.HostNetwork,
-			},
-		},
-	}
-	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.opts.OperatorNamespace,
-			Name:      NameRuleEvaluator,
-		},
-		Spec: deploy,
-	}
+	// Upsert rule-evaluator Deployment.
+	// We've to use Patch() as Update() with update we'll get stuck in an infinite loop as each
+	// update increases the generation since we override the managed fields metadata, which is
+	// set by the kube-controller-manager, which wants to own an annotation on deployments.
+	return r.client.Patch(ctx, &deploy, client.Merge)
 }
 
 // makeAlertManagerConfigs creates the alertmanager_config entries as described in

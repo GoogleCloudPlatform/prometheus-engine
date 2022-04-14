@@ -25,10 +25,12 @@ import (
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -90,7 +92,7 @@ func newTestContext(t *testing.T) *testContext {
 	t.Cleanup(cancel)
 	t.Cleanup(func() { tctx.cleanupNamespaces() })
 
-	tctx.ownerReferences, err = tctx.createBaseResources()
+	tctx.ownerReferences, err = tctx.createBaseResources(context.TODO())
 	if err != nil {
 		t.Fatalf("create test namespace: %s", err)
 	}
@@ -99,12 +101,9 @@ func newTestContext(t *testing.T) *testContext {
 		ProjectID:         projectID,
 		Cluster:           cluster,
 		Location:          location,
-		DisableExport:     skipGCM,
 		OperatorNamespace: tctx.namespace,
 		PublicNamespace:   tctx.pubNamespace,
-		PriorityClass:     "gmp-critical",
 		ListenAddr:        ":10250",
-		Mode:              "kubectl",
 	})
 	if err != nil {
 		t.Fatalf("instantiating operator: %s", err)
@@ -123,7 +122,7 @@ func newTestContext(t *testing.T) *testContext {
 // createBaseResources creates resources the operator requires to exist already.
 // These are resources which don't depend on runtime state and can thus be deployed
 // statically, allowing to run the operator without critical write permissions.
-func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) {
+func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.OwnerReference, error) {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: tctx.namespace,
@@ -146,11 +145,11 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 	}
 	// This will also fail is the namespace already exists, thereby detecting if a previous
 	// test run wasn't cleaned up correctly.
-	ns, err := tctx.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
+	ns, err := tctx.kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "create namespace %q", ns)
 	}
-	_, err = tctx.kubeClient.CoreV1().Namespaces().Create(context.TODO(), pns, metav1.CreateOptions{})
+	_, err = tctx.kubeClient.CoreV1().Namespaces().Create(ctx, pns, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "create namespace %q", pns)
 	}
@@ -167,7 +166,7 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 	svcAccount := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: operator.NameCollector},
 	}
-	_, err = tctx.kubeClient.CoreV1().ServiceAccounts(tctx.namespace).Create(context.TODO(), svcAccount, metav1.CreateOptions{})
+	_, err = tctx.kubeClient.CoreV1().ServiceAccounts(tctx.namespace).Create(ctx, svcAccount, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "create collector service account")
 	}
@@ -196,7 +195,7 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 			},
 		},
 	}
-	_, err = tctx.kubeClient.RbacV1().ClusterRoleBindings().Create(context.TODO(), roleBinding, metav1.CreateOptions{})
+	_, err = tctx.kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, roleBinding, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "create cluster role binding")
 	}
@@ -214,11 +213,39 @@ func (tctx *testContext) createBaseResources() ([]metav1.OwnerReference, error) 
 				"key.json": b,
 			},
 		}
-		_, err = tctx.kubeClient.CoreV1().Secrets(tctx.pubNamespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+		_, err = tctx.kubeClient.CoreV1().Secrets(tctx.pubNamespace).Create(ctx, secret, metav1.CreateOptions{})
 		if err != nil {
 			return nil, errors.Wrap(err, "create GCP service account secret")
 		}
 	}
+
+	// Load workloads from YAML files and update the namespace to the test namespace.
+	collectorBytes, err := ioutil.ReadFile("collector.yaml")
+	if err != nil {
+		return nil, errors.Wrap(err, "read collector YAML")
+	}
+	obj, _, err := scheme.Codecs.UniversalDeserializer().Decode(collectorBytes, nil, nil)
+	collector := obj.(*appsv1.DaemonSet)
+	collector.Namespace = tctx.namespace
+
+	_, err = tctx.kubeClient.AppsV1().DaemonSets(tctx.namespace).Create(ctx, collector, metav1.CreateOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "create collector DaemonSet")
+	}
+	evaluatorBytes, err := ioutil.ReadFile("rule-evaluator.yaml")
+	if err != nil {
+		return nil, errors.Wrap(err, "read rule-evaluator YAML")
+	}
+
+	obj, _, err = scheme.Codecs.UniversalDeserializer().Decode(evaluatorBytes, nil, nil)
+	evaluator := obj.(*appsv1.Deployment)
+	evaluator.Namespace = tctx.namespace
+
+	_, err = tctx.kubeClient.AppsV1().Deployments(tctx.namespace).Create(ctx, evaluator, metav1.CreateOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "create rule-evaluator Deployment")
+	}
+
 	return ors, nil
 }
 
