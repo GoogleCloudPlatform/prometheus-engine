@@ -493,17 +493,6 @@ func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.C
 	}
 
 	// Filter targets by the configured port.
-	//
-	// If a port number is configured we don't filter by the __meta_kubernetes_pod_container_port_number
-	// label but instead hardcode it into the config and rely on Prometheus' target deduplication to
-	// ensure only one final target is produced.
-	// We do this because a user may not be able to ensure that all Pods sufficiently declare ports
-	// but should still be able to enforce a specific port being scraped.
-	//
-	// This approach works in our case for two reasons:
-	//   1. if a Pod specifies no ports at all as Prometheus will still generate a single substitute target
-	//   2. we generate a scrape config for each specified endpoint and can thus safely force all candidates
-	//      to have a static port number without preventing other ports from being scraped.
 	if ep.Port.StrVal != "" {
 		portValue, err := relabel.NewRegexp(ep.Port.StrVal)
 		if err != nil {
@@ -525,15 +514,39 @@ func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.C
 			TargetLabel:  "instance",
 		})
 	} else if ep.Port.IntVal != 0 {
+		// Prometheus produces a target candidate for each declared port in a pod. If a pod
+		// has no declared ports, a single candidate without port info is generated.
+		// Some users do not declare ports but expect PodMonitoring's to work with a numeric port
+		// specified nonetheless.
+		//
+		// We can support this by hard-overriding the address with the respective numeric port. If a pod
+		// has multiple declared ports that will produce multiple identical targets from the candidates. If
+		// the container metadata label is added however, they may differ by the `container` target label
+		// and not be deduplicated. This will cause the same endpoint to be scraped as different targets.
+		// Thus, we must still filter by numeric port IFF the target candidate does contain port info.
+		//
+		// Summarized, PodMonitorings with numeric ports always work if a pod has no declared ports.
+		// But if it does have declared ports, the intended numeric one must be declared as well.
+
+		// Port number must match or be empty.
+		portValue, err := relabel.NewRegexp(fmt.Sprintf(`(%d)?`, ep.Port.IntVal))
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid port number %q", ep.Port)
+		}
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Keep,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_port_number"},
+			Regex:        portValue,
+		})
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
 			Replacement:  fmt.Sprintf("$1:%d", ep.Port.IntVal),
 			TargetLabel:  "instance",
 		})
-		// If the input target was produced by a port declared in the Pod, this port number
-		// is pre-filled in the __address__ label that's actually used for scraping. Thus
-		// we need to explicitly override it.
+		// If the target candidate was produced for a pod without declared ports, we need to
+		// manually add it. This does not change the __address__ value for candidates for the
+		// declared port.
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_ip"},
