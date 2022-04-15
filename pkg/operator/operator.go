@@ -44,7 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
 
 const (
@@ -248,8 +248,8 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 	if err := scheme.AddToScheme(sc); err != nil {
 		return nil, errors.Wrap(err, "add Kubernetes core scheme")
 	}
-	if err := monitoringv1alpha1.AddToScheme(sc); err != nil {
-		return nil, errors.Wrap(err, "add monitoringv1alpha1 scheme")
+	if err := monitoringv1.AddToScheme(sc); err != nil {
+		return nil, errors.Wrap(err, "add monitoringv1 scheme")
 	}
 	host, portStr, err := net.SplitHostPort(opts.ListenAddr)
 	if err != nil {
@@ -333,43 +333,43 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 
 	// Validating webhooks.
 	s.Register(
-		validatePath(monitoringv1alpha1.PodMonitoringResource()),
-		admission.ValidatingWebhookFor(&monitoringv1alpha1.PodMonitoring{}),
+		validatePath(monitoringv1.PodMonitoringResource()),
+		admission.ValidatingWebhookFor(&monitoringv1.PodMonitoring{}),
 	)
 	s.Register(
-		validatePath(monitoringv1alpha1.ClusterPodMonitoringResource()),
-		admission.ValidatingWebhookFor(&monitoringv1alpha1.ClusterPodMonitoring{}),
+		validatePath(monitoringv1.ClusterPodMonitoringResource()),
+		admission.ValidatingWebhookFor(&monitoringv1.ClusterPodMonitoring{}),
 	)
 	s.Register(
-		validatePath(monitoringv1alpha1.OperatorConfigResource()),
-		admission.WithCustomValidator(&monitoringv1alpha1.OperatorConfig{}, &operatorConfigValidator{
+		validatePath(monitoringv1.OperatorConfigResource()),
+		admission.WithCustomValidator(&monitoringv1.OperatorConfig{}, &operatorConfigValidator{
 			namespace: o.opts.PublicNamespace,
 		}),
 	)
 	s.Register(
-		validatePath(monitoringv1alpha1.RulesResource()),
-		admission.WithCustomValidator(&monitoringv1alpha1.Rules{}, &rulesValidator{
+		validatePath(monitoringv1.RulesResource()),
+		admission.WithCustomValidator(&monitoringv1.Rules{}, &rulesValidator{
 			opts: o.opts,
 		}),
 	)
 	s.Register(
-		validatePath(monitoringv1alpha1.ClusterRulesResource()),
-		admission.WithCustomValidator(&monitoringv1alpha1.ClusterRules{}, &clusterRulesValidator{
+		validatePath(monitoringv1.ClusterRulesResource()),
+		admission.WithCustomValidator(&monitoringv1.ClusterRules{}, &clusterRulesValidator{
 			opts: o.opts,
 		}),
 	)
 	s.Register(
-		validatePath(monitoringv1alpha1.GlobalRulesResource()),
-		admission.WithCustomValidator(&monitoringv1alpha1.GlobalRules{}, &globalRulesValidator{}),
+		validatePath(monitoringv1.GlobalRulesResource()),
+		admission.WithCustomValidator(&monitoringv1.GlobalRules{}, &globalRulesValidator{}),
 	)
 	// Defaulting webhooks.
 	s.Register(
-		defaultPath(monitoringv1alpha1.PodMonitoringResource()),
-		admission.WithCustomDefaulter(&monitoringv1alpha1.PodMonitoring{}, &podMonitoringDefaulter{}),
+		defaultPath(monitoringv1.PodMonitoringResource()),
+		admission.WithCustomDefaulter(&monitoringv1.PodMonitoring{}, &podMonitoringDefaulter{}),
 	)
 	s.Register(
-		defaultPath(monitoringv1alpha1.ClusterPodMonitoringResource()),
-		admission.WithCustomDefaulter(&monitoringv1alpha1.ClusterPodMonitoring{}, &clusterPodMonitoringDefaulter{}),
+		defaultPath(monitoringv1.ClusterPodMonitoringResource()),
+		admission.WithCustomDefaulter(&monitoringv1.ClusterPodMonitoring{}, &clusterPodMonitoringDefaulter{}),
 	)
 	return nil
 }

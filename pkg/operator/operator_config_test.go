@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,12 +28,12 @@ func TestOperatorConfigValidator(t *testing.T) {
 
 	cases := []struct {
 		desc string
-		oc   *monitoringv1alpha1.OperatorConfig
+		oc   *monitoringv1.OperatorConfig
 		err  string
 	}{
 		{
 			desc: "valid",
-			oc: &monitoringv1alpha1.OperatorConfig{
+			oc: &monitoringv1.OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
@@ -42,7 +42,7 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "bad namespace",
-			oc: &monitoringv1alpha1.OperatorConfig{
+			oc: &monitoringv1.OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo_x",
 					Name:      "config",
@@ -52,7 +52,7 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "bad name",
-			oc: &monitoringv1alpha1.OperatorConfig{
+			oc: &monitoringv1.OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config_x",

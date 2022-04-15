@@ -52,7 +52,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
-	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
 
 var (
@@ -148,17 +148,17 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 	keySecret := certSecret.DeepCopy()
 	keySecret.Key = "key"
 
-	opCfg := &monitoringv1alpha1.OperatorConfig{
+	opCfg := &monitoringv1.OperatorConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: operator.NameOperatorConfig,
 		},
-		Rules: monitoringv1alpha1.RuleEvaluatorSpec{
+		Rules: monitoringv1.RuleEvaluatorSpec{
 			ExternalLabels: map[string]string{
 				"external_key": "external_val",
 			},
 			QueryProjectID: projectID,
-			Alerting: monitoringv1alpha1.AlertingSpec{
-				Alertmanagers: []monitoringv1alpha1.AlertmanagerEndpoints{
+			Alerting: monitoringv1.AlertingSpec{
+				Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
 					{
 						Name:       "test-am",
 						Namespace:  t.namespace,
@@ -167,7 +167,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 						APIVersion: "v2",
 						PathPrefix: "/test",
 						Scheme:     "https",
-						Authorization: &monitoringv1alpha1.Authorization{
+						Authorization: &monitoringv1.Authorization{
 							Type: "Bearer",
 							Credentials: &v1.SecretKeySelector{
 								LocalObjectReference: corev1.LocalObjectReference{
@@ -176,8 +176,8 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 								Key: "token",
 							},
 						},
-						TLS: &monitoringv1alpha1.TLSConfig{
-							Cert: &monitoringv1alpha1.SecretOrConfigMap{
+						TLS: &monitoringv1.TLSConfig{
+							Cert: &monitoringv1.SecretOrConfigMap{
 								Secret: certSecret,
 							},
 							KeySecret: keySecret,
@@ -195,7 +195,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 			Key: "key.json",
 		}
 	}
-	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
+	_, err := t.operatorClient.monitoringv1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
 	}
@@ -487,15 +487,15 @@ func TestWebhookCABundleInjection(t *testing.T) {
 // collector is deployed to the cluster.
 func testCollectorDeployed(ctx context.Context, t *testContext) {
 	// Create initial OperatorConfig to trigger deployment of resources.
-	opCfg := &monitoringv1alpha1.OperatorConfig{
+	opCfg := &monitoringv1.OperatorConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: operator.NameOperatorConfig,
 		},
-		Collection: monitoringv1alpha1.CollectionSpec{
+		Collection: monitoringv1.CollectionSpec{
 			ExternalLabels: map[string]string{
 				"external_key": "external_val",
 			},
-			Filter: monitoringv1alpha1.ExportFilters{
+			Filter: monitoringv1.ExportFilters{
 				MatchOneOf: []string{
 					"{job='foo'}",
 					"{__name__=~'up'}",
@@ -511,7 +511,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			Key: "key.json",
 		}
 	}
-	_, err := t.operatorClient.MonitoringV1alpha1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
+	_, err := t.operatorClient.monitoringv1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
 	}
@@ -584,24 +584,24 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 	// The operator should configure the collector to scrape itself and its metrics
 	// should show up in Cloud Monitoring shortly after.
-	podmon := &monitoringv1alpha1.PodMonitoring{
+	podmon := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "collector-podmon",
 		},
-		Spec: monitoringv1alpha1.PodMonitoringSpec{
+		Spec: monitoringv1.PodMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					operator.LabelAppName: operator.NameCollector,
 				},
 			},
-			Endpoints: []monitoringv1alpha1.ScrapeEndpoint{
+			Endpoints: []monitoringv1.ScrapeEndpoint{
 				{Port: intstr.FromString("prom-metrics"), Interval: "5s"},
 				{Port: intstr.FromString("cfg-rel-metrics"), Interval: "5s"},
 			},
 		},
 	}
 
-	_, err := t.operatorClient.MonitoringV1alpha1().PodMonitorings(t.namespace).Create(ctx, podmon, metav1.CreateOptions{})
+	_, err := t.operatorClient.monitoringv1().PodMonitorings(t.namespace).Create(ctx, podmon, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create collector PodMonitoring: %s", err)
 	}
@@ -609,7 +609,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 
 	var resVer = ""
 	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-		pm, err := t.operatorClient.MonitoringV1alpha1().PodMonitorings(t.namespace).Get(ctx, "collector-podmon", metav1.GetOptions{})
+		pm, err := t.operatorClient.monitoringv1().PodMonitorings(t.namespace).Get(ctx, "collector-podmon", metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Errorf("getting PodMonitoring failed: %s", err)
 		}
@@ -622,7 +622,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 				resVer = pm.ResourceVersion
 				return false, nil
 			}
-			success := pm.Status.Conditions[0].Type == monitoringv1alpha1.ConfigurationCreateSuccess
+			success := pm.Status.Conditions[0].Type == monitoringv1.ConfigurationCreateSuccess
 			steadyVer := resVer == pm.ResourceVersion
 			return success && steadyVer, nil
 		} else if size > 1 {
@@ -645,25 +645,25 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) {
 	// The operator should configure the collector to scrape itself and its metrics
 	// should show up in Cloud Monitoring shortly after.
-	podmon := &monitoringv1alpha1.ClusterPodMonitoring{
+	podmon := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "collector-cmon",
 			OwnerReferences: t.ownerReferences,
 		},
-		Spec: monitoringv1alpha1.ClusterPodMonitoringSpec{
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					operator.LabelAppName: operator.NameCollector,
 				},
 			},
-			Endpoints: []monitoringv1alpha1.ScrapeEndpoint{
+			Endpoints: []monitoringv1.ScrapeEndpoint{
 				{Port: intstr.FromString("prom-metrics"), Interval: "5s"},
 				{Port: intstr.FromString("cfg-rel-metrics"), Interval: "5s"},
 			},
 		},
 	}
 
-	_, err := t.operatorClient.MonitoringV1alpha1().ClusterPodMonitorings().Create(ctx, podmon, metav1.CreateOptions{})
+	_, err := t.operatorClient.monitoringv1().ClusterPodMonitorings().Create(ctx, podmon, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create collector ClusterPodMonitoring: %s", err)
 	}
@@ -671,7 +671,7 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 
 	var resVer = ""
 	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-		pm, err := t.operatorClient.MonitoringV1alpha1().ClusterPodMonitorings().Get(ctx, "collector-cmon", metav1.GetOptions{})
+		pm, err := t.operatorClient.monitoringv1().ClusterPodMonitorings().Get(ctx, "collector-cmon", metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Errorf("getting ClusterPodMonitoring failed: %s", err)
 		}
@@ -684,7 +684,7 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 				resVer = pm.ResourceVersion
 				return false, nil
 			}
-			success := pm.Status.Conditions[0].Type == monitoringv1alpha1.ConfigurationCreateSuccess
+			success := pm.Status.Conditions[0].Type == monitoringv1.ConfigurationCreateSuccess
 			steadyVer := resVer == pm.ResourceVersion
 			return success && steadyVer, nil
 		} else if size > 1 {
@@ -820,13 +820,13 @@ spec:
       labels:
         flavor: test
 `)
-	var globalRules monitoringv1alpha1.GlobalRules
+	var globalRules monitoringv1.GlobalRules
 	if err := kyaml.Unmarshal([]byte(content), &globalRules); err != nil {
 		t.Fatal(err)
 	}
 	globalRules.OwnerReferences = t.ownerReferences
 
-	if _, err := t.operatorClient.MonitoringV1alpha1().GlobalRules().Create(context.TODO(), &globalRules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.monitoringv1().GlobalRules().Create(context.TODO(), &globalRules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -844,13 +844,13 @@ spec:
       labels:
         flavor: test
 `)
-	var clusterRules monitoringv1alpha1.ClusterRules
+	var clusterRules monitoringv1.ClusterRules
 	if err := kyaml.Unmarshal([]byte(content), &clusterRules); err != nil {
 		t.Fatal(err)
 	}
 	clusterRules.OwnerReferences = t.ownerReferences
 
-	if _, err := t.operatorClient.MonitoringV1alpha1().ClusterRules().Create(context.TODO(), &clusterRules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.monitoringv1().ClusterRules().Create(context.TODO(), &clusterRules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -873,11 +873,11 @@ spec:
     - record: always_one
       expr: vector(1)
 `
-	var rules monitoringv1alpha1.Rules
+	var rules monitoringv1.Rules
 	if err := kyaml.Unmarshal([]byte(content), &rules); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := t.operatorClient.MonitoringV1alpha1().Rules(t.namespace).Create(context.TODO(), &rules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.monitoringv1().Rules(t.namespace).Create(context.TODO(), &rules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 

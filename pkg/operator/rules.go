@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
-	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/rules"
 )
 
@@ -69,20 +69,20 @@ func setupRulesControllers(op *Operator) error {
 		// OperatorConfig is our root resource that ensures we reconcile
 		// at least once initially.
 		For(
-			&monitoringv1alpha1.OperatorConfig{},
+			&monitoringv1.OperatorConfig{},
 			builder.WithPredicates(objFilterOperatorConfig),
 		).
 		// Any update to a Rules object requires re-generating the config.
 		Watches(
-			&source.Kind{Type: &monitoringv1alpha1.GlobalRules{}},
+			&source.Kind{Type: &monitoringv1.GlobalRules{}},
 			enqueueConst(objRequest),
 		).
 		Watches(
-			&source.Kind{Type: &monitoringv1alpha1.ClusterRules{}},
+			&source.Kind{Type: &monitoringv1.ClusterRules{}},
 			enqueueConst(objRequest),
 		).
 		Watches(
-			&source.Kind{Type: &monitoringv1alpha1.Rules{}},
+			&source.Kind{Type: &monitoringv1.Rules{}},
 			enqueueConst(objRequest),
 		).
 		// The configuration we generate for the rule-evaluator.
@@ -147,7 +147,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 	//
 	// The location is not scoped as it's not a meaningful boundary for "human access"
 	// to data as clusters may span locations.
-	var rulesList monitoringv1alpha1.RulesList
+	var rulesList monitoringv1.RulesList
 	if err := r.client.List(ctx, &rulesList); err != nil {
 		return errors.Wrap(err, "list rules")
 	}
@@ -161,7 +161,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 		cm.Data[filename] = result
 	}
 
-	var clusterRulesList monitoringv1alpha1.ClusterRulesList
+	var clusterRulesList monitoringv1.ClusterRulesList
 	if err := r.client.List(ctx, &clusterRulesList); err != nil {
 		return errors.Wrap(err, "list cluster rules")
 	}
@@ -175,7 +175,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 		cm.Data[filename] = string(result)
 	}
 
-	var globalRulesList monitoringv1alpha1.GlobalRulesList
+	var globalRulesList monitoringv1.GlobalRulesList
 	if err := r.client.List(ctx, &globalRulesList); err != nil {
 		return errors.Wrap(err, "list global rules")
 	}
@@ -200,7 +200,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 	return nil
 }
 
-func generateRules(apiRules *monitoringv1alpha1.Rules, opts Options) (string, error) {
+func generateRules(apiRules *monitoringv1.Rules, opts Options) (string, error) {
 	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
 	if err != nil {
 		return "", errors.Wrap(err, "converting rules failed")
@@ -220,7 +220,7 @@ func generateRules(apiRules *monitoringv1alpha1.Rules, opts Options) (string, er
 	return string(result), nil
 }
 
-func generateClusterRules(apiRules *monitoringv1alpha1.ClusterRules, opts Options) (string, error) {
+func generateClusterRules(apiRules *monitoringv1.ClusterRules, opts Options) (string, error) {
 	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
 	if err != nil {
 		return "", errors.Wrap(err, "converting rules failed")
@@ -239,7 +239,7 @@ func generateClusterRules(apiRules *monitoringv1alpha1.ClusterRules, opts Option
 	return string(result), nil
 }
 
-func generateGlobalRules(apiRules *monitoringv1alpha1.GlobalRules) (string, error) {
+func generateGlobalRules(apiRules *monitoringv1.GlobalRules) (string, error) {
 	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
 	if err != nil {
 		return "", errors.Wrap(err, "converting rules failed")
@@ -256,7 +256,7 @@ type rulesValidator struct {
 }
 
 func (v *rulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
-	_, err := generateRules(o.(*monitoringv1alpha1.Rules), v.opts)
+	_, err := generateRules(o.(*monitoringv1.Rules), v.opts)
 	return err
 }
 
@@ -273,7 +273,7 @@ type clusterRulesValidator struct {
 }
 
 func (v *clusterRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
-	_, err := generateClusterRules(o.(*monitoringv1alpha1.ClusterRules), v.opts)
+	_, err := generateClusterRules(o.(*monitoringv1.ClusterRules), v.opts)
 	return err
 }
 
@@ -288,7 +288,7 @@ func (v *clusterRulesValidator) ValidateDelete(ctx context.Context, o runtime.Ob
 type globalRulesValidator struct{}
 
 func (v *globalRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
-	_, err := generateGlobalRules(o.(*monitoringv1alpha1.GlobalRules))
+	_, err := generateGlobalRules(o.(*monitoringv1.GlobalRules))
 	return err
 }
 
