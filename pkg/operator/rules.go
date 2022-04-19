@@ -74,11 +74,15 @@ func setupRulesControllers(op *Operator) error {
 		).
 		// Any update to a Rules object requires re-generating the config.
 		Watches(
-			&source.Kind{Type: &monitoringv1alpha1.Rules{}},
+			&source.Kind{Type: &monitoringv1alpha1.GlobalRules{}},
 			enqueueConst(objRequest),
 		).
 		Watches(
 			&source.Kind{Type: &monitoringv1alpha1.ClusterRules{}},
+			enqueueConst(objRequest),
+		).
+		Watches(
+			&source.Kind{Type: &monitoringv1alpha1.Rules{}},
 			enqueueConst(objRequest),
 		).
 		// The configuration we generate for the rule-evaluator.
