@@ -516,12 +516,13 @@ func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.C
 	} else if ep.Port.IntVal != 0 {
 		// Prometheus produces a target candidate for each declared port in a pod. If a pod
 		// has no declared ports, a single candidate without port info is generated.
-		// Some users do not declare ports but expect PodMonitoring's to work with a numeric port
+		// Some users do not declare ports but expect PodMonitorings to work with a numeric port
 		// specified nonetheless.
 		//
-		// We can support this by hard-overriding the address with the respective numeric port. If a pod
-		// has multiple declared ports that will produce multiple identical targets from the candidates. If
-		// the container metadata label is added however, they may differ by the `container` target label
+		// We could support this by hard-overriding the address with the configured PodMonitoring
+		// numeric port. As a result, a pod with multiple declared ports will produce multiple
+		// identical targets from the candidates.
+		// If the container metadata label is added however, they may differ by the `container` target label
 		// and not be deduplicated. This will cause the same endpoint to be scraped as different targets.
 		// Thus, we must still filter by numeric port IFF the target candidate does contain port info.
 		//
@@ -880,6 +881,8 @@ type ClusterPodMonitoringSpec struct {
 // ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 type ScrapeEndpoint struct {
 	// Name or number of the port to scrape.
+	// If the specified port is numeric, the selected pod must either not declare any
+	// ports in its spec or declare the specified port number as well.
 	Port intstr.IntOrString `json:"port"`
 	// Protocol scheme to use to scrape.
 	Scheme string `json:"scheme,omitempty"`
