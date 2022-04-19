@@ -362,27 +362,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConf
 			metadataLabels[l] = struct{}{}
 		}
 	}
-	if _, ok := metadataLabels["pod"]; ok {
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
-			TargetLabel:  "pod",
-		})
-	}
-	if _, ok := metadataLabels["container"]; ok {
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_name"},
-			TargetLabel:  "container",
-		})
-	}
-	if _, ok := metadataLabels["node"]; ok {
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_node_name"},
-			TargetLabel:  "node",
-		})
-	}
+	relabelCfgs = append(relabelCfgs, relabelingsForMetadata(metadataLabels)...)
 
 	// The namespace label is always set for PodMonitorings.
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
@@ -596,7 +576,6 @@ func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.C
 
 	httpCfg := config.DefaultHTTPClientConfig
 	if ep.ProxyURL != "" {
-
 		proxyURL, err := url.Parse(ep.ProxyURL)
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid proxy URL")
@@ -646,6 +625,38 @@ func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.C
 	return scrapeCfg, nil
 }
 
+func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
+	if _, ok := keys["namespace"]; ok {
+		res = append(res, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
+			TargetLabel:  "namespace",
+		})
+	}
+	if _, ok := keys["pod"]; ok {
+		res = append(res, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
+			TargetLabel:  "pod",
+		})
+	}
+	if _, ok := keys["container"]; ok {
+		res = append(res, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_name"},
+			TargetLabel:  "container",
+		})
+	}
+	if _, ok := keys["node"]; ok {
+		res = append(res, &relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_node_name"},
+			TargetLabel:  "node",
+		})
+	}
+	return res
+}
+
 func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected pods.
 	relabelCfgs, err := relabelingsForSelector(cm.Spec.Selector)
@@ -668,34 +679,7 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int) (*promconfig.Scr
 			metadataLabels[l] = struct{}{}
 		}
 	}
-	if _, ok := metadataLabels["namespace"]; ok {
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
-			TargetLabel:  "namespace",
-		})
-	}
-	if _, ok := metadataLabels["pod"]; ok {
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
-			TargetLabel:  "pod",
-		})
-	}
-	if _, ok := metadataLabels["container"]; ok {
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_name"},
-			TargetLabel:  "container",
-		})
-	}
-	if _, ok := metadataLabels["node"]; ok {
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_node_name"},
-			TargetLabel:  "node",
-		})
-	}
+	relabelCfgs = append(relabelCfgs, relabelingsForMetadata(metadataLabels)...)
 
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
 		Action:      relabel.Replace,
