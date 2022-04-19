@@ -53,7 +53,7 @@ test:        ## Run all tests. Setting NO_DOCKER=1 writes real data to GCM API u
 ifeq ($(NO_DOCKER), 1)
 	kubectl apply -f manifests/setup.yaml
 	kubectl apply -f cmd/operator/deploy/operator/01-priority-class.yaml
-	kubectl apply -f cmd/operator/deploy/operator/03-clusterrole.yaml
+	kubectl apply -f cmd/operator/deploy/operator/03-role.yaml
 	go test `go list ./... | grep -v operator/e2e | grep -v export/bench`
 	go test `go list ./... | grep operator/e2e` -args -project-id=${PROJECT_ID} -cluster=${GMP_CLUSTER} -location=${GMP_LOCATION}
 else

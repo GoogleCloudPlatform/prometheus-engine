@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	export "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
-	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	promcommonconfig "github.com/prometheus/common/config"
@@ -107,7 +107,7 @@ func setupOperatorConfigControllers(op *Operator) error {
 		// Filter events without changes for all watches.
 		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
 		For(
-			&monitoringv1alpha1.OperatorConfig{},
+			&monitoringv1.OperatorConfig{},
 			builder.WithPredicates(objFilterOperatorConfig),
 		).
 		// // Maintain the rule-evaluator deployment and configuration (as a secret).
@@ -165,7 +165,7 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	logger := logr.FromContext(ctx).WithValues("operatorconfig", req.NamespacedName)
 	logger.Info("reconciling operatorconfig")
 
-	config := &monitoringv1alpha1.OperatorConfig{}
+	config := &monitoringv1.OperatorConfig{}
 
 	// Fetch OperatorConfig.
 	if err := r.client.Get(ctx, req.NamespacedName, config); apierrors.IsNotFound(err) {
@@ -195,7 +195,7 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 }
 
 // ensureRuleEvaluatorConfig reconciles the config for rule-evaluator.
-func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1alpha1.RuleEvaluatorSpec) (map[string][]byte, error) {
+func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1.RuleEvaluatorSpec) (map[string][]byte, error) {
 	cfg, secretData, err := r.makeRuleEvaluatorConfig(ctx, spec)
 	if err != nil {
 		return nil, errors.Wrap(err, "make rule-evaluator configmap")
@@ -215,13 +215,13 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 // makeRuleEvaluatorConfig creates the config for rule-evaluator.
 // This is stored as a Secret rather than a ConfigMap as it could contain
 // sensitive configuration information.
-func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1alpha1.RuleEvaluatorSpec) (*corev1.ConfigMap, map[string][]byte, error) {
+func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1.RuleEvaluatorSpec) (*corev1.ConfigMap, map[string][]byte, error) {
 	amConfigs, secretData, err := r.makeAlertManagerConfigs(ctx, &spec.Alerting)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "make alertmanager config")
 	}
 	if spec.Credentials != nil {
-		p := pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: spec.Credentials})
+		p := pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials})
 		b, err := getSecretKeyBytes(ctx, r.client, r.opts.PublicNamespace, spec.Credentials)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "get service account credentials")
@@ -282,7 +282,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Contex
 }
 
 // ensureRuleEvaluatorDeployment reconciles the Deployment for rule-evaluator.
-func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Context, spec *monitoringv1alpha1.RuleEvaluatorSpec) error {
+func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Context, spec *monitoringv1.RuleEvaluatorSpec) error {
 	deploy := r.makeRuleEvaluatorDeployment(spec)
 
 	// Upsert rule-evaluator Deployment.
@@ -300,7 +300,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 }
 
 // makeRuleEvaluatorDeployment creates the Deployment for rule-evaluator.
-func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv1alpha1.RuleEvaluatorSpec) *appsv1.Deployment {
+func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv1.RuleEvaluatorSpec) *appsv1.Deployment {
 	evaluatorArgs := []string{
 		fmt.Sprintf("--config.file=%s", path.Join(configOutDir, configFilename)),
 		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
@@ -332,7 +332,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 	evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.project-id=%s", queryProjectID))
 
 	if spec.Credentials != nil {
-		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: spec.Credentials}))
+		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.credentials-file=%s", p))
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.credentials-file=%s", p))
 	}
@@ -519,7 +519,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 
 // makeAlertManagerConfigs creates the alertmanager_config entries as described in
 // https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config.
-func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, spec *monitoringv1alpha1.AlertingSpec) (promconfig.AlertmanagerConfigs, map[string][]byte, error) {
+func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, spec *monitoringv1.AlertingSpec) (promconfig.AlertmanagerConfigs, map[string][]byte, error) {
 	var (
 		err        error
 		configs    promconfig.AlertmanagerConfigs
@@ -558,7 +558,7 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 				if err != nil {
 					return nil, nil, err
 				}
-				p := pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: c})
+				p := pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: c})
 
 				secretData[p] = b
 				cfg.HTTPClientConfig.Authorization.CredentialsFile = path.Join(secretsDir, p)
@@ -589,7 +589,7 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 				tlsCfg.CertFile = path.Join(secretsDir, p)
 			}
 			if am.TLS.KeySecret != nil {
-				p := pathForSelector(r.opts.PublicNamespace, &monitoringv1alpha1.SecretOrConfigMap{Secret: am.TLS.KeySecret})
+				p := pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: am.TLS.KeySecret})
 				b, err := getSecretKeyBytes(ctx, r.client, r.opts.PublicNamespace, am.TLS.KeySecret)
 				if err != nil {
 					return nil, nil, err
@@ -663,7 +663,7 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 
 // getSecretOrConfigMapBytes is a helper function to conditionally fetch
 // the secret or configmap selector payloads.
-func getSecretOrConfigMapBytes(ctx context.Context, kClient client.Reader, namespace string, scm *monitoringv1alpha1.SecretOrConfigMap) ([]byte, error) {
+func getSecretOrConfigMapBytes(ctx context.Context, kClient client.Reader, namespace string, scm *monitoringv1.SecretOrConfigMap) ([]byte, error) {
 	var (
 		b   []byte
 		err error
@@ -731,7 +731,7 @@ func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace 
 
 // pathForSelector cretes the filepath for the provided NamespacedSecretOrConfigMap.
 // This can be used to avoid naming collisions of like-keys across K8s resources.
-func pathForSelector(namespace string, scm *monitoringv1alpha1.SecretOrConfigMap) string {
+func pathForSelector(namespace string, scm *monitoringv1.SecretOrConfigMap) string {
 	if scm == nil {
 		return ""
 	}
@@ -749,7 +749,7 @@ type operatorConfigValidator struct {
 }
 
 func (v *operatorConfigValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
-	oc := o.(*monitoringv1alpha1.OperatorConfig)
+	oc := o.(*monitoringv1.OperatorConfig)
 
 	if oc.Namespace != v.namespace || oc.Name != NameOperatorConfig {
 		return errors.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
