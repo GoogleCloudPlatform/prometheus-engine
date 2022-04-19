@@ -20,6 +20,7 @@ import (
 	"path"
 	"strings"
 
+	export "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1alpha1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -46,7 +47,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	export "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 )
 
 // Base resource names which may be used for multiple different resource kinds
