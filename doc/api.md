@@ -450,7 +450,7 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| port | Name or number of the port to scrape. | intstr.IntOrString | true |
+| port | Name or number of the port to scrape. If the specified port is numeric, the selected pod must either not declare any ports in its spec or declare the specified port number as well. | intstr.IntOrString | true |
 | scheme | Protocol scheme to use to scrape. | string | false |
 | path | HTTP path to scrape metrics from. Defaults to \"/metrics\". | string | false |
 | params | HTTP GET params to use when scraping. | map[string][]string | false |

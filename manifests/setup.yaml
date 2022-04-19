@@ -121,7 +121,10 @@ spec:
                       anyOf:
                       - type: integer
                       - type: string
-                      description: Name or number of the port to scrape.
+                      description: Name or number of the port to scrape. If the specified
+                        port is numeric, the selected pod must either not declare
+                        any ports in its spec or declare the specified port number
+                        as well.
                       x-kubernetes-int-or-string: true
                     proxyUrl:
                       description: Proxy URL to scrape through. Encoded passwords
@@ -947,7 +950,10 @@ spec:
                       anyOf:
                       - type: integer
                       - type: string
-                      description: Name or number of the port to scrape.
+                      description: Name or number of the port to scrape. If the specified
+                        port is numeric, the selected pod must either not declare
+                        any ports in its spec or declare the specified port number
+                        as well.
                       x-kubernetes-int-or-string: true
                     proxyUrl:
                       description: Proxy URL to scrape through. Encoded passwords
