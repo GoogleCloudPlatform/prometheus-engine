@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"strings"
 	"testing"
@@ -60,7 +59,6 @@ type testContext struct {
 
 	kubeClient     kubernetes.Interface
 	operatorClient clientset.Interface
-	collectorPort  int32
 }
 
 func newTestContext(t *testing.T) *testContext {
@@ -86,9 +84,6 @@ func newTestContext(t *testing.T) *testContext {
 		pubNamespace:   pubNamespace,
 		kubeClient:     kubeClient,
 		operatorClient: operatorClient,
-		// Pick a random port to avoid conflicts with other simultaneous tests in the cluster
-		// as the collector runs on the host network.
-		collectorPort: 1025 + rand.Int31n(65536-1025),
 	}
 	// The testing package runs cleanup on a best-effort basis. Thus we have a fallback
 	// cleanup of namespaces in TestMain.
@@ -105,10 +100,6 @@ func newTestContext(t *testing.T) *testContext {
 		Cluster:       cluster,
 		Location:      location,
 		DisableExport: skipGCM,
-		// Run in host network to so the tests also work in Workload Identity
-		// clusters without additional configuration.
-		HostNetwork:       true,
-		CollectorPort:     tctx.collectorPort,
 		OperatorNamespace: tctx.namespace,
 		PublicNamespace:   tctx.pubNamespace,
 		PriorityClass:     "gmp-critical",
