@@ -200,13 +200,13 @@ spec:
       automountServiceAccountToken: true
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.3.3-gke.0
+        image: gke.gcr.io/prometheus-engine/operator:v0.4.0-gke.0
         args:
         - "--public-namespace=gmp-public"
         - "--priority-class=gmp-critical"
         - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.7-gke.0"
-        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.3.3-gke.0"
-        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.3.3-gke.0"
+        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.4.0-gke.0"
+        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.0-gke.0"
         ports:
         - name: webhook
           # Note this should match the --listen-addr flag passed in to the operator args.
