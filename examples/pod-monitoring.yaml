@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: monitoring.googleapis.com/v1alpha1
+apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
   name: prom-example
