@@ -768,7 +768,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 				metric.type = "prometheus.googleapis.com/up/gauge" AND
 				metric.labels.external_key = "external_val"
 				`,
-						projectID, location, cluster, t.namespace, job, pod.Name, port,
+						projectID, location, cluster, t.namespace, job, pod.Spec.NodeName, port,
 					),
 					Interval: &gcmpb.TimeInterval{
 						EndTime:   timestamppb.New(now),
