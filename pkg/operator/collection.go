@@ -642,9 +642,9 @@ func makeKubeletScrapeConfigs(cfg *monitoringv1.KubeletScraping) ([]*promconfig.
 	}
 	relabelCfgs := []*relabel.Config{
 		{
-			Action:       relabel.Replace,
+			Action:      relabel.Replace,
 			Replacement: "kubelet",
-			TargetLabel:  "job",
+			TargetLabel: "job",
 		},
 		{
 			Action:       relabel.Replace,
@@ -656,7 +656,7 @@ func makeKubeletScrapeConfigs(cfg *monitoringv1.KubeletScraping) ([]*promconfig.
 		return &relabel.Config{
 			Action:       relabel.Drop,
 			SourceLabels: prommodel.LabelNames{"__name__"},
-			Regex: relabel.MustNewRegexp(pattern),
+			Regex:        relabel.MustNewRegexp(pattern),
 		}
 	}
 	// We adopt the metric relabeling behavior of kube-prometheus as it's widely adopted and hence

@@ -483,6 +483,27 @@ func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.C
 		},
 	}
 
+	// Use the pod name as the primary identifier in the instance label. Unless the pod
+	// is controlled by a DaemonSet, in which case the node name will be used.
+	// This provides a better user experience on dashboards which template on the instance label
+	// and expect it to have meaningful value, such as common node exporter dashboards.
+	//
+	// Save the value in a temporary label and use it further down.
+	relabelCfgs = append(relabelCfgs,
+		&relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
+			TargetLabel:  "__tmp_instance",
+		},
+		&relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_kind", "__meta_kubernetes_pod_node_name"},
+			Regex:        relabel.MustNewRegexp(`DaemonSet;(.*)`),
+			TargetLabel:  "__tmp_instance",
+			Replacement:  "$1",
+		},
+	)
+
 	// Filter targets by the configured port.
 	if ep.Port.StrVal != "" {
 		portValue, err := relabel.NewRegexp(ep.Port.StrVal)
@@ -499,7 +520,7 @@ func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.C
 		// we have to disambiguate along the port as well.
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name", "__meta_kubernetes_pod_container_port_name"},
+			SourceLabels: prommodel.LabelNames{"__tmp_instance", "__meta_kubernetes_pod_container_port_name"},
 			Regex:        relabel.MustNewRegexp("(.+);(.+)"),
 			Replacement:  "$1:$2",
 			TargetLabel:  "instance",
@@ -532,7 +553,7 @@ func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.C
 		})
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
+			SourceLabels: prommodel.LabelNames{"__tmp_instance"},
 			Replacement:  fmt.Sprintf("$1:%d", ep.Port.IntVal),
 			TargetLabel:  "instance",
 		})
