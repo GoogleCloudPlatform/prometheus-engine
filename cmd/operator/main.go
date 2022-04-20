@@ -69,7 +69,7 @@ func main() {
 		imageRuleEvaluator = flag.String("image-rule-evaluator", operator.ImageRuleEvaluator,
 			unstableFlagHelp("Override for the container image of the rule evaluator."))
 
-		hostNetwork = flag.Bool("host-network", true,
+		hostNetwork = flag.Bool("host-network", false,
 			"Whether pods are deployed with hostNetwork enabled. If true, GKE clusters with Workload Identity will not require additional permission for the components deployed by the operator. Must be false on GKE Autopilot clusters.")
 		priorityClass = flag.String("priority-class", "",
 			"Priority class at which the collector pods are run.")

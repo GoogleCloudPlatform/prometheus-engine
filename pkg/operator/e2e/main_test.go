@@ -546,7 +546,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 				"--storage.tsdb.wal-compression",
 				"--storage.tsdb.min-block-duration=10m",
 				"--storage.tsdb.max-block-duration=10m",
-				fmt.Sprintf("--web.listen-address=:%d", t.collectorPort),
+				"--web.listen-address=:19090",
 				"--web.enable-lifecycle",
 				"--web.route-prefix=/",
 				fmt.Sprintf("--export.label.project-id=%s", projectID),
