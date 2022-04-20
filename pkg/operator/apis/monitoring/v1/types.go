@@ -98,6 +98,14 @@ type CollectionSpec struct {
 	// Within GKE, this can typically be left empty if the compute default
 	// service account has the required permissions.
 	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
+	// Configuration to scrape the metric endpoints of the Kubelets.
+	KubeletScraping *KubeletScraping `json:"kubeletScraping,omitempty"`
+}
+
+// KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
+type KubeletScraping struct {
+	// The interval at which the metric endpoints are scraped.
+	Interval string `json:"interval"`
 }
 
 // ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
@@ -831,6 +839,8 @@ type PodMonitoringSpec struct {
 	// The endpoints to scrape on the selected pods.
 	Endpoints []ScrapeEndpoint `json:"endpoints"`
 	// Labels to add to the Prometheus target for discovered endpoints.
+	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
+	// if the scraped pod is controlled by a DaemonSet.
 	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
@@ -859,7 +869,9 @@ type ClusterPodMonitoringSpec struct {
 	Selector metav1.LabelSelector `json:"selector"`
 	// The endpoints to scrape on the selected pods.
 	Endpoints []ScrapeEndpoint `json:"endpoints"`
-	// Labels to add to the Prometheus target for discovered endpoints
+	// Labels to add to the Prometheus target for discovered endpoints.
+	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
+	// if the scraped pod is controlled by a DaemonSet.
 	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`

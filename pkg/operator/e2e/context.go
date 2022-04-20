@@ -96,10 +96,10 @@ func newTestContext(t *testing.T) *testContext {
 	}
 
 	op, err := operator.New(globalLogger, kubeconfig, nil, operator.Options{
-		ProjectID:     projectID,
-		Cluster:       cluster,
-		Location:      location,
-		DisableExport: skipGCM,
+		ProjectID:         projectID,
+		Cluster:           cluster,
+		Location:          location,
+		DisableExport:     skipGCM,
 		OperatorNamespace: tctx.namespace,
 		PublicNamespace:   tctx.pubNamespace,
 		PriorityClass:     "gmp-critical",

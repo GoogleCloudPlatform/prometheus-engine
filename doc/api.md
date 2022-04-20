@@ -29,6 +29,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [ExportFilters](#exportfilters)
 * [GlobalRules](#globalrules)
 * [GlobalRulesList](#globalruleslist)
+* [KubeletScraping](#kubeletscraping)
 * [LabelMapping](#labelmapping)
 * [MonitoringCondition](#monitoringcondition)
 * [OperatorConfig](#operatorconfig)
@@ -135,7 +136,7 @@ ClusterPodMonitoringSpec contains specification parameters for PodMonitoring.
 | ----- | ----------- | ------ | -------- |
 | selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#labelselector-v1-meta) | true |
 | endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
-| targetLabels | Labels to add to the Prometheus target for discovered endpoints | [TargetLabels](#targetlabels) | false |
+| targetLabels | Labels to add to the Prometheus target for discovered endpoints. The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>` if the scraped pod is controlled by a DaemonSet. | [TargetLabels](#targetlabels) | false |
 | limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
 
 [Back to TOC](#table-of-contents)
@@ -178,6 +179,7 @@ CollectionSpec specifies how the operator configures collection of metric data.
 | externalLabels | ExternalLabels specifies external labels that are attached to all scraped data before being written to Cloud Monitoring. The precedence behavior matches that of Prometheus. | map[string]string | false |
 | filter | Filter limits which metric data is sent to Cloud Monitoring. | [ExportFilters](#exportfilters) | false |
 | credentials | A reference to GCP service account credentials with which Prometheus collectors are run. It needs to have metric write permissions for all project IDs to which data is written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
+| kubeletScraping | Configuration to scrape the metric endpoints of the Kubelets. | *[KubeletScraping](#kubeletscraping) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -217,6 +219,19 @@ GlobalRulesList is a list of GlobalRules.
 | ----- | ----------- | ------ | -------- |
 | metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#listmeta-v1-meta) | false |
 | items |  | [][GlobalRules](#globalrules) | true |
+
+[Back to TOC](#table-of-contents)
+
+## KubeletScraping
+
+KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
+
+
+<em>appears in: [CollectionSpec](#collectionspec)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| interval | The interval at which the metric endpoints are scraped. | string | true |
 
 [Back to TOC](#table-of-contents)
 
@@ -315,7 +330,7 @@ PodMonitoringSpec contains specification parameters for PodMonitoring.
 | ----- | ----------- | ------ | -------- |
 | selector | Label selector that specifies which pods are selected for this monitoring configuration. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#labelselector-v1-meta) | true |
 | endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
-| targetLabels | Labels to add to the Prometheus target for discovered endpoints. | [TargetLabels](#targetlabels) | false |
+| targetLabels | Labels to add to the Prometheus target for discovered endpoints. The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>` if the scraped pod is controlled by a DaemonSet. | [TargetLabels](#targetlabels) | false |
 | limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
 
 [Back to TOC](#table-of-contents)

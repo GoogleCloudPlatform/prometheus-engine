@@ -99,7 +99,7 @@ func TestMain(m *testing.M) {
 	}
 }
 
-func TestCollectorPodMonitoring(t *testing.T) {
+func TestCollector(t *testing.T) {
 	tctx := newTestContext(t)
 
 	// We could simply verify that the full collection chain works once. But validating
@@ -107,6 +107,7 @@ func TestCollectorPodMonitoring(t *testing.T) {
 	t.Run("deployed", tctx.subtest(testCollectorDeployed))
 	t.Run("self-podmonitoring", tctx.subtest(testCollectorSelfPodMonitoring))
 	t.Run("self-clusterpodmonitoring", tctx.subtest(testCollectorSelfClusterPodMonitoring))
+	t.Run("scrape-kubelet", tctx.subtest(testCollectorScrapeKubelet))
 }
 
 func TestRuleEvaluation(t *testing.T) {
@@ -501,6 +502,9 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 					"{__name__=~'up'}",
 				},
 			},
+			KubeletScraping: &monitoringv1.KubeletScraping{
+				Interval: "5s",
+			},
 		},
 	}
 	if gcpServiceAccount != "" {
@@ -765,6 +769,92 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 				metric.labels.external_key = "external_val"
 				`,
 						projectID, location, cluster, t.namespace, job, pod.Name, port,
+					),
+					Interval: &gcmpb.TimeInterval{
+						EndTime:   timestamppb.New(now),
+						StartTime: timestamppb.New(now.Add(-10 * time.Second)),
+					},
+				})
+				series, err := iter.Next()
+				if err == iterator.Done {
+					t.Logf("No data, retrying...")
+					return false, nil
+				} else if err != nil {
+					return false, errors.Wrap(err, "querying metrics failed")
+				}
+				if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
+					t.Logf("Up still %v, retrying...", v)
+					return false, nil
+				}
+				// We expect exactly one result.
+				series, err = iter.Next()
+				if err != iterator.Done {
+					return false, errors.Errorf("expected iterator to be done but got error %q and series %v", err, series)
+				}
+				return true, nil
+			}, ctx.Done())
+			if err != nil {
+				t.Fatalf("Waiting for collector metrics to appear in Cloud Monitoring failed: %s", err)
+			}
+		}
+	}
+}
+
+// testCollectorScrapeKubelet verifies that kubelet metric endpoints are successfully scraped.
+func testCollectorScrapeKubelet(ctx context.Context, t *testContext) {
+	if skipGCM {
+		t.Log("Not validating scraping of kubelets when --skip-gcm is set")
+		return
+	}
+	if projectID == "" {
+		t.Fatalf("no project specified (--project-id flag)")
+	}
+	if location == "" {
+		t.Fatalf("no location specified (--location flag)")
+	}
+	if cluster == "" {
+		t.Fatalf("no cluster name specified (--cluster flag)")
+	}
+
+	// Wait for metric data to show up in Cloud Monitoring.
+	metricClient, err := gcm.NewMetricClient(ctx)
+	if err != nil {
+		t.Fatalf("Create GCM metric client: %s", err)
+	}
+	defer metricClient.Close()
+
+	nodes, err := t.kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("List nodes: %s", err)
+	}
+
+	// See whether the `up` metric for both kubelet endpoints is 1 for each node on which
+	// a collector pod is running.
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	for _, node := range nodes.Items {
+		for _, port := range []string{"metrics", "cadvisor"} {
+			t.Logf("Poll up metric for kubelet on node %q and port %q", node.Name, port)
+
+			err = wait.PollImmediateUntil(3*time.Second, func() (bool, error) {
+				now := time.Now()
+
+				// Validate the majority of labels being set correctly by filtering along them.
+				iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
+					Name: fmt.Sprintf("projects/%s", projectID),
+					Filter: fmt.Sprintf(`
+				resource.type = "prometheus_target" AND
+				resource.labels.project_id = "%s" AND
+				resource.label.location = "%s" AND
+				resource.labels.cluster = "%s" AND
+				resource.labels.job = "kubelet" AND
+				resource.labels.instance = "%s:%s" AND
+				metric.type = "prometheus.googleapis.com/up/gauge" AND
+				metric.labels.node = "%s"
+				metric.labels.external_key = "external_val"
+				`,
+						projectID, location, cluster, node.Name, port, node.Name,
 					),
 					Interval: &gcmpb.TimeInterval{
 						EndTime:   timestamppb.New(now),

@@ -81,6 +81,15 @@ spec:
                       type: string
                     type: array
                 type: object
+              kubeletScraping:
+                description: Configuration to scrape the metric endpoints of the Kubelets.
+                properties:
+                  interval:
+                    description: The interval at which the metric endpoints are scraped.
+                    type: string
+                required:
+                - interval
+                type: object
             type: object
           kind:
             description: 'Kind is a string value representing the REST resource this

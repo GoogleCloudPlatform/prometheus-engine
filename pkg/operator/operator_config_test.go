@@ -60,6 +60,36 @@ func TestOperatorConfigValidator(t *testing.T) {
 			},
 			err: `OperatorConfig must be in namespace "foo" with name "config"`,
 		},
+		{
+			desc: "bad scrape interval",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Collection: monitoringv1.CollectionSpec{
+					KubeletScraping: &monitoringv1.KubeletScraping{
+						Interval: "xyz",
+					},
+				},
+			},
+			err: `invalid scrape interval: not a valid duration string: "xyz"`,
+		},
+		{
+			desc: "missing scrape interval",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Collection: monitoringv1.CollectionSpec{
+					KubeletScraping: &monitoringv1.KubeletScraping{
+						Interval: "",
+					},
+				},
+			},
+			err: `invalid scrape interval: empty duration string`,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {

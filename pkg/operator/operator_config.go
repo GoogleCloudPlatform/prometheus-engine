@@ -754,6 +754,9 @@ func (v *operatorConfigValidator) ValidateCreate(ctx context.Context, o runtime.
 	if oc.Namespace != v.namespace || oc.Name != NameOperatorConfig {
 		return errors.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
 	}
+	if _, err := makeKubeletScrapeConfigs(oc.Collection.KubeletScraping); err != nil {
+		return errors.Wrap(err, "failed to create kubelet scrape config")
+	}
 	return nil
 }
 
