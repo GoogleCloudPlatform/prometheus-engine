@@ -353,7 +353,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 				fmt.Sprintf("--export.label.location=%s", location),
 				fmt.Sprintf("--export.label.cluster=%s", cluster),
 				fmt.Sprintf("--query.project-id=%s", projectID),
-				"--export.user-agent=prometheus-engine-export/0.3.3 rule-evaluator/0.3.3 (mode:kubectl)",
+				"--export.user-agent=rule-evaluator/0.4.0 (mode:kubectl)",
 			}
 			if skipGCM {
 				wantArgs = append(wantArgs, "--export.disable")
@@ -558,7 +558,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 				fmt.Sprintf("--export.label.cluster=%s", cluster),
 				"--export.match={job='foo'}",
 				"--export.match={__name__=~'up'}",
-				"--export.user-agent=prometheus-engine-export/0.3.3 prometheus-collector/2.28.1-gmp.7 (mode:kubectl)",
+				"--export.user-agent=prometheus/2.28.1-gmp.7 (mode:kubectl)",
 			}
 			if skipGCM {
 				wantArgs = append(wantArgs, "--export.disable")
