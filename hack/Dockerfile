@@ -53,10 +53,6 @@ WORKDIR /build
 # Install go.
 COPY --from=buildbase /usr/local/go /usr/local
 
-# Install docker CLI.
-RUN curl -fsSL https://get.docker.com -o get-docker.sh
-RUN sh get-docker.sh && rm get-docker.sh
-
 # Install kubectl.
 RUN apt-get install kubectl
 

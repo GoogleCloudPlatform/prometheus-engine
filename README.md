@@ -31,9 +31,8 @@ make operator
 ```
 This triggers a Docker build and associated image. It also generates in a binary in `./build/bin/`.
 
-- Running `make all` will generate all the go binaries.
+- Running `make bin` will generate all the go binaries.
   - Setting `NO_DOCKER=1` here will build all the binaries natively on the host machine.
-    In this case, running `NO_DOCKER=1 make assets` beforehand is required.
 - Running `make test` will run unit and e2e tests.
   - If `NO_DOCKER=1` is set, end-to-end tests will be run against the current
   kubectl context. It is assumed the cluster has access to the GCM API.

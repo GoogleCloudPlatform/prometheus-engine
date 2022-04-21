@@ -138,7 +138,7 @@ exit_msg() {
   exit 1
 }
 
-run_all() {
+update_all() {
   # As this command can be slow, optimize by only running if there's difference
   # from the origin/main branch.
   codegen_diff || update_codegen
@@ -146,17 +146,16 @@ run_all() {
   update_crdgen
   update_manifests
   update_docgen
-  run_tests
 }
 
 main() {
   if [[ -z "$@" ]]; then
-    run_all
+    update_all
   else
     for opt in "$@"; do
       case "${opt}" in
         all)
-          run_all
+          update_all
           ;;
         codegen)
           update_codegen

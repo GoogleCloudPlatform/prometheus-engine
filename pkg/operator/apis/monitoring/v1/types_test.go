@@ -585,10 +585,18 @@ relabel_configs:
 - target_label: job
   replacement: name1
   action: replace
+- source_labels: [__meta_kubernetes_pod_name]
+  target_label: __tmp_instance
+  action: replace
+- source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
+  regex: DaemonSet;(.*)
+  target_label: __tmp_instance
+  replacement: $1
+  action: replace
 - source_labels: [__meta_kubernetes_pod_container_port_name]
   regex: web
   action: keep
-- source_labels: [__meta_kubernetes_pod_name, __meta_kubernetes_pod_container_port_name]
+- source_labels: [__tmp_instance, __meta_kubernetes_pod_container_port_name]
   regex: (.+);(.+)
   target_label: instance
   replacement: $1:$2
@@ -638,10 +646,18 @@ relabel_configs:
 - target_label: job
   replacement: name1
   action: replace
+- source_labels: [__meta_kubernetes_pod_name]
+  target_label: __tmp_instance
+  action: replace
+- source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
+  regex: DaemonSet;(.*)
+  target_label: __tmp_instance
+  replacement: $1
+  action: replace
 - source_labels: [__meta_kubernetes_pod_container_port_number]
   regex: (8080)?
   action: keep
-- source_labels: [__meta_kubernetes_pod_name]
+- source_labels: [__tmp_instance]
   target_label: instance
   replacement: $1:8080
   action: replace
@@ -753,10 +769,18 @@ relabel_configs:
 - target_label: job
   replacement: name1
   action: replace
+- source_labels: [__meta_kubernetes_pod_name]
+  target_label: __tmp_instance
+  action: replace
+- source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
+  regex: DaemonSet;(.*)
+  target_label: __tmp_instance
+  replacement: $1
+  action: replace
 - source_labels: [__meta_kubernetes_pod_container_port_name]
   regex: web
   action: keep
-- source_labels: [__meta_kubernetes_pod_name, __meta_kubernetes_pod_container_port_name]
+- source_labels: [__tmp_instance, __meta_kubernetes_pod_container_port_name]
   regex: (.+);(.+)
   target_label: instance
   replacement: $1:$2
@@ -803,10 +827,18 @@ relabel_configs:
 - target_label: job
   replacement: name1
   action: replace
+- source_labels: [__meta_kubernetes_pod_name]
+  target_label: __tmp_instance
+  action: replace
+- source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
+  regex: DaemonSet;(.*)
+  target_label: __tmp_instance
+  replacement: $1
+  action: replace
 - source_labels: [__meta_kubernetes_pod_container_port_number]
   regex: (8080)?
   action: keep
-- source_labels: [__meta_kubernetes_pod_name]
+- source_labels: [__tmp_instance]
   target_label: instance
   replacement: $1:8080
   action: replace

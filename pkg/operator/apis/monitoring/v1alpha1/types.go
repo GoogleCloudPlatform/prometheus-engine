@@ -1316,16 +1316,6 @@ type RulesStatus struct {
 	// TODO: add status information.
 }
 
-// isPrometheusTargetLabel returns true if the label argument is in use by the Prometheus target schema.
-func isPrometheusTargetLabel(label string) bool {
-	switch label {
-	case export.KeyProjectID, export.KeyLocation, export.KeyCluster, export.KeyNamespace, export.KeyJob, export.KeyInstance:
-		return true
-	default:
-		return false
-	}
-}
-
 var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 
 // sanitizeLabelName reproduces the label name cleanup Prometheus's service discovery applies.

@@ -316,10 +316,10 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 
 		for {
 			if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil {
-				o.logger.Error(err, "msg", "Setting CA bundle for ValidatingWebhookConfiguration failed")
+				o.logger.Error(err, "Setting CA bundle for ValidatingWebhookConfiguration failed")
 			}
 			if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
-				o.logger.Error(err, "msg", "Setting CA bundle for MutatingWebhookConfiguration failed")
+				o.logger.Error(err, "Setting CA bundle for MutatingWebhookConfiguration failed")
 			}
 			select {
 			case <-ctx.Done():
