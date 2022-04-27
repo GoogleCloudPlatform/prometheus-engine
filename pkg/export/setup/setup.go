@@ -24,6 +24,7 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/lease"
 	"github.com/go-kit/log"
+	"github.com/google/shlex"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
@@ -40,6 +41,11 @@ const (
 	HABackendNone       = "none"
 	HABackendKubernetes = "kube"
 )
+
+// Environment variable that contains additional command line arguments.
+// It can be used to inject additional arguments when the regular ones cannot
+// be easily modified.
+const ExtraArgsEnvvar = "EXTRA_ARGS"
 
 // Generally, global state is not a good approach and actively discouraged throughout
 // the Prometheus code bases. However, this is the most practical way to inject the export
@@ -185,4 +191,12 @@ func loadKubeConfig(kubeconfigPath string) (*rest.Config, error) {
 	rules.ExplicitPath = kubeconfigPath
 
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, nil).ClientConfig()
+}
+
+// ExtraArgs returns additional command line arguments extracted from the EXTRA_ARGS.
+// environment variable. It is parsed like a shell parses arguments.
+// For example: EXTRA_ARGS="--foo=bar -x 123".
+// It can be used like `flagset.Parse(append(os.Args[1:], ExtraArgs()...))`.
+func ExtraArgs() ([]string, error) {
+	return shlex.Split(os.Getenv(ExtraArgsEnvvar))
 }

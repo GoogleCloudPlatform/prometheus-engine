@@ -104,7 +104,13 @@ func main() {
 	a.Flag("alertmanager.notification-queue-capacity", "The capacity of the queue for pending Alertmanager notifications.").
 		Default("10000").IntVar(&notifierOptions.QueueCapacity)
 
-	if _, err := a.Parse(os.Args[1:]); err != nil {
+	extraArgs, err := exportsetup.ExtraArgs()
+	if err != nil {
+		level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
+		a.Usage(os.Args[1:])
+		os.Exit(2)
+	}
+	if _, err := a.Parse(append(os.Args[1:], extraArgs...)); err != nil {
 		level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
 		a.Usage(os.Args[1:])
 		os.Exit(2)
