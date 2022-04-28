@@ -28,20 +28,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/config"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
 	"github.com/prometheus/prometheus/tsdb/chunks"
 	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 	"github.com/prometheus/prometheus/tsdb/fileutil"
 	_ "github.com/prometheus/prometheus/tsdb/goversion" // Load the package into main to make sure minium Go version is met.
+	"github.com/prometheus/prometheus/tsdb/tsdbutil"
 	"github.com/prometheus/prometheus/tsdb/wal"
 )
 
@@ -60,10 +62,8 @@ const (
 	tmpLegacy = ".tmp"
 )
 
-var (
-	// ErrNotReady is returned if the underlying storage is not ready yet.
-	ErrNotReady = errors.New("TSDB not ready")
-)
+// ErrNotReady is returned if the underlying storage is not ready yet.
+var ErrNotReady = errors.New("TSDB not ready")
 
 // DefaultOptions used for the DB. They are sane for setups using
 // millisecond precision timestamps.
@@ -79,6 +79,8 @@ func DefaultOptions() *Options {
 		WALCompression:            false,
 		StripeSize:                DefaultStripeSize,
 		HeadChunksWriteBufferSize: chunks.DefaultWriteBufferSize,
+		IsolationDisabled:         defaultIsolationDisabled,
+		HeadChunksWriteQueueSize:  chunks.DefaultWriteQueueSize,
 	}
 }
 
@@ -134,6 +136,9 @@ type Options struct {
 	// HeadChunksWriteBufferSize configures the write buffer size used by the head chunks mapper.
 	HeadChunksWriteBufferSize int
 
+	// HeadChunksWriteQueueSize configures the size of the chunk write queue used in the head chunks mapper.
+	HeadChunksWriteQueueSize int
+
 	// SeriesLifecycleCallback specifies a list of callbacks that will be called during a lifecycle of a series.
 	// It is always a no-op in Prometheus and mainly meant for external users who import TSDB.
 	SeriesLifecycleCallback SeriesLifecycleCallback
@@ -143,9 +148,18 @@ type Options struct {
 	// mainly meant for external users who import TSDB.
 	BlocksToDelete BlocksToDeleteFunc
 
+	// Enables the in memory exemplar storage.
+	EnableExemplarStorage bool
+
+	// Enables the snapshot of in-memory chunks on shutdown. This makes restarts faster.
+	EnableMemorySnapshotOnShutdown bool
+
 	// MaxExemplars sets the size, in # of exemplars stored, of the single circular buffer used to store exemplars in memory.
 	// See tsdb/exemplar.go, specifically the CircularExemplarStorage struct and it's constructor NewCircularExemplarStorage.
-	MaxExemplars int
+	MaxExemplars int64
+
+	// Disables isolation between reads and in-flight appends.
+	IsolationDisabled bool
 }
 
 type BlocksToDeleteFunc func(blocks []*Block) map[ulid.ULID]struct{}
@@ -153,8 +167,8 @@ type BlocksToDeleteFunc func(blocks []*Block) map[ulid.ULID]struct{}
 // DB handles reads and writes of time series falling into
 // a hashed partition of a seriedb.
 type DB struct {
-	dir   string
-	lockf fileutil.Releaser
+	dir    string
+	locker *tsdbutil.DirLocker
 
 	logger         log.Logger
 	metrics        *dbMetrics
@@ -297,6 +311,20 @@ func newDBMetrics(db *DB, r prometheus.Registerer) *dbMetrics {
 	return m
 }
 
+// DBStats contains statistics about the DB separated by component (eg. head).
+// They are available before the DB has finished initializing.
+type DBStats struct {
+	Head *HeadStats
+}
+
+// NewDBStats returns a new DBStats object initialized using the
+// the new function from each component.
+func NewDBStats() *DBStats {
+	return &DBStats{
+		Head: NewHeadStats(),
+	}
+}
+
 // ErrClosed is returned when the db is closed.
 var ErrClosed = errors.New("db already closed")
 
@@ -346,7 +374,7 @@ func (db *DBReadOnly) FlushWAL(dir string) (returnErr error) {
 	}
 	opts := DefaultHeadOptions()
 	opts.ChunkDirRoot = db.dir
-	head, err := NewHead(nil, db.logger, w, opts)
+	head, err := NewHead(nil, db.logger, w, opts, NewHeadStats())
 	if err != nil {
 		return err
 	}
@@ -370,6 +398,7 @@ func (db *DBReadOnly) FlushWAL(dir string) (returnErr error) {
 		db.logger,
 		ExponentialBlockRanges(DefaultOptions().MinBlockDuration, 3, 5),
 		chunkenc.NewPool(),
+		nil,
 	)
 	if err != nil {
 		return errors.Wrap(err, "create leveled compactor")
@@ -401,7 +430,7 @@ func (db *DBReadOnly) loadDataAsQueryable(maxt int64) (storage.SampleAndChunkQue
 
 	opts := DefaultHeadOptions()
 	opts.ChunkDirRoot = db.dir
-	head, err := NewHead(nil, db.logger, nil, opts)
+	head, err := NewHead(nil, db.logger, nil, opts, NewHeadStats())
 	if err != nil {
 		return nil, err
 	}
@@ -421,7 +450,7 @@ func (db *DBReadOnly) loadDataAsQueryable(maxt int64) (storage.SampleAndChunkQue
 		}
 		opts := DefaultHeadOptions()
 		opts.ChunkDirRoot = db.dir
-		head, err = NewHead(nil, db.logger, w, opts)
+		head, err = NewHead(nil, db.logger, w, opts, NewHeadStats())
 		if err != nil {
 			return nil, err
 		}
@@ -540,10 +569,11 @@ func (db *DBReadOnly) Close() error {
 }
 
 // Open returns a new DB in the given directory. If options are empty, DefaultOptions will be used.
-func Open(dir string, l log.Logger, r prometheus.Registerer, opts *Options) (db *DB, err error) {
+func Open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, stats *DBStats) (db *DB, err error) {
 	var rngs []int64
 	opts, rngs = validateOpts(opts, nil)
-	return open(dir, l, r, opts, rngs)
+
+	return open(dir, l, r, opts, rngs, stats)
 }
 
 func validateOpts(opts *Options, rngs []int64) (*Options, []int64) {
@@ -555,6 +585,9 @@ func validateOpts(opts *Options, rngs []int64) (*Options, []int64) {
 	}
 	if opts.HeadChunksWriteBufferSize <= 0 {
 		opts.HeadChunksWriteBufferSize = chunks.DefaultWriteBufferSize
+	}
+	if opts.HeadChunksWriteQueueSize < 0 {
+		opts.HeadChunksWriteQueueSize = chunks.DefaultWriteQueueSize
 	}
 	if opts.MaxBlockChunkSegmentSize <= 0 {
 		opts.MaxBlockChunkSegmentSize = chunks.DefaultChunkSegmentSize
@@ -574,12 +607,18 @@ func validateOpts(opts *Options, rngs []int64) (*Options, []int64) {
 	return opts, rngs
 }
 
-func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs []int64) (_ *DB, returnedErr error) {
-	if err := os.MkdirAll(dir, 0777); err != nil {
+// open returns a new DB in the given directory.
+// It initializes the lockfile, WAL, compactor, and Head (by replaying the WAL), and runs the database.
+// It is not safe to open more than one DB in the same directory.
+func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs []int64, stats *DBStats) (_ *DB, returnedErr error) {
+	if err := os.MkdirAll(dir, 0o777); err != nil {
 		return nil, err
 	}
 	if l == nil {
 		l = log.NewNopLogger()
+	}
+	if stats == nil {
+		stats = NewDBStats()
 	}
 
 	for i, v := range rngs {
@@ -600,9 +639,11 @@ func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs
 	if err := MigrateWAL(l, walDir); err != nil {
 		return nil, errors.Wrap(err, "migrate WAL")
 	}
-	// Remove garbage, tmp blocks.
-	if err := removeBestEffortTmpDirs(l, dir); err != nil {
-		return nil, errors.Wrap(err, "remove tmp dirs")
+	for _, tmpDir := range []string{walDir, dir} {
+		// Remove tmp dirs.
+		if err := removeBestEffortTmpDirs(l, tmpDir); err != nil {
+			return nil, errors.Wrap(err, "remove tmp dirs")
+		}
 	}
 
 	db := &DB{
@@ -634,21 +675,19 @@ func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs
 		db.blocksToDelete = DefaultBlocksToDelete(db)
 	}
 
+	var err error
+	db.locker, err = tsdbutil.NewDirLocker(dir, "tsdb", db.logger, r)
+	if err != nil {
+		return nil, err
+	}
 	if !opts.NoLockfile {
-		absdir, err := filepath.Abs(dir)
-		if err != nil {
+		if err := db.locker.Lock(); err != nil {
 			return nil, err
 		}
-		lockf, _, err := fileutil.Flock(filepath.Join(absdir, "lock"))
-		if err != nil {
-			return nil, errors.Wrap(err, "lock DB directory")
-		}
-		db.lockf = lockf
 	}
 
-	var err error
 	ctx, cancel := context.WithCancel(context.Background())
-	db.compactor, err = NewLeveledCompactorWithChunkSize(ctx, r, l, rngs, db.chunkPool, opts.MaxBlockChunkSegmentSize)
+	db.compactor, err = NewLeveledCompactorWithChunkSize(ctx, r, l, rngs, db.chunkPool, opts.MaxBlockChunkSegmentSize, nil)
 	if err != nil {
 		cancel()
 		return nil, errors.Wrap(err, "create leveled compactor")
@@ -674,10 +713,17 @@ func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs
 	headOpts.ChunkDirRoot = dir
 	headOpts.ChunkPool = db.chunkPool
 	headOpts.ChunkWriteBufferSize = opts.HeadChunksWriteBufferSize
+	headOpts.ChunkWriteQueueSize = opts.HeadChunksWriteQueueSize
 	headOpts.StripeSize = opts.StripeSize
 	headOpts.SeriesCallback = opts.SeriesLifecycleCallback
-	headOpts.NumExemplars = opts.MaxExemplars
-	db.head, err = NewHead(r, l, wlog, headOpts)
+	headOpts.EnableExemplarStorage = opts.EnableExemplarStorage
+	headOpts.MaxExemplars.Store(opts.MaxExemplars)
+	headOpts.EnableMemorySnapshotOnShutdown = opts.EnableMemorySnapshotOnShutdown
+	if opts.IsolationDisabled {
+		// We only override this flag if isolation is disabled at DB level. We use the default otherwise.
+		headOpts.IsolationDisabled = opts.IsolationDisabled
+	}
+	db.head, err = NewHead(r, l, wlog, headOpts, stats.Head)
 	if err != nil {
 		return nil, err
 	}
@@ -716,11 +762,14 @@ func open(dir string, l log.Logger, r prometheus.Registerer, opts *Options, rngs
 
 func removeBestEffortTmpDirs(l log.Logger, dir string) error {
 	files, err := ioutil.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 	for _, fi := range files {
-		if isTmpBlockDir(fi) {
+		if isTmpDir(fi) {
 			if err := os.RemoveAll(filepath.Join(dir, fi.Name())); err != nil {
 				level.Error(l).Log("msg", "failed to delete tmp block dir", "dir", filepath.Join(dir, fi.Name()), "err", err)
 				continue
@@ -797,6 +846,10 @@ func (db *DB) Appender(ctx context.Context) storage.Appender {
 	return dbAppender{db: db, Appender: db.head.Appender(ctx)}
 }
 
+func (db *DB) ApplyConfig(conf *config.Config) error {
+	return db.head.ApplyConfig(conf)
+}
+
 // dbAppender wraps the DB's head appender and triggers compactions on commit
 // if necessary.
 type dbAppender struct {
@@ -806,7 +859,7 @@ type dbAppender struct {
 
 var _ storage.GetRef = dbAppender{}
 
-func (a dbAppender) GetRef(lset labels.Labels) (uint64, labels.Labels) {
+func (a dbAppender) GetRef(lset labels.Labels) (storage.SeriesRef, labels.Labels) {
 	if g, ok := a.Appender.(storage.GetRef); ok {
 		return g.GetRef(lset)
 	}
@@ -1396,10 +1449,7 @@ func (db *DB) Close() error {
 		g.Go(pb.Close)
 	}
 
-	errs := tsdb_errors.NewMulti(g.Wait())
-	if db.lockf != nil {
-		errs.Add(db.lockf.Release())
-	}
+	errs := tsdb_errors.NewMulti(g.Wait(), db.locker.Release())
 	if db.head != nil {
 		errs.Add(db.head.Close())
 	}
@@ -1474,8 +1524,32 @@ func (db *DB) Querier(_ context.Context, mint, maxt int64) (storage.Querier, err
 			blocks = append(blocks, b)
 		}
 	}
+	var headQuerier storage.Querier
 	if maxt >= db.head.MinTime() {
-		blocks = append(blocks, NewRangeHead(db.head, mint, maxt))
+		rh := NewRangeHead(db.head, mint, maxt)
+		var err error
+		headQuerier, err = NewBlockQuerier(rh, mint, maxt)
+		if err != nil {
+			return nil, errors.Wrapf(err, "open querier for head %s", rh)
+		}
+
+		// Getting the querier above registers itself in the queue that the truncation waits on.
+		// So if the querier is currently not colliding with any truncation, we can continue to use it and still
+		// won't run into a race later since any truncation that comes after will wait on this querier if it overlaps.
+		shouldClose, getNew, newMint := db.head.IsQuerierCollidingWithTruncation(mint, maxt)
+		if shouldClose {
+			if err := headQuerier.Close(); err != nil {
+				return nil, errors.Wrapf(err, "closing head querier %s", rh)
+			}
+			headQuerier = nil
+		}
+		if getNew {
+			rh := NewRangeHead(db.head, newMint, maxt)
+			headQuerier, err = NewBlockQuerier(rh, newMint, maxt)
+			if err != nil {
+				return nil, errors.Wrapf(err, "open querier for head while getting new querier %s", rh)
+			}
+		}
 	}
 
 	blockQueriers := make([]storage.Querier, 0, len(blocks))
@@ -1492,6 +1566,9 @@ func (db *DB) Querier(_ context.Context, mint, maxt int64) (storage.Querier, err
 		}
 		return nil, errors.Wrapf(err, "open querier for block %s", b)
 	}
+	if headQuerier != nil {
+		blockQueriers = append(blockQueriers, headQuerier)
+	}
 	return storage.NewMergeQuerier(blockQueriers, nil, storage.ChainedSeriesMerge), nil
 }
 
@@ -1507,8 +1584,32 @@ func (db *DB) ChunkQuerier(_ context.Context, mint, maxt int64) (storage.ChunkQu
 			blocks = append(blocks, b)
 		}
 	}
+	var headQuerier storage.ChunkQuerier
 	if maxt >= db.head.MinTime() {
-		blocks = append(blocks, NewRangeHead(db.head, mint, maxt))
+		rh := NewRangeHead(db.head, mint, maxt)
+		var err error
+		headQuerier, err = NewBlockChunkQuerier(rh, mint, maxt)
+		if err != nil {
+			return nil, errors.Wrapf(err, "open querier for head %s", rh)
+		}
+
+		// Getting the querier above registers itself in the queue that the truncation waits on.
+		// So if the querier is currently not colliding with any truncation, we can continue to use it and still
+		// won't run into a race later since any truncation that comes after will wait on this querier if it overlaps.
+		shouldClose, getNew, newMint := db.head.IsQuerierCollidingWithTruncation(mint, maxt)
+		if shouldClose {
+			if err := headQuerier.Close(); err != nil {
+				return nil, errors.Wrapf(err, "closing head querier %s", rh)
+			}
+			headQuerier = nil
+		}
+		if getNew {
+			rh := NewRangeHead(db.head, newMint, maxt)
+			headQuerier, err = NewBlockChunkQuerier(rh, newMint, maxt)
+			if err != nil {
+				return nil, errors.Wrapf(err, "open querier for head while getting new querier %s", rh)
+			}
+		}
 	}
 
 	blockQueriers := make([]storage.ChunkQuerier, 0, len(blocks))
@@ -1525,6 +1626,9 @@ func (db *DB) ChunkQuerier(_ context.Context, mint, maxt int64) (storage.ChunkQu
 		}
 		return nil, errors.Wrapf(err, "open querier for block %s", b)
 	}
+	if headQuerier != nil {
+		blockQueriers = append(blockQueriers, headQuerier)
+	}
 
 	return storage.NewMergeChunkQuerier(blockQueriers, nil, storage.NewCompactingChunkSeriesMerger(storage.ChainedSeriesMerge)), nil
 }
@@ -1533,7 +1637,7 @@ func (db *DB) ExemplarQuerier(ctx context.Context) (storage.ExemplarQuerier, err
 	return db.head.exemplars.ExemplarQuerier(ctx)
 }
 
-func rangeForTimestamp(t int64, width int64) (maxt int64) {
+func rangeForTimestamp(t, width int64) (maxt int64) {
 	return (t/width)*width + width
 }
 
@@ -1554,9 +1658,12 @@ func (db *DB) Delete(mint, maxt int64, ms ...*labels.Matcher) error {
 			}(b))
 		}
 	}
-	g.Go(func() error {
-		return db.head.Delete(mint, maxt, ms...)
-	})
+	if db.head.OverlapsClosedInterval(mint, maxt) {
+		g.Go(func() error {
+			return db.head.Delete(mint, maxt, ms...)
+		})
+	}
+
 	return g.Wait()
 }
 
@@ -1618,8 +1725,8 @@ func isBlockDir(fi os.FileInfo) bool {
 	return err == nil
 }
 
-// isTmpBlockDir returns dir that consists of block dir ULID and tmp extension.
-func isTmpBlockDir(fi os.FileInfo) bool {
+// isTmpDir returns true if the given file-info contains a block ULID or checkpoint prefix and a tmp extension.
+func isTmpDir(fi os.FileInfo) bool {
 	if !fi.IsDir() {
 		return false
 	}
@@ -1627,6 +1734,9 @@ func isTmpBlockDir(fi os.FileInfo) bool {
 	fn := fi.Name()
 	ext := filepath.Ext(fn)
 	if ext == tmpForDeletionBlockDirSuffix || ext == tmpForCreationBlockDirSuffix || ext == tmpLegacy {
+		if strings.HasPrefix(fn, "checkpoint.") {
+			return true
+		}
 		if _, err := ulid.ParseStrict(fn[:len(fn)-len(ext)]); err == nil {
 			return true
 		}
