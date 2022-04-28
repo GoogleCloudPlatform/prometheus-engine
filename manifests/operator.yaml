@@ -240,7 +240,7 @@ spec:
     port: 8443
     targetPort: webhook
 ---
-apiVersion: monitoring.googleapis.com/v1alpha1
+apiVersion: monitoring.googleapis.com/v1
 kind: OperatorConfig
 metadata:
   namespace: gmp-public
