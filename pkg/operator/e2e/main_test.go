@@ -533,8 +533,21 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 		if ds.Status.DesiredNumberScheduled == 0 {
 			return false, nil
 		}
-		if ds.Status.NumberReady != ds.Status.DesiredNumberScheduled {
-			return false, nil
+
+		// TODO(pintohutch): run all tests without skipGCM by providing boilerplate
+		// credentials for use in local testing and CI.
+		//
+		// This is necessary for any e2e tests that don't have access to GCP
+		// credentials. We were getting away with this by running on networks
+		// with access to the GCE metadata server IP to supply them:
+		// https://github.com/googleapis/google-cloud-go/blob/56d81f123b5b4491aaf294042340c35ffcb224a7/compute/metadata/metadata.go#L39
+		// However, running without this access (e.g. on Github Actions) causes
+		// a failure from:
+		// https://cs.opensource.google/go/x/oauth2/+/master:google/default.go;l=155;drc=9780585627b5122c8cc9c6a378ac9861507e7551
+		if !skipGCM {
+			if ds.Status.NumberReady != ds.Status.DesiredNumberScheduled {
+				return false, nil
+			}
 		}
 		for _, c := range ds.Spec.Template.Spec.Containers {
 			if c.Name != "prometheus" {

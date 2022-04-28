@@ -210,7 +210,8 @@ spec:
                 type: object
               targetLabels:
                 description: Labels to add to the Prometheus target for discovered
-                  endpoints.
+                  endpoints. The `instance` label is always set to `<pod_name>:<port>`
+                  or `<node_name>:<port>` if the scraped pod is controlled by a DaemonSet.
                 properties:
                   fromPod:
                     description: Labels to transfer from the Kubernetes Pod to Prometheus
