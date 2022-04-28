@@ -324,20 +324,18 @@ const (
 // ApplyConfig updates the exporter state to the given configuration.
 // Must be called at least once before Export() can be used.
 func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
-	// If project_id, location and cluster were set through explicit flags or auto-discovery,
-	// set them in the external labels. Currently we don't expect a use case where one would want
-	// to override auto-discovery values via external labels.
-	// All resource labels may still later be overriden by metric labels per the precedence semantics
-	// Prometheus upstream has.
+	// If project_id, location, or cluster were set through the external_labels in the config file,
+	// these values take precedence. If they are unset, the flag value, which defaults to an
+	// environment-specific value on GCE/GKE, is used.
 	builder := labels.NewBuilder(cfg.GlobalConfig.ExternalLabels)
 
-	if e.opts.ProjectID != "" {
+	if !cfg.GlobalConfig.ExternalLabels.Has(KeyProjectID) {
 		builder.Set(KeyProjectID, e.opts.ProjectID)
 	}
-	if e.opts.Location != "" {
+	if !cfg.GlobalConfig.ExternalLabels.Has(KeyLocation)  {
 		builder.Set(KeyLocation, e.opts.Location)
 	}
-	if e.opts.Cluster != "" {
+	if !cfg.GlobalConfig.ExternalLabels.Has(KeyCluster) {
 		builder.Set(KeyCluster, e.opts.Cluster)
 	}
 	lset := builder.Labels()
