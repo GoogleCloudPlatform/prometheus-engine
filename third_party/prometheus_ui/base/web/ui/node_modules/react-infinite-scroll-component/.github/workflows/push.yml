@@ -1,0 +1,30 @@
+name: react-infinite-scroll-component
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: install dependencies
+        run: yarn
+
+      - name: lint
+        run: yarn lint
+
+      - name: prettier
+        run: yarn prettier:check
+
+      - name: unit tests
+        run: yarn test
+
+      - name: ts type checks
+        run: yarn ts-check
+
+      - uses: codecov/codecov-action@v1.0.3
+        with:
+          token: ${{secrets.CODECOV_TOKEN}}
+          file: ./coverage/lcov.info
