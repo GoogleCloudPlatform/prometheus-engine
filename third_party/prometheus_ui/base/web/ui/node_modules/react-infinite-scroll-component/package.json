@@ -1,0 +1,102 @@
+{
+  "name": "react-infinite-scroll-component",
+  "version": "6.1.0",
+  "description": "An Infinite Scroll component in react.",
+  "source": "src/index.tsx",
+  "main": "dist/index.js",
+  "unpkg": "dist/index.umd.js",
+  "module": "dist/index.es.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf dist && rollup -c",
+    "prepublish": "yarn build",
+    "storybook": "start-storybook -p 6006",
+    "build-storybook": "build-storybook",
+    "codecov": "codecov",
+    "lint": "eslint 'src/**/*.{ts,tsx,js,jsx}'",
+    "lint:fix": "yarn lint --fix",
+    "prettier:check": "prettier --check 'src/**/*'",
+    "prettify": "prettier --write 'src/**/*'",
+    "ts-check": "tsc -p tsconfig.json --noEmit",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ankeetmaini/react-infinite-scroll-component.git"
+  },
+  "keywords": [
+    "react",
+    "infinite-scroll",
+    "infinite",
+    "scroll",
+    "component",
+    "react-component"
+  ],
+  "author": "Ankeet Maini <ankeet.maini@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ankeetmaini/react-infinite-scroll-component/issues"
+  },
+  "homepage": "https://github.com/ankeetmaini/react-infinite-scroll-component#readme",
+  "peerDependencies": {
+    "react": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.6.2",
+    "@storybook/addon-actions": "^5.2.1",
+    "@storybook/addon-info": "^5.2.1",
+    "@storybook/addon-links": "^5.2.1",
+    "@storybook/addons": "^5.2.1",
+    "@storybook/react": "^5.2.1",
+    "@testing-library/react": "^9.2.0",
+    "@types/jest": "^24.0.18",
+    "@types/react": "^16.9.2",
+    "@types/react-dom": "^16.9.1",
+    "@types/storybook__react": "^4.0.2",
+    "@types/throttle-debounce": "^2.1.0",
+    "@typescript-eslint/eslint-plugin": "^2.3.2",
+    "@typescript-eslint/parser": "^2.3.2",
+    "awesome-typescript-loader": "^5.2.1",
+    "babel-loader": "^8.0.6",
+    "eslint": "^6.5.1",
+    "eslint-config-prettier": "^6.3.0",
+    "eslint-plugin-react": "^7.15.0",
+    "husky": ">=1",
+    "jest": "^24.9.0",
+    "lint-staged": ">=8",
+    "prettier": "1.18.2",
+    "react": "^16.10.1",
+    "react-docgen-typescript-loader": "^3.2.1",
+    "react-dom": "^16.10.1",
+    "rimraf": "^3.0.0",
+    "rollup": "^1.26.3",
+    "rollup-plugin-node-resolve": "^5.2.0",
+    "rollup-plugin-typescript2": "^0.25.2",
+    "ts-jest": "^24.1.0",
+    "typescript": "^3.7.2"
+  },
+  "dependencies": {
+    "throttle-debounce": "^2.1.0"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "yarn run ts-check && lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{js,css,json,md}": [
+      "prettier --write",
+      "git add"
+    ],
+    "*.js": [
+      "prettier --write",
+      "eslint --fix",
+      "git add"
+    ],
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix",
+      "git add"
+    ]
+  }
+}

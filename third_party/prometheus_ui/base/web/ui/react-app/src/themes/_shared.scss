@@ -104,6 +104,15 @@ button.execute-btn {
   margin-bottom: 20px;
 }
 
+.navbar-brand img {
+  padding-right: 1rem;
+  height: 1.9rem;
+}
+
+.navbar-brand {
+  margin-top: 4px;
+}
+
 input[type='checkbox']:checked + label {
   color: #286090;
 }
@@ -135,8 +144,9 @@ input[type='checkbox']:checked + label {
   flex-wrap: nowrap;
 }
 
-.alert.alert-danger {
-  margin-bottom: 10px;
+.alert {
+  padding: 10px;
+  margin-bottom: .2rem;
 }
 
 .nav-tabs .nav-link {
@@ -222,8 +232,16 @@ input[type='checkbox']:checked + label {
   margin-left: 20px;
 }
 
+.graph-selected-exemplar {
+  position: relative;
+  border: 1px solid $nav-tabs-border-color;
+  margin: 15px 55px;
+  font-size: 0.75em;
+  padding: 10px 10px;
+}
+
 .graph-legend {
-  margin: 15px 0 15px 55px;
+  margin: 15px 55px;
   font-size: 0.75em;
   padding: 10px 5px;
   display: inline-block;
@@ -312,6 +330,7 @@ input[type='checkbox']:checked + label {
   display: flex;
   justify-content: space-between;
   margin-bottom: 10px;
+  margin-top: 10px;
   padding: 10px;
 }
 
