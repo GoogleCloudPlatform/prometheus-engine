@@ -49,7 +49,7 @@ import (
 	// Import to enable 'kubernetes_sd_configs' to SD config register.
 	_ "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/notifier"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
@@ -119,7 +119,7 @@ func main() {
 
 	// Don't expand external labels on config file loading. It's a feature we like but we want to remain
 	// compatible with Prometheus and this is still an experimental feature, which we don't support.
-	if _, err := config.LoadFile(*configFile, false, logger); err != nil {
+	if _, err := config.LoadFile(*configFile, false, false, logger); err != nil {
 		level.Error(logger).Log("msg", fmt.Sprintf("Error loading config (--config.file=%s)", *configFile), "err", err)
 		os.Exit(2)
 	}
@@ -224,6 +224,8 @@ func main() {
 					time.Duration(cfg.GlobalConfig.EvaluationInterval),
 					files,
 					cfg.GlobalConfig.ExternalLabels,
+					"",
+					nil,
 				)
 			},
 		},
@@ -424,7 +426,7 @@ func reloadConfig(filename string, logger log.Logger, rls ...reloader) (err erro
 	timings := []interface{}{}
 	level.Info(logger).Log("msg", "Loading configuration file", "filename", filename)
 
-	conf, err := config.LoadFile(filename, false, logger)
+	conf, err := config.LoadFile(filename, false, false, logger)
 	if err != nil {
 		return errors.Wrapf(err, "couldn't load configuration (--config.file=%q)", filename)
 	}

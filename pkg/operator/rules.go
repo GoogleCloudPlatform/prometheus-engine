@@ -111,7 +111,8 @@ func newRulesReconciler(c client.Client, opts Options) *rulesReconciler {
 }
 
 func (r *rulesReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
-	logr.FromContext(ctx).Info("reconciling rules")
+	logger, _ := logr.FromContext(ctx)
+	logger.Info("reconciling rules")
 
 	if err := r.ensureRuleConfigs(ctx); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule configmaps")
@@ -120,7 +121,7 @@ func (r *rulesReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (r
 }
 
 func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
-	logger := logr.FromContext(ctx)
+	logger, _ := logr.FromContext(ctx)
 
 	// Re-generate the configmap that's loaded by the rule-evaluator.
 	cm := &corev1.ConfigMap{
