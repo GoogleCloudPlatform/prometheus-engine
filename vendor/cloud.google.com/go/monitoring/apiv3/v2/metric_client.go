@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -35,6 +34,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 )
 
 var newMetricClientHook clientHook
@@ -49,6 +49,7 @@ type MetricCallOptions struct {
 	DeleteMetricDescriptor           []gax.CallOption
 	ListTimeSeries                   []gax.CallOption
 	CreateTimeSeries                 []gax.CallOption
+	CreateServiceTimeSeries          []gax.CallOption
 }
 
 func defaultMetricGRPCClientOptions() []option.ClientOption {
@@ -57,7 +58,7 @@ func defaultMetricGRPCClientOptions() []option.ClientOption {
 		internaloption.WithDefaultMTLSEndpoint("monitoring.mtls.googleapis.com:443"),
 		internaloption.WithDefaultAudience("https://monitoring.googleapis.com/"),
 		internaloption.WithDefaultScopes(DefaultAuthScopes()...),
-		option.WithGRPCDialOption(grpc.WithDisableServiceConfig()),
+		internaloption.EnableJwtWithScope(),
 		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
@@ -68,7 +69,6 @@ func defaultMetricCallOptions() *MetricCallOptions {
 		ListMonitoredResourceDescriptors: []gax.CallOption{
 			gax.WithRetry(func() gax.Retryer {
 				return gax.OnCodes([]codes.Code{
-					codes.DeadlineExceeded,
 					codes.Unavailable,
 				}, gax.Backoff{
 					Initial:    100 * time.Millisecond,
@@ -80,7 +80,6 @@ func defaultMetricCallOptions() *MetricCallOptions {
 		GetMonitoredResourceDescriptor: []gax.CallOption{
 			gax.WithRetry(func() gax.Retryer {
 				return gax.OnCodes([]codes.Code{
-					codes.DeadlineExceeded,
 					codes.Unavailable,
 				}, gax.Backoff{
 					Initial:    100 * time.Millisecond,
@@ -92,7 +91,6 @@ func defaultMetricCallOptions() *MetricCallOptions {
 		ListMetricDescriptors: []gax.CallOption{
 			gax.WithRetry(func() gax.Retryer {
 				return gax.OnCodes([]codes.Code{
-					codes.DeadlineExceeded,
 					codes.Unavailable,
 				}, gax.Backoff{
 					Initial:    100 * time.Millisecond,
@@ -104,7 +102,6 @@ func defaultMetricCallOptions() *MetricCallOptions {
 		GetMetricDescriptor: []gax.CallOption{
 			gax.WithRetry(func() gax.Retryer {
 				return gax.OnCodes([]codes.Code{
-					codes.DeadlineExceeded,
 					codes.Unavailable,
 				}, gax.Backoff{
 					Initial:    100 * time.Millisecond,
@@ -117,7 +114,6 @@ func defaultMetricCallOptions() *MetricCallOptions {
 		DeleteMetricDescriptor: []gax.CallOption{
 			gax.WithRetry(func() gax.Retryer {
 				return gax.OnCodes([]codes.Code{
-					codes.DeadlineExceeded,
 					codes.Unavailable,
 				}, gax.Backoff{
 					Initial:    100 * time.Millisecond,
@@ -129,7 +125,6 @@ func defaultMetricCallOptions() *MetricCallOptions {
 		ListTimeSeries: []gax.CallOption{
 			gax.WithRetry(func() gax.Retryer {
 				return gax.OnCodes([]codes.Code{
-					codes.DeadlineExceeded,
 					codes.Unavailable,
 				}, gax.Backoff{
 					Initial:    100 * time.Millisecond,
@@ -138,7 +133,8 @@ func defaultMetricCallOptions() *MetricCallOptions {
 				})
 			}),
 		},
-		CreateTimeSeries: []gax.CallOption{},
+		CreateTimeSeries:        []gax.CallOption{},
+		CreateServiceTimeSeries: []gax.CallOption{},
 	}
 }
 
@@ -155,6 +151,7 @@ type internalMetricClient interface {
 	DeleteMetricDescriptor(context.Context, *monitoringpb.DeleteMetricDescriptorRequest, ...gax.CallOption) error
 	ListTimeSeries(context.Context, *monitoringpb.ListTimeSeriesRequest, ...gax.CallOption) *TimeSeriesIterator
 	CreateTimeSeries(context.Context, *monitoringpb.CreateTimeSeriesRequest, ...gax.CallOption) error
+	CreateServiceTimeSeries(context.Context, *monitoringpb.CreateTimeSeriesRequest, ...gax.CallOption) error
 }
 
 // MetricClient is a client for interacting with Cloud Monitoring API.
@@ -213,6 +210,8 @@ func (c *MetricClient) GetMetricDescriptor(ctx context.Context, req *monitoringp
 }
 
 // CreateMetricDescriptor creates a new metric descriptor.
+// The creation is executed asynchronously and callers may check the returned
+// operation to track its progress.
 // User-created metric descriptors define
 // custom metrics (at https://cloud.google.com/monitoring/custom-metrics).
 func (c *MetricClient) CreateMetricDescriptor(ctx context.Context, req *monitoringpb.CreateMetricDescriptorRequest, opts ...gax.CallOption) (*metricpb.MetricDescriptor, error) {
@@ -237,6 +236,19 @@ func (c *MetricClient) ListTimeSeries(ctx context.Context, req *monitoringpb.Lis
 // included in the error response.
 func (c *MetricClient) CreateTimeSeries(ctx context.Context, req *monitoringpb.CreateTimeSeriesRequest, opts ...gax.CallOption) error {
 	return c.internalClient.CreateTimeSeries(ctx, req, opts...)
+}
+
+// CreateServiceTimeSeries creates or adds data to one or more service time series. A service time
+// series is a time series for a metric from a Google Cloud service. The
+// response is empty if all time series in the request were written. If any
+// time series could not be written, a corresponding failure message is
+// included in the error response. This endpoint rejects writes to
+// user-defined metrics.
+// This method is only for use by Google Cloud services. Use
+// projects.timeSeries.create
+// instead.
+func (c *MetricClient) CreateServiceTimeSeries(ctx context.Context, req *monitoringpb.CreateTimeSeriesRequest, opts ...gax.CallOption) error {
+	return c.internalClient.CreateServiceTimeSeries(ctx, req, opts...)
 }
 
 // metricGRPCClient is a client for interacting with Cloud Monitoring API over gRPC transport.
@@ -310,7 +322,7 @@ func (c *metricGRPCClient) Connection() *grpc.ClientConn {
 // use by Google-written clients.
 func (c *metricGRPCClient) setGoogleClientInfo(keyval ...string) {
 	kv := append([]string{"gl-go", versionGo()}, keyval...)
-	kv = append(kv, "gapic", versionClient, "gax", gax.Version, "grpc", grpc.Version)
+	kv = append(kv, "gapic", getVersionClient(), "gax", gax.Version, "grpc", grpc.Version)
 	c.xGoogMetadata = metadata.Pairs("x-goog-api-client", gax.XGoogHeader(kv...))
 }
 
@@ -322,16 +334,19 @@ func (c *metricGRPCClient) Close() error {
 
 func (c *metricGRPCClient) ListMonitoredResourceDescriptors(ctx context.Context, req *monitoringpb.ListMonitoredResourceDescriptorsRequest, opts ...gax.CallOption) *MonitoredResourceDescriptorIterator {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append((*c.CallOptions).ListMonitoredResourceDescriptors[0:len((*c.CallOptions).ListMonitoredResourceDescriptors):len((*c.CallOptions).ListMonitoredResourceDescriptors)], opts...)
 	it := &MonitoredResourceDescriptorIterator{}
 	req = proto.Clone(req).(*monitoringpb.ListMonitoredResourceDescriptorsRequest)
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*monitoredrespb.MonitoredResourceDescriptor, string, error) {
-		var resp *monitoringpb.ListMonitoredResourceDescriptorsResponse
-		req.PageToken = pageToken
+		resp := &monitoringpb.ListMonitoredResourceDescriptorsResponse{}
+		if pageToken != "" {
+			req.PageToken = pageToken
+		}
 		if pageSize > math.MaxInt32 {
 			req.PageSize = math.MaxInt32
-		} else {
+		} else if pageSize != 0 {
 			req.PageSize = int32(pageSize)
 		}
 		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
@@ -354,9 +369,11 @@ func (c *metricGRPCClient) ListMonitoredResourceDescriptors(ctx context.Context,
 		it.items = append(it.items, items...)
 		return nextPageToken, nil
 	}
+
 	it.pageInfo, it.nextFunc = iterator.NewPageInfo(fetch, it.bufLen, it.takeBuf)
 	it.pageInfo.MaxSize = int(req.GetPageSize())
 	it.pageInfo.Token = req.GetPageToken()
+
 	return it
 }
 
@@ -367,6 +384,7 @@ func (c *metricGRPCClient) GetMonitoredResourceDescriptor(ctx context.Context, r
 		ctx = cctx
 	}
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append((*c.CallOptions).GetMonitoredResourceDescriptor[0:len((*c.CallOptions).GetMonitoredResourceDescriptor):len((*c.CallOptions).GetMonitoredResourceDescriptor)], opts...)
 	var resp *monitoredrespb.MonitoredResourceDescriptor
@@ -383,16 +401,19 @@ func (c *metricGRPCClient) GetMonitoredResourceDescriptor(ctx context.Context, r
 
 func (c *metricGRPCClient) ListMetricDescriptors(ctx context.Context, req *monitoringpb.ListMetricDescriptorsRequest, opts ...gax.CallOption) *MetricDescriptorIterator {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append((*c.CallOptions).ListMetricDescriptors[0:len((*c.CallOptions).ListMetricDescriptors):len((*c.CallOptions).ListMetricDescriptors)], opts...)
 	it := &MetricDescriptorIterator{}
 	req = proto.Clone(req).(*monitoringpb.ListMetricDescriptorsRequest)
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*metricpb.MetricDescriptor, string, error) {
-		var resp *monitoringpb.ListMetricDescriptorsResponse
-		req.PageToken = pageToken
+		resp := &monitoringpb.ListMetricDescriptorsResponse{}
+		if pageToken != "" {
+			req.PageToken = pageToken
+		}
 		if pageSize > math.MaxInt32 {
 			req.PageSize = math.MaxInt32
-		} else {
+		} else if pageSize != 0 {
 			req.PageSize = int32(pageSize)
 		}
 		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
@@ -415,9 +436,11 @@ func (c *metricGRPCClient) ListMetricDescriptors(ctx context.Context, req *monit
 		it.items = append(it.items, items...)
 		return nextPageToken, nil
 	}
+
 	it.pageInfo, it.nextFunc = iterator.NewPageInfo(fetch, it.bufLen, it.takeBuf)
 	it.pageInfo.MaxSize = int(req.GetPageSize())
 	it.pageInfo.Token = req.GetPageToken()
+
 	return it
 }
 
@@ -428,6 +451,7 @@ func (c *metricGRPCClient) GetMetricDescriptor(ctx context.Context, req *monitor
 		ctx = cctx
 	}
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append((*c.CallOptions).GetMetricDescriptor[0:len((*c.CallOptions).GetMetricDescriptor):len((*c.CallOptions).GetMetricDescriptor)], opts...)
 	var resp *metricpb.MetricDescriptor
@@ -449,6 +473,7 @@ func (c *metricGRPCClient) CreateMetricDescriptor(ctx context.Context, req *moni
 		ctx = cctx
 	}
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append((*c.CallOptions).CreateMetricDescriptor[0:len((*c.CallOptions).CreateMetricDescriptor):len((*c.CallOptions).CreateMetricDescriptor)], opts...)
 	var resp *metricpb.MetricDescriptor
@@ -470,6 +495,7 @@ func (c *metricGRPCClient) DeleteMetricDescriptor(ctx context.Context, req *moni
 		ctx = cctx
 	}
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append((*c.CallOptions).DeleteMetricDescriptor[0:len((*c.CallOptions).DeleteMetricDescriptor):len((*c.CallOptions).DeleteMetricDescriptor)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
@@ -482,16 +508,19 @@ func (c *metricGRPCClient) DeleteMetricDescriptor(ctx context.Context, req *moni
 
 func (c *metricGRPCClient) ListTimeSeries(ctx context.Context, req *monitoringpb.ListTimeSeriesRequest, opts ...gax.CallOption) *TimeSeriesIterator {
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append((*c.CallOptions).ListTimeSeries[0:len((*c.CallOptions).ListTimeSeries):len((*c.CallOptions).ListTimeSeries)], opts...)
 	it := &TimeSeriesIterator{}
 	req = proto.Clone(req).(*monitoringpb.ListTimeSeriesRequest)
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*monitoringpb.TimeSeries, string, error) {
-		var resp *monitoringpb.ListTimeSeriesResponse
-		req.PageToken = pageToken
+		resp := &monitoringpb.ListTimeSeriesResponse{}
+		if pageToken != "" {
+			req.PageToken = pageToken
+		}
 		if pageSize > math.MaxInt32 {
 			req.PageSize = math.MaxInt32
-		} else {
+		} else if pageSize != 0 {
 			req.PageSize = int32(pageSize)
 		}
 		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
@@ -514,9 +543,11 @@ func (c *metricGRPCClient) ListTimeSeries(ctx context.Context, req *monitoringpb
 		it.items = append(it.items, items...)
 		return nextPageToken, nil
 	}
+
 	it.pageInfo, it.nextFunc = iterator.NewPageInfo(fetch, it.bufLen, it.takeBuf)
 	it.pageInfo.MaxSize = int(req.GetPageSize())
 	it.pageInfo.Token = req.GetPageToken()
+
 	return it
 }
 
@@ -527,11 +558,25 @@ func (c *metricGRPCClient) CreateTimeSeries(ctx context.Context, req *monitoring
 		ctx = cctx
 	}
 	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+
 	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
 	opts = append((*c.CallOptions).CreateTimeSeries[0:len((*c.CallOptions).CreateTimeSeries):len((*c.CallOptions).CreateTimeSeries)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
 		_, err = c.metricClient.CreateTimeSeries(ctx, req, settings.GRPC...)
+		return err
+	}, opts...)
+	return err
+}
+
+func (c *metricGRPCClient) CreateServiceTimeSeries(ctx context.Context, req *monitoringpb.CreateTimeSeriesRequest, opts ...gax.CallOption) error {
+	md := metadata.Pairs("x-goog-request-params", fmt.Sprintf("%s=%v", "name", url.QueryEscape(req.GetName())))
+
+	ctx = insertMetadata(ctx, c.xGoogMetadata, md)
+	opts = append((*c.CallOptions).CreateServiceTimeSeries[0:len((*c.CallOptions).CreateServiceTimeSeries):len((*c.CallOptions).CreateServiceTimeSeries)], opts...)
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
+		var err error
+		_, err = c.metricClient.CreateServiceTimeSeries(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	return err

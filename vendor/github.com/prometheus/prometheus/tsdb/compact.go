@@ -18,14 +18,13 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -82,6 +81,7 @@ type LeveledCompactor struct {
 	chunkPool                chunkenc.Pool
 	ctx                      context.Context
 	maxBlockChunkSegmentSize int64
+	mergeFunc                storage.VerticalChunkSeriesMergeFunc
 }
 
 type compactorMetrics struct {
@@ -145,11 +145,11 @@ func newCompactorMetrics(r prometheus.Registerer) *compactorMetrics {
 }
 
 // NewLeveledCompactor returns a LeveledCompactor.
-func NewLeveledCompactor(ctx context.Context, r prometheus.Registerer, l log.Logger, ranges []int64, pool chunkenc.Pool) (*LeveledCompactor, error) {
-	return NewLeveledCompactorWithChunkSize(ctx, r, l, ranges, pool, chunks.DefaultChunkSegmentSize)
+func NewLeveledCompactor(ctx context.Context, r prometheus.Registerer, l log.Logger, ranges []int64, pool chunkenc.Pool, mergeFunc storage.VerticalChunkSeriesMergeFunc) (*LeveledCompactor, error) {
+	return NewLeveledCompactorWithChunkSize(ctx, r, l, ranges, pool, chunks.DefaultChunkSegmentSize, mergeFunc)
 }
 
-func NewLeveledCompactorWithChunkSize(ctx context.Context, r prometheus.Registerer, l log.Logger, ranges []int64, pool chunkenc.Pool, maxBlockChunkSegmentSize int64) (*LeveledCompactor, error) {
+func NewLeveledCompactorWithChunkSize(ctx context.Context, r prometheus.Registerer, l log.Logger, ranges []int64, pool chunkenc.Pool, maxBlockChunkSegmentSize int64, mergeFunc storage.VerticalChunkSeriesMergeFunc) (*LeveledCompactor, error) {
 	if len(ranges) == 0 {
 		return nil, errors.Errorf("at least one range must be provided")
 	}
@@ -159,6 +159,9 @@ func NewLeveledCompactorWithChunkSize(ctx context.Context, r prometheus.Register
 	if l == nil {
 		l = log.NewNopLogger()
 	}
+	if mergeFunc == nil {
+		mergeFunc = storage.NewCompactingChunkSeriesMerger(storage.ChainedSeriesMerge)
+	}
 	return &LeveledCompactor{
 		ranges:                   ranges,
 		chunkPool:                pool,
@@ -166,6 +169,7 @@ func NewLeveledCompactorWithChunkSize(ctx context.Context, r prometheus.Register
 		metrics:                  newCompactorMetrics(r),
 		ctx:                      ctx,
 		maxBlockChunkSegmentSize: maxBlockChunkSegmentSize,
+		mergeFunc:                mergeFunc,
 	}, nil
 }
 
@@ -342,19 +346,20 @@ func splitByRange(ds []dirMeta, tr int64) [][]dirMeta {
 }
 
 // CompactBlockMetas merges many block metas into one, combining it's source blocks together
-// and adjusting compaction level.
+// and adjusting compaction level. Min/Max time of result block meta covers all input blocks.
 func CompactBlockMetas(uid ulid.ULID, blocks ...*BlockMeta) *BlockMeta {
 	res := &BlockMeta{
-		ULID:    uid,
-		MinTime: blocks[0].MinTime,
+		ULID: uid,
 	}
 
 	sources := map[ulid.ULID]struct{}{}
-	// For overlapping blocks, the Maxt can be
-	// in any block so we track it globally.
-	maxt := int64(math.MinInt64)
+	mint := blocks[0].MinTime
+	maxt := blocks[0].MaxTime
 
 	for _, b := range blocks {
+		if b.MinTime < mint {
+			mint = b.MinTime
+		}
 		if b.MaxTime > maxt {
 			maxt = b.MaxTime
 		}
@@ -379,6 +384,7 @@ func CompactBlockMetas(uid ulid.ULID, blocks ...*BlockMeta) *BlockMeta {
 		return res.Compaction.Sources[i].Compare(res.Compaction.Sources[j]) < 0
 	})
 
+	res.MinTime = mint
 	res.MaxTime = maxt
 	return res
 }
@@ -559,7 +565,7 @@ func (c *LeveledCompactor) write(dest string, meta *BlockMeta, blocks ...BlockRe
 		return err
 	}
 
-	if err = os.MkdirAll(tmp, 0777); err != nil {
+	if err = os.MkdirAll(tmp, 0o777); err != nil {
 		return err
 	}
 
@@ -721,7 +727,7 @@ func (c *LeveledCompactor) populateBlock(blocks []BlockReader, meta *BlockMeta, 
 		}
 		all = indexr.SortedPostings(all)
 		// Blocks meta is half open: [min, max), so subtract 1 to ensure we don't hold samples with exact meta.MaxTime timestamp.
-		sets = append(sets, newBlockChunkSeriesSet(indexr, chunkr, tombsr, all, meta.MinTime, meta.MaxTime-1))
+		sets = append(sets, newBlockChunkSeriesSet(indexr, chunkr, tombsr, all, meta.MinTime, meta.MaxTime-1, false))
 		syms := indexr.Symbols()
 		if i == 0 {
 			symbols = syms
@@ -740,14 +746,15 @@ func (c *LeveledCompactor) populateBlock(blocks []BlockReader, meta *BlockMeta, 
 	}
 
 	var (
-		ref  = uint64(0)
+		ref  = storage.SeriesRef(0)
 		chks []chunks.Meta
 	)
 
 	set := sets[0]
 	if len(sets) > 1 {
-		// Merge series using compacting chunk series merger.
-		set = storage.NewMergeChunkSeriesSet(sets, storage.NewCompactingChunkSeriesMerger(storage.ChainedSeriesMerge))
+		// Merge series using specified chunk series merger.
+		// The default one is the compacting series merger.
+		set = storage.NewMergeChunkSeriesSet(sets, c.mergeFunc)
 	}
 
 	// Iterate over all sorted chunk series.
