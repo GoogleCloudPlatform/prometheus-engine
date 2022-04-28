@@ -19,7 +19,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -154,7 +155,7 @@ func TestSeriesCache_garbageCollect(t *testing.T) {
 	cache := newSeriesCache(nil, nil, MetricTypePrefix, nil)
 	// Always return empty labels. This will cause cache entries to be added but not populated,
 	// which we don't need to test garbage collection.
-	cache.getLabelsByRef = func(uint64) labels.Labels { return nil }
+	cache.getLabelsByRef = func(storage.SeriesRef) labels.Labels { return nil }
 
 	// Fake now second timestamp.
 	now := int64(100000)

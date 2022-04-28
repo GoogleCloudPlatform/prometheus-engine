@@ -28,8 +28,9 @@ import (
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/go-cmp/cmp"
 	gax "github.com/googleapis/gax-go/v2"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/pkg/textparse"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/textparse"
+	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
@@ -365,7 +366,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 	}
 	e.metricClient = metricClient
 
-	e.SetLabelsByIDFunc(func(i uint64) labels.Labels {
+	e.SetLabelsByIDFunc(func(i storage.SeriesRef) labels.Labels {
 		return labels.FromStrings("project_id", "test", "location", "test")
 	})
 

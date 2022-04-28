@@ -20,8 +20,9 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/prometheus/config"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/tsdb/chunks"
 	"github.com/prometheus/prometheus/tsdb/record"
 )
 
@@ -38,14 +39,14 @@ type Storage struct {
 	exporter *Exporter
 
 	mtx    sync.Mutex
-	labels map[uint64]labels.Labels
+	labels map[storage.SeriesRef]labels.Labels
 }
 
 // NewStorage returns a new Prometheus storage that's exporting data via the exporter.
 func NewStorage(exporter *Exporter) *Storage {
 	s := &Storage{
 		exporter: exporter,
-		labels:   map[uint64]labels.Labels{},
+		labels:   map[storage.SeriesRef]labels.Labels{},
 	}
 	exporter.SetLabelsByIDFunc(s.labelsByID)
 
@@ -62,15 +63,15 @@ func (s *Storage) Run(ctx context.Context) error {
 	return s.exporter.Run(ctx)
 }
 
-func (s *Storage) labelsByID(id uint64) labels.Labels {
+func (s *Storage) labelsByID(id storage.SeriesRef) labels.Labels {
 	s.mtx.Lock()
 	lset := s.labels[id]
 	s.mtx.Unlock()
 	return lset
 }
 
-func (s *Storage) setLabels(lset labels.Labels) uint64 {
-	h := lset.Hash()
+func (s *Storage) setLabels(lset labels.Labels) storage.SeriesRef {
+	h := storage.SeriesRef(lset.Hash())
 	s.mtx.Lock()
 	s.labels[h] = lset
 	s.mtx.Unlock()
@@ -82,7 +83,7 @@ func (s *Storage) clearLabels(samples []record.RefSample) {
 	defer s.mtx.Unlock()
 
 	for _, sample := range samples {
-		delete(s.labels, sample.Ref)
+		delete(s.labels, storage.SeriesRef(sample.Ref))
 	}
 }
 
@@ -103,12 +104,12 @@ type storageAppender struct {
 	samples []record.RefSample
 }
 
-func (a *storageAppender) Append(_ uint64, lset labels.Labels, t int64, v float64) (uint64, error) {
+func (a *storageAppender) Append(_ storage.SeriesRef, lset labels.Labels, t int64, v float64) (storage.SeriesRef, error) {
 	if lset == nil {
 		return 0, errors.Errorf("label set is nil")
 	}
 	a.samples = append(a.samples, record.RefSample{
-		Ref: a.storage.setLabels(lset),
+		Ref: chunks.HeadSeriesRef(a.storage.setLabels(lset)),
 		T:   t,
 		V:   v,
 	})

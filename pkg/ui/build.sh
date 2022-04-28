@@ -21,9 +21,9 @@ set -o pipefail
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/../..
 SCRIPT_DIR=$(realpath $(dirname "${BASH_SOURCE[0]}"))
 BUILD_DIR="$SCRIPT_DIR/build"
-STATIC_DIR="$SCRIPT_DIR/static"
 
-rm -rf $BUILD_DIR
+rm -rf "$SCRIPT_DIR/build"
+rm -rf "$SCRIPT_DIR/static" 
 
 # We need to preserve timestamps as otherwise node_modules/ may be falsely re-fetched
 # which defeats the purpose of vendoring them.
@@ -32,9 +32,10 @@ rm -rf $BUILD_DIR
 cp -r --preserve=timestamps ${SCRIPT_ROOT}/third_party/prometheus_ui/base $BUILD_DIR
 cp -r ${SCRIPT_ROOT}/third_party/prometheus_ui/override/* $BUILD_DIR/web/ui/react-app/
 
-make -C "$BUILD_DIR" assets
-rm -rf "$STATIC_DIR/react"
-cp -r "$BUILD_DIR/web/ui/static/react" "$STATIC_DIR/react"
+cd $BUILD_DIR
 
-cd "$SCRIPT_DIR"
-go run -mod=vendor generate_assets.go
+make ui-build
+scripts/compress_assets.sh
+
+cp web/ui/embed.go "$SCRIPT_DIR"
+cp -r web/ui/static "$SCRIPT_DIR"

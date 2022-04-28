@@ -29,8 +29,9 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/pkg/textparse"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/textparse"
+	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 
 	metric_pb "google.golang.org/genproto/googleapis/api/metric"
@@ -50,11 +51,11 @@ type seriesCache struct {
 	// field of individual cache entries.
 	mtx sync.Mutex
 	// Map from series reference to various cached information about it.
-	entries map[uint64]*seriesCacheEntry
+	entries map[storage.SeriesRef]*seriesCacheEntry
 
 	// Function to retrieve a label set for a series reference number.
 	// Returns nil if the reference is no longer valid.
-	getLabelsByRef func(uint64) labels.Labels
+	getLabelsByRef func(storage.SeriesRef) labels.Labels
 
 	// A list of metric selectors. Exported Prometheus are discarded if they
 	// don't match at least one of the matchers.
@@ -144,7 +145,7 @@ func newSeriesCache(
 		logger:           logger,
 		now:              time.Now,
 		pool:             newPool(reg),
-		entries:          map[uint64]*seriesCacheEntry{},
+		entries:          map[storage.SeriesRef]*seriesCacheEntry{},
 		matchers:         matchers,
 		metricTypePrefix: metricTypePrefix,
 	}
@@ -229,13 +230,15 @@ func (c *seriesCache) get(s record.RefSample, externalLabels labels.Labels, meta
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	e, ok := c.entries[s.Ref]
+	ref := storage.SeriesRef(s.Ref)
+
+	e, ok := c.entries[ref]
 	if !ok {
 		e = &seriesCacheEntry{}
-		c.entries[s.Ref] = e
+		c.entries[ref] = e
 	}
 	if e.shouldRefresh() {
-		if err := c.populate(s.Ref, e, externalLabels, metadata); err != nil {
+		if err := c.populate(ref, e, externalLabels, metadata); err != nil {
 			level.Debug(c.logger).Log("msg", "populating series failed", "ref", s.Ref, "err", err)
 		}
 		e.setNextRefresh()
@@ -248,7 +251,7 @@ func (c *seriesCache) get(s record.RefSample, externalLabels labels.Labels, meta
 // getResetAdjusted takes a sample for a referenced series and returns
 // its reset timestamp and adjusted value.
 // If the last return argument is false, the sample should be dropped.
-func (c *seriesCache) getResetAdjusted(ref uint64, t int64, v float64) (int64, float64, bool) {
+func (c *seriesCache) getResetAdjusted(ref storage.SeriesRef, t int64, v float64) (int64, float64, bool) {
 	c.mtx.Lock()
 	e, ok := c.entries[ref]
 	c.mtx.Unlock()
@@ -331,7 +334,7 @@ const (
 const maxLabelCount = 100
 
 // populate cached state for the given entry.
-func (c *seriesCache) populate(ref uint64, entry *seriesCacheEntry, externalLabels labels.Labels, getMetadata MetadataFunc) error {
+func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, externalLabels labels.Labels, getMetadata MetadataFunc) error {
 	if entry.lset == nil {
 		entry.lset = c.getLabelsByRef(ref)
 		if entry.lset == nil {

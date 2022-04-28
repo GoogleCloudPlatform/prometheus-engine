@@ -21,9 +21,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/pkg/textparse"
-	"github.com/prometheus/prometheus/pkg/value"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/textparse"
+	"github.com/prometheus/prometheus/model/value"
+	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -34,7 +35,7 @@ import (
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 )
 
-type seriesMap map[uint64]labels.Labels
+type seriesMap map[storage.SeriesRef]labels.Labels
 type metricMetadataMap map[string]MetricMetadata
 
 func testMetadataFunc(metadata metricMetadataMap) MetadataFunc {
@@ -1198,7 +1199,7 @@ func TestSampleBuilder(t *testing.T) {
 		t.Run(fmt.Sprintf("%d: %s", i, c.doc), func(t *testing.T) {
 			cache := newSeriesCache(nil, nil, MetricTypePrefix, c.matchers)
 			// Fake lookup into TSDB.
-			cache.getLabelsByRef = func(ref uint64) labels.Labels {
+			cache.getLabelsByRef = func(ref storage.SeriesRef) labels.Labels {
 				return c.series[ref]
 			}
 

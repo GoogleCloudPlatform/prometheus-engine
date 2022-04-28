@@ -30,9 +30,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/config"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/pkg/textparse"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/promql/parser"
+	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
@@ -365,7 +366,7 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
 // SetLabelsByIDFunc injects a function that can be used to retrieve a label set
 // based on a series ID we got through exported sample records.
 // Must be called before any call to Export is made.
-func (e *Exporter) SetLabelsByIDFunc(f func(uint64) labels.Labels) {
+func (e *Exporter) SetLabelsByIDFunc(f func(storage.SeriesRef) labels.Labels) {
 	// Prevent panics in case a default disabled exporter was instantiated (see Global()).
 	if e.opts.Disable {
 		return
