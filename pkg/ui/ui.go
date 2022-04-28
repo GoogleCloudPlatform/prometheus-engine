@@ -23,12 +23,6 @@ import (
 	"path"
 
 	"github.com/prometheus/common/server"
-
-	// Empty imports to properly vendor dependencies of generates_assets.go even though
-	// it has the +build ignore tag.
-	_ "github.com/prometheus/prometheus/pkg/modtimevfs"
-	_ "github.com/shurcooL/httpfs/filter"
-	_ "github.com/shurcooL/vfsgen"
 )
 
 func Handler(externalURL *url.URL) http.Handler {
@@ -44,7 +38,7 @@ func Handler(externalURL *url.URL) http.Handler {
 	}
 	for _, p := range reactRouterPaths {
 		mux.HandleFunc(p, func(w http.ResponseWriter, r *http.Request) {
-			f, err := Assets.Open("/react/index.html")
+			f, err := Assets.Open("/static/react/index.html")
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprintf(w, "Error opening React index.html: %v", err)
@@ -65,7 +59,7 @@ func Handler(externalURL *url.URL) http.Handler {
 
 	// Serve static assets.
 	mux.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = path.Join("/react/", r.URL.Path)
+		r.URL.Path = path.Join("/static/react/", r.URL.Path)
 
 		server.StaticFileServer(Assets).ServeHTTP(w, r)
 	})

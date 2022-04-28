@@ -15,6 +15,7 @@
 package operator
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"path"
@@ -27,8 +28,8 @@ import (
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/pkg/relabel"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/relabel"
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -129,13 +130,13 @@ func newCollectionReconciler(c client.Client, opts Options) *collectionReconcile
 }
 
 func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	logger := logr.FromContext(ctx)
+	logger, _ := logr.FromContext(ctx)
 	logger.Info("reconciling collection")
 
 	var config monitoringv1.OperatorConfig
 	// Fetch OperatorConfig if it exists.
 	if err := r.client.Get(ctx, req.NamespacedName, &config); apierrors.IsNotFound(err) {
-		logr.FromContext(ctx).Info("no operatorconfig created yet")
+		logger.Info("no operatorconfig created yet")
 	} else if err != nil {
 		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
 	}
@@ -310,7 +311,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 							{Name: "prom-metrics", ContainerPort: r.opts.CollectorPort},
 						},
 						LivenessProbe: &corev1.Probe{
-							Handler: corev1.Handler{
+							ProbeHandler: corev1.ProbeHandler{
 								HTTPGet: &corev1.HTTPGetAction{
 									Path: "/-/healthy",
 									Port: intstr.FromInt(int(r.opts.CollectorPort)),
@@ -318,7 +319,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 							},
 						},
 						ReadinessProbe: &corev1.Probe{
-							Handler: corev1.Handler{
+							ProbeHandler: corev1.ProbeHandler{
 								HTTPGet: &corev1.HTTPGetAction{
 									Path: "/-/ready",
 									Port: intstr.FromInt(int(r.opts.CollectorPort)),
@@ -456,6 +457,18 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	if err != nil {
 		return errors.Wrap(err, "marshal Prometheus config")
 	}
+	// We depend on a newer Prometheus config version, which generates some defaulted fields
+	// not recognized by the collector/evaluator version assumed by the operator.
+	// Thus we strip them from the generated YAML manually.
+	// TODO(freinartz): remove this once the assumed Prometheus version is updated to Prometheus v2.35.
+	var lines [][]byte
+	for _, l := range bytes.SplitAfter(cfgEncoded, []byte("\n")) {
+		if !bytes.Contains(l, []byte("enable_http2:")) &&  !bytes.Contains(l, []byte("own_namespace:")) &&  !bytes.Contains(l, []byte(`kubeconfig_file: ""`)) {
+			lines = append(lines, l)
+		}
+	}
+	cfgEncoded = bytes.Join(lines, nil)
+
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
@@ -477,7 +490,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 }
 
 func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec) (*promconfig.Config, error) {
-	logger := logr.FromContext(ctx)
+	logger, _ := logr.FromContext(ctx)
 
 	cfg := &promconfig.Config{
 		GlobalConfig: promconfig.GlobalConfig{

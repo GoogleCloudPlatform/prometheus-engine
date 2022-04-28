@@ -24,9 +24,10 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/pkg/textparse"
-	"github.com/prometheus/prometheus/pkg/value"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/textparse"
+	"github.com/prometheus/prometheus/model/value"
+	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
@@ -128,7 +129,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 		} else {
 			// A regular counter series.
 			var v float64
-			resetTimestamp, v, ok = b.series.getResetAdjusted(sample.Ref, sample.T, sample.V)
+			resetTimestamp, v, ok = b.series.getResetAdjusted(storage.SeriesRef(sample.Ref), sample.T, sample.V)
 			if ok {
 				value = &monitoring_pb.TypedValue{
 					Value: &monitoring_pb.TypedValue_DoubleValue{v},
@@ -373,7 +374,7 @@ Loop:
 			continue
 		}
 
-		rt, v, ok := b.series.getResetAdjusted(s.Ref, s.T, s.V)
+		rt, v, ok := b.series.getResetAdjusted(storage.SeriesRef(s.Ref), s.T, s.V)
 		// If a series appeared for the first time, we won't get a valid reset timestamp yet.
 		// This may happen if the histogram is entirely new or if new series appeared through bucket changes.
 		// We skip the entire distribution sample in this case.

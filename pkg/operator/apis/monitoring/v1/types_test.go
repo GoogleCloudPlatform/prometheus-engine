@@ -25,7 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	prommodel "github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/pkg/relabel"
+	"github.com/prometheus/prometheus/model/relabel"
 	yaml "gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -575,6 +575,7 @@ label_limit: 2
 label_name_length_limit: 3
 label_value_length_limit: 4
 follow_redirects: true
+enable_http2: true
 relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
@@ -620,7 +621,9 @@ metric_relabel_configs:
   action: keep
 kubernetes_sd_configs:
 - role: pod
+  kubeconfig_file: ""
   follow_redirects: true
+  enable_http2: true
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
@@ -636,6 +639,7 @@ label_name_length_limit: 3
 label_value_length_limit: 4
 proxy_url: http://foo.bar/test
 follow_redirects: true
+enable_http2: true
 relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
@@ -673,7 +677,9 @@ relabel_configs:
   action: replace
 kubernetes_sd_configs:
 - role: pod
+  kubeconfig_file: ""
   follow_redirects: true
+  enable_http2: true
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
@@ -762,6 +768,7 @@ label_limit: 2
 label_name_length_limit: 3
 label_value_length_limit: 4
 follow_redirects: true
+enable_http2: true
 relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
@@ -804,7 +811,9 @@ metric_relabel_configs:
   action: keep
 kubernetes_sd_configs:
 - role: pod
+  kubeconfig_file: ""
   follow_redirects: true
+  enable_http2: true
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
@@ -820,6 +829,7 @@ label_name_length_limit: 3
 label_value_length_limit: 4
 proxy_url: http://foo.bar/test
 follow_redirects: true
+enable_http2: true
 relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
@@ -854,7 +864,9 @@ relabel_configs:
   action: replace
 kubernetes_sd_configs:
 - role: pod
+  kubeconfig_file: ""
   follow_redirects: true
+  enable_http2: true
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)

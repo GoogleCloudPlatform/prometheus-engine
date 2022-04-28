@@ -1,2 +1,3 @@
 /build
-/assets_vfsdata.go
+/static
+/embed.go

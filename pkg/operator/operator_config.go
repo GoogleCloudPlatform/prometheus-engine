@@ -15,6 +15,7 @@
 package operator
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"path"
@@ -29,8 +30,8 @@ import (
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
-	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/pkg/relabel"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/relabel"
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -162,8 +163,8 @@ func newOperatorConfigReconciler(c client.Client, opts Options) *operatorConfigR
 
 // Reconcile ensures the OperatorConfig resource is reconciled.
 func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	logger := logr.FromContext(ctx).WithValues("operatorconfig", req.NamespacedName)
-	logger.Info("reconciling operatorconfig")
+	logger, _ := logr.FromContext(ctx)
+	logger.WithValues("operatorconfig", req.NamespacedName).Info("reconciling operatorconfig")
 
 	config := &monitoringv1.OperatorConfig{}
 
@@ -242,6 +243,17 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "marshal Prometheus config")
 	}
+	// We depend on a newer Prometheus config version, which generates some defaulted fields
+	// not recognized by the collector/evaluator version assumed by the operator.
+	// Thus we strip them from the generated YAML manually.
+	// TODO(freinartz): remove this once the assumed Prometheus version is updated to Prometheus v2.35.
+	var lines [][]byte
+	for _, l := range bytes.SplitAfter(cfgEncoded, []byte("\n")) {
+		if !bytes.Contains(l, []byte("enable_http2:")) &&  !bytes.Contains(l, []byte("own_namespace:")) &&  !bytes.Contains(l, []byte(`kubeconfig_file: ""`)) {
+			lines = append(lines, l)
+		}
+	}
+	cfgEncoded = bytes.Join(lines, nil)
 
 	// Create rule-evaluator Secret.
 	cm := &corev1.ConfigMap{
@@ -370,7 +382,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 							{Name: "r-eval-metrics", ContainerPort: RuleEvaluatorPort},
 						},
 						LivenessProbe: &corev1.Probe{
-							Handler: corev1.Handler{
+							ProbeHandler: corev1.ProbeHandler{
 								HTTPGet: &corev1.HTTPGetAction{
 									Path: "/-/healthy",
 									Port: intstr.FromInt(RuleEvaluatorPort),
@@ -378,7 +390,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 							},
 						},
 						ReadinessProbe: &corev1.Probe{
-							Handler: corev1.Handler{
+							ProbeHandler: corev1.ProbeHandler{
 								HTTPGet: &corev1.HTTPGetAction{
 									Path: "/-/ready",
 									Port: intstr.FromInt(RuleEvaluatorPort),

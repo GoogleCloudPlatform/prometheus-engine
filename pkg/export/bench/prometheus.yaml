@@ -14,8 +14,7 @@
 # limitations under the License.
 
 global:
-  scrape_interval: 1s
-  scrape_timeout: 1s
+  scrape_interval: 5s
   external_labels:
     location: europe
 scrape_configs:
@@ -24,24 +23,91 @@ scrape_configs:
   static_configs:
   - targets:
     - '127.0.0.1:9090'
-- job_name: 'prometheus-noexport'
-  scrape_interval: 5s
-  static_configs:
+    labels:
+      prometheus: regular
   - targets:
     - '127.0.0.1:9091'
-# Uncomment if running a comparison benchmark:
-#
-# - job_name: 'prometheus-compare'
-#   scrape_interval: 5s
-#   static_configs:
-#   - targets:
-#     - '127.0.0.1:9092'
+    labels:
+      prometheus: regular-noexport
+  # Uncomment if running a comparison benchmark:
+  - targets:
+    - '127.0.0.1:9092'
+    labels:
+      prometheus: compare
 - job_name: 'server'
   scrape_interval: 5s
   static_configs:
   - targets:
     - '127.0.0.1:10002'
 - job_name: "example-1"
+  static_configs:
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "1"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "2"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "3"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "4"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "5"
+- job_name: "example-2"
+  static_configs:
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "1"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "2"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "3"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "4"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "5"
+- job_name: "example-3"
+  static_configs:
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "1"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "2"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "3"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "4"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "5"
+- job_name: "example-4"
+  static_configs:
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "1"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "2"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "3"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "4"
+  - targets: ['127.0.0.1:8080']
+    labels:
+      replica: "5"
+- job_name: "example-5"
   static_configs:
   - targets: ['127.0.0.1:8080']
     labels:
