@@ -48,6 +48,7 @@ spec:
         - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.7-gke.0"
         - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.4.0-gke.0"
         - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.0-gke.0"
+        - "--webhook-addr=:10250"
         ports:
         - name: webhook
           # Note this should match the --listen-addr flag passed in to the operator args.
