@@ -51,8 +51,8 @@ spec:
         ports:
         - name: webhook
           # Note this should match the --listen-addr flag passed in to the operator args.
-          # Default is 8443.
-          containerPort: 8443
+          # Default is 10250.
+          containerPort: 10250
         - name: metrics
           # Note this should match the --metrics-addr flag passed in to the operator args.
           # Default is 18080.
