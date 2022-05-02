@@ -78,7 +78,7 @@ func main() {
 		tlsCert     = flag.String("tls-cert-base64", "", "The base64-encoded TLS certificate.")
 		tlsKey      = flag.String("tls-key-base64", "", "The base64-encoded TLS key.")
 		caCert      = flag.String("ca-cert-base64", "", "The base64-encoded certificate authority.")
-		webhookAddr = flag.String("webhook-addr", ":8443",
+		webhookAddr = flag.String("webhook-addr", ":10250",
 			"Address to listen to for incoming kube admission webhook connections.")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
 

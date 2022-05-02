@@ -207,11 +207,12 @@ spec:
         - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.7-gke.0"
         - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.4.0-gke.0"
         - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.0-gke.0"
+        - "--webhook-addr=:10250"
         ports:
         - name: webhook
           # Note this should match the --listen-addr flag passed in to the operator args.
-          # Default is 8443.
-          containerPort: 8443
+          # Default is 10250.
+          containerPort: 10250
         - name: metrics
           # Note this should match the --metrics-addr flag passed in to the operator args.
           # Default is 18080.
@@ -237,7 +238,7 @@ spec:
     app.kubernetes.io/part-of: gmp
   ports:
   - protocol: TCP
-    port: 8443
+    port: 10250
     targetPort: webhook
 ---
 apiVersion: monitoring.googleapis.com/v1
@@ -260,7 +261,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/podmonitorings
-      port: 8443
+      port: 10250
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -282,7 +283,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/clusterpodmonitorings
-      port: 8443
+      port: 10250
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -304,7 +305,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/rules
-      port: 8443
+      port: 10250
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -326,7 +327,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/clusterrules
-      port: 8443
+      port: 10250
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -348,7 +349,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/globalrules
-      port: 8443
+      port: 10250
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -370,7 +371,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/operatorconfigs
-      port: 8443
+      port: 10250
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -398,7 +399,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /default/monitoring.googleapis.com/v1/podmonitorings
-      port: 8443
+      port: 10250
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -420,7 +421,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /default/monitoring.googleapis.com/v1/clusterpodmonitorings
-      port: 8443
+      port: 10250
   failurePolicy: Fail
   sideEffects: None
   rules:
