@@ -90,6 +90,19 @@ func TestOperatorConfigValidator(t *testing.T) {
 			},
 			err: `invalid scrape interval: empty duration string`,
 		},
+		{
+			desc: "bad generator URL",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					GeneratorURL: "~:://example.com",
+				},
+			},
+			err: `failed to parse generator URL: parse "~:://example.com": first path segment in URL cannot contain colon`,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
@@ -100,7 +113,7 @@ func TestOperatorConfigValidator(t *testing.T) {
 			if c.err == "" && err != nil {
 				t.Fatalf("unexpected error %q", err)
 			}
-			if !strings.Contains(err.Error(), c.err) {
+			if err == nil || !strings.Contains(err.Error(), c.err) {
 				t.Fatalf("expected error containing %q but got %q", c.err, err)
 			}
 		})
