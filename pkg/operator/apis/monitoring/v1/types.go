@@ -73,6 +73,9 @@ type RuleEvaluatorSpec struct {
 	// If left blank, the rule-evaluator will try attempt to infer the Project ID
 	// from the environment.
 	QueryProjectID string `json:"queryProjectID,omitempty"`
+	// The base URL used for the generator URL in the alert notification payload.
+	// Should point to an instance of a query frontend that gives access to queryProjectID.
+	GeneratorURL string `json:"generatorUrl,omitempty"`
 	// Alerting contains how the rule-evaluator configures alerting.
 	Alerting AlertingSpec `json:"alerting,omitempty"`
 	// A reference to GCP service account credentials with which the rule
