@@ -327,6 +327,11 @@ spec:
                   to any rule results and alerts produced by rules. The precedence
                   behavior matches that of Prometheus.
                 type: object
+              generatorUrl:
+                description: The base URL used for the generator URL in the alert
+                  notification payload. Should point to an instance of a query frontend
+                  that gives access to queryProjectID.
+                type: string
               queryProjectID:
                 description: QueryProjectID is the GCP project ID to evaluate rules
                   against. If left blank, the rule-evaluator will try attempt to infer

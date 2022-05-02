@@ -54,6 +54,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/util/strutil"
 )
 
 const projectIDVar = "PROJECT_ID"
@@ -92,6 +93,9 @@ func main() {
 		Default(fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar)).
 		String()
 
+	generatorURLStr := a.Flag("query.generator-url", "The base URL used for the generator URL in the alert notification payload. Should point to an instance of a query frontend that accesses the same data as --query.target-url.").
+		PlaceHolder("<URL>").String()
+
 	queryCredentialsFile := a.Flag("query.credentials-file", "Credentials file for OAuth2 authentication with --query.target-url.").
 		Default("").String()
 
@@ -116,6 +120,16 @@ func main() {
 	}
 
 	*targetURL = strings.ReplaceAll(*targetURL, projectIDVar, *projectID)
+
+	generatorURL := &url.URL{}
+	if *generatorURLStr != "" {
+		var err error
+		generatorURL, err = url.Parse(*generatorURLStr)
+		if err != nil {
+			level.Error(logger).Log("msg", "Invalid --query.generator-url", "err", err)
+			os.Exit(2)
+		}
+	}
 
 	// Don't expand external labels on config file loading. It's a feature we like but we want to remain
 	// compatible with Prometheus and this is still an experimental feature, which we don't support.
@@ -182,13 +196,13 @@ func main() {
 	}
 
 	ruleManager := rules.NewManager(&rules.ManagerOptions{
-		ExternalURL: &url.URL{},
+		ExternalURL: generatorURL,
 		QueryFunc:   queryFunc,
 		Context:     ctxRuleManger,
 		Appendable:  destination,
 		Queryable:   externalStorage,
 		Logger:      logger,
-		NotifyFunc:  sendAlerts(notificationManager),
+		NotifyFunc:  sendAlerts(notificationManager, generatorURL.String()),
 		Metrics:     rules.NewGroupMetrics(reg),
 	})
 
@@ -393,7 +407,7 @@ func QueryFunc(ctx context.Context, q string, t time.Time, v1api v1.API) (parser
 }
 
 // sendAlerts returns the rules.NotifyFunc for a Notifier.
-func sendAlerts(s *notifier.Manager) rules.NotifyFunc {
+func sendAlerts(s *notifier.Manager, externalURL string) rules.NotifyFunc {
 	return func(ctx context.Context, expr string, alerts ...*rules.Alert) {
 		var res []*notifier.Alert
 		for _, alert := range alerts {
@@ -406,6 +420,9 @@ func sendAlerts(s *notifier.Manager) rules.NotifyFunc {
 				a.EndsAt = alert.ResolvedAt
 			} else {
 				a.EndsAt = alert.ValidUntil
+			}
+			if externalURL != "" {
+				a.GeneratorURL = externalURL + strutil.TableLinkForExpression(expr)
 			}
 			res = append(res, a)
 		}

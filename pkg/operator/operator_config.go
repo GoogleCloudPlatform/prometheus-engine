@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/url"
 	"path"
 	"strings"
 
@@ -348,6 +349,10 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.credentials-file=%s", p))
 		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.credentials-file=%s", p))
 	}
+	if spec.GeneratorURL != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--query.generator-url=%s", spec.GeneratorURL))
+	}
+
 	replicas := int32(1)
 
 	// DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
@@ -768,6 +773,11 @@ func (v *operatorConfigValidator) ValidateCreate(ctx context.Context, o runtime.
 	}
 	if _, err := makeKubeletScrapeConfigs(oc.Collection.KubeletScraping); err != nil {
 		return errors.Wrap(err, "failed to create kubelet scrape config")
+	}
+	if oc.Rules.GeneratorURL != "" {
+		if _, err := url.Parse(oc.Rules.GeneratorURL); err != nil {
+			return errors.Wrap(err, "failed to parse generator URL")
+		}
 	}
 	return nil
 }
