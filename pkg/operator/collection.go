@@ -463,7 +463,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	// TODO(freinartz): remove this once the assumed Prometheus version is updated to Prometheus v2.35.
 	var lines [][]byte
 	for _, l := range bytes.SplitAfter(cfgEncoded, []byte("\n")) {
-		if !bytes.Contains(l, []byte("enable_http2:")) &&  !bytes.Contains(l, []byte("own_namespace:")) &&  !bytes.Contains(l, []byte(`kubeconfig_file: ""`)) {
+		if !bytes.Contains(l, []byte("enable_http2:")) && !bytes.Contains(l, []byte("own_namespace:")) && !bytes.Contains(l, []byte(`kubeconfig_file: ""`)) {
 			lines = append(lines, l)
 		}
 	}

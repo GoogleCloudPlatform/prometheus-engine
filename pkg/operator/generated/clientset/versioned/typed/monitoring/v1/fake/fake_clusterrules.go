@@ -108,7 +108,7 @@ func (c *FakeClusterRules) UpdateStatus(ctx context.Context, clusterRules *monit
 // Delete takes name of the clusterRules and deletes it. Returns an error if one occurs.
 func (c *FakeClusterRules) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(clusterrulesResource, name), &monitoringv1.ClusterRules{})
+		Invokes(testing.NewRootDeleteActionWithOptions(clusterrulesResource, name, opts), &monitoringv1.ClusterRules{})
 	return err
 }
 

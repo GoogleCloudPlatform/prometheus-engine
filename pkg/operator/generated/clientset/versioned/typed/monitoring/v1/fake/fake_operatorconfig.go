@@ -103,7 +103,7 @@ func (c *FakeOperatorConfigs) Update(ctx context.Context, operatorConfig *monito
 // Delete takes name of the operatorConfig and deletes it. Returns an error if one occurs.
 func (c *FakeOperatorConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(operatorconfigsResource, c.ns, name), &monitoringv1.OperatorConfig{})
+		Invokes(testing.NewDeleteActionWithOptions(operatorconfigsResource, c.ns, name, opts), &monitoringv1.OperatorConfig{})
 
 	return err
 }

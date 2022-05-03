@@ -108,7 +108,7 @@ func (c *FakeGlobalRules) UpdateStatus(ctx context.Context, globalRules *monitor
 // Delete takes name of the globalRules and deletes it. Returns an error if one occurs.
 func (c *FakeGlobalRules) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(globalrulesResource, name), &monitoringv1.GlobalRules{})
+		Invokes(testing.NewRootDeleteActionWithOptions(globalrulesResource, name, opts), &monitoringv1.GlobalRules{})
 	return err
 }
 

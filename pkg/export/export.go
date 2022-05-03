@@ -333,7 +333,7 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
 	if !cfg.GlobalConfig.ExternalLabels.Has(KeyProjectID) {
 		builder.Set(KeyProjectID, e.opts.ProjectID)
 	}
-	if !cfg.GlobalConfig.ExternalLabels.Has(KeyLocation)  {
+	if !cfg.GlobalConfig.ExternalLabels.Has(KeyLocation) {
 		builder.Set(KeyLocation, e.opts.Location)
 	}
 	if !cfg.GlobalConfig.ExternalLabels.Has(KeyCluster) {

@@ -108,7 +108,7 @@ func (c *FakeClusterPodMonitorings) UpdateStatus(ctx context.Context, clusterPod
 // Delete takes name of the clusterPodMonitoring and deletes it. Returns an error if one occurs.
 func (c *FakeClusterPodMonitorings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(clusterpodmonitoringsResource, name), &monitoringv1.ClusterPodMonitoring{})
+		Invokes(testing.NewRootDeleteActionWithOptions(clusterpodmonitoringsResource, name, opts), &monitoringv1.ClusterPodMonitoring{})
 	return err
 }
 
