@@ -48,8 +48,8 @@ import (
 	"github.com/prometheus/prometheus/discovery"
 	// Import to enable 'kubernetes_sd_configs' to SD config register.
 	_ "github.com/prometheus/prometheus/discovery/kubernetes"
-	"github.com/prometheus/prometheus/notifier"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/notifier"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
