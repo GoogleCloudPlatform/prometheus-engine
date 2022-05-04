@@ -12,36 +12,19 @@ the upstream UI at a given version and apply a minimal set of overrides files.
 
 ### Development
 
-The `sync.sh` script syncs the upstream repository into `build/` at a fixed git tag.
-All files and directories provided in `override/` are copied to the `web/ui/react-app`
-path of the upstream checkout.
-
-Invoking the sync script ensures this synchronization and runs any following command
-in the `web/ui/react-app` directory.
-
-To initialize:
-
-```bash
-./sync.sh yarn
-```
-
-To run the UI locally:
-
-```bash
-./sync.sh yarn start
-```
-
-The webserver will proxy requests to `http://localhost:9090`. During development a local Prometheus
-server or the frontend can be run under this address for manual testing.
-
-At build time the app is statically compiled into the `ui` Go package. Binaries including the UI
-must also host a Prometheus-compatible read API as expected by the React app.
+The `hack/update-ui.sh <PROMETHEUS_TAG>` script syncs the upstream UI into
+`third_party/prometheus_ui/base` at a fixed git tag.
+All files and directories provided in `thid_party/prometheus_ui/override/`
+are copied over the `web/ui/react-app` path of the upstream checkout. After updating
+the upstream tag, the override files may need adjustment.
 
 ### Building
 
-The final app is statically compiled into the Go binary for release. To generate the static
-asset Go file run:
+The final app is statically compiled into the Go binary for release. To build the UI, run:
 
 ```bash
 ./build.sh
 ```
+
+This creates the final gziped files in `./build` and generated `./embed.go` to instruct the Go
+compiler to include them into the final Go binary.
