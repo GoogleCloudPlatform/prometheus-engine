@@ -46,6 +46,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
+
 	// Import to enable 'kubernetes_sd_configs' to SD config register.
 	_ "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/notifier"
@@ -328,15 +329,8 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 		})
 		http.HandleFunc("/-/ready", func(w http.ResponseWriter, r *http.Request) {
-			_, err := queryFunc(context.Background(), "vector(1)", time.Now()) // Run a test query to check status of rule evaluator.
-			if err != nil {
-				w.WriteHeader(http.StatusServiceUnavailable)
-				fmt.Fprintf(w, "Prometheus is not Ready.\n")
-				level.Error(logger).Log("msg", "Error querying Prometheus instance", "err", err)
-			} else {
-				w.WriteHeader(http.StatusOK)
-				fmt.Fprintf(w, "Prometheus is Ready.\n")
-			}
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, "Prometheus is Ready.\n")
 		})
 		g.Add(func() error {
 			level.Info(logger).Log("msg", "Starting web server", "listen", *listenAddress)
@@ -378,6 +372,12 @@ func main() {
 				cancel <- struct{}{}
 			},
 		)
+	}
+
+	// Run a test query to check status of rule evaluator.
+	_, err = queryFunc(context.Background(), "vector(1)", time.Now())
+	if err != nil {
+		level.Error(logger).Log("msg", "Error querying Prometheus instance", "err", err)
 	}
 
 	if err := g.Run(); err != nil {

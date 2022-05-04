@@ -73,6 +73,7 @@ ifeq ($(NO_DOCKER), 1)
 else
 	$(call docker_build, -f ./hack/Dockerfile --target sync -o . -t gmp/hermetic \
 		--build-arg RUNCMD='./hack/presubmit.sh test' .)
+	rm -rf vendor.tmp
 endif
 
 kindtest:    ## Run e2e test suite against fresh kind k8s cluster.
