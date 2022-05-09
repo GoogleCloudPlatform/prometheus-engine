@@ -226,8 +226,10 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	case "kubectl":
 	case "gke":
 	case "gke-auto":
+	case "on-prem":
+	case "baremetal":
 	default:
-		return errors.New("--mode must be one of {'kubectl', 'gke', 'gke-auto'}")
+		return errors.New("--mode must be one of {'kubectl', 'gke', 'gke-auto', 'on-prem', 'baremetal}")
 	}
 	return nil
 }
