@@ -330,7 +330,7 @@ func main() {
 		})
 		http.HandleFunc("/-/ready", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "Prometheus is Ready.\n")
+			fmt.Fprintf(w, "rule-evaluator is Ready.\n")
 		})
 		g.Add(func() error {
 			level.Info(logger).Log("msg", "Starting web server", "listen", *listenAddress)
