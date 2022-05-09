@@ -103,7 +103,7 @@ func newTestContext(t *testing.T) *testContext {
 		OperatorNamespace: tctx.namespace,
 		PublicNamespace:   tctx.pubNamespace,
 		PriorityClass:     "gmp-critical",
-		ListenAddr:        ":8443",
+		ListenAddr:        ":10250",
 		Mode:              "kubectl",
 	})
 	if err != nil {

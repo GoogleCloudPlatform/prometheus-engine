@@ -26,7 +26,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/podmonitorings
-      port: 10250
+      port: 443
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -48,7 +48,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/clusterpodmonitorings
-      port: 10250
+      port: 443
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -70,7 +70,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/rules
-      port: 10250
+      port: 443
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -92,7 +92,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/clusterrules
-      port: 10250
+      port: 443
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -114,7 +114,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/globalrules
-      port: 10250
+      port: 443
   failurePolicy: Fail
   sideEffects: None
   rules:
@@ -136,7 +136,7 @@ webhooks:
       namespace: gmp-system
       name: gmp-operator
       path: /validate/monitoring.googleapis.com/v1/operatorconfigs
-      port: 10250
+      port: 443
   failurePolicy: Fail
   sideEffects: None
   rules:
