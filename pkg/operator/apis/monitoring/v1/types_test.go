@@ -658,9 +658,8 @@ relabel_configs:
   target_label: __tmp_instance
   replacement: $1
   action: replace
-- source_labels: [__meta_kubernetes_pod_container_port_number]
-  regex: (8080)?
-  action: keep
+- regex: container
+  action: labeldrop
 - source_labels: [__tmp_instance]
   target_label: instance
   replacement: $1:8080
@@ -845,9 +844,8 @@ relabel_configs:
   target_label: __tmp_instance
   replacement: $1
   action: replace
-- source_labels: [__meta_kubernetes_pod_container_port_number]
-  regex: (8080)?
-  action: keep
+- regex: container
+  action: labeldrop
 - source_labels: [__tmp_instance]
   target_label: instance
   replacement: $1:8080

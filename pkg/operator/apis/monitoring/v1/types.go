@@ -529,40 +529,32 @@ func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.C
 			TargetLabel:  "instance",
 		})
 	} else if ep.Port.IntVal != 0 {
-		// Prometheus produces a target candidate for each declared port in a pod. If a pod
-		// has no declared ports, a single candidate without port info is generated.
-		// Some users do not declare ports but expect PodMonitorings to work with a numeric port
-		// specified nonetheless.
+		// Prometheus generates a target candidate for each declared port in a pod.
+		// If a container in a pod has no declared port, a single target candidate is generated for
+		// that container.
 		//
-		// We could support this by hard-overriding the address with the configured PodMonitoring
-		// numeric port. As a result, a pod with multiple declared ports will produce multiple
-		// identical targets from the candidates.
-		// If the container metadata label is added however, they may differ by the `container` target label
-		// and not be deduplicated. This will cause the same endpoint to be scraped as different targets.
-		// Thus, we must still filter by numeric port IFF the target candidate does contain port info.
-		//
-		// Summarized, PodMonitorings with numeric ports always work if a pod has no declared ports.
-		// But if it does have declared ports, the intended numeric one must be declared as well.
+		// If a numeric port is specified for scraping but not declared in the pod, we still
+		// want to allow scraping it. For that we must ensure that we produce a single final output
+		// target for that numeric port. The only way to achieve this is to produce identical output
+		// targets for all incoming target candidates for that pod and producing identical output
+		// targets for each.
+		// This requires leaving the container label empty (or at a singleton value) even if it is
+		// requested as an output label via .targetLabels.metadata. This algins with the Pod specification,
+		// which requires port names in a Pod to be unique but not port numbers. Thus the container is
+		// potentially ambigious for numerical ports in any case.
 
-		// Port number must match or be empty.
-		portValue, err := relabel.NewRegexp(fmt.Sprintf(`(%d)?`, ep.Port.IntVal))
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid port number %q", ep.Port)
-		}
+		// First, drop the container label even it it was added before.
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Keep,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_port_number"},
-			Regex:        portValue,
+			Action: relabel.LabelDrop,
+			Regex:  relabel.MustNewRegexp("container"),
 		})
+		// Then, rewrite the instance and __address__ for each candidate to the same values.
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__tmp_instance"},
 			Replacement:  fmt.Sprintf("$1:%d", ep.Port.IntVal),
 			TargetLabel:  "instance",
 		})
-		// If the target candidate was produced for a pod without declared ports, we need to
-		// manually add it. This does not change the __address__ value for candidates for the
-		// declared port.
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_ip"},
@@ -904,8 +896,8 @@ type ClusterPodMonitoringSpec struct {
 // ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 type ScrapeEndpoint struct {
 	// Name or number of the port to scrape.
-	// If the specified port is numeric, the selected pod must either not declare any
-	// ports in its spec or declare the specified port number as well.
+	// The container metadata label is only populated if the port is referenced by name
+	// because port numbers are not unique across containers.
 	Port intstr.IntOrString `json:"port"`
 	// Protocol scheme to use to scrape.
 	Scheme string `json:"scheme,omitempty"`
@@ -931,7 +923,8 @@ type ScrapeEndpoint struct {
 type TargetLabels struct {
 	// Pod metadata labels that are set on all scraped targets.
 	// Permitted keys are `pod`, `container`, and `node` for PodMonitoring and
-	// `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring.
+	// `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. The `container`
+	// label is only populated if the scrape port is referenced by name.
 	// Defaults to [pod, container] for PodMonitoring and [namespace, pod, container]
 	// for ClusterPodMonitoring.
 	// If set to null, it will be interpreted as the empty list for PodMonitoring
