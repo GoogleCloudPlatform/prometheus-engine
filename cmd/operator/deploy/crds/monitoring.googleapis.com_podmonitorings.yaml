@@ -119,10 +119,9 @@ spec:
                       anyOf:
                       - type: integer
                       - type: string
-                      description: Name or number of the port to scrape. If the specified
-                        port is numeric, the selected pod must either not declare
-                        any ports in its spec or declare the specified port number
-                        as well.
+                      description: Name or number of the port to scrape. The container
+                        metadata label is only populated if the port is referenced
+                        by name because port numbers are not unique across containers.
                       x-kubernetes-int-or-string: true
                     proxyUrl:
                       description: Proxy URL to scrape through. Encoded passwords
@@ -235,10 +234,11 @@ spec:
                     description: Pod metadata labels that are set on all scraped targets.
                       Permitted keys are `pod`, `container`, and `node` for PodMonitoring
                       and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring.
-                      Defaults to [pod, container] for PodMonitoring and [namespace,
-                      pod, container] for ClusterPodMonitoring. If set to null, it
-                      will be interpreted as the empty list for PodMonitoring and
-                      to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
+                      The `container` label is only populated if the scrape port is
+                      referenced by name. Defaults to [pod, container] for PodMonitoring
+                      and [namespace, pod, container] for ClusterPodMonitoring. If
+                      set to null, it will be interpreted as the empty list for PodMonitoring
+                      and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
                       only.
                     items:
                       type: string

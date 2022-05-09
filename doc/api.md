@@ -466,7 +466,7 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| port | Name or number of the port to scrape. If the specified port is numeric, the selected pod must either not declare any ports in its spec or declare the specified port number as well. | intstr.IntOrString | true |
+| port | Name or number of the port to scrape. The container metadata label is only populated if the port is referenced by name because port numbers are not unique across containers. | intstr.IntOrString | true |
 | scheme | Protocol scheme to use to scrape. | string | false |
 | path | HTTP path to scrape metrics from. Defaults to \"/metrics\". | string | false |
 | params | HTTP GET params to use when scraping. | map[string][]string | false |
@@ -533,7 +533,7 @@ TargetLabels configures labels for the discovered Prometheus targets.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| metadata | Pod metadata labels that are set on all scraped targets. Permitted keys are `pod`, `container`, and `node` for PodMonitoring and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. Defaults to [pod, container] for PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring. If set to null, it will be interpreted as the empty list for PodMonitoring and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility only. | *[]string | false |
+| metadata | Pod metadata labels that are set on all scraped targets. Permitted keys are `pod`, `container`, and `node` for PodMonitoring and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. The `container` label is only populated if the scrape port is referenced by name. Defaults to [pod, container] for PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring. If set to null, it will be interpreted as the empty list for PodMonitoring and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility only. | *[]string | false |
 | fromPod | Labels to transfer from the Kubernetes Pod to Prometheus target labels. Mappings are applied in order. | [][LabelMapping](#labelmapping) | false |
 
 [Back to TOC](#table-of-contents)
