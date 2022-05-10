@@ -32,7 +32,7 @@ spec:
         kubernetes.io/arch: amd64
       containers:
       - name: frontend
-        image: "gke.gcr.io/prometheus-engine/frontend:v0.4.0-gke.0"
+        image: "gke.gcr.io/prometheus-engine/frontend:v0.4.1-gke.0"
         args:
         - "--web.listen-address=:9090"
         - "--query.project-id=$PROJECT_ID"
