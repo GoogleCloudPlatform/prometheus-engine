@@ -353,7 +353,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 				fmt.Sprintf("--export.label.location=%s", location),
 				fmt.Sprintf("--export.label.cluster=%s", cluster),
 				fmt.Sprintf("--query.project-id=%s", projectID),
-				"--export.user-agent=rule-evaluator/0.4.0 (mode:kubectl)",
+				"--export.user-agent=rule-evaluator/0.4.1 (mode:kubectl)",
 			}
 			if skipGCM {
 				wantArgs = append(wantArgs, "--export.disable")
