@@ -543,10 +543,10 @@ func minimalSecurityContext() *corev1.SecurityContext {
 		},
 	}
 }
-func podSpecSecurityContext() *corev1.SecurityContext {
-	return &corev1.SecurityContext{
+func podSpecSecurityContext() *corev1.PodSecurityContext {
+	return &corev1.PodSecurityContext{
 		SeccompProfile: &corev1.SeccompProfile{
-			Type: "RuntimeDefault",
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
 		},
 	}
 }

@@ -522,7 +522,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 				AutomountServiceAccountToken: ptr(true),
 				PriorityClassName:            r.opts.PriorityClass,
 				HostNetwork:                  r.opts.HostNetwork,
-				SecurityContext: podSpecSecurityContext(),
+				SecurityContext:              podSpecSecurityContext(),
 			},
 		},
 	}
