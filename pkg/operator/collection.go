@@ -430,6 +430,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 				ServiceAccountName:           NameCollector,
 				AutomountServiceAccountToken: ptr(true),
 				PriorityClassName:            r.opts.PriorityClass,
+				SecurityContext: podSpecSecurityContext(),
 			},
 		},
 	}
