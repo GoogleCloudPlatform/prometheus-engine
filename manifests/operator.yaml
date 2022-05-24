@@ -202,6 +202,7 @@ spec:
       - name: operator
         image: gke.gcr.io/prometheus-engine/operator:v0.4.1-gke.0
         args:
+        - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
         - "--priority-class=gmp-critical"
         - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.7-gke.0"
@@ -462,7 +463,7 @@ spec:
         kubernetes.io/os: linux
       containers:
       - name: prometheus
-        image: gcr.io/gpe-test-1/prometheus-engine/prometheus:v2.35.0-gmp.1
+        image: gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --storage.tsdb.path=/prometheus/data
@@ -474,7 +475,7 @@ spec:
         - --web.listen-address=:19090
         - --web.enable-lifecycle
         - --web.route-prefix=/
-        - --export.user-agent=prometheus/2.35.0-gmp.1 (mode:kubectl)
+        - --export.user-agent=prometheus/2.35.0-gmp.2 (mode:kubectl)
         # The environment variable EXTRA_ARGS will be populated by the operator.
         # DO NOT specify it here.
         env:
@@ -506,7 +507,7 @@ spec:
         - name: config-out
           mountPath: /prometheus/config_out
           readOnly: true
-        - name: rules-secret
+        - name: collection-secret
           mountPath: /etc/secrets
           readOnly: true
         securityContext:
@@ -520,7 +521,7 @@ spec:
           seccompProfile:
             type: RuntimeDefault
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.0-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -574,7 +575,7 @@ spec:
           name: collector
       - name: config-out
         emptyDir: {}
-      - name: rules-secret
+      - name: collection-secret
         secret:
           secretName: collection
 ---
@@ -601,11 +602,11 @@ spec:
         kubernetes.io/os: linux
       containers:
       - name: evaluator
-        image: gcr.io/gpe-test-1/prometheus-engine/rule-evaluator:v0.4.2-test.0
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.1-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --web.listen-address=:19092
-        - --export.user-agent=rule-evaluator/0.4.0 (mode:kubectl)
+        - --export.user-agent=rule-evaluator/0.4.1 (mode:kubectl)
         ports:
         - name: r-eval-metrics
           containerPort: 19092
@@ -648,7 +649,7 @@ spec:
           mountPath: /etc/secrets
           readOnly: true
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.0-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml

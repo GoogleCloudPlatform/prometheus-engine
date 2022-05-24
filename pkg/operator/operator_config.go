@@ -57,13 +57,10 @@ const (
 )
 
 const (
-	rulesVolumeName      = "rules"
-	secretVolumeName     = "rules-secret"
 	RulesSecretName      = "rules"
 	CollectionSecretName = "collection"
 	rulesDir             = "/etc/rules"
 	secretsDir           = "/etc/secrets"
-	RuleEvaluatorPort    = 19092
 )
 
 func rulesLabels() map[string]string {
@@ -298,7 +295,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 	var deploy appsv1.Deployment
 	err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: NameRuleEvaluator}, &deploy)
 	// Some users deliberately not want to run the rule-evaluator. Only emit a warning but don't cause
-	// retries as this logic gets re-triggered anyway if the DaemonSet is created later.
+	// retries as this logic gets re-triggered anyway if the Deployment is created later.
 	if apierrors.IsNotFound(err) {
 		logger.Error(err, "rule-evaluator Deployment does not exist")
 		return nil
@@ -347,10 +344,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 	}
 
 	// Upsert rule-evaluator Deployment.
-	// We've to use Patch() as Update() with update we'll get stuck in an infinite loop as each
-	// update increases the generation since we override the managed fields metadata, which is
-	// set by the kube-controller-manager, which wants to own an annotation on deployments.
-	return r.client.Patch(ctx, &deploy, client.Merge)
+	return r.client.Update(ctx, &deploy)
 }
 
 // makeAlertManagerConfigs creates the alertmanager_config entries as described in
