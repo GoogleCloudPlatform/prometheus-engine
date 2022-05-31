@@ -340,6 +340,15 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 			return false, nil
 		}
 
+		// Assert we have the expected annotations.
+		wantedAnnotations := map[string]string{
+			"components.gke.io/component-name":               "managed_prometheus",
+			"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
+		}
+		if diff := cmp.Diff(wantedAnnotations, deploy.Spec.Template.Annotations); diff != "" {
+			return false, errors.Errorf("unexpected annotations (-want, +got): %s", diff)
+		}
+
 		for _, c := range deploy.Spec.Template.Spec.Containers {
 			if c.Name != "evaluator" {
 				continue
@@ -549,10 +558,21 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 				return false, nil
 			}
 		}
+
+		// Assert we have the expected annotations.
+		wantedAnnotations := map[string]string{
+			"components.gke.io/component-name":               "managed_prometheus",
+			"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
+		}
+		if diff := cmp.Diff(wantedAnnotations, ds.Spec.Template.Annotations); diff != "" {
+			return false, errors.Errorf("unexpected annotations (-want, +got): %s", diff)
+		}
+
 		for _, c := range ds.Spec.Template.Spec.Containers {
 			if c.Name != "prometheus" {
 				continue
 			}
+
 			// We're mainly interested in the dynamic flags but checking the entire set including
 			// the static ones is ultimately simpler.
 			wantArgs := []string{
@@ -583,7 +603,6 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			sort.Strings(c.Args)
 
 			if diff := cmp.Diff(wantArgs, c.Args); diff != "" {
-				t.Log(errors.Errorf("unexpected flags (-want, +got): %s", diff))
 				return false, errors.Errorf("unexpected flags (-want, +got): %s", diff)
 			}
 			return true, nil
