@@ -79,6 +79,10 @@ func rulesLabels() map[string]string {
 func rulesAnnotations() map[string]string {
 	return map[string]string{
 		AnnotationMetricName: componentName,
+		// Allow cluster autoscaler to evict evaluator Pods even though the Pods
+		// have an emptyDir volume mounted. This is okay since the node where the
+		// Pod runs will be scaled down.
+		ClusterAutoscalerSafeEvictionLabel: "true",
 	}
 }
 

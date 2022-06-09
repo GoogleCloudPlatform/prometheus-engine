@@ -229,6 +229,10 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 
 	podAnnotations := map[string]string{
 		AnnotationMetricName: componentName,
+		// Allow cluster autoscaler to evict collector Pods even though the Pods
+		// have an emptyDir volume mounted. This is okay since the node where the
+		// Pod runs will be scaled down and therefore does not need metrics reporting.
+		ClusterAutoscalerSafeEvictionLabel: "true",
 	}
 
 	collectorArgs := []string{

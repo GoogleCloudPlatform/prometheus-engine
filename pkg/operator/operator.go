@@ -72,6 +72,10 @@ const (
 	LabelAppName = "app.kubernetes.io/name"
 	// The component name, will be exposed as metric name.
 	AnnotationMetricName = "components.gke.io/component-name"
+	// ClusterAutoscalerSafeEvictionLabel is the annotation label that determines
+	// whether the cluster autoscaler can safely evict a Pod when the Pod doesn't
+	// satisfy certain eviction criteria.
+	ClusterAutoscalerSafeEvictionLabel = "cluster-autoscaler.kubernetes.io/safe-to-evict"
 
 	// The official images to be used with this version of the operator. For debugging
 	// and emergency use cases they may be overwritten through options.
