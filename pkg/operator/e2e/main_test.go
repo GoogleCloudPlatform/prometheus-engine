@@ -279,6 +279,7 @@ alerting:
             key_file: /etc/secrets/secret_{pubNamespace}_alertmanager-tls_key
             insecure_skip_verify: false
           follow_redirects: true
+          enable_http2: true
           scheme: https
           path_prefix: /test
           timeout: 30s
@@ -294,8 +295,11 @@ alerting:
               action: replace
           kubernetes_sd_configs:
             - role: endpoints
+              kubeconfig_file: ""
               follow_redirects: true
+              enable_http2: true
               namespaces:
+                own_namespace: false
                 names:
                     - {namespace}
 rule_files:
@@ -362,7 +366,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 				fmt.Sprintf("--export.label.location=%s", location),
 				fmt.Sprintf("--export.label.cluster=%s", cluster),
 				fmt.Sprintf("--query.project-id=%s", projectID),
-				"--export.user-agent=rule-evaluator/0.4.1 (mode:kubectl)",
+				"--export.user-agent=rule-evaluator/0.4.2 (mode:kubectl)",
 			}
 			if skipGCM {
 				wantArgs = append(wantArgs, "--export.disable")
@@ -591,7 +595,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 				fmt.Sprintf("--export.label.cluster=%s", cluster),
 				"--export.match={job='foo'}",
 				"--export.match={__name__=~'up'}",
-				"--export.user-agent=prometheus/2.28.1-gmp.7 (mode:kubectl)",
+				"--export.user-agent=prometheus/2.35.0-gmp.2 (mode:kubectl)",
 			}
 			if skipGCM {
 				wantArgs = append(wantArgs, "--export.disable")
