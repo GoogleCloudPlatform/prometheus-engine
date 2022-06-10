@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
 
@@ -531,6 +532,25 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
 	}
 
+	// Prioritize OperatorConfig's external labels over operator's flags
+	// to be consistent with our export layer's priorities.
+	// This is to avoid confusion if users specify a project_id, location, and
+	// cluster in the OperatorConfig's external labels but not in flags passed
+	// to the operator - since on GKE environnments, these values are autopopulated
+	// without user intervention.
+	var projectID = r.opts.ProjectID
+	if p, ok := spec.ExternalLabels[export.KeyProjectID]; ok {
+		projectID = p
+	}
+	var location = r.opts.Location
+	if l, ok := spec.ExternalLabels[export.KeyLocation]; ok {
+		location = l
+	}
+	var cluster = r.opts.Cluster
+	if c, ok := spec.ExternalLabels[export.KeyCluster]; ok {
+		cluster = c
+	}
+
 	// Mark status updates in batch with single timestamp.
 	for _, pm := range podMons.Items {
 		// Reassign so we can safely get a pointer.
@@ -540,7 +560,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := pmon.ScrapeConfigs(r.opts.ProjectID, r.opts.Location, r.opts.Cluster)
+		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{
@@ -579,7 +599,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := cmon.ScrapeConfigs(r.opts.ProjectID, r.opts.Location, r.opts.Cluster)
+		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{

@@ -110,17 +110,45 @@ func newRulesReconciler(c client.Client, opts Options) *rulesReconciler {
 	}
 }
 
-func (r *rulesReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
+func (r *rulesReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	logger, _ := logr.FromContext(ctx)
 	logger.Info("reconciling rules")
 
-	if err := r.ensureRuleConfigs(ctx); err != nil {
+	var config monitoringv1.OperatorConfig
+	// Fetch OperatorConfig if it exists.
+	if err := r.client.Get(ctx, req.NamespacedName, &config); apierrors.IsNotFound(err) {
+		logger.Info("no operatorconfig created yet")
+	} else if err != nil {
+		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
+	}
+
+	// Prioritize OperatorConfig's external labels over operator's flags
+	// to be consistent with our export layer's priorities.
+	// This is to avoid confusion if users specify a project_id, location, and
+	// cluster in the OperatorConfig's external labels but not in flags passed
+	// to the operator - since on GKE environnments, these values are autopopulated
+	// without user intervention.
+	spec := config.Rules
+	var projectID = r.opts.ProjectID
+	if p, ok := spec.ExternalLabels[export.KeyProjectID]; ok {
+		projectID = p
+	}
+	var location = r.opts.Location
+	if l, ok := spec.ExternalLabels[export.KeyLocation]; ok {
+		location = l
+	}
+	var cluster = r.opts.Cluster
+	if c, ok := spec.ExternalLabels[export.KeyCluster]; ok {
+		cluster = c
+	}
+
+	if err := r.ensureRuleConfigs(ctx, projectID, location, cluster); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule configmaps")
 	}
 	return reconcile.Result{}, nil
 }
 
-func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
+func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string) error {
 	logger, _ := logr.FromContext(ctx)
 
 	// Re-generate the configmap that's loaded by the rule-evaluator.
@@ -153,7 +181,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 		return errors.Wrap(err, "list rules")
 	}
 	for _, rs := range rulesList.Items {
-		result, err := generateRules(&rs, r.opts)
+		result, err := generateRules(&rs, projectID, location, cluster)
 		if err != nil {
 			// TODO(freinartz): update resource condition.
 			logger.Error(err, "converting rules failed", "rules_namespace", rs.Namespace, "rules_name", rs.Name)
@@ -167,7 +195,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 		return errors.Wrap(err, "list cluster rules")
 	}
 	for _, rs := range clusterRulesList.Items {
-		result, err := generateClusterRules(&rs, r.opts)
+		result, err := generateClusterRules(&rs, projectID, location, cluster)
 		if err != nil {
 			// TODO(freinartz): update resource condition.
 			logger.Error(err, "converting rules failed", "clusterrules_name", rs.Name)
@@ -201,15 +229,15 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context) error {
 	return nil
 }
 
-func generateRules(apiRules *monitoringv1.Rules, opts Options) (string, error) {
+func generateRules(apiRules *monitoringv1.Rules, projectID, location, cluster string) (string, error) {
 	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
 	if err != nil {
 		return "", errors.Wrap(err, "converting rules failed")
 	}
 	if err := rules.Scope(&rs, map[string]string{
-		export.KeyProjectID: opts.ProjectID,
-		export.KeyCluster:   opts.Cluster,
-		export.KeyLocation:  opts.Location,
+		export.KeyProjectID: projectID,
+		export.KeyLocation:  location,
+		export.KeyCluster:   cluster,
 		export.KeyNamespace: apiRules.Namespace,
 	}); err != nil {
 		return "", errors.Wrap(err, "isolating rules failed")
@@ -221,15 +249,15 @@ func generateRules(apiRules *monitoringv1.Rules, opts Options) (string, error) {
 	return string(result), nil
 }
 
-func generateClusterRules(apiRules *monitoringv1.ClusterRules, opts Options) (string, error) {
+func generateClusterRules(apiRules *monitoringv1.ClusterRules, projectID, location, cluster string) (string, error) {
 	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
 	if err != nil {
 		return "", errors.Wrap(err, "converting rules failed")
 	}
 	if err := rules.Scope(&rs, map[string]string{
-		export.KeyProjectID: opts.ProjectID,
-		export.KeyLocation:  opts.Location,
-		export.KeyCluster:   opts.Cluster,
+		export.KeyProjectID: projectID,
+		export.KeyLocation:  location,
+		export.KeyCluster:   cluster,
 	}); err != nil {
 		return "", errors.Wrap(err, "isolating rules failed")
 	}
@@ -257,7 +285,7 @@ type rulesValidator struct {
 }
 
 func (v *rulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
-	_, err := generateRules(o.(*monitoringv1.Rules), v.opts)
+	_, err := generateRules(o.(*monitoringv1.Rules), "test_project", "test_location", "test_cluster")
 	return err
 }
 
@@ -274,7 +302,7 @@ type clusterRulesValidator struct {
 }
 
 func (v *clusterRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
-	_, err := generateClusterRules(o.(*monitoringv1.ClusterRules), v.opts)
+	_, err := generateClusterRules(o.(*monitoringv1.ClusterRules), "test_project", "test_location", "test_cluster")
 	return err
 }
 
