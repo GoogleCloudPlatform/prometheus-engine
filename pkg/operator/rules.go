@@ -122,25 +122,7 @@ func (r *rulesReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
 	}
 
-	// Prioritize OperatorConfig's external labels over operator's flags
-	// to be consistent with our export layer's priorities.
-	// This is to avoid confusion if users specify a project_id, location, and
-	// cluster in the OperatorConfig's external labels but not in flags passed
-	// to the operator - since on GKE environnments, these values are autopopulated
-	// without user intervention.
-	spec := config.Rules
-	var projectID = r.opts.ProjectID
-	if p, ok := spec.ExternalLabels[export.KeyProjectID]; ok {
-		projectID = p
-	}
-	var location = r.opts.Location
-	if l, ok := spec.ExternalLabels[export.KeyLocation]; ok {
-		location = l
-	}
-	var cluster = r.opts.Cluster
-	if c, ok := spec.ExternalLabels[export.KeyCluster]; ok {
-		cluster = c
-	}
+	var projectID, location, cluster = resolveLabels(r.opts, config.Rules.ExternalLabels)
 
 	if err := r.ensureRuleConfigs(ctx, projectID, location, cluster); err != nil {
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule configmaps")

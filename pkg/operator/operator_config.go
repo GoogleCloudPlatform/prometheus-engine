@@ -323,14 +323,16 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
 	}
 
-	if r.opts.ProjectID != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
+	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+
+	if projectID != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.project-id=%s", projectID))
 	}
-	if r.opts.Location != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.Location))
+	if location != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.location=%s", location))
 	}
-	if r.opts.Cluster != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.Cluster))
+	if cluster != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.cluster=%s", cluster))
 	}
 	if r.opts.DisableExport {
 		evaluatorArgs = append(evaluatorArgs, "--export.disable")
@@ -340,9 +342,9 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 	}
 	evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=rule-evaluator/%s (mode:%s)", export.Version, r.opts.Mode))
 
-	// If no explicit project ID is set, use the one provided to the operator. On GKE the rule-evaluator
+	// If no explicit project ID is set, use the resolved one. On GKE the rule-evaluator
 	// can also auto-detect the cluster's project but this won't work in other Kubernetes environments.
-	queryProjectID := r.opts.ProjectID
+	queryProjectID := projectID
 	if spec.QueryProjectID != "" {
 		queryProjectID = spec.QueryProjectID
 	}

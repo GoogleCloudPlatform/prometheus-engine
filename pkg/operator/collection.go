@@ -254,15 +254,17 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 		"--web.route-prefix=/",
 	}
 
+	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+
 	// Check for explicitly-set pass-through args.
-	if r.opts.ProjectID != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
+	if projectID != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.project-id=%s", projectID))
 	}
-	if r.opts.Location != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.Location))
+	if location != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%s", location))
 	}
-	if r.opts.Cluster != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.Cluster))
+	if cluster != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.cluster=%s", cluster))
 	}
 	if r.opts.DisableExport {
 		collectorArgs = append(collectorArgs, "--export.disable")
@@ -452,6 +454,28 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 	}
 }
 
+func resolveLabels(opts Options, externalLabels map[string]string) (projectID string, location string, cluster string) {
+	// Prioritize OperatorConfig's external labels over operator's flags
+	// to be consistent with our export layer's priorities.
+	// This is to avoid confusion if users specify a project_id, location, and
+	// cluster in the OperatorConfig's external labels but not in flags passed
+	// to the operator - since on GKE environnments, these values are autopopulated
+	// without user intervention.
+	projectID = opts.ProjectID
+	if p, ok := externalLabels[export.KeyProjectID]; ok {
+		projectID = p
+	}
+	location = opts.Location
+	if l, ok := externalLabels[export.KeyLocation]; ok {
+		location = l
+	}
+	cluster = opts.Cluster
+	if c, ok := externalLabels[export.KeyCluster]; ok {
+		cluster = c
+	}
+	return
+}
+
 func collectorResourceLimits(opts Options) corev1.ResourceList {
 	limits := corev1.ResourceList{
 		corev1.ResourceMemory: *resource.NewScaledQuantity(opts.CollectorMemoryLimit, resource.Mega),
@@ -532,24 +556,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
 	}
 
-	// Prioritize OperatorConfig's external labels over operator's flags
-	// to be consistent with our export layer's priorities.
-	// This is to avoid confusion if users specify a project_id, location, and
-	// cluster in the OperatorConfig's external labels but not in flags passed
-	// to the operator - since on GKE environnments, these values are autopopulated
-	// without user intervention.
-	var projectID = r.opts.ProjectID
-	if p, ok := spec.ExternalLabels[export.KeyProjectID]; ok {
-		projectID = p
-	}
-	var location = r.opts.Location
-	if l, ok := spec.ExternalLabels[export.KeyLocation]; ok {
-		location = l
-	}
-	var cluster = r.opts.Cluster
-	if c, ok := spec.ExternalLabels[export.KeyCluster]; ok {
-		cluster = c
-	}
+	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
 
 	// Mark status updates in batch with single timestamp.
 	for _, pm := range podMons.Items {
