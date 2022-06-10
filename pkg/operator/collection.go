@@ -349,10 +349,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 								corev1.ResourceCPU:    *resource.NewScaledQuantity(r.opts.CollectorCPUResource, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.CollectorMemoryResource, resource.Mega),
 							},
-							// Set no limit on CPU as it's a throttled resource.
-							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.CollectorMemoryLimit, resource.Mega),
-							},
+							Limits: collectorResourceLimits(r.opts),
 						},
 						SecurityContext: minimalSecurityContext(),
 					}, {
@@ -393,8 +390,9 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 								corev1.ResourceCPU:    *resource.NewScaledQuantity(5, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(16, resource.Mega),
 							},
-							// Set no limit on CPU as it's a throttled resource.
+							// Set sane default limit on CPU for config-reloader.
 							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(100, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
 							},
 						},
@@ -443,6 +441,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 		ds.Template.Spec.HostNetwork = true
 		ds.Template.Spec.DNSPolicy = "ClusterFirstWithHostNet"
 	}
+
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
@@ -450,6 +449,19 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 		},
 		Spec: ds,
 	}
+}
+
+func collectorResourceLimits(opts Options) corev1.ResourceList {
+	limits := corev1.ResourceList{
+		corev1.ResourceMemory: *resource.NewScaledQuantity(opts.CollectorMemoryLimit, resource.Mega),
+	}
+	if cpuLimit := opts.CollectorCPULimit; cpuLimit >= 0 {
+		limits = corev1.ResourceList{
+			corev1.ResourceCPU:    *resource.NewScaledQuantity(cpuLimit, resource.Milli),
+			corev1.ResourceMemory: *resource.NewScaledQuantity(opts.CollectorMemoryLimit, resource.Mega),
+		}
+	}
+	return limits
 }
 
 // ensureCollectorConfig generates the collector config and creates or updates it.

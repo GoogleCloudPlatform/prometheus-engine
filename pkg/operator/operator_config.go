@@ -428,10 +428,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 								corev1.ResourceCPU:    *resource.NewScaledQuantity(r.opts.EvaluatorCPUResource, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.EvaluatorMemoryResource, resource.Mega),
 							},
-							// Set no limit on CPU as it's a throttled resource.
-							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.EvaluatorMemoryLimit, resource.Mega),
-							},
+							Limits: evaluatorResourceLimits(r.opts),
 						},
 						SecurityContext: minimalSecurityContext(),
 					}, {
@@ -474,8 +471,9 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 								corev1.ResourceCPU:    *resource.NewScaledQuantity(5, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(16, resource.Mega),
 							},
-							// Set no limit on CPU as it's a throttled resource.
+							// Set sane default limit on CPU for config-reloader.
 							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(100, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
 							},
 						},
@@ -530,6 +528,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 			},
 		},
 	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
@@ -537,6 +536,19 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 		},
 		Spec: deploy,
 	}
+}
+
+func evaluatorResourceLimits(opts Options) corev1.ResourceList {
+	limits := corev1.ResourceList{
+		corev1.ResourceMemory: *resource.NewScaledQuantity(opts.EvaluatorMemoryLimit, resource.Mega),
+	}
+	if cpuLimit := opts.EvaluatorCPULimit; cpuLimit >= 0 {
+		limits = corev1.ResourceList{
+			corev1.ResourceCPU:    *resource.NewScaledQuantity(cpuLimit, resource.Milli),
+			corev1.ResourceMemory: *resource.NewScaledQuantity(opts.EvaluatorMemoryLimit, resource.Mega),
+		}
+	}
+	return limits
 }
 
 // makeAlertManagerConfigs creates the alertmanager_config entries as described in

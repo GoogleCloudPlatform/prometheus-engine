@@ -145,6 +145,8 @@ type Options struct {
 	CollectorMemoryResource int64
 	// Collector CPU resource
 	CollectorCPUResource int64
+	// Collector CPU limit
+	CollectorCPULimit int64
 	// Collector memory limit
 	CollectorMemoryLimit int64
 	// Evaluator memory resource
@@ -153,6 +155,8 @@ type Options struct {
 	EvaluatorCPUResource int64
 	// Evaluator memory limit
 	EvaluatorMemoryLimit int64
+	// Evaluator CPU limit
+	EvaluatorCPULimit int64
 	// How managed collection was provisioned.
 	Mode string
 }
