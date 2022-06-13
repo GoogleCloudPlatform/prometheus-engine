@@ -104,7 +104,7 @@ spec:
         - name: prometheus-db
           mountPath: /prometheus/data
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.2-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.2-gke.1
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
