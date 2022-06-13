@@ -15,7 +15,6 @@
 package operator
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/url"
@@ -248,17 +247,6 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "marshal Prometheus config")
 	}
-	// We depend on a newer Prometheus config version, which generates some defaulted fields
-	// not recognized by the collector/evaluator version assumed by the operator.
-	// Thus we strip them from the generated YAML manually.
-	// TODO(freinartz): remove this once the assumed Prometheus version is updated to Prometheus v2.35.
-	var lines [][]byte
-	for _, l := range bytes.SplitAfter(cfgEncoded, []byte("\n")) {
-		if !bytes.Contains(l, []byte("enable_http2:")) && !bytes.Contains(l, []byte("own_namespace:")) && !bytes.Contains(l, []byte(`kubeconfig_file: ""`)) {
-			lines = append(lines, l)
-		}
-	}
-	cfgEncoded = bytes.Join(lines, nil)
 
 	// Create rule-evaluator Secret.
 	cm := &corev1.ConfigMap{
