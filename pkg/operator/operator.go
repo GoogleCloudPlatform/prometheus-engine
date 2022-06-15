@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +56,7 @@ const (
 	DefaultPublicNamespace = "gmp-public"
 
 	// Fixed names used in various resources managed by the operator.
-	NameOperator  = "gmp-operator"
+	NameOperator  = "operator"
 	componentName = "managed_prometheus"
 
 	// Prometheus configuration file and volume mounts.
@@ -390,6 +391,9 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 func (o *Operator) Run(ctx context.Context) error {
 	defer runtimeutil.HandleCrash()
 
+	if err := o.cleanupPreviousResources(ctx); err != nil {
+		return errors.Wrap(err, "cleanup previous resources")
+	}
 	if err := o.setupAdmissionWebhooks(ctx); err != nil {
 		return errors.Wrap(err, "init admission resources")
 	}
@@ -406,6 +410,26 @@ func (o *Operator) Run(ctx context.Context) error {
 	o.logger.Info("starting GMP operator")
 
 	return o.manager.Start(ctx)
+}
+
+func (o *Operator) cleanupPreviousResources(ctx context.Context) error {
+	err := o.client.Delete(ctx, &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator",
+			Namespace: DefaultOperatorNamespace},
+	})
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.logger.Error(err, "Deleting legacy operator Deployment failed.")
+		return err
+	}
+	err = o.client.Delete(ctx, &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator",
+			Namespace: DefaultOperatorNamespace},
+	})
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.logger.Error(err, "Deleting legacy operator Service failed.")
+		return err
+	}
+	return nil
 }
 
 // ensureCerts writes the cert/key files to the specified directory.

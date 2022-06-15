@@ -15,16 +15,16 @@
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
-  name: gmp-operator.gmp-system.monitoring.googleapis.com
+  name: operator.gmp-system.monitoring.googleapis.com
 webhooks:
-- name: validate.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.podmonitorings.operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
       namespace: gmp-system
-      name: gmp-operator
+      name: operator
       path: /validate/monitoring.googleapis.com/v1/podmonitorings
       port: 443
   failurePolicy: Fail
@@ -39,14 +39,14 @@ webhooks:
     - UPDATE
     resources:
     - podmonitorings
-- name: validate.clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.clusterpodmonitorings.operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
       namespace: gmp-system
-      name: gmp-operator
+      name: operator
       path: /validate/monitoring.googleapis.com/v1/clusterpodmonitorings
       port: 443
   failurePolicy: Fail
@@ -61,14 +61,14 @@ webhooks:
     - UPDATE
     resources:
     - clusterpodmonitorings
-- name: validate.rules.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.rules.operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
       namespace: gmp-system
-      name: gmp-operator
+      name: operator
       path: /validate/monitoring.googleapis.com/v1/rules
       port: 443
   failurePolicy: Fail
@@ -83,14 +83,14 @@ webhooks:
     - UPDATE
     resources:
     - rules
-- name: validate.clusterrules.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.clusterrules.operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
       namespace: gmp-system
-      name: gmp-operator
+      name: operator
       path: /validate/monitoring.googleapis.com/v1/clusterrules
       port: 443
   failurePolicy: Fail
@@ -105,14 +105,14 @@ webhooks:
     - UPDATE
     resources:
     - clusterrules
-- name: validate.globalrules.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.globalrules.operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
       namespace: gmp-system
-      name: gmp-operator
+      name: operator
       path: /validate/monitoring.googleapis.com/v1/globalrules
       port: 443
   failurePolicy: Fail
@@ -127,14 +127,14 @@ webhooks:
     - UPDATE
     resources:
     - globalrules
-- name: validate.operatorconfigs.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.operatorconfigs.operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
       namespace: gmp-system
-      name: gmp-operator
+      name: operator
       path: /validate/monitoring.googleapis.com/v1/operatorconfigs
       port: 443
   failurePolicy: Fail

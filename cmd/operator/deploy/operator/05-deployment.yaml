@@ -16,24 +16,24 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   namespace: gmp-system
-  name: gmp-operator
+  name: operator
   labels:
     app: managed-prometheus-operator
-    app.kubernetes.io/name: gmp-operator
+    app.kubernetes.io/name: operator
     app.kubernetes.io/component: operator
     app.kubernetes.io/part-of: gmp
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: gmp-operator
+      app.kubernetes.io/name: operator
       app.kubernetes.io/component: operator
       app.kubernetes.io/part-of: gmp
   template:
     metadata:
       labels:
         app: managed-prometheus-operator
-        app.kubernetes.io/name: gmp-operator
+        app.kubernetes.io/name: operator
         app.kubernetes.io/component: operator
         app.kubernetes.io/part-of: gmp
     spec:

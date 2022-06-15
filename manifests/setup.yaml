@@ -1317,7 +1317,7 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: OperatorConfig defines configuration of the gmp-operator.
+        description: OperatorConfig defines configuration of the operator.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation

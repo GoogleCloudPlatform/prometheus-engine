@@ -27,7 +27,7 @@ var (
 	errInvalidCond = fmt.Errorf("condition needs both 'Type' and 'Status' fields set")
 )
 
-// OperatorConfig defines configuration of the gmp-operator.
+// OperatorConfig defines configuration of the operator.
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type OperatorConfig struct {

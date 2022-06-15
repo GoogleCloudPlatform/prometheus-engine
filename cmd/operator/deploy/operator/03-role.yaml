@@ -54,6 +54,20 @@ rules:
   resources:
   - deployments
   verbs: ["create", "patch", "update"]
+# Permission to delete legacy webhook config the operator directly created
+# in previous versions.
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  resourceNames:
+  - gmp-operator
+  verbs: ["delete"]
+- apiGroups: [""]
+  resources:
+  - services
+  resourceNames:
+  - gmp-operator
+  verbs: ["delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -78,7 +92,7 @@ rules:
   - validatingwebhookconfigurations
   - mutatingwebhookconfigurations
   resourceNames:
-  - gmp-operator.gmp-system.monitoring.googleapis.com
+  - operator.gmp-system.monitoring.googleapis.com
   verbs: ["get", "patch", "update", "watch"]
 # Permission to delete legacy webhook config the operator directly created
 # in previous versions.

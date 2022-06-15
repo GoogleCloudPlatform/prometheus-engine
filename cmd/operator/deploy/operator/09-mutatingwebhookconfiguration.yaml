@@ -15,16 +15,16 @@
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
-  name: gmp-operator.gmp-system.monitoring.googleapis.com
+  name: operator.gmp-system.monitoring.googleapis.com
 webhooks:
-- name: default.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: default.podmonitorings.operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
       namespace: gmp-system
-      name: gmp-operator
+      name: operator
       path: /default/monitoring.googleapis.com/v1/podmonitorings
       port: 443
   failurePolicy: Fail
@@ -39,14 +39,14 @@ webhooks:
     - UPDATE
     resources:
     - podmonitorings
-- name: default.clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: default.clusterpodmonitorings.operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
       namespace: gmp-system
-      name: gmp-operator
+      name: operator
       path: /default/monitoring.googleapis.com/v1/clusterpodmonitorings
       port: 443
   failurePolicy: Fail

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package e2e contains tests that validate the behavior of gmp-operator against a cluster.
+// Package e2e contains tests that validate the behavior of the GMP operator against a cluster.
 // To make tests simple and fast, the test suite runs the operator internally. The CRDs
 // are expected to be installed out of band (along with the operator deployment itself in
 // a real world setup).
@@ -399,7 +399,7 @@ func TestWebhookCABundleInjection(t *testing.T) {
 	tctx := newTestContext(t)
 
 	var (
-		whConfigName = fmt.Sprintf("gmp-operator.%s.monitoring.googleapis.com", tctx.namespace)
+		whConfigName = fmt.Sprintf("operator.%s.monitoring.googleapis.com", tctx.namespace)
 		policy       = arv1.Ignore // Prevent collisions with other test or real usage
 		sideEffects  = arv1.SideEffectClassNone
 		url          = "https://0.1.2.3/"
