@@ -299,15 +299,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 // setupAdmissionWebhooks configures validating webhooks for the operator-managed
 // custom resources and registers handlers with the webhook server.
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
-	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
-	// in previous versions.
-	err := o.client.Delete(ctx, &arv1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
-	})
-	if err != nil && !apierrors.IsNotFound(err) {
-		o.logger.Error(err, "msg", "Deleting legacy ValidatingWebhookConfiguration failed")
-	}
-
 	// Write provided cert files.
 	caBundle, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().CertDir)
 	if err != nil {
@@ -413,7 +404,23 @@ func (o *Operator) Run(ctx context.Context) error {
 }
 
 func (o *Operator) cleanupPreviousResources(ctx context.Context) error {
-	err := o.client.Delete(ctx, &appsv1.Deployment{
+	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
+	// in previous versions.
+	err := o.client.Delete(ctx, &arv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
+	})
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.logger.Error(err, "msg", "Deleting legacy ValidatingWebhookConfiguration failed")
+	}
+	err = o.client.Delete(ctx, &arv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator.gmp-system.monitoring.googleapis.com"},
+	})
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.logger.Error(err, "msg", "Deleting legacy ValidatingWebhookConfiguration failed")
+	}
+
+	// Delete old operator resources installed in previous versions.
+	err = o.client.Delete(ctx, &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator",
 			Namespace: DefaultOperatorNamespace},
 	})

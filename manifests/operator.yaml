@@ -125,6 +125,7 @@ rules:
   - mutatingwebhookconfigurations
   resourceNames:
   - gmp-operator
+  - gmp-operator.gmp-system.monitoring.googleapis.com
   verbs: ["delete"]
 - apiGroups: ["monitoring.googleapis.com"]
   resources:
