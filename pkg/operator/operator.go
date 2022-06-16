@@ -418,6 +418,12 @@ func (o *Operator) cleanupPreviousResources(ctx context.Context) error {
 	if err != nil && !apierrors.IsNotFound(err) {
 		o.logger.Error(err, "msg", "Deleting legacy ValidatingWebhookConfiguration failed")
 	}
+	err = o.client.Delete(ctx, &arv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator.gmp-system.monitoring.googleapis.com"},
+	})
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.logger.Error(err, "msg", "Deleting legacy MutatingWebhookConfiguration failed")
+	}
 
 	// Delete old operator resources installed in previous versions.
 	err = o.client.Delete(ctx, &appsv1.Deployment{
