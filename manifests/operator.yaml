@@ -225,6 +225,7 @@ spec:
             - all
           runAsUser: 1000
           runAsGroup: 1000
+          runAsNonRoot: true
 ---
 apiVersion: v1
 kind: Service
