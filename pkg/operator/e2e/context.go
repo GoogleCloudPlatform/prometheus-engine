@@ -105,6 +105,8 @@ func newTestContext(t *testing.T) *testContext {
 		PriorityClass:     "gmp-critical",
 		ListenAddr:        ":10250",
 		Mode:              "kubectl",
+		CollectorCPULimit: -1,
+		EvaluatorCPULimit: -1,
 	})
 	if err != nil {
 		t.Fatalf("instantiating operator: %s", err)

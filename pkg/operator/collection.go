@@ -15,7 +15,6 @@
 package operator
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"path"
@@ -46,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
 
@@ -229,6 +229,10 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 
 	podAnnotations := map[string]string{
 		AnnotationMetricName: componentName,
+		// Allow cluster autoscaler to evict collector Pods even though the Pods
+		// have an emptyDir volume mounted. This is okay since the node where the
+		// Pod runs will be scaled down and therefore does not need metrics reporting.
+		ClusterAutoscalerSafeEvictionLabel: "true",
 	}
 
 	collectorArgs := []string{
@@ -249,15 +253,17 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 		"--web.route-prefix=/",
 	}
 
+	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+
 	// Check for explicitly-set pass-through args.
-	if r.opts.ProjectID != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
+	if projectID != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.project-id=%s", projectID))
 	}
-	if r.opts.Location != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.Location))
+	if location != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.location=%s", location))
 	}
-	if r.opts.Cluster != "" {
-		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.Cluster))
+	if cluster != "" {
+		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.label.cluster=%s", cluster))
 	}
 	if r.opts.DisableExport {
 		collectorArgs = append(collectorArgs, "--export.disable")
@@ -345,10 +351,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 								corev1.ResourceCPU:    *resource.NewScaledQuantity(r.opts.CollectorCPUResource, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.CollectorMemoryResource, resource.Mega),
 							},
-							// Set no limit on CPU as it's a throttled resource.
-							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.CollectorMemoryLimit, resource.Mega),
-							},
+							Limits: collectorResourceLimits(r.opts),
 						},
 						SecurityContext: minimalSecurityContext(),
 					}, {
@@ -389,8 +392,9 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 								corev1.ResourceCPU:    *resource.NewScaledQuantity(5, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(16, resource.Mega),
 							},
-							// Set no limit on CPU as it's a throttled resource.
+							// Set sane default limit on CPU for config-reloader.
 							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(100, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
 							},
 						},
@@ -439,6 +443,7 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 		ds.Template.Spec.HostNetwork = true
 		ds.Template.Spec.DNSPolicy = "ClusterFirstWithHostNet"
 	}
+
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
@@ -446,6 +451,41 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 		},
 		Spec: ds,
 	}
+}
+
+func resolveLabels(opts Options, externalLabels map[string]string) (projectID string, location string, cluster string) {
+	// Prioritize OperatorConfig's external labels over operator's flags
+	// to be consistent with our export layer's priorities.
+	// This is to avoid confusion if users specify a project_id, location, and
+	// cluster in the OperatorConfig's external labels but not in flags passed
+	// to the operator - since on GKE environnments, these values are autopopulated
+	// without user intervention.
+	projectID = opts.ProjectID
+	if p, ok := externalLabels[export.KeyProjectID]; ok {
+		projectID = p
+	}
+	location = opts.Location
+	if l, ok := externalLabels[export.KeyLocation]; ok {
+		location = l
+	}
+	cluster = opts.Cluster
+	if c, ok := externalLabels[export.KeyCluster]; ok {
+		cluster = c
+	}
+	return
+}
+
+func collectorResourceLimits(opts Options) corev1.ResourceList {
+	limits := corev1.ResourceList{
+		corev1.ResourceMemory: *resource.NewScaledQuantity(opts.CollectorMemoryLimit, resource.Mega),
+	}
+	if cpuLimit := opts.CollectorCPULimit; cpuLimit >= 0 {
+		limits = corev1.ResourceList{
+			corev1.ResourceCPU:    *resource.NewScaledQuantity(cpuLimit, resource.Milli),
+			corev1.ResourceMemory: *resource.NewScaledQuantity(opts.CollectorMemoryLimit, resource.Mega),
+		}
+	}
+	return limits
 }
 
 // ensureCollectorConfig generates the collector config and creates or updates it.
@@ -458,17 +498,6 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	if err != nil {
 		return errors.Wrap(err, "marshal Prometheus config")
 	}
-	// We depend on a newer Prometheus config version, which generates some defaulted fields
-	// not recognized by the collector/evaluator version assumed by the operator.
-	// Thus we strip them from the generated YAML manually.
-	// TODO(freinartz): remove this once the assumed Prometheus version is updated to Prometheus v2.35.
-	var lines [][]byte
-	for _, l := range bytes.SplitAfter(cfgEncoded, []byte("\n")) {
-		if !bytes.Contains(l, []byte("enable_http2:")) && !bytes.Contains(l, []byte("own_namespace:")) && !bytes.Contains(l, []byte(`kubeconfig_file: ""`)) {
-			lines = append(lines, l)
-		}
-	}
-	cfgEncoded = bytes.Join(lines, nil)
 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -515,6 +544,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
 	}
 
+	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+
 	// Mark status updates in batch with single timestamp.
 	for _, pm := range podMons.Items {
 		// Reassign so we can safely get a pointer.
@@ -524,7 +555,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := pmon.ScrapeConfigs(r.opts.ProjectID, r.opts.Location, r.opts.Cluster)
+		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{
@@ -563,7 +594,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := cmon.ScrapeConfigs(r.opts.ProjectID, r.opts.Location, r.opts.Cluster)
+		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{

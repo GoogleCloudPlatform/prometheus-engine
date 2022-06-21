@@ -12,19 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: monitoring.googleapis.com/v1alpha1
-kind: PodMonitoring
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
 metadata:
-  namespace: gmp-system
-  name: kube-state-metrics
-  labels:
-    app.kubernetes.io/name: kube-state-metrics
+  name: prometheus-example-app
 spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: kube-state-metrics
-  endpoints:
-  # Only configure process metrics here. The state metrics are treated
-  # specially via a hard-coded configuration.
-  - port: metrics-self
-    interval: 30s
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: prometheus-example-app
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: 10

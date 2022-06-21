@@ -15,7 +15,6 @@
 package operator
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/url"
@@ -79,6 +78,10 @@ func rulesLabels() map[string]string {
 func rulesAnnotations() map[string]string {
 	return map[string]string{
 		AnnotationMetricName: componentName,
+		// Allow cluster autoscaler to evict evaluator Pods even though the Pods
+		// have an emptyDir volume mounted. This is okay since the node where the
+		// Pod runs will be scaled down.
+		ClusterAutoscalerSafeEvictionLabel: "true",
 	}
 }
 
@@ -244,17 +247,6 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "marshal Prometheus config")
 	}
-	// We depend on a newer Prometheus config version, which generates some defaulted fields
-	// not recognized by the collector/evaluator version assumed by the operator.
-	// Thus we strip them from the generated YAML manually.
-	// TODO(freinartz): remove this once the assumed Prometheus version is updated to Prometheus v2.35.
-	var lines [][]byte
-	for _, l := range bytes.SplitAfter(cfgEncoded, []byte("\n")) {
-		if !bytes.Contains(l, []byte("enable_http2:")) && !bytes.Contains(l, []byte("own_namespace:")) && !bytes.Contains(l, []byte(`kubeconfig_file: ""`)) {
-			lines = append(lines, l)
-		}
-	}
-	cfgEncoded = bytes.Join(lines, nil)
 
 	// Create rule-evaluator Secret.
 	cm := &corev1.ConfigMap{
@@ -319,14 +311,16 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 		fmt.Sprintf("--web.listen-address=:%d", RuleEvaluatorPort),
 	}
 
-	if r.opts.ProjectID != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.project-id=%s", r.opts.ProjectID))
+	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+
+	if projectID != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.project-id=%s", projectID))
 	}
-	if r.opts.Location != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.location=%s", r.opts.Location))
+	if location != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.location=%s", location))
 	}
-	if r.opts.Cluster != "" {
-		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.cluster=%s", r.opts.Cluster))
+	if cluster != "" {
+		evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.label.cluster=%s", cluster))
 	}
 	if r.opts.DisableExport {
 		evaluatorArgs = append(evaluatorArgs, "--export.disable")
@@ -336,9 +330,9 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 	}
 	evaluatorArgs = append(evaluatorArgs, fmt.Sprintf("--export.user-agent=rule-evaluator/%s (mode:%s)", export.Version, r.opts.Mode))
 
-	// If no explicit project ID is set, use the one provided to the operator. On GKE the rule-evaluator
+	// If no explicit project ID is set, use the resolved one. On GKE the rule-evaluator
 	// can also auto-detect the cluster's project but this won't work in other Kubernetes environments.
-	queryProjectID := r.opts.ProjectID
+	queryProjectID := projectID
 	if spec.QueryProjectID != "" {
 		queryProjectID = spec.QueryProjectID
 	}
@@ -424,10 +418,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 								corev1.ResourceCPU:    *resource.NewScaledQuantity(r.opts.EvaluatorCPUResource, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.EvaluatorMemoryResource, resource.Mega),
 							},
-							// Set no limit on CPU as it's a throttled resource.
-							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: *resource.NewScaledQuantity(r.opts.EvaluatorMemoryLimit, resource.Mega),
-							},
+							Limits: evaluatorResourceLimits(r.opts),
 						},
 						SecurityContext: minimalSecurityContext(),
 					}, {
@@ -470,8 +461,9 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 								corev1.ResourceCPU:    *resource.NewScaledQuantity(5, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(16, resource.Mega),
 							},
-							// Set no limit on CPU as it's a throttled resource.
+							// Set sane default limit on CPU for config-reloader.
 							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewScaledQuantity(100, resource.Milli),
 								corev1.ResourceMemory: *resource.NewScaledQuantity(32, resource.Mega),
 							},
 						},
@@ -526,6 +518,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 			},
 		},
 	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: r.opts.OperatorNamespace,
@@ -533,6 +526,19 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorDeployment(spec *monitoringv
 		},
 		Spec: deploy,
 	}
+}
+
+func evaluatorResourceLimits(opts Options) corev1.ResourceList {
+	limits := corev1.ResourceList{
+		corev1.ResourceMemory: *resource.NewScaledQuantity(opts.EvaluatorMemoryLimit, resource.Mega),
+	}
+	if cpuLimit := opts.EvaluatorCPULimit; cpuLimit >= 0 {
+		limits = corev1.ResourceList{
+			corev1.ResourceCPU:    *resource.NewScaledQuantity(cpuLimit, resource.Milli),
+			corev1.ResourceMemory: *resource.NewScaledQuantity(opts.EvaluatorMemoryLimit, resource.Mega),
+		}
+	}
+	return limits
 }
 
 // makeAlertManagerConfigs creates the alertmanager_config entries as described in

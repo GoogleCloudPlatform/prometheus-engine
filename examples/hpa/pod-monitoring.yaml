@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
 metadata:
-  name: gmp-system:kube-state-metrics
+  name: prometheus-example-app
   labels:
-    app.kubernetes.io/name: kube-state-metrics
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: gmp-system:kube-state-metrics
-subjects:
-- kind: ServiceAccount
-  namespace: gmp-system
-  name: kube-state-metrics
+    app.kubernetes.io/name: prometheus-example-app
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-example-app
+  endpoints:
+  - port: web
+    interval: 30s

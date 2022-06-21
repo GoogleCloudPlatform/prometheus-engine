@@ -13,21 +13,21 @@
 # limitations under the License.
 
 apiVersion: v1
-kind: Service
+kind: ConfigMap
 metadata:
-  labels:
-    app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.1.0
-  name: kube-state-metrics
-  namespace: kube-system
-spec:
-  clusterIP: None
-  ports:
-  - name: http-metrics
-    port: 8080
-    targetPort: http-metrics
-  - name: telemetry
-    port: 8081
-    targetPort: telemetry
-  selector:
-    app.kubernetes.io/name: kube-state-metrics
+  name: adapter-config
+  namespace: custom-metrics
+data:
+  config.yaml: |
+    rules:
+    - seriesQuery: 'http_requests_total'
+      resources:
+        overrides:
+          namespace:
+            resource: namespace
+          pod:
+            resource: pod
+      name:
+        matches: "^(.*)_total$"
+        as: "${1}_per_second"
+      metricsQuery: 'sum(rate(<<.Series>>{<<.LabelMatchers>>}[5m])) by (<<.GroupBy>>)'
