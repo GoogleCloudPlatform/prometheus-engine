@@ -44,6 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
 
@@ -194,10 +195,7 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	}
 
 	if o.Location == "global" {
-		return errors.New("Location must be set to a named Google Cloud " +
-			"region and cannot be set to \"global\". Please choose the " +
-			"Google Cloud region that is physically nearest to your cluster. " +
-			"See https://www.cloudinfrastructuremap.com/")
+		return export.ErrLocationGlobal
 	}
 
 	if o.ImageCollector != ImageCollector {
