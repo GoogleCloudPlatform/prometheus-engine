@@ -193,6 +193,13 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		return errors.New("Cluster must be set")
 	}
 
+	if o.Location == "global" {
+		return errors.New("Location must be set to a named Google Cloud " +
+			"region and cannot be set to \"global\". Please choose the " +
+			"Google Cloud region that is physically nearest to your cluster. " +
+			"See https://www.cloudinfrastructuremap.com/")
+	}
+
 	if o.ImageCollector != ImageCollector {
 		logger.Info("not using the canonical collector image",
 			"expected", ImageCollector, "got", o.ImageCollector)
