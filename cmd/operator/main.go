@@ -55,7 +55,7 @@ func main() {
 	var (
 		logVerbosity      = flag.Int("v", 0, "Logging verbosity")
 		projectID         = flag.String("project-id", defaultProjectID, "Project ID of the cluster. May be left empty on GKE.")
-		location          = flag.String("location", defaultLocation, "GCP location of the cluster. Maybe be left empty on GKE.")
+		location          = flag.String("location", defaultLocation, "Google Cloud region where your data will be stored. May be left empty on GKE.")
 		cluster           = flag.String("cluster", defaultCluster, "Name of the cluster the operator acts on. May be left empty on GKE.")
 		operatorNamespace = flag.String("operator-namespace", operator.DefaultOperatorNamespace,
 			"Namespace in which the operator manages its resources.")
@@ -88,7 +88,7 @@ func main() {
 		collectorCPULimit       = flag.Int64("collector-cpu-limit", -1,
 			"The CPU Limit of collector pod, in milli cpu. If negative, a limit will not be specified")
 		evaluatorMemoryResource = flag.Int64("evaluator-memory-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
-		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytesv.")
+		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytes.")
 		evaluatorCPUResource    = flag.Int64("evaluator-cpu-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
 		evaluatorCPULimit       = flag.Int64("evaluator-cpu-limit", -1,
 			"The CPU Resource of evaluator pod, in milli cpu. If negative, a limit will not be specified.")
