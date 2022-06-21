@@ -209,7 +209,7 @@ spec:
         - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.2-gke.1"
         - "--webhook-addr=:10250"
         ports:
-        - name: webhook
+        - name: web
           # Note this should match the --listen-addr flag passed in to the operator args.
           # Default is 10250.
           containerPort: 10250
@@ -241,9 +241,17 @@ spec:
     app.kubernetes.io/component: operator
     app.kubernetes.io/part-of: gmp
   ports:
+  # This port does not do anything, but allows upgrades in the case
+  # of server-side apply (SSA) conflicts.
+  # TODO(pintohutch): remove once the SSA issues from upgrades are resolved.
+  - protocol: TCP
+    port: 8443
+    targetPort: webhook
+    name: legacy
   - protocol: TCP
     port: 443
-    targetPort: webhook
+    targetPort: web
+    name: webhook
 ---
 apiVersion: monitoring.googleapis.com/v1
 kind: OperatorConfig
