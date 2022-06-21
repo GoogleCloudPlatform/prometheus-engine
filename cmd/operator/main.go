@@ -55,7 +55,7 @@ func main() {
 	var (
 		logVerbosity      = flag.Int("v", 0, "Logging verbosity")
 		projectID         = flag.String("project-id", defaultProjectID, "Project ID of the cluster. May be left empty on GKE.")
-		location          = flag.String("location", defaultLocation, "Google Cloud region where your data will be stored. May be left empty on GKE.")
+		location          = flag.String("location", defaultLocation, "Google Cloud region or zone where your data will be stored. May be left empty on GKE.")
 		cluster           = flag.String("cluster", defaultCluster, "Name of the cluster the operator acts on. May be left empty on GKE.")
 		operatorNamespace = flag.String("operator-namespace", operator.DefaultOperatorNamespace,
 			"Namespace in which the operator manages its resources.")
