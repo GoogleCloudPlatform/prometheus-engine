@@ -41,13 +41,13 @@ spec:
       automountServiceAccountToken: true
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.4.2-gke.1
+        image: gke.gcr.io/prometheus-engine/operator:v0.4.3-gke.0
         args:
         - "--public-namespace=gmp-public"
         - "--priority-class=gmp-critical"
         - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0"
-        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.4.2-gke.1"
-        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.2-gke.1"
+        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.4.3-gke.0"
+        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.3-gke.0"
         - "--webhook-addr=:10250"
         ports:
         - name: web
