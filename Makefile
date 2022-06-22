@@ -29,7 +29,7 @@ lint:        ## Lint code.
 	DOCKER_BUILDKIT=1 docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.43.0 golangci-lint run -v --timeout=5m
 
 cloudbuild:  ## Build images on Google Cloud Build.
-	@echo ">> building GMP images on Cloud Build with tag: $(TAG_NAME)"
+	@echo ">> building Multi-arch(AMD64 and ARM64) GMP images on Cloud Build with tag: $(TAG_NAME)"
 	gcloud builds submit --config build.yaml --timeout=30m --substitutions=TAG_NAME="$(TAG_NAME)"
 
 $(GOCMDS):   ## Build go binary in cmd/ (e.g. 'operator').

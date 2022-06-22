@@ -1,27 +1,29 @@
 
-FROM golang:1.17-buster AS buildbase
+FROM --platform=$BUILDPLATFORM golang:1.17-buster AS buildbase
 
 # Compile the UI assets.
-FROM launcher.gcr.io/google/nodejs as assets
+FROM --platform=$BUILDPLATFORM launcher.gcr.io/google/nodejs as assets
 # To build the UI we need a recent node version and the go toolchain.
 RUN install_node v17.9.0
 COPY --from=buildbase /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
+ARG TARGETOS TARGETARCH
 COPY . /app
 RUN pkg/ui/build.sh
 
 # sync is used to copy all auto-generated files to a different context.
 # Usually this is used to mirror the changes back to the host machine.
-FROM scratch as sync
+FROM --platform=$BUILDPLATFORM scratch as sync
 COPY --from=assets /app/pkg/ui/embed.go pkg/ui/embed.go
 COPY --from=assets /app/pkg/ui/static pkg/ui/static
 
 # Build the actual Go binary.
-FROM buildbase AS appbase
+FROM  buildbase AS appbase
+ARG TARGETOS TARGETARCH
 WORKDIR /app
 COPY --from=assets /app ./
-RUN CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
 
-FROM gcr.io/distroless/static:latest
+FROM --platform=$BUILDPLATFORM gcr.io/distroless/static:latest
 COPY --from=appbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]
