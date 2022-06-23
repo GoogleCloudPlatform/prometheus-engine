@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 	"syscall"
 	"testing"
@@ -360,28 +359,20 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 			// We're mainly interested in the dynamic flags but checking the entire set including
 			// the static ones is ultimately simpler.
 			wantArgs := []string{
-				"--config.file=/prometheus/config_out/config.yaml",
-				"--web.listen-address=:19092",
-				fmt.Sprintf("--export.label.project-id=%s", projectID),
-				fmt.Sprintf("--export.label.location=%s", location),
-				fmt.Sprintf("--export.label.cluster=%s", cluster),
-				fmt.Sprintf("--query.project-id=%s", projectID),
-				"--export.user-agent=rule-evaluator/0.4.3 (mode:kubectl)",
-			}
-			if skipGCM {
-				wantArgs = append(wantArgs, "--export.disable")
+				fmt.Sprintf("--export.label.project-id=%q", projectID),
+				fmt.Sprintf("--export.label.location=%q", location),
+				fmt.Sprintf("--export.label.cluster=%q", cluster),
+				fmt.Sprintf("--query.project-id=%q", projectID),
 			}
 			if gcpServiceAccount != "" {
 				filepath := fmt.Sprintf("/etc/secrets/secret_%s_user-gcp-service-account_key.json", t.pubNamespace)
 				wantArgs = append(wantArgs,
-					fmt.Sprintf("--export.credentials-file=%s", filepath),
-					fmt.Sprintf("--query.credentials-file=%s", filepath),
+					fmt.Sprintf("--export.credentials-file=%q", filepath),
+					fmt.Sprintf("--query.credentials-file=%q", filepath),
 				)
 			}
-			sort.Strings(wantArgs)
-			sort.Strings(c.Args)
 
-			if diff := cmp.Diff(wantArgs, c.Args); diff != "" {
+			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
 				return false, errors.Errorf("unexpected flags (-want, +got): %s", diff)
 			}
 			return true, nil
@@ -580,33 +571,18 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			// We're mainly interested in the dynamic flags but checking the entire set including
 			// the static ones is ultimately simpler.
 			wantArgs := []string{
-				"--config.file=/prometheus/config_out/config.yaml",
-				"--storage.tsdb.path=/prometheus/data",
-				"--storage.tsdb.no-lockfile",
-				"--storage.tsdb.retention.time=30m",
-				"--storage.tsdb.wal-compression",
-				"--storage.tsdb.min-block-duration=10m",
-				"--storage.tsdb.max-block-duration=10m",
-				"--web.listen-address=:19090",
-				"--web.enable-lifecycle",
-				"--web.route-prefix=/",
-				fmt.Sprintf("--export.label.project-id=%s", projectID),
-				fmt.Sprintf("--export.label.location=%s", location),
-				fmt.Sprintf("--export.label.cluster=%s", cluster),
-				"--export.match={job='foo'}",
-				"--export.match={__name__=~'up'}",
-				"--export.user-agent=prometheus/2.35.0-gmp.2 (mode:kubectl)",
-			}
-			if skipGCM {
-				wantArgs = append(wantArgs, "--export.disable")
+				fmt.Sprintf("--export.label.project-id=%q", projectID),
+				fmt.Sprintf("--export.label.location=%q", location),
+				fmt.Sprintf("--export.label.cluster=%q", cluster),
+				`--export.match="{job='foo'}"`,
+				`--export.match="{__name__=~'up'}"`,
 			}
 			if gcpServiceAccount != "" {
-				wantArgs = append(wantArgs, fmt.Sprintf("--export.credentials-file=/etc/secrets/secret_%s_user-gcp-service-account_key.json", t.pubNamespace))
+				wantArgs = append(wantArgs, fmt.Sprintf(`--export.credentials-file="/etc/secrets/secret_%s_user-gcp-service-account_key.json"`, t.pubNamespace))
 			}
-			sort.Strings(wantArgs)
-			sort.Strings(c.Args)
 
-			if diff := cmp.Diff(wantArgs, c.Args); diff != "" {
+			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
+				t.Log(errors.Errorf("unexpected flags (-want, +got): %s", diff))
 				return false, errors.Errorf("unexpected flags (-want, +got): %s", diff)
 			}
 			return true, nil
@@ -1137,4 +1113,13 @@ func testValidateRuleEvaluationMetrics(ctx context.Context, t *testContext) {
 	if err != nil {
 		t.Fatalf("Waiting for rule metrics to appear in Cloud Monitoring failed: %s", err)
 	}
+}
+
+func getEnvVar(evs []corev1.EnvVar, key string) string {
+	for _, ev := range evs {
+		if ev.Name == key {
+			return ev.Value
+		}
+	}
+	return ""
 }

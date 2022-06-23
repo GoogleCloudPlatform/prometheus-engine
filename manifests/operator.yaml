@@ -202,11 +202,8 @@ spec:
       - name: operator
         image: gke.gcr.io/prometheus-engine/operator:v0.4.3-gke.0
         args:
+        - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
-        - "--priority-class=gmp-critical"
-        - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0"
-        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.4.3-gke.0"
-        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.3-gke.0"
         - "--webhook-addr=:10250"
         ports:
         - name: web
@@ -446,3 +443,284 @@ webhooks:
     - UPDATE
     resources:
     - clusterpodmonitorings
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  namespace: gmp-system
+  name: collector
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: collector
+  template:
+    metadata:
+      labels:
+        app: managed-prometheus-collector
+        app.kubernetes.io/name: collector
+      annotations:
+        components.gke.io/component-name: managed_prometheus
+        # The emptyDir for the storage and config directories prevents cluster
+        # autoscaling unless this annotation is set.
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        kubernetes.io/os: linux
+      containers:
+      - name: prometheus
+        image: gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0
+        args:
+        - --config.file=/prometheus/config_out/config.yaml
+        - --storage.tsdb.path=/prometheus/data
+        - --storage.tsdb.no-lockfile
+        # Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
+        # the containers memory usage. We could lower it further if this becomes problematic, but
+        # it the window for local data is quite convenient for debugging.
+        - --storage.tsdb.retention.time=30m
+        - --storage.tsdb.wal-compression
+        # Effectively disable compaction and make blocks short enough so that our retention window
+        # can be kept in practice.
+        - --storage.tsdb.min-block-duration=10m
+        - --storage.tsdb.max-block-duration=10m
+        - --web.listen-address=:19090
+        - --web.enable-lifecycle
+        - --web.route-prefix=/
+        - --export.user-agent=prometheus/2.35.0-gmp.2 (mode:kubectl)
+        # The environment variable EXTRA_ARGS will be populated by the operator.
+        # DO NOT specify it here.
+        env:
+        - name: GOGC
+          value: "25"
+        ports:
+        - name: prom-metrics
+          containerPort: 19090
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 19090
+            scheme: HTTP
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 19090
+            scheme: HTTP
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 3G
+          requests:
+            cpu: 100m
+            memory: 200M
+        volumeMounts:
+        - name: storage
+          mountPath: /prometheus/data
+        - name: config-out
+          mountPath: /prometheus/config_out
+          readOnly: true
+        - name: collection-secret
+          mountPath: /etc/secrets
+          readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+            - all
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+      - name: config-reloader
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0
+        args:
+        - --config-file=/prometheus/config/config.yaml
+        - --config-file-output=/prometheus/config_out/config.yaml
+        - --reload-url=http://localhost:19090/-/reload
+        - --listen-address=:19091
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        ports:
+        - name: cfg-rel-metrics
+          containerPort: 19091
+        resources:
+          limits:
+            cpu: 10m
+            memory: 32M
+          requests:
+            cpu: 5m
+            memory: 16M
+        volumeMounts:
+        - name: config
+          mountPath: /prometheus/config
+          readOnly: true
+        - name: config-out
+          mountPath: /prometheus/config_out
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+            - all
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+      serviceAccountName: collector
+      automountServiceAccountToken: true
+      priorityClassName: gmp-critical
+      tolerations:
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
+      volumes:
+      - name: storage
+        emptyDir: {}
+      - name: config
+        configMap:
+          name: collector
+      - name: config-out
+        emptyDir: {}
+      - name: collection-secret
+        secret:
+          secretName: collection
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: gmp-system
+  name: rule-evaluator
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rule-evaluator
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: managed-prometheus-rule-evaluator
+        app.kubernetes.io/name: rule-evaluator
+      annotations:
+        components.gke.io/component-name: managed_prometheus
+        # The emptyDir for the storage and config directories prevents cluster
+        # autoscaling unless this annotation is set.
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        kubernetes.io/os: linux
+      containers:
+      - name: evaluator
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.1-gke.0
+        args:
+        - --config.file=/prometheus/config_out/config.yaml
+        - --web.listen-address=:19092
+        - --export.user-agent=rule-evaluator/0.4.1 (mode:kubectl)
+        ports:
+        - name: r-eval-metrics
+          containerPort: 19092
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 19092
+            scheme: HTTP
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 19092
+            scheme: HTTP
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1G
+          requests:
+            cpu: 100m
+            memory: 200M
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: config-out
+          mountPath: /prometheus/config_out
+          readOnly: true
+        - name: rules
+          mountPath: /etc/rules
+          readOnly: true
+        - name: rules-secret
+          mountPath: /etc/secrets
+          readOnly: true
+      - name: config-reloader
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0
+        args:
+        - --config-file=/prometheus/config/config.yaml
+        - --config-file-output=/prometheus/config_out/config.yaml
+        - --watched-dir=/etc/rules
+        - --watched-dir=/etc/secrets
+        - --reload-url=http://localhost:19092/-/reload
+        - --listen-address=:19093
+        ports:
+        - containerPort: 19093
+          name: cfg-rel-metrics
+        resources:
+          limits:
+            cpu: 10m
+            memory: 32M
+          requests:
+            cpu: 5m
+            memory: 16M
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: config
+          mountPath: /prometheus/config
+          readOnly: true
+        - name: config-out
+          mountPath: /prometheus/config_out
+        - name: rules
+          mountPath: /etc/rules
+          readOnly: true
+        - name: rules-secret
+          mountPath: /etc/secrets
+          readOnly: true
+      priorityClassName: gmp-critical
+      serviceAccountName: collector
+      automountServiceAccountToken: true
+      volumes:
+      - name: config
+        configMap:
+          defaultMode: 420
+          name: rule-evaluator
+      - name: config-out
+        emptyDir: {}
+      - name: rules
+        configMap:
+          defaultMode: 420
+          name: rules-generated
+      - name: rules-secret
+        secret:
+          defaultMode: 420
+          secretName: rules
