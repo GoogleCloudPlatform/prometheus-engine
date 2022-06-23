@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -551,7 +551,7 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 			},
 		},
 	}
-	scrapeCfgs, err := pmon.ScrapeConfigs()
+	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,6 +585,15 @@ relabel_configs:
   action: replace
 - target_label: job
   replacement: name1
+  action: replace
+- target_label: project_id
+  replacement: test_project
+  action: replace
+- target_label: location
+  replacement: test_location
+  action: replace
+- target_label: cluster
+  replacement: test_cluster
   action: replace
 - source_labels: [__meta_kubernetes_pod_name]
   target_label: __tmp_instance
@@ -649,6 +658,15 @@ relabel_configs:
   action: replace
 - target_label: job
   replacement: name1
+  action: replace
+- target_label: project_id
+  replacement: test_project
+  action: replace
+- target_label: location
+  replacement: test_location
+  action: replace
+- target_label: cluster
+  replacement: test_cluster
   action: replace
 - source_labels: [__meta_kubernetes_pod_name]
   target_label: __tmp_instance
@@ -743,7 +761,7 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 			},
 		},
 	}
-	scrapeCfgs, err := pmon.ScrapeConfigs()
+	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -774,6 +792,15 @@ relabel_configs:
   action: replace
 - target_label: job
   replacement: name1
+  action: replace
+- target_label: project_id
+  replacement: test_project
+  action: replace
+- target_label: location
+  replacement: test_location
+  action: replace
+- target_label: cluster
+  replacement: test_cluster
   action: replace
 - source_labels: [__meta_kubernetes_pod_name]
   target_label: __tmp_instance
@@ -835,6 +862,15 @@ relabel_configs:
   action: replace
 - target_label: job
   replacement: name1
+  action: replace
+- target_label: project_id
+  replacement: test_project
+  action: replace
+- target_label: location
+  replacement: test_location
+  action: replace
+- target_label: cluster
+  replacement: test_cluster
   action: replace
 - source_labels: [__meta_kubernetes_pod_name]
   target_label: __tmp_instance

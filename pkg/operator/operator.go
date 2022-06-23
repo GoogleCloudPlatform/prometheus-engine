@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -65,6 +64,10 @@ const (
 	LabelAppName = "app.kubernetes.io/name"
 	// The component name, will be exposed as metric name.
 	AnnotationMetricName = "components.gke.io/component-name"
+	// ClusterAutoscalerSafeEvictionLabel is the annotation label that determines
+	// whether the cluster autoscaler can safely evict a Pod when the Pod doesn't
+	// satisfy certain eviction criteria.
+	ClusterAutoscalerSafeEvictionLabel = "cluster-autoscaler.kubernetes.io/safe-to-evict"
 
 	// The k8s Application, will be exposed as component name.
 	KubernetesAppName    = "app"
@@ -417,21 +420,4 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
 	}
 	return o.client.Update(ctx, &mwc)
-}
-
-func minimalSecurityContext() *corev1.SecurityContext {
-	id := int64(1000)
-	t := true
-	f := false
-
-	return &corev1.SecurityContext{
-		RunAsUser:                &id,
-		RunAsGroup:               &id,
-		RunAsNonRoot:             &t,
-		Privileged:               &f,
-		AllowPrivilegeEscalation: &f,
-		Capabilities: &corev1.Capabilities{
-			Drop: []corev1.Capability{"all"},
-		},
-	}
 }

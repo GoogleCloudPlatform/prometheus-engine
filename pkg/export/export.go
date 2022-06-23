@@ -87,6 +87,10 @@ var (
 		// Limit buckets to 200, which is the real-world batch size for GCM.
 		Buckets: []float64{1, 2, 5, 10, 20, 50, 100, 150, 200},
 	})
+	ErrLocationGlobal = errors.New("Location must be set to a named Google Cloud " +
+		"region and cannot be set to \"global\". Please choose the " +
+		"Google Cloud region that is physically nearest to your cluster. " +
+		"See https://www.cloudinfrastructuremap.com/")
 )
 
 // Exporter converts Prometheus samples into Cloud Monitoring samples and exports them.
@@ -348,8 +352,10 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
 	if lset.Get(KeyProjectID) == "" {
 		return errors.Errorf("no label %q set via external labels or flag", KeyProjectID)
 	}
-	if lset.Get(KeyLocation) == "" {
+	if loc := lset.Get(KeyLocation); loc == "" {
 		return errors.Errorf("no label %q set via external labels or flag", KeyLocation)
+	} else if loc == "global" {
+		return ErrLocationGlobal
 	}
 	if labels.Equal(e.externalLabels, lset) {
 		return nil
@@ -447,7 +453,7 @@ func (e *Exporter) triggerNext() {
 // ClientName and Version are used to identify to User Agent. TODO(maxamin): automate versioning.
 const (
 	ClientName = "prometheus-engine-export"
-	Version    = "0.4.1"
+	Version    = "0.4.3"
 )
 
 // Run sends exported samples to Google Cloud Monitoring. Must be called at most once.

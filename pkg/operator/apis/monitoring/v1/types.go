@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -238,7 +238,9 @@ func (cm *ClusterPodMonitoring) ValidateCreate() error {
 	if len(cm.Spec.Endpoints) == 0 {
 		return errors.New("at least one endpoint is required")
 	}
-	_, err := cm.ScrapeConfigs()
+	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
+	// example values has no adverse effects.
+	_, err := cm.ScrapeConfigs("test_project", "test_location", "test_cluster")
 	return err
 }
 
@@ -252,9 +254,9 @@ func (cm *ClusterPodMonitoring) ValidateDelete() error {
 	return nil
 }
 
-func (cm *ClusterPodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err error) {
+func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
 	for i := range cm.Spec.Endpoints {
-		c, err := cm.endpointScrapeConfig(i)
+		c, err := cm.endpointScrapeConfig(i, projectID, location, cluster)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
 		}
@@ -267,7 +269,9 @@ func (pm *PodMonitoring) ValidateCreate() error {
 	if len(pm.Spec.Endpoints) == 0 {
 		return errors.New("at least one endpoint is required")
 	}
-	_, err := pm.ScrapeConfigs()
+	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
+	// example values has no adverse effects.
+	_, err := pm.ScrapeConfigs("test_project", "test_location", "test_cluster")
 	return err
 }
 
@@ -282,9 +286,9 @@ func (pm *PodMonitoring) ValidateDelete() error {
 }
 
 // ScrapeConfigs generated Prometheus scrape configs for the PodMonitoring.
-func (pm *PodMonitoring) ScrapeConfigs() (res []*promconfig.ScrapeConfig, err error) {
+func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
 	for i := range pm.Spec.Endpoints {
-		c, err := pm.endpointScrapeConfig(i)
+		c, err := pm.endpointScrapeConfig(i, projectID, location, cluster)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
 		}
@@ -348,7 +352,7 @@ func (status *PodMonitoringStatus) SetPodMonitoringCondition(gen int64, now meta
 // scrape configurations for a PodMonitoring resource.
 const EnvVarNodeName = "NODE_NAME"
 
-func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConfig, error) {
+func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
 	relabelCfgs := []*relabel.Config{
 		// Filter targets by namespace of the PodMonitoring configuration.
 		{
@@ -392,6 +396,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConf
 
 	return endpointScrapeConfig(
 		fmt.Sprintf("PodMonitoring/%s/%s", pm.Namespace, pm.Name),
+		projectID, location, cluster,
 		pm.Spec.Endpoints[index],
 		relabelCfgs,
 		pm.Spec.TargetLabels.FromPod,
@@ -464,7 +469,7 @@ func relabelingsForSelector(selector metav1.LabelSelector) ([]*relabel.Config, e
 	return relabelCfgs, nil
 }
 
-func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.Config, podLabels []LabelMapping, limits *ScrapeLimits) (*promconfig.ScrapeConfig, error) {
+func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndpoint, relabelCfgs []*relabel.Config, podLabels []LabelMapping, limits *ScrapeLimits) (*promconfig.ScrapeConfig, error) {
 	// Configure how Prometheus talks to the Kubernetes API server to discover targets.
 	// This configuration is the same for all scrape jobs (esp. selectors).
 	// This ensures that Prometheus can reuse the underlying client and caches, which reduces
@@ -486,13 +491,29 @@ func endpointScrapeConfig(id string, ep ScrapeEndpoint, relabelCfgs []*relabel.C
 		},
 	}
 
-	// Use the pod name as the primary identifier in the instance label. Unless the pod
-	// is controlled by a DaemonSet, in which case the node name will be used.
-	// This provides a better user experience on dashboards which template on the instance label
-	// and expect it to have meaningful value, such as common node exporter dashboards.
-	//
-	// Save the value in a temporary label and use it further down.
 	relabelCfgs = append(relabelCfgs,
+		// Force target labels so they cannot be overwritten by metric labels.
+		&relabel.Config{
+			Action:      relabel.Replace,
+			TargetLabel: "project_id",
+			Replacement: projectID,
+		},
+		&relabel.Config{
+			Action:      relabel.Replace,
+			TargetLabel: "location",
+			Replacement: location,
+		},
+		&relabel.Config{
+			Action:      relabel.Replace,
+			TargetLabel: "cluster",
+			Replacement: cluster,
+		},
+		// Use the pod name as the primary identifier in the instance label. Unless the pod
+		// is controlled by a DaemonSet, in which case the node name will be used.
+		// This provides a better user experience on dashboards which template on the instance label
+		// and expect it to have meaningful value, such as common node exporter dashboards.
+		//
+		// Save the value in a temporary label and use it further down.
 		&relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
@@ -684,7 +705,7 @@ func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
 	return res
 }
 
-func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int) (*promconfig.ScrapeConfig, error) {
+func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected pods.
 	relabelCfgs, err := relabelingsForSelector(cm.Spec.Selector)
 	if err != nil {
@@ -716,6 +737,7 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int) (*promconfig.Scr
 
 	return endpointScrapeConfig(
 		fmt.Sprintf("ClusterPodMonitoring/%s", cm.Name),
+		projectID, location, cluster,
 		cm.Spec.Endpoints[index],
 		relabelCfgs,
 		cm.Spec.TargetLabels.FromPod,

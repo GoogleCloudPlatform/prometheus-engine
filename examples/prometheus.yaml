@@ -1,4 +1,4 @@
-# Copyright 2021 Google LLC
+# Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ spec:
         - name: prometheus-db
           mountPath: /prometheus/data
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.3-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml

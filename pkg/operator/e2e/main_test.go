@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -278,6 +278,7 @@ alerting:
             key_file: /etc/secrets/secret_{pubNamespace}_alertmanager-tls_key
             insecure_skip_verify: false
           follow_redirects: true
+          enable_http2: true
           scheme: https
           path_prefix: /test
           timeout: 30s
@@ -293,8 +294,11 @@ alerting:
               action: replace
           kubernetes_sd_configs:
             - role: endpoints
+              kubeconfig_file: ""
               follow_redirects: true
+              enable_http2: true
               namespaces:
+                own_namespace: false
                 names:
                     - {namespace}
 rule_files:
@@ -337,6 +341,15 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 			}
 		} else if *deploy.Spec.Replicas != deploy.Status.ReadyReplicas {
 			return false, nil
+		}
+
+		// Assert we have the expected annotations.
+		wantedAnnotations := map[string]string{
+			"components.gke.io/component-name":               "managed_prometheus",
+			"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
+		}
+		if diff := cmp.Diff(wantedAnnotations, deploy.Spec.Template.Annotations); diff != "" {
+			return false, errors.Errorf("unexpected annotations (-want, +got): %s", diff)
 		}
 
 		for _, c := range deploy.Spec.Template.Spec.Containers {
@@ -540,10 +553,21 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 				return false, nil
 			}
 		}
+
+		// Assert we have the expected annotations.
+		wantedAnnotations := map[string]string{
+			"components.gke.io/component-name":               "managed_prometheus",
+			"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
+		}
+		if diff := cmp.Diff(wantedAnnotations, ds.Spec.Template.Annotations); diff != "" {
+			return false, errors.Errorf("unexpected annotations (-want, +got): %s", diff)
+		}
+
 		for _, c := range ds.Spec.Template.Spec.Containers {
 			if c.Name != "prometheus" {
 				continue
 			}
+
 			// We're mainly interested in the dynamic flags but checking the entire set including
 			// the static ones is ultimately simpler.
 			wantArgs := []string{

@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 package operator
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/url"
@@ -35,7 +34,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,6 +71,10 @@ func rulesLabels() map[string]string {
 func rulesAnnotations() map[string]string {
 	return map[string]string{
 		AnnotationMetricName: componentName,
+		// Allow cluster autoscaler to evict evaluator Pods even though the Pods
+		// have an emptyDir volume mounted. This is okay since the node where the
+		// Pod runs will be scaled down.
+		ClusterAutoscalerSafeEvictionLabel: "true",
 	}
 }
 
@@ -238,17 +240,6 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "marshal Prometheus config")
 	}
-	// We depend on a newer Prometheus config version, which generates some defaulted fields
-	// not recognized by the collector/evaluator version assumed by the operator.
-	// Thus we strip them from the generated YAML manually.
-	// TODO(freinartz): remove this once the assumed Prometheus version is updated to Prometheus v2.35.
-	var lines [][]byte
-	for _, l := range bytes.SplitAfter(cfgEncoded, []byte("\n")) {
-		if !bytes.Contains(l, []byte("enable_http2:")) && !bytes.Contains(l, []byte("own_namespace:")) && !bytes.Contains(l, []byte(`kubeconfig_file: ""`)) {
-			lines = append(lines, l)
-		}
-	}
-	cfgEncoded = bytes.Join(lines, nil)
 
 	// Create rule-evaluator Secret.
 	cm := &corev1.ConfigMap{
@@ -304,14 +295,17 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 		return err
 	}
 
+	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+
 	flags := []string{
-		fmt.Sprintf("--export.label.project-id=%q", r.opts.ProjectID),
-		fmt.Sprintf("--export.label.location=%q", r.opts.Location),
-		fmt.Sprintf("--export.label.cluster=%q", r.opts.Cluster),
+		fmt.Sprintf("--export.label.project-id=%q", projectID),
+		fmt.Sprintf("--export.label.location=%q", location),
+		fmt.Sprintf("--export.label.cluster=%q", cluster),
 	}
-	// If no explicit project ID is set, use the one provided to the operator. On GKE the rule-evaluator
-	// can also auto-detect the cluster's project but this won't work in other Kubernetes environments.
-	queryProjectID := r.opts.ProjectID
+	// If no explicit project ID is set, use the one provided to the operator.
+	// On GKE the rule-evaluator can also auto-detect the cluster's project
+	// but this won't work in other Kubernetes environments.
+	queryProjectID := projectID
 	if spec.QueryProjectID != "" {
 		queryProjectID = spec.QueryProjectID
 	}
@@ -513,7 +507,7 @@ func getSecretOrConfigMapBytes(ctx context.Context, kClient client.Reader, names
 }
 
 // getSecretKeyBytes processes the given NamespacedSecretKeySelector and returns the referenced data.
-func getSecretKeyBytes(ctx context.Context, kClient client.Reader, namespace string, sel *v1.SecretKeySelector) ([]byte, error) {
+func getSecretKeyBytes(ctx context.Context, kClient client.Reader, namespace string, sel *corev1.SecretKeySelector) ([]byte, error) {
 	var (
 		secret = &corev1.Secret{}
 		nn     = types.NamespacedName{
@@ -535,7 +529,7 @@ func getSecretKeyBytes(ctx context.Context, kClient client.Reader, namespace str
 }
 
 // getConfigMapKeyBytes processes the given NamespacedConfigMapKeySelector and returns the referenced data.
-func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace string, sel *v1.ConfigMapKeySelector) ([]byte, error) {
+func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace string, sel *corev1.ConfigMapKeySelector) ([]byte, error) {
 	var (
 		cm = &corev1.ConfigMap{}
 		nn = types.NamespacedName{

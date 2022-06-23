@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 package operator
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"path"
@@ -45,12 +44,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
-
-func ptr(b bool) *bool {
-	return &b
-}
 
 func setupCollectionControllers(op *Operator) error {
 	// The singleton OperatorConfig is the request object we reconcile against.
@@ -213,10 +209,12 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 		return err
 	}
 
+	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+
 	flags := []string{
-		fmt.Sprintf("--export.label.project-id=%q", r.opts.ProjectID),
-		fmt.Sprintf("--export.label.location=%q", r.opts.Location),
-		fmt.Sprintf("--export.label.cluster=%q", r.opts.Cluster),
+		fmt.Sprintf("--export.label.project-id=%q", projectID),
+		fmt.Sprintf("--export.label.location=%q", location),
+		fmt.Sprintf("--export.label.cluster=%q", cluster),
 	}
 	// Populate export filtering from OperatorConfig.
 	for _, matcher := range spec.Filter.MatchOneOf {
@@ -246,6 +244,28 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 	return r.client.Update(ctx, &ds)
 }
 
+func resolveLabels(opts Options, externalLabels map[string]string) (projectID string, location string, cluster string) {
+	// Prioritize OperatorConfig's external labels over operator's flags
+	// to be consistent with our export layer's priorities.
+	// This is to avoid confusion if users specify a project_id, location, and
+	// cluster in the OperatorConfig's external labels but not in flags passed
+	// to the operator - since on GKE environnments, these values are autopopulated
+	// without user intervention.
+	projectID = opts.ProjectID
+	if p, ok := externalLabels[export.KeyProjectID]; ok {
+		projectID = p
+	}
+	location = opts.Location
+	if l, ok := externalLabels[export.KeyLocation]; ok {
+		location = l
+	}
+	cluster = opts.Cluster
+	if c, ok := externalLabels[export.KeyCluster]; ok {
+		cluster = c
+	}
+	return
+}
+
 // ensureCollectorConfig generates the collector config and creates or updates it.
 func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec) error {
 	cfg, err := r.makeCollectorConfig(ctx, spec)
@@ -256,17 +276,6 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	if err != nil {
 		return errors.Wrap(err, "marshal Prometheus config")
 	}
-	// We depend on a newer Prometheus config version, which generates some defaulted fields
-	// not recognized by the collector/evaluator version assumed by the operator.
-	// Thus we strip them from the generated YAML manually.
-	// TODO(freinartz): remove this once the assumed Prometheus version is updated to Prometheus v2.35.
-	var lines [][]byte
-	for _, l := range bytes.SplitAfter(cfgEncoded, []byte("\n")) {
-		if !bytes.Contains(l, []byte("enable_http2:")) && !bytes.Contains(l, []byte("own_namespace:")) && !bytes.Contains(l, []byte(`kubeconfig_file: ""`)) {
-			lines = append(lines, l)
-		}
-	}
-	cfgEncoded = bytes.Join(lines, nil)
 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -313,6 +322,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return nil, errors.Wrap(err, "failed to list PodMonitorings")
 	}
 
+	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+
 	// Mark status updates in batch with single timestamp.
 	for _, pm := range podMons.Items {
 		// Reassign so we can safely get a pointer.
@@ -322,7 +333,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := pmon.ScrapeConfigs()
+		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{
@@ -361,7 +372,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := cmon.ScrapeConfigs()
+		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{
@@ -488,12 +499,12 @@ func makeKubeletScrapeConfigs(cfg *monitoringv1.KubeletScraping) ([]*promconfig.
 			}),
 			MetricRelabelConfigs: []*relabel.Config{
 				dropByName(`kubelet_(pod_worker_latency_microseconds|pod_start_latency_microseconds|cgroup_manager_latency_microseconds|pod_worker_start_latency_microseconds|pleg_relist_latency_microseconds|pleg_relist_interval_microseconds|runtime_operations|runtime_operations_latency_microseconds|runtime_operations_errors|eviction_stats_age_microseconds|device_plugin_registration_count|device_plugin_alloc_latency_microseconds|network_plugin_operations_latency_microseconds)`),
-				dropByName(`cheduler_(e2e_scheduling_latency_microseconds|scheduling_algorithm_predicate_evaluation|scheduling_algorithm_priority_evaluation|scheduling_algorithm_preemption_evaluation|scheduling_algorithm_latency_microseconds|binding_latency_microseconds|scheduling_latency_seconds)`),
+				dropByName(`scheduler_(e2e_scheduling_latency_microseconds|scheduling_algorithm_predicate_evaluation|scheduling_algorithm_priority_evaluation|scheduling_algorithm_preemption_evaluation|scheduling_algorithm_latency_microseconds|binding_latency_microseconds|scheduling_latency_seconds)`),
 				dropByName(`apiserver_(request_count|request_latencies|request_latencies_summary|dropped_requests|storage_data_key_generation_latencies_microseconds|storage_transformation_failures_total|storage_transformation_latencies_microseconds|proxy_tunnel_sync_latency_secs|longrunning_gauge|registered_watchers)`),
 				dropByName(`kubelet_docker_(operations|operations_latency_microseconds|operations_errors|operations_timeout)`),
 				dropByName(`reflector_(items_per_list|items_per_watch|list_duration_seconds|lists_total|short_watches_total|watch_duration_seconds|watches_total)`),
 				dropByName(`etcd_(helper_cache_hit_count|helper_cache_miss_count|helper_cache_entry_count|object_counts|request_cache_get_latencies_summary|request_cache_add_latencies_summary|request_latencies_summary)`),
-				dropByName(`ransformation_(transformation_latencies_microseconds|failures_total)`),
+				dropByName(`transformation_(transformation_latencies_microseconds|failures_total)`),
 				dropByName(`(admission_quota_controller_adds|admission_quota_controller_depth|admission_quota_controller_longest_running_processor_microseconds|admission_quota_controller_queue_latency|admission_quota_controller_unfinished_work_seconds|admission_quota_controller_work_duration|APIServiceOpenAPIAggregationControllerQueue1_adds|APIServiceOpenAPIAggregationControllerQueue1_depth|APIServiceOpenAPIAggregationControllerQueue1_longest_running_processor_microseconds|APIServiceOpenAPIAggregationControllerQueue1_queue_latency|APIServiceOpenAPIAggregationControllerQueue1_retries|APIServiceOpenAPIAggregationControllerQueue1_unfinished_work_seconds|APIServiceOpenAPIAggregationControllerQueue1_work_duration|APIServiceRegistrationController_adds|APIServiceRegistrationController_depth|APIServiceRegistrationController_longest_running_processor_microseconds|APIServiceRegistrationController_queue_latency|APIServiceRegistrationController_retries|APIServiceRegistrationController_unfinished_work_seconds|APIServiceRegistrationController_work_duration|autoregister_adds|autoregister_depth|autoregister_longest_running_processor_microseconds|autoregister_queue_latency|autoregister_retries|autoregister_unfinished_work_seconds|autoregister_work_duration|AvailableConditionController_adds|AvailableConditionController_depth|AvailableConditionController_longest_running_processor_microseconds|AvailableConditionController_queue_latency|AvailableConditionController_retries|AvailableConditionController_unfinished_work_seconds|AvailableConditionController_work_duration|crd_autoregistration_controller_adds|crd_autoregistration_controller_depth|crd_autoregistration_controller_longest_running_processor_microseconds|crd_autoregistration_controller_queue_latency|crd_autoregistration_controller_retries|crd_autoregistration_controller_unfinished_work_seconds|crd_autoregistration_controller_work_duration|crdEstablishing_adds|crdEstablishing_depth|crdEstablishing_longest_running_processor_microseconds|crdEstablishing_queue_latency|crdEstablishing_retries|crdEstablishing_unfinished_work_seconds|crdEstablishing_work_duration|crd_finalizer_adds|crd_finalizer_depth|crd_finalizer_longest_running_processor_microseconds|crd_finalizer_queue_latency|crd_finalizer_retries|crd_finalizer_unfinished_work_seconds|crd_finalizer_work_duration|crd_naming_condition_controller_adds|crd_naming_condition_controller_depth|crd_naming_condition_controller_longest_running_processor_microseconds|crd_naming_condition_controller_queue_latency|crd_naming_condition_controller_retries|crd_naming_condition_controller_unfinished_work_seconds|crd_naming_condition_controller_work_duration|crd_openapi_controller_adds|crd_openapi_controller_depth|crd_openapi_controller_longest_running_processor_microseconds|crd_openapi_controller_queue_latency|crd_openapi_controller_retries|crd_openapi_controller_unfinished_work_seconds|crd_openapi_controller_work_duration|DiscoveryController_adds|DiscoveryController_depth|DiscoveryController_longest_running_processor_microseconds|DiscoveryController_queue_latency|DiscoveryController_retries|DiscoveryController_unfinished_work_seconds|DiscoveryController_work_duration|kubeproxy_sync_proxy_rules_latency_microseconds|non_structural_schema_condition_controller_adds|non_structural_schema_condition_controller_depth|non_structural_schema_condition_controller_longest_running_processor_microseconds|non_structural_schema_condition_controller_queue_latency|non_structural_schema_condition_controller_retries|non_structural_schema_condition_controller_unfinished_work_seconds|non_structural_schema_condition_controller_work_duration|rest_client_request_latency_seconds|storage_operation_errors_total|storage_operation_status_count)`),
 			},
 		}, {

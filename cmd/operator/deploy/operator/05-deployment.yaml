@@ -1,4 +1,4 @@
-# Copyright 2021 Google LLC
+# Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,17 +41,17 @@ spec:
       automountServiceAccountToken: true
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.4.1-gke.0
+        image: gke.gcr.io/prometheus-engine/operator:v0.4.3-gke.0
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
         - "--priority-class=gmp-critical"
-        - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.7-gke.0"
-        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0"
-        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.1-gke.0"
+        - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0"
+        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.4.3-gke.0"
+        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.3-gke.0"
         - "--webhook-addr=:10250"
         ports:
-        - name: webhook
+        - name: web
           # Note this should match the --listen-addr flag passed in to the operator args.
           # Default is 10250.
           containerPort: 10250
@@ -67,5 +67,7 @@ spec:
             - all
           runAsUser: 1000
           runAsGroup: 1000
-          seccompProfile:
-            type: RuntimeDefault
+          runAsNonRoot: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

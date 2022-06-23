@@ -29,6 +29,9 @@ spec:
         app.kubernetes.io/name: rule-evaluator
       annotations:
         components.gke.io/component-name: managed_prometheus
+        # The emptyDir for the storage and config directories prevents cluster
+        # autoscaling unless this annotation is set.
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64

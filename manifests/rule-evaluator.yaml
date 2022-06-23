@@ -1,4 +1,4 @@
-# Copyright 2021 Google LLC
+# Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ spec:
         kubernetes.io/arch: amd64
       containers:
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.1-gke.0
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.3-gke.0
         args:
         - "--config.file=/etc/config/config.yaml"
         - "--web.listen-address=:9092"
@@ -102,7 +102,7 @@ spec:
         - --watched-dir=/etc/rules
         - --reload-url=http://localhost:9092/-/reload
         - --listen-address=:9093
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.3-gke.0
         ports:
         - containerPort: 9093
           name: cfg-rel-metrics

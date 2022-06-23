@@ -42,8 +42,13 @@ spec:
         - --config.file=/prometheus/config_out/config.yaml
         - --storage.tsdb.path=/prometheus/data
         - --storage.tsdb.no-lockfile
+        # Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
+        # the containers memory usage. We could lower it further if this becomes problematic, but
+        # it the window for local data is quite convenient for debugging.
         - --storage.tsdb.retention.time=30m
         - --storage.tsdb.wal-compression
+        # Effectively disable compaction and make blocks short enough so that our retention window
+        # can be kept in practice.
         - --storage.tsdb.min-block-duration=10m
         - --storage.tsdb.max-block-duration=10m
         - --web.listen-address=:19090
@@ -92,6 +97,7 @@ spec:
             - all
           runAsUser: 1000
           runAsGroup: 1000
+          runAsNonRoot: true
           seccompProfile:
             type: RuntimeDefault
       - name: config-reloader
@@ -131,6 +137,7 @@ spec:
             - all
           runAsUser: 1000
           runAsGroup: 1000
+          runAsNonRoot: true
           seccompProfile:
             type: RuntimeDefault
       serviceAccountName: collector

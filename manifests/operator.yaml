@@ -1,4 +1,4 @@
-# Copyright 2021 Google LLC
+# Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -200,17 +200,17 @@ spec:
       automountServiceAccountToken: true
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.4.1-gke.0
+        image: gke.gcr.io/prometheus-engine/operator:v0.4.3-gke.0
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
         - "--priority-class=gmp-critical"
-        - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.28.1-gmp.7-gke.0"
-        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0"
-        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.1-gke.0"
+        - "--image-collector=gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0"
+        - "--image-config-reloader=gke.gcr.io/prometheus-engine/config-reloader:v0.4.3-gke.0"
+        - "--image-rule-evaluator=gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.3-gke.0"
         - "--webhook-addr=:10250"
         ports:
-        - name: webhook
+        - name: web
           # Note this should match the --listen-addr flag passed in to the operator args.
           # Default is 10250.
           containerPort: 10250
@@ -226,8 +226,10 @@ spec:
             - all
           runAsUser: 1000
           runAsGroup: 1000
-          seccompProfile:
-            type: RuntimeDefault
+          runAsNonRoot: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
 ---
 apiVersion: v1
 kind: Service
@@ -240,9 +242,17 @@ spec:
     app.kubernetes.io/component: operator
     app.kubernetes.io/part-of: gmp
   ports:
+  # This port does not do anything, but allows upgrades in the case
+  # of server-side apply (SSA) conflicts.
+  # TODO(pintohutch): remove once the SSA issues from upgrades are resolved.
+  - protocol: TCP
+    port: 8443
+    targetPort: webhook
+    name: legacy
   - protocol: TCP
     port: 443
-    targetPort: webhook
+    targetPort: web
+    name: webhook
 ---
 apiVersion: monitoring.googleapis.com/v1
 kind: OperatorConfig
@@ -468,8 +478,13 @@ spec:
         - --config.file=/prometheus/config_out/config.yaml
         - --storage.tsdb.path=/prometheus/data
         - --storage.tsdb.no-lockfile
+        # Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
+        # the containers memory usage. We could lower it further if this becomes problematic, but
+        # it the window for local data is quite convenient for debugging.
         - --storage.tsdb.retention.time=30m
         - --storage.tsdb.wal-compression
+        # Effectively disable compaction and make blocks short enough so that our retention window
+        # can be kept in practice.
         - --storage.tsdb.min-block-duration=10m
         - --storage.tsdb.max-block-duration=10m
         - --web.listen-address=:19090
@@ -518,6 +533,7 @@ spec:
             - all
           runAsUser: 1000
           runAsGroup: 1000
+          runAsNonRoot: true
           seccompProfile:
             type: RuntimeDefault
       - name: config-reloader
@@ -557,6 +573,7 @@ spec:
             - all
           runAsUser: 1000
           runAsGroup: 1000
+          runAsNonRoot: true
           seccompProfile:
             type: RuntimeDefault
       serviceAccountName: collector
@@ -596,6 +613,9 @@ spec:
         app.kubernetes.io/name: rule-evaluator
       annotations:
         components.gke.io/component-name: managed_prometheus
+        # The emptyDir for the storage and config directories prevents cluster
+        # autoscaling unless this annotation is set.
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
