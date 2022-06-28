@@ -60,8 +60,7 @@ ifeq ($(DOCKER_PUSH), 1)
 # TODO(pintohutch): this is a bit hacky, but can be useful when testing.
 # Ultimately this should be replaced with go templating.
 	@echo ">> updating manifests with pushed images"
-	git checkout manifests examples
-	find manifests examples -type f -name "*.yaml" -exec sed -i "s#gke.gcr.io/prometheus-engine/$@:.*#${IMAGE_REGISTRY}/$@:${TAG_NAME}#g" {} \;
+	find manifests examples -type f -name "*.yaml" -exec sed -i "s#image: .*/$@:.*#image: ${IMAGE_REGISTRY}/$@:${TAG_NAME}#g" {} \;
 endif
 	mkdir -p build/bin
 	@echo ">> exporting built image to local 'build/' dir"
