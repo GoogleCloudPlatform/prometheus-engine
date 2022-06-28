@@ -87,10 +87,11 @@ func main() {
 		collectorCPUResource    = flag.Int64("collector-cpu-resource", 100, "The CPU Resource of collector pod, in milli cpu.")
 		collectorCPULimit       = flag.Int64("collector-cpu-limit", -1,
 			"The CPU Limit of collector pod, in milli cpu. If negative, a limit will not be specified")
-		evaluatorMemoryResource = flag.Int64("evaluator-memory-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
-		evaluatorMemoryLimit    = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytes.")
-		evaluatorCPUResource    = flag.Int64("evaluator-cpu-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
-		evaluatorCPULimit       = flag.Int64("evaluator-cpu-limit", -1,
+		collectorGzipCompression = flag.Bool("collector-gzip", false, "Enable gzip compression for metrics export.")
+		evaluatorMemoryResource  = flag.Int64("evaluator-memory-resource", 200, "The Memory Resource of evaluator pod, in mega bytes.")
+		evaluatorMemoryLimit     = flag.Int64("evaluator-memory-limit", 1000, "The Memory Limit of evaluator pod, in mega bytes.")
+		evaluatorCPUResource     = flag.Int64("evaluator-cpu-resource", 100, "The CPU Resource of evaluator pod, in milli cpu.")
+		evaluatorCPULimit        = flag.Int64("evaluator-cpu-limit", -1,
 			"The CPU Resource of evaluator pod, in milli cpu. If negative, a limit will not be specified.")
 		mode = flag.String("mode", "kubectl", "how managed collection was provisioned.")
 	)
@@ -112,30 +113,31 @@ func main() {
 	metrics := ctrlmetrics.Registry
 
 	op, err := operator.New(logger, cfg, metrics, operator.Options{
-		ProjectID:               *projectID,
-		Location:                *location,
-		Cluster:                 *cluster,
-		OperatorNamespace:       *operatorNamespace,
-		PublicNamespace:         *publicNamespace,
-		ImageCollector:          *imageCollector,
-		ImageConfigReloader:     *imageConfigReloader,
-		ImageRuleEvaluator:      *imageRuleEvaluator,
-		HostNetwork:             *hostNetwork,
-		PriorityClass:           *priorityClass,
-		CloudMonitoringEndpoint: *gcmEndpoint,
-		TLSCert:                 *tlsCert,
-		TLSKey:                  *tlsKey,
-		CACert:                  *caCert,
-		ListenAddr:              *webhookAddr,
-		CollectorMemoryResource: *collectorMemoryResource,
-		CollectorMemoryLimit:    *collectorMemoryLimit,
-		CollectorCPUResource:    *collectorCPUResource,
-		CollectorCPULimit:       *collectorCPULimit,
-		EvaluatorCPUResource:    *evaluatorCPUResource,
-		EvaluatorCPULimit:       *evaluatorCPULimit,
-		EvaluatorMemoryResource: *evaluatorMemoryResource,
-		EvaluatorMemoryLimit:    *evaluatorMemoryLimit,
-		Mode:                    *mode,
+		ProjectID:                *projectID,
+		Location:                 *location,
+		Cluster:                  *cluster,
+		OperatorNamespace:        *operatorNamespace,
+		PublicNamespace:          *publicNamespace,
+		ImageCollector:           *imageCollector,
+		ImageConfigReloader:      *imageConfigReloader,
+		ImageRuleEvaluator:       *imageRuleEvaluator,
+		HostNetwork:              *hostNetwork,
+		PriorityClass:            *priorityClass,
+		CloudMonitoringEndpoint:  *gcmEndpoint,
+		TLSCert:                  *tlsCert,
+		TLSKey:                   *tlsKey,
+		CACert:                   *caCert,
+		ListenAddr:               *webhookAddr,
+		CollectorMemoryResource:  *collectorMemoryResource,
+		CollectorMemoryLimit:     *collectorMemoryLimit,
+		CollectorCPUResource:     *collectorCPUResource,
+		CollectorCPULimit:        *collectorCPULimit,
+		CollectorGzipCompression: *collectorGzipCompression,
+		EvaluatorCPUResource:     *evaluatorCPUResource,
+		EvaluatorCPULimit:        *evaluatorCPULimit,
+		EvaluatorMemoryResource:  *evaluatorMemoryResource,
+		EvaluatorMemoryLimit:     *evaluatorMemoryLimit,
+		Mode:                     *mode,
 	})
 	if err != nil {
 		logger.Error(err, "instantiating operator failed")

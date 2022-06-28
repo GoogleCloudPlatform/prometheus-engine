@@ -271,6 +271,9 @@ func (r *collectionReconciler) makeCollectorDaemonSet(spec *monitoringv1.Collect
 	if r.opts.CloudMonitoringEndpoint != "" {
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.endpoint=%s", r.opts.CloudMonitoringEndpoint))
 	}
+	if r.opts.CollectorGzipCompression {
+		collectorArgs = append(collectorArgs, "--export.compression=gzip")
+	}
 	if spec.Credentials != nil {
 		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
 		collectorArgs = append(collectorArgs, fmt.Sprintf("--export.credentials-file=%s", p))

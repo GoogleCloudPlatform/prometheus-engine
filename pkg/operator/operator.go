@@ -150,6 +150,8 @@ type Options struct {
 	CollectorCPULimit int64
 	// Collector memory limit
 	CollectorMemoryLimit int64
+	// Enable gzip compression for metrics export
+	CollectorGzipCompression bool
 	// Evaluator memory resource
 	EvaluatorMemoryResource int64
 	// Evaluator CPU resource
