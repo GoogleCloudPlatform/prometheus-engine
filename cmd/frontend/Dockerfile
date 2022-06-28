@@ -7,7 +7,6 @@ FROM --platform=$BUILDPLATFORM launcher.gcr.io/google/nodejs as assets
 RUN install_node v17.9.0
 COPY --from=buildbase /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
-ARG TARGETOS TARGETARCH
 COPY . /app
 RUN pkg/ui/build.sh
 
