@@ -20,9 +20,7 @@ steps:
   id: 'build-frontend'
   waitFor: ['build-frontend-buildx']
   args: ['buildx', 'build', '-f', 'cmd/frontend/Dockerfile', '.', '--platform', 'linux/arm64,linux/amd64', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/frontend:$TAG_NAME', '--push']
-  timeout: 7200s
-
-
+  timeout: 1200s
 
 - name: 'gcr.io/cloud-builders/docker'
   id: 'build-config-reloader-buildx'
@@ -31,6 +29,7 @@ steps:
   id: 'build-config-reloader'
   waitFor: ['build-config-reloader-buildx']
   args: ['buildx', 'build', '-f', 'cmd/config-reloader/Dockerfile', '.', '--platform', 'linux/arm64,linux/amd64', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/config-reloader:$TAG_NAME', '--push']
+  timeout: 1200s
 
 - name: 'gcr.io/cloud-builders/docker'
   id: 'build-rule-evaluator-buildx'
@@ -56,4 +55,4 @@ options:
   machineType: 'E2_HIGHCPU_8'
   diskSizeGb: '200'
 
-timeout: 14400s
+timeout: 4800s
