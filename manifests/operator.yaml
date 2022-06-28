@@ -79,11 +79,11 @@ rules:
 - apiGroups: ["apps"]
   resources:
   - daemonsets
-  verbs: ["create", "patch", "update"]
+  verbs: ["create", "delete", "patch", "update"]
 - apiGroups: ["apps"]
   resources:
   - deployments
-  verbs: ["create", "patch", "update"]
+  verbs: ["create", "delete", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
