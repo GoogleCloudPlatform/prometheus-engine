@@ -68,6 +68,12 @@ func main() {
 		webhookAddr = flag.String("webhook-addr", ":10250",
 			"Address to listen to for incoming kube admission webhook connections.")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
+
+		// Permit the operator to cleanup previously-managed resources that
+		// are missing the provided annotation. An empty string disables this
+		// feature.
+		cleanupAnnotKey = flag.String("cleanup-unless-annotation-key", "",
+			"Clean up operator-managed workloads without the provided annotation key.")
 	)
 	flag.Parse()
 
@@ -96,6 +102,7 @@ func main() {
 		TLSKey:            *tlsKey,
 		CACert:            *caCert,
 		ListenAddr:        *webhookAddr,
+		CleanupAnnotKey:   *cleanupAnnotKey,
 	})
 	if err != nil {
 		logger.Error(err, "instantiating operator failed")

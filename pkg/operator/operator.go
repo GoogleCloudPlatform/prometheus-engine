@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -103,6 +104,8 @@ type Options struct {
 	CACert string
 	// Webhook serving address.
 	ListenAddr string
+	// Cleanup resources without this annotation.
+	CleanupAnnotKey string
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -183,15 +186,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 // setupAdmissionWebhooks configures validating webhooks for the operator-managed
 // custom resources and registers handlers with the webhook server.
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
-	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
-	// in previous versions.
-	err := o.client.Delete(ctx, &arv1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
-	})
-	if err != nil && !apierrors.IsNotFound(err) {
-		o.logger.Error(err, "msg", "Deleting legacy ValidatingWebhookConfiguration failed")
-	}
-
 	// Write provided cert files.
 	caBundle, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().CertDir)
 	if err != nil {
@@ -275,6 +269,9 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 func (o *Operator) Run(ctx context.Context) error {
 	defer runtimeutil.HandleCrash()
 
+	if err := o.cleanupOldResources(ctx); err != nil {
+		return errors.Wrap(err, "cleanup old resources")
+	}
 	if err := o.setupAdmissionWebhooks(ctx); err != nil {
 		return errors.Wrap(err, "init admission resources")
 	}
@@ -291,6 +288,58 @@ func (o *Operator) Run(ctx context.Context) error {
 	o.logger.Info("starting GMP operator")
 
 	return o.manager.Start(ctx)
+}
+
+func (o *Operator) cleanupOldResources(ctx context.Context) error {
+	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
+	// in previous versions.
+	err := o.client.Delete(ctx, &arv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
+	})
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.logger.Error(err, "deleting legacy ValidatingWebhookConfiguration")
+		return err
+	}
+
+	// If cleanup annotations are not provided, do not clean up any further.
+	if o.opts.CleanupAnnotKey == "" {
+		return nil
+	}
+
+	// Cleanup resources without the provided annotation.
+	// Check the collector DaemonSet.
+	var ds appsv1.DaemonSet
+	if err := o.client.Get(ctx, client.ObjectKey{
+		Name:      NameCollector,
+		Namespace: o.opts.OperatorNamespace,
+	}, &ds); err != nil && apierrors.IsNotFound(err) {
+		o.logger.Error(err, "Getting collector DaemonSet failed")
+		return err
+	}
+	if _, ok := ds.Annotations[o.opts.CleanupAnnotKey]; !ok {
+		if err := o.client.Delete(ctx, &ds); err != nil && !apierrors.IsNotFound(err) {
+			o.logger.Error(err, "cleaning up collector DaemonSet")
+			return err
+		}
+	}
+
+	// Check the rule-evaluator Deployment.
+	var deploy appsv1.Deployment
+	if err := o.client.Get(ctx, client.ObjectKey{
+		Name:      NameRuleEvaluator,
+		Namespace: o.opts.OperatorNamespace,
+	}, &deploy); err != nil && apierrors.IsNotFound(err) {
+		o.logger.Error(err, "Getting rule-evaluator deployment failed")
+		return err
+	}
+	if _, ok := deploy.Annotations[o.opts.CleanupAnnotKey]; !ok {
+		if err := o.client.Delete(ctx, &deploy); err != nil && !apierrors.IsNotFound(err) {
+			o.logger.Error(err, "cleaning up rule-evaluator Deployment")
+			return err
+		}
+	}
+
+	return nil
 }
 
 // ensureCerts writes the cert/key files to the specified directory.
