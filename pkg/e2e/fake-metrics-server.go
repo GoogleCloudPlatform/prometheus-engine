@@ -17,6 +17,8 @@ package test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 
 	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -24,25 +26,64 @@ import (
 
 type FakeMetricServer struct {
 	monitoringpb.UnimplementedMetricServiceServer
-	timeSeriesByProject map[string][]*monitoringpb.TimeSeries
+	timeSeriesByProject     map[string][]*monitoringpb.TimeSeries
+	maxTimeSeriesPerRequest int
 }
 
-// initialize an empty map in the FakeMetricServer since go does not let you add to a nil map
-func NewFakeMetricServer() *FakeMetricServer {
+// initialize an empty map in the FakeMetricServer since Go does not let you add to a nil map
+func NewFakeMetricServer(maxTimeSeriesPerRequest int) *FakeMetricServer {
 	return &FakeMetricServer{
-		timeSeriesByProject: make(map[string][]*monitoringpb.TimeSeries),
+		timeSeriesByProject:     make(map[string][]*monitoringpb.TimeSeries),
+		maxTimeSeriesPerRequest: maxTimeSeriesPerRequest,
 	}
 }
 
-func (*FakeMetricServer) CreateTimeSeries(ctx context.Context, req *monitoringpb.CreateTimeSeriesRequest) (*emptypb.Empty, error) {
+func (fms *FakeMetricServer) CreateTimeSeries(ctx context.Context, req *monitoringpb.CreateTimeSeriesRequest) (*emptypb.Empty, error) {
 	if len(req.TimeSeries) < 1 {
-		return nil, errors.New("there are no points in the TimeSeries to add")
+		return nil, errors.New("there are no time series to add")
+	}
+	if len(req.TimeSeries) > fms.maxTimeSeriesPerRequest {
+		return nil, errors.New("exceeded the max number of time series")
 	}
 
-	return &emptypb.Empty{}, nil
+	var timeSeriesToProcess []*monitoringpb.TimeSeries
+	for _, timeSeries := range req.TimeSeries {
+		if len(timeSeries.Points) == 1 {
+			timeSeriesToProcess = append(timeSeriesToProcess, timeSeries)
+		}
+	}
+	numErrors := len(req.TimeSeries) - len(timeSeriesToProcess)
+
+	// this is pretty inefficient, but it is only used for testing purposes
+	for _, singleTimeSeriesToAdd := range timeSeriesToProcess {
+		for _, singleTimeSeriesInMemory := range fms.timeSeriesByProject[req.Name] {
+			inMemMetric := singleTimeSeriesInMemory.Metric
+			toAddMetric := singleTimeSeriesToAdd.Metric
+			inMemResource := singleTimeSeriesInMemory.Resource
+			toAddResource := singleTimeSeriesToAdd.Resource
+
+			if inMemMetric.Type == toAddMetric.Type && reflect.DeepEqual(inMemMetric.Labels, toAddMetric.Labels) &&
+				inMemResource.Type == toAddResource.Type && reflect.DeepEqual(inMemResource.Labels, toAddResource.Labels) {
+				// only add this point if the start time of the point to add is greater than the end point latest in this time series
+				if singleTimeSeriesToAdd.Points[0].Interval.StartTime.AsTime().After(
+					singleTimeSeriesInMemory.Points[len(singleTimeSeriesInMemory.Points)-1].Interval.EndTime.AsTime()) {
+					singleTimeSeriesInMemory.Points = append(singleTimeSeriesInMemory.Points, singleTimeSeriesToAdd.Points...)
+				} else {
+					numErrors++
+				}
+				break
+			}
+		}
+	}
+
+	var err error
+	if numErrors > 0 {
+		err = fmt.Errorf("there were %d time series that could not be added", numErrors)
+	}
+	return &emptypb.Empty{}, err
 }
 
-func (*FakeMetricServer) ListTimeSeries(ctx context.Context, req *monitoringpb.ListTimeSeriesRequest) (*monitoringpb.ListTimeSeriesResponse, error) {
+func (fms *FakeMetricServer) ListTimeSeries(ctx context.Context, req *monitoringpb.ListTimeSeriesRequest) (*monitoringpb.ListTimeSeriesResponse, error) {
 	response := &monitoringpb.ListTimeSeriesResponse{}
 
 	return response, nil
