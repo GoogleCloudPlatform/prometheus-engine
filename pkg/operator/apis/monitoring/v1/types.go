@@ -1023,6 +1023,42 @@ type RelabelingRule struct {
 	Action string `json:"action,omitempty"`
 }
 
+type ScrapeEndpointStatus struct {
+	// The name of the ScrapeEndpoint.
+	Name string `json:"name"`
+	// Total number of active targets.
+	ActiveTargets int64 `json:"activeTargets,omitempty"`
+	// Total number of active, unhealthy targets.
+	UnhealthyTargets int64 `json:"unhealthyTargets,omitempty"`
+	// Last time this status was updated.
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	// A fixed sample of targets grouped by error type.
+	SampleGroups []SampleGroup `json:"sampleGroups,omitempty"`
+	// Fraction of collectors included in status, bounded [0,1].
+	// Ideally, this should always be 1. Anything less can
+	// be considered a problem and should be investigated.
+	CollectorsFraction string `json:"collectorsFraction,omitempty"`
+}
+
+type SampleGroup struct {
+	// Targets emitting the error message.
+	SampleTargets []SampleTarget `json:"sampleTargets,omitempty"`
+	// Total count of similar errors.
+	// +optional
+	Count *int32 `json:"count,omitempty"`
+}
+
+type SampleTarget struct {
+	// The label set, keys and values, of the target.
+	Labels prommodel.LabelSet `json:"labels,omitempty"`
+	// Error message.
+	LastError *string `json:"lastError,omitempty"`
+	// Scrape duration in seconds.
+	LastScrapeDurationSeconds string `json:"lastScrapeDurationSeconds,omitempty"`
+	// Health status.
+	Health string `json:"health,omitempty"`
+}
+
 // PodMonitoringStatus holds status information of a PodMonitoring resource.
 type PodMonitoringStatus struct {
 	// The generation observed by the controller.
@@ -1030,6 +1066,8 @@ type PodMonitoringStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Represents the latest available observations of a podmonitor's current state.
 	Conditions []MonitoringCondition `json:"conditions,omitempty"`
+	// Represents the latest available observations of target state for each ScrapeEndpoint.
+	EndpointStatuses []ScrapeEndpointStatus `json:"endpointStatuses,omitempty"`
 }
 
 // MonitoringConditionType is the type of MonitoringCondition.
