@@ -21,6 +21,14 @@ import (
 	"path"
 	"testing"
 	"time"
+
+	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/go-logr/logr/testr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func readKeyAndCertFiles(dir string, t *testing.T) ([]byte, []byte) {
@@ -162,188 +170,139 @@ func TestEnsureCertsSelfSigned(t *testing.T) {
 	}
 }
 
-func TestResourceLimit(t *testing.T) {
-	var (
-		timeout   = 3 * time.Second
-		_, cancel = context.WithTimeout(context.Background(), timeout)
-	)
-	t.Cleanup(cancel)
-
-	dir, err := ioutil.TempDir("", "test_resource_limit")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-	type resource struct {
-		collectorCPUResource    int64
-		collectorMemoryResource int64
-		collectorMemoryLimit    int64
-		evaluatorCPUResource    int64
-		evaluatorMemoryResource int64
-		evaluatorMemoryLimit    int64
-	}
-	cases := []struct {
+func TestCleanupOldResources(t *testing.T) {
+	var cases = []struct {
 		desc             string
-		opts             Options
-		expectedResource resource
+		cleanupAnnotKey  string
+		collectorAnnots  map[string]string
+		evaluatorAnnots  map[string]string
+		collectorDeleted bool
+		evaluatorDeleted bool
 	}{
 		{
-			desc: "no resource assigned",
-			opts: Options{
-				ProjectID: "test",
-				Cluster:   "test"},
-			expectedResource: resource{
-				collectorCPUResource:    100,
-				collectorMemoryResource: 200,
-				collectorMemoryLimit:    3000,
-				evaluatorCPUResource:    100,
-				evaluatorMemoryResource: 200,
-				evaluatorMemoryLimit:    1000},
+			desc:            "keep both",
+			cleanupAnnotKey: "dont-cleanme",
+			collectorAnnots: map[string]string{
+				"dont-cleanme": "true",
+			},
+			evaluatorAnnots: map[string]string{
+				"dont-cleanme": "true",
+			},
+			collectorDeleted: false,
+			evaluatorDeleted: false,
 		},
 		{
-			desc: "assigned negative limit",
-			opts: Options{
-				ProjectID:               "test",
-				Cluster:                 "test",
-				EvaluatorMemoryResource: -10},
-			expectedResource: resource{
-				collectorCPUResource:    100,
-				collectorMemoryResource: 200,
-				collectorMemoryLimit:    3000,
-				evaluatorCPUResource:    100,
-				evaluatorMemoryResource: 200,
-				evaluatorMemoryLimit:    1000},
+			desc:            "delete both",
+			cleanupAnnotKey: "dont-cleanme",
+			collectorAnnots: map[string]string{
+				"cleanme": "true",
+			},
+			evaluatorAnnots: map[string]string{
+				"cleanme": "true",
+			},
+			collectorDeleted: true,
+			evaluatorDeleted: true,
 		},
 		{
-			desc: "assigned 0",
-			opts: Options{
-				ProjectID:               "test",
-				Cluster:                 "test",
-				EvaluatorMemoryResource: 0},
-			expectedResource: resource{
-				collectorCPUResource:    100,
-				collectorMemoryResource: 200,
-				collectorMemoryLimit:    3000,
-				evaluatorCPUResource:    100,
-				evaluatorMemoryResource: 200,
-				evaluatorMemoryLimit:    1000},
+			desc:            "delete collector",
+			cleanupAnnotKey: "dont-cleanme",
+			collectorAnnots: map[string]string{
+				"cleanme": "true",
+			},
+			evaluatorAnnots: map[string]string{
+				"dont-cleanme": "true",
+			},
+			collectorDeleted: true,
+			evaluatorDeleted: false,
 		},
 		{
-			desc: "assigned value populated success",
-			opts: Options{
-				ProjectID:               "test",
-				Cluster:                 "test",
-				EvaluatorMemoryResource: 300,
-				EvaluatorCPUResource:    1000,
-				EvaluatorMemoryLimit:    900,
+			desc:            "delete rule-evaluator",
+			cleanupAnnotKey: "dont-cleanme",
+			collectorAnnots: map[string]string{
+				"dont-cleanme": "true",
 			},
-			expectedResource: resource{collectorCPUResource: 100,
-				collectorMemoryResource: 200,
-				collectorMemoryLimit:    3000,
-				evaluatorCPUResource:    1000,
-				evaluatorMemoryResource: 300,
-				evaluatorMemoryLimit:    900},
+			evaluatorAnnots: map[string]string{
+				"cleanme": "true",
+			},
+			collectorDeleted: false,
+			evaluatorDeleted: true,
 		},
 		{
-			desc: "resouce gt limit",
-			opts: Options{
-				ProjectID:               "test",
-				Cluster:                 "test",
-				EvaluatorMemoryResource: 300,
-				EvaluatorMemoryLimit:    90,
+			desc:            "keep both",
+			cleanupAnnotKey: "",
+			collectorAnnots: map[string]string{
+				"dont-cleanme": "true",
 			},
-			expectedResource: resource{collectorCPUResource: 100,
-				collectorMemoryResource: 200,
-				collectorMemoryLimit:    3000,
-				evaluatorCPUResource:    100,
-				evaluatorMemoryResource: 300,
-				evaluatorMemoryLimit:    600},
-		},
-		{
-			desc: "no resource assigned",
-			opts: Options{ProjectID: "test", Cluster: "test"},
-			expectedResource: resource{
-				collectorCPUResource:    100,
-				collectorMemoryResource: 200,
-				collectorMemoryLimit:    3000,
-				evaluatorCPUResource:    100,
-				evaluatorMemoryResource: 200,
-				evaluatorMemoryLimit:    1000,
+			evaluatorAnnots: map[string]string{
+				"cleanme": "true",
 			},
-		},
-		{
-			desc: "assigned negative limit",
-			opts: Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: -10},
-			expectedResource: resource{
-				collectorCPUResource:    100,
-				collectorMemoryResource: 200,
-				collectorMemoryLimit:    3000,
-				evaluatorCPUResource:    100,
-				evaluatorMemoryResource: 200,
-				evaluatorMemoryLimit:    1000,
-			},
-		},
-		{
-			desc: "assigned 0",
-			opts: Options{ProjectID: "test", Cluster: "test", EvaluatorMemoryResource: 0},
-			expectedResource: resource{
-				collectorCPUResource:    100,
-				collectorMemoryResource: 200,
-				collectorMemoryLimit:    3000,
-				evaluatorCPUResource:    100,
-				evaluatorMemoryResource: 200,
-				evaluatorMemoryLimit:    1000,
-			},
-		},
-		{
-			desc: "assigned value populated success",
-			opts: Options{
-				ProjectID:               "test",
-				Cluster:                 "test",
-				EvaluatorMemoryResource: 300,
-				EvaluatorCPUResource:    1000,
-				EvaluatorMemoryLimit:    900,
-			},
-			expectedResource: resource{
-				collectorCPUResource:    100,
-				collectorMemoryResource: 200,
-				collectorMemoryLimit:    3000,
-				evaluatorCPUResource:    1000,
-				evaluatorMemoryResource: 300,
-				evaluatorMemoryLimit:    900,
-			},
-		},
-		{
-			desc: "resouce gt limit",
-			opts: Options{
-				ProjectID:               "test",
-				Cluster:                 "test",
-				EvaluatorMemoryResource: 300,
-				EvaluatorMemoryLimit:    90,
-			},
-			expectedResource: resource{
-				collectorCPUResource:    100,
-				collectorMemoryResource: 200,
-				collectorMemoryLimit:    3000,
-				evaluatorCPUResource:    100,
-				evaluatorMemoryResource: 300,
-				evaluatorMemoryLimit:    600,
-			},
+			collectorDeleted: false,
+			evaluatorDeleted: false,
 		},
 	}
+
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			op := Operator{opts: c.opts}
-			op.opts.defaultAndValidate(op.logger)
-			if (op.opts.CollectorMemoryResource != c.expectedResource.collectorMemoryResource) ||
-				(op.opts.CollectorMemoryLimit != c.expectedResource.collectorMemoryLimit) ||
-				(op.opts.CollectorCPUResource != c.expectedResource.collectorCPUResource) {
-				t.Errorf("expected Collector resource limit %v are different with actual %v", c.expectedResource, op.opts)
+			ctx := context.Background()
+			ds := &appsv1.DaemonSet{
+				ObjectMeta: v1.ObjectMeta{
+					Name:        NameCollector,
+					Namespace:   "gmp-system",
+					Annotations: c.collectorAnnots,
+				},
 			}
-			if (op.opts.EvaluatorCPUResource != c.expectedResource.evaluatorCPUResource) ||
-				(op.opts.CollectorMemoryLimit != c.expectedResource.collectorMemoryLimit) ||
-				(op.opts.CollectorCPUResource != c.expectedResource.collectorCPUResource) {
-				t.Errorf("expected Evaluator resource limit %v are different with actual %v", c.expectedResource, op.opts)
+
+			deploy := &appsv1.Deployment{
+				ObjectMeta: v1.ObjectMeta{
+					Name:        NameRuleEvaluator,
+					Namespace:   "gmp-system",
+					Annotations: c.evaluatorAnnots,
+				},
+			}
+			opts := Options{
+				ProjectID:         "test-proj",
+				Location:          "test-loc",
+				Cluster:           "test-cluster",
+				OperatorNamespace: "gmp-system",
+				CleanupAnnotKey:   c.cleanupAnnotKey,
+			}
+			cl := fake.NewClientBuilder().WithObjects(ds, deploy).Build()
+
+			op := &Operator{
+				logger: testr.New(t),
+				opts:   opts,
+				client: cl,
+			}
+			if err := op.cleanupOldResources(ctx); err != nil {
+				t.Fatal(err)
+			}
+
+			// Check if collector DaemonSet was preserved.
+			var gotDS appsv1.DaemonSet
+			dsErr := cl.Get(ctx, client.ObjectKey{
+				Name:      NameCollector,
+				Namespace: "gmp-system",
+			}, &gotDS)
+			if c.collectorDeleted {
+				if !apierrors.IsNotFound(dsErr) {
+					t.Errorf("collector should be deleted but found: %+v", gotDS)
+				}
+			} else if gotDS.Name != ds.Name || gotDS.Namespace != ds.Namespace {
+				t.Errorf("collector DaemonSet differs")
+			}
+
+			// Check if rule-evaluator Deployment was preserved.
+			var gotDeploy appsv1.Deployment
+			deployErr := cl.Get(ctx, client.ObjectKey{
+				Name:      NameRuleEvaluator,
+				Namespace: "gmp-system",
+			}, &gotDeploy)
+			if c.evaluatorDeleted {
+				if !apierrors.IsNotFound(deployErr) {
+					t.Errorf("rule-evaluator should be deleted but found: %+v", gotDeploy)
+				}
+			} else if gotDeploy.Name != deploy.Name || gotDeploy.Namespace != deploy.Namespace {
+				t.Errorf("rule-evaluator Deployment differs")
 			}
 		})
 	}

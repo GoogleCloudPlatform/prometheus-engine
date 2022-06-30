@@ -28,7 +28,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
-	corev1 "k8s.io/api/core/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -44,7 +44,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
 
@@ -59,15 +58,8 @@ const (
 	NameOperator  = "gmp-operator"
 	componentName = "managed_prometheus"
 
-	// Prometheus configuration file and volume mounts.
-	// Used in both collectors and rule-evaluator.
-	configOutDir        = "/prometheus/config_out"
-	configVolumeName    = "config"
-	configDir           = "/prometheus/config"
-	configOutVolumeName = "config-out"
-	configFilename      = "config.yaml"
-	storageVolumeName   = "storage"
-	storageDir          = "/prometheus/data"
+	// Filename for configuration files.
+	configFilename = "config.yaml"
 
 	// The well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
@@ -78,19 +70,9 @@ const (
 	// satisfy certain eviction criteria.
 	ClusterAutoscalerSafeEvictionLabel = "cluster-autoscaler.kubernetes.io/safe-to-evict"
 
-	// The official images to be used with this version of the operator. For debugging
-	// and emergency use cases they may be overwritten through options.
-	ImageCollector      = "gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0"
-	ImageConfigReloader = "gke.gcr.io/prometheus-engine/config-reloader:v0.4.3-gke.0"
-	ImageRuleEvaluator  = "gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.3-gke.0"
-
 	// The k8s Application, will be exposed as component name.
 	KubernetesAppName    = "app"
-	CollectorAppName     = "managed-prometheus-collector"
 	RuleEvaluatorAppName = "managed-prometheus-rule-evaluator"
-
-	// The Collector version, will be exposed as part of the user agent information.
-	CollectorVersion = "2.35.0-gmp.2"
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.
@@ -109,57 +91,21 @@ type Options struct {
 	Location string
 	// Name of the cluster the operator acts on.
 	Cluster string
-	// Disable exporting to GCM (mostly for testing).
-	DisableExport bool
 	// Namespace to which the operator deploys any associated resources.
 	OperatorNamespace string
 	// Namespace to which the operator looks for user-specified configuration
 	// data, like Secrets and ConfigMaps.
 	PublicNamespace string
-	// Listening port of the collector. Configurable to allow multiple
-	// simultanious collector deployments for testing purposes while each
-	// collector runs on the host network.
-	CollectorPort int32
-	// Image for the Prometheus collector container.
-	ImageCollector string
-	// Image for the Prometheus config reloader.
-	ImageConfigReloader string
-	// Image for the Prometheus rule-evaluator.
-	ImageRuleEvaluator string
-	// Whether to deploy pods with hostNetwork enabled. This allow pods to run with the GCE compute
-	// default service account even on GKE clusters with Workload Identity enabled.
-	// It must be set to false for GKE Autopilot clusters.
-	HostNetwork bool
-	// Priority class for the collector pods.
-	PriorityClass string
 	// Certificate of the server in base 64.
 	TLSCert string
 	// Key of the server in base 64.
 	TLSKey string
 	// Certificate authority in base 64.
 	CACert string
-	// Endpoint of the Cloud Monitoring API to be used by all collectors.
-	CloudMonitoringEndpoint string
 	// Webhook serving address.
 	ListenAddr string
-	// Collector memory resource
-	CollectorMemoryResource int64
-	// Collector CPU resource
-	CollectorCPUResource int64
-	// Collector CPU limit
-	CollectorCPULimit int64
-	// Collector memory limit
-	CollectorMemoryLimit int64
-	// Evaluator memory resource
-	EvaluatorMemoryResource int64
-	// Evaluator CPU resource
-	EvaluatorCPUResource int64
-	// Evaluator memory limit
-	EvaluatorMemoryLimit int64
-	// Evaluator CPU limit
-	EvaluatorCPULimit int64
-	// How managed collection was provisioned.
-	Mode string
+	// Cleanup resources without this annotation.
+	CleanupAnnotKey string
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -172,18 +118,6 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		// resources in a single namespace.
 		o.PublicNamespace = DefaultOperatorNamespace
 	}
-	if o.CollectorPort == 0 {
-		o.CollectorPort = 19090
-	}
-	if o.ImageCollector == "" {
-		o.ImageCollector = ImageCollector
-	}
-	if o.ImageConfigReloader == "" {
-		o.ImageConfigReloader = ImageConfigReloader
-	}
-	if o.ImageRuleEvaluator == "" {
-		o.ImageRuleEvaluator = ImageRuleEvaluator
-	}
 
 	// ProjectID and Cluster must be always be set. Collectors and rule-evaluator can
 	// auto-discover them but we need them in the operator to scope generated rules.
@@ -192,57 +126,6 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	}
 	if o.Cluster == "" {
 		return errors.New("Cluster must be set")
-	}
-
-	if o.Location == "global" {
-		return export.ErrLocationGlobal
-	}
-
-	if o.ImageCollector != ImageCollector {
-		logger.Info("not using the canonical collector image",
-			"expected", ImageCollector, "got", o.ImageCollector)
-	}
-	if o.ImageConfigReloader != ImageConfigReloader {
-		logger.Info("not using the canonical config reloader image",
-			"expected", ImageConfigReloader, "got", o.ImageConfigReloader)
-	}
-	if o.ImageRuleEvaluator != ImageRuleEvaluator {
-		logger.Info("not using the canonical rule-evaluator image",
-			"expected", ImageRuleEvaluator, "got", o.ImageRuleEvaluator)
-	}
-	if o.CollectorCPUResource <= 0 {
-		o.CollectorCPUResource = 100
-	}
-	if o.CollectorMemoryResource <= 0 {
-		o.CollectorMemoryResource = 200
-	}
-	if o.CollectorMemoryLimit <= o.CollectorMemoryResource {
-		if o.CollectorMemoryResource*2 < 3000 {
-			o.CollectorMemoryLimit = 3000
-		} else {
-			o.CollectorMemoryLimit = o.CollectorMemoryResource * 2
-		}
-		o.CollectorMemoryLimit = o.CollectorMemoryResource * 15
-	}
-
-	if o.EvaluatorCPUResource <= 0 {
-		o.EvaluatorCPUResource = 100
-	}
-	if o.EvaluatorMemoryResource <= 0 {
-		o.EvaluatorMemoryResource = 200
-	}
-	if o.EvaluatorMemoryLimit <= o.EvaluatorMemoryResource {
-		o.EvaluatorMemoryLimit = o.EvaluatorMemoryResource * 15
-	}
-	switch o.Mode {
-	// repo manifest always defaults to "kubectl".
-	case "kubectl":
-	case "gke":
-	case "gke-auto":
-	case "on-prem":
-	case "baremetal":
-	default:
-		return errors.New("--mode must be one of {'kubectl', 'gke', 'gke-auto', 'on-prem', 'baremetal}")
 	}
 	return nil
 }
@@ -303,15 +186,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 // setupAdmissionWebhooks configures validating webhooks for the operator-managed
 // custom resources and registers handlers with the webhook server.
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
-	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
-	// in previous versions.
-	err := o.client.Delete(ctx, &arv1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
-	})
-	if err != nil && !apierrors.IsNotFound(err) {
-		o.logger.Error(err, "msg", "Deleting legacy ValidatingWebhookConfiguration failed")
-	}
-
 	// Write provided cert files.
 	caBundle, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().CertDir)
 	if err != nil {
@@ -395,6 +269,9 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 func (o *Operator) Run(ctx context.Context) error {
 	defer runtimeutil.HandleCrash()
 
+	if err := o.cleanupOldResources(ctx); err != nil {
+		return errors.Wrap(err, "cleanup old resources")
+	}
 	if err := o.setupAdmissionWebhooks(ctx); err != nil {
 		return errors.Wrap(err, "init admission resources")
 	}
@@ -411,6 +288,58 @@ func (o *Operator) Run(ctx context.Context) error {
 	o.logger.Info("starting GMP operator")
 
 	return o.manager.Start(ctx)
+}
+
+func (o *Operator) cleanupOldResources(ctx context.Context) error {
+	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
+	// in previous versions.
+	err := o.client.Delete(ctx, &arv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
+	})
+	if err != nil && !apierrors.IsNotFound(err) {
+		o.logger.Error(err, "deleting legacy ValidatingWebhookConfiguration")
+		return err
+	}
+
+	// If cleanup annotations are not provided, do not clean up any further.
+	if o.opts.CleanupAnnotKey == "" {
+		return nil
+	}
+
+	// Cleanup resources without the provided annotation.
+	// Check the collector DaemonSet.
+	var ds appsv1.DaemonSet
+	if err := o.client.Get(ctx, client.ObjectKey{
+		Name:      NameCollector,
+		Namespace: o.opts.OperatorNamespace,
+	}, &ds); err != nil && apierrors.IsNotFound(err) {
+		o.logger.Error(err, "Getting collector DaemonSet failed")
+		return err
+	}
+	if _, ok := ds.Annotations[o.opts.CleanupAnnotKey]; !ok {
+		if err := o.client.Delete(ctx, &ds); err != nil && !apierrors.IsNotFound(err) {
+			o.logger.Error(err, "cleaning up collector DaemonSet")
+			return err
+		}
+	}
+
+	// Check the rule-evaluator Deployment.
+	var deploy appsv1.Deployment
+	if err := o.client.Get(ctx, client.ObjectKey{
+		Name:      NameRuleEvaluator,
+		Namespace: o.opts.OperatorNamespace,
+	}, &deploy); err != nil && apierrors.IsNotFound(err) {
+		o.logger.Error(err, "Getting rule-evaluator deployment failed")
+		return err
+	}
+	if _, ok := deploy.Annotations[o.opts.CleanupAnnotKey]; !ok {
+		if err := o.client.Delete(ctx, &deploy); err != nil && !apierrors.IsNotFound(err) {
+			o.logger.Error(err, "cleaning up rule-evaluator Deployment")
+			return err
+		}
+	}
+
+	return nil
 }
 
 // ensureCerts writes the cert/key files to the specified directory.
@@ -540,28 +469,4 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
 	}
 	return o.client.Update(ctx, &mwc)
-}
-
-func minimalSecurityContext() *corev1.SecurityContext {
-	id := int64(1000)
-	t := true
-	f := false
-
-	return &corev1.SecurityContext{
-		RunAsUser:                &id,
-		RunAsGroup:               &id,
-		RunAsNonRoot:             &t,
-		Privileged:               &f,
-		AllowPrivilegeEscalation: &f,
-		Capabilities: &corev1.Capabilities{
-			Drop: []corev1.Capability{"all"},
-		},
-	}
-}
-func podSpecSecurityContext() *corev1.PodSecurityContext {
-	return &corev1.PodSecurityContext{
-		SeccompProfile: &corev1.SeccompProfile{
-			Type: corev1.SeccompProfileTypeRuntimeDefault,
-		},
-	}
 }
