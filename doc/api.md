@@ -46,7 +46,10 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [Rules](#rules)
 * [RulesList](#ruleslist)
 * [RulesSpec](#rulesspec)
+* [SampleGroup](#samplegroup)
+* [SampleTarget](#sampletarget)
 * [ScrapeEndpoint](#scrapeendpoint)
+* [ScrapeEndpointStatus](#scrapeendpointstatus)
 * [ScrapeLimits](#scrapelimits)
 * [SecretOrConfigMap](#secretorconfigmap)
 * [TLSConfig](#tlsconfig)
@@ -362,6 +365,7 @@ PodMonitoringStatus holds status information of a PodMonitoring resource.
 | ----- | ----------- | ------ | -------- |
 | observedGeneration | The generation observed by the controller. | int64 | true |
 | conditions | Represents the latest available observations of a podmonitor's current state. | [][MonitoringCondition](#monitoringcondition) | false |
+| endpointStatuses | Represents the latest available observations of target state for each ScrapeEndpoint. | [][ScrapeEndpointStatus](#scrapeendpointstatus) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -473,6 +477,36 @@ RulesSpec contains specification parameters for a Rules resource.
 
 [Back to TOC](#table-of-contents)
 
+## SampleGroup
+
+
+
+
+<em>appears in: [ScrapeEndpointStatus](#scrapeendpointstatus)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| sampleTargets | Targets emitting the error message. | [][SampleTarget](#sampletarget) | false |
+| count | Total count of similar errors. | *int32 | false |
+
+[Back to TOC](#table-of-contents)
+
+## SampleTarget
+
+
+
+
+<em>appears in: [SampleGroup](#samplegroup)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| labels | The label set, keys and values, of the target. | prommodel.LabelSet | false |
+| lastError | Error message. | *string | false |
+| lastScrapeDurationSeconds | Scrape duration in seconds. | string | false |
+| health | Health status. | string | false |
+
+[Back to TOC](#table-of-contents)
+
 ## ScrapeEndpoint
 
 ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
@@ -490,6 +524,24 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 | interval | Interval at which to scrape metrics. Must be a valid Prometheus duration. | string | false |
 | timeout | Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval. | string | false |
 | metricRelabeling | Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general. | [][RelabelingRule](#relabelingrule) | false |
+
+[Back to TOC](#table-of-contents)
+
+## ScrapeEndpointStatus
+
+
+
+
+<em>appears in: [PodMonitoringStatus](#podmonitoringstatus)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| name | The name of the ScrapeEndpoint. | string | true |
+| activeTargets | Total number of active targets. | int64 | false |
+| unhealthyTargets | Total number of active, unhealthy targets. | int64 | false |
+| lastUpdateTime | Last time this status was updated. | metav1.Time | false |
+| sampleGroups | A fixed sample of targets grouped by error type. | [][SampleGroup](#samplegroup) | false |
+| collectorsFraction | Fraction of collectors included in status, bounded [0,1]. Ideally, this should always be 1. Anything less can be considered a problem and should be investigated. | string | false |
 
 [Back to TOC](#table-of-contents)
 
