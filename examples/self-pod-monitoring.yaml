@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: monitoring.googleapis.com/v1alpha1
+apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
   namespace: gmp-system
-  name: node-exporter
+  name: collector
   labels:
-    app.kubernetes.io/name: node-exporter
+    app.kubernetes.io/name: collector
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: node-exporter
+      app.kubernetes.io/name: collector
   endpoints:
-  - port: metrics
-    interval: 30s
+  - port: prom-metrics
+    interval: 10s
+  - port: cfg-rel-metrics
+    interval: 10s
