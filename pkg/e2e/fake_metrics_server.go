@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package test
+package e2e
 
 import (
 	"context"
@@ -39,6 +39,9 @@ func NewFakeMetricServer(maxTimeSeriesPerRequest int) *FakeMetricServer {
 }
 
 func (fms *FakeMetricServer) CreateTimeSeries(ctx context.Context, req *monitoringpb.CreateTimeSeriesRequest) (*emptypb.Empty, error) {
+	if req == nil {
+		return nil, errors.New("nil request")
+	}
 	if len(req.TimeSeries) < 1 {
 		return nil, errors.New("there are no time series to add")
 	}
