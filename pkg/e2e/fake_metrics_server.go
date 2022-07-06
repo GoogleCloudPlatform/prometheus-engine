@@ -59,33 +59,55 @@ func (fms *FakeMetricServer) CreateTimeSeries(ctx context.Context, req *monitori
 
 	// this is pretty inefficient, but it is only used for testing purposes
 	for _, singleTimeSeriesToAdd := range timeSeriesToProcess {
-		for _, singleTimeSeriesInMemory := range fms.timeSeriesByProject[req.Name] {
-			inMemMetric := singleTimeSeriesInMemory.Metric
-			toAddMetric := singleTimeSeriesToAdd.Metric
-			inMemResource := singleTimeSeriesInMemory.Resource
-			toAddResource := singleTimeSeriesToAdd.Resource
+		// new project with a timeseries
+		if fms.timeSeriesByProject[req.Name] == nil {
+			if len(singleTimeSeriesToAdd.Points) != 1 {
+				numErrors++
+			} else if singleTimeSeriesToAdd.Metric == nil {
+				numErrors++
+			} else if singleTimeSeriesToAdd.Resource == nil {
+				numErrors++
+			} else {
+				fms.timeSeriesByProject[req.Name] = req.TimeSeries
+			}
+		} else { // project already exists
+			for i, singleTimeSeriesInMemory := range fms.timeSeriesByProject[req.Name] {
+				inMemMetric := singleTimeSeriesInMemory.Metric
+				toAddMetric := singleTimeSeriesToAdd.Metric
+				inMemResource := singleTimeSeriesInMemory.Resource
+				toAddResource := singleTimeSeriesToAdd.Resource
 
-			if inMemMetric.Type == toAddMetric.Type && reflect.DeepEqual(inMemMetric.Labels, toAddMetric.Labels) &&
-				inMemResource.Type == toAddResource.Type && reflect.DeepEqual(inMemResource.Labels, toAddResource.Labels) {
-				// only add this point if the start time of the point to add is greater than the end point latest in this time series
-				if singleTimeSeriesToAdd.Points[0].Interval.StartTime.AsTime().After(
-					singleTimeSeriesInMemory.Points[len(singleTimeSeriesInMemory.Points)-1].Interval.EndTime.AsTime()) {
-					singleTimeSeriesInMemory.Points = append(singleTimeSeriesInMemory.Points, singleTimeSeriesToAdd.Points...)
-				} else {
-					numErrors++
+				// if this specific time series already exists, add it
+				if inMemMetric.Type == toAddMetric.Type && reflect.DeepEqual(inMemMetric.Labels, toAddMetric.Labels) &&
+					inMemResource.Type == toAddResource.Type && reflect.DeepEqual(inMemResource.Labels, toAddResource.Labels) {
+					// only add this point if the start time of the point to add is greater than the end point latest in this time series
+					if singleTimeSeriesToAdd.Points[0].Interval.StartTime.AsTime().After(
+						singleTimeSeriesInMemory.Points[len(singleTimeSeriesInMemory.Points)-1].Interval.EndTime.AsTime()) {
+						singleTimeSeriesInMemory.Points = append(singleTimeSeriesInMemory.Points, singleTimeSeriesToAdd.Points[len(singleTimeSeriesToAdd.Points)-1])
+					} else {
+						numErrors++
+					}
+					break
+					// if we make it into this else if block then we are adding a new time series for an existing project -- just append it.
+				} else if i == len(fms.timeSeriesByProject[req.Name])-1 {
+					fms.timeSeriesByProject[req.Name] = append(fms.timeSeriesByProject[req.Name], singleTimeSeriesToAdd)
 				}
-				break
 			}
 		}
 	}
 
 	var err error
+	var response *emptypb.Empty
 	if numErrors > 0 {
 		err = fmt.Errorf("there were %d time series that could not be added", numErrors)
 	}
-	return &emptypb.Empty{}, err
+	if numErrors != len(req.TimeSeries) {
+		response = &emptypb.Empty{}
+	}
+	return response, err
 }
 
+// TODO Implement ListTimeSeries
 func (fms *FakeMetricServer) ListTimeSeries(ctx context.Context, req *monitoringpb.ListTimeSeriesRequest) (*monitoringpb.ListTimeSeriesResponse, error) {
 	response := &monitoringpb.ListTimeSeriesResponse{}
 
