@@ -291,7 +291,7 @@ spec:
       # Current supported max from https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/horizontal-pod-autoscaler-v2beta2/.
       stabilizationWindowSeconds: 3600
 ---
-apiVersion: monitoring.googleapis.com/v1alpha1
+apiVersion: monitoring.googleapis.com/v1
 kind: ClusterPodMonitoring
 metadata:
   name: kube-state-metrics
@@ -305,7 +305,7 @@ spec:
   targetLabels:
     metadata: [] # explicitly empty so the metric labels are respected
 ---
-apiVersion: monitoring.googleapis.com/v1alpha1
+apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
   namespace: monitoring
