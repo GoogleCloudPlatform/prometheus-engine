@@ -62,6 +62,37 @@ func TestNoTimeSeriesToAdd(t *testing.T) {
 	}
 }
 
+func TestNoPointInTimeSeriesToAdd(t *testing.T) {
+	fms := NewFakeMetricServer(200)
+	timeSeries := []*monitoringpb.TimeSeries{{
+		Resource: &monitoredrespb.MonitoredResource{
+			Type: "prometheus_target",
+			Labels: map[string]string{
+				"project_id": "example-project",
+				"location":   "europe",
+				"cluster":    "foo-cluster",
+				"namespace":  "",
+				"job":        "job1",
+				"instance":   "instance1",
+			},
+		},
+		Metric: &metricpb.Metric{
+			Type:   "prometheus.googleapis.com/metric1/gauge",
+			Labels: map[string]string{"k1": "v1"},
+		},
+		MetricKind: metricpb.MetricDescriptor_GAUGE,
+		ValueType:  metricpb.MetricDescriptor_DOUBLE,
+	}}
+	createTimeSeriesRequest := &monitoringpb.CreateTimeSeriesRequest{
+		Name:       "PROJECT/1234",
+		TimeSeries: timeSeries,
+	}
+	response, err := fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest)
+	if err == nil && response != nil {
+		t.Error("expected an error when sending no points in a time series")
+	}
+}
+
 func TestTimeSeriesAddTimeSeries(t *testing.T) {
 	fms := NewFakeMetricServer(200)
 	projectName := "PROJECT/1234"
