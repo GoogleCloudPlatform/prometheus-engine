@@ -25,45 +25,16 @@ import (
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestAddTimeSeriesNil(t *testing.T) {
-	fms := NewFakeMetricServer(200)
-	response, err := fms.CreateTimeSeries(context.TODO(), nil)
-	if err == nil && response != nil {
-		t.Error("expected an error when calling CreateTimeSeries with all nil")
-	}
+type createTimeSeriesTest struct {
+	testName                string
+	createTimeSeriesRequest *monitoringpb.CreateTimeSeriesRequest
 }
 
-func TestMaxTimeSeriesPerRequest(t *testing.T) {
+func TestCreateTimeSeriesBadInput(t *testing.T) {
 	fms := NewFakeMetricServer(1)
-	timeSeries := []*monitoringpb.TimeSeries{
-		{},
-		{},
-	}
-	createTimeSeriesRequest := &monitoringpb.CreateTimeSeriesRequest{
-		Name:       "PROJECT/1234",
-		TimeSeries: timeSeries,
-	}
-	response, err := fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest)
-	if err == nil && response != nil {
-		t.Error("expected an error when sending more time series than the server allows")
-	}
-}
 
-func TestNoTimeSeriesToAdd(t *testing.T) {
-	fms := NewFakeMetricServer(200)
-	timeSeries := []*monitoringpb.TimeSeries{}
-	createTimeSeriesRequest := &monitoringpb.CreateTimeSeriesRequest{
-		Name:       "PROJECT/1234",
-		TimeSeries: timeSeries,
-	}
-	response, err := fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest)
-	if err == nil && response != nil {
-		t.Error("expected an error when sending no time series")
-	}
-}
-
-func TestNoPointInTimeSeriesToAdd(t *testing.T) {
-	fms := NewFakeMetricServer(200)
+	// add a time series to the FakeMetricServer so that
+	// TestAddPointInPast will fail as expected
 	timeSeries := []*monitoringpb.TimeSeries{{
 		Resource: &monitoredrespb.MonitoredResource{
 			Type: "prometheus_target",
@@ -82,18 +53,114 @@ func TestNoPointInTimeSeriesToAdd(t *testing.T) {
 		},
 		MetricKind: metricpb.MetricDescriptor_GAUGE,
 		ValueType:  metricpb.MetricDescriptor_DOUBLE,
+		Points: []*monitoringpb.Point{{
+			Interval: &monitoringpb.TimeInterval{
+				StartTime: &timestamppb.Timestamp{Seconds: 1},
+				EndTime:   &timestamppb.Timestamp{Seconds: 2},
+			},
+			Value: &monitoringpb.TypedValue{
+				Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+			},
+		}},
 	}}
 	createTimeSeriesRequest := &monitoringpb.CreateTimeSeriesRequest{
 		Name:       "PROJECT/1234",
 		TimeSeries: timeSeries,
 	}
-	response, err := fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest)
-	if err == nil && response != nil {
-		t.Error("expected an error when sending no points in a time series")
+	fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest)
+
+	// these are the subtests
+	tests := []*createTimeSeriesTest{
+		{testName: "TestNil"},
+		{
+			testName: "TestExceedMaxTimeSeriesPerRequest",
+			createTimeSeriesRequest: &monitoringpb.CreateTimeSeriesRequest{
+				Name:       "PROJECT/1234",
+				TimeSeries: []*monitoringpb.TimeSeries{{}, {}},
+			},
+		},
+		{
+			testName: "TestNoTimeSeriesToAdd",
+			createTimeSeriesRequest: &monitoringpb.CreateTimeSeriesRequest{
+				Name: "PROJECT/1234",
+			},
+		},
+		{
+			testName: "TestNoPointInTimeSeriesToAdd",
+			createTimeSeriesRequest: &monitoringpb.CreateTimeSeriesRequest{
+				Name: "PROJECT/1234",
+				TimeSeries: []*monitoringpb.TimeSeries{{
+					Resource: &monitoredrespb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
+						},
+					},
+					Metric: &metricpb.Metric{
+						Type:   "prometheus.googleapis.com/metric1/gauge",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metricpb.MetricDescriptor_GAUGE,
+					ValueType:  metricpb.MetricDescriptor_DOUBLE,
+				}},
+			},
+		},
+		{
+			testName: "TestAddPointInPast",
+			createTimeSeriesRequest: &monitoringpb.CreateTimeSeriesRequest{
+				Name: "PROJECT/1234",
+				TimeSeries: []*monitoringpb.TimeSeries{{
+					Resource: &monitoredrespb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
+						},
+					},
+					Metric: &metricpb.Metric{
+						Type:   "prometheus.googleapis.com/metric1/gauge",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metricpb.MetricDescriptor_GAUGE,
+					ValueType:  metricpb.MetricDescriptor_DOUBLE,
+					Points: []*monitoringpb.Point{{
+						Interval: &monitoringpb.TimeInterval{
+							StartTime: &timestamppb.Timestamp{Seconds: 1},
+							EndTime:   &timestamppb.Timestamp{Seconds: 2},
+						},
+						Value: &monitoringpb.TypedValue{
+							Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+						},
+					}},
+				}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			response, err := fms.CreateTimeSeries(context.TODO(), test.createTimeSeriesRequest)
+			if err == nil && response != nil {
+				t.Errorf("expected an error for %q", test.testName)
+			}
+		})
 	}
 }
 
-func TestTimeSeriesAddTimeSeries(t *testing.T) {
+// func TestCreateTimeSeries(*t testing.T) {
+
+// }
+
+func TestCreateTimeSeries(t *testing.T) {
 	fms := NewFakeMetricServer(200)
 	projectName := "PROJECT/1234"
 
