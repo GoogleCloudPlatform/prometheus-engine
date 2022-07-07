@@ -97,7 +97,7 @@ func TestTimeSeriesAddTimeSeries(t *testing.T) {
 	fms := NewFakeMetricServer(200)
 	projectName := "PROJECT/1234"
 
-	// add a mew time series for a project that does not have one yet
+	// add a new time series for a project that does not have one yet
 	timeSeries := []*monitoringpb.TimeSeries{{
 		Resource: &monitoredrespb.MonitoredResource{
 			Type: "prometheus_target",
@@ -173,7 +173,7 @@ func TestTimeSeriesAddTimeSeries(t *testing.T) {
 	}
 	response2, err2 := fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest2)
 	if err2 != nil || response2 == nil {
-		t.Error("did not expect an error when adding a mew time series")
+		t.Error("did not expect an error when adding a new time series")
 	}
 	if !reflect.DeepEqual(fms.timeSeriesByProject[projectName][1], timeSeries2[0]) {
 		t.Error("expected the second time series to be the newly created one")
@@ -217,7 +217,7 @@ func TestTimeSeriesAddTimeSeries(t *testing.T) {
 	}
 	response3, err3 := fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest3)
 	if err3 != nil || response3 == nil {
-		t.Error("did not expect an error when adding a mew time series")
+		t.Error("did not expect an error when adding a new time series")
 	}
 	if len(fms.timeSeriesByProject[projectName][1].Points) != 2 {
 		t.Error("expected the new data point to be added to the second time series")
@@ -261,6 +261,6 @@ func TestTimeSeriesAddTimeSeries(t *testing.T) {
 	}
 	response4, err4 := fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest4)
 	if err4 == nil || response4 != nil {
-		t.Error("did not expect an error when adding a mew time series")
+		t.Error("did not expect an error when adding a new time series")
 	}
 }
