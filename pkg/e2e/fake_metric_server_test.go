@@ -26,10 +26,10 @@ import (
 )
 
 type createTimeSeriesTest struct {
-	testName                string
-	createTimeSeriesRequest []*monitoringpb.CreateTimeSeriesRequest
-	timeSeriesIndexToCheck  []int
-	pointsIndexToCheck      []int
+	testName                 string
+	createTimeSeriesRequests []*monitoringpb.CreateTimeSeriesRequest
+	timeSeriesIndexToCheck   []int
+	pointsIndexToCheck       []int
 }
 
 // Returns true if every field in TimeSeries a is deeply equal to TimeSeries b
@@ -86,7 +86,7 @@ func TestCreateTimeSeriesBadInput(t *testing.T) {
 		{testName: "TestNil"},
 		{
 			testName: "TestExceedMaxTimeSeriesPerRequest",
-			createTimeSeriesRequest: []*monitoringpb.CreateTimeSeriesRequest{
+			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
 				{
 					Name: projectName,
 					// Note: the TimeSeries are empty here since the check for exceeding
@@ -98,7 +98,7 @@ func TestCreateTimeSeriesBadInput(t *testing.T) {
 		},
 		{
 			testName: "TestNoTimeSeriesToAdd",
-			createTimeSeriesRequest: []*monitoringpb.CreateTimeSeriesRequest{
+			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
 				{
 					Name: projectName,
 				},
@@ -106,7 +106,7 @@ func TestCreateTimeSeriesBadInput(t *testing.T) {
 		},
 		{
 			testName: "TestNoPointInTimeSeriesToAdd",
-			createTimeSeriesRequest: []*monitoringpb.CreateTimeSeriesRequest{
+			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
 				{
 					Name: projectName,
 					TimeSeries: []*monitoringpb.TimeSeries{{
@@ -133,7 +133,7 @@ func TestCreateTimeSeriesBadInput(t *testing.T) {
 		},
 		{
 			testName: "TestAddPointInPast",
-			createTimeSeriesRequest: []*monitoringpb.CreateTimeSeriesRequest{
+			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
 				{
 					Name: projectName,
 					TimeSeries: []*monitoringpb.TimeSeries{{
@@ -171,8 +171,8 @@ func TestCreateTimeSeriesBadInput(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			for i := range test.createTimeSeriesRequest {
-				response, err := fms.CreateTimeSeries(context.TODO(), test.createTimeSeriesRequest[i])
+			for _, request := range test.createTimeSeriesRequests {
+				response, err := fms.CreateTimeSeries(context.TODO(), request)
 				if err == nil && response != nil {
 					t.Errorf("expected an error for %q", test.testName)
 				}
@@ -194,7 +194,7 @@ func TestCreateTimeSeries(t *testing.T) {
 			testName:               "TestCreateTimeSeries-NewProject-NewTimeSeries-NewPoint",
 			timeSeriesIndexToCheck: []int{0, 1, 1},
 			pointsIndexToCheck:     []int{0, 0, 1},
-			createTimeSeriesRequest: []*monitoringpb.CreateTimeSeriesRequest{
+			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
 				{
 					Name: projectName,
 					TimeSeries: []*monitoringpb.TimeSeries{{
@@ -294,18 +294,18 @@ func TestCreateTimeSeries(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			for i, request := range test.createTimeSeriesRequest {
+			for i, request := range test.createTimeSeriesRequests {
 				response, err := fms.CreateTimeSeries(context.TODO(), request)
 				if err != nil || response == nil {
 					t.Errorf("did not expect an error when running %q", test.testName)
 				}
 				if !timeSeriesEqualsExceptPoints(
-					test.createTimeSeriesRequest[i].TimeSeries[0],
+					request.TimeSeries[0],
 					fms.timeSeriesByProject[projectName][test.timeSeriesIndexToCheck[i]],
 				) {
 					t.Errorf(
 						"expected %+v and got %+v. Note: the points were not compared",
-						test.createTimeSeriesRequest[i].TimeSeries[0],
+						request.TimeSeries[0],
 						fms.timeSeriesByProject[projectName][test.timeSeriesIndexToCheck[i]],
 					)
 				}
