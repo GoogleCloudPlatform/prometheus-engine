@@ -216,6 +216,14 @@ type PodMonitoring struct {
 	Status PodMonitoringStatus `json:"status"`
 }
 
+func (p *PodMonitoring) GetKey() string {
+	return fmt.Sprintf("PodMonitoring/%s/%s", p.Namespace, p.Name)
+}
+
+func (p *PodMonitoring) GetStatus() *PodMonitoringStatus {
+	return &p.Status
+}
+
 // PodMonitoringList is a list of PodMonitorings.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PodMonitoringList struct {
@@ -240,6 +248,14 @@ type ClusterPodMonitoring struct {
 	// Most recently observed status of the resource.
 	// +optional
 	Status PodMonitoringStatus `json:"status"`
+}
+
+func (p *ClusterPodMonitoring) GetKey() string {
+	return fmt.Sprintf("ClusterPodMonitoring/%s", p.Name)
+}
+
+func (p *ClusterPodMonitoring) GetStatus() *PodMonitoringStatus {
+	return &p.Status
 }
 
 // ClusterPodMonitoringList is a list of ClusterPodMonitorings.
@@ -411,7 +427,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	})
 
 	return endpointScrapeConfig(
-		fmt.Sprintf("PodMonitoring/%s/%s", pm.Namespace, pm.Name),
+		pm.GetKey(),
 		projectID, location, cluster,
 		pm.Spec.Endpoints[index],
 		relabelCfgs,
@@ -752,7 +768,7 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 	})
 
 	return endpointScrapeConfig(
-		fmt.Sprintf("ClusterPodMonitoring/%s", cm.Name),
+		cm.GetKey(),
 		projectID, location, cluster,
 		cm.Spec.Endpoints[index],
 		relabelCfgs,
