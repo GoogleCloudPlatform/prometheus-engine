@@ -30,9 +30,9 @@ type FakeMetricServer struct {
 	maxTimeSeriesPerRequest int
 }
 
-// initialize an empty map in the FakeMetricServer since Go does not let you add to a nil map
 func NewFakeMetricServer(maxTimeSeriesPerRequest int) *FakeMetricServer {
 	return &FakeMetricServer{
+		// initialize an empty map in the FakeMetricServer since Go does not let you add to a nil map
 		timeSeriesByProject:     make(map[string][]*monitoringpb.TimeSeries),
 		maxTimeSeriesPerRequest: maxTimeSeriesPerRequest,
 	}
@@ -73,9 +73,9 @@ func (fms *FakeMetricServer) CreateTimeSeries(ctx context.Context, req *monitori
 				if inMemMetric.Type == toAddMetric.Type && reflect.DeepEqual(inMemMetric.Labels, toAddMetric.Labels) &&
 					inMemResource.Type == toAddResource.Type && reflect.DeepEqual(inMemResource.Labels, toAddResource.Labels) {
 					// only add this point if the start time of the point to add is greater than the end point latest in this time series
-					if singleTimeSeriesToAdd.Points[0].Interval.StartTime.AsTime().After(
-						singleTimeSeriesInMemory.Points[len(singleTimeSeriesInMemory.Points)-1].Interval.EndTime.AsTime()) {
-						singleTimeSeriesInMemory.Points = append(singleTimeSeriesInMemory.Points, singleTimeSeriesToAdd.Points[len(singleTimeSeriesToAdd.Points)-1])
+					if singleTimeSeriesToAdd.Points[0].Interval.StartTime.AsTime().After(singleTimeSeriesInMemory.Points[len(singleTimeSeriesInMemory.Points)-1].Interval.EndTime.AsTime()) {
+						// add the new point to the beginning
+						singleTimeSeriesInMemory.Points = append(singleTimeSeriesToAdd.Points, singleTimeSeriesInMemory.Points...)
 					} else {
 						numErrors++
 					}
@@ -99,8 +99,22 @@ func (fms *FakeMetricServer) CreateTimeSeries(ctx context.Context, req *monitori
 	return response, err
 }
 
-// TODO Implement ListTimeSeries
+// ListTimeSeries only supports fetching raw time series data from the FakeMetricServer
+// since we only use this function to verify data made its way in.
 func (fms *FakeMetricServer) ListTimeSeries(ctx context.Context, req *monitoringpb.ListTimeSeriesRequest) (*monitoringpb.ListTimeSeriesResponse, error) {
+	if req == nil {
+		return nil, errors.New("nil request")
+	}
+	if req.Aggregation != nil || req.SecondaryAggregation != nil {
+		return nil, errors.New("fake metric server does not support aggregation")
+	}
+	if req.Interval == nil {
+		return nil, errors.New("time interval required")
+	}
+	if req.View == monitoringpb.ListTimeSeriesRequest_HEADERS {
+		return nil, errors.New("header view is not supported")
+	}
+
 	response := &monitoringpb.ListTimeSeriesResponse{}
 
 	return response, nil
