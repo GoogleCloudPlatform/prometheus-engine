@@ -225,6 +225,10 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 		flags = append(flags, fmt.Sprintf("--export.credentials-file=%q", p))
 	}
 
+	if len(spec.Compression) > 0 && spec.Compression != "none" {
+		flags = append(flags, fmt.Sprintf("--export.compression=%s", spec.Compression))
+	}
+
 	// Set EXTRA_ARGS envvar in Prometheus container.
 	for i, c := range ds.Spec.Template.Spec.Containers {
 		if c.Name != "prometheus" {
