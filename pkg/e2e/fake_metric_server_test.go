@@ -28,14 +28,17 @@ import (
 type createTimeSeriesTest struct {
 	testName                 string
 	createTimeSeriesRequests []*monitoringpb.CreateTimeSeriesRequest
-	timeSeriesIndexToCheck   []int
-	pointsIndexToCheck       []int
+	// index we expect the newly added timeseries to be in the fake metric server
+	timeSeriesIndexToCheck []int
+	// index we expect the newly added point to be in the fake metric server
+	pointsIndexToCheck []int
 }
 
 type listTimeSeriesTest struct {
-	testName                 string
-	createTimeSeriesRequests []*monitoringpb.CreateTimeSeriesRequest
-	listTimeSeriesRequests   []*monitoringpb.ListTimeSeriesRequest
+	testName                       string
+	createTimeSeriesRequests       []*monitoringpb.CreateTimeSeriesRequest
+	listTimeSeriesRequests         []*monitoringpb.ListTimeSeriesRequest
+	expectedListTimeSeriesResponse []*monitoringpb.ListTimeSeriesResponse
 }
 
 // Returns true if every field in TimeSeries a is deeply equal to TimeSeries b
@@ -324,6 +327,30 @@ func TestCreateTimeSeries(t *testing.T) {
 						request.TimeSeries[0].Points[0],
 						fms.timeSeriesByProject[projectName][test.timeSeriesIndexToCheck[i]].Points[test.pointsIndexToCheck[i]],
 					)
+				}
+			}
+		})
+	}
+}
+
+func TestListTimeSeriesBadInput(t *testing.T) {
+	fms := NewFakeMetricServer(200)
+	//projectName := "projects/1234"
+
+	// these are the subtests
+	tests := []*listTimeSeriesTest{
+		{
+			testName:               "TestListTimeSeriesNilRequest",
+			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{nil},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			for _, request := range test.listTimeSeriesRequests {
+				response, err := fms.ListTimeSeries(context.TODO(), request)
+				if err == nil && response != nil {
+					t.Errorf("expected an error for %q", test.testName)
 				}
 			}
 		})
