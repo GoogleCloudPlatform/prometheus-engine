@@ -1,0 +1,145 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https:#www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: gmp-public
+  name: gmp-alertmanager
+data:
+  config.yaml: |
+    receivers:
+      - name: "noop"
+    route:
+      receiver: "noop"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: gmp-public
+  name: gmp-alertmanager
+spec:
+  selector:
+    app.kubernetes.io/name: gmp-alertmanager
+  clusterIP: None
+  ports:
+  - port: 9093
+    targetPort: 9093
+    name: alertmanager
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: gmp-public
+  name: gmp-alertmanager
+spec:
+  selector:
+    matchLabels:
+      app: managed-prometheus-alertmanager
+      app.kubernetes.io/name: gmp-alertmanager
+  serviceName: gmp-alertmanager
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gmp-alertmanager
+        app: managed-prometheus-alertmanager
+      annotations:
+        components.gke.io/component-name: managed_prometheus
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    spec:
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:latest
+        args:
+        - --config.file=/alertmanager/config_out/config.yaml
+        - --storage.path=/alertmanager-data
+        ports:
+        - containerPort: 9093
+          name: alertmanager
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1G
+          requests:
+            cpu: 100m
+            memory: 200M
+        volumeMounts:
+        - name: config
+          mountPath: /alertmanager/config_out
+          readOnly: true
+        - name: alertmanager-data
+          mountPath: /alertmanager-data
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+      - name: config-reloader
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0
+        args:
+        - --config-file=/alertmanager/config.yaml
+        - --config-file-output=/alertmanager/config_out/config.yaml
+        - --reload-url=http://localhost:9093/-/reload
+        - --listen-address=:19091
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        ports:
+        - name: cfg-rel-metrics
+          containerPort: 19091
+        resources:
+          limits:
+            cpu: 10m
+            memory: 32M
+          requests:
+            cpu: 5m
+            memory: 16M
+        volumeMounts:
+        - name: config
+          mountPath: /alertmanager
+          readOnly: true
+        - name: alertmanager-data
+          mountPath: /alertmanager/config_out
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+            - all
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+      priorityClassName: gmp-critical
+      tolerations:
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
+      volumes:
+      - name: config
+        configMap:
+          name: gmp-alertmanager
+      - name: alertmanager-data
+        emptyDir: {}

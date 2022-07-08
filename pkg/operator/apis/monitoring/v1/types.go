@@ -127,7 +127,6 @@ type AlertingSpec struct {
 	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers,omitempty"`
 	// EnableDefaultAlertManager configures the rule-evaluator to point to a
 	// default instance of AlertManager installed by the operator.
-	// +kubebuilder:default=true
 	EnableDefaultAlertManager bool `json:"enableDefaultAlertManager,omitempty"`
 }
 

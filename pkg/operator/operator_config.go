@@ -354,7 +354,7 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 	alertManagers := spec.Alertmanagers
 	if spec.EnableDefaultAlertManager {
 		amNamespacedName := types.NamespacedName{
-			Namespace: r.opts.OperatorNamespace,
+			Namespace: r.opts.PublicNamespace,
 			Name:      "gmp-alertmanager",
 		}
 
