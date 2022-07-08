@@ -125,6 +125,10 @@ type ExportFilters struct {
 type AlertingSpec struct {
 	// Alertmanagers contains endpoint configuration for designated Alertmanagers.
 	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers,omitempty"`
+	// EnableDefaultAlertManager configures the rule-evaluator to point to a
+	// default instance of AlertManager installed by the operator.
+	// +kubebuilder:default=true
+	EnableDefaultAlertManager bool `json:"enableDefaultAlertManager,omitempty"`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object
