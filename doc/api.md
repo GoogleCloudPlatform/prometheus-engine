@@ -180,6 +180,7 @@ CollectionSpec specifies how the operator configures collection of metric data.
 | filter | Filter limits which metric data is sent to Cloud Monitoring. | [ExportFilters](#exportfilters) | false |
 | credentials | A reference to GCP service account credentials with which Prometheus collectors are run. It needs to have metric write permissions for all project IDs to which data is written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
 | kubeletScraping | Configuration to scrape the metric endpoints of the Kubelets. | *[KubeletScraping](#kubeletscraping) | false |
+| compression | Compression enables compression of metrics collection data | CompressionType | false |
 
 [Back to TOC](#table-of-contents)
 
