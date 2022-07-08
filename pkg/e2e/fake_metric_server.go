@@ -18,10 +18,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
@@ -72,8 +72,8 @@ func (fms *FakeMetricServer) CreateTimeSeries(ctx context.Context, req *monitori
 				toAddResource := singleTimeSeriesToAdd.Resource
 
 				// if this specific time series already exists, add it
-				if inMemMetric.Type == toAddMetric.Type && reflect.DeepEqual(inMemMetric.Labels, toAddMetric.Labels) &&
-					inMemResource.Type == toAddResource.Type && reflect.DeepEqual(inMemResource.Labels, toAddResource.Labels) {
+				if inMemMetric.Type == toAddMetric.Type && cmp.Equal(inMemMetric.Labels, toAddMetric.Labels) &&
+					inMemResource.Type == toAddResource.Type && cmp.Equal(inMemResource.Labels, toAddResource.Labels) {
 					// only add this point if the start time of the point to add is greater than the end point latest in this time series
 					if singleTimeSeriesToAdd.Points[0].Interval.StartTime.AsTime().After(singleTimeSeriesInMemory.Points[len(singleTimeSeriesInMemory.Points)-1].Interval.EndTime.AsTime()) {
 						// add the new point to the beginning

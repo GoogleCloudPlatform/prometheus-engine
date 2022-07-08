@@ -407,3 +407,12 @@ func TestListTimeSeriesBadInput(t *testing.T) {
 		})
 	}
 }
+
+// func TestListTimeSeries(t *testing.T) {
+// 	fms := NewFakeMetricServer(200)
+// 	projectName := "projects/1234"
+// 	filter := "metric.type = prometheus_target"
+
+// 	// these are the subtests
+// 	tests := []*createTimeSeriesTest{}
+// }
