@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -124,14 +125,37 @@ func (fms *FakeMetricServer) ListTimeSeries(ctx context.Context, req *monitoring
 		return nil, fmt.Errorf("filter string %q is malformed - only metric.type supported", req.Filter)
 	}
 
-	var matchingTimeSeries []*monitoringpb.TimeSeries
+	reqStartTime := req.Interval.StartTime.AsTime()
+	var reqEndTime time.Time
+	if req.Interval.EndTime != nil {
+		reqEndTime = req.Interval.EndTime.AsTime()
+	}
+
+	var timeSeriesToReturn []*monitoringpb.TimeSeries
 	for _, timeSeries := range fms.timeSeriesByProject[req.Name] {
 		if timeSeries.Metric.Type == filter[1] {
-			matchingTimeSeries = append(matchingTimeSeries, timeSeries)
+			var pointsToReturn []*monitoringpb.Point
+			for _, point := range timeSeries.Points {
+				pointStartTime := point.Interval.StartTime.AsTime()
+				pointEndTime := point.Interval.EndTime.AsTime()
+				if pointStartTime.After(reqStartTime) && (req.Interval.EndTime == nil || pointEndTime.Before(reqEndTime) || pointEndTime.Equal(reqEndTime)) {
+					pointsToReturn = append(pointsToReturn, point)
+				}
+			}
+			newTimeSeries := &monitoringpb.TimeSeries{
+				Metric:     timeSeries.Metric,
+				Resource:   timeSeries.Resource,
+				Metadata:   timeSeries.Metadata,
+				MetricKind: timeSeries.MetricKind,
+				ValueType:  timeSeries.ValueType,
+				Points:     pointsToReturn,
+				Unit:       timeSeries.Unit,
+			}
+			timeSeriesToReturn = append(timeSeriesToReturn, newTimeSeries)
 		}
 	}
 	response := &monitoringpb.ListTimeSeriesResponse{
-		TimeSeries: matchingTimeSeries,
+		TimeSeries: timeSeriesToReturn,
 	}
 	return response, nil
 }
