@@ -115,6 +115,7 @@ func (fms *FakeMetricServer) ListTimeSeries(ctx context.Context, req *monitoring
 	if req.View == monitoringpb.ListTimeSeriesRequest_HEADERS {
 		return nil, errors.New("header view is not supported")
 	}
+
 	// The filter string MUST be in the form:
 	//		metric.type = <string>
 	// return an error if it is not in this form
@@ -122,7 +123,15 @@ func (fms *FakeMetricServer) ListTimeSeries(ctx context.Context, req *monitoring
 	if len(filter) != 2 || strings.ToLower(strings.TrimSpace(filter[0])) != "metric.type" {
 		return nil, fmt.Errorf("filter string %q is malformed - only metric.type supported", req.Filter)
 	}
-	response := &monitoringpb.ListTimeSeriesResponse{}
 
+	var matchingTimeSeries []*monitoringpb.TimeSeries
+	for _, timeSeries := range fms.timeSeriesByProject[req.Name] {
+		if timeSeries.Metric.Type == filter[1] {
+			matchingTimeSeries = append(matchingTimeSeries, timeSeries)
+		}
+	}
+	response := &monitoringpb.ListTimeSeriesResponse{
+		TimeSeries: matchingTimeSeries,
+	}
 	return response, nil
 }
