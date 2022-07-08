@@ -92,7 +92,10 @@ func TestCreateTimeSeriesBadInput(t *testing.T) {
 
 	// these are the subtests
 	tests := []*createTimeSeriesTest{
-		{testName: "TestNil"},
+		{
+			testName:                 "TestNil",
+			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{nil},
+		},
 		{
 			testName: "TestExceedMaxTimeSeriesPerRequest",
 			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
@@ -335,13 +338,61 @@ func TestCreateTimeSeries(t *testing.T) {
 
 func TestListTimeSeriesBadInput(t *testing.T) {
 	fms := NewFakeMetricServer(200)
-	//projectName := "projects/1234"
+	projectName := "projects/1234"
+	filter := "metric.type = prometheus_target"
 
 	// these are the subtests
 	tests := []*listTimeSeriesTest{
 		{
 			testName:               "TestListTimeSeriesNilRequest",
 			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{nil},
+		},
+		{},
+		{
+			testName: "TestListTimeSeriesAggregation",
+			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{
+				{
+					Name:        projectName,
+					Aggregation: &monitoringpb.Aggregation{},
+					Filter:      filter,
+				},
+			},
+		},
+		{
+			testName: "TestListTimeSeriesNoInterval",
+			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{
+				{
+					Name:   projectName,
+					Filter: filter,
+				},
+			},
+		},
+		{
+			testName: "TestListTimeSeriesHeadersView",
+			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{
+				{
+					Name:   projectName,
+					Filter: filter,
+					Interval: &monitoringpb.TimeInterval{
+						StartTime: &timestamppb.Timestamp{Seconds: 1},
+						EndTime:   &timestamppb.Timestamp{Seconds: 2},
+					},
+					View: monitoringpb.ListTimeSeriesRequest_HEADERS,
+				},
+			},
+		},
+		{
+			testName: "TestListTimeSeriesMalformedFilter",
+			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{
+				{
+					Name:   projectName,
+					Filter: "metric.type = prometheus-target AND metric.labels.location = europe",
+					Interval: &monitoringpb.TimeInterval{
+						StartTime: &timestamppb.Timestamp{Seconds: 1},
+						EndTime:   &timestamppb.Timestamp{Seconds: 2},
+					},
+				},
+			},
 		},
 	}
 
