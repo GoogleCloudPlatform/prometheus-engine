@@ -32,6 +32,12 @@ type createTimeSeriesTest struct {
 	pointsIndexToCheck       []int
 }
 
+type listTimeSeriesTest struct {
+	testName                 string
+	createTimeSeriesRequests []*monitoringpb.CreateTimeSeriesRequest
+	listTimeSeriesRequests   []*monitoringpb.ListTimeSeriesRequest
+}
+
 // Returns true if every field in TimeSeries a is deeply equal to TimeSeries b
 // ignoring the Points field. False otherwise.
 func timeSeriesEqualsExceptPoints(a *monitoringpb.TimeSeries, b *monitoringpb.TimeSeries) bool {
@@ -193,7 +199,7 @@ func TestCreateTimeSeries(t *testing.T) {
 		{
 			testName:               "TestCreateTimeSeries-NewProject-NewTimeSeries-NewPoint",
 			timeSeriesIndexToCheck: []int{0, 1, 1},
-			pointsIndexToCheck:     []int{0, 0, 1},
+			pointsIndexToCheck:     []int{0, 0, 0},
 			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
 				{
 					Name: projectName,
