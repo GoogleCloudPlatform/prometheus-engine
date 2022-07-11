@@ -424,43 +424,46 @@ func TestListTimeSeries(t *testing.T) {
 		},
 	}
 
+	resource1 := &monitoredrespb.MonitoredResource{
+		Type: "prometheus_target",
+		Labels: map[string]string{
+			"project_id": "example-project",
+			"location":   "europe",
+			"cluster":    "foo-cluster",
+			"namespace":  "",
+			"job":        "job1",
+			"instance":   "instance1",
+		},
+	}
+
+	resource2 := &monitoredrespb.MonitoredResource{
+		Type: "prometheus_target",
+		Labels: map[string]string{
+			"project_id": "example-project",
+			"location":   "europe",
+			"cluster":    "foo-cluster",
+			"namespace":  "",
+			"job":        "job2",
+			"instance":   "instance1",
+		},
+	}
+
+	metric := &metricpb.Metric{
+		Type:   "prometheus.googleapis.com/metric1/gauge",
+		Labels: map[string]string{"k1": "v1"},
+	}
+
 	timeSeriesJob1 := &monitoringpb.TimeSeries{
-		Resource: &monitoredrespb.MonitoredResource{
-			Type: "prometheus_target",
-			Labels: map[string]string{
-				"project_id": "example-project",
-				"location":   "europe",
-				"cluster":    "foo-cluster",
-				"namespace":  "",
-				"job":        "job1",
-				"instance":   "instance1",
-			},
-		},
-		Metric: &metricpb.Metric{
-			Type:   "prometheus.googleapis.com/metric1/gauge",
-			Labels: map[string]string{"k1": "v1"},
-		},
+		Resource:   resource1,
+		Metric:     metric,
 		MetricKind: metricpb.MetricDescriptor_GAUGE,
 		ValueType:  metricpb.MetricDescriptor_DOUBLE,
 		Points:     []*monitoringpb.Point{point1},
 	}
 
 	timeSeriesJob2 := &monitoringpb.TimeSeries{
-		Resource: &monitoredrespb.MonitoredResource{
-			Type: "prometheus_target",
-			Labels: map[string]string{
-				"project_id": "example-project",
-				"location":   "europe",
-				"cluster":    "foo-cluster",
-				"namespace":  "",
-				"job":        "job2",
-				"instance":   "instance1",
-			},
-		},
-		Metric: &metricpb.Metric{
-			Type:   "prometheus.googleapis.com/metric1/gauge",
-			Labels: map[string]string{"k1": "v1"},
-		},
+		Resource:   resource2,
+		Metric:     metric,
 		MetricKind: metricpb.MetricDescriptor_GAUGE,
 		ValueType:  metricpb.MetricDescriptor_DOUBLE,
 		Points:     []*monitoringpb.Point{point1},
@@ -474,21 +477,8 @@ func TestListTimeSeries(t *testing.T) {
 	fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest)
 
 	timeSeriesJob1Point2 := &monitoringpb.TimeSeries{
-		Resource: &monitoredrespb.MonitoredResource{
-			Type: "prometheus_target",
-			Labels: map[string]string{
-				"project_id": "example-project",
-				"location":   "europe",
-				"cluster":    "foo-cluster",
-				"namespace":  "",
-				"job":        "job1",
-				"instance":   "instance1",
-			},
-		},
-		Metric: &metricpb.Metric{
-			Type:   "prometheus.googleapis.com/metric1/gauge",
-			Labels: map[string]string{"k1": "v1"},
-		},
+		Resource:   resource1,
+		Metric:     metric,
 		MetricKind: metricpb.MetricDescriptor_GAUGE,
 		ValueType:  metricpb.MetricDescriptor_DOUBLE,
 		Points:     []*monitoringpb.Point{point2},
@@ -512,26 +502,19 @@ func TestListTimeSeries(t *testing.T) {
 			expectedListTimeSeriesResponse: &monitoringpb.ListTimeSeriesResponse{
 				TimeSeries: []*monitoringpb.TimeSeries{
 					{
-						Resource: &monitoredrespb.MonitoredResource{
-							Type: "prometheus_target",
-							Labels: map[string]string{
-								"project_id": "example-project",
-								"location":   "europe",
-								"cluster":    "foo-cluster",
-								"namespace":  "",
-								"job":        "job1",
-								"instance":   "instance1",
-							},
-						},
-						Metric: &metricpb.Metric{
-							Type:   "prometheus.googleapis.com/metric1/gauge",
-							Labels: map[string]string{"k1": "v1"},
-						},
+						Resource:   resource1,
+						Metric:     metric,
 						MetricKind: metricpb.MetricDescriptor_GAUGE,
 						ValueType:  metricpb.MetricDescriptor_DOUBLE,
 						Points:     []*monitoringpb.Point{point1},
 					},
-					timeSeriesJob2,
+					{
+						Resource:   resource2,
+						Metric:     metric,
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+						Points:     []*monitoringpb.Point{point1},
+					},
 				},
 			},
 		},
@@ -545,7 +528,24 @@ func TestListTimeSeries(t *testing.T) {
 					EndTime:   &timestamppb.Timestamp{Seconds: 6},
 				},
 			},
-			expectedListTimeSeriesResponse: &monitoringpb.ListTimeSeriesResponse{TimeSeries: []*monitoringpb.TimeSeries{timeSeriesJob1, timeSeriesJob2}},
+			expectedListTimeSeriesResponse: &monitoringpb.ListTimeSeriesResponse{
+				TimeSeries: []*monitoringpb.TimeSeries{
+					{
+						Resource:   resource1,
+						Metric:     metric,
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+						Points:     []*monitoringpb.Point{point2, point1},
+					},
+					{
+						Resource:   resource2,
+						Metric:     metric,
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+						Points:     []*monitoringpb.Point{point1},
+					},
+				},
+			},
 		},
 		{
 			testName: "TestListTimeSeriesTwoSeriesNoPointsInRange",
@@ -560,40 +560,14 @@ func TestListTimeSeries(t *testing.T) {
 			expectedListTimeSeriesResponse: &monitoringpb.ListTimeSeriesResponse{
 				TimeSeries: []*monitoringpb.TimeSeries{
 					{
-						Resource: &monitoredrespb.MonitoredResource{
-							Type: "prometheus_target",
-							Labels: map[string]string{
-								"project_id": "example-project",
-								"location":   "europe",
-								"cluster":    "foo-cluster",
-								"namespace":  "",
-								"job":        "job1",
-								"instance":   "instance1",
-							},
-						},
-						Metric: &metricpb.Metric{
-							Type:   "prometheus.googleapis.com/metric1/gauge",
-							Labels: map[string]string{"k1": "v1"},
-						},
+						Resource:   resource1,
+						Metric:     metric,
 						MetricKind: metricpb.MetricDescriptor_GAUGE,
 						ValueType:  metricpb.MetricDescriptor_DOUBLE,
 					},
 					{
-						Resource: &monitoredrespb.MonitoredResource{
-							Type: "prometheus_target",
-							Labels: map[string]string{
-								"project_id": "example-project",
-								"location":   "europe",
-								"cluster":    "foo-cluster",
-								"namespace":  "",
-								"job":        "job2",
-								"instance":   "instance1",
-							},
-						},
-						Metric: &metricpb.Metric{
-							Type:   "prometheus.googleapis.com/metric1/gauge",
-							Labels: map[string]string{"k1": "v1"},
-						},
+						Resource:   resource2,
+						Metric:     metric,
 						MetricKind: metricpb.MetricDescriptor_GAUGE,
 						ValueType:  metricpb.MetricDescriptor_DOUBLE,
 					},
