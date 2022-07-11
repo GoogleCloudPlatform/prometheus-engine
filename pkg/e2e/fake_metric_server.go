@@ -121,7 +121,9 @@ func (fms *FakeMetricServer) ListTimeSeries(ctx context.Context, req *monitoring
 	//		metric.type = <string>
 	// return an error if it is not in this form
 	filter := strings.Split(req.Filter, "=")
-	if len(filter) != 2 || strings.ToLower(strings.TrimSpace(filter[0])) != "metric.type" {
+	filter[0] = strings.ToLower(strings.TrimSpace(filter[0]))
+	filter[1] = strings.TrimSpace(filter[1])
+	if len(filter) != 2 || filter[0] != "metric.type" {
 		return nil, fmt.Errorf("filter string %q is malformed - only metric.type supported", req.Filter)
 	}
 

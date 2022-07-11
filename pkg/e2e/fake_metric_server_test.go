@@ -36,9 +36,8 @@ type createTimeSeriesTest struct {
 
 type listTimeSeriesTest struct {
 	testName                       string
-	createTimeSeriesRequests       []*monitoringpb.CreateTimeSeriesRequest
-	listTimeSeriesRequests         []*monitoringpb.ListTimeSeriesRequest
-	expectedListTimeSeriesResponse []*monitoringpb.ListTimeSeriesResponse
+	listTimeSeriesRequest          *monitoringpb.ListTimeSeriesRequest
+	expectedListTimeSeriesResponse *monitoringpb.ListTimeSeriesResponse
 }
 
 // Returns true if every field in TimeSeries a is deeply equal to TimeSeries b
@@ -339,57 +338,264 @@ func TestCreateTimeSeries(t *testing.T) {
 func TestListTimeSeriesBadInput(t *testing.T) {
 	fms := NewFakeMetricServer(200)
 	projectName := "projects/1234"
-	filter := "metric.type = prometheus_target"
+	filter := "metric.type = prometheus.googleapis.com/metric1/gauge"
 
 	// these are the subtests
 	tests := []*listTimeSeriesTest{
 		{
-			testName:               "TestListTimeSeriesNilRequest",
-			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{nil},
+			testName:              "TestListTimeSeriesNilRequest",
+			listTimeSeriesRequest: nil,
 		},
 		{},
 		{
 			testName: "TestListTimeSeriesAggregation",
-			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{
-				{
-					Name:        projectName,
-					Aggregation: &monitoringpb.Aggregation{},
-					Filter:      filter,
-				},
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:        projectName,
+				Aggregation: &monitoringpb.Aggregation{},
+				Filter:      filter,
 			},
 		},
 		{
 			testName: "TestListTimeSeriesNoInterval",
-			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{
-				{
-					Name:   projectName,
-					Filter: filter,
-				},
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:   projectName,
+				Filter: filter,
 			},
 		},
 		{
 			testName: "TestListTimeSeriesHeadersView",
-			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{
-				{
-					Name:   projectName,
-					Filter: filter,
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{Seconds: 1},
-						EndTime:   &timestamppb.Timestamp{Seconds: 2},
-					},
-					View: monitoringpb.ListTimeSeriesRequest_HEADERS,
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:   projectName,
+				Filter: filter,
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{Seconds: 1},
+					EndTime:   &timestamppb.Timestamp{Seconds: 2},
 				},
+				View: monitoringpb.ListTimeSeriesRequest_HEADERS,
 			},
 		},
 		{
 			testName: "TestListTimeSeriesMalformedFilter",
-			listTimeSeriesRequests: []*monitoringpb.ListTimeSeriesRequest{
-				{
-					Name:   projectName,
-					Filter: "metric.type = prometheus-target AND metric.labels.location = europe",
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{Seconds: 1},
-						EndTime:   &timestamppb.Timestamp{Seconds: 2},
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+
+				Name:   projectName,
+				Filter: "metric.type = prometheus-target AND metric.labels.location = europe",
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{Seconds: 1},
+					EndTime:   &timestamppb.Timestamp{Seconds: 2},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			response, err := fms.ListTimeSeries(context.TODO(), test.listTimeSeriesRequest)
+			if err == nil && response != nil {
+				t.Errorf("expected an error for %q", test.testName)
+			}
+
+		})
+	}
+}
+
+func TestListTimeSeries(t *testing.T) {
+	fms := NewFakeMetricServer(200)
+	projectName := "projects/1234"
+	filter := "metric.type = prometheus.googleapis.com/metric1/gauge"
+
+	point1 := &monitoringpb.Point{
+		Interval: &monitoringpb.TimeInterval{
+			StartTime: &timestamppb.Timestamp{Seconds: 1},
+			EndTime:   &timestamppb.Timestamp{Seconds: 2},
+		},
+		Value: &monitoringpb.TypedValue{
+			Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+		},
+	}
+
+	point2 := &monitoringpb.Point{
+		Interval: &monitoringpb.TimeInterval{
+			StartTime: &timestamppb.Timestamp{Seconds: 4},
+			EndTime:   &timestamppb.Timestamp{Seconds: 5},
+		},
+		Value: &monitoringpb.TypedValue{
+			Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+		},
+	}
+
+	timeSeriesJob1 := &monitoringpb.TimeSeries{
+		Resource: &monitoredrespb.MonitoredResource{
+			Type: "prometheus_target",
+			Labels: map[string]string{
+				"project_id": "example-project",
+				"location":   "europe",
+				"cluster":    "foo-cluster",
+				"namespace":  "",
+				"job":        "job1",
+				"instance":   "instance1",
+			},
+		},
+		Metric: &metricpb.Metric{
+			Type:   "prometheus.googleapis.com/metric1/gauge",
+			Labels: map[string]string{"k1": "v1"},
+		},
+		MetricKind: metricpb.MetricDescriptor_GAUGE,
+		ValueType:  metricpb.MetricDescriptor_DOUBLE,
+		Points:     []*monitoringpb.Point{point1},
+	}
+
+	timeSeriesJob2 := &monitoringpb.TimeSeries{
+		Resource: &monitoredrespb.MonitoredResource{
+			Type: "prometheus_target",
+			Labels: map[string]string{
+				"project_id": "example-project",
+				"location":   "europe",
+				"cluster":    "foo-cluster",
+				"namespace":  "",
+				"job":        "job2",
+				"instance":   "instance1",
+			},
+		},
+		Metric: &metricpb.Metric{
+			Type:   "prometheus.googleapis.com/metric1/gauge",
+			Labels: map[string]string{"k1": "v1"},
+		},
+		MetricKind: metricpb.MetricDescriptor_GAUGE,
+		ValueType:  metricpb.MetricDescriptor_DOUBLE,
+		Points:     []*monitoringpb.Point{point1},
+	}
+
+	timeSeries := []*monitoringpb.TimeSeries{timeSeriesJob1, timeSeriesJob2}
+	createTimeSeriesRequest := &monitoringpb.CreateTimeSeriesRequest{
+		Name:       projectName,
+		TimeSeries: timeSeries,
+	}
+	fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest)
+
+	timeSeriesJob1Point2 := &monitoringpb.TimeSeries{
+		Resource: &monitoredrespb.MonitoredResource{
+			Type: "prometheus_target",
+			Labels: map[string]string{
+				"project_id": "example-project",
+				"location":   "europe",
+				"cluster":    "foo-cluster",
+				"namespace":  "",
+				"job":        "job1",
+				"instance":   "instance1",
+			},
+		},
+		Metric: &metricpb.Metric{
+			Type:   "prometheus.googleapis.com/metric1/gauge",
+			Labels: map[string]string{"k1": "v1"},
+		},
+		MetricKind: metricpb.MetricDescriptor_GAUGE,
+		ValueType:  metricpb.MetricDescriptor_DOUBLE,
+		Points:     []*monitoringpb.Point{point2},
+	}
+
+	createTimeSeriesRequest.TimeSeries = []*monitoringpb.TimeSeries{timeSeriesJob1Point2}
+	fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest)
+
+	// these are the subtests
+	tests := []*listTimeSeriesTest{
+		{
+			testName: "TestListTimeSeriesTwoSeriesOnePointEach",
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:   projectName,
+				Filter: filter,
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{Seconds: 0},
+					EndTime:   &timestamppb.Timestamp{Seconds: 3},
+				},
+			},
+			expectedListTimeSeriesResponse: &monitoringpb.ListTimeSeriesResponse{
+				TimeSeries: []*monitoringpb.TimeSeries{
+					{
+						Resource: &monitoredrespb.MonitoredResource{
+							Type: "prometheus_target",
+							Labels: map[string]string{
+								"project_id": "example-project",
+								"location":   "europe",
+								"cluster":    "foo-cluster",
+								"namespace":  "",
+								"job":        "job1",
+								"instance":   "instance1",
+							},
+						},
+						Metric: &metricpb.Metric{
+							Type:   "prometheus.googleapis.com/metric1/gauge",
+							Labels: map[string]string{"k1": "v1"},
+						},
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+						Points:     []*monitoringpb.Point{point1},
+					},
+					timeSeriesJob2,
+				},
+			},
+		},
+		{
+			testName: "TestListTimeSeriesTwoSeriesAllPointsInRange",
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:   projectName,
+				Filter: filter,
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{Seconds: 0},
+					EndTime:   &timestamppb.Timestamp{Seconds: 6},
+				},
+			},
+			expectedListTimeSeriesResponse: &monitoringpb.ListTimeSeriesResponse{TimeSeries: []*monitoringpb.TimeSeries{timeSeriesJob1, timeSeriesJob2}},
+		},
+		{
+			testName: "TestListTimeSeriesTwoSeriesNoPointsInRange",
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:   projectName,
+				Filter: filter,
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{Seconds: 10},
+					EndTime:   &timestamppb.Timestamp{Seconds: 11},
+				},
+			},
+			expectedListTimeSeriesResponse: &monitoringpb.ListTimeSeriesResponse{
+				TimeSeries: []*monitoringpb.TimeSeries{
+					{
+						Resource: &monitoredrespb.MonitoredResource{
+							Type: "prometheus_target",
+							Labels: map[string]string{
+								"project_id": "example-project",
+								"location":   "europe",
+								"cluster":    "foo-cluster",
+								"namespace":  "",
+								"job":        "job1",
+								"instance":   "instance1",
+							},
+						},
+						Metric: &metricpb.Metric{
+							Type:   "prometheus.googleapis.com/metric1/gauge",
+							Labels: map[string]string{"k1": "v1"},
+						},
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+					},
+					{
+						Resource: &monitoredrespb.MonitoredResource{
+							Type: "prometheus_target",
+							Labels: map[string]string{
+								"project_id": "example-project",
+								"location":   "europe",
+								"cluster":    "foo-cluster",
+								"namespace":  "",
+								"job":        "job2",
+								"instance":   "instance1",
+							},
+						},
+						Metric: &metricpb.Metric{
+							Type:   "prometheus.googleapis.com/metric1/gauge",
+							Labels: map[string]string{"k1": "v1"},
+						},
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
 					},
 				},
 			},
@@ -398,21 +604,14 @@ func TestListTimeSeriesBadInput(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			for _, request := range test.listTimeSeriesRequests {
-				response, err := fms.ListTimeSeries(context.TODO(), request)
-				if err == nil && response != nil {
-					t.Errorf("expected an error for %q", test.testName)
-				}
+
+			response, err := fms.ListTimeSeries(context.TODO(), test.listTimeSeriesRequest)
+			if err != nil {
+				t.Errorf("did not expect an error for %q", test.testName)
+			}
+			if !reflect.DeepEqual(response, test.expectedListTimeSeriesResponse) {
+				t.Errorf("expected %+v and got %+v", test.expectedListTimeSeriesResponse, response)
 			}
 		})
 	}
 }
-
-// func TestListTimeSeries(t *testing.T) {
-// 	fms := NewFakeMetricServer(200)
-// 	projectName := "projects/1234"
-// 	filter := "metric.type = prometheus_target"
-
-// 	// these are the subtests
-// 	tests := []*createTimeSeriesTest{}
-// }
