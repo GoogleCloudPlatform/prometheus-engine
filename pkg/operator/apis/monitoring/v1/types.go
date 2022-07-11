@@ -103,7 +103,12 @@ type CollectionSpec struct {
 	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
 	// Configuration to scrape the metric endpoints of the Kubelets.
 	KubeletScraping *KubeletScraping `json:"kubeletScraping,omitempty"`
+	// Compression enables compression of metrics collection data
+	Compression CompressionType `json:"compression,omitempty"`
 }
+
+// +kubebuilder:validation:Enum=none;gzip
+type CompressionType string
 
 // KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
 type KubeletScraping struct {

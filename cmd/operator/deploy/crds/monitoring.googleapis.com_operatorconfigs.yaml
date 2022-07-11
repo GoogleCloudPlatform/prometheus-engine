@@ -40,6 +40,13 @@ spec:
           collection:
             description: Collection specifies how the operator configures collection.
             properties:
+              compression:
+                description: Compression enables compression of metrics collection
+                  data
+                enum:
+                - none
+                - gzip
+                type: string
               credentials:
                 description: A reference to GCP service account credentials with which
                   Prometheus collectors are run. It needs to have metric write permissions
