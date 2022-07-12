@@ -730,7 +730,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   namespace: gmp-public
-  name: gmp-alertmanager
+  name: alertmanager
 data:
   config.yaml: |
     receivers:
@@ -742,10 +742,10 @@ apiVersion: v1
 kind: Service
 metadata:
   namespace: gmp-public
-  name: gmp-alertmanager
+  name: alertmanager
 spec:
   selector:
-    app.kubernetes.io/name: gmp-alertmanager
+    app.kubernetes.io/name: alertmanager
   clusterIP: None
   ports:
   - port: 9093
@@ -756,18 +756,18 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   namespace: gmp-public
-  name: gmp-alertmanager
+  name: alertmanager
 spec:
   selector:
     matchLabels:
       app: managed-prometheus-alertmanager
-      app.kubernetes.io/name: gmp-alertmanager
-  serviceName: gmp-alertmanager
+      app.kubernetes.io/name: alertmanager
+  serviceName: alertmanager
   replicas: 1
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: gmp-alertmanager
+        app.kubernetes.io/name: alertmanager
         app: managed-prometheus-alertmanager
       annotations:
         components.gke.io/component-name: managed_prometheus
@@ -855,6 +855,6 @@ spec:
       volumes:
       - name: config
         configMap:
-          name: gmp-alertmanager
+          name: alertmanager
       - name: alertmanager-data
         emptyDir: {}

@@ -61,7 +61,7 @@ AlertingSpec defines alerting configuration.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | alertmanagers | Alertmanagers contains endpoint configuration for designated Alertmanagers. | [][AlertmanagerEndpoints](#alertmanagerendpoints) | false |
-| enableDefaultAlertManager | EnableDefaultAlertManager configures the rule-evaluator to point to a default instance of AlertManager installed by the operator. | bool | false |
+| enableManagedAlertManager | EnableManagedAlertManager configures the rule-evaluator to point to a default instance of AlertManager installed by the operator. | bool | false |
 
 [Back to TOC](#table-of-contents)
 
