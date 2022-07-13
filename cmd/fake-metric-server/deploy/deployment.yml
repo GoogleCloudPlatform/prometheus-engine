@@ -12,14 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: v1
-kind: Service
+apiVersion: apps/v1
+kind: Deployment
 metadata:
+  namespace: default 
   name: fake-metric-server
-spec:
-  selector:
+  labels:
     app: fake-metric-server
-  ports:
-    - protocol: TCP
-      port: 8080
-      targetPort: 9376
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fake-metric-server
+  template:
+    metadata:
+      labels:
+        app: fake-metric-server
+    spec:
+      containers:
+      - name: fake-metric-server 
+        image: gmp/fake-metric-server
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
