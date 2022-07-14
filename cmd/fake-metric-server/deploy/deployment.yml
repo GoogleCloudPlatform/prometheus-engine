@@ -34,4 +34,4 @@ spec:
         image: gmp/fake-metric-server
         imagePullPolicy: Never
         ports:
-        - containerPort: 80
+        - containerPort: 8080
