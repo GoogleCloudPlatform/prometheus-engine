@@ -5,24 +5,41 @@ Cloud Prometheus Engine on Kubernetes.
 
 ## Run
 
-Create or update cluster resources required by the operator.
+Deploy all CRDs:
 
 ```bash
 kubectl apply -f deploy/crds/
-kubectl apply -f deploy/operator/
 ```
 
-Run the operator locally (requires active kubectl context to have all permissions
-the operator needs):
+Deploy all of the operator required configurations besides the operator
+deployment, otherwise you will have an operator deployed in addition to your
+local one.
+
+```bash
+kubectl apply -f deploy/operator/00-namespace.yaml
+kubectl apply -f deploy/operator/01-priority-class.yaml
+kubectl apply -f deploy/operator/02-service-account.yaml
+kubectl apply -f deploy/operator/03-role.yaml
+kubectl apply -f deploy/operator/04-rolebinding.yaml
+```
+
+Run the operator locally (requires active kubectl context to have all
+permissions the operator needs):
 
 ```bash
 go run main.go
 ```
 
-Setup the builtin monitoring stack to collect cluster-level metrics::
+Finally because the webhooks are configured to the operator apply the rest of
+the configurations in a separate terminal session:
 
 ```bash
-kubectl apply -f deploy/ --recursive
+kubectl apply -f deploy/operator/06-service.yaml
+kubectl apply -f deploy/operator/07-operatorconfig.yaml
+kubectl apply -f deploy/operator/08-validatingwebhookconfiguration.yaml
+kubectl apply -f deploy/operator/09-mutatingwebhookconfiguration.yaml
+kubectl apply -f deploy/operator/10-collector.yaml
+kubectl apply -f deploy/operator/11-rule-evaluator.yaml
 ```
 
 The operator updates the configuration of all collectors after which they start
