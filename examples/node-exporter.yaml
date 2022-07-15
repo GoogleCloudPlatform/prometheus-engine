@@ -15,7 +15,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  namespace: gmp-system
+  namespace: monitoring
   name: node-exporter
   labels:
     app.kubernetes.io/name: node-exporter
@@ -83,7 +83,7 @@ spec:
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
-  namespace: gmp-system
+  namespace: monitoring
   name: node-exporter
   labels:
     app.kubernetes.io/name: node-exporter
