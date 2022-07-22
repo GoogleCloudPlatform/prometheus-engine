@@ -47,6 +47,9 @@ import (
 const projectIDVar = "PROJECT_ID"
 
 var (
+	authUsernameEnv = "AUTH_USERNAME"
+	authPasswordEnv = "AUTH_PASSWORD"
+
 	projectID = flag.String("query.project-id", "",
 		"Project ID of the Google Cloud Monitoring workspace project to query.")
 
@@ -160,6 +163,17 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 	client := http.Client{Transport: transport}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		username := os.Getenv(authUsernameEnv)
+		password := os.Getenv(authPasswordEnv)
+		if len(username) > 0 && len(password) > 0 {
+			level.Info(logger).Log("msg", "AUTH_USERNAME and AUTH_PASSWORD are set, handling request with basic auth")
+			reqUser, reqPass, ok := req.BasicAuth()
+			if !ok || reqUser != username || reqPass != password {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+		}
+
 		u := *target
 		u.Path = path.Join(u.Path, req.URL.Path)
 
