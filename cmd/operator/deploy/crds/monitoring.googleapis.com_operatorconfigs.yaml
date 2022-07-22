@@ -304,6 +304,11 @@ spec:
                       - port
                       type: object
                     type: array
+                  enableManagedAlertManager:
+                    description: EnableManagedAlertManager configures the rule-evaluator
+                      to point to a default instance of AlertManager installed by
+                      the operator.
+                    type: boolean
                 type: object
               credentials:
                 description: A reference to GCP service account credentials with which

@@ -71,6 +71,7 @@ rules:
   resources:
   - daemonsets
   - deployments
+  - statefulsets
   verbs: ["get", "list", "watch"]
 # Permission to inject CA bundles into webhook configs of fixed name.
 - apiGroups: ["admissionregistration.k8s.io"]
