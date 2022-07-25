@@ -18,7 +18,7 @@ metadata:
   labels:
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/version: 2.1.0
-  namespace: monitoring
+  namespace: gmp-public
   name: kube-state-metrics
 spec:
   replicas: 1
@@ -92,7 +92,7 @@ metadata:
   labels:
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/version: 2.1.0
-  namespace: monitoring 
+  namespace: gmp-public
   name: kube-state-metrics
 spec:
   clusterIP: None
@@ -109,7 +109,7 @@ spec:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  namespace: monitoring
+  namespace: gmp-public
   name: kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
@@ -117,22 +117,22 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: monitoring:kube-state-metrics
+  name: gmp-public:kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: monitoring:kube-state-metrics
+  name: gmp-public:kube-state-metrics
 subjects:
 - kind: ServiceAccount
-  namespace: monitoring
+  namespace: gmp-public
   name: kube-state-metrics
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: monitoring:kube-state-metrics
+  name: gmp-public:kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
 rules:
@@ -265,7 +265,7 @@ apiVersion: autoscaling/v2beta2
 kind: HorizontalPodAutoscaler
 metadata:
   name: kube-state-metrics
-  namespace: monitoring
+  namespace: gmp-public
 spec:
   maxReplicas: 10
   minReplicas: 1
@@ -302,13 +302,17 @@ spec:
   endpoints:
   - port: metrics
     interval: 60s
+    metricRelabeling:
+    - action: keep
+      regex: kube_(daemonset|deployment|pod|namespace|node|statefulset)_.+
+      sourceLabels: [__name__]
   targetLabels:
     metadata: [] # explicitly empty so the metric labels are respected
 ---
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
-  namespace: monitoring
+  namespace: gmp-public
   name: kube-state-metrics
 spec:
   selector:
