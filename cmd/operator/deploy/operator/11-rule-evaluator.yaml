@@ -36,6 +36,13 @@ spec:
       nodeSelector:
         kubernetes.io/arch: amd64
         kubernetes.io/os: linux
+      initContainers:
+      - name: config-init
+        image: gke.gcr.io/gke-distroless/bash
+        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        volumeMounts:
+        - name: config-out
+          mountPath: /prometheus/config_out
       containers:
       - name: evaluator
         image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.1-gke.0
