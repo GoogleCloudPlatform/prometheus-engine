@@ -498,7 +498,7 @@ func (e *Exporter) Run(ctx context.Context) error {
 	// user configuration or, even worse, runtime changes to the shard number.
 
 	curBatch := newBatch(e.logger, e.opts.BatchSize)
-	e.metricClient
+
 	// Send the currently accumulated batch to GCM asynchronously.
 	send := func() {
 		// Send the batch and once it completed, trigger next to process remaining data in the
