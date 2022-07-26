@@ -130,6 +130,9 @@ type ExportFilters struct {
 type AlertingSpec struct {
 	// Alertmanagers contains endpoint configuration for designated Alertmanagers.
 	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers,omitempty"`
+	// EnableManagedAlertManager configures the rule-evaluator to point to a
+	// default instance of AlertManager installed by the operator.
+	EnableManagedAlertManager bool `json:"enableManagedAlertManager,omitempty"`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object

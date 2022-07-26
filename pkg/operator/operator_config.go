@@ -38,6 +38,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -349,7 +350,25 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 		configs    promconfig.AlertmanagerConfigs
 		secretData = make(map[string][]byte)
 	)
-	for _, am := range spec.Alertmanagers {
+
+	alertManagers := spec.Alertmanagers
+	if spec.EnableManagedAlertManager {
+		amNamespacedName := types.NamespacedName{
+			Namespace: r.opts.PublicNamespace,
+			Name:      "gmp-alertmanager",
+		}
+
+		// if the default AlertManager exists, append it to the list of spec.Alertmanagers
+		if resourceErr := r.client.Get(ctx, amNamespacedName, &appsv1.StatefulSet{}); resourceErr == nil {
+			alertManagers = append(alertManagers, monitoringv1.AlertmanagerEndpoints{
+				Name:      amNamespacedName.Name,
+				Namespace: amNamespacedName.Namespace,
+				Port:      intstr.FromInt(9093),
+			})
+		}
+	}
+
+	for _, am := range alertManagers {
 		// The upstream struct is lacking the omitempty field on the API version. Thus it looks
 		// like we explicitly set it to empty (invalid) even if left empty after marshalling.
 		// Thus we initialize the config with defaulting. Similar applies for the embedded HTTPConfig.

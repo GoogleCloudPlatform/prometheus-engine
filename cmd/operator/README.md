@@ -8,6 +8,7 @@ Cloud Prometheus Engine on Kubernetes.
 Create or update cluster resources required by the operator.
 
 ```bash
+kubectl apply -f deploy/crds/
 kubectl apply -f deploy/operator/
 ```
 
