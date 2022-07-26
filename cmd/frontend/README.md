@@ -33,3 +33,10 @@ go run main.go \
 ```
 
 Access the frontend UI in your browser at http://localhost:19090.
+
+## Authentication
+
+The frontend supports incoming authentication using basic auth by providing a
+username and password on the incoming request. These are validated against the
+`AUTH_USERNAME` and `AUTH_PASSWORD` environment variables, which must be set
+on the frontend pod.
