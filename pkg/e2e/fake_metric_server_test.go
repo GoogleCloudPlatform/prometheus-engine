@@ -335,6 +335,82 @@ func TestCreateTimeSeries(t *testing.T) {
 	}
 }
 
+func TestCreateTimeSeriesTwoSeries(t *testing.T) {
+	fms := NewFakeMetricServer(200)
+	projectName := "projects/1234"
+
+	request := &monitoringpb.CreateTimeSeriesRequest{
+		Name: projectName,
+		TimeSeries: []*monitoringpb.TimeSeries{
+			{
+				Resource: &monitoredrespb.MonitoredResource{
+					Type: "prometheus_target",
+					Labels: map[string]string{
+						"project_id": "example-project",
+						"location":   "europe",
+						"cluster":    "foo-cluster",
+						"namespace":  "",
+						"job":        "job1",
+						"instance":   "instance1",
+					},
+				},
+				Metric: &metricpb.Metric{
+					Type:   "prometheus.googleapis.com/metric1/gauge",
+					Labels: map[string]string{"k1": "v1"},
+				},
+				MetricKind: metricpb.MetricDescriptor_GAUGE,
+				ValueType:  metricpb.MetricDescriptor_DOUBLE,
+				Points: []*monitoringpb.Point{{
+					Interval: &monitoringpb.TimeInterval{
+						StartTime: &timestamppb.Timestamp{Seconds: 1},
+						EndTime:   &timestamppb.Timestamp{Seconds: 2},
+					},
+					Value: &monitoringpb.TypedValue{
+						Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+					},
+				}},
+			},
+			{
+				Resource: &monitoredrespb.MonitoredResource{
+					Type: "prometheus_target",
+					Labels: map[string]string{
+						"project_id": "example-project",
+						"location":   "europe1",
+						"cluster":    "foo-cluster",
+						"namespace":  "",
+						"job":        "job1",
+						"instance":   "instance1",
+					},
+				},
+				Metric: &metricpb.Metric{
+					Type:   "prometheus.googleapis.com/metric1/gauge",
+					Labels: map[string]string{"k1": "v1"},
+				},
+				MetricKind: metricpb.MetricDescriptor_GAUGE,
+				ValueType:  metricpb.MetricDescriptor_DOUBLE,
+				Points: []*monitoringpb.Point{{
+					Interval: &monitoringpb.TimeInterval{
+						StartTime: &timestamppb.Timestamp{Seconds: 1},
+						EndTime:   &timestamppb.Timestamp{Seconds: 2},
+					},
+					Value: &monitoringpb.TypedValue{
+						Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+					},
+				}},
+			},
+		},
+	}
+	response, err := fms.CreateTimeSeries(context.TODO(), request)
+	if err != nil || response == nil {
+		t.Errorf("did not expect an error when running TestCreateTimeSeriesTwoSeries")
+	}
+	for i := range request.TimeSeries {
+		if !reflect.DeepEqual(request.TimeSeries[i], fms.timeSeriesByProject[projectName][i]) {
+			t.Errorf("expected %+v and got %+v", request.TimeSeries[i], fms.timeSeriesByProject[projectName][i])
+		}
+	}
+}
+
 func TestListTimeSeriesBadInput(t *testing.T) {
 	fms := NewFakeMetricServer(200)
 	projectName := "projects/1234"
@@ -394,7 +470,6 @@ func TestListTimeSeriesBadInput(t *testing.T) {
 			if err == nil && response != nil {
 				t.Errorf("expected an error for %q", test.testName)
 			}
-
 		})
 	}
 }

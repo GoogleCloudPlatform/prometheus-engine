@@ -63,7 +63,7 @@ func (fms *FakeMetricServer) CreateTimeSeries(ctx context.Context, req *monitori
 	for _, singleTimeSeriesToAdd := range timeSeriesToProcess {
 		// new project with a timeseries
 		if fms.timeSeriesByProject[req.Name] == nil {
-			fms.timeSeriesByProject[req.Name] = req.TimeSeries
+			fms.timeSeriesByProject[req.Name] = []*monitoringpb.TimeSeries{singleTimeSeriesToAdd}
 		} else { // project already exists
 			for i, singleTimeSeriesInMemory := range fms.timeSeriesByProject[req.Name] {
 				inMemMetric := singleTimeSeriesInMemory.Metric
