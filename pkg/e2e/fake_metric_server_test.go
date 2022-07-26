@@ -201,103 +201,171 @@ func TestCreateTimeSeries(t *testing.T) {
 		// This test adds a new time series with a new project id to the fake metric server.
 		// It then adds a new time series to the same project.
 		// It then adds a new point to the second time series.
+		// {
+		// 	testName:               "TestCreateTimeSeries-NewProject-NewTimeSeries-NewPoint",
+		// 	timeSeriesIndexToCheck: []int{0, 1, 1},
+		// 	pointsIndexToCheck:     []int{0, 0, 0},
+		// 	createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
+		// 		{
+		// 			Name: projectName,
+		// 			TimeSeries: []*monitoringpb.TimeSeries{{
+		// 				Resource: &monitoredrespb.MonitoredResource{
+		// 					Type: "prometheus_target",
+		// 					Labels: map[string]string{
+		// 						"project_id": "example-project",
+		// 						"location":   "europe",
+		// 						"cluster":    "foo-cluster",
+		// 						"namespace":  "",
+		// 						"job":        "job1",
+		// 						"instance":   "instance1",
+		// 					},
+		// 				},
+		// 				Metric: &metricpb.Metric{
+		// 					Type:   "prometheus.googleapis.com/metric1/gauge",
+		// 					Labels: map[string]string{"k1": "v1"},
+		// 				},
+		// 				MetricKind: metricpb.MetricDescriptor_GAUGE,
+		// 				ValueType:  metricpb.MetricDescriptor_DOUBLE,
+		// 				Points: []*monitoringpb.Point{{
+		// 					Interval: &monitoringpb.TimeInterval{
+		// 						StartTime: &timestamppb.Timestamp{Seconds: 1},
+		// 						EndTime:   &timestamppb.Timestamp{Seconds: 2},
+		// 					},
+		// 					Value: &monitoringpb.TypedValue{
+		// 						Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+		// 					},
+		// 				}},
+		// 			}},
+		// 		},
+		// 		{
+		// 			Name: projectName,
+		// 			TimeSeries: []*monitoringpb.TimeSeries{{
+		// 				Resource: &monitoredrespb.MonitoredResource{
+		// 					Type: "prometheus_target",
+		// 					Labels: map[string]string{
+		// 						"project_id": "example-project",
+		// 						"location":   "europe",
+		// 						"cluster":    "foo-cluster",
+		// 						"namespace":  "",
+		// 						"job":        "job2",
+		// 						"instance":   "instance1",
+		// 					},
+		// 				},
+		// 				Metric: &metricpb.Metric{
+		// 					Type:   "prometheus.googleapis.com/metric1/gauge",
+		// 					Labels: map[string]string{"k1": "v1"},
+		// 				},
+		// 				MetricKind: metricpb.MetricDescriptor_GAUGE,
+		// 				ValueType:  metricpb.MetricDescriptor_DOUBLE,
+		// 				Points: []*monitoringpb.Point{{
+		// 					Interval: &monitoringpb.TimeInterval{
+		// 						StartTime: &timestamppb.Timestamp{Seconds: 1},
+		// 						EndTime:   &timestamppb.Timestamp{Seconds: 2},
+		// 					},
+		// 					Value: &monitoringpb.TypedValue{
+		// 						Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+		// 					},
+		// 				}},
+		// 			}},
+		// 		},
+		// 		{
+		// 			Name: projectName,
+		// 			TimeSeries: []*monitoringpb.TimeSeries{{
+		// 				Resource: &monitoredrespb.MonitoredResource{
+		// 					Type: "prometheus_target",
+		// 					Labels: map[string]string{
+		// 						"project_id": "example-project",
+		// 						"location":   "europe",
+		// 						"cluster":    "foo-cluster",
+		// 						"namespace":  "",
+		// 						"job":        "job2",
+		// 						"instance":   "instance1",
+		// 					},
+		// 				},
+		// 				Metric: &metricpb.Metric{
+		// 					Type:   "prometheus.googleapis.com/metric1/gauge",
+		// 					Labels: map[string]string{"k1": "v1"},
+		// 				},
+		// 				MetricKind: metricpb.MetricDescriptor_GAUGE,
+		// 				ValueType:  metricpb.MetricDescriptor_DOUBLE,
+		// 				Points: []*monitoringpb.Point{{
+		// 					Interval: &monitoringpb.TimeInterval{
+		// 						StartTime: &timestamppb.Timestamp{Seconds: 3},
+		// 						EndTime:   &timestamppb.Timestamp{Seconds: 4},
+		// 					},
+		// 					Value: &monitoringpb.TypedValue{
+		// 						Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+		// 					},
+		// 				}},
+		// 			}},
+		// 		},
+		// 	},
+		// },
 		{
-			testName:               "TestCreateTimeSeries-NewProject-NewTimeSeries-NewPoint",
+			testName:               "TestCreateTimeSeries-TwoSeries",
 			timeSeriesIndexToCheck: []int{0, 1, 1},
 			pointsIndexToCheck:     []int{0, 0, 0},
 			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
 				{
 					Name: projectName,
-					TimeSeries: []*monitoringpb.TimeSeries{{
-						Resource: &monitoredrespb.MonitoredResource{
-							Type: "prometheus_target",
-							Labels: map[string]string{
-								"project_id": "example-project",
-								"location":   "europe",
-								"cluster":    "foo-cluster",
-								"namespace":  "",
-								"job":        "job1",
-								"instance":   "instance1",
+					TimeSeries: []*monitoringpb.TimeSeries{
+						{
+							Resource: &monitoredrespb.MonitoredResource{
+								Type: "prometheus_target",
+								Labels: map[string]string{
+									"project_id": "example-project",
+									"location":   "europe",
+									"cluster":    "foo-cluster",
+									"namespace":  "",
+									"job":        "job1",
+									"instance":   "instance1",
+								},
 							},
+							Metric: &metricpb.Metric{
+								Type:   "prometheus.googleapis.com/metric1/gauge",
+								Labels: map[string]string{"k1": "v1"},
+							},
+							MetricKind: metricpb.MetricDescriptor_GAUGE,
+							ValueType:  metricpb.MetricDescriptor_DOUBLE,
+							Points: []*monitoringpb.Point{{
+								Interval: &monitoringpb.TimeInterval{
+									StartTime: &timestamppb.Timestamp{Seconds: 1},
+									EndTime:   &timestamppb.Timestamp{Seconds: 2},
+								},
+								Value: &monitoringpb.TypedValue{
+									Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+								},
+							}},
 						},
-						Metric: &metricpb.Metric{
-							Type:   "prometheus.googleapis.com/metric1/gauge",
-							Labels: map[string]string{"k1": "v1"},
+						{
+							Resource: &monitoredrespb.MonitoredResource{
+								Type: "prometheus_target",
+								Labels: map[string]string{
+									"project_id": "example-project",
+									"location":   "europe1",
+									"cluster":    "foo-cluster",
+									"namespace":  "",
+									"job":        "job1",
+									"instance":   "instance1",
+								},
+							},
+							Metric: &metricpb.Metric{
+								Type:   "prometheus.googleapis.com/metric1/gauge",
+								Labels: map[string]string{"k1": "v1"},
+							},
+							MetricKind: metricpb.MetricDescriptor_GAUGE,
+							ValueType:  metricpb.MetricDescriptor_DOUBLE,
+							Points: []*monitoringpb.Point{{
+								Interval: &monitoringpb.TimeInterval{
+									StartTime: &timestamppb.Timestamp{Seconds: 1},
+									EndTime:   &timestamppb.Timestamp{Seconds: 2},
+								},
+								Value: &monitoringpb.TypedValue{
+									Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+								},
+							}},
 						},
-						MetricKind: metricpb.MetricDescriptor_GAUGE,
-						ValueType:  metricpb.MetricDescriptor_DOUBLE,
-						Points: []*monitoringpb.Point{{
-							Interval: &monitoringpb.TimeInterval{
-								StartTime: &timestamppb.Timestamp{Seconds: 1},
-								EndTime:   &timestamppb.Timestamp{Seconds: 2},
-							},
-							Value: &monitoringpb.TypedValue{
-								Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
-							},
-						}},
-					}},
-				},
-				{
-					Name: projectName,
-					TimeSeries: []*monitoringpb.TimeSeries{{
-						Resource: &monitoredrespb.MonitoredResource{
-							Type: "prometheus_target",
-							Labels: map[string]string{
-								"project_id": "example-project",
-								"location":   "europe",
-								"cluster":    "foo-cluster",
-								"namespace":  "",
-								"job":        "job2",
-								"instance":   "instance1",
-							},
-						},
-						Metric: &metricpb.Metric{
-							Type:   "prometheus.googleapis.com/metric1/gauge",
-							Labels: map[string]string{"k1": "v1"},
-						},
-						MetricKind: metricpb.MetricDescriptor_GAUGE,
-						ValueType:  metricpb.MetricDescriptor_DOUBLE,
-						Points: []*monitoringpb.Point{{
-							Interval: &monitoringpb.TimeInterval{
-								StartTime: &timestamppb.Timestamp{Seconds: 1},
-								EndTime:   &timestamppb.Timestamp{Seconds: 2},
-							},
-							Value: &monitoringpb.TypedValue{
-								Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
-							},
-						}},
-					}},
-				},
-				{
-					Name: projectName,
-					TimeSeries: []*monitoringpb.TimeSeries{{
-						Resource: &monitoredrespb.MonitoredResource{
-							Type: "prometheus_target",
-							Labels: map[string]string{
-								"project_id": "example-project",
-								"location":   "europe",
-								"cluster":    "foo-cluster",
-								"namespace":  "",
-								"job":        "job2",
-								"instance":   "instance1",
-							},
-						},
-						Metric: &metricpb.Metric{
-							Type:   "prometheus.googleapis.com/metric1/gauge",
-							Labels: map[string]string{"k1": "v1"},
-						},
-						MetricKind: metricpb.MetricDescriptor_GAUGE,
-						ValueType:  metricpb.MetricDescriptor_DOUBLE,
-						Points: []*monitoringpb.Point{{
-							Interval: &monitoringpb.TimeInterval{
-								StartTime: &timestamppb.Timestamp{Seconds: 3},
-								EndTime:   &timestamppb.Timestamp{Seconds: 4},
-							},
-							Value: &monitoringpb.TypedValue{
-								Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
-							},
-						}},
-					}},
+					},
 				},
 			},
 		},

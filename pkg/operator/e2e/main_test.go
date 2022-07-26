@@ -33,7 +33,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
 	gcmpb "google.golang.org/genproto/googleapis/monitoring/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -61,6 +64,7 @@ var (
 	location          string
 	skipGCM           bool
 	gcpServiceAccount string
+	conn              *grpc.ClientConn
 )
 
 func TestMain(m *testing.M) {
@@ -507,7 +511,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 				},
 			},
 			KubeletScraping: &monitoringv1.KubeletScraping{
-				Interval: "5s",
+				Interval: "500s",
 			},
 		},
 	}
@@ -611,8 +615,8 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 				},
 			},
 			Endpoints: []monitoringv1.ScrapeEndpoint{
-				{Port: intstr.FromString("prom-metrics"), Interval: "5s"},
-				{Port: intstr.FromString("cfg-rel-metrics"), Interval: "5s"},
+				{Port: intstr.FromString("prom-metrics"), Interval: "500s"},
+				{Port: intstr.FromString("cfg-rel-metrics"), Interval: "500s"},
 			},
 		},
 	}
@@ -673,8 +677,8 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 				},
 			},
 			Endpoints: []monitoringv1.ScrapeEndpoint{
-				{Port: intstr.FromString("prom-metrics"), Interval: "5s"},
-				{Port: intstr.FromString("cfg-rel-metrics"), Interval: "5s"},
+				{Port: intstr.FromString("prom-metrics"), Interval: "500s"},
+				{Port: intstr.FromString("cfg-rel-metrics"), Interval: "500s"},
 			},
 		},
 	}
@@ -737,7 +741,8 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 	}
 
 	// Wait for metric data to show up in Cloud Monitoring.
-	metricClient, err := gcm.NewMetricClient(ctx)
+	conn, _ = grpc.Dial("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	metricClient, err := gcm.NewMetricClient(ctx, option.WithGRPCConn(conn))
 	if err != nil {
 		t.Fatalf("Create GCM metric client: %s", err)
 	}
@@ -765,6 +770,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 
 			err = wait.PollImmediateUntil(3*time.Second, func() (bool, error) {
 				now := time.Now()
+				t.Logf("Poll upsdsdsdsdsdsdsdsdsdsdsd metric for pod %q and port %q", pod.Name, port)
 
 				// Validate the majority of labels being set correctly by filtering along them.
 				iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
@@ -829,7 +835,8 @@ func testCollectorScrapeKubelet(ctx context.Context, t *testContext) {
 	}
 
 	// Wait for metric data to show up in Cloud Monitoring.
-	metricClient, err := gcm.NewMetricClient(ctx)
+	conn, _ = grpc.Dial("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	metricClient, err := gcm.NewMetricClient(ctx, option.WithGRPCConn(conn))
 	if err != nil {
 		t.Fatalf("Create GCM metric client: %s", err)
 	}
@@ -1066,7 +1073,8 @@ func testValidateRuleEvaluationMetrics(ctx context.Context, t *testContext) {
 	}
 
 	// Wait for metric data to show up in Cloud Monitoring.
-	metricClient, err := gcm.NewMetricClient(ctx)
+	conn, _ = grpc.Dial("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	metricClient, err := gcm.NewMetricClient(ctx, option.WithGRPCConn(conn))
 	if err != nil {
 		t.Fatalf("Create GCM metric client: %s", err)
 	}

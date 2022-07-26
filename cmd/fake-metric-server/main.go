@@ -16,6 +16,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net"
 
@@ -27,16 +28,16 @@ import (
 var (
 	maxTimeSeriesPerRequest = flag.Int("max-time-series-per-request", 200,
 		"The maximum amount of time series we can send per CreateTimeSeries. Default is 200.")
-	port = flag.String("port", ":8080", "The port to listen for requests on.")
+	port = flag.Int("port", 5678, "The port to listen for requests on.")
 )
 
 func main() {
 	flag.Parse()
-	lis, err := net.Listen("tcp", *port)
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	log.Println("Listening on ", *port)
+	log.Println("Listening on " + fmt.Sprintf("0.0.0.0:%d", *port))
 	serv := grpc.NewServer()
 	monitoringpb.RegisterMetricServiceServer(serv, e2e.NewFakeMetricServer(*maxTimeSeriesPerRequest))
 	if err := serv.Serve(lis); err != nil {

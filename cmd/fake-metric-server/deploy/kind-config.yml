@@ -12,26 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  namespace: gmp-system
-  name: fake-metric-server
-  labels:
-    app: fake-metric-server
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: fake-metric-server
-  template:
-    metadata:
-      labels:
-        app: fake-metric-server
-    spec:
-      containers:
-      - name: fake-metric-server 
-        image: gmp/fake-metric-server
-        imagePullPolicy: Never
-        ports:
-        - containerPort: 80
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
