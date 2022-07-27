@@ -19,7 +19,7 @@ metadata:
   name: node-exporter
   labels:
     app.kubernetes.io/name: node-exporter
-    app.kubernetes.io/version: 1.0.1
+    app.kubernetes.io/version: 1.3.1
 spec:
   selector:
     matchLabels:
@@ -32,13 +32,13 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: node-exporter
-        app.kubernetes.io/version: 1.0.1
+        app.kubernetes.io/version: 1.3.1
     spec:
       nodeSelector:
         kubernetes.io/os: linux
       containers:
       - name: node-exporter
-        image: quay.io/prometheus/node-exporter:v1.0.1
+        image: quay.io/prometheus/node-exporter:v1.3.1
         args:
         - --web.listen-address=:8080
         - --path.sysfs=/host/sys
@@ -47,7 +47,7 @@ spec:
         - --no-collector.hwmon
         - --collector.filesystem.ignored-mount-points=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/pods/.+)($|/)
         - --collector.netclass.ignored-devices=^(veth.*)$
-        - --collector.netdev.device-blacklist=^(veth.*)$
+        - --collector.netdev.device-exclude=^(veth.*)$
         ports:
         - name: metrics
           containerPort: 8080
