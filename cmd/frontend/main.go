@@ -168,8 +168,12 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 		if len(username) > 0 && len(password) > 0 {
 			level.Info(logger).Log("msg", "AUTH_USERNAME and AUTH_PASSWORD are set, handling request with basic auth")
 			reqUser, reqPass, ok := req.BasicAuth()
-			if !ok || reqUser != username || reqPass != password {
+			if !ok {
 				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			if reqUser != username || reqPass != password {
+				w.WriteHeader(http.StatusForbidden)
 				return
 			}
 		}
