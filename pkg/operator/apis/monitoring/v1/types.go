@@ -122,7 +122,7 @@ type ExportFilters struct {
 	// of the matchers to be exported. This field can be used equivalently to the match[]
 	// parameter of the Prometheus federation endpoint to selectively export data.
 	//
-	// Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`
+	// Example: `["{job!='foobar'}", "{__name__!~'container_foo.*|container_bar.*'}"]`
 	MatchOneOf []string `json:"matchOneOf,omitempty"`
 }
 
