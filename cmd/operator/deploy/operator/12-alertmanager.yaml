@@ -12,21 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
-  namespace: gmp-public
+  namespace: gmp-system
   name: alertmanager
+type: Opaque
 data:
-  config.yaml: |
-    receivers:
-      - name: "noop"
-    route:
-      receiver: "noop"
+  config.yaml: cmVjZWl2ZXJzOgogIC0gbmFtZTogIm5vb3AiCnJvdXRlOgogIHJlY2VpdmVyOiAibm9vcCIK
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: gmp-public
+  namespace: gmp-system
   name: alertmanager
 spec:
   selector:
@@ -40,7 +37,7 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  namespace: gmp-public
+  namespace: gmp-system
   name: alertmanager
 spec:
   selector:
@@ -139,7 +136,7 @@ spec:
         operator: Exists
       volumes:
       - name: config
-        configMap:
-          name: alertmanager
+        secret:
+          secretName: alertmanager
       - name: alertmanager-data
         emptyDir: {}
