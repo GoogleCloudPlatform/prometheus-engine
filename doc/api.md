@@ -31,6 +31,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [GlobalRulesList](#globalruleslist)
 * [KubeletScraping](#kubeletscraping)
 * [LabelMapping](#labelmapping)
+* [ManagedAlertmanagerSpec](#managedalertmanagerspec)
 * [MonitoringCondition](#monitoringcondition)
 * [OperatorConfig](#operatorconfig)
 * [OperatorConfigList](#operatorconfiglist)
@@ -61,7 +62,6 @@ AlertingSpec defines alerting configuration.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | alertmanagers | Alertmanagers contains endpoint configuration for designated Alertmanagers. | [][AlertmanagerEndpoints](#alertmanagerendpoints) | false |
-| enableManagedAlertManager | EnableManagedAlertManager configures the rule-evaluator to point to a default instance of AlertManager installed by the operator. | bool | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -251,6 +251,19 @@ LabelMapping specifies how to transfer a label from a Kubernetes resource onto a
 
 [Back to TOC](#table-of-contents)
 
+## ManagedAlertmanagerSpec
+
+ManagedAlertmanagerSpec holds configuration information for the managed Alertmanager instance.
+
+
+<em>appears in: [OperatorConfig](#operatorconfig)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| configSecret | ConfigSecret refers to the name of a single-key Secret in the public namespace that holds the managed Alertmanager config file. | string | false |
+
+[Back to TOC](#table-of-contents)
+
 ## MonitoringCondition
 
 MonitoringCondition describes a condition of a PodMonitoring.
@@ -281,6 +294,7 @@ OperatorConfig defines configuration of the gmp-operator.
 | metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#objectmeta-v1-meta) | false |
 | rules | Rules specifies how the operator configures and deployes rule-evaluator. | [RuleEvaluatorSpec](#ruleevaluatorspec) | false |
 | collection | Collection specifies how the operator configures collection. | [CollectionSpec](#collectionspec) | false |
+| managedAlertmanager | ManagedAlertmanager holds information for configuring the managed instance of Alertmanager. | *[ManagedAlertmanagerSpec](#managedalertmanagerspec) | false |
 
 [Back to TOC](#table-of-contents)
 

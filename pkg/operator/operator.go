@@ -73,6 +73,7 @@ const (
 	// The k8s Application, will be exposed as component name.
 	KubernetesAppName    = "app"
 	RuleEvaluatorAppName = "managed-prometheus-rule-evaluator"
+	AlertmanagerAppName  = "managed-prometheus-alertmanager"
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.

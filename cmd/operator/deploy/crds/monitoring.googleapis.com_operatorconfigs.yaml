@@ -103,6 +103,18 @@ spec:
               object represents. Servers may infer this from the endpoint the client
               submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
+          managedAlertmanager:
+            default:
+              configSecret: managed-alertmanager-config
+            description: ManagedAlertmanager holds information for configuring the
+              managed instance of Alertmanager.
+            properties:
+              configSecret:
+                description: ConfigSecret refers to the name of a single-key Secret
+                  in the public namespace that holds the managed Alertmanager config
+                  file.
+                type: string
+            type: object
           metadata:
             type: object
           rules:
@@ -304,11 +316,6 @@ spec:
                       - port
                       type: object
                     type: array
-                  enableManagedAlertManager:
-                    description: EnableManagedAlertManager configures the rule-evaluator
-                      to point to a default instance of AlertManager installed by
-                      the operator.
-                    type: boolean
                 type: object
               credentials:
                 description: A reference to GCP service account credentials with which

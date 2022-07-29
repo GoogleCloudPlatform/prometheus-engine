@@ -53,14 +53,24 @@ const (
 	NameOperatorConfig = "config"
 	NameRuleEvaluator  = "rule-evaluator"
 	NameCollector      = "collector"
+	NameAlertmanager   = "alertmanager"
 )
 
 const (
-	RulesSecretName      = "rules"
-	CollectionSecretName = "collection"
-	rulesDir             = "/etc/rules"
-	secretsDir           = "/etc/secrets"
+	RulesSecretName               = "rules"
+	CollectionSecretName          = "collection"
+	AlertmanagerConfigDefaultName = "managed-alertmanager-config"
+	rulesDir                      = "/etc/rules"
+	secretsDir                    = "/etc/secrets"
+	alertmanagerConfigKey         = "config.yaml"
 )
+
+var alertManagerNoOpConfig = `
+receivers:
+  - name: "noop"
+route:
+  receiver: "noop"
+`
 
 func rulesLabels() map[string]string {
 	return map[string]string{
@@ -69,7 +79,14 @@ func rulesLabels() map[string]string {
 	}
 }
 
-func rulesAnnotations() map[string]string {
+func alertmanagerLabels() map[string]string {
+	return map[string]string{
+		LabelAppName:      NameAlertmanager,
+		KubernetesAppName: AlertmanagerAppName,
+	}
+}
+
+func componentAnnotations() map[string]string {
 	return map[string]string{
 		AnnotationMetricName: componentName,
 		// Allow cluster autoscaler to evict evaluator Pods even though the Pods
@@ -179,6 +196,10 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator config")
 	}
 
+	if err := r.ensureAlertmanagerConfigSecret(ctx, config.ManagedAlertmanager); err != nil {
+		return reconcile.Result{}, errors.Wrap(err, "ensure alertmanager config secret")
+	}
+
 	// Mirror the fetched secret data to where the rule-evaluator can
 	// mount and access.
 	if err := r.ensureRuleEvaluatorSecrets(ctx, secretData); err != nil {
@@ -215,7 +236,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 // This is stored as a Secret rather than a ConfigMap as it could contain
 // sensitive configuration information.
 func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1.RuleEvaluatorSpec) (*corev1.ConfigMap, map[string][]byte, error) {
-	amConfigs, secretData, err := r.makeAlertManagerConfigs(ctx, &spec.Alerting)
+	amConfigs, secretData, err := r.makeAlertmanagerConfigs(ctx, &spec.Alerting)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "make alertmanager config")
 	}
@@ -261,7 +282,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Contex
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        RulesSecretName,
 			Namespace:   r.opts.OperatorNamespace,
-			Annotations: rulesAnnotations(),
+			Annotations: componentAnnotations(),
 			Labels:      rulesLabels(),
 		},
 		Data: make(map[string][]byte),
@@ -277,6 +298,69 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Contex
 	} else if err != nil {
 		return errors.Wrap(err, "update rule-evaluator secrets")
 	}
+	return nil
+}
+
+// ensureAlertmanagerConfigSecret copies the managed Alertmanager config secret from gmp-public
+func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Context, spec *monitoringv1.ManagedAlertmanagerSpec) error {
+	logger, _ := logr.FromContext(ctx)
+
+	// This is the default, no-op secret config. If we find a user-defined config,
+	// we will overwrite the default data with the user's data.
+	// If we don't find a user config, we will still proceed with ensuring this
+	// default secret exists (so that the alertmanager pod doesn't crash due to no
+	// config found). This flow also handles user deletion/disabling of managed AM.
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "alertmanager",
+			Namespace:   r.opts.OperatorNamespace,
+			Annotations: componentAnnotations(),
+			Labels:      alertmanagerLabels(),
+		},
+		Data: map[string][]byte{alertmanagerConfigKey: []byte(alertManagerNoOpConfig)},
+	}
+
+	publicSecret := &corev1.Secret{}
+	secretNamespacedName := types.NamespacedName{
+		Namespace: r.opts.PublicNamespace,
+		Name:      AlertmanagerConfigDefaultName,
+	}
+	if spec != nil && len(spec.ConfigSecret) > 0 {
+		// if the user is overriding the default secret name, use that
+		secretNamespacedName.Name = spec.ConfigSecret
+	}
+
+	err := r.client.Get(ctx, secretNamespacedName, publicSecret)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		// If the config secret is not found, it may have been manually deleted
+		// (ie, to disable managed AM), so we will continue with restoring the no-op config
+		// so that the managed AM pod doesn't crash loop.
+		logger.Info(fmt.Sprintf("alertmanager config secret %s/%s not found", secretNamespacedName.Namespace, secretNamespacedName.Name))
+	}
+
+	if publicSecret.Data != nil {
+		if len(publicSecret.Data) != 1 {
+			logger.Error(errors.Errorf("alertmanager config secret must have exactly 1 key"), "keys", len(publicSecret.Data))
+			return nil
+		}
+		// Alertmanager config could have been created from any file name, so
+		// even though there is only 1 key we have to loop over it to get the data
+		for _, bytes := range publicSecret.Data {
+			secret.Data[alertmanagerConfigKey] = bytes
+		}
+	}
+
+	if err := r.client.Update(ctx, secret); apierrors.IsNotFound(err) {
+		if err := r.client.Create(ctx, secret); err != nil {
+			return errors.Wrap(err, "create alertmanager config secret")
+		}
+	} else if err != nil {
+		return errors.Wrap(err, "update alertmanager config secret")
+	}
+
 	return nil
 }
 
@@ -342,9 +426,9 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 	return r.client.Update(ctx, &deploy)
 }
 
-// makeAlertManagerConfigs creates the alertmanager_config entries as described in
+// makeAlertmanagerConfigs creates the alertmanager_config entries as described in
 // https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config.
-func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, spec *monitoringv1.AlertingSpec) (promconfig.AlertmanagerConfigs, map[string][]byte, error) {
+func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, spec *monitoringv1.AlertingSpec) (promconfig.AlertmanagerConfigs, map[string][]byte, error) {
 	var (
 		err        error
 		configs    promconfig.AlertmanagerConfigs
@@ -352,20 +436,18 @@ func (r *operatorConfigReconciler) makeAlertManagerConfigs(ctx context.Context, 
 	)
 
 	alertManagers := spec.Alertmanagers
-	if spec.EnableManagedAlertManager {
-		amNamespacedName := types.NamespacedName{
-			Namespace: r.opts.PublicNamespace,
-			Name:      "gmp-alertmanager",
-		}
 
-		// if the default AlertManager exists, append it to the list of spec.Alertmanagers
-		if resourceErr := r.client.Get(ctx, amNamespacedName, &appsv1.StatefulSet{}); resourceErr == nil {
-			alertManagers = append(alertManagers, monitoringv1.AlertmanagerEndpoints{
-				Name:      amNamespacedName.Name,
-				Namespace: amNamespacedName.Namespace,
-				Port:      intstr.FromInt(9093),
-			})
-		}
+	amNamespacedName := types.NamespacedName{
+		Namespace: r.opts.OperatorNamespace,
+		Name:      NameAlertmanager,
+	}
+	// if the default Alertmanager exists, append it to the list of spec.Alertmanagers
+	if resourceErr := r.client.Get(ctx, amNamespacedName, &appsv1.StatefulSet{}); resourceErr == nil {
+		alertManagers = append(alertManagers, monitoringv1.AlertmanagerEndpoints{
+			Name:      amNamespacedName.Name,
+			Namespace: amNamespacedName.Namespace,
+			Port:      intstr.FromInt(9093),
+		})
 	}
 
 	for _, am := range alertManagers {
