@@ -28,8 +28,16 @@ import (
 type createTimeSeriesTest struct {
 	testName                 string
 	createTimeSeriesRequests []*monitoringpb.CreateTimeSeriesRequest
-	timeSeriesIndexToCheck   []int
-	pointsIndexToCheck       []int
+	// index we expect the newly added timeseries to be in the fake metric server
+	timeSeriesIndexToCheck []int
+	// index we expect the newly added point to be in the fake metric server
+	pointsIndexToCheck []int
+}
+
+type listTimeSeriesTest struct {
+	testName                       string
+	listTimeSeriesRequest          *monitoringpb.ListTimeSeriesRequest
+	expectedListTimeSeriesResponse *monitoringpb.ListTimeSeriesResponse
 }
 
 // Returns true if every field in TimeSeries a is deeply equal to TimeSeries b
@@ -83,7 +91,10 @@ func TestCreateTimeSeriesBadInput(t *testing.T) {
 
 	// these are the subtests
 	tests := []*createTimeSeriesTest{
-		{testName: "TestNil"},
+		{
+			testName:                 "TestNil",
+			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{nil},
+		},
 		{
 			testName: "TestExceedMaxTimeSeriesPerRequest",
 			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
@@ -193,7 +204,7 @@ func TestCreateTimeSeries(t *testing.T) {
 		{
 			testName:               "TestCreateTimeSeries-NewProject-NewTimeSeries-NewPoint",
 			timeSeriesIndexToCheck: []int{0, 1, 1},
-			pointsIndexToCheck:     []int{0, 0, 1},
+			pointsIndexToCheck:     []int{0, 0, 0},
 			createTimeSeriesRequests: []*monitoringpb.CreateTimeSeriesRequest{
 				{
 					Name: projectName,
@@ -319,6 +330,336 @@ func TestCreateTimeSeries(t *testing.T) {
 						fms.timeSeriesByProject[projectName][test.timeSeriesIndexToCheck[i]].Points[test.pointsIndexToCheck[i]],
 					)
 				}
+			}
+		})
+	}
+}
+
+func TestCreateTimeSeriesTwoSeries(t *testing.T) {
+	fms := NewFakeMetricServer(200)
+	projectName := "projects/1234"
+
+	request := &monitoringpb.CreateTimeSeriesRequest{
+		Name: projectName,
+		TimeSeries: []*monitoringpb.TimeSeries{
+			{
+				Resource: &monitoredrespb.MonitoredResource{
+					Type: "prometheus_target",
+					Labels: map[string]string{
+						"project_id": "example-project",
+						"location":   "europe",
+						"cluster":    "foo-cluster",
+						"namespace":  "",
+						"job":        "job1",
+						"instance":   "instance1",
+					},
+				},
+				Metric: &metricpb.Metric{
+					Type:   "prometheus.googleapis.com/metric1/gauge",
+					Labels: map[string]string{"k1": "v1"},
+				},
+				MetricKind: metricpb.MetricDescriptor_GAUGE,
+				ValueType:  metricpb.MetricDescriptor_DOUBLE,
+				Points: []*monitoringpb.Point{{
+					Interval: &monitoringpb.TimeInterval{
+						StartTime: &timestamppb.Timestamp{Seconds: 1},
+						EndTime:   &timestamppb.Timestamp{Seconds: 2},
+					},
+					Value: &monitoringpb.TypedValue{
+						Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+					},
+				}},
+			},
+			{
+				Resource: &monitoredrespb.MonitoredResource{
+					Type: "prometheus_target",
+					Labels: map[string]string{
+						"project_id": "example-project",
+						"location":   "europe1",
+						"cluster":    "foo-cluster",
+						"namespace":  "",
+						"job":        "job1",
+						"instance":   "instance1",
+					},
+				},
+				Metric: &metricpb.Metric{
+					Type:   "prometheus.googleapis.com/metric1/gauge",
+					Labels: map[string]string{"k1": "v1"},
+				},
+				MetricKind: metricpb.MetricDescriptor_GAUGE,
+				ValueType:  metricpb.MetricDescriptor_DOUBLE,
+				Points: []*monitoringpb.Point{{
+					Interval: &monitoringpb.TimeInterval{
+						StartTime: &timestamppb.Timestamp{Seconds: 1},
+						EndTime:   &timestamppb.Timestamp{Seconds: 2},
+					},
+					Value: &monitoringpb.TypedValue{
+						Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+					},
+				}},
+			},
+		},
+	}
+	response, err := fms.CreateTimeSeries(context.TODO(), request)
+	if err != nil || response == nil {
+		t.Errorf("did not expect an error when running TestCreateTimeSeriesTwoSeries")
+	}
+	for i := range request.TimeSeries {
+		if !reflect.DeepEqual(request.TimeSeries[i], fms.timeSeriesByProject[projectName][i]) {
+			t.Errorf("expected %+v and got %+v", request.TimeSeries[i], fms.timeSeriesByProject[projectName][i])
+		}
+	}
+}
+
+func TestListTimeSeriesBadInput(t *testing.T) {
+	fms := NewFakeMetricServer(200)
+	projectName := "projects/1234"
+	filter := "metric.type = prometheus.googleapis.com/metric1/gauge"
+
+	// these are the subtests
+	tests := []*listTimeSeriesTest{
+		{
+			testName:              "TestListTimeSeriesNilRequest",
+			listTimeSeriesRequest: nil,
+		},
+		{},
+		{
+			testName: "TestListTimeSeriesAggregation",
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:        projectName,
+				Aggregation: &monitoringpb.Aggregation{},
+				Filter:      filter,
+			},
+		},
+		{
+			testName: "TestListTimeSeriesNoInterval",
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:   projectName,
+				Filter: filter,
+			},
+		},
+		{
+			testName: "TestListTimeSeriesHeadersView",
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:   projectName,
+				Filter: filter,
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{Seconds: 1},
+					EndTime:   &timestamppb.Timestamp{Seconds: 2},
+				},
+				View: monitoringpb.ListTimeSeriesRequest_HEADERS,
+			},
+		},
+		{
+			testName: "TestListTimeSeriesMalformedFilter",
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+
+				Name:   projectName,
+				Filter: "metric.type = prometheus-target AND metric.labels.location = europe",
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{Seconds: 1},
+					EndTime:   &timestamppb.Timestamp{Seconds: 2},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			response, err := fms.ListTimeSeries(context.TODO(), test.listTimeSeriesRequest)
+			if err == nil && response != nil {
+				t.Errorf("expected an error for %q", test.testName)
+			}
+		})
+	}
+}
+
+func TestListTimeSeries(t *testing.T) {
+	fms := NewFakeMetricServer(200)
+	projectName := "projects/1234"
+	filter := "metric.type = prometheus.googleapis.com/metric1/gauge"
+
+	point1 := &monitoringpb.Point{
+		Interval: &monitoringpb.TimeInterval{
+			StartTime: &timestamppb.Timestamp{Seconds: 1},
+			EndTime:   &timestamppb.Timestamp{Seconds: 2},
+		},
+		Value: &monitoringpb.TypedValue{
+			Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+		},
+	}
+
+	point2 := &monitoringpb.Point{
+		Interval: &monitoringpb.TimeInterval{
+			StartTime: &timestamppb.Timestamp{Seconds: 4},
+			EndTime:   &timestamppb.Timestamp{Seconds: 5},
+		},
+		Value: &monitoringpb.TypedValue{
+			Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.6},
+		},
+	}
+
+	resource1 := &monitoredrespb.MonitoredResource{
+		Type: "prometheus_target",
+		Labels: map[string]string{
+			"project_id": "example-project",
+			"location":   "europe",
+			"cluster":    "foo-cluster",
+			"namespace":  "",
+			"job":        "job1",
+			"instance":   "instance1",
+		},
+	}
+
+	resource2 := &monitoredrespb.MonitoredResource{
+		Type: "prometheus_target",
+		Labels: map[string]string{
+			"project_id": "example-project",
+			"location":   "europe",
+			"cluster":    "foo-cluster",
+			"namespace":  "",
+			"job":        "job2",
+			"instance":   "instance1",
+		},
+	}
+
+	metric := &metricpb.Metric{
+		Type:   "prometheus.googleapis.com/metric1/gauge",
+		Labels: map[string]string{"k1": "v1"},
+	}
+
+	timeSeriesJob1 := &monitoringpb.TimeSeries{
+		Resource:   resource1,
+		Metric:     metric,
+		MetricKind: metricpb.MetricDescriptor_GAUGE,
+		ValueType:  metricpb.MetricDescriptor_DOUBLE,
+		Points:     []*monitoringpb.Point{point1},
+	}
+
+	timeSeriesJob2 := &monitoringpb.TimeSeries{
+		Resource:   resource2,
+		Metric:     metric,
+		MetricKind: metricpb.MetricDescriptor_GAUGE,
+		ValueType:  metricpb.MetricDescriptor_DOUBLE,
+		Points:     []*monitoringpb.Point{point1},
+	}
+
+	timeSeries := []*monitoringpb.TimeSeries{timeSeriesJob1, timeSeriesJob2}
+	createTimeSeriesRequest := &monitoringpb.CreateTimeSeriesRequest{
+		Name:       projectName,
+		TimeSeries: timeSeries,
+	}
+	fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest)
+
+	timeSeriesJob1Point2 := &monitoringpb.TimeSeries{
+		Resource:   resource1,
+		Metric:     metric,
+		MetricKind: metricpb.MetricDescriptor_GAUGE,
+		ValueType:  metricpb.MetricDescriptor_DOUBLE,
+		Points:     []*monitoringpb.Point{point2},
+	}
+
+	createTimeSeriesRequest.TimeSeries = []*monitoringpb.TimeSeries{timeSeriesJob1Point2}
+	fms.CreateTimeSeries(context.TODO(), createTimeSeriesRequest)
+
+	// these are the subtests
+	tests := []*listTimeSeriesTest{
+		{
+			testName: "TestListTimeSeriesTwoSeriesOnePointEach",
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:   projectName,
+				Filter: filter,
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{Seconds: 0},
+					EndTime:   &timestamppb.Timestamp{Seconds: 3},
+				},
+			},
+			expectedListTimeSeriesResponse: &monitoringpb.ListTimeSeriesResponse{
+				TimeSeries: []*monitoringpb.TimeSeries{
+					{
+						Resource:   resource1,
+						Metric:     metric,
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+						Points:     []*monitoringpb.Point{point1},
+					},
+					{
+						Resource:   resource2,
+						Metric:     metric,
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+						Points:     []*monitoringpb.Point{point1},
+					},
+				},
+			},
+		},
+		{
+			testName: "TestListTimeSeriesTwoSeriesAllPointsInRange",
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:   projectName,
+				Filter: filter,
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{Seconds: 0},
+					EndTime:   &timestamppb.Timestamp{Seconds: 6},
+				},
+			},
+			expectedListTimeSeriesResponse: &monitoringpb.ListTimeSeriesResponse{
+				TimeSeries: []*monitoringpb.TimeSeries{
+					{
+						Resource:   resource1,
+						Metric:     metric,
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+						Points:     []*monitoringpb.Point{point2, point1},
+					},
+					{
+						Resource:   resource2,
+						Metric:     metric,
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+						Points:     []*monitoringpb.Point{point1},
+					},
+				},
+			},
+		},
+		{
+			testName: "TestListTimeSeriesTwoSeriesNoPointsInRange",
+			listTimeSeriesRequest: &monitoringpb.ListTimeSeriesRequest{
+				Name:   projectName,
+				Filter: filter,
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{Seconds: 10},
+					EndTime:   &timestamppb.Timestamp{Seconds: 11},
+				},
+			},
+			expectedListTimeSeriesResponse: &monitoringpb.ListTimeSeriesResponse{
+				TimeSeries: []*monitoringpb.TimeSeries{
+					{
+						Resource:   resource1,
+						Metric:     metric,
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+					},
+					{
+						Resource:   resource2,
+						Metric:     metric,
+						MetricKind: metricpb.MetricDescriptor_GAUGE,
+						ValueType:  metricpb.MetricDescriptor_DOUBLE,
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+
+			response, err := fms.ListTimeSeries(context.TODO(), test.listTimeSeriesRequest)
+			if err != nil {
+				t.Errorf("did not expect an error for %q", test.testName)
+			}
+			if !reflect.DeepEqual(response, test.expectedListTimeSeriesResponse) {
+				t.Errorf("expected %+v and got %+v", test.expectedListTimeSeriesResponse, response)
 			}
 		})
 	}
