@@ -53,6 +53,8 @@ type OperatorConfig struct {
 	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
 	// Collection specifies how the operator configures collection.
 	Collection CollectionSpec `json:"collection,omitempty"`
+	// ManagedAlertManager holds information for configuring the managed instance of AlertManager.
+	ManagedAlertManager *ManagedAlertManagerSpec `json:"managedAlertManager,omitempty"`
 }
 
 // OperatorConfigList is a list of OperatorConfigs.
@@ -130,9 +132,14 @@ type ExportFilters struct {
 type AlertingSpec struct {
 	// Alertmanagers contains endpoint configuration for designated Alertmanagers.
 	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers,omitempty"`
-	// EnableManagedAlertManager configures the rule-evaluator to point to a
-	// default instance of AlertManager installed by the operator.
-	EnableManagedAlertManager bool `json:"enableManagedAlertManager,omitempty"`
+}
+
+// ManagedAlertManagerSpec holds configuration information for the managed
+// AlertManager instance.
+type ManagedAlertManagerSpec struct {
+	// Config refers to the Secret in the gmp-public namespace that holds the
+	// managed AlertManagers config file. This secret is copied to gmp-system by the operator.
+	Config *v1.SecretKeySelector `json:"config,omitempty"`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object
