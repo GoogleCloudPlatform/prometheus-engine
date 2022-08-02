@@ -319,32 +319,35 @@ func (r *operatorConfigReconciler) ensureAlertManagerConfigSecret(ctx context.Co
 	}
 
 	publicSecret := &corev1.Secret{}
-	if spec == nil || len(spec.Config.Name) == 0 {
-		logger.Info("managed alertmanager config not defined")
-	} else {
-		secretNamespacedName := types.NamespacedName{
-			Namespace: r.opts.PublicNamespace,
-			Name:      spec.Config.Name,
+	secretNamespacedName := types.NamespacedName{
+		Namespace: r.opts.PublicNamespace,
+		Name:      "alertmanager-config",
+	}
+	if spec != nil && len(spec.Config.Name) > 0 {
+		// if the user is overriding the default secret name, use that
+		secretNamespacedName.Name = spec.Config.Name
+	}
+
+	err := r.client.Get(ctx, secretNamespacedName, publicSecret)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
 		}
-		err := r.client.Get(ctx, secretNamespacedName, publicSecret)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				return err
-			}
-			// if the config secret is not found, it may have been manually deleted
-			// (ie, to disable managed AM), so we will continue with restoring the no-op config
-			// so that the managed AM pod doesn't crash loop.
-			logger.Info("alertmanager config secret not found")
-		}
+		// if the config secret is not found, it may have been manually deleted
+		// (ie, to disable managed AM), so we will continue with restoring the no-op config
+		// so that the managed AM pod doesn't crash loop.
+		logger.Info("alertmanager config secret not found")
 	}
 
 	if publicSecret.Data != nil {
 		if len(publicSecret.Data) != 1 {
 			return errors.New("alertmanager config secret must have exactly 1 key")
 		}
-		secret.Data["config.yaml"] = publicSecret.Data[spec.Config.Key]
-	} else {
-		logger.Info("no config data in alertmanager secret, falling back to default no-op config")
+		// AlertManager config could have been created from any file name, so
+		// even though there is only 1 key we have to loop over it to get the data
+		for _, bytes := range publicSecret.Data {
+			secret.Data["config.yaml"] = bytes
+		}
 	}
 
 	if err := r.client.Update(ctx, secret); apierrors.IsNotFound(err) {
