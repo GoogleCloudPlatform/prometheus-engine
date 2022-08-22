@@ -15,6 +15,7 @@
 package export
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -28,11 +29,13 @@ import (
 	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/tsdb/chunks"
 	"github.com/prometheus/prometheus/tsdb/record"
 
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
 	distribution_pb "google.golang.org/genproto/googleapis/api/distribution"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var (
@@ -65,9 +68,14 @@ func (b *sampleBuilder) close() {
 }
 
 // next extracts the next sample from the input sample batch and returns
-// the remainder of the input.
+// the remainder of the input. It also attaches valid exemplars if applicable.
 // Returns a nil time series for samples that couldn't be converted.
-func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels, samples []record.RefSample) ([]hashedSeries, []record.RefSample, error) {
+func (b *sampleBuilder) next(
+	metadata MetadataFunc,
+	externalLabels labels.Labels,
+	samples []record.RefSample,
+	exemplars map[chunks.HeadSeriesRef]record.RefExemplar,
+) ([]hashedSeries, []record.RefSample, error) {
 	sample := samples[0]
 	tailSamples := samples[1:]
 
@@ -117,7 +125,14 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 			// be the same as well.
 			var v *distribution_pb.Distribution
 			var err error
-			v, resetTimestamp, tailSamples, err = b.buildDistribution(entry.metadata.Metric, entry.lset, samples, externalLabels, metadata)
+			v, resetTimestamp, tailSamples, err = b.buildDistribution(
+				entry.metadata.Metric,
+				entry.lset,
+				samples,
+				exemplars,
+				externalLabels,
+				metadata,
+			)
 			if err != nil {
 				return nil, tailSamples, err
 			}
@@ -187,6 +202,7 @@ type distribution struct {
 	count          float64
 	timestamp      int64
 	resetTimestamp int64
+	exemplars      []record.RefExemplar
 	// If all three are true, we can be sure to have observed all series for the
 	// distribution as buckets must be specified in ascending order.
 	hasSum, hasCount, hasInfBucket bool
@@ -315,6 +331,7 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 			},
 		},
 		BucketCounts: values,
+		Exemplars:    buildExemplars(d.exemplars),
 	}
 	return dp, nil
 }
@@ -335,11 +352,12 @@ func (b *sampleBuilder) buildDistribution(
 	metric string,
 	matchLset labels.Labels,
 	samples []record.RefSample,
+	exemplars map[chunks.HeadSeriesRef]record.RefExemplar,
 	externalLabels labels.Labels,
 	metadata MetadataFunc,
 ) (*distribution_pb.Distribution, int64, []record.RefSample, error) {
 	// The Prometheus/OpenMetrics exposition format does not require all histogram series for a single distribution
-	// to be grouped together. But it does require that all series for a histogram metric in generall are grouped
+	// to be grouped together. But it does require that all series for a histogram metric in general are grouped
 	// together and that buckets for a single histogram are specified in order.
 	// Thus, we build a cache and conclude a histogram complete once we've seen it's _sum series and its +Inf bucket
 	// series. We return for the first histogram where this condition is fulfilled.
@@ -411,6 +429,9 @@ Loop:
 			}
 			dist.bounds = append(dist.bounds, bound)
 			dist.values = append(dist.values, int64(v))
+			if exemplar, ok := exemplars[s.Ref]; ok {
+				dist.exemplars = append(dist.exemplars, exemplar)
+			}
 
 		default:
 			break Loop
@@ -423,7 +444,7 @@ Loop:
 		if err != nil {
 			return nil, 0, samples[consumed:], err
 		}
-		return dp, dist.resetTimestamp, samples[consumed:], nil
+		return dp, dist.resetTimestamp, samples[consumed:], err
 	}
 	if consumed == 0 {
 		prometheusSamplesDiscarded.WithLabelValues("zero-histogram-samples-processed").Inc()
@@ -431,4 +452,69 @@ Loop:
 	}
 	// Batch ended without completing a further distribution
 	return nil, 0, samples[consumed:], nil
+}
+
+func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribution_Exemplar {
+	// the exemplars field of a distribution value field must be in increasing order of value -- let's sort them
+	sort.Slice(exemplars, func(i, j int) bool {
+		return exemplars[i].V < exemplars[j].V
+	})
+	var result []*distribution_pb.Distribution_Exemplar
+	for _, promExemplar := range exemplars {
+		attachments := buildExemplarLabels(promExemplar.Labels)
+		result = append(result, &distribution_pb.Distribution_Exemplar{
+			Value:       promExemplar.V,
+			Timestamp:   getTimestamp(promExemplar.T),
+			Attachments: attachments,
+		})
+	}
+	return result
+}
+
+// buildExemplarLabels transforms the prometheus LabelSet into a GCM exemplar attachment.
+// If the following three fields are present in the LabelSet, then we will build a SpanContext:
+//    1. projectId
+//    2. spanId
+//    3. traceId
+// The rest of the LabelSet will go into the DroppedLabels attachment. If one of the above
+// fields is missing, we will put the entire LabelSet into a Dropped Labels attachment.
+// This is to maintain comptability with CloudTrace.
+func buildExemplarLabels(prometheusLabelSet labels.Labels) []*anypb.Any {
+	var projectId, spanId, traceId string
+	var result []*anypb.Any
+	labels := make(map[string]string)
+	for _, label := range prometheusLabelSet {
+		if label.Name == "projectId" {
+			projectId = label.Value
+		} else if label.Name == "spanId" {
+			spanId = label.Value
+		} else if label.Name == "traceId" {
+			traceId = label.Value
+		} else {
+			labels[label.Name] = label.Value
+		}
+	}
+	if projectId != "" && spanId != "" && traceId != "" {
+		spanCtx, _ := anypb.New(&monitoring_pb.SpanContext{
+			SpanName: fmt.Sprintf("projects/%s/traces/%s/spans/%s", projectId, traceId, spanId),
+		})
+		result = append(result, spanCtx)
+	} else {
+		if projectId != "" {
+			labels["projectId"] = projectId
+		}
+		if spanId != "" {
+			labels["spanId"] = spanId
+		}
+		if traceId != "" {
+			labels["traceId"] = traceId
+		}
+	}
+	if len(labels) > 0 {
+		droppedLabels, _ := anypb.New(&monitoring_pb.DroppedLabels{
+			Label: labels,
+		})
+		result = append(result, droppedLabels)
+	}
+	return result
 }

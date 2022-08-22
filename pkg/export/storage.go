@@ -100,8 +100,9 @@ type storageAppender struct {
 	// are expected and intended if a method is used unexpectedly.
 	storage.Appender
 
-	storage *Storage
-	samples []record.RefSample
+	storage   *Storage
+	samples   []record.RefSample
+	exemplars []record.RefExemplar
 }
 
 func (a *storageAppender) Append(_ storage.SeriesRef, lset labels.Labels, t int64, v float64) (storage.SeriesRef, error) {
@@ -123,7 +124,7 @@ func (a *storageAppender) Commit() error {
 	// gauge type.
 	// In the future we may want to populate the help text with information on the rule
 	// that produced the metric.
-	a.storage.exporter.Export(gaugeMetadata, a.samples)
+	a.storage.exporter.Export(gaugeMetadata, a.samples, a.exemplars)
 
 	// After export is complete, we can clear the labels again.
 	a.storage.clearLabels(a.samples)

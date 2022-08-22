@@ -1283,7 +1283,7 @@ func TestSampleBuilder(t *testing.T) {
 				b := newSampleBuilder(cache)
 
 				for k := 0; len(batch) > 0; k++ {
-					out, tail, err := b.next(c.metadata, externalLabels, batch)
+					out, tail, err := b.next(c.metadata, externalLabels, batch, nil)
 					if err == nil && c.wantFail {
 						t.Fatal("expected error but got none")
 					}

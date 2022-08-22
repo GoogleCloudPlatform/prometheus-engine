@@ -34,6 +34,7 @@ import (
 	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/tsdb/chunks"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
@@ -383,8 +384,8 @@ func (e *Exporter) SetLabelsByIDFunc(f func(storage.SeriesRef) labels.Labels) {
 	e.seriesCache.getLabelsByRef = f
 }
 
-// Export enqueues the samples to be written to Cloud Monitoring.
-func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample) {
+// Export enqueues the samples and exemplars to be written to Cloud Monitoring.
+func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemplarBatch []record.RefExemplar) {
 	if e.opts.Disable {
 		return
 	}
@@ -404,12 +405,18 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample) {
 	builder := newSampleBuilder(e.seriesCache)
 	defer builder.close()
 
+	// maps a series to its exemplars we need to add
+	exemplarsBySeries := make(map[chunks.HeadSeriesRef]record.RefExemplar)
+	for _, exemplar := range exemplarBatch {
+		exemplarsBySeries[exemplar.Ref] = exemplar
+	}
+
 	for len(batch) > 0 {
 		var (
 			samples []hashedSeries
 			err     error
 		)
-		samples, batch, err = builder.next(metadata, externalLabels, batch)
+		samples, batch, err = builder.next(metadata, externalLabels, batch, exemplarsBySeries)
 		if err != nil {
 			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
 			continue

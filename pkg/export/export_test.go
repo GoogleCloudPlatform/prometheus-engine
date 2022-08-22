@@ -374,7 +374,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		e.Export(nil, []record.RefSample{
 			{Ref: 1, T: int64(i), V: float64(i)},
-		})
+		}, nil)
 	}
 
 	go e.Run(ctx)
