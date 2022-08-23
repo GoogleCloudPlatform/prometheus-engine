@@ -53,6 +53,13 @@ var (
 		},
 		[]string{"reason"},
 	)
+	prometheusExemplarsDiscarded = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gcm_prometheus_exemplars_discarded_total",
+			Help: "Exemplars that were discarded during data model conversion.",
+		},
+		[]string{"reason"},
+	)
 )
 
 type sampleBuilder struct {
@@ -468,12 +475,14 @@ func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribut
 	})
 	var result []*distribution_pb.Distribution_Exemplar
 	for _, promExemplar := range exemplars {
-		attachments := buildExemplarLabels(promExemplar.Labels)
-		result = append(result, &distribution_pb.Distribution_Exemplar{
-			Value:       promExemplar.V,
-			Timestamp:   getTimestamp(promExemplar.T),
-			Attachments: attachments,
-		})
+		attachments, err := buildExemplarLabels(promExemplar.Labels)
+		if err == nil {
+			result = append(result, &distribution_pb.Distribution_Exemplar{
+				Value:       promExemplar.V,
+				Timestamp:   getTimestamp(promExemplar.T),
+				Attachments: attachments,
+			})
+		}
 	}
 	return result
 }
@@ -486,7 +495,7 @@ func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribut
 // The rest of the LabelSet will go into the DroppedLabels attachment. If one of the above
 // fields is missing, we will put the entire LabelSet into a Dropped Labels attachment.
 // This is to maintain comptability with CloudTrace.
-func buildExemplarLabels(prometheusLabelSet labels.Labels) []*anypb.Any {
+func buildExemplarLabels(prometheusLabelSet labels.Labels) ([]*anypb.Any, error) {
 	var projectId, spanId, traceId string
 	var result []*anypb.Any
 	labels := make(map[string]string)
@@ -502,9 +511,13 @@ func buildExemplarLabels(prometheusLabelSet labels.Labels) []*anypb.Any {
 		}
 	}
 	if projectId != "" && spanId != "" && traceId != "" {
-		spanCtx, _ := anypb.New(&monitoring_pb.SpanContext{
+		spanCtx, err := anypb.New(&monitoring_pb.SpanContext{
 			SpanName: fmt.Sprintf(spanContextFormat, projectId, traceId, spanId),
 		})
+		if err != nil {
+			prometheusExemplarsDiscarded.WithLabelValues("error-creating-span-context").Inc()
+			return nil, err
+		}
 		result = append(result, spanCtx)
 	} else {
 		if projectId != "" {
@@ -518,10 +531,14 @@ func buildExemplarLabels(prometheusLabelSet labels.Labels) []*anypb.Any {
 		}
 	}
 	if len(labels) > 0 {
-		droppedLabels, _ := anypb.New(&monitoring_pb.DroppedLabels{
+		droppedLabels, err := anypb.New(&monitoring_pb.DroppedLabels{
 			Label: labels,
 		})
+		if err != nil {
+			prometheusExemplarsDiscarded.WithLabelValues("error-creating-dropped-labels").Inc()
+			return nil, err
+		}
 		result = append(result, droppedLabels)
 	}
-	return result
+	return result, nil
 }
