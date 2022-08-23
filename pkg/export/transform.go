@@ -38,6 +38,13 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
+const (
+	projectIdLabel    = "project_id"
+	traceIdLabel      = "trace_id"
+	spanIdLabel       = "span_id"
+	spanContextFormat = "projects/%s/traces/%s/spans/%s"
+)
+
 var (
 	prometheusSamplesDiscarded = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -484,11 +491,11 @@ func buildExemplarLabels(prometheusLabelSet labels.Labels) []*anypb.Any {
 	var result []*anypb.Any
 	labels := make(map[string]string)
 	for _, label := range prometheusLabelSet {
-		if label.Name == "project_id" {
+		if label.Name == projectIdLabel {
 			projectId = label.Value
-		} else if label.Name == "span_id" {
+		} else if label.Name == spanIdLabel {
 			spanId = label.Value
-		} else if label.Name == "trace_id" {
+		} else if label.Name == traceIdLabel {
 			traceId = label.Value
 		} else {
 			labels[label.Name] = label.Value
@@ -496,18 +503,18 @@ func buildExemplarLabels(prometheusLabelSet labels.Labels) []*anypb.Any {
 	}
 	if projectId != "" && spanId != "" && traceId != "" {
 		spanCtx, _ := anypb.New(&monitoring_pb.SpanContext{
-			SpanName: fmt.Sprintf("projects/%s/traces/%s/spans/%s", projectId, traceId, spanId),
+			SpanName: fmt.Sprintf(spanContextFormat, projectId, traceId, spanId),
 		})
 		result = append(result, spanCtx)
 	} else {
 		if projectId != "" {
-			labels["project_id"] = projectId
+			labels[projectIdLabel] = projectId
 		}
 		if spanId != "" {
-			labels["span_id"] = spanId
+			labels[spanIdLabel] = spanId
 		}
 		if traceId != "" {
-			labels["trace_id"] = traceId
+			labels[traceIdLabel] = traceId
 		}
 	}
 	if len(labels) > 0 {
