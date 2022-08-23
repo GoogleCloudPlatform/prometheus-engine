@@ -126,7 +126,6 @@ func setupOperatorConfigControllers(op *Operator) error {
 			&monitoringv1.OperatorConfig{},
 			builder.WithPredicates(objFilterOperatorConfig),
 		).
-		// // Maintain the rule-evaluator deployment and configuration (as a secret).
 		Watches(
 			&source.Kind{Type: &appsv1.Deployment{}},
 			enqueueConst(objRequest),
@@ -134,11 +133,6 @@ func setupOperatorConfigControllers(op *Operator) error {
 				objFilterRuleEvaluator,
 				predicate.GenerationChangedPredicate{},
 			)).
-		// We must watch all secrets in the cluster as we copy and inline secrets referenced
-		// in the OperatorConfig and need to repeat those steps if affected secrets change.
-		// As the set of secrets to watch is not static, we've to watch them all.
-		// A viable alternative could be for the rule-evaluator (or a sidecar) to generate
-		// the configuration locally and maintain a more constrained watch.
 		Watches(
 			&source.Kind{Type: &corev1.Secret{}},
 			enqueueConst(objRequest),
