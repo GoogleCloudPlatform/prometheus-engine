@@ -1322,19 +1322,19 @@ func TestSampleBuilder(t *testing.T) {
 				// first sample set is skipped by reset handling
 				{},
 				{
-					// projectId, traceId, and spanId should be in the span context
+					// project_id, trace_id, and span_id should be in the span context
 					// random should be in the dropped labels
 					3: {Ref: 3, T: 1500, V: .099, Labels: labels.New(
-						labels.Label{Name: "projectId", Value: "1"},
-						labels.Label{Name: "traceId", Value: "2"},
-						labels.Label{Name: "spanId", Value: "3"},
+						labels.Label{Name: "project_id", Value: "1"},
+						labels.Label{Name: "trace_id", Value: "2"},
+						labels.Label{Name: "span_id", Value: "3"},
 						labels.Label{Name: "random", Value: "4"},
 					)},
-					// projectId and traceId should both be in dropped labels
-					// since we have no spanId to make a full span context
+					// project_id and trace_id should both be in dropped labels
+					// since we have no span_id to make a full span context
 					4: {Ref: 4, T: 1500, V: .4, Labels: labels.New(
-						labels.Label{Name: "projectId", Value: "1"},
-						labels.Label{Name: "traceId", Value: "2"},
+						labels.Label{Name: "project_id", Value: "1"},
+						labels.Label{Name: "trace_id", Value: "2"},
 					)},
 					// timestamp is optional
 					5: {Ref: 7, V: 2},
@@ -1398,7 +1398,7 @@ func TestSampleBuilder(t *testing.T) {
 											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
 											Attachments: []*anypb.Any{
 												wrapAsAny(&monitoring_pb.DroppedLabels{
-													Label: map[string]string{"traceId": "2", "projectId": "1"},
+													Label: map[string]string{"trace_id": "2", "project_id": "1"},
 												}),
 											},
 										},

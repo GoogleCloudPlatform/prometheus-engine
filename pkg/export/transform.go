@@ -473,9 +473,9 @@ func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribut
 
 // buildExemplarLabels transforms the prometheus LabelSet into a GCM exemplar attachment.
 // If the following three fields are present in the LabelSet, then we will build a SpanContext:
-//    1. projectId
-//    2. spanId
-//    3. traceId
+//    1. project_id
+//    2. span_id
+//    3. trace_id
 // The rest of the LabelSet will go into the DroppedLabels attachment. If one of the above
 // fields is missing, we will put the entire LabelSet into a Dropped Labels attachment.
 // This is to maintain comptability with CloudTrace.
@@ -484,11 +484,11 @@ func buildExemplarLabels(prometheusLabelSet labels.Labels) []*anypb.Any {
 	var result []*anypb.Any
 	labels := make(map[string]string)
 	for _, label := range prometheusLabelSet {
-		if label.Name == "projectId" {
+		if label.Name == "project_id" {
 			projectId = label.Value
-		} else if label.Name == "spanId" {
+		} else if label.Name == "span_id" {
 			spanId = label.Value
-		} else if label.Name == "traceId" {
+		} else if label.Name == "trace_id" {
 			traceId = label.Value
 		} else {
 			labels[label.Name] = label.Value
@@ -501,13 +501,13 @@ func buildExemplarLabels(prometheusLabelSet labels.Labels) []*anypb.Any {
 		result = append(result, spanCtx)
 	} else {
 		if projectId != "" {
-			labels["projectId"] = projectId
+			labels["project_id"] = projectId
 		}
 		if spanId != "" {
-			labels["spanId"] = spanId
+			labels["span_id"] = spanId
 		}
 		if traceId != "" {
-			labels["traceId"] = traceId
+			labels["trace_id"] = traceId
 		}
 	}
 	if len(labels) > 0 {
