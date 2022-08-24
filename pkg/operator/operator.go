@@ -207,7 +207,10 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
 					},
 					&appsv1.DaemonSet{}: {
-						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+						Field: fields.SelectorFromSet(fields.Set{
+							"metadata.namespace": opts.OperatorNamespace,
+							"metadata.name":      NameCollector,
+						}),
 					},
 					&appsv1.Deployment{}: {
 						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
