@@ -29,8 +29,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -38,6 +40,7 @@ import (
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -158,14 +161,60 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid port")
 	}
-	mgr, err := ctrl.NewManager(clientConfig, manager.Options{
+	manager, err := ctrl.NewManager(clientConfig, manager.Options{
 		Scheme: sc,
 		Host:   host,
 		Port:   port,
 		// Don't run a metrics server with the manager. Metrics are being served
 		// explicitly in the main routine.
 		MetricsBindAddress: "0",
-		CertDir:            certDir,
+		// Manage cluster-wide and namespace resources at the same time.
+		NewCache: cache.NewCacheFunc(func(config *rest.Config, options cache.Options) (cache.Cache, error) {
+			return cache.New(clientConfig, cache.Options{
+				Scheme: options.Scheme,
+				// The presence of metadata.namespace has special handling internally causing the
+				// cache's watch-list to only watch that namespace.
+				SelectorsByObject: cache.SelectorsByObject{
+					&monitoringv1.PodMonitoring{}: {
+						Field: fields.Everything(),
+					},
+					&monitoringv1.ClusterPodMonitoring{}: {
+						Field: fields.Everything(),
+					},
+					&monitoringv1.GlobalRules{}: {
+						Field: fields.Everything(),
+					},
+					&monitoringv1.ClusterRules{}: {
+						Field: fields.Everything(),
+					},
+					&monitoringv1.Rules{}: {
+						Field: fields.Everything(),
+					},
+					&corev1.Secret{}: {
+						// We also update secrets from `opts.OperatorNamespace` but never through a
+						// controller. Caches restrict namespaces to either 1 or none so the client
+						// returned by this manager (and delegating to this cache) cannot fetch
+						// secrets other than this namespace `PublicNamespace`.
+						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
+					},
+					&monitoringv1.OperatorConfig{}: {
+						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
+					},
+					&appsv1.StatefulSet{}: {
+						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
+					},
+					&corev1.ConfigMap{}: {
+						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+					},
+					&appsv1.DaemonSet{}: {
+						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+					},
+					&appsv1.Deployment{}: {
+						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+					},
+				}})
+		}),
+		CertDir: certDir,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "create controller manager")
@@ -179,7 +228,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 		logger:  logger,
 		opts:    opts,
 		client:  client,
-		manager: mgr,
+		manager: manager,
 	}
 	return op, nil
 }
