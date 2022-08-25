@@ -66,6 +66,11 @@ func setupCollectionControllers(op *Operator) error {
 		namespace: op.opts.OperatorNamespace,
 		name:      NameCollector,
 	}
+	// Collector secret.
+	objFilterSecret := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      CollectionSecretName,
+	}
 
 	// Reconcile the generated Prometheus configuration that is used by all collectors.
 	err := ctrl.NewControllerManagedBy(op.manager).
@@ -104,6 +109,11 @@ func setupCollectionControllers(op *Operator) error {
 				objFilterCollector,
 				predicate.GenerationChangedPredicate{},
 			)).
+		// Detect and undo changes to the secret.
+		Watches(
+			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
+			enqueueConst(objRequest),
+			builder.WithPredicates(objFilterSecret)).
 		Complete(newCollectionReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
 		return errors.Wrap(err, "create collector config controller")
@@ -188,7 +198,7 @@ func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec 
 			return errors.Wrap(err, "create collector secrets")
 		}
 	} else if err != nil {
-		return errors.Wrap(err, "update rule-evaluator secrets")
+		return errors.Wrap(err, "update collector secrets")
 	}
 	return nil
 }

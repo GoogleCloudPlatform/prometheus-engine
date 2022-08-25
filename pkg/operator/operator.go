@@ -85,6 +85,11 @@ type Operator struct {
 	opts    Options
 	client  client.Client
 	manager manager.Manager
+	// Due to the RBAC, the manager can only handle a single namespace per
+	// object at a time so this cache is used in cases where we want the same
+	// resource from multiple namespaces (not to be confused with cluster-wide
+	// resources).
+	managedNamespacesCache cache.Cache
 }
 
 // Options for the Operator.
@@ -191,11 +196,13 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 						Field: fields.Everything(),
 					},
 					&corev1.Secret{}: {
-						// We also update secrets from `opts.OperatorNamespace` but never through a
-						// controller. Caches restrict namespaces to either 1 or none so the client
-						// returned by this manager (and delegating to this cache) cannot fetch
-						// secrets other than this namespace `PublicNamespace`.
-						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
+						// We can only have 1 namespace specified here. While we
+						// need to access secrets from multiple namespaces, we
+						// specify one here so that the manager's client
+						// accesses secrets from this namespace through a cache.
+						Field: fields.SelectorFromSet(fields.Set{
+							"metadata.namespace": opts.PublicNamespace,
+						}),
 					},
 					&monitoringv1.OperatorConfig{}: {
 						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
@@ -222,16 +229,26 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 	if err != nil {
 		return nil, errors.Wrap(err, "create controller manager")
 	}
+
+	namespaces := []string{opts.OperatorNamespace, opts.PublicNamespace}
+	managedNamespacesCache, err := cache.MultiNamespacedCacheBuilder(namespaces)(clientConfig, cache.Options{
+		Scheme: sc,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "create controller manager")
+	}
+
 	client, err := client.New(clientConfig, client.Options{Scheme: sc})
 	if err != nil {
 		return nil, errors.Wrap(err, "create client")
 	}
 
 	op := &Operator{
-		logger:  logger,
-		opts:    opts,
-		client:  client,
-		manager: manager,
+		logger:                 logger,
+		opts:                   opts,
+		client:                 client,
+		manager:                manager,
+		managedNamespacesCache: managedNamespacesCache,
 	}
 	return op, nil
 }
@@ -340,6 +357,9 @@ func (o *Operator) Run(ctx context.Context) error {
 
 	o.logger.Info("starting GMP operator")
 
+	go func() {
+		o.managedNamespacesCache.Start(ctx)
+	}()
 	return o.manager.Start(ctx)
 }
 
