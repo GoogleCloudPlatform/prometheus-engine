@@ -11,33 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: gmp-system
-  name: alertmanager
-type: Opaque
-data:
-  config.yaml: cmVjZWl2ZXJzOgogIC0gbmFtZTogIm5vb3AiCnJvdXRlOgogIHJlY2VpdmVyOiAibm9vcCIK
----
-apiVersion: v1
-kind: Service
-metadata:
-  namespace: gmp-system
-  name: alertmanager
-spec:
-  selector:
-    app.kubernetes.io/name: alertmanager
-  clusterIP: None
-  ports:
-  - port: 9093
-    targetPort: 9093
-    name: alertmanager
----
+
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  namespace: gmp-system
   name: alertmanager
 spec:
   selector:
@@ -149,3 +126,4 @@ spec:
         emptyDir: {}
       - name: alertmanager-config
         emptyDir: {}
+

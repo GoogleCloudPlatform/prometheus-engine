@@ -741,21 +741,18 @@ spec:
           secretName: rules
 ---
 apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
-  namespace: gmp-public
+  namespace: gmp-system
   name: alertmanager
+type: Opaque
 data:
-  config.yaml: |
-    receivers:
-      - name: "noop"
-    route:
-      receiver: "noop"
+  config.yaml: cmVjZWl2ZXJzOgogIC0gbmFtZTogIm5vb3AiCnJvdXRlOgogIHJlY2VpdmVyOiAibm9vcCIK
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: gmp-public
+  namespace: gmp-system
   name: alertmanager
 spec:
   selector:
@@ -769,7 +766,7 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  namespace: gmp-public
+  namespace: gmp-system
   name: alertmanager
 spec:
   selector:
@@ -787,6 +784,13 @@ spec:
         components.gke.io/component-name: managed_prometheus
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
     spec:
+      initContainers:
+      - name: config-init
+        image: gke.gcr.io/gke-distroless/bash
+        command: ['/bin/bash', '-c', 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  - name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml']
+        volumeMounts:
+        - name: alertmanager-config
+          mountPath: /alertmanager/config_out
       containers:
       - name: alertmanager
         image: prom/alertmanager:latest
@@ -804,7 +808,7 @@ spec:
             cpu: 100m
             memory: 200M
         volumeMounts:
-        - name: config
+        - name: alertmanager-config
           mountPath: /alertmanager/config_out
           readOnly: true
         - name: alertmanager-data
@@ -847,7 +851,7 @@ spec:
         - name: config
           mountPath: /alertmanager
           readOnly: true
-        - name: alertmanager-data
+        - name: alertmanager-config
           mountPath: /alertmanager/config_out
         securityContext:
           allowPrivilegeEscalation: false
@@ -868,7 +872,9 @@ spec:
         operator: Exists
       volumes:
       - name: config
-        configMap:
-          name: alertmanager
+        secret:
+          secretName: alertmanager
       - name: alertmanager-data
+        emptyDir: {}
+      - name: alertmanager-config
         emptyDir: {}

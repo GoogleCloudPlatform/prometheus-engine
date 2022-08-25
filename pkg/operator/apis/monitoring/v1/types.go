@@ -53,6 +53,9 @@ type OperatorConfig struct {
 	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
 	// Collection specifies how the operator configures collection.
 	Collection CollectionSpec `json:"collection,omitempty"`
+	// ManagedAlertmanager holds information for configuring the managed instance of Alertmanager.
+	// +kubebuilder:default={configSecret: managed-alertmanager-config}
+	ManagedAlertmanager *ManagedAlertmanagerSpec `json:"managedAlertmanager,omitempty"`
 }
 
 // OperatorConfigList is a list of OperatorConfigs.
@@ -130,9 +133,14 @@ type ExportFilters struct {
 type AlertingSpec struct {
 	// Alertmanagers contains endpoint configuration for designated Alertmanagers.
 	Alertmanagers []AlertmanagerEndpoints `json:"alertmanagers,omitempty"`
-	// EnableManagedAlertManager configures the rule-evaluator to point to a
-	// default instance of AlertManager installed by the operator.
-	EnableManagedAlertManager bool `json:"enableManagedAlertManager,omitempty"`
+}
+
+// ManagedAlertmanagerSpec holds configuration information for the managed
+// Alertmanager instance.
+type ManagedAlertmanagerSpec struct {
+	// ConfigSecret refers to the name of a single-key Secret in the public namespace that
+	// holds the managed Alertmanager config file.
+	ConfigSecret string `json:"configSecret,omitempty""`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object

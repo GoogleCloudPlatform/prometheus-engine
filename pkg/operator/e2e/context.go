@@ -246,6 +246,18 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 		return nil, errors.Wrap(err, "create rule-evaluator Deployment")
 	}
 
+	alertmanagerBytes, err := ioutil.ReadFile("alertmanager.yaml")
+	if err != nil {
+		return nil, errors.Wrap(err, "read alertmanager YAML")
+	}
+	obj, _, err = scheme.Codecs.UniversalDeserializer().Decode(alertmanagerBytes, nil, nil)
+	alertmanager := obj.(*appsv1.StatefulSet)
+	alertmanager.Namespace = tctx.namespace
+	_, err = tctx.kubeClient.AppsV1().StatefulSets(tctx.namespace).Create(ctx, alertmanager, metav1.CreateOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "create alertmanager statefuleset")
+	}
+
 	return ors, nil
 }
 
