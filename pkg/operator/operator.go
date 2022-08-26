@@ -208,7 +208,10 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
 					},
 					&appsv1.StatefulSet{}: {
-						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
+						Field: fields.SelectorFromSet(fields.Set{
+							"metadata.namespace": opts.OperatorNamespace,
+							"metadata.name":      NameAlertmanager,
+						}),
 					},
 					&corev1.ConfigMap{}: {
 						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),

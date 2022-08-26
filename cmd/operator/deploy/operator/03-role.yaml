@@ -45,7 +45,7 @@ rules:
 - apiGroups: [""]
   resources:
   - secrets
-  resourceNames: ["collection", "rules"]
+  resourceNames: ["collection", "rules", "alertmanager"]
   verbs: ["get", "patch", "update"]
 - apiGroups: [""]
   resources:
@@ -70,6 +70,11 @@ rules:
   - deployments
   resourceNames: ["collector", "rule-evaluator"]
   verbs: ["get", "delete", "patch", "update"]
+- apiGroups: ["apps"]
+  resources:
+  - statefulsets
+  resourceNames: ["alertmanager"]
+  verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -84,10 +89,6 @@ rules:
 - apiGroups: ["monitoring.googleapis.com"]
   resources:
   - operatorconfigs
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["apps"]
-  resources:
-  - statefulsets
   verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
