@@ -59,6 +59,7 @@ const (
 const (
 	RulesSecretName               = "rules"
 	CollectionSecretName          = "collection"
+	AlertManagerSecretName        = "alertmanager"
 	AlertmanagerConfigDefaultName = "managed-alertmanager-config"
 	rulesDir                      = "/etc/rules"
 	secretsDir                    = "/etc/secrets"
@@ -121,6 +122,11 @@ func setupOperatorConfigControllers(op *Operator) error {
 		namespace: op.opts.OperatorNamespace,
 		name:      RulesSecretName,
 	}
+	// Rule-evaluator secret filter.
+	objFilterAlertManagerSecret := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      AlertManagerSecretName,
+	}
 
 	// Reconcile operator-managed resources.
 	err := ctrl.NewControllerManagedBy(op.manager).
@@ -148,6 +154,10 @@ func setupOperatorConfigControllers(op *Operator) error {
 			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterRuleEvaluatorSecret)).
+		Watches(
+			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
+			enqueueConst(objRequest),
+			builder.WithPredicates(objFilterAlertManagerSecret)).
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
 
 	if err != nil {
@@ -316,7 +326,7 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 	// config found). This flow also handles user deletion/disabling of managed AM.
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "alertmanager",
+			Name:        AlertManagerSecretName,
 			Namespace:   r.opts.OperatorNamespace,
 			Annotations: componentAnnotations(),
 			Labels:      alertmanagerLabels(),
