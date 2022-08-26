@@ -71,36 +71,61 @@ rules:
 - apiGroups: [""]
   resources:
   - secrets
-  verbs: ["create", "patch", "update"]
+  verbs: ["list", "watch", "create"]
+- apiGroups: [""]
+  resources:
+  - secrets
+  resourceNames: ["collection", "rules", "alertmanager"]
+  verbs: ["get", "patch", "update"]
 - apiGroups: [""]
   resources:
   - configmaps
-  verbs: ["create", "patch", "update"]
+  verbs: ["list", "watch", "create"]
+- apiGroups: [""]
+  resources:
+  - configmaps
+  resourceNames: ["collector", "rule-evaluator", "rules-generated"]
+  verbs: ["get", "patch", "update"]
 - apiGroups: ["apps"]
   resources:
   - daemonsets
-  verbs: ["create", "delete", "patch", "update"]
+  resourceNames: ["collector"]
+  verbs: ["get", "list", "watch", "delete", "patch", "update"]
 - apiGroups: ["apps"]
   resources:
   - deployments
-  verbs: ["create", "delete", "patch", "update"]
+  verbs: ["list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  resourceNames: ["collector", "rule-evaluator"]
+  verbs: ["get", "delete", "patch", "update"]
+- apiGroups: ["apps"]
+  resources:
+  - statefulsets
+  resourceNames: ["alertmanager"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gmp-public
+  name: operator
+rules:
+- apiGroups: [""]
+  resources:
+  - secrets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["monitoring.googleapis.com"]
+  resources:
+  - operatorconfigs
+  verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: gmp-system:operator
 rules:
-- apiGroups: [""]
-  resources:
-  - configmaps
-  - secrets
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["apps"]
-  resources:
-  - daemonsets
-  - deployments
-  - statefulsets
-  verbs: ["get", "list", "watch"]
 - apiGroups: ["admissionregistration.k8s.io"]
   resources:
   - validatingwebhookconfigurations
@@ -120,7 +145,6 @@ rules:
   - clusterpodmonitorings
   - clusterrules
   - globalrules
-  - operatorconfigs
   - podmonitorings
   - rules
   verbs: ["get", "list", "watch"]
@@ -141,6 +165,20 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: gmp-system:operator
+subjects:
+- kind: ServiceAccount
+  namespace: gmp-system
+  name: operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: gmp-public
+  name: operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: operator
 subjects:
 - kind: ServiceAccount
   namespace: gmp-system

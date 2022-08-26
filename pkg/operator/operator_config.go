@@ -59,6 +59,7 @@ const (
 const (
 	RulesSecretName               = "rules"
 	CollectionSecretName          = "collection"
+	AlertManagerSecretName        = "alertmanager"
 	AlertmanagerConfigDefaultName = "managed-alertmanager-config"
 	rulesDir                      = "/etc/rules"
 	secretsDir                    = "/etc/secrets"
@@ -116,6 +117,16 @@ func setupOperatorConfigControllers(op *Operator) error {
 		namespace: op.opts.OperatorNamespace,
 		name:      NameRuleEvaluator,
 	}
+	// Rule-evaluator secret filter.
+	objFilterRuleEvaluatorSecret := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      RulesSecretName,
+	}
+	// Rule-evaluator secret filter.
+	objFilterAlertManagerSecret := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      AlertManagerSecretName,
+	}
 
 	// Reconcile operator-managed resources.
 	err := ctrl.NewControllerManagedBy(op.manager).
@@ -126,7 +137,6 @@ func setupOperatorConfigControllers(op *Operator) error {
 			&monitoringv1.OperatorConfig{},
 			builder.WithPredicates(objFilterOperatorConfig),
 		).
-		// // Maintain the rule-evaluator deployment and configuration (as a secret).
 		Watches(
 			&source.Kind{Type: &appsv1.Deployment{}},
 			enqueueConst(objRequest),
@@ -134,16 +144,20 @@ func setupOperatorConfigControllers(op *Operator) error {
 				objFilterRuleEvaluator,
 				predicate.GenerationChangedPredicate{},
 			)).
-		// We must watch all secrets in the cluster as we copy and inline secrets referenced
-		// in the OperatorConfig and need to repeat those steps if affected secrets change.
-		// As the set of secrets to watch is not static, we've to watch them all.
-		// A viable alternative could be for the rule-evaluator (or a sidecar) to generate
-		// the configuration locally and maintain a more constrained watch.
 		Watches(
-			&source.Kind{Type: &corev1.Secret{}},
+			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.NewPredicateFuncs(secretFilter(op.opts.PublicNamespace))),
 		).
+		// Detect and undo changes to the secret.
+		Watches(
+			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
+			enqueueConst(objRequest),
+			builder.WithPredicates(objFilterRuleEvaluatorSecret)).
+		Watches(
+			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
+			enqueueConst(objRequest),
+			builder.WithPredicates(objFilterAlertManagerSecret)).
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
 
 	if err != nil {
@@ -312,7 +326,7 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 	// config found). This flow also handles user deletion/disabling of managed AM.
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "alertmanager",
+			Name:        AlertManagerSecretName,
 			Namespace:   r.opts.OperatorNamespace,
 			Annotations: componentAnnotations(),
 			Labels:      alertmanagerLabels(),

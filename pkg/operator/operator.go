@@ -29,8 +29,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -38,6 +40,7 @@ import (
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -82,6 +85,11 @@ type Operator struct {
 	opts    Options
 	client  client.Client
 	manager manager.Manager
+	// Due to the RBAC, the manager can only handle a single namespace per
+	// object at a time so this cache is used in cases where we want the same
+	// resource from multiple namespaces (not to be confused with cluster-wide
+	// resources).
+	managedNamespacesCache cache.Cache
 }
 
 // Options for the Operator.
@@ -158,28 +166,92 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid port")
 	}
-	mgr, err := ctrl.NewManager(clientConfig, manager.Options{
+	manager, err := ctrl.NewManager(clientConfig, manager.Options{
 		Scheme: sc,
 		Host:   host,
 		Port:   port,
 		// Don't run a metrics server with the manager. Metrics are being served
 		// explicitly in the main routine.
 		MetricsBindAddress: "0",
-		CertDir:            certDir,
+		// Manage cluster-wide and namespace resources at the same time.
+		NewCache: cache.NewCacheFunc(func(config *rest.Config, options cache.Options) (cache.Cache, error) {
+			return cache.New(clientConfig, cache.Options{
+				Scheme: options.Scheme,
+				// The presence of metadata.namespace has special handling internally causing the
+				// cache's watch-list to only watch that namespace.
+				SelectorsByObject: cache.SelectorsByObject{
+					&monitoringv1.PodMonitoring{}: {
+						Field: fields.Everything(),
+					},
+					&monitoringv1.ClusterPodMonitoring{}: {
+						Field: fields.Everything(),
+					},
+					&monitoringv1.GlobalRules{}: {
+						Field: fields.Everything(),
+					},
+					&monitoringv1.ClusterRules{}: {
+						Field: fields.Everything(),
+					},
+					&monitoringv1.Rules{}: {
+						Field: fields.Everything(),
+					},
+					&corev1.Secret{}: {
+						// We can only have 1 namespace specified here. While we
+						// need to access secrets from multiple namespaces, we
+						// specify one here so that the manager's client
+						// accesses secrets from this namespace through a cache.
+						Field: fields.SelectorFromSet(fields.Set{
+							"metadata.namespace": opts.PublicNamespace,
+						}),
+					},
+					&monitoringv1.OperatorConfig{}: {
+						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
+					},
+					&appsv1.StatefulSet{}: {
+						Field: fields.SelectorFromSet(fields.Set{
+							"metadata.namespace": opts.OperatorNamespace,
+							"metadata.name":      NameAlertmanager,
+						}),
+					},
+					&corev1.ConfigMap{}: {
+						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+					},
+					&appsv1.DaemonSet{}: {
+						Field: fields.SelectorFromSet(fields.Set{
+							"metadata.namespace": opts.OperatorNamespace,
+							"metadata.name":      NameCollector,
+						}),
+					},
+					&appsv1.Deployment{}: {
+						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+					},
+				}})
+		}),
+		CertDir: certDir,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "create controller manager")
 	}
+
+	namespaces := []string{opts.OperatorNamespace, opts.PublicNamespace}
+	managedNamespacesCache, err := cache.MultiNamespacedCacheBuilder(namespaces)(clientConfig, cache.Options{
+		Scheme: sc,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "create controller manager")
+	}
+
 	client, err := client.New(clientConfig, client.Options{Scheme: sc})
 	if err != nil {
 		return nil, errors.Wrap(err, "create client")
 	}
 
 	op := &Operator{
-		logger:  logger,
-		opts:    opts,
-		client:  client,
-		manager: mgr,
+		logger:                 logger,
+		opts:                   opts,
+		client:                 client,
+		manager:                manager,
+		managedNamespacesCache: managedNamespacesCache,
 	}
 	return op, nil
 }
@@ -288,6 +360,9 @@ func (o *Operator) Run(ctx context.Context) error {
 
 	o.logger.Info("starting GMP operator")
 
+	go func() {
+		o.managedNamespacesCache.Start(ctx)
+	}()
 	return o.manager.Start(ctx)
 }
 
