@@ -458,7 +458,7 @@ Loop:
 		if err != nil {
 			return nil, 0, samples[consumed:], err
 		}
-		return dp, dist.resetTimestamp, samples[consumed:], err
+		return dp, dist.resetTimestamp, samples[consumed:], nil
 	}
 	if consumed == 0 {
 		prometheusSamplesDiscarded.WithLabelValues("zero-histogram-samples-processed").Inc()
