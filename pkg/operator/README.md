@@ -58,8 +58,7 @@ coverage.
 To update generated code when changes to Custom Resource Definitions are made run:
 
 ```bash
-make codegen
-make crds
+make regen
 ```
 
 The generated CRD YAMLs may require manual editing. Especially consider whether fields
