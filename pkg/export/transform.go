@@ -39,9 +39,9 @@ import (
 )
 
 const (
-	projectIdLabel    = "project_id"
-	traceIdLabel      = "trace_id"
-	spanIdLabel       = "span_id"
+	projectIDLabel    = "project_id"
+	traceIDLabel      = "trace_id"
+	spanIDLabel       = "span_id"
 	spanContextFormat = "projects/%s/traces/%s/spans/%s"
 )
 
@@ -64,8 +64,20 @@ var (
 
 type sampleBuilder struct {
 	series *seriesCache
+	// If non empty, exported exemplars will use this ProjectID
+	// to create the SpanContext assuming there is a span_id and trace_id.
+	// This is set with the ExporterOpt's ProjectID if InferSpanProjectID
+	// is true.
+	exemplarProjectID string
+	dists             map[uint64]*distribution
+}
 
-	dists map[uint64]*distribution
+func newSampleBuilderWithProjectID(c *seriesCache, projectID string) *sampleBuilder {
+	return &sampleBuilder{
+		series:            c,
+		dists:             make(map[uint64]*distribution, 128),
+		exemplarProjectID: projectID,
+	}
 }
 
 func newSampleBuilder(c *seriesCache) *sampleBuilder {
@@ -261,7 +273,7 @@ func (d *distribution) Swap(i, j int) {
 	d.values[i], d.values[j] = d.values[j], d.values[i]
 }
 
-func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution, error) {
+func (d *distribution) build(lset labels.Labels, projectID string) (*distribution_pb.Distribution, error) {
 	// The exposition format in general requires buckets to be in-order but we observed
 	// some cases in the wild where this was not the case.
 	// Ensure sorting here to gracefully handle those cases sometimes. This cannot handle
@@ -345,7 +357,7 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 			},
 		},
 		BucketCounts: values,
-		Exemplars:    buildExemplars(d.exemplars),
+		Exemplars:    buildExemplars(d.exemplars, projectID),
 	}
 	return dp, nil
 }
@@ -454,7 +466,7 @@ Loop:
 		if !dist.complete() {
 			continue
 		}
-		dp, err := dist.build(e.lset)
+		dp, err := dist.build(e.lset, b.exemplarProjectID)
 		if err != nil {
 			return nil, 0, samples[consumed:], err
 		}
@@ -468,14 +480,14 @@ Loop:
 	return nil, 0, samples[consumed:], nil
 }
 
-func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribution_Exemplar {
+func buildExemplars(exemplars []record.RefExemplar, projectID string) []*distribution_pb.Distribution_Exemplar {
 	// the exemplars field of a distribution value field must be in increasing order of value -- let's sort them
 	sort.Slice(exemplars, func(i, j int) bool {
 		return exemplars[i].V < exemplars[j].V
 	})
 	var result []*distribution_pb.Distribution_Exemplar
 	for _, promExemplar := range exemplars {
-		attachments, err := buildExemplarLabels(promExemplar.Labels)
+		attachments, err := buildExemplarLabels(promExemplar.Labels, projectID)
 		if err == nil {
 			result = append(result, &distribution_pb.Distribution_Exemplar{
 				Value:       promExemplar.V,
@@ -495,24 +507,27 @@ func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribut
 // The rest of the LabelSet will go into the DroppedLabels attachment. If one of the above
 // fields is missing, we will put the entire LabelSet into a Dropped Labels attachment.
 // This is to maintain comptability with CloudTrace.
-func buildExemplarLabels(prometheusLabelSet labels.Labels) ([]*anypb.Any, error) {
-	var projectId, spanId, traceId string
+func buildExemplarLabels(prometheusLabelSet labels.Labels, exemplarProjectID string) ([]*anypb.Any, error) {
+	var projectID, spanID, traceID string
+	if exemplarProjectID != "" {
+		projectID = exemplarProjectID
+	}
 	var result []*anypb.Any
 	labels := make(map[string]string)
 	for _, label := range prometheusLabelSet {
-		if label.Name == projectIdLabel {
-			projectId = label.Value
-		} else if label.Name == spanIdLabel {
-			spanId = label.Value
-		} else if label.Name == traceIdLabel {
-			traceId = label.Value
+		if label.Name == projectIDLabel && projectID == "" {
+			projectID = label.Value
+		} else if label.Name == spanIDLabel {
+			spanID = label.Value
+		} else if label.Name == traceIDLabel {
+			traceID = label.Value
 		} else {
 			labels[label.Name] = label.Value
 		}
 	}
-	if projectId != "" && spanId != "" && traceId != "" {
+	if projectID != "" && spanID != "" && traceID != "" {
 		spanCtx, err := anypb.New(&monitoring_pb.SpanContext{
-			SpanName: fmt.Sprintf(spanContextFormat, projectId, traceId, spanId),
+			SpanName: fmt.Sprintf(spanContextFormat, projectID, traceID, spanID),
 		})
 		if err != nil {
 			prometheusExemplarsDiscarded.WithLabelValues("error-creating-span-context").Inc()
@@ -520,14 +535,14 @@ func buildExemplarLabels(prometheusLabelSet labels.Labels) ([]*anypb.Any, error)
 		}
 		result = append(result, spanCtx)
 	} else {
-		if projectId != "" {
-			labels[projectIdLabel] = projectId
+		if projectID != "" {
+			labels[projectIDLabel] = projectID
 		}
-		if spanId != "" {
-			labels[spanIdLabel] = spanId
+		if spanID != "" {
+			labels[spanIDLabel] = spanID
 		}
-		if traceId != "" {
-			labels[traceIdLabel] = traceId
+		if traceID != "" {
+			labels[traceIDLabel] = traceID
 		}
 	}
 	if len(labels) > 0 {
