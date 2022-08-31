@@ -122,7 +122,7 @@ func TestRuleEvaluation(t *testing.T) {
 	}))
 	t.Run("rule evaluator operatorconfig", tctx.subtest(testRuleEvaluatorOperatorConfig))
 	t.Run("rule evaluator secrets", tctx.subtest(func(ctx context.Context, t *testContext) {
-		testRuleEvaluatorSecrets(ctx, t, cert, key)
+		testRuleEvaluatorSecretsReconciled(ctx, t, cert, key)
 	}))
 	t.Run("rule evaluator config", tctx.subtest(testRuleEvaluatorConfig))
 	t.Run("rule generation", tctx.subtest(testRulesGeneration))
@@ -236,7 +236,7 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext, cert, ke
 	}
 }
 
-func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []byte) {
+func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []byte) error {
 	// Verify contents but without the GCP SA credentials file to not leak secrets in tests logs.
 	// Whether the contents were copied correctly is implicitly verified by the credentials working.
 	want := map[string][]byte{
@@ -244,7 +244,7 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []b
 		fmt.Sprintf("secret_%s_alertmanager-tls_key", t.pubNamespace):             key,
 		fmt.Sprintf("secret_%s_alertmanager-authorization_token", t.pubNamespace): []byte("auth-bearer-password"),
 	}
-	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
+	return wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
 		secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
@@ -258,10 +258,31 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []b
 		}
 		return true, nil
 	})
-	if err != nil {
-		t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
-	}
+}
 
+// Delete rule evaluator secret to see if it gets reconciled, checking that the secret is valid before and after.
+func testRuleEvaluatorSecretsReconciled(ctx context.Context, t *testContext, cert, key []byte) {
+	testReconcilation(t, "alert manager secret", func() error {
+		testRuleEvaluatorSecrets(ctx, t, cert, key)
+		return nil
+	}, func() error {
+		return t.kubeClient.CoreV1().Secrets(t.namespace).Delete(ctx, operator.RulesSecretName, metav1.DeleteOptions{})
+	}, func() error {
+		secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		// Pollute all data by adding extraneous bytes.
+		for key, value := range secret.Data {
+			bytes := append([]byte("0"), value...)
+			bytes = append(bytes, []byte("1")...)
+			secret.Data[key] = bytes
+		}
+
+		_, err = t.kubeClient.CoreV1().Secrets(t.namespace).Update(ctx, secret, metav1.UpdateOptions{})
+		return err
+	})
 }
 
 func testRuleEvaluatorConfig(ctx context.Context, t *testContext) {
@@ -1146,17 +1167,22 @@ receivers:
 route:
   receiver: "foobar"
 `
+	alertManagerConfigBytes := []byte(alertmanagerConfig)
 	_, err := t.kubeClient.CoreV1().Secrets(t.pubNamespace).Create(ctx, &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: operator.AlertmanagerConfigDefaultName},
 		Data: map[string][]byte{
-			"my-config.yaml": []byte(alertmanagerConfig),
+			"my-config.yaml": alertManagerConfigBytes,
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("unable to create alertmanager config secret: %s", err)
 	}
 
-	err = wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
+	testAlertManagerSecretsReconciled(ctx, t, alertManagerConfigBytes)
+}
+
+func testAlertManagerSecrets(ctx context.Context, t *testContext, config []byte) error {
+	return wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
 		secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
@@ -1171,13 +1197,53 @@ route:
 			return false, errors.Errorf("getting alertmanager secret data in config.yaml failed")
 		}
 
-		if diff := cmp.Diff(alertmanagerConfig, string(bytes)); diff != "" {
+		if diff := cmp.Diff(string(config), string(bytes)); diff != "" {
 			return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
 		}
 		return true, nil
 	})
-	if err != nil {
-		t.Errorf("unable to get alertmanager config: %s", err)
+}
+
+func testAlertManagerSecretsReconciled(ctx context.Context, t *testContext, config []byte) {
+	testReconcilation(t, "alert manager secret", func() error {
+		testAlertManagerSecrets(ctx, t, config)
+		return nil
+	}, func() error {
+		return t.kubeClient.CoreV1().Secrets(t.namespace).Delete(ctx, operator.NameAlertmanager, metav1.DeleteOptions{})
+	}, func() error {
+		secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		// Pollute all data by adding extraneous bytes.
+		for key, value := range secret.Data {
+			bytes := append([]byte("0"), value...)
+			bytes = append(bytes, []byte("1")...)
+			secret.Data[key] = bytes
+		}
+
+		_, err = t.kubeClient.CoreV1().Secrets(t.namespace).Update(ctx, secret, metav1.UpdateOptions{})
+		return err
+	})
+	testAlertManagerSecrets(ctx, t, config)
+}
+
+func testReconcilation(t *testContext, name string, validate, delete, modify func() error) {
+	if err := validate(); err != nil {
+		t.Fatalf("failed to validate %s initial existence: %s", name, err)
+	}
+	if err := delete(); err != nil {
+		t.Fatalf("failed to delete %s for reconcilation: %s", name, err)
+	}
+	if err := validate(); err != nil {
+		t.Fatalf("failed to validate %s after delete: %s", name, err)
+	}
+	if err := modify(); err != nil {
+		t.Fatalf("failed to modify %s for reconcilation: %s", name, err)
+	}
+	if err := validate(); err != nil {
+		t.Fatalf("failed to validate %s after modify: %s", name, err)
 	}
 }
 
