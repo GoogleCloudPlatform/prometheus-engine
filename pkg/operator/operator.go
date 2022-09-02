@@ -207,7 +207,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 					&monitoringv1.OperatorConfig{}: {
 						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
 					},
-					&appsv1.StatefulSet{}: {
+					&corev1.Service{}: {
 						Field: fields.SelectorFromSet(fields.Set{
 							"metadata.namespace": opts.OperatorNamespace,
 							"metadata.name":      NameAlertmanager,

@@ -455,13 +455,22 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		Namespace: r.opts.OperatorNamespace,
 		Name:      NameAlertmanager,
 	}
-	// if the default Alertmanager exists, append it to the list of spec.Alertmanagers
-	if resourceErr := r.client.Get(ctx, amNamespacedName, &appsv1.StatefulSet{}); resourceErr == nil {
-		alertManagers = append(alertManagers, monitoringv1.AlertmanagerEndpoints{
-			Name:      amNamespacedName.Name,
-			Namespace: amNamespacedName.Namespace,
-			Port:      intstr.FromInt(9093),
-		})
+	// If the default Alertmanager exists, append it to the list of spec.Alertmanagers.
+	var amSvc corev1.Service
+	if resourceErr := r.client.Get(ctx, amNamespacedName, &amSvc); resourceErr == nil {
+		// Alertmanager service should have one port defined, otherwise ignore.
+		if ports := amSvc.Spec.Ports; len(ports) > 0 {
+			// Assume first port on service is the correct endpoint.
+			port := ports[0].Port
+			alertManagers = append(alertManagers, monitoringv1.AlertmanagerEndpoints{
+				Name:      amNamespacedName.Name,
+				Namespace: amNamespacedName.Namespace,
+				Port: intstr.IntOrString{
+					Type:   intstr.Int,
+					IntVal: port,
+				},
+			})
+		}
 	}
 
 	for _, am := range alertManagers {

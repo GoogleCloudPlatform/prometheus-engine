@@ -250,12 +250,31 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	if err != nil {
 		return nil, errors.Wrap(err, "read alertmanager YAML")
 	}
-	obj, _, err = scheme.Codecs.UniversalDeserializer().Decode(alertmanagerBytes, nil, nil)
-	alertmanager := obj.(*appsv1.StatefulSet)
-	alertmanager.Namespace = tctx.namespace
-	_, err = tctx.kubeClient.AppsV1().StatefulSets(tctx.namespace).Create(ctx, alertmanager, metav1.CreateOptions{})
-	if err != nil {
-		return nil, errors.Wrap(err, "create alertmanager statefuleset")
+	for _, doc := range strings.Split(string(alertmanagerBytes), "---") {
+		obj, _, err = scheme.Codecs.UniversalDeserializer().Decode([]byte(doc), nil, nil)
+		if err != nil {
+			return nil, errors.Wrap(err, "deserializing alertmanager manifest")
+		}
+		switch obj.(type) {
+		case *appsv1.StatefulSet:
+			alertmanager := obj.(*appsv1.StatefulSet)
+			alertmanager.Namespace = tctx.namespace
+			if _, err := tctx.kubeClient.AppsV1().StatefulSets(tctx.namespace).Create(ctx, alertmanager, metav1.CreateOptions{}); err != nil {
+				return nil, errors.Wrap(err, "create alertmanager statefulset")
+			}
+		case *corev1.Secret:
+			amSecret := obj.(*corev1.Secret)
+			amSecret.Namespace = tctx.namespace
+			if _, err := tctx.kubeClient.CoreV1().Secrets(tctx.namespace).Create(ctx, amSecret, metav1.CreateOptions{}); err != nil {
+				return nil, errors.Wrap(err, "create alertmanager secret")
+			}
+		case *corev1.Service:
+			amSvc := obj.(*corev1.Service)
+			amSvc.Namespace = tctx.namespace
+			if _, err := tctx.kubeClient.CoreV1().Services(tctx.namespace).Create(ctx, amSvc, metav1.CreateOptions{}); err != nil {
+				return nil, errors.Wrap(err, "create alertmanager service")
+			}
+		}
 	}
 
 	return ors, nil
