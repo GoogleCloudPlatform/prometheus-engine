@@ -122,7 +122,7 @@ func setupOperatorConfigControllers(op *Operator) error {
 		namespace: op.opts.OperatorNamespace,
 		name:      RulesSecretName,
 	}
-	// Rule-evaluator secret filter.
+	// Alert manager secret filter.
 	objFilterAlertManagerSecret := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
 		name:      AlertManagerSecretName,
