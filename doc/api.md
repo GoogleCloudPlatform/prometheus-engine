@@ -260,7 +260,7 @@ ManagedAlertmanagerSpec holds configuration information for the managed Alertman
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| configSecret | ConfigSecret refers to the name of a single-key Secret in the public namespace that holds the managed Alertmanager config file. | string | false |
+| configSecret | ConfigSecret refers to the name of a single-key Secret in the public namespace that holds the managed Alertmanager config file. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
 
 [Back to TOC](#table-of-contents)
 

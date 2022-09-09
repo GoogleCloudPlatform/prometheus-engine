@@ -57,16 +57,17 @@ const (
 )
 
 const (
-	RulesSecretName               = "rules"
-	CollectionSecretName          = "collection"
-	AlertManagerSecretName        = "alertmanager"
-	AlertmanagerConfigDefaultName = "managed-alertmanager-config"
-	rulesDir                      = "/etc/rules"
-	secretsDir                    = "/etc/secrets"
-	alertmanagerConfigKey         = "config.yaml"
+	RulesSecretName              = "rules"
+	CollectionSecretName         = "collection"
+	AlertmanagerSecretName       = "alertmanager"
+	AlertmanagerPublicSecretName = "alertmanager"
+	AlertmanagerPublicSecretKey  = "alertmanager.yaml"
+	rulesDir                     = "/etc/rules"
+	secretsDir                   = "/etc/secrets"
+	alertmanagerConfigKey        = "config.yaml"
 )
 
-var alertManagerNoOpConfig = `
+var alertmanagerNoOpConfig = `
 receivers:
   - name: "noop"
 route:
@@ -125,7 +126,7 @@ func setupOperatorConfigControllers(op *Operator) error {
 	// Rule-evaluator secret filter.
 	objFilterAlertManagerSecret := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
-		name:      AlertManagerSecretName,
+		name:      AlertmanagerSecretName,
 	}
 
 	// Reconcile operator-managed resources.
@@ -318,6 +319,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Contex
 // ensureAlertmanagerConfigSecret copies the managed Alertmanager config secret from gmp-public
 func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Context, spec *monitoringv1.ManagedAlertmanagerSpec) error {
 	logger, _ := logr.FromContext(ctx)
+	pubNamespace := r.opts.PublicNamespace
 
 	// This is the default, no-op secret config. If we find a user-defined config,
 	// we will overwrite the default data with the user's data.
@@ -326,25 +328,29 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 	// config found). This flow also handles user deletion/disabling of managed AM.
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        AlertManagerSecretName,
+			Name:        AlertmanagerSecretName,
 			Namespace:   r.opts.OperatorNamespace,
 			Annotations: componentAnnotations(),
 			Labels:      alertmanagerLabels(),
 		},
-		Data: map[string][]byte{alertmanagerConfigKey: []byte(alertManagerNoOpConfig)},
+		Data: map[string][]byte{alertmanagerConfigKey: []byte(alertmanagerNoOpConfig)},
 	}
 
-	publicSecret := &corev1.Secret{}
-	secretNamespacedName := types.NamespacedName{
-		Namespace: r.opts.PublicNamespace,
-		Name:      AlertmanagerConfigDefaultName,
+	// Set defaults on public namespace secret.
+	var sel = &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{
+			Name: AlertmanagerPublicSecretName,
+		},
+		Key: AlertmanagerPublicSecretKey,
 	}
-	if spec != nil && len(spec.ConfigSecret) > 0 {
-		// if the user is overriding the default secret name, use that
-		secretNamespacedName.Name = spec.ConfigSecret
+	// Overwrite defaults if specified.
+	if spec != nil && spec.ConfigSecret != nil {
+		sel.Name = spec.ConfigSecret.Name
+		sel.Key = spec.ConfigSecret.Key
 	}
 
-	err := r.client.Get(ctx, secretNamespacedName, publicSecret)
+	// Try and read the secret for use.
+	b, err := getSecretKeyBytes(ctx, r.client, pubNamespace, sel)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
@@ -352,19 +358,9 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 		// If the config secret is not found, it may have been manually deleted
 		// (ie, to disable managed AM), so we will continue with restoring the no-op config
 		// so that the managed AM pod doesn't crash loop.
-		logger.Info(fmt.Sprintf("alertmanager config secret %s/%s not found", secretNamespacedName.Namespace, secretNamespacedName.Name))
-	}
-
-	if publicSecret.Data != nil {
-		if len(publicSecret.Data) != 1 {
-			logger.Error(errors.Errorf("alertmanager config secret must have exactly 1 key"), "keys", len(publicSecret.Data))
-			return nil
-		}
-		// Alertmanager config could have been created from any file name, so
-		// even though there is only 1 key we have to loop over it to get the data
-		for _, bytes := range publicSecret.Data {
-			secret.Data[alertmanagerConfigKey] = bytes
-		}
+		logger.Info(fmt.Sprintf("alertmanager config secret not found in namespace %s: %s", pubNamespace, err.Error()))
+	} else {
+		secret.Data[alertmanagerConfigKey] = b
 	}
 
 	if err := r.client.Update(ctx, secret); apierrors.IsNotFound(err) {
@@ -666,7 +662,6 @@ func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace 
 	if err != nil {
 		return b, errors.Wrapf(err, "unable to get secret %q", sel.Name)
 	}
-
 	// Check 'data' first, then 'binaryData'.
 	if s, ok := cm.Data[sel.Key]; ok {
 		return []byte(s), nil

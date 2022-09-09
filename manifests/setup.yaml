@@ -1078,7 +1078,9 @@ spec:
             type: string
           managedAlertmanager:
             default:
-              configSecret: managed-alertmanager-config
+              configSecret:
+                key: alertmanager.yaml
+                name: alertmanager
             description: ManagedAlertmanager holds information for configuring the
               managed instance of Alertmanager.
             properties:
@@ -1086,7 +1088,21 @@ spec:
                 description: ConfigSecret refers to the name of a single-key Secret
                   in the public namespace that holds the managed Alertmanager config
                   file.
-                type: string
+                properties:
+                  key:
+                    description: The key of the secret to select from.  Must be a
+                      valid secret key.
+                    type: string
+                  name:
+                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?'
+                    type: string
+                  optional:
+                    description: Specify whether the Secret or its key must be defined
+                    type: boolean
+                required:
+                - key
+                type: object
             type: object
           metadata:
             type: object
