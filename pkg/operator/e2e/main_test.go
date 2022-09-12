@@ -134,11 +134,50 @@ func TestRuleEvaluation(t *testing.T) {
 	}
 }
 
-func TestAlertmanager(t *testing.T) {
+func TestAlertmanagerDefault(t *testing.T) {
 	tctx := newTestContext(t)
 
-	t.Run("deployed", tctx.subtest(testAlertmanagerDeployed))
-	t.Run("config set", tctx.subtest(testAlertmanagerConfig))
+	alertmanagerConfig := `
+receivers:
+  - name: "foobar"
+route:
+  receiver: "foobar"
+`
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: operator.AlertmanagerPublicSecretName},
+		Data: map[string][]byte{
+			operator.AlertmanagerPublicSecretKey: []byte(alertmanagerConfig),
+		},
+	}
+	t.Run("deployed", tctx.subtest(testAlertmanagerDeployed(nil)))
+	t.Run("config set", tctx.subtest(testAlertmanagerConfig(secret, operator.AlertmanagerPublicSecretKey)))
+}
+
+func TestAlertmanagerCustom(t *testing.T) {
+	tctx := newTestContext(t)
+
+	alertmanagerConfig := `
+receivers:
+  - name: "foobar"
+route:
+  receiver: "foobar"
+`
+	spec := &monitoringv1.ManagedAlertmanagerSpec{
+		ConfigSecret: &v1.SecretKeySelector{
+			LocalObjectReference: v1.LocalObjectReference{
+				"my-secret-name",
+			},
+			Key: "my-secret-key",
+		},
+	}
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-secret-name"},
+		Data: map[string][]byte{
+			"my-secret-key": []byte(alertmanagerConfig),
+		},
+	}
+	t.Run("deployed", tctx.subtest(testAlertmanagerDeployed(spec)))
+	t.Run("config set", tctx.subtest(testAlertmanagerConfig(secret, "my-secret-key")))
 }
 
 // testRuleEvaluatorOperatorConfig ensures an OperatorConfig can be deployed
@@ -1081,103 +1120,99 @@ spec:
 	}
 }
 
-func testAlertmanagerDeployed(ctx context.Context, t *testContext) {
-	opCfg := &monitoringv1.OperatorConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: operator.NameOperatorConfig,
-		},
-		Collection: monitoringv1.CollectionSpec{
-			ExternalLabels: map[string]string{
-				"external_key": "external_val",
+func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(context.Context, *testContext) {
+	return func(ctx context.Context, t *testContext) {
+		opCfg := &monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: operator.NameOperatorConfig,
 			},
-			Filter: monitoringv1.ExportFilters{
-				MatchOneOf: []string{
-					"{job='foo'}",
-					"{__name__=~'up'}",
+			Collection: monitoringv1.CollectionSpec{
+				ExternalLabels: map[string]string{
+					"external_key": "external_val",
+				},
+				Filter: monitoringv1.ExportFilters{
+					MatchOneOf: []string{
+						"{job='foo'}",
+						"{__name__=~'up'}",
+					},
+				},
+				KubeletScraping: &monitoringv1.KubeletScraping{
+					Interval: "5s",
 				},
 			},
-			KubeletScraping: &monitoringv1.KubeletScraping{
-				Interval: "5s",
-			},
-		},
-	}
-	if gcpServiceAccount != "" {
-		opCfg.Collection.Credentials = &v1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{
-				Name: "user-gcp-service-account",
-			},
-			Key: "key.json",
+			ManagedAlertmanager: spec,
 		}
-	}
-	_, err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("create rules operatorconfig: %s", err)
-	}
-
-	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-		ss, err := t.kubeClient.AppsV1().StatefulSets(t.namespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		} else if err != nil {
-			t.Log(errors.Errorf("getting alertmanager StatefulSet failed: %s", err))
-			return false, errors.Errorf("getting alertmanager StatefulSet failed: %s", err)
+		if gcpServiceAccount != "" {
+			opCfg.Collection.Credentials = &v1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "user-gcp-service-account",
+				},
+				Key: "key.json",
+			}
+		}
+		_, err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatalf("create rules operatorconfig: %s", err)
 		}
 
-		// Assert we have the expected annotations.
-		wantedAnnotations := map[string]string{
-			"components.gke.io/component-name":               "managed_prometheus",
-			"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
-		}
-		if diff := cmp.Diff(wantedAnnotations, ss.Spec.Template.Annotations); diff != "" {
-			return false, errors.Errorf("unexpected annotations (-want, +got): %s", diff)
-		}
+		err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
+			ss, err := t.kubeClient.AppsV1().StatefulSets(t.namespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			} else if err != nil {
+				t.Log(errors.Errorf("getting alertmanager StatefulSet failed: %s", err))
+				return false, errors.Errorf("getting alertmanager StatefulSet failed: %s", err)
+			}
 
-		return true, nil
-	})
-	if err != nil {
-		t.Errorf("unable to get alertmanager statefulset: %s", err)
+			// Assert we have the expected annotations.
+			wantedAnnotations := map[string]string{
+				"components.gke.io/component-name":               "managed_prometheus",
+				"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
+			}
+			if diff := cmp.Diff(wantedAnnotations, ss.Spec.Template.Annotations); diff != "" {
+				return false, errors.Errorf("unexpected annotations (-want, +got): %s", diff)
+			}
+
+			return true, nil
+		})
+		if err != nil {
+			t.Errorf("unable to get alertmanager statefulset: %s", err)
+		}
 	}
 }
 
-func testAlertmanagerConfig(ctx context.Context, t *testContext) {
-	alertmanagerConfig := `
-receivers:
-  - name: "foobar"
-route:
-  receiver: "foobar"
-`
-	_, err := t.kubeClient.CoreV1().Secrets(t.pubNamespace).Create(ctx, &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: operator.AlertmanagerConfigDefaultName},
-		Data: map[string][]byte{
-			"my-config.yaml": []byte(alertmanagerConfig),
-		},
-	}, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("unable to create alertmanager config secret: %s", err)
-	}
-
-	err = wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
-		secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		} else if err != nil {
-			t.Log(errors.Errorf("getting alertmanager secret failed: %s", err))
-			return false, errors.Errorf("getting alertmanager secret failed: %s", err)
+func testAlertmanagerConfig(pub *corev1.Secret, key string) func(context.Context, *testContext) {
+	return func(ctx context.Context, t *testContext) {
+		_, err := t.kubeClient.CoreV1().Secrets(t.pubNamespace).Create(ctx, pub, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatalf("unable to create alertmanager config secret: %s", err)
 		}
 
-		bytes, ok := secret.Data["config.yaml"]
-		if !ok {
-			t.Log(errors.Errorf("getting alertmanager secret data in config.yaml failed"))
-			return false, errors.Errorf("getting alertmanager secret data in config.yaml failed")
-		}
+		err = wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
+			secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			} else if err != nil {
+				t.Log(errors.Errorf("getting alertmanager secret failed: %s", err))
+				return false, errors.Errorf("getting alertmanager secret failed: %s", err)
+			}
 
-		if diff := cmp.Diff(alertmanagerConfig, string(bytes)); diff != "" {
-			return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
+			bytes, ok := secret.Data["config.yaml"]
+			if !ok {
+				t.Log(errors.Errorf("getting alertmanager secret data in config.yaml failed"))
+				return false, errors.Errorf("getting alertmanager secret data in config.yaml failed")
+			}
+
+			// Grab data from public secret and compare.
+			data := pub.Data[key]
+			if diff := cmp.Diff(data, bytes); diff != "" {
+				return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
+			}
+			return true, nil
+		})
+		if err != nil {
+			t.Errorf("unable to get alertmanager config: %s", err)
 		}
-		return true, nil
-	})
-	if err != nil {
-		t.Errorf("unable to get alertmanager config: %s", err)
 	}
 }
 

@@ -54,7 +54,7 @@ type OperatorConfig struct {
 	// Collection specifies how the operator configures collection.
 	Collection CollectionSpec `json:"collection,omitempty"`
 	// ManagedAlertmanager holds information for configuring the managed instance of Alertmanager.
-	// +kubebuilder:default={configSecret: managed-alertmanager-config}
+	// +kubebuilder:default={configSecret: {name: alertmanager, key: alertmanager.yaml}}
 	ManagedAlertmanager *ManagedAlertmanagerSpec `json:"managedAlertmanager,omitempty"`
 }
 
@@ -140,7 +140,7 @@ type AlertingSpec struct {
 type ManagedAlertmanagerSpec struct {
 	// ConfigSecret refers to the name of a single-key Secret in the public namespace that
 	// holds the managed Alertmanager config file.
-	ConfigSecret string `json:"configSecret,omitempty""`
+	ConfigSecret *v1.SecretKeySelector `json:"configSecret,omitempty"`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object

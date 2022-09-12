@@ -70,6 +70,11 @@ rules:
   - deployments
   resourceNames: ["collector", "rule-evaluator"]
   verbs: ["get", "delete", "patch", "update"]
+- apiGroups: [""]
+  resources:
+  - services
+  resourceNames: ["alertmanager"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["apps"]
   resources:
   - statefulsets
