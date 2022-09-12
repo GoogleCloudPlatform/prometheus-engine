@@ -175,6 +175,9 @@ func (b *sampleBuilder) next(
 				value = &monitoring_pb.TypedValue{
 					Value: &monitoring_pb.TypedValue_DoubleValue{v},
 				}
+				if _, ok := exemplars[sample.Ref]; ok {
+					prometheusExemplarsDiscarded.WithLabelValues("gmp-does-not-support-exemplars-on-counter-metrics").Inc()
+				}
 			}
 		}
 		// We may not have produced a value if:

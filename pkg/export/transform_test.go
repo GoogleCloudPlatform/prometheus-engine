@@ -1418,6 +1418,60 @@ func TestSampleBuilder(t *testing.T) {
 				},
 			},
 		},
+		{
+			doc: "convert counter with exemplars (exemplars should be dropped)",
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1_total": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+			}),
+			series: seriesMap{
+				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
+			},
+			samples: [][]record.RefSample{
+				{{Ref: 123, T: 2000, V: 5.5}},
+				{{Ref: 123, T: 3000, V: 8}},
+			},
+			exemplars: []map[chunks.HeadSeriesRef]record.RefExemplar{
+				// first sample set is skipped by reset handling
+				{},
+				{
+					// project_id, trace_id, and span_id should be in the span context
+					// random should be in the dropped labels
+					123: {Ref: 123, T: 2500, V: 7},
+				},
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				// First sample skipped to initialize reset handling.
+				// Subsequent samples are relative to the initial sample in value and timestamp.
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "prometheus.googleapis.com/metric1_total/counter",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							StartTime: &timestamp_pb.Timestamp{Seconds: 2},
+							EndTime:   &timestamp_pb.Timestamp{Seconds: 3},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{2.5},
+						},
+					}},
+				},
+			},
+		},
 	}
 
 	for i, c := range cases {
