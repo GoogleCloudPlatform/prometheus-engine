@@ -298,6 +298,9 @@ apiVersion: monitoring.googleapis.com/v1
 kind: ClusterPodMonitoring
 metadata:
   name: kube-state-metrics
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
 spec:
   selector:
     matchLabels:
@@ -317,6 +320,9 @@ kind: PodMonitoring
 metadata:
   namespace: gmp-public
   name: kube-state-metrics
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
 spec:
   selector:
     matchLabels:

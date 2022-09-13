@@ -18,6 +18,7 @@ metadata:
   name: prometheus-example-app
   labels:
     app.kubernetes.io/name: prometheus-example-app
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
 spec:
   selector:
     matchLabels:

@@ -19,6 +19,7 @@ metadata:
   name: collector
   labels:
     app.kubernetes.io/name: collector
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
 spec:
   selector:
     matchLabels:

@@ -18,6 +18,7 @@ metadata:
   name: example-rules
   labels:
     app.kubernetes.io/name: example-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
 spec:
   groups:
   - name: example
