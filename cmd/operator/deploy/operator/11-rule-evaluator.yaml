@@ -45,11 +45,11 @@ spec:
           mountPath: /prometheus/config_out
       containers:
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.4.1-gke.0
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.5.0-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --web.listen-address=:19092
-        - --export.user-agent=rule-evaluator/0.4.1 (mode:kubectl)
+        - --export.user-agent=rule-evaluator/0.5.0 (mode:kubectl)
         ports:
         - name: r-eval-metrics
           containerPort: 19092
@@ -92,7 +92,7 @@ spec:
           mountPath: /etc/secrets
           readOnly: true
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.4.1-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
