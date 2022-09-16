@@ -64,7 +64,7 @@ spec:
           mountPath: /alertmanager/config_out
       containers:
       - name: alertmanager
-        image: prom/alertmanager:latest
+        image: gke.gcr.io/prometheus-engine/alertmanager:v0.24.0-gmp.0-gke.0
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
