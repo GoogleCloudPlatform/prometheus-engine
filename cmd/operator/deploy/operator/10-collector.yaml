@@ -82,7 +82,6 @@ spec:
             scheme: HTTP
         resources:
           limits:
-            cpu: 1000m
             memory: 3G
           requests:
             cpu: 100m
@@ -125,7 +124,6 @@ spec:
           containerPort: 19091
         resources:
           limits:
-            cpu: 10m
             memory: 32M
           requests:
             cpu: 5m
