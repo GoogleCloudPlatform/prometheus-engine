@@ -65,7 +65,6 @@ spec:
             scheme: HTTP
         resources:
           limits:
-            cpu: 1000m
             memory: 1G
           requests:
             cpu: 100m
@@ -105,7 +104,6 @@ spec:
           name: cfg-rel-metrics
         resources:
           limits:
-            cpu: 10m
             memory: 32M
           requests:
             cpu: 5m
