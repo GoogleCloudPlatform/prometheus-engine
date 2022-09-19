@@ -146,6 +146,9 @@ spec:
           seccompProfile:
             type: RuntimeDefault
       serviceAccountName: collector
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       automountServiceAccountToken: true
       priorityClassName: gmp-critical
       tolerations:

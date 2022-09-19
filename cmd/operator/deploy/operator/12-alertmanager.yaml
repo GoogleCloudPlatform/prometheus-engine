@@ -134,6 +134,9 @@ spec:
           seccompProfile:
             type: RuntimeDefault
       priorityClassName: gmp-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       tolerations:
       - effect: NoExecute
         operator: Exists

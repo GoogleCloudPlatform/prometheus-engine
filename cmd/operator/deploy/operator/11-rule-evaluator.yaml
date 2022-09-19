@@ -132,6 +132,9 @@ spec:
           mountPath: /etc/secrets
           readOnly: true
       priorityClassName: gmp-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: collector
       automountServiceAccountToken: true
       volumes:

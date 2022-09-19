@@ -622,6 +622,9 @@ spec:
           seccompProfile:
             type: RuntimeDefault
       serviceAccountName: collector
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       automountServiceAccountToken: true
       priorityClassName: gmp-critical
       tolerations:
@@ -761,6 +764,9 @@ spec:
           mountPath: /etc/secrets
           readOnly: true
       priorityClassName: gmp-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: collector
       automountServiceAccountToken: true
       volumes:
@@ -902,6 +908,9 @@ spec:
           seccompProfile:
             type: RuntimeDefault
       priorityClassName: gmp-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       tolerations:
       - effect: NoExecute
         operator: Exists
