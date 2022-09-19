@@ -664,6 +664,7 @@ spec:
       nodeSelector:
         kubernetes.io/arch: amd64
         kubernetes.io/os: linux
+      serviceAccountName: collector
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash
@@ -756,6 +757,11 @@ spec:
           mountPath: /etc/secrets
           readOnly: true
       priorityClassName: gmp-critical
+      tolerations:
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
       securityContext:
         seccompProfile:
           type: RuntimeDefault
