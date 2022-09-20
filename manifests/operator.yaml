@@ -240,6 +240,9 @@ spec:
         app.kubernetes.io/component: operator
         app.kubernetes.io/part-of: gmp
     spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        kubernetes.io/os: linux
       serviceAccountName: operator
       automountServiceAccountToken: true
       containers:
@@ -267,6 +270,17 @@ spec:
           runAsUser: 1000
           runAsGroup: 1000
           runAsNonRoot: true
+      priorityClassName: gmp-critical
+      tolerations:
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
+      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
+      - key: "kubernetes.io/arch"
+        operator: "Equal"
+        value: "amd64"
+        effect: "NoSchedule"
       securityContext:
         seccompProfile:
           type: RuntimeDefault
