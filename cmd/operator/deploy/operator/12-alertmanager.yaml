@@ -46,6 +46,9 @@ spec:
         components.gke.io/component-name: managed_prometheus
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
     spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        kubernetes.io/os: linux
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash
