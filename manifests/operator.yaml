@@ -628,6 +628,11 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
+      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
+      - key: "kubernetes.io/arch"
+        operator: "Equal"
+        value: "amd64"
+        effect: "NoSchedule"
       volumes:
       - name: storage
         emptyDir: {}
@@ -762,6 +767,11 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
+      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
+      - key: "kubernetes.io/arch"
+        operator: "Equal"
+        value: "amd64"
+        effect: "NoSchedule"
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -901,6 +911,11 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
+      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
+      - key: "kubernetes.io/arch"
+        operator: "Equal"
+        value: "amd64"
+        effect: "NoSchedule"
       volumes:
       - name: config
         secret:
