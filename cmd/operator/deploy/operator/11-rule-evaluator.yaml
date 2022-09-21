@@ -78,8 +78,6 @@ spec:
           runAsGroup: 1000
           runAsNonRoot: true
           runAsUser: 1000
-          seccompProfile:
-            type: RuntimeDefault
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
@@ -117,8 +115,6 @@ spec:
           runAsGroup: 1000
           runAsNonRoot: true
           runAsUser: 1000
-          seccompProfile:
-            type: RuntimeDefault
         volumeMounts:
         - name: config
           mountPath: /prometheus/config
@@ -132,6 +128,9 @@ spec:
           mountPath: /etc/secrets
           readOnly: true
       priorityClassName: gmp-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: collector
       automountServiceAccountToken: true
       volumes:

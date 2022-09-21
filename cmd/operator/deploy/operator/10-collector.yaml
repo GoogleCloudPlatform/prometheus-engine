@@ -104,8 +104,6 @@ spec:
           runAsUser: 1000
           runAsGroup: 1000
           runAsNonRoot: true
-          seccompProfile:
-            type: RuntimeDefault
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
         args:
@@ -143,9 +141,10 @@ spec:
           runAsUser: 1000
           runAsGroup: 1000
           runAsNonRoot: true
-          seccompProfile:
-            type: RuntimeDefault
       serviceAccountName: collector
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       automountServiceAccountToken: true
       priorityClassName: gmp-critical
       tolerations:

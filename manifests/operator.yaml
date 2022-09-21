@@ -580,8 +580,6 @@ spec:
           runAsUser: 1000
           runAsGroup: 1000
           runAsNonRoot: true
-          seccompProfile:
-            type: RuntimeDefault
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
         args:
@@ -619,9 +617,10 @@ spec:
           runAsUser: 1000
           runAsGroup: 1000
           runAsNonRoot: true
-          seccompProfile:
-            type: RuntimeDefault
       serviceAccountName: collector
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       automountServiceAccountToken: true
       priorityClassName: gmp-critical
       tolerations:
@@ -707,8 +706,6 @@ spec:
           runAsGroup: 1000
           runAsNonRoot: true
           runAsUser: 1000
-          seccompProfile:
-            type: RuntimeDefault
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
@@ -746,8 +743,6 @@ spec:
           runAsGroup: 1000
           runAsNonRoot: true
           runAsUser: 1000
-          seccompProfile:
-            type: RuntimeDefault
         volumeMounts:
         - name: config
           mountPath: /prometheus/config
@@ -761,6 +756,9 @@ spec:
           mountPath: /etc/secrets
           readOnly: true
       priorityClassName: gmp-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: collector
       automountServiceAccountToken: true
       volumes:
@@ -851,8 +849,6 @@ spec:
           runAsGroup: 1000
           runAsNonRoot: true
           runAsUser: 1000
-          seccompProfile:
-            type: RuntimeDefault
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
         args:
@@ -890,9 +886,10 @@ spec:
           runAsUser: 1000
           runAsGroup: 1000
           runAsNonRoot: true
-          seccompProfile:
-            type: RuntimeDefault
       priorityClassName: gmp-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       tolerations:
       - effect: NoExecute
         operator: Exists
