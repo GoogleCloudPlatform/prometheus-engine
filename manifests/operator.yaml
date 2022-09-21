@@ -780,15 +780,6 @@ spec:
           secretName: rules
 ---
 apiVersion: v1
-kind: Secret
-metadata:
-  namespace: gmp-system
-  name: alertmanager
-type: Opaque
-data:
-  config.yaml: cmVjZWl2ZXJzOgogIC0gbmFtZTogIm5vb3AiCnJvdXRlOgogIHJlY2VpdmVyOiAibm9vcCIK
----
-apiVersion: v1
 kind: Service
 metadata:
   namespace: gmp-system
