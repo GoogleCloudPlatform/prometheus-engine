@@ -57,6 +57,10 @@ kind: StatefulSet
 metadata:
   namespace: gmp-test
   name: prometheus-test
+  annotations:
+    # The emptyDir for the storage and config directories prevents cluster
+    # autoscaling unless this annotation is set.
+    cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
   labels:
     prometheus: test
 spec:
