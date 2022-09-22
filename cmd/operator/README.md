@@ -3,7 +3,7 @@
 This binary is a Kubernetes operator that provides Managed Collection for Google
 Cloud Prometheus Engine on Kubernetes.
 
-The operator can be ran and tested two ways. The first and arguable better way,
+The operator can be run and tested two ways. The first and arguably better way,
 in lieu of matching actual deployment, is by creating a docker image and pushing
 it to Google Cloud and telling Kubernetes to fetch and run it. The second is by
 pushing the configurations to Kubernetes running and instead of Kubernetes
