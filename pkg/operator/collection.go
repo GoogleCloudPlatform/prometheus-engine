@@ -124,7 +124,7 @@ func setupCollectionControllers(op *Operator) error {
 type collectionReconciler struct {
 	client        client.Client
 	opts          Options
-	statusUpdates []client.Object
+	statusUpdates []monitoringv1.PodMonitoringStatusContainer
 }
 
 func newCollectionReconciler(c client.Client, opts Options) *collectionReconciler {
