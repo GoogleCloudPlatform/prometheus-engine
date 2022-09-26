@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -102,6 +103,275 @@ func TestOperatorConfigValidator(t *testing.T) {
 				},
 			},
 			err: `failed to parse generator URL: parse "~:://example.com": first path segment in URL cannot contain colon`,
+		},
+		{
+			desc: "missing collection credentials secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Collection: monitoringv1.CollectionSpec{
+					Credentials: &v1.SecretKeySelector{},
+				},
+			},
+			err: "invalid collection credentials: missing secret key selector name",
+		},
+		{
+			desc: "collection credentials secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Collection: monitoringv1.CollectionSpec{
+					Credentials: &v1.SecretKeySelector{
+						LocalObjectReference: v1.LocalObjectReference{
+							Name: "baz",
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "missing managed alert manager config secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+					ConfigSecret: &v1.SecretKeySelector{},
+				},
+			},
+			err: "invalid managed alert manager config secret: missing secret key selector name",
+		},
+		{
+			desc: "managed alert manager config secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+					ConfigSecret: &v1.SecretKeySelector{
+						LocalObjectReference: v1.LocalObjectReference{
+							Name: "baz",
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "missing rule manager credentials secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					Credentials: &v1.SecretKeySelector{},
+				},
+			},
+			err: "invalid rules config: invalid credentials: missing secret key selector name",
+		},
+		{
+			desc: "rule manager credentials secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					Credentials: &v1.SecretKeySelector{
+						LocalObjectReference: v1.LocalObjectReference{
+							Name: "baz",
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "missing rule manager authorization credentials secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					Alerting: monitoringv1.AlertingSpec{
+						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+							Name: "bar",
+							TLS:  &monitoringv1.TLSConfig{},
+							Authorization: &monitoringv1.Authorization{
+								Credentials: &v1.SecretKeySelector{},
+							},
+						}},
+					},
+				},
+			},
+			err: "invalid rules config: invalid alert manager endpoint `bar` (index 0): invalid authorization credentials: missing secret key selector name",
+		},
+		{
+			desc: "rule manager authorization credentials secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					Alerting: monitoringv1.AlertingSpec{
+						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+							Name: "bar",
+							TLS:  &monitoringv1.TLSConfig{},
+							Authorization: &monitoringv1.Authorization{
+								Credentials: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: "baz",
+									},
+								},
+							},
+						}},
+					},
+				},
+			},
+		},
+		{
+			desc: "missing rule manager TLS secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					Alerting: monitoringv1.AlertingSpec{
+						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+							Name: "bar",
+							TLS: &monitoringv1.TLSConfig{
+								KeySecret: &v1.SecretKeySelector{},
+							},
+						}},
+					},
+				},
+			},
+			err: "invalid rules config: invalid alert manager endpoint `bar` (index 0): invalid TLS key: missing secret key selector name",
+		},
+		{
+			desc: "rule manager TLS secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					Alerting: monitoringv1.AlertingSpec{
+						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+							Name: "bar",
+							TLS: &monitoringv1.TLSConfig{
+								KeySecret: &v1.SecretKeySelector{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: "baz",
+									},
+								},
+							},
+						}},
+					},
+				},
+			},
+		},
+		{
+			desc: "missing rule manager TLS CA secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					Alerting: monitoringv1.AlertingSpec{
+						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+							Name: "bar",
+							TLS: &monitoringv1.TLSConfig{
+								CA: &monitoringv1.SecretOrConfigMap{
+									Secret: &v1.SecretKeySelector{},
+								},
+							},
+						}},
+					},
+				},
+			},
+			err: "invalid rules config: invalid alert manager endpoint `bar` (index 0): invalid TLS CA: missing secret key selector name",
+		},
+		{
+			desc: "rule manager TLS CA secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					Alerting: monitoringv1.AlertingSpec{
+						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+							Name: "bar",
+							TLS: &monitoringv1.TLSConfig{
+								CA: &monitoringv1.SecretOrConfigMap{
+									Secret: &v1.SecretKeySelector{
+										LocalObjectReference: v1.LocalObjectReference{
+											Name: "baz",
+										},
+									},
+								},
+							},
+						}},
+					},
+				},
+			},
+		},
+		{
+			desc: "missing rule manager TLS Cert secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					Alerting: monitoringv1.AlertingSpec{
+						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+							Name: "bar",
+							TLS: &monitoringv1.TLSConfig{
+								Cert: &monitoringv1.SecretOrConfigMap{
+									Secret: &v1.SecretKeySelector{},
+								},
+							},
+						}},
+					},
+				},
+			},
+			err: "invalid rules config: invalid alert manager endpoint `bar` (index 0): invalid TLS Cert: missing secret key selector name",
+		},
+		{
+			desc: "rule manager TLS Cert secret key",
+			oc: &monitoringv1.OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: monitoringv1.RuleEvaluatorSpec{
+					Alerting: monitoringv1.AlertingSpec{
+						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+							Name: "bar",
+							TLS: &monitoringv1.TLSConfig{
+								Cert: &monitoringv1.SecretOrConfigMap{
+									Secret: &v1.SecretKeySelector{
+										LocalObjectReference: v1.LocalObjectReference{
+											Name: "baz",
+										},
+									},
+								},
+							},
+						}},
+					},
+				},
+			},
 		},
 	}
 	for _, c := range cases {
