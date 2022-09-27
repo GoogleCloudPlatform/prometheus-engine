@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap/zapcore"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -97,7 +98,7 @@ func newTestContext(t *testing.T) *testContext {
 		t.Fatalf("create test namespace: %s", err)
 	}
 
-	op, err := operator.New(globalLogger, kubeconfig, nil, operator.Options{
+	op, err := operator.New(globalLogger, kubeconfig, prometheus.NewRegistry(), operator.Options{
 		ProjectID:         projectID,
 		Cluster:           cluster,
 		Location:          location,
