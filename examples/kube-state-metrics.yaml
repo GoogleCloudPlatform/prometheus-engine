@@ -32,9 +32,20 @@ spec:
         app.kubernetes.io/name: kube-state-metrics
         app.kubernetes.io/version: 2.3.0
     spec:
-      nodeSelector:
-        kubernetes.io/os: linux
-        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
       containers:
       - name: kube-state-metric
         image: k8s.gcr.io/kube-state-metrics/kube-state-metrics:v2.3.0

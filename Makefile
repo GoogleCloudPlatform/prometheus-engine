@@ -18,9 +18,14 @@ define docker_build
 	DOCKER_BUILDKIT=1 docker build $(1)
 endef
 
-define docker_tag_push
-	docker tag $(1) $(2)
-	docker push $(2)
+# Install QEMU packages required to build ARM images
+# Create a multi-arch builder if one doesn't already exist (default builder doesn't support multi-arch).
+define start_buildx
+	if ! docker buildx inspect multi-arch-builder; then \
+		docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes; \
+		docker buildx create --name multi-arch-builder --use; \
+	fi
+	docker buildx use multi-arch-builder
 endef
 
 help:        ## Show this help.
@@ -51,20 +56,19 @@ ifeq ($(NO_DOCKER), 1)
 	if [ "$@" = "frontend" ]; then pkg/ui/build.sh; fi
 	CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o ./build/bin/$@ ./cmd/$@/*.go
 else
-	$(call docker_build, --tag gmp/$@ -f ./cmd/$@/Dockerfile .)
-# Optionally tag and push images to an image registry.
-# Helpful for debugging local changes.
+	$(call start_buildx)
+# If pushing, build and tag multi-arch image to GCR.
+
 ifeq ($(DOCKER_PUSH), 1)
-	@echo ">> tagging and pushing images"
-	$(call docker_tag_push,gmp/$@,${IMAGE_REGISTRY}/$@:${TAG_NAME})
+	docker buildx build --tag gcr.io/${PROJECT_ID}/prometheus-engine/$@:${TAG_NAME} -f ./cmd/$@/Dockerfile . --platform linux/amd64,linux/arm64 --push
 # TODO(pintohutch): this is a bit hacky, but can be useful when testing.
 # Ultimately this should be replaced with go templating.
 	@echo ">> updating manifests with pushed images"
 	find manifests examples cmd/operator/deploy -type f -name "*.yaml" -exec sed -i "s#image: .*/$@:.*#image: ${IMAGE_REGISTRY}/$@:${TAG_NAME}#g" {} \;
+else 
+# Build a local image.
+	docker buildx build --load --tag gmp/$@ -f ./cmd/$@/Dockerfile .
 endif
-	mkdir -p build/bin
-	@echo ">> exporting built image to local 'build/' dir"
-	printf 'FROM scratch\nCOPY --from=gmp/$@ /bin/$@ /$@' | $(call docker_build, -o ./build/bin -)
 endif
 
 bin:         ## Build all go binaries from cmd/.

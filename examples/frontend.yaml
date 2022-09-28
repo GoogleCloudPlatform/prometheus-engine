@@ -27,9 +27,20 @@ spec:
         app: frontend
     spec:
       automountServiceAccountToken: true
-      nodeSelector:
-        kubernetes.io/os: linux
-        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
       containers:
       - name: frontend
         image: "gke.gcr.io/prometheus-engine/frontend:v0.5.0-gke.0"
