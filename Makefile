@@ -18,6 +18,18 @@ define docker_build
 	DOCKER_BUILDKIT=1 docker build $(1)
 endef
 
+define docker_buildx
+	docker buildx build $(1) --platform linux/arm64,linux/amd64
+endef
+
+define start_buildx
+	if docker buildx inspect multi-arch-builder | grep -q "no builder "; then \
+		docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes; \
+		docker buildx create --name multi-arch-builder --use; \
+	fi
+	docker buildx use multi-arch-builder
+endef
+
 define docker_tag_push
 	docker tag $(1) $(2)
 	docker push $(2)
@@ -51,7 +63,10 @@ ifeq ($(NO_DOCKER), 1)
 	if [ "$@" = "frontend" ]; then pkg/ui/build.sh; fi
 	CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o ./build/bin/$@ ./cmd/$@/*.go
 else
-	$(call docker_build, --tag gmp/$@ -f ./cmd/$@/Dockerfile .)
+# Install QEMU packages required to build ARM images
+# Create a multi-arch builder if one doesn't already exist (default builder doesn't support multi-arch).
+	$(call start_buildx)
+	$(call docker_buildx, --tag gmp/$@ -f ./cmd/$@/Dockerfile .)
 # Optionally tag and push images to an image registry.
 # Helpful for debugging local changes.
 ifeq ($(DOCKER_PUSH), 1)
