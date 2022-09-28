@@ -56,18 +56,16 @@ ifeq ($(NO_DOCKER), 1)
 	if [ "$@" = "frontend" ]; then pkg/ui/build.sh; fi
 	CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o ./build/bin/$@ ./cmd/$@/*.go
 else
+# Build a local image.
 	$(call start_buildx)
+	docker buildx build --load --tag gmp/$@ -f ./cmd/$@/Dockerfile .
 # If pushing, build and tag multi-arch image to GCR.
-
 ifeq ($(DOCKER_PUSH), 1)
 	docker buildx build --tag gcr.io/${PROJECT_ID}/prometheus-engine/$@:${TAG_NAME} -f ./cmd/$@/Dockerfile . --platform linux/amd64,linux/arm64 --push
 # TODO(pintohutch): this is a bit hacky, but can be useful when testing.
 # Ultimately this should be replaced with go templating.
 	@echo ">> updating manifests with pushed images"
 	find manifests examples cmd/operator/deploy -type f -name "*.yaml" -exec sed -i "s#image: .*/$@:.*#image: ${IMAGE_REGISTRY}/$@:${TAG_NAME}#g" {} \;
-else 
-# Build a local image.
-	docker buildx build --load --tag gmp/$@ -f ./cmd/$@/Dockerfile .
 endif
 endif
 
