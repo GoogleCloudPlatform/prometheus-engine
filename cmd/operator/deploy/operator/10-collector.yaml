@@ -32,12 +32,23 @@ spec:
         # autoscaling unless this annotation is set.
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
     spec:
-      nodeSelector:
-        kubernetes.io/arch: amd64
-        kubernetes.io/os: linux
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash
+        image: gke.gcr.io/gke-distroless/bash:20220419
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -156,6 +167,10 @@ spec:
       - key: "kubernetes.io/arch"
         operator: "Equal"
         value: "amd64"
+        effect: "NoSchedule"
+      - key: "kubernetes.io/arch"
+        operator: "Equal"
+        value: "arm64"
         effect: "NoSchedule"
       volumes:
       - name: storage

@@ -79,9 +79,20 @@ spec:
         prometheus: test
     spec:
       automountServiceAccountToken: true
-      nodeSelector:
-        kubernetes.io/arch: amd64
-        kubernetes.io/os: linux
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
       containers:
       - name: prometheus
         image: gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0
