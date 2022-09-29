@@ -31,7 +31,6 @@ is a candidate for build by running:
 ```
 make operator
 ```
-This triggers a Docker build and associated image. It also generates in a binary in `./build/bin/`.
 
 - Running `make bin` will generate all the go binaries.
   - Setting `NO_DOCKER=1` here will build all the binaries natively on the host machine.
