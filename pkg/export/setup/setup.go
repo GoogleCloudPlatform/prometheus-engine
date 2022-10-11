@@ -116,9 +116,6 @@ func FromFlags(a *kingpin.Application, userAgent string) func(log.Logger, promet
 	a.Flag("export.label.project-id", fmt.Sprintf("Default project ID set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", export.KeyProjectID)).
 		Default(opts.ProjectID).StringVar(&opts.ProjectID)
 
-	a.Flag("export.exemplars.infer-span-project-id", "If true, use the same project ID for exported metrics as the same for span data in exemplars.").
-		Default("false").BoolVar(&opts.InferSpanProjectID)
-
 	a.Flag("export.user-agent", "Override for the user agent used for requests against the GCM API.").
 		Default(userAgent).StringVar(&opts.UserAgent)
 

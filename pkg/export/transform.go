@@ -64,20 +64,7 @@ var (
 
 type sampleBuilder struct {
 	series *seriesCache
-	// If non empty, exported exemplars will use this ProjectID
-	// to create the SpanContext assuming there is a span_id and trace_id.
-	// This is set with the ExporterOpt's ProjectID if InferSpanProjectID
-	// is true.
-	exemplarProjectID string
-	dists             map[uint64]*distribution
-}
-
-func newSampleBuilderWithProjectID(c *seriesCache, projectID string) *sampleBuilder {
-	return &sampleBuilder{
-		series:            c,
-		dists:             make(map[uint64]*distribution, 128),
-		exemplarProjectID: projectID,
-	}
+	dists  map[uint64]*distribution
 }
 
 func newSampleBuilder(c *seriesCache) *sampleBuilder {
@@ -276,7 +263,7 @@ func (d *distribution) Swap(i, j int) {
 	d.values[i], d.values[j] = d.values[j], d.values[i]
 }
 
-func (d *distribution) build(lset labels.Labels, projectID string) (*distribution_pb.Distribution, error) {
+func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution, error) {
 	// The exposition format in general requires buckets to be in-order but we observed
 	// some cases in the wild where this was not the case.
 	// Ensure sorting here to gracefully handle those cases sometimes. This cannot handle
@@ -360,7 +347,7 @@ func (d *distribution) build(lset labels.Labels, projectID string) (*distributio
 			},
 		},
 		BucketCounts: values,
-		Exemplars:    buildExemplars(d.exemplars, projectID),
+		Exemplars:    buildExemplars(d.exemplars),
 	}
 	return dp, nil
 }
@@ -469,7 +456,7 @@ Loop:
 		if !dist.complete() {
 			continue
 		}
-		dp, err := dist.build(e.lset, b.exemplarProjectID)
+		dp, err := dist.build(e.lset)
 		if err != nil {
 			return nil, 0, samples[consumed:], err
 		}
@@ -483,14 +470,14 @@ Loop:
 	return nil, 0, samples[consumed:], nil
 }
 
-func buildExemplars(exemplars []record.RefExemplar, projectID string) []*distribution_pb.Distribution_Exemplar {
+func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribution_Exemplar {
 	// the exemplars field of a distribution value field must be in increasing order of value -- let's sort them
 	sort.Slice(exemplars, func(i, j int) bool {
 		return exemplars[i].V < exemplars[j].V
 	})
 	var result []*distribution_pb.Distribution_Exemplar
 	for _, promExemplar := range exemplars {
-		attachments, err := buildExemplarLabels(promExemplar.Labels, projectID)
+		attachments, err := buildExemplarLabels(promExemplar.Labels)
 		if err == nil {
 			result = append(result, &distribution_pb.Distribution_Exemplar{
 				Value:       promExemplar.V,
@@ -504,17 +491,15 @@ func buildExemplars(exemplars []record.RefExemplar, projectID string) []*distrib
 
 // buildExemplarLabels transforms the prometheus LabelSet into a GCM exemplar attachment.
 // If the following three fields are present in the LabelSet, then we will build a SpanContext:
-//    1. project_id
-//    2. span_id
-//    3. trace_id
+//  1. project_id
+//  2. span_id
+//  3. trace_id
+//
 // The rest of the LabelSet will go into the DroppedLabels attachment. If one of the above
 // fields is missing, we will put the entire LabelSet into a Dropped Labels attachment.
 // This is to maintain comptability with CloudTrace.
-func buildExemplarLabels(prometheusLabelSet labels.Labels, exemplarProjectID string) ([]*anypb.Any, error) {
+func buildExemplarLabels(prometheusLabelSet labels.Labels) ([]*anypb.Any, error) {
 	var projectID, spanID, traceID string
-	if exemplarProjectID != "" {
-		projectID = exemplarProjectID
-	}
 	var result []*anypb.Any
 	labels := make(map[string]string)
 	for _, label := range prometheusLabelSet {
