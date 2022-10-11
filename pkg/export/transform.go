@@ -83,12 +83,7 @@ func (b *sampleBuilder) close() {
 // next extracts the next sample from the input sample batch and returns
 // the remainder of the input. It also attaches valid exemplars if applicable.
 // Returns a nil time series for samples that couldn't be converted.
-func (b *sampleBuilder) next(
-	metadata MetadataFunc,
-	externalLabels labels.Labels,
-	samples []record.RefSample,
-	exemplars map[chunks.HeadSeriesRef]record.RefExemplar,
-) ([]hashedSeries, []record.RefSample, error) {
+func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels, samples []record.RefSample, exemplars map[chunks.HeadSeriesRef]record.RefExemplar) ([]hashedSeries, []record.RefSample, error) {
 	sample := samples[0]
 	tailSamples := samples[1:]
 
