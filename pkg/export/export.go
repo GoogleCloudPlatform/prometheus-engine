@@ -182,10 +182,6 @@ type ExporterOpts struct {
 
 	// The project ID of an alternative project for quota attribution.
 	QuotaProject string
-
-	// If true, when we export exemplars we will assume the ProjectID set in the
-	// ExporterOpts is the same ProjectID where the span context is being written to.
-	InferSpanProjectID bool
 }
 
 // NopExporter returns an inactive exporter.
@@ -406,11 +402,7 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 		return
 	}
 	var builder *sampleBuilder
-	if e.opts.InferSpanProjectID {
-		builder = newSampleBuilderWithProjectID(e.seriesCache, e.opts.ProjectID)
-	} else {
-		builder = newSampleBuilder(e.seriesCache)
-	}
+	builder = newSampleBuilder(e.seriesCache)
 	defer builder.close()
 
 	// maps a series to its exemplars we need to add
