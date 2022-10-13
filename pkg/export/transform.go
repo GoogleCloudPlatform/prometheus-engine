@@ -158,7 +158,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 					Value: &monitoring_pb.TypedValue_DoubleValue{v},
 				}
 				if _, ok := exemplars[sample.Ref]; ok {
-					prometheusExemplarsDiscarded.WithLabelValues("gmp-does-not-support-exemplars-on-counter-metrics").Inc()
+					prometheusExemplarsDiscarded.WithLabelValues("counters-unsupported").Inc()
 				}
 			}
 		}
@@ -466,20 +466,19 @@ Loop:
 }
 
 func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribution_Exemplar {
-	// the exemplars field of a distribution value field must be in increasing order of value -- let's sort them
+	// the exemplars field of a distribution value field must be in increasing order of value
+	// (https://cloud.google.com/monitoring/api/ref_v3/rpc/google.api#distribution) -- let's sort them
 	sort.Slice(exemplars, func(i, j int) bool {
 		return exemplars[i].V < exemplars[j].V
 	})
 	var result []*distribution_pb.Distribution_Exemplar
 	for _, promExemplar := range exemplars {
-		attachments, err := buildExemplarLabels(promExemplar.Labels)
-		if err == nil {
-			result = append(result, &distribution_pb.Distribution_Exemplar{
-				Value:       promExemplar.V,
-				Timestamp:   getTimestamp(promExemplar.T),
-				Attachments: attachments,
-			})
-		}
+		attachments := buildExemplarLabels(promExemplar.Labels)
+		result = append(result, &distribution_pb.Distribution_Exemplar{
+			Value:       promExemplar.V,
+			Timestamp:   getTimestamp(promExemplar.T),
+			Attachments: attachments,
+		})
 	}
 	return result
 }
@@ -493,12 +492,12 @@ func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribut
 // The rest of the LabelSet will go into the DroppedLabels attachment. If one of the above
 // fields is missing, we will put the entire LabelSet into a Dropped Labels attachment.
 // This is to maintain comptability with CloudTrace.
-func buildExemplarLabels(prometheusLabelSet labels.Labels) ([]*anypb.Any, error) {
+func buildExemplarLabels(lSet labels.Labels) []*anypb.Any {
 	var projectID, spanID, traceID string
-	var result []*anypb.Any
+	var attachments []*anypb.Any
 	labels := make(map[string]string)
-	for _, label := range prometheusLabelSet {
-		if label.Name == projectIDLabel && projectID == "" {
+	for _, label := range lSet {
+		if label.Name == projectIDLabel {
 			projectID = label.Value
 		} else if label.Name == spanIDLabel {
 			spanID = label.Value
@@ -514,9 +513,9 @@ func buildExemplarLabels(prometheusLabelSet labels.Labels) ([]*anypb.Any, error)
 		})
 		if err != nil {
 			prometheusExemplarsDiscarded.WithLabelValues("error-creating-span-context").Inc()
-			return nil, err
+		} else {
+			attachments = append(attachments, spanCtx)
 		}
-		result = append(result, spanCtx)
 	} else {
 		if projectID != "" {
 			labels[projectIDLabel] = projectID
@@ -534,9 +533,9 @@ func buildExemplarLabels(prometheusLabelSet labels.Labels) ([]*anypb.Any, error)
 		})
 		if err != nil {
 			prometheusExemplarsDiscarded.WithLabelValues("error-creating-dropped-labels").Inc()
-			return nil, err
+		} else {
+			attachments = append(attachments, droppedLabels)
 		}
-		result = append(result, droppedLabels)
 	}
-	return result, nil
+	return attachments
 }
