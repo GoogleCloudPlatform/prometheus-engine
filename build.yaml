@@ -24,8 +24,19 @@ steps:
   - 'network=cloudbuild'
   - '--use'
 - name: 'gcr.io/cloud-builders/docker'
-  id: 'build-push-$_IMAGE-image'
+  id: 'qemu-user-static'
   waitFor: ['multiarch-init']
+  args:
+  - run
+  - '--rm'
+  - '--privileged'
+  - 'multiarch/qemu-user-static'
+  - '--reset'
+  - '-p'
+  - 'yes'
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'build-push-$_IMAGE-image'
+  waitFor: ['qemu-user-static']
   args:
   - buildx
   - build
