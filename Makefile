@@ -59,6 +59,7 @@ else ifeq ($(DOCKER_PUSH), 1)
 	@echo ">> updating manifests with pushed images"
 	$(call update_manifests,$@)
 # Run on cloudbuild and tag multi-arch image to GCR.
+# TODO(pintohutch): cache source tarball between binary builds?
 else ifeq ($(CLOUD_BUILD), 1)
 	@echo ">> building GMP images on Cloud Build with tag: $(TAG_NAME)"
 	gcloud builds submit --config build.yaml --timeout=30m --substitutions=_IMAGE_REGISTRY=$(IMAGE_REGISTRY),_IMAGE=$@,TAG_NAME=$(TAG_NAME) --async
