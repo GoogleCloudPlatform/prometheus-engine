@@ -178,15 +178,6 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - value: "amd64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
-      - value: "arm64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
       securityContext:
         runAsGroup: 1000
         runAsNonRoot: true
