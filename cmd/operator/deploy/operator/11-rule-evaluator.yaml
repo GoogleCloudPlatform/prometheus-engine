@@ -21,7 +21,7 @@ spec:
   selector:
     matchLabels:
       # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
-	    # see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
+      # see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
       app.kubernetes.io/name: rule-evaluator
   replicas: 1
   template:
