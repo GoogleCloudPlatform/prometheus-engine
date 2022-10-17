@@ -25,7 +25,6 @@ import (
 	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
-	"github.com/prometheus/prometheus/tsdb/chunks"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -69,7 +68,7 @@ func TestSampleBuilder(t *testing.T) {
 		metadata   MetadataFunc
 		series     seriesMap
 		samples    [][]record.RefSample
-		exemplars  []map[chunks.HeadSeriesRef]record.RefExemplar
+		exemplars  []map[storage.SeriesRef]record.RefExemplar
 		matchers   Matchers
 		wantSeries []*monitoring_pb.TimeSeries
 		wantFail   bool
@@ -1318,7 +1317,7 @@ func TestSampleBuilder(t *testing.T) {
 					{Ref: 7, T: 2000, V: 21},    // hist1, inf
 				},
 			},
-			exemplars: []map[chunks.HeadSeriesRef]record.RefExemplar{
+			exemplars: []map[storage.SeriesRef]record.RefExemplar{
 				// first sample set is skipped by reset handling
 				{},
 				{
@@ -1429,7 +1428,7 @@ func TestSampleBuilder(t *testing.T) {
 				{{Ref: 123, T: 2000, V: 5.5}},
 				{{Ref: 123, T: 3000, V: 8}},
 			},
-			exemplars: []map[chunks.HeadSeriesRef]record.RefExemplar{
+			exemplars: []map[storage.SeriesRef]record.RefExemplar{
 				// first sample set is skipped by reset handling
 				{},
 				{
@@ -1488,7 +1487,7 @@ func TestSampleBuilder(t *testing.T) {
 				b := newSampleBuilder(cache)
 
 				for k := 0; len(batch) > 0; k++ {
-					var exemplars map[chunks.HeadSeriesRef]record.RefExemplar
+					var exemplars map[storage.SeriesRef]record.RefExemplar
 					if len(c.exemplars) > i {
 						exemplars = c.exemplars[i]
 					}

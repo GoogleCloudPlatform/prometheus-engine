@@ -29,7 +29,6 @@ import (
 	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
-	"github.com/prometheus/prometheus/tsdb/chunks"
 	"github.com/prometheus/prometheus/tsdb/record"
 
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
@@ -83,7 +82,7 @@ func (b *sampleBuilder) close() {
 // next extracts the next sample from the input sample batch and returns
 // the remainder of the input. It also attaches valid exemplars if applicable.
 // Returns a nil time series for samples that couldn't be converted.
-func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels, samples []record.RefSample, exemplars map[chunks.HeadSeriesRef]record.RefExemplar) ([]hashedSeries, []record.RefSample, error) {
+func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels, samples []record.RefSample, exemplars map[storage.SeriesRef]record.RefExemplar) ([]hashedSeries, []record.RefSample, error) {
 	sample := samples[0]
 	tailSamples := samples[1:]
 
@@ -157,7 +156,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 				value = &monitoring_pb.TypedValue{
 					Value: &monitoring_pb.TypedValue_DoubleValue{v},
 				}
-				if _, ok := exemplars[sample.Ref]; ok {
+				if _, ok := exemplars[storage.SeriesRef(sample.Ref)]; ok {
 					prometheusExemplarsDiscarded.WithLabelValues("counters-unsupported").Inc()
 				}
 			}
@@ -363,7 +362,7 @@ func (b *sampleBuilder) buildDistribution(
 	metric string,
 	matchLset labels.Labels,
 	samples []record.RefSample,
-	exemplars map[chunks.HeadSeriesRef]record.RefExemplar,
+	exemplars map[storage.SeriesRef]record.RefExemplar,
 	externalLabels labels.Labels,
 	metadata MetadataFunc,
 ) (*distribution_pb.Distribution, int64, []record.RefSample, error) {
@@ -440,7 +439,7 @@ Loop:
 			}
 			dist.bounds = append(dist.bounds, bound)
 			dist.values = append(dist.values, int64(v))
-			if exemplar, ok := exemplars[s.Ref]; ok {
+			if exemplar, ok := exemplars[storage.SeriesRef(s.Ref)]; ok {
 				dist.exemplars = append(dist.exemplars, exemplar)
 			}
 

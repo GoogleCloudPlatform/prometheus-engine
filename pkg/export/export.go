@@ -34,7 +34,6 @@ import (
 	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/storage"
-	"github.com/prometheus/prometheus/tsdb/chunks"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
@@ -385,7 +384,7 @@ func (e *Exporter) SetLabelsByIDFunc(f func(storage.SeriesRef) labels.Labels) {
 }
 
 // Export enqueues the samples and exemplars to be written to Cloud Monitoring.
-func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemplarMap map[chunks.HeadSeriesRef]record.RefExemplar) {
+func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemplarMap map[storage.SeriesRef]record.RefExemplar) {
 	if e.opts.Disable {
 		return
 	}
