@@ -385,7 +385,7 @@ func (e *Exporter) SetLabelsByIDFunc(f func(storage.SeriesRef) labels.Labels) {
 }
 
 // Export enqueues the samples and exemplars to be written to Cloud Monitoring.
-func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemplarBatch []record.RefExemplar) {
+func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemplarMap map[chunks.HeadSeriesRef]record.RefExemplar) {
 	if e.opts.Disable {
 		return
 	}
@@ -405,18 +405,12 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 	builder = newSampleBuilder(e.seriesCache)
 	defer builder.close()
 
-	// maps a series to its exemplars we need to add
-	exemplarsBySeries := make(map[chunks.HeadSeriesRef]record.RefExemplar)
-	for _, exemplar := range exemplarBatch {
-		exemplarsBySeries[exemplar.Ref] = exemplar
-	}
-
 	for len(batch) > 0 {
 		var (
 			samples []hashedSeries
 			err     error
 		)
-		samples, batch, err = builder.next(metadata, externalLabels, batch, exemplarsBySeries)
+		samples, batch, err = builder.next(metadata, externalLabels, batch, exemplarMap)
 		if err != nil {
 			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
 			continue
