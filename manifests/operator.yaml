@@ -98,16 +98,11 @@ rules:
 - apiGroups: ["apps"]
   resources:
   - deployments
-  resourceNames: ["collector", "rule-evaluator"]
+  resourceNames: ["rule-evaluator"]
   verbs: ["get", "delete", "patch", "update"]
 - apiGroups: [""]
   resources:
   - services
-  resourceNames: ["alertmanager"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["apps"]
-  resources:
-  - statefulsets
   resourceNames: ["alertmanager"]
   verbs: ["get", "list", "watch"]
 ---
