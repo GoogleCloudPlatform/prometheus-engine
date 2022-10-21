@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
@@ -43,11 +42,13 @@ import (
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -221,7 +222,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 				// cache's watch-list to only watch that namespace.
 				ByObject: map[client.Object]cache.ByObject{
 					&corev1.Pod{}: {
-						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+						Field: fields.OneTermEqualSelector("metadata.namespace", opts.OperatorNamespace),
 					},
 					&monitoringv1.PodMonitoring{}: {
 						Field: fields.Everything(),
@@ -248,7 +249,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 						},
 					},
 					&monitoringv1.OperatorConfig{}: {
-						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
+						Field: fields.OneTermEqualSelector("metadata.namespace", opts.PublicNamespace),
 					},
 					&corev1.Service{}: {
 						Field: fields.SelectorFromSet(fields.Set{
@@ -257,7 +258,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 						}),
 					},
 					&corev1.ConfigMap{}: {
-						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+						Field: fields.OneTermEqualSelector("metadata.namespace", opts.OperatorNamespace),
 					},
 					&appsv1.DaemonSet{}: {
 						Field: fields.SelectorFromSet(fields.Set{
@@ -270,6 +271,20 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 							"metadata.namespace": opts.OperatorNamespace,
 							"metadata.name":      NameRuleEvaluator,
 						}),
+					},
+					&arv1.MutatingWebhookConfiguration{}: {
+						Namespaces: map[string]cache.Config{
+							opts.OperatorNamespace: {
+								FieldSelector: fields.OneTermEqualSelector("metadata.name", webhookConfigName(opts)),
+							},
+						},
+					},
+					&arv1.MutatingWebhookConfiguration{}: {
+						Namespaces: map[string]cache.Config{
+							opts.OperatorNamespace: {
+								FieldSelector: fields.OneTermEqualSelector("metadata.name", webhookConfigName(opts)),
+							},
+						},
 					},
 				}})
 		}),
@@ -302,11 +317,81 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	}
 
 	if len(caBundle) > 0 {
-		// Keep setting the caBundle, if "ensureCerts" gives us those, in the expected webhook configurations.
-		// In case of not enough permissions we will keep trying with error message.
-		go o.continuouslySetCABundle(ctx, caBundle)
+		// Keep setting the caBundle in the expected webhook configurations.
+		err = ctrl.NewControllerManagedBy(o.manager).
+			Named("validating-webhook-cert-updater").
+			For(
+				&arv1.ValidatingWebhookConfiguration{},
+				builder.WithPredicates(predicate.Funcs{
+					CreateFunc: func(ev event.CreateEvent) bool {
+						return ev.Object.GetName() == webhookConfigName(o.opts)
+					},
+					UpdateFunc: func(ev event.UpdateEvent) bool {
+						return ev.ObjectNew.GetName() == webhookConfigName(o.opts)
+					},
+					GenericFunc: func(ev event.GenericEvent) bool {
+						return ev.Object.GetName() == webhookConfigName(o.opts)
+					},
+					// Ignore delete events.
+				}),
+			).
+			WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
+			Complete(reconcile.Func(func(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+				if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil {
+					return reconcile.Result{}, err
+				}
+				return reconcile.Result{}, nil
+			}))
+		if err != nil {
+			return fmt.Errorf("create validating webhook updater controller: %w", err)
+		}
+		err = ctrl.NewControllerManagedBy(o.manager).
+			Named("mutating-webhook-cert-updater").
+			For(
+				&arv1.MutatingWebhookConfiguration{},
+				builder.WithPredicates(predicate.Funcs{
+					CreateFunc: func(ev event.CreateEvent) bool {
+						return ev.Object.GetName() == webhookConfigName(o.opts)
+					},
+					UpdateFunc: func(ev event.UpdateEvent) bool {
+						return ev.ObjectNew.GetName() == webhookConfigName(o.opts)
+					},
+					GenericFunc: func(ev event.GenericEvent) bool {
+						return ev.Object.GetName() == webhookConfigName(o.opts)
+					},
+					// Ignore delete events.
+				}),
+			).
+			WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
+			Complete(reconcile.Func(func(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+				if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
+					return reconcile.Result{}, err
+				}
+				return reconcile.Result{}, nil
+			}))
+		if err != nil {
+			return fmt.Errorf("create mutating webhook updater controller: %w", err)
+		}
 	}
 
+	// This method runs after the webhook server and client are started but
+	// before the controllers are started. Running it here prevents race
+	// conditions.
+	o.manager.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		// The webhook configurations may not be installed yet.
+		if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+
+		if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}))
+
+	if o == nil {
+		return nil
+	}
 	s := o.manager.GetWebhookServer()
 
 	// Validating webhooks.
@@ -534,16 +619,20 @@ func defaultPath(gvr metav1.GroupVersionResource) string {
 	return fmt.Sprintf("/default/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
 }
 
-func (o *Operator) webhookConfigName() string {
-	return fmt.Sprintf("%s.%s.monitoring.googleapis.com", NameOperator, o.opts.OperatorNamespace)
+func webhookConfigName(opts Options) string {
+	return fmt.Sprintf("%s.%s.monitoring.googleapis.com", NameOperator, opts.OperatorNamespace)
 }
 
 func (o *Operator) setValidatingWebhookCABundle(ctx context.Context, caBundle []byte) error {
-	var vwc arv1.ValidatingWebhookConfiguration
-	err := o.client.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &vwc)
-	if apierrors.IsNotFound(err) {
+	// Only inject if we've an explicit CA bundle ourselves. Otherwise the webhook configs may have
+	// already been created with one.
+	if len(caBundle) == 0 {
 		return nil
-	} else if err != nil {
+	}
+
+	var vwc arv1.ValidatingWebhookConfiguration
+	err := o.client.Get(ctx, client.ObjectKey{Name: webhookConfigName(o.opts)}, &vwc)
+	if err != nil {
 		return err
 	}
 
@@ -554,11 +643,15 @@ func (o *Operator) setValidatingWebhookCABundle(ctx context.Context, caBundle []
 }
 
 func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []byte) error {
-	var mwc arv1.MutatingWebhookConfiguration
-	err := o.client.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &mwc)
-	if apierrors.IsNotFound(err) {
+	// Only inject if we've an explicit CA bundle ourselves. Otherwise the webhook configs may have
+	// already been created with one.
+	if len(caBundle) == 0 {
 		return nil
-	} else if err != nil {
+	}
+
+	var mwc arv1.MutatingWebhookConfiguration
+	err := o.client.Get(ctx, client.ObjectKey{Name: webhookConfigName(o.opts)}, &mwc)
+	if err != nil {
 		return err
 	}
 
@@ -566,24 +659,4 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
 	}
 	return o.client.Update(ctx, &mwc)
-}
-
-func (o *Operator) continuouslySetCABundle(ctx context.Context, caBundle []byte) {
-	// Initial sleep for the client to initialize before our first calls.
-	// Ideally we could explicitly wait for it.
-	time.Sleep(5 * time.Second)
-
-	for {
-		if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil {
-			o.logger.Error(err, "Setting CA bundle for ValidatingWebhookConfiguration failed; retrying in 1m...")
-		}
-		if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
-			o.logger.Error(err, "Setting CA bundle for MutatingWebhookConfiguration failed; retrying in 1m...")
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Minute):
-		}
-	}
 }

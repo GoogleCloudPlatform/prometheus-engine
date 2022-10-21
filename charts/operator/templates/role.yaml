@@ -163,7 +163,7 @@ rules:
   apiGroups: ["admissionregistration.k8s.io"]
   resourceNames:
   - gmp-operator.gmp-system.monitoring.googleapis.com
-  verbs: ["get", "patch", "update", "watch"]
+  verbs: ["get", "list", "patch", "update", "watch"]
 # Permission to delete legacy webhook config the operator directly created
 # in previous versions.
 - resources:
