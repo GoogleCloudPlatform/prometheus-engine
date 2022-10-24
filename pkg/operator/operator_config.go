@@ -118,16 +118,6 @@ func setupOperatorConfigControllers(op *Operator) error {
 		namespace: op.opts.OperatorNamespace,
 		name:      NameRuleEvaluator,
 	}
-	// Rule-evaluator secret filter.
-	objFilterRuleEvaluatorSecret := namespacedNamePredicate{
-		namespace: op.opts.OperatorNamespace,
-		name:      RulesSecretName,
-	}
-	// Rule-evaluator secret filter.
-	objFilterAlertManagerSecret := namespacedNamePredicate{
-		namespace: op.opts.OperatorNamespace,
-		name:      AlertmanagerSecretName,
-	}
 
 	// Reconcile operator-managed resources.
 	err := ctrl.NewControllerManagedBy(op.manager).
@@ -150,15 +140,6 @@ func setupOperatorConfigControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.NewPredicateFuncs(secretFilter(op.opts.PublicNamespace))),
 		).
-		// Detect and undo changes to the secret.
-		Watches(
-			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
-			enqueueConst(objRequest),
-			builder.WithPredicates(objFilterRuleEvaluatorSecret)).
-		Watches(
-			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
-			enqueueConst(objRequest),
-			builder.WithPredicates(objFilterAlertManagerSecret)).
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
 
 	if err != nil {

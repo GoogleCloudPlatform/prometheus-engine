@@ -37,6 +37,7 @@ kind: Role
 metadata:
   namespace: gmp-system
   name: operator
+# Note, all resources here are also protected by an admissions controller (see operator.go).
 rules:
 - apiGroups: [""]
   resources:

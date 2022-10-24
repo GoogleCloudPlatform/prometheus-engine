@@ -461,6 +461,111 @@ webhooks:
     - UPDATE
     resources:
     - operatorconfigs
+- name: admission.secrets.gmp-operator.gmp-system.v1
+  admissionReviewVersions:
+  - v1
+  clientConfig:
+    # caBundle populated by operator.
+    service:
+      namespace: gmp-system
+      name: gmp-operator
+      path: /validate/v1/secrets
+      port: 443
+  failurePolicy: Fail
+  sideEffects: None
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - "*"
+    resources:
+    - secrets
+- name: admission.configmaps.gmp-operator.gmp-system.v1
+  admissionReviewVersions:
+  - v1
+  clientConfig:
+    # caBundle populated by operator.
+    service:
+      namespace: gmp-system
+      name: gmp-operator
+      path: /validate/v1/configmaps
+      port: 443
+  failurePolicy: Fail
+  sideEffects: None
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - "*"
+    resources:
+    - configmap
+- name: admission.services.gmp-operator.gmp-system.v1
+  admissionReviewVersions:
+  - v1
+  clientConfig:
+    # caBundle populated by operator.
+    service:
+      namespace: gmp-system
+      name: gmp-operator
+      path: /validate/v1/services
+      port: 443
+  failurePolicy: Fail
+  sideEffects: None
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - "*"
+    resources:
+    - services
+- name: admission.daemonsets.gmp-operator.gmp-system.apps.v1
+  admissionReviewVersions:
+  - v1
+  clientConfig:
+    # caBundle populated by operator.
+    service:
+      namespace: gmp-system
+      name: gmp-operator
+      path: /validate/apps/v1/daemonsets
+      port: 443
+  failurePolicy: Fail
+  sideEffects: None
+  rules:
+  - apiGroups:
+    - "apps"
+    apiVersions:
+    - v1
+    operations:
+    - "*"
+    resources:
+    - daemonset
+- name: admission.deployments.gmp-operator.gmp-system.apps.v1
+  admissionReviewVersions:
+  - v1
+  clientConfig:
+    # caBundle populated by operator.
+    service:
+      namespace: gmp-system
+      name: gmp-operator
+      path: /validate/apps/v1/deployments
+      port: 443
+  failurePolicy: Fail
+  sideEffects: None
+  rules:
+  - apiGroups:
+    - "apps"
+    apiVersions:
+    - v1
+    operations:
+    - "*"
+    resources:
+    - daemonset
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration

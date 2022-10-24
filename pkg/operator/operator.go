@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net"
 	"path/filepath"
+	"reflect"
 	"strconv"
 
 	"github.com/go-logr/logr"
@@ -42,6 +43,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -116,6 +119,8 @@ type Options struct {
 	ListenAddr string
 	// Cleanup resources without this annotation.
 	CleanupAnnotKey string
+	// Prevent modification of system resources. Defaults to true.
+	BlockSystemModification *bool
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -136,6 +141,10 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	}
 	if o.Cluster == "" {
 		return errors.New("Cluster must be set")
+	}
+	if o.BlockSystemModification == nil {
+		o.BlockSystemModification = new(bool)
+		*o.BlockSystemModification = true
 	}
 	return nil
 }
@@ -389,6 +398,57 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 		validatePath(monitoringv1.GlobalRulesResource()),
 		admission.WithCustomValidator(&monitoringv1.GlobalRules{}, &globalRulesValidator{}),
 	)
+
+	if *o.opts.BlockSystemModification {
+		// Prevent users from touching managed-objects in our namespace (see RBAC).
+		user := fmt.Sprintf("system:serviceaccount:%s:%s", DefaultOperatorNamespace, "operator")
+		registerAdmissionPath := func(obj runtime.Object, resourceNames []string) error {
+			groupVersionResource, err := getGroupVersionResource(o.manager, obj)
+			if err != nil {
+				return err
+			}
+
+			s.Register(
+				validatePath(*groupVersionResource),
+				admission.WithCustomValidator(obj, &modificationPreventionValidator{
+					AllowedUser:   user,
+					Namespace:     DefaultOperatorNamespace,
+					ResourceNames: resourceNames,
+				}),
+			)
+			return nil
+		}
+		if err := registerAdmissionPath(&corev1.Secret{}, []string{
+			CollectionSecretName,
+			RulesSecretName,
+			AlertmanagerSecretName,
+		}); err != nil {
+			return err
+		}
+		if err := registerAdmissionPath(&corev1.ConfigMap{}, []string{
+			NameCollector,
+			NameRuleEvaluator,
+			nameRulesGenerated,
+		}); err != nil {
+			return err
+		}
+		if err := registerAdmissionPath(&corev1.Service{}, []string{
+			NameAlertmanager,
+		}); err != nil {
+			return err
+		}
+		if err := registerAdmissionPath(&appsv1.DaemonSet{}, []string{
+			NameCollector,
+		}); err != nil {
+			return err
+		}
+		if err := registerAdmissionPath(&appsv1.Deployment{}, []string{
+			NameRuleEvaluator,
+		}); err != nil {
+			return err
+		}
+	}
+
 	// Defaulting webhooks.
 	s.Register(
 		defaultPath(monitoringv1.PodMonitoringResource()),
@@ -399,6 +459,21 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 		admission.WithCustomDefaulter(&monitoringv1.ClusterPodMonitoring{}, &clusterPodMonitoringDefaulter{}),
 	)
 	return nil
+}
+
+func getGroupVersionResource(cluster cluster.Cluster, obj runtime.Object) (*metav1.GroupVersionResource, error) {
+	gvk, err := apiutil.GVKForObject(obj, cluster.GetScheme())
+	if err != nil {
+		return nil, err
+	}
+
+	mapper := cluster.GetRESTMapper()
+	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return nil, err
+	}
+	gvr := metav1.GroupVersionResource(mapping.Resource)
+	return &gvr, nil
 }
 
 // Run the reconciliation loop of the operator.
@@ -570,12 +645,20 @@ func (e enqueueConst) Generic(_ event.GenericEvent, q workqueue.RateLimitingInte
 	q.Add(reconcile.Request(e))
 }
 
+func webhookPath(prefix string, gvr metav1.GroupVersionResource) string {
+	if len(gvr.Group) == 0 {
+		// Core resources have no group.
+		return fmt.Sprintf("/%s/%s/%s", prefix, gvr.Version, gvr.Resource)
+	}
+	return fmt.Sprintf("/%s/%s/%s/%s", prefix, gvr.Group, gvr.Version, gvr.Resource)
+}
+
 func validatePath(gvr metav1.GroupVersionResource) string {
-	return fmt.Sprintf("/validate/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
+	return webhookPath("validate", gvr)
 }
 
 func defaultPath(gvr metav1.GroupVersionResource) string {
-	return fmt.Sprintf("/default/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
+	return webhookPath("default", gvr)
 }
 
 func webhookConfigName(opts Options) string {
@@ -618,4 +701,57 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
 	}
 	return o.client.Update(ctx, &mwc)
+}
+
+type modificationPreventionValidator struct {
+	// User allowed to modify the resource in the given namespace and with the given resource name.
+	AllowedUser string
+	// Namespace to prevent modification of, or empty to prevent modification of all namespaces.
+	Namespace string
+	// Resources to prevent modification of, or empty to prevent modification of all resources.
+	ResourceNames []string
+}
+
+func (v *modificationPreventionValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
+	return v.ValidateCreate(ctx, o)
+}
+
+func (v *modificationPreventionValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) error {
+	return v.ValidateDelete(ctx, o)
+}
+
+func (v *modificationPreventionValidator) ValidateDelete(ctx context.Context, o runtime.Object) error {
+	request, err := admission.RequestFromContext(ctx)
+	if err != nil {
+		return errors.Wrap(err, "unable to get admission request")
+	}
+
+	if v.Namespace != "" && v.Namespace != request.Namespace {
+		return nil
+	}
+
+	if len(v.ResourceNames) != 0 {
+		k8sObjValue := reflect.ValueOf(o).Elem()
+		objMeta, ok := k8sObjValue.FieldByName("ObjectMeta").Interface().(metav1.ObjectMeta)
+		if !ok {
+			return errors.New("unable to retrieve object meta")
+		}
+
+		contains := false
+		for _, resourceName := range v.ResourceNames {
+			if resourceName == objMeta.Name {
+				contains = true
+				break
+			}
+		}
+		if !contains {
+			return nil
+		}
+	}
+
+	if v.AllowedUser != request.UserInfo.Username {
+		return errors.New("user denied modification. Only the GMP operator can modify this resource")
+	}
+
+	return nil
 }
