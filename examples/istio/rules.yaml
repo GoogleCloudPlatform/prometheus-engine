@@ -1,0 +1,93 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https:#www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: istio-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: istio-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: istio
+    interval: 30s
+    rules:
+    - alert: IstioHighTotalRequestRate
+      expr: sum(rate(istio_requests_total{reporter="destination"}[5m])) > 1000
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: Istio high total request rate (instance {{ $labels.instance }})
+        description: |-
+          Global request rate in the service mesh is unusually high.
+            VALUE = {{ $value }}
+            LABELS = {{ $labels }}
+    - alert: IstioLowTotalRequestRate
+      expr: sum(rate(istio_requests_total{reporter="destination"}[5m])) < 100
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: Istio low total request rate (instance {{ $labels.instance }})
+        description: |-
+          Global request rate in the service mesh is unusually low.
+            VALUE = {{ $value }}
+            LABELS = {{ $labels }}
+    - alert: IstioHigh4xxErrorRate
+      expr: sum(rate(istio_requests_total{reporter="destination", response_code=~"4.*"}[5m])) / sum(rate(istio_requests_total{reporter="destination"}[5m])) * 100 > 5
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: Istio high 4xx error rate (instance {{ $labels.instance }})
+        description: |-
+          High percentage of HTTP 5xx responses in Istio (> 5%).
+            VALUE = {{ $value }}
+            LABELS = {{ $labels }}
+    - alert: IstioHigh5xxErrorRate
+      expr: sum(rate(istio_requests_total{reporter="destination", response_code=~"5.*"}[5m])) / sum(rate(istio_requests_total{reporter="destination"}[5m])) * 100 > 5
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: Istio high 5xx error rate (instance {{ $labels.instance }})
+        description: |-
+          High percentage of HTTP 5xx responses in Istio (> 5%).
+            VALUE = {{ $value }}
+            LABELS = {{ $labels }}
+    - alert: IstioHighRequestLatency
+      expr: rate(istio_request_duration_milliseconds_sum{reporter="destination"}[1m]) / rate(istio_request_duration_milliseconds_count{reporter="destination"}[1m]) > 100
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: Istio high request latency (instance {{ $labels.instance }})
+        description: |-
+          Istio average requests execution is longer than 100ms.
+            VALUE = {{ $value }}
+            LABELS = {{ $labels }}
+    - alert: IstioLatency99Percentile
+      expr: histogram_quantile(0.99, sum(rate(istio_request_duration_milliseconds_bucket[1m])) by (destination_canonical_service, destination_workload_namespace, source_canonical_service, source_workload_namespace, le)) > 1
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: Istio latency 99 percentile (instance {{ $labels.instance }})
+        description: |-
+          Istio 1% slowest requests are longer than 1s.
+            VALUE = {{ $value }}
+            LABELS = {{ $labels }}
