@@ -1192,6 +1192,79 @@ func TestSampleBuilder(t *testing.T) {
 					}},
 				},
 			},
+		}, {
+			doc: "histogram is not in-order",
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+			}),
+			series: seriesMap{
+				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
+				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
+				3: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "+Inf"),
+				4: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "1"),
+				5: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "0.5"),
+				6: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "0.1"),
+			},
+			samples: [][]record.RefSample{
+				{
+					{Ref: 3, T: 1000, V: 10}, // +Inf
+					{Ref: 4, T: 1000, V: 5},  // 1
+					{Ref: 6, T: 1000, V: 0},  // 0.1
+					{Ref: 5, T: 1000, V: 0},  // 0.5
+					{Ref: 1, T: 1000, V: 10}, // count
+					{Ref: 2, T: 1000, V: 3},  // sum
+				}, {
+					{Ref: 3, T: 2000, V: 13}, //+Inf
+					{Ref: 4, T: 2000, V: 7},  // 1
+					{Ref: 6, T: 2000, V: 0},  // 0.1
+					{Ref: 5, T: 2000, V: 1},  // 0.5
+					{Ref: 1, T: 2000, V: 13}, // count
+					{Ref: 2, T: 2000, V: 12}, // sum
+				},
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type: "prometheus.googleapis.com/metric1/histogram",
+					},
+					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
+					ValueType:  metric_pb.MetricDescriptor_DISTRIBUTION,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							StartTime: &timestamp_pb.Timestamp{Seconds: 1},
+							EndTime:   &timestamp_pb.Timestamp{Seconds: 2},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DistributionValue{
+								DistributionValue: &distribution_pb.Distribution{
+									Count:                 3,
+									Mean:                  1,
+									SumOfSquaredDeviation: 0.5525,
+									BucketOptions: &distribution_pb.Distribution_BucketOptions{
+										Options: &distribution_pb.Distribution_BucketOptions_ExplicitBuckets{
+											ExplicitBuckets: &distribution_pb.Distribution_BucketOptions_Explicit{
+												Bounds: []float64{0.1, 0.5, 1},
+											},
+										},
+									},
+									BucketCounts: []int64{0, 1, 1, 1},
+								},
+							},
+						},
+					}},
+				},
+			},
 		},
 	}
 
