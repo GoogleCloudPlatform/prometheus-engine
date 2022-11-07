@@ -687,6 +687,70 @@ func pathForSelector(namespace string, scm *monitoringv1.SecretOrConfigMap) stri
 	return ""
 }
 
+func validateRules(rules *monitoringv1.RuleEvaluatorSpec) error {
+	if rules.GeneratorURL != "" {
+		if _, err := url.Parse(rules.GeneratorURL); err != nil {
+			return errors.Wrap(err, "failed to parse generator URL")
+		}
+	}
+
+	if err := validateSecretKeySelector(rules.Credentials); err != nil {
+		return errors.Wrap(err, "invalid credentials")
+	}
+	for i, alertManagerEndpoint := range rules.Alerting.Alertmanagers {
+		if err := validateAlertManagerEndpoint(&alertManagerEndpoint); err != nil {
+			errMsg := fmt.Sprintf("invalid alert manager endpoint `%s` (index %d)", alertManagerEndpoint.Name, i)
+			return errors.Wrap(err, errMsg)
+		}
+	}
+	return nil
+}
+
+func validateAlertManagerEndpoint(alertManagerEndpoint *monitoringv1.AlertmanagerEndpoints) error {
+	if alertManagerEndpoint.Authorization != nil {
+		if err := validateSecretKeySelector(alertManagerEndpoint.Authorization.Credentials); err != nil {
+			return errors.Wrap(err, "invalid authorization credentials")
+		}
+	}
+	if alertManagerEndpoint.TLS != nil {
+		if err := validateSecretKeySelector(alertManagerEndpoint.TLS.KeySecret); err != nil {
+			return errors.Wrap(err, "invalid TLS key")
+		}
+		if err := validateSecretOrConfigMap(alertManagerEndpoint.TLS.CA); err != nil {
+			return errors.Wrap(err, "invalid TLS CA")
+		}
+		if err := validateSecretOrConfigMap(alertManagerEndpoint.TLS.Cert); err != nil {
+			return errors.Wrap(err, "invalid TLS Cert")
+		}
+	}
+	return nil
+}
+
+func validateSecretKeySelector(secretKeySelector *corev1.SecretKeySelector) error {
+	if secretKeySelector == nil {
+		return nil
+	}
+	if secretKeySelector.LocalObjectReference.Name == "" {
+		return errors.New("missing secret key selector name")
+	}
+	return nil
+}
+
+func validateSecretOrConfigMap(secretOrConfigMap *monitoringv1.SecretOrConfigMap) error {
+	if secretOrConfigMap == nil {
+		return nil
+	}
+	if secretOrConfigMap.Secret != nil {
+		if err := validateSecretKeySelector(secretOrConfigMap.Secret); err != nil {
+			return err
+		}
+		if secretOrConfigMap.ConfigMap != nil {
+			return errors.New("SecretOrConfigMap fields are mutually exclusive")
+		}
+	}
+	return nil
+}
+
 type operatorConfigValidator struct {
 	namespace string
 }
@@ -700,10 +764,17 @@ func (v *operatorConfigValidator) ValidateCreate(ctx context.Context, o runtime.
 	if _, err := makeKubeletScrapeConfigs(oc.Collection.KubeletScraping); err != nil {
 		return errors.Wrap(err, "failed to create kubelet scrape config")
 	}
-	if oc.Rules.GeneratorURL != "" {
-		if _, err := url.Parse(oc.Rules.GeneratorURL); err != nil {
-			return errors.Wrap(err, "failed to parse generator URL")
+
+	if err := validateSecretKeySelector(oc.Collection.Credentials); err != nil {
+		return errors.Wrap(err, "invalid collection credentials")
+	}
+	if oc.ManagedAlertmanager != nil {
+		if err := validateSecretKeySelector(oc.ManagedAlertmanager.ConfigSecret); err != nil {
+			return errors.Wrap(err, "invalid managed alert manager config secret")
 		}
+	}
+	if err := validateRules(&oc.Rules); err != nil {
+		return errors.Wrap(err, "invalid rules config")
 	}
 	return nil
 }
