@@ -21,8 +21,8 @@ import (
 	"io/ioutil"
 	"net"
 	"path/filepath"
+	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -40,10 +40,14 @@ import (
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -115,6 +119,8 @@ type Options struct {
 	ListenAddr string
 	// Cleanup resources without this annotation.
 	CleanupAnnotKey string
+	// Prevent modification of system resources. Defaults to true.
+	BlockSystemModification *bool
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -135,6 +141,10 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	}
 	if o.Cluster == "" {
 		return errors.New("Cluster must be set")
+	}
+	if o.BlockSystemModification == nil {
+		o.BlockSystemModification = new(bool)
+		*o.BlockSystemModification = true
 	}
 	return nil
 }
@@ -200,9 +210,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 						// need to access secrets from multiple namespaces, we
 						// specify one here so that the manager's client
 						// accesses secrets from this namespace through a cache.
-						Field: fields.SelectorFromSet(fields.Set{
-							"metadata.namespace": opts.PublicNamespace,
-						}),
+						Field: fields.OneTermEqualSelector("metadata.namespace", opts.PublicNamespace),
 					},
 					&monitoringv1.OperatorConfig{}: {
 						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
@@ -214,7 +222,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 						}),
 					},
 					&corev1.ConfigMap{}: {
-						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+						Field: fields.OneTermEqualSelector("metadata.namespace", opts.OperatorNamespace),
 					},
 					&appsv1.DaemonSet{}: {
 						Field: fields.SelectorFromSet(fields.Set{
@@ -227,6 +235,12 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 							"metadata.namespace": opts.OperatorNamespace,
 							"metadata.name":      NameRuleEvaluator,
 						}),
+					},
+					&arv1.MutatingWebhookConfiguration{}: {
+						Field: fields.OneTermEqualSelector("metadata.name", webhookConfigName(opts)),
+					},
+					&arv1.ValidatingWebhookConfiguration{}: {
+						Field: fields.OneTermEqualSelector("metadata.name", webhookConfigName(opts)),
 					},
 				}})
 		}),
@@ -268,32 +282,89 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 		return err
 	}
 
+	// Only inject if we've an explicit CA bundle ourselves. Otherwise the webhook configs may have
+	// already been created with one.
+	if len(caBundle) == 0 {
+		return nil
+	}
+
 	// Keep setting the caBundle in the expected webhook configurations.
-	go func() {
-		// Only inject if we've an explicit CA bundle ourselves. Otherwise the webhook configs
-		// may already have been created with one.
-		if len(caBundle) == 0 {
-			return
-		}
-		// Initial sleep for the client to initialize before our first calls.
-		// Ideally we could explicitly wait for it.
-		time.Sleep(5 * time.Second)
+	err = ctrl.NewControllerManagedBy(o.manager).
+		Named("validating-webhook-cert-updater").
+		For(
+			&arv1.ValidatingWebhookConfiguration{},
+			builder.WithPredicates(predicate.Funcs{
+				CreateFunc: func(ev event.CreateEvent) bool {
+					return ev.Object.GetName() == webhookConfigName(o.opts)
+				},
+				UpdateFunc: func(ev event.UpdateEvent) bool {
+					return ev.ObjectNew.GetName() == webhookConfigName(o.opts)
+				},
+				GenericFunc: func(ev event.GenericEvent) bool {
+					return ev.Object.GetName() == webhookConfigName(o.opts)
+				},
+			}),
+		).
+		Complete(reconcile.Func(func(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+			logger, _ := logr.FromContext(ctx)
+			logger.WithValues("operator", req.NamespacedName).Info("reconciling validatingwebhookconfiguration")
 
-		for {
 			if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil {
-				o.logger.Error(err, "Setting CA bundle for ValidatingWebhookConfiguration failed")
+				return reconcile.Result{}, err
 			}
-			if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
-				o.logger.Error(err, "Setting CA bundle for MutatingWebhookConfiguration failed")
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Minute):
-			}
-		}
-	}()
+			return reconcile.Result{}, nil
+		}))
+	if err != nil {
+		return errors.Wrap(err, "create validating webhook updater controller")
+	}
 
+	err = ctrl.NewControllerManagedBy(o.manager).
+		Named("mutating-webhook-cert-updater").
+		For(
+			&arv1.MutatingWebhookConfiguration{},
+			builder.WithPredicates(predicate.Funcs{
+				CreateFunc: func(ev event.CreateEvent) bool {
+					return ev.Object.GetName() == webhookConfigName(o.opts)
+				},
+				UpdateFunc: func(ev event.UpdateEvent) bool {
+					return ev.ObjectNew.GetName() == webhookConfigName(o.opts)
+				},
+				GenericFunc: func(ev event.GenericEvent) bool {
+					return ev.Object.GetName() == webhookConfigName(o.opts)
+				},
+			}),
+		).
+		Complete(reconcile.Func(func(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+			logger, _ := logr.FromContext(ctx)
+			logger.WithValues("operator", req.NamespacedName).Info("reconciling mutatingwebhookconfiguration")
+
+			if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
+				return reconcile.Result{}, err
+			}
+			return reconcile.Result{}, nil
+		}))
+	if err != nil {
+		return errors.Wrap(err, "create mutating webhook updater controller")
+	}
+
+	// This method runs after the webhook server and client are started but
+	// before the controllers are started. Running it here prevents race
+	// conditions.
+	o.manager.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		// The webhook configurations may not be installed yet.
+		if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+
+		if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}))
+
+	if o == nil {
+		return nil
+	}
 	s := o.manager.GetWebhookServer()
 
 	// Validating webhooks.
@@ -327,6 +398,57 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 		validatePath(monitoringv1.GlobalRulesResource()),
 		admission.WithCustomValidator(&monitoringv1.GlobalRules{}, &globalRulesValidator{}),
 	)
+
+	if *o.opts.BlockSystemModification {
+		// Prevent users from touching managed-objects in our namespace (see RBAC).
+		user := fmt.Sprintf("system:serviceaccount:%s:%s", DefaultOperatorNamespace, "operator")
+		registerAdmissionPath := func(obj runtime.Object, resourceNames []string) error {
+			groupVersionResource, err := getGroupVersionResource(o.manager, obj)
+			if err != nil {
+				return err
+			}
+
+			s.Register(
+				validatePath(*groupVersionResource),
+				admission.WithCustomValidator(obj, &modificationPreventionValidator{
+					AllowedUser:   user,
+					Namespace:     DefaultOperatorNamespace,
+					ResourceNames: resourceNames,
+				}),
+			)
+			return nil
+		}
+		if err := registerAdmissionPath(&corev1.Secret{}, []string{
+			CollectionSecretName,
+			RulesSecretName,
+			AlertmanagerSecretName,
+		}); err != nil {
+			return err
+		}
+		if err := registerAdmissionPath(&corev1.ConfigMap{}, []string{
+			NameCollector,
+			NameRuleEvaluator,
+			nameRulesGenerated,
+		}); err != nil {
+			return err
+		}
+		if err := registerAdmissionPath(&corev1.Service{}, []string{
+			NameAlertmanager,
+		}); err != nil {
+			return err
+		}
+		if err := registerAdmissionPath(&appsv1.DaemonSet{}, []string{
+			NameCollector,
+		}); err != nil {
+			return err
+		}
+		if err := registerAdmissionPath(&appsv1.Deployment{}, []string{
+			NameRuleEvaluator,
+		}); err != nil {
+			return err
+		}
+	}
+
 	// Defaulting webhooks.
 	s.Register(
 		defaultPath(monitoringv1.PodMonitoringResource()),
@@ -337,6 +459,21 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 		admission.WithCustomDefaulter(&monitoringv1.ClusterPodMonitoring{}, &clusterPodMonitoringDefaulter{}),
 	)
 	return nil
+}
+
+func getGroupVersionResource(cluster cluster.Cluster, obj runtime.Object) (*metav1.GroupVersionResource, error) {
+	gvk, err := apiutil.GVKForObject(obj, cluster.GetScheme())
+	if err != nil {
+		return nil, err
+	}
+
+	mapper := cluster.GetRESTMapper()
+	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return nil, err
+	}
+	gvr := metav1.GroupVersionResource(mapping.Resource)
+	return &gvr, nil
 }
 
 // Run the reconciliation loop of the operator.
@@ -508,24 +645,36 @@ func (e enqueueConst) Generic(_ event.GenericEvent, q workqueue.RateLimitingInte
 	q.Add(reconcile.Request(e))
 }
 
+func webhookPath(prefix string, gvr metav1.GroupVersionResource) string {
+	if len(gvr.Group) == 0 {
+		// Core resources have no group.
+		return fmt.Sprintf("/%s/%s/%s", prefix, gvr.Version, gvr.Resource)
+	}
+	return fmt.Sprintf("/%s/%s/%s/%s", prefix, gvr.Group, gvr.Version, gvr.Resource)
+}
+
 func validatePath(gvr metav1.GroupVersionResource) string {
-	return fmt.Sprintf("/validate/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
+	return webhookPath("validate", gvr)
 }
 
 func defaultPath(gvr metav1.GroupVersionResource) string {
-	return fmt.Sprintf("/default/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
+	return webhookPath("default", gvr)
 }
 
-func (o *Operator) webhookConfigName() string {
-	return fmt.Sprintf("%s.%s.monitoring.googleapis.com", NameOperator, o.opts.OperatorNamespace)
+func webhookConfigName(opts Options) string {
+	return fmt.Sprintf("%s.%s.monitoring.googleapis.com", NameOperator, opts.OperatorNamespace)
 }
 
 func (o *Operator) setValidatingWebhookCABundle(ctx context.Context, caBundle []byte) error {
-	var vwc arv1.ValidatingWebhookConfiguration
-	err := o.client.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &vwc)
-	if apierrors.IsNotFound(err) {
+	// Only inject if we've an explicit CA bundle ourselves. Otherwise the webhook configs may have
+	// already been created with one.
+	if len(caBundle) == 0 {
 		return nil
-	} else if err != nil {
+	}
+
+	var vwc arv1.ValidatingWebhookConfiguration
+	err := o.client.Get(ctx, client.ObjectKey{Name: webhookConfigName(o.opts)}, &vwc)
+	if err != nil {
 		return err
 	}
 
@@ -536,11 +685,15 @@ func (o *Operator) setValidatingWebhookCABundle(ctx context.Context, caBundle []
 }
 
 func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []byte) error {
-	var mwc arv1.MutatingWebhookConfiguration
-	err := o.client.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &mwc)
-	if apierrors.IsNotFound(err) {
+	// Only inject if we've an explicit CA bundle ourselves. Otherwise the webhook configs may have
+	// already been created with one.
+	if len(caBundle) == 0 {
 		return nil
-	} else if err != nil {
+	}
+
+	var mwc arv1.MutatingWebhookConfiguration
+	err := o.client.Get(ctx, client.ObjectKey{Name: webhookConfigName(o.opts)}, &mwc)
+	if err != nil {
 		return err
 	}
 
@@ -548,4 +701,57 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
 	}
 	return o.client.Update(ctx, &mwc)
+}
+
+type modificationPreventionValidator struct {
+	// User allowed to modify the resource in the given namespace and with the given resource name.
+	AllowedUser string
+	// Namespace to prevent modification of, or empty to prevent modification of all namespaces.
+	Namespace string
+	// Resources to prevent modification of, or empty to prevent modification of all resources.
+	ResourceNames []string
+}
+
+func (v *modificationPreventionValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
+	return v.ValidateCreate(ctx, o)
+}
+
+func (v *modificationPreventionValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) error {
+	return v.ValidateDelete(ctx, o)
+}
+
+func (v *modificationPreventionValidator) ValidateDelete(ctx context.Context, o runtime.Object) error {
+	request, err := admission.RequestFromContext(ctx)
+	if err != nil {
+		return errors.Wrap(err, "unable to get admission request")
+	}
+
+	if v.Namespace != "" && v.Namespace != request.Namespace {
+		return nil
+	}
+
+	if len(v.ResourceNames) != 0 {
+		k8sObjValue := reflect.ValueOf(o).Elem()
+		objMeta, ok := k8sObjValue.FieldByName("ObjectMeta").Interface().(metav1.ObjectMeta)
+		if !ok {
+			return errors.New("unable to retrieve object meta")
+		}
+
+		contains := false
+		for _, resourceName := range v.ResourceNames {
+			if resourceName == objMeta.Name {
+				contains = true
+				break
+			}
+		}
+		if !contains {
+			return nil
+		}
+	}
+
+	if v.AllowedUser != request.UserInfo.Username {
+		return errors.New("user denied modification. Only the GMP operator can modify this resource")
+	}
+
+	return nil
 }

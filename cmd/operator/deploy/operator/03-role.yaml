@@ -37,6 +37,7 @@ kind: Role
 metadata:
   namespace: gmp-system
   name: operator
+# Note, all resources here are also protected by an admissions controller (see operator.go).
 rules:
 - apiGroups: [""]
   resources:
@@ -103,7 +104,7 @@ rules:
   - mutatingwebhookconfigurations
   resourceNames:
   - gmp-operator.gmp-system.monitoring.googleapis.com
-  verbs: ["get", "patch", "update", "watch"]
+  verbs: ["get", "list", "patch", "update", "watch"]
 # Permission to delete legacy webhook config the operator directly created
 # in previous versions.
 - apiGroups: ["admissionregistration.k8s.io"]
