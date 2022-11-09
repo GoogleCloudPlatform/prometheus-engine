@@ -34,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 )
@@ -124,7 +125,6 @@ type ExportFilters struct {
 	// A list Prometheus time series matchers. Every time series must match at least one
 	// of the matchers to be exported. This field can be used equivalently to the match[]
 	// parameter of the Prometheus federation endpoint to selectively export data.
-	//
 	// Example: `["{job!='foobar'}", "{__name__!~'container_foo.*|container_bar.*'}"]`
 	MatchOneOf []string `json:"matchOneOf,omitempty"`
 }
@@ -200,6 +200,15 @@ type SecretOrConfigMap struct {
 	ConfigMap *v1.ConfigMapKeySelector `json:"configMap,omitempty"`
 }
 
+// PodMonitoringStatusContainer represents a Kubernetes CRD that monitors pods
+// and contains a status sub-resource.
+type PodMonitoringStatusContainer interface {
+	client.Object
+
+	// Returns this CRD's status sub-resource.
+	GetStatus() *PodMonitoringStatus
+}
+
 // PodMonitoring defines monitoring for a set of pods.
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -214,6 +223,14 @@ type PodMonitoring struct {
 	// Most recently observed status of the resource.
 	// +optional
 	Status PodMonitoringStatus `json:"status"`
+}
+
+func (p *PodMonitoring) GetKey() string {
+	return fmt.Sprintf("PodMonitoring/%s/%s", p.Namespace, p.Name)
+}
+
+func (p *PodMonitoring) GetStatus() *PodMonitoringStatus {
+	return &p.Status
 }
 
 // PodMonitoringList is a list of PodMonitorings.
@@ -240,6 +257,14 @@ type ClusterPodMonitoring struct {
 	// Most recently observed status of the resource.
 	// +optional
 	Status PodMonitoringStatus `json:"status"`
+}
+
+func (p *ClusterPodMonitoring) GetKey() string {
+	return fmt.Sprintf("ClusterPodMonitoring/%s", p.Name)
+}
+
+func (p *ClusterPodMonitoring) GetStatus() *PodMonitoringStatus {
+	return &p.Status
 }
 
 // ClusterPodMonitoringList is a list of ClusterPodMonitorings.
@@ -411,7 +436,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	})
 
 	return endpointScrapeConfig(
-		fmt.Sprintf("PodMonitoring/%s/%s", pm.Namespace, pm.Name),
+		pm.GetKey(),
 		projectID, location, cluster,
 		pm.Spec.Endpoints[index],
 		relabelCfgs,
@@ -752,7 +777,7 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 	})
 
 	return endpointScrapeConfig(
-		fmt.Sprintf("ClusterPodMonitoring/%s", cm.Name),
+		cm.GetKey(),
 		projectID, location, cluster,
 		cm.Spec.Endpoints[index],
 		relabelCfgs,
@@ -793,7 +818,8 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 
 	// Validate that the protected target labels are not mutated by the provided relabeling rules.
 	switch rcfg.Action {
-	case relabel.Replace, relabel.HashMod:
+	// Default action is "replace" per https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config.
+	case relabel.Replace, relabel.HashMod, "":
 		// These actions write into the target label and it must not be a protected one.
 		if isProtectedLabel(r.TargetLabel) {
 			return nil, errors.Errorf("cannot relabel with action %q onto protected label %q", r.Action, r.TargetLabel)
@@ -1006,6 +1032,42 @@ type RelabelingRule struct {
 	Action string `json:"action,omitempty"`
 }
 
+type ScrapeEndpointStatus struct {
+	// The name of the ScrapeEndpoint.
+	Name string `json:"name"`
+	// Total number of active targets.
+	ActiveTargets int64 `json:"activeTargets,omitempty"`
+	// Total number of active, unhealthy targets.
+	UnhealthyTargets int64 `json:"unhealthyTargets,omitempty"`
+	// Last time this status was updated.
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	// A fixed sample of targets grouped by error type.
+	SampleGroups []SampleGroup `json:"sampleGroups,omitempty"`
+	// Fraction of collectors included in status, bounded [0,1].
+	// Ideally, this should always be 1. Anything less can
+	// be considered a problem and should be investigated.
+	CollectorsFraction string `json:"collectorsFraction,omitempty"`
+}
+
+type SampleGroup struct {
+	// Targets emitting the error message.
+	SampleTargets []SampleTarget `json:"sampleTargets,omitempty"`
+	// Total count of similar errors.
+	// +optional
+	Count *int32 `json:"count,omitempty"`
+}
+
+type SampleTarget struct {
+	// The label set, keys and values, of the target.
+	Labels prommodel.LabelSet `json:"labels,omitempty"`
+	// Error message.
+	LastError *string `json:"lastError,omitempty"`
+	// Scrape duration in seconds.
+	LastScrapeDurationSeconds string `json:"lastScrapeDurationSeconds,omitempty"`
+	// Health status.
+	Health string `json:"health,omitempty"`
+}
+
 // PodMonitoringStatus holds status information of a PodMonitoring resource.
 type PodMonitoringStatus struct {
 	// The generation observed by the controller.
@@ -1013,6 +1075,8 @@ type PodMonitoringStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Represents the latest available observations of a podmonitor's current state.
 	Conditions []MonitoringCondition `json:"conditions,omitempty"`
+	// Represents the latest available observations of target state for each ScrapeEndpoint.
+	EndpointStatuses []ScrapeEndpointStatus `json:"endpointStatuses,omitempty"`
 }
 
 // MonitoringConditionType is the type of MonitoringCondition.

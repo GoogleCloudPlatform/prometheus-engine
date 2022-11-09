@@ -1,0 +1,19 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: couchdb
+  labels:
+    app.kubernetes.io/name: couchdb
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  endpoints:
+  - port: prometheus
+    scheme: http
+    interval: 30s
+    path: /metrics
+    params:
+      format:
+      - prometheus
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: couchdb

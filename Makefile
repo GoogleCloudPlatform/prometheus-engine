@@ -14,18 +14,19 @@ DOCKER_VOLUME:=$(DOCKER_HOST:unix://%=%)
 IMAGE_REGISTRY?=gcr.io/$(PROJECT_ID)/prometheus-engine
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
+# TODO(pintohutch): this is a bit hacky, but can be useful when testing.
+# Ultimately this should be replaced with go templating.
+define update_manifests
+	find manifests examples cmd/operator/deploy -type f -name "*.yaml" -exec sed -i "s#image: .*/$(1):.*#image: ${IMAGE_REGISTRY}/$(1):${TAG_NAME}#g" {} \;
+endef
+
 define docker_build
 	DOCKER_BUILDKIT=1 docker build $(1)
 endef
 
-# Install QEMU packages required to build ARM images
-# Create a multi-arch builder if one doesn't already exist (default builder doesn't support multi-arch).
-define start_buildx
-	if ! docker buildx inspect multi-arch-builder; then \
-		docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes; \
-		docker buildx create --name multi-arch-builder --use; \
-	fi
-	docker buildx use multi-arch-builder
+define docker_tag_push
+	docker tag $(1) $(2)
+	docker push $(2)
 endef
 
 help:        ## Show this help.
@@ -41,32 +42,33 @@ lint:        ## Lint code.
 	@echo ">> linting code"
 	DOCKER_BUILDKIT=1 docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.43.0 golangci-lint run -v --timeout=5m
 
-cloudbuild:  ## Build images on Google Cloud Build.
-             ##
-	@echo ">> building GMP images on Cloud Build with tag: $(TAG_NAME)"
-	gcloud builds submit --config build.yaml --timeout=30m --substitutions=TAG_NAME="$(TAG_NAME)"
-
 $(GOCMDS):   ## Build go binary from cmd/ (e.g. 'operator').
+             ## The following env variables configure the build, and are mutually exclusive:
              ## Set NO_DOCKER=1 to build natively without Docker.
              ## Set DOCKER_PUSH=1 to tag image with TAG_NAME and push to IMAGE_REGISTRY.
+             ## Set CLOUD_BUILD=1 to build the image on Cloud Build, with multi-arch support.
              ## By default, IMAGE_REGISTRY=gcr.io/PROJECT_ID/prometheus-engine.
              ##
 	@echo ">> building binaries"
 ifeq ($(NO_DOCKER), 1)
 	if [ "$@" = "frontend" ]; then pkg/ui/build.sh; fi
 	CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o ./build/bin/$@ ./cmd/$@/*.go
-else
-# Build a local image.
-	$(call start_buildx)
-	docker buildx build --load --tag gmp/$@ -f ./cmd/$@/Dockerfile .
-# If pushing, build and tag multi-arch image to GCR.
-ifeq ($(DOCKER_PUSH), 1)
-	docker buildx build --tag gcr.io/${PROJECT_ID}/prometheus-engine/$@:${TAG_NAME} -f ./cmd/$@/Dockerfile . --platform linux/amd64,linux/arm64 --push
-# TODO(pintohutch): this is a bit hacky, but can be useful when testing.
-# Ultimately this should be replaced with go templating.
+# If pushing, build and tag native arch image to GCR.
+else ifeq ($(DOCKER_PUSH), 1)
+	$(call docker_build, --tag gmp/$@ -f ./cmd/$@/Dockerfile .)
+	@echo ">> tagging and pushing images"
+	$(call docker_tag_push,gmp/$@,${IMAGE_REGISTRY}/$@:${TAG_NAME})
 	@echo ">> updating manifests with pushed images"
-	find manifests examples cmd/operator/deploy -type f -name "*.yaml" -exec sed -i "s#image: .*/$@:.*#image: ${IMAGE_REGISTRY}/$@:${TAG_NAME}#g" {} \;
-endif
+	$(call update_manifests,$@)
+# Run on cloudbuild and tag multi-arch image to GCR.
+# TODO(pintohutch): cache source tarball between binary builds?
+else ifeq ($(CLOUD_BUILD), 1)
+	@echo ">> building GMP images on Cloud Build with tag: $(TAG_NAME)"
+	gcloud builds submit --config build.yaml --timeout=30m --substitutions=_IMAGE_REGISTRY=$(IMAGE_REGISTRY),_IMAGE=$@,TAG_NAME=$(TAG_NAME) --async
+	$(call update_manifests,$@)
+# Just build it locally.
+else
+	$(call docker_build, --tag gmp/$@ -f ./cmd/$@/Dockerfile .)
 endif
 
 bin:         ## Build all go binaries from cmd/.

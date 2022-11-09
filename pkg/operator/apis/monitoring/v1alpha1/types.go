@@ -89,7 +89,6 @@ type ExportFilters struct {
 	// A list Prometheus time series matchers. Every time series must match at least one
 	// of the matchers to be exported. This field can be used equivalently to the match[]
 	// parameter of the Prometheus federation endpoint to selectively export data.
-	//
 	// Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`
 	MatchOneOf []string `json:"matchOneOf,omitempty"`
 }

@@ -20,6 +20,8 @@ metadata:
 spec:
   selector:
     matchLabels:
+      # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
+      # see: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#pod-selector
       app.kubernetes.io/name: collector
   template:
     metadata:

@@ -98,7 +98,7 @@ func newTestContext(t *testing.T) *testContext {
 		t.Fatalf("create test namespace: %s", err)
 	}
 
-	op, err := operator.New(globalLogger, kubeconfig, prometheus.NewRegistry(), operator.Options{
+	op, err := operator.New(globalLogger, kubeconfig, operator.Options{
 		ProjectID:         projectID,
 		Cluster:           cluster,
 		Location:          location,
@@ -111,7 +111,7 @@ func newTestContext(t *testing.T) *testContext {
 	}
 
 	go func() {
-		if err := op.Run(ctx); err != nil {
+		if err := op.Run(ctx, prometheus.NewRegistry()); err != nil {
 			// Since we aren't in the main test goroutine we cannot fail with Fatal here.
 			t.Errorf("running operator: %s", err)
 		}

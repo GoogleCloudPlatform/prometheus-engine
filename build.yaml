@@ -14,20 +14,43 @@
 
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  id: 'build-config-reloader'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/config-reloader:$TAG_NAME', '-f', 'cmd/config-reloader/Dockerfile', '.']
+  id: 'multiarch-init'
+  args:
+  - buildx
+  - create
+  - '--name=multiarch-builder'
+  - '--driver=docker-container'
+  - '--driver-opt'
+  - 'network=cloudbuild'
+  - '--use'
 - name: 'gcr.io/cloud-builders/docker'
-  id: 'build-rule-evaluator'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/rule-evaluator:$TAG_NAME', '-f', 'cmd/rule-evaluator/Dockerfile', '.']
+  id: 'qemu-user-static'
+  waitFor: ['multiarch-init']
+  args:
+  - run
+  - '--rm'
+  - '--privileged'
+  - 'multiarch/qemu-user-static'
+  - '--reset'
+  - '-p'
+  - 'yes'
 - name: 'gcr.io/cloud-builders/docker'
-  id: 'build-operator'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/operator:$TAG_NAME', '-f', 'cmd/operator/Dockerfile', '.']
-- name: 'gcr.io/cloud-builders/docker'
-  id: 'build-frontend'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/prometheus-engine/frontend:$TAG_NAME', '-f', 'cmd/frontend/Dockerfile', '.']
+  id: 'build-push-$_IMAGE-image'
+  waitFor: ['qemu-user-static']
+  args:
+  - buildx
+  - build
+  - '-f'
+  - 'cmd/$_IMAGE/Dockerfile'
+  - '.'
+  - '--platform'
+  - 'linux/arm64,linux/amd64'
+  - '-t'
+  - '$_IMAGE_REGISTRY/$_IMAGE:$TAG_NAME'
+  - '--push'
+  timeout: 1200s
 
-images:
-- 'gcr.io/$PROJECT_ID/prometheus-engine/config-reloader:$TAG_NAME'
-- 'gcr.io/$PROJECT_ID/prometheus-engine/rule-evaluator:$TAG_NAME'
-- 'gcr.io/$PROJECT_ID/prometheus-engine/operator:$TAG_NAME'
-- 'gcr.io/$PROJECT_ID/prometheus-engine/frontend:$TAG_NAME'
+options:
+  env:
+    - DOCKER_CLI_EXPERIMENTAL=enabled
+  machineType: 'E2_HIGHCPU_8'

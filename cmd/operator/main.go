@@ -92,7 +92,7 @@ func main() {
 	// It already has the GoCollector and ProcessCollector metrics installed.
 	metrics := ctrlmetrics.Registry
 
-	op, err := operator.New(logger, cfg, metrics, operator.Options{
+	op, err := operator.New(logger, cfg, operator.Options{
 		ProjectID:         *projectID,
 		Location:          *location,
 		Cluster:           *cluster,
@@ -146,7 +146,7 @@ func main() {
 	{
 		ctx, cancel := context.WithCancel(context.Background())
 		g.Add(func() error {
-			return op.Run(ctx)
+			return op.Run(ctx, metrics)
 		}, func(err error) {
 			cancel()
 		})

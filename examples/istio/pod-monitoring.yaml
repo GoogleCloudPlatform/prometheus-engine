@@ -26,7 +26,7 @@ spec:
       app: istiod
   endpoints:
   - port: 15014
-    interval: 60s
+    interval: 30s
     path: /metrics
   targetLabels:
     fromPod:
@@ -46,5 +46,5 @@ spec:
   endpoints:
   - port: http-envoy-prom
     scheme: http
-    interval: 60s
+    interval: 30s
     path: /stats/prometheus

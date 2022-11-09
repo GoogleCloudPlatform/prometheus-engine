@@ -81,7 +81,7 @@ combine() {
 update_crdgen() {
   echo ">>> regenerating CRD yamls"
 
-  which controller-gen || go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.7.0
+  which controller-gen || go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.10.0
 
   API_DIR=${SCRIPT_ROOT}/pkg/operator/apis/...
   CRD_DIR=${SCRIPT_ROOT}/cmd/operator/deploy/crds
@@ -91,12 +91,9 @@ update_crdgen() {
   CRD_YAMLS=$(find ${CRD_DIR} -iname '*.yaml' | sort)
   for i in $CRD_YAMLS; do
     sed -i '0,/---/{/---/d}' $i
-    # Currently controller-gen regenerates the status section of the CRD, which is
-    # not ideal.
-    # There is an open issue: https://github.com/kubernetes-sigs/controller-tools/issues/456.
-    # Until then, we manually delete the status field in the generated CRD yamls here.
-    sed -i '/^status:*/,$d' $i
-    echo "$(cat ${SCRIPT_ROOT}/hack/boilerplate.txt)$(cat $i)" > $i
+    # removed the crd status hack , see https://github.com/kubernetes-sigs/controller-tools/pull/630
+    echo "$(cat $i)" > $i
+    echo -e "$(cat ${SCRIPT_ROOT}/hack/boilerplate.txt)\n$(cat $i)" > $i
   done
 
   combine $CRD_DIR '^.*/.*.yaml$' ${SCRIPT_ROOT}/manifests/setup.yaml
