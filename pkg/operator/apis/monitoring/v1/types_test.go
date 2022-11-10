@@ -539,6 +539,9 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 							Modulus:      3,
 							TargetLabel:  "__tmp_mod",
 						}, {
+							SourceLabels: []string{"mlabel_4"},
+							TargetLabel:  "mlabel_5",
+						}, {
 							Action:  "keep",
 							Regex:   "foo_.+",
 							Modulus: 3,
@@ -641,6 +644,8 @@ metric_relabel_configs:
   modulus: 3
   target_label: __tmp_mod
   action: hashmod
+- source_labels: [mlabel_4]
+  target_label: mlabel_5
 - regex: foo_.+
   modulus: 3
   action: keep
