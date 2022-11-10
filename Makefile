@@ -43,8 +43,10 @@ lint:        ## Lint code.
 	DOCKER_BUILDKIT=1 docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.43.0 golangci-lint run -v --timeout=5m
 
 $(GOCMDS):   ## Build go binary from cmd/ (e.g. 'operator').
+             ## The following env variables configure the build, and are mutually exclusive:
              ## Set NO_DOCKER=1 to build natively without Docker.
              ## Set DOCKER_PUSH=1 to tag image with TAG_NAME and push to IMAGE_REGISTRY.
+             ## Set CLOUD_BUILD=1 to build the image on Cloud Build, with multi-arch support.
              ## By default, IMAGE_REGISTRY=gcr.io/PROJECT_ID/prometheus-engine.
              ##
 	@echo ">> building binaries"
