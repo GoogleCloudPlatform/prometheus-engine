@@ -793,7 +793,8 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 
 	// Validate that the protected target labels are not mutated by the provided relabeling rules.
 	switch rcfg.Action {
-	case relabel.Replace, relabel.HashMod:
+	// Default action is "replace" per https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config.
+	case relabel.Replace, relabel.HashMod, "":
 		// These actions write into the target label and it must not be a protected one.
 		if isProtectedLabel(r.TargetLabel) {
 			return nil, errors.Errorf("cannot relabel with action %q onto protected label %q", r.Action, r.TargetLabel)

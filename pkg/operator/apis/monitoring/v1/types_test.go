@@ -232,6 +232,22 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 				},
 			},
 		}, {
+			desc: "metric relabeling: blank 'action' defaults to 'replace'",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					MetricRelabeling: []RelabelingRule{
+						{
+							SourceLabels: []string{"foo"},
+							TargetLabel:  "bar",
+							Replacement:  "baz",
+						},
+					},
+				},
+			},
+			fail: false,
+		}, {
 			desc: "invalid URL",
 			eps: []ScrapeEndpoint{
 				{
