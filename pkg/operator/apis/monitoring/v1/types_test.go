@@ -232,7 +232,7 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 				},
 			},
 		}, {
-			desc: "metric relabeling: blank 'action' defaults to 'replace'",
+			desc: "metric relabeling: blank 'action' is valid and it defaults to 'replace'",
 			eps: []ScrapeEndpoint{
 				{
 					Port:     intstr.FromString("web"),
