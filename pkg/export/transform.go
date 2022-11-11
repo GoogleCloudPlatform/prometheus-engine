@@ -405,7 +405,10 @@ Loop:
 				prometheusSamplesDiscarded.WithLabelValues("NaN-bucket-value").Inc()
 				continue
 			}
-			dist.hasInfBucket = math.IsInf(bound, 1)
+			// Handle cases where +Inf bucket is out-of-order by not overwriting on the last-consumed bucket.
+			if !dist.hasInfBucket {
+				dist.hasInfBucket = math.IsInf(bound, 1)
+			}
 			dist.bounds = append(dist.bounds, bound)
 			dist.values = append(dist.values, int64(v))
 
