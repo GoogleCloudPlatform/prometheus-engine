@@ -400,8 +400,7 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 		prometheusSamplesDiscarded.WithLabelValues("no-ha-range").Inc()
 		return
 	}
-	var builder *sampleBuilder
-	builder = newSampleBuilder(e.seriesCache)
+	builder := newSampleBuilder(e.seriesCache)
 	defer builder.close()
 
 	for len(batch) > 0 {
