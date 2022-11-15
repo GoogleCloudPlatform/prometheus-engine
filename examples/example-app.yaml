@@ -52,3 +52,17 @@ spec:
         - "/main"
         - "--process-metrics"
         - "--go-metrics"
+---
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: prom-example
+  labels:
+    app.kubernetes.io/name: prom-example
+spec:
+  selector:
+    matchLabels:
+      app: prom-example
+  endpoints:
+  - port: metrics
+    interval: 30s
