@@ -43,8 +43,6 @@ func (s *shard) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	samplesExported.Inc()
-
 	e := queueEntry{
 		hash:   hash,
 		sample: sample,
