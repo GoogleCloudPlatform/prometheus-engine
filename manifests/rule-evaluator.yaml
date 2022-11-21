@@ -75,6 +75,7 @@ spec:
                 operator: In
                 values:
                 - linux
+      serviceAccountName: rule-evaluator
       tolerations:
       - effect: NoExecute
         operator: Exists
@@ -152,3 +153,36 @@ spec:
       - name: rules
         configMap:
           name: rules
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: gmp-system
+  name: rule-evaluator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: gmp-system
+  name: rule-evaluator
+rules:
+- apiGroups: [""]
+  resources:
+  - pods
+  - services
+  - endpoints
+  verbs: ["get","list","watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: gmp-system
+  name: rule-evaluator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rule-evaluator
+subjects:
+- kind: ServiceAccount
+  namespace: gmp-system
+  name: rule-evaluator
