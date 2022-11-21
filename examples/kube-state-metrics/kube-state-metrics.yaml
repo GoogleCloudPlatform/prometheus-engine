@@ -317,7 +317,7 @@ spec:
       app.kubernetes.io/name: kube-state-metrics
   endpoints:
   - port: metrics
-    interval: 60s
+    interval: 30s
     metricRelabeling:
     - action: keep
       regex: kube_(daemonset|deployment|pod|namespace|node|statefulset)_.+
@@ -339,4 +339,4 @@ spec:
       app.kubernetes.io/name: kube-state-metrics
   endpoints:
   - port: metrics-self
-    interval: 60s
+    interval: 30s
