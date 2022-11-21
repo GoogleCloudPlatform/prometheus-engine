@@ -1,0 +1,398 @@
+// Copyright 2022 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package operator
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/api"
+	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/client_golang/prometheus"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/clock"
+	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+)
+
+var (
+	targetStatusDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "prometheus_engine_target_status_duration",
+		Help: "A metric indicating how long it took to fetch the complete target status.",
+	}, []string{})
+
+	// Minimum duration between polls.
+	pollDurationMin = 10 * time.Second
+)
+
+// Responsible for fetching the targets given a pod.
+type getTargetFn func(ctx context.Context, logger logr.Logger, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error)
+
+// targetStatusReconciler to hold cached client state and source channel.
+type targetStatusReconciler struct {
+	ch         chan<- event.GenericEvent
+	opts       Options
+	getTarget  getTargetFn
+	clock      clock.Clock
+	logger     logr.Logger
+	kubeClient client.Client
+}
+
+// setupTargetStatusPoller sets up a reconciler that polls and populate target
+// statuses whenever it receives an event.
+func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error {
+	if err := registry.Register(targetStatusDuration); err != nil {
+		return err
+	}
+
+	ch := make(chan event.GenericEvent, 1)
+
+	reconciler := &targetStatusReconciler{
+		ch:         ch,
+		opts:       op.opts,
+		getTarget:  getTarget,
+		logger:     op.logger,
+		kubeClient: op.manager.GetClient(),
+		clock:      clock.RealClock{},
+	}
+
+	err := ctrl.NewControllerManagedBy(op.manager).
+		Named("target-status").
+		// controller-runtime requires a For clause of the manager otherwise
+		// this controller will fail to build at runtime when calling
+		// `Complete`. The reconcile loop doesn't strictly need to watch a
+		// particular resource as it's performing polling against a channel
+		// source. We use the DaemonSet here, as it's the closest thing to what
+		// we're reconciling (i.e. the collector DaemonSet).
+		For(
+			&appsv1.DaemonSet{},
+			// For the (rare) cases where the collector DaemonSet is deleted and
+			// re-created we don't want this event to reconcile into the
+			// polling-based control loop.
+			builder.WithPredicates(predicate.NewPredicateFuncs(func(_ client.Object) bool {
+				return false
+			})),
+		).
+		Watches(&source.Channel{
+			Source: ch,
+		}, &handler.EnqueueRequestForObject{}).
+		Complete(reconciler)
+	if err != nil {
+		return errors.Wrap(err, "create target status controller")
+	}
+
+	// Start the controller only once.
+	op.manager.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		reconciler.ch <- event.GenericEvent{
+			Object: &appsv1.DaemonSet{},
+		}
+		return nil
+	}))
+
+	return nil
+}
+
+// Reconcile polls the collector pods, fetches and aggregates target status and
+// upserts into each PodMonitoring's Status field.
+func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
+	timer := r.clock.NewTimer(pollDurationMin)
+
+	now := time.Now()
+	if err := poll(ctx, r.logger, r.opts, r.getTarget, r.kubeClient); err != nil {
+		r.logger.Error(err, "unable to poll targets")
+	} else {
+		// Only log metrics if target polling was successful.
+		duration := time.Since(now)
+		targetStatusDuration.WithLabelValues().Set(float64(duration.Milliseconds()))
+	}
+
+	// Check if we beat the timer, otherwise wait.
+	select {
+	case <-ctx.Done():
+		break
+	case <-timer.C():
+		r.ch <- event.GenericEvent{
+			Object: &appsv1.DaemonSet{},
+		}
+	}
+
+	return reconcile.Result{}, nil
+}
+
+// poll fetches and updates the target status in each collector pod.
+func poll(ctx context.Context, logger logr.Logger, opts Options, getTarget getTargetFn, kubeClient client.Client) error {
+	targets, err := fetchTargets(ctx, logger, opts, getTarget, kubeClient)
+	if err != nil {
+		return err
+	}
+
+	return populateTargets(ctx, logger, kubeClient, targets)
+}
+
+// fetchTargets retrieves the Prometheus targets using the given target function
+// for each collector pod.
+func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, getTarget getTargetFn, kubeClient client.Client) ([]*prometheusv1.TargetsResult, error) {
+	namespace := opts.OperatorNamespace
+	var ds appsv1.DaemonSet
+	if err := kubeClient.Get(ctx, client.ObjectKey{
+		Name:      NameCollector,
+		Namespace: namespace,
+	}, &ds); err != nil {
+		return nil, err
+	}
+
+	selector, err := metav1.LabelSelectorAsSelector(ds.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+
+	var port *int32
+	for _, container := range ds.Spec.Template.Spec.Containers {
+		if isPrometheusContainer(&container) {
+			port = getPrometheusPort(&container)
+			if port != nil {
+				break
+			}
+		}
+	}
+	if port == nil {
+		return nil, errors.New("Unable to detect Prometheus port")
+	}
+
+	pods, err := getPrometheusPods(ctx, kubeClient, opts, selector)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set up pod job queue and jobs
+	podDiscoveryCh := make(chan prometheusPod)
+	wg := sync.WaitGroup{}
+	wg.Add(int(opts.TargetPollConcurrency))
+
+	// Must be unbounded or else we deadlock.
+	targetCh := make(chan *prometheusv1.TargetsResult)
+
+	for i := uint16(0); i < opts.TargetPollConcurrency; i++ {
+		// Wrapper function so we can defer in this scope.
+		go func() {
+			defer wg.Done()
+			for prometheusPod := range podDiscoveryCh {
+				// Fetch operation is blocking.
+				target, err := getTarget(ctx, logger, prometheusPod.port, prometheusPod.pod)
+				if err != nil {
+					logger.Error(err, "failed to fetch target")
+				}
+				// nil represents being unable to reach a target.
+				targetCh <- target
+			}
+		}()
+	}
+
+	// Unbuffered channels are blocking so make sure we end the goroutine processing them.
+	go func() {
+		for _, pod := range pods {
+			podDiscoveryCh <- prometheusPod{
+				port: *port,
+				pod:  pod,
+			}
+		}
+
+		// Must close so jobs aren't waiting on the channel indefinitely.
+		close(podDiscoveryCh)
+
+		// Close target after we're sure all targets are queued.
+		wg.Wait()
+		close(targetCh)
+	}()
+
+	results := make([]*prometheusv1.TargetsResult, 0)
+	for target := range targetCh {
+		results = append(results, target)
+	}
+
+	return results, nil
+}
+
+func buildPodMonitoringFromJob(job []string) (*monitoringv1.PodMonitoring, error) {
+	if len(job) != 3 {
+		return nil, errors.New("invalid job type")
+	}
+	kind := job[0]
+	if kind != "PodMonitoring" {
+		return nil, errors.New("invalid object kind")
+	}
+	pm := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      job[2],
+			Namespace: job[1],
+		},
+		Spec:   monitoringv1.PodMonitoringSpec{},
+		Status: monitoringv1.PodMonitoringStatus{},
+	}
+	return pm, nil
+}
+
+func buildClusterPodMonitoringFromJob(job []string) (*monitoringv1.ClusterPodMonitoring, error) {
+	if len(job) != 2 {
+		return nil, errors.New("invalid job type")
+	}
+	kind := job[0]
+	if kind != "ClusterPodMonitoring" {
+		return nil, errors.New("invalid object kind")
+	}
+	pm := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: job[1],
+		},
+		Spec:   monitoringv1.ClusterPodMonitoringSpec{},
+		Status: monitoringv1.PodMonitoringStatus{},
+	}
+	return pm, nil
+}
+
+func buildPodMonitoring(job string) (monitoringv1.PodMonitoringStatusContainer, error) {
+	split := strings.Split(job, "/")
+	if pm, err := buildPodMonitoringFromJob(split); err == nil {
+		return pm, nil
+	}
+	if pm, err := buildClusterPodMonitoringFromJob(split); err == nil {
+		return pm, nil
+	}
+	return nil, errors.Errorf("unable to parse job: %s", job)
+}
+
+func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, object client.Object, status monitoringv1.PodMonitoringStatus) error {
+	patchStatus := map[string]interface{}{
+		"endpointStatuses": status.EndpointStatuses,
+	}
+	patchObject := map[string]interface{}{"status": patchStatus}
+
+	patchBytes, err := json.Marshal(patchObject)
+	if err != nil {
+		return errors.Wrap(err, "unable to marshall status")
+	}
+	patch := client.RawPatch(types.MergePatchType, patchBytes)
+	if err := kubeClient.Status().Patch(ctx, object, patch); err != nil {
+		return errors.Wrap(err, "unable to patch status")
+	}
+	return nil
+}
+
+// populateTargets populates the status object of each pod using the given
+// Prometheus targets.
+func populateTargets(ctx context.Context, logger logr.Logger, kubeClient client.Client, targets []*prometheusv1.TargetsResult) error {
+	endpointMap, err := buildEndpointStatuses(targets)
+	if err != nil {
+		return err
+	}
+
+	for job, endpointStatuses := range endpointMap {
+		podMonitoringStatusContainer, err := buildPodMonitoring(job)
+		if err != nil {
+			return err
+		}
+		podMonitoringStatusContainer.GetStatus().EndpointStatuses = endpointStatuses
+
+		if err := patchPodMonitoringStatus(ctx, kubeClient, podMonitoringStatusContainer, *podMonitoringStatusContainer.GetStatus()); err != nil {
+			logger.Error(err, "error patching job", "job", job)
+		}
+	}
+
+	return nil
+}
+
+func getPrometheusPods(ctx context.Context, kubeClient client.Client, opts Options, selector labels.Selector) ([]*corev1.Pod, error) {
+	var podList corev1.PodList
+	if err := kubeClient.List(ctx, &podList, client.InNamespace(opts.OperatorNamespace), client.MatchingLabelsSelector{
+		Selector: selector,
+	}); err != nil {
+		return nil, err
+	}
+	pods := podList.Items
+
+	podsFiltered := make([]*corev1.Pod, 0)
+	for _, pod := range pods {
+		if isPrometheusPod(&pod) {
+			podsFiltered = append(podsFiltered, pod.DeepCopy())
+		}
+	}
+
+	return podsFiltered, nil
+}
+
+func getTarget(ctx context.Context, logger logr.Logger, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error) {
+	podUrl := fmt.Sprintf("http://%s:%d", pod.Status.PodIP, port)
+	client, err := api.NewClient(api.Config{
+		Address: podUrl,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("unable to create Prometheus client: %w", err)
+	}
+	v1api := prometheusv1.NewAPI(client)
+	targetsResult, err := v1api.Targets(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch targets: %w", err)
+	}
+
+	return &targetsResult, nil
+}
+
+type prometheusPod struct {
+	port int32
+	pod  *corev1.Pod
+}
+
+func isPrometheusPod(pod *corev1.Pod) bool {
+	for _, container := range pod.Spec.Containers {
+		if isPrometheusContainer(&container) {
+			return true
+		}
+	}
+	return false
+}
+
+func isPrometheusContainer(container *corev1.Container) bool {
+	return container.Name == CollectorPrometheusContainerName
+}
+
+func getPrometheusPort(container *corev1.Container) *int32 {
+	for _, containerPort := range container.Ports {
+		// In the future, we could fall back to reading the command line args.
+		if containerPort.Name == CollectorPrometheusContainerPortName {
+			// Make a copy.
+			return pointer.Int32(containerPort.ContainerPort)
+		}
+	}
+	return nil
+}

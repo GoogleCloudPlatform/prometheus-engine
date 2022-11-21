@@ -633,7 +633,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 		}
 
 		for _, c := range ds.Spec.Template.Spec.Containers {
-			if c.Name != "prometheus" {
+			if c.Name != operator.CollectorPrometheusContainerName {
 				continue
 			}
 
@@ -680,8 +680,14 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 				},
 			},
 			Endpoints: []monitoringv1.ScrapeEndpoint{
-				{Port: intstr.FromString("prom-metrics"), Interval: "5s"},
-				{Port: intstr.FromString("cfg-rel-metrics"), Interval: "5s"},
+				{
+					Port:     intstr.FromString(operator.CollectorPrometheusContainerPortName),
+					Interval: "5s",
+				},
+				{
+					Port:     intstr.FromString(operator.CollectorConfigReloaderContainerPortName),
+					Interval: "5s",
+				},
 			},
 		},
 	}
@@ -742,8 +748,14 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 				},
 			},
 			Endpoints: []monitoringv1.ScrapeEndpoint{
-				{Port: intstr.FromString("prom-metrics"), Interval: "5s"},
-				{Port: intstr.FromString("cfg-rel-metrics"), Interval: "5s"},
+				{
+					Port:     intstr.FromString(operator.CollectorPrometheusContainerPortName),
+					Interval: "5s",
+				},
+				{
+					Port:     intstr.FromString(operator.CollectorConfigReloaderContainerPortName),
+					Interval: "5s",
+				},
 			},
 		},
 	}
@@ -829,7 +841,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 	defer cancel()
 
 	for _, pod := range pods.Items {
-		for _, port := range []string{"prom-metrics", "cfg-rel-metrics"} {
+		for _, port := range []string{operator.CollectorPrometheusContainerPortName, operator.CollectorConfigReloaderContainerPortName} {
 			t.Logf("Poll up metric for pod %q and port %q", pod.Name, port)
 
 			err = wait.PollImmediateUntil(3*time.Second, func() (bool, error) {
