@@ -139,6 +139,18 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	return nil
 }
 
+func getScheme() (*runtime.Scheme, error) {
+	sc := runtime.NewScheme()
+
+	if err := scheme.AddToScheme(sc); err != nil {
+		return nil, errors.Wrap(err, "add Kubernetes core scheme")
+	}
+	if err := monitoringv1.AddToScheme(sc); err != nil {
+		return nil, errors.Wrap(err, "add monitoringv1 scheme")
+	}
+	return sc, nil
+}
+
 // New instantiates a new Operator.
 func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Registerer, opts Options) (*Operator, error) {
 	if err := opts.defaultAndValidate(logger); err != nil {
@@ -150,14 +162,11 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 		return nil, errors.Wrap(err, "create temporary certificate dir")
 	}
 
-	sc := runtime.NewScheme()
+	sc, err := getScheme()
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to initialize Kubernetes scheme")
+	}
 
-	if err := scheme.AddToScheme(sc); err != nil {
-		return nil, errors.Wrap(err, "add Kubernetes core scheme")
-	}
-	if err := monitoringv1.AddToScheme(sc); err != nil {
-		return nil, errors.Wrap(err, "add monitoringv1 scheme")
-	}
 	host, portStr, err := net.SplitHostPort(opts.ListenAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid listen address")

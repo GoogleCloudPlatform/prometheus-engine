@@ -34,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 )
@@ -198,6 +199,15 @@ type SecretOrConfigMap struct {
 	Secret *v1.SecretKeySelector `json:"secret,omitempty"`
 	// ConfigMap containing data to use for the targets.
 	ConfigMap *v1.ConfigMapKeySelector `json:"configMap,omitempty"`
+}
+
+// PodMonitoringStatusContainer represents a Kubernetes CRD that monitors pods
+// and contains a status sub-resource.
+type PodMonitoringStatusContainer interface {
+	client.Object
+
+	// Returns this CRD's status sub-resource.
+	GetStatus() *PodMonitoringStatus
 }
 
 // PodMonitoring defines monitoring for a set of pods.
