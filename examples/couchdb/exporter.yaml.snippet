@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: couchdb
+spec:
+  serviceName: couchdb
+  selector:
+    matchLabels:
++     app.kubernetes.io/name: couchdb
+  template:
+    metadata:
+      labels:
++       app.kubernetes.io/name: couchdb
+    spec:
+      containers:
+      - name: couchdb
+        image: couchdb:3.2.2
+        env:
+          - name: COUCHDB_USER
+            value: "otelu"
+          - name: COUCHDB_PASSWORD
+            value: "otelp"
+          - name: NODENAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: ERL_FLAGS
+            value: "-setcookie otel"
+        ports:
+        - containerPort: 5984
++     - name: couchdb-exporter
++       image: gesellix/couchdb-prometheus-exporter:v30.4.3
++       args:
++       - --couchdb.uri=http://localhost:5984
++       - --logtostderr
++       env:
++         - name: COUCHDB_USERNAME
++           value: "otelu"
++         - name: COUCHDB_PASSWORD
++           value: "otelp"
++       ports:
++       - containerPort: 9984
+  +         name: prometheus
