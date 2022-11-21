@@ -67,6 +67,13 @@ const (
 	alertmanagerConfigKey        = "config.yaml"
 )
 
+// Collector Kubernetes Deployment extraction/detection.
+const (
+	CollectorPrometheusContainerName         = "prometheus"
+	CollectorPrometheusContainerPortName     = "prom-metrics"
+	CollectorConfigReloaderContainerPortName = "cfg-rel-metrics"
+)
+
 var alertmanagerNoOpConfig = `
 receivers:
   - name: "noop"
