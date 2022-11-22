@@ -129,8 +129,8 @@ func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcil
 	timer := r.clock.NewTimer(pollDurationMin)
 
 	now := time.Now()
-	if err := poll(ctx, r.logger, r.opts, r.getTarget, r.kubeClient); err != nil {
-		r.logger.Error(err, "unable to poll targets")
+	if err := pollAndUpdate(ctx, r.logger, r.opts, r.getTarget, r.kubeClient); err != nil {
+		r.logger.Error(err, "polling targets")
 	} else {
 		// Only log metrics if target polling was successful.
 		duration := time.Since(now)
@@ -150,14 +150,14 @@ func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcil
 	return reconcile.Result{}, nil
 }
 
-// poll fetches and updates the target status in each collector pod.
-func poll(ctx context.Context, logger logr.Logger, opts Options, getTarget getTargetFn, kubeClient client.Client) error {
+// pollAndUpdate fetches and updates the target status in each collector pod.
+func pollAndUpdate(ctx context.Context, logger logr.Logger, opts Options, getTarget getTargetFn, kubeClient client.Client) error {
 	targets, err := fetchTargets(ctx, logger, opts, getTarget, kubeClient)
 	if err != nil {
 		return err
 	}
 
-	return populateTargets(ctx, logger, kubeClient, targets)
+	return updateTargetStatus(ctx, logger, kubeClient, targets)
 }
 
 // fetchTargets retrieves the Prometheus targets using the given target function
@@ -309,23 +309,28 @@ func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, obj
 	return nil
 }
 
-// populateTargets populates the status object of each pod using the given
+// updateTargetStatus populates the status object of each pod using the given
 // Prometheus targets.
-func populateTargets(ctx context.Context, logger logr.Logger, kubeClient client.Client, targets []*prometheusv1.TargetsResult) error {
+func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient client.Client, targets []*prometheusv1.TargetsResult) error {
 	endpointMap, err := buildEndpointStatuses(targets)
 	if err != nil {
 		return err
 	}
 
 	for job, endpointStatuses := range endpointMap {
+		// Kubelet scraping is configured through hard-coding and not through
+		// a PodMonitoring. As there's no status to update, we skip.
+		if strings.HasPrefix(job, "kubelet") {
+			continue
+		}
 		podMonitoringStatusContainer, err := buildPodMonitoring(job)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "building podmonitoring: %s", job)
 		}
 		podMonitoringStatusContainer.GetStatus().EndpointStatuses = endpointStatuses
 
 		if err := patchPodMonitoringStatus(ctx, kubeClient, podMonitoringStatusContainer, *podMonitoringStatusContainer.GetStatus()); err != nil {
-			logger.Error(err, "error patching job", "job", job)
+			return errors.Wrapf(err, "patching job: %s", job)
 		}
 	}
 

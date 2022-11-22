@@ -31,7 +31,13 @@ const (
 )
 
 func buildEndpointStatuses(targets []*prometheusv1.TargetsResult) (map[string][]monitoringv1.ScrapeEndpointStatus, error) {
-	endpointBuilder := newScrapeEndpointBuilder()
+	endpointBuilder := &scrapeEndpointBuilder{
+		mapByJobByEndpoint: make(map[string]map[string]*scrapeEndpointStatusBuilder),
+		total:              0,
+		failed:             0,
+		time:               metav1.Now(),
+	}
+
 	for _, target := range targets {
 		if err := endpointBuilder.add(target); err != nil {
 			return nil, err
@@ -46,15 +52,6 @@ type scrapeEndpointBuilder struct {
 	total              uint32
 	failed             uint32
 	time               metav1.Time
-}
-
-func newScrapeEndpointBuilder() scrapeEndpointBuilder {
-	return scrapeEndpointBuilder{
-		mapByJobByEndpoint: make(map[string]map[string]*scrapeEndpointStatusBuilder),
-		total:              0,
-		failed:             0,
-		time:               metav1.Now(),
-	}
 }
 
 func (b *scrapeEndpointBuilder) add(target *prometheusv1.TargetsResult) error {
