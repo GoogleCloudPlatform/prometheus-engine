@@ -197,7 +197,7 @@ ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| matchOneOf | A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data.\n\nExample: `[\"{job!='foobar'}\", \"{__name__!~'container_foo.*\|container_bar.*'}\"]` | []string | false |
+| matchOneOf | A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. Example: `[\"{job!='foobar'}\", \"{__name__!~'container_foo.*\|container_bar.*'}\"]` | []string | false |
 
 [Back to TOC](#table-of-contents)
 

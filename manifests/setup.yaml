@@ -17,7 +17,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
   name: clusterpodmonitorings.monitoring.googleapis.com
 spec:
@@ -209,6 +209,7 @@ spec:
                       are ANDed.
                     type: object
                 type: object
+                x-kubernetes-map-type: atomic
               targetLabels:
                 description: Labels to add to the Prometheus target for discovered
                   endpoints. The `instance` label is always set to `<pod_name>:<port>`
@@ -538,6 +539,7 @@ spec:
                       are ANDed.
                     type: object
                 type: object
+                x-kubernetes-map-type: atomic
               targetLabels:
                 description: Labels to add to the Prometheus target for discovered
                   endpoints
@@ -630,7 +632,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
   name: clusterrules.monitoring.googleapis.com
 spec:
@@ -841,7 +843,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
   name: globalrules.monitoring.googleapis.com
 spec:
@@ -1050,7 +1052,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
   name: operatorconfigs.monitoring.googleapis.com
 spec:
@@ -1103,6 +1105,7 @@ spec:
                 required:
                 - key
                 type: object
+                x-kubernetes-map-type: atomic
               externalLabels:
                 additionalProperties:
                   type: string
@@ -1114,11 +1117,11 @@ spec:
                 description: Filter limits which metric data is sent to Cloud Monitoring.
                 properties:
                   matchOneOf:
-                    description: "A list Prometheus time series matchers. Every time
+                    description: 'A list Prometheus time series matchers. Every time
                       series must match at least one of the matchers to be exported.
                       This field can be used equivalently to the match[] parameter
                       of the Prometheus federation endpoint to selectively export
-                      data. \n Example: `[\"{job!='foobar'}\", \"{__name__!~'container_foo.*|container_bar.*'}\"]`"
+                      data. Example: `["{job!=''foobar''}", "{__name__!~''container_foo.*|container_bar.*''}"]`'
                     items:
                       type: string
                     type: array
@@ -1165,6 +1168,7 @@ spec:
                 required:
                 - key
                 type: object
+                x-kubernetes-map-type: atomic
             type: object
           metadata:
             type: object
@@ -1211,6 +1215,7 @@ spec:
                               required:
                               - key
                               type: object
+                              x-kubernetes-map-type: atomic
                             type:
                               description: Set the authentication type. Defaults to
                                 Bearer, Basic will cause an error
@@ -1266,6 +1271,7 @@ spec:
                                   required:
                                   - key
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 secret:
                                   description: Secret containing data to use for the
                                     targets.
@@ -1287,6 +1293,7 @@ spec:
                                   required:
                                   - key
                                   type: object
+                                  x-kubernetes-map-type: atomic
                               type: object
                             cert:
                               description: Struct containing the client cert file
@@ -1312,6 +1319,7 @@ spec:
                                   required:
                                   - key
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 secret:
                                   description: Secret containing data to use for the
                                     targets.
@@ -1333,6 +1341,7 @@ spec:
                                   required:
                                   - key
                                   type: object
+                                  x-kubernetes-map-type: atomic
                               type: object
                             insecureSkipVerify:
                               description: Disable target certificate validation.
@@ -1357,6 +1366,7 @@ spec:
                               required:
                               - key
                               type: object
+                              x-kubernetes-map-type: atomic
                             serverName:
                               description: Used to verify the hostname for the targets.
                               type: string
@@ -1390,6 +1400,7 @@ spec:
                 required:
                 - key
                 type: object
+                x-kubernetes-map-type: atomic
               externalLabels:
                 additionalProperties:
                   type: string
@@ -1445,6 +1456,7 @@ spec:
                 required:
                 - key
                 type: object
+                x-kubernetes-map-type: atomic
               externalLabels:
                 additionalProperties:
                   type: string
@@ -1456,11 +1468,11 @@ spec:
                 description: Filter limits which metric data is sent to Cloud Monitoring.
                 properties:
                   matchOneOf:
-                    description: "A list Prometheus time series matchers. Every time
+                    description: 'A list Prometheus time series matchers. Every time
                       series must match at least one of the matchers to be exported.
                       This field can be used equivalently to the match[] parameter
                       of the Prometheus federation endpoint to selectively export
-                      data. \n Example: `[\"{job='prometheus'}\", \"{__name__=~'job:.*'}\"]`"
+                      data. Example: `["{job=''prometheus''}", "{__name__=~''job:.*''}"]`'
                     items:
                       type: string
                     type: array
@@ -1516,6 +1528,7 @@ spec:
                               required:
                               - key
                               type: object
+                              x-kubernetes-map-type: atomic
                             type:
                               description: Set the authentication type. Defaults to
                                 Bearer, Basic will cause an error
@@ -1571,6 +1584,7 @@ spec:
                                   required:
                                   - key
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 secret:
                                   description: Secret containing data to use for the
                                     targets.
@@ -1592,6 +1606,7 @@ spec:
                                   required:
                                   - key
                                   type: object
+                                  x-kubernetes-map-type: atomic
                               type: object
                             cert:
                               description: Struct containing the client cert file
@@ -1617,6 +1632,7 @@ spec:
                                   required:
                                   - key
                                   type: object
+                                  x-kubernetes-map-type: atomic
                                 secret:
                                   description: Secret containing data to use for the
                                     targets.
@@ -1638,6 +1654,7 @@ spec:
                                   required:
                                   - key
                                   type: object
+                                  x-kubernetes-map-type: atomic
                               type: object
                             insecureSkipVerify:
                               description: Disable target certificate validation.
@@ -1662,6 +1679,7 @@ spec:
                               required:
                               - key
                               type: object
+                              x-kubernetes-map-type: atomic
                             serverName:
                               description: Used to verify the hostname for the targets.
                               type: string
@@ -1695,6 +1713,7 @@ spec:
                 required:
                 - key
                 type: object
+                x-kubernetes-map-type: atomic
               externalLabels:
                 additionalProperties:
                   type: string
@@ -1716,7 +1735,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
   name: podmonitorings.monitoring.googleapis.com
 spec:
@@ -1908,6 +1927,7 @@ spec:
                       are ANDed.
                     type: object
                 type: object
+                x-kubernetes-map-type: atomic
               targetLabels:
                 description: Labels to add to the Prometheus target for discovered
                   endpoints. The `instance` label is always set to `<pod_name>:<port>`
@@ -2237,6 +2257,7 @@ spec:
                       are ANDed.
                     type: object
                 type: object
+                x-kubernetes-map-type: atomic
               targetLabels:
                 description: Labels to add to the Prometheus target for discovered
                   endpoints.
@@ -2329,7 +2350,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
   name: rules.monitoring.googleapis.com
 spec:

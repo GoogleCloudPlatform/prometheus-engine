@@ -15,7 +15,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
   name: podmonitorings.monitoring.googleapis.com
 spec:
@@ -207,6 +207,7 @@ spec:
                       are ANDed.
                     type: object
                 type: object
+                x-kubernetes-map-type: atomic
               targetLabels:
                 description: Labels to add to the Prometheus target for discovered
                   endpoints. The `instance` label is always set to `<pod_name>:<port>`
@@ -536,6 +537,7 @@ spec:
                       are ANDed.
                     type: object
                 type: object
+                x-kubernetes-map-type: atomic
               targetLabels:
                 description: Labels to add to the Prometheus target for discovered
                   endpoints.
