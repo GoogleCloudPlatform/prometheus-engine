@@ -101,9 +101,6 @@ update_crdgen() {
 
 update_docgen() {
   echo ">>> generating API documentation"
-  
-  which po-docgen || (go get github.com/prometheus-operator/prometheus-operator \
-    && go install -mod=mod github.com/prometheus-operator/prometheus-operator/cmd/po-docgen)
   mkdir -p doc
   po-docgen api ./pkg/operator/apis/monitoring/v1/types.go > doc/api.md
   sed -i 's/Prometheus Operator/GMP CRDs/g' doc/api.md
