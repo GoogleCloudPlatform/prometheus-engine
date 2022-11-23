@@ -402,7 +402,7 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample) {
 	e.mtx.Unlock()
 
 	if !ok {
-		prometheusSamplesDiscarded.WithLabelValues("no-ha-range").Add(float64(len(batch)))
+		prometheusSamplesDiscarded.WithLabelValues("no-ha-range").Add(float64(batchSize))
 		return
 	}
 
