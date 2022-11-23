@@ -28,7 +28,7 @@ Run `make help` shows a list of candidate targets with documentation.
 
 Any go application in `./cmd/` with an associated `main.go`, e.g. `./cmd/operator/main.go`
 is a candidate for build by running:
-```
+```bash
 make operator
 ```
 
@@ -38,7 +38,7 @@ make operator
   - If `NO_DOCKER=1` is set, end-to-end tests will be run against the current
   kubectl context. It is assumed the cluster has access to the GCM API.
   Ensure `GMP_CLUSTER` and `GMP_LOCATION` are set, e.g.
-  ```
+  ```bash
   NO_DOCKER=1 GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make test
   ```
 - Running `make presubmit` will run various checks on the repo to ensure it is
@@ -60,7 +60,7 @@ recommended:
   ```
 4. [`Docker`](https://docs.docker.com/get-docker/)
   - Can also be run via
-  ```
+  ```bash
   gcloud alpha cloud-shell ssh -- -nNT -L `pwd`/docker.sock:/var/run/docker.sock
   # Then in separate terminal.
   export DOCKER_HOST=unix://docker.sock
