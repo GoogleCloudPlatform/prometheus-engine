@@ -58,6 +58,14 @@ type updateTargetStatusTestCase struct {
 func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase {
 	dataFinal := make([]updateTargetStatusTestCase, 0)
 	for _, tc := range testCases {
+		if len(tc.podMonitorings) == 0 {
+			dataFinal = append(dataFinal, updateTargetStatusTestCase{
+				desc:    tc.desc,
+				targets: tc.targets,
+				expErr:  tc.expErr,
+			})
+			continue
+		}
 		clusterTargets := make([]*prometheusv1.TargetsResult, 0, len(tc.targets))
 		clusterPodMonitorings := make([]monitoringv1.ClusterPodMonitoring, 0, len(tc.podMonitorings))
 		for _, target := range tc.targets {
@@ -102,9 +110,6 @@ func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase
 			expErr:         tc.expErr,
 		}
 		dataFinal = append(dataFinal, dataPodMonitorings)
-		if len(clusterPodMonitorings) == 0 {
-			continue
-		}
 		dataClusterPodMonitorings := updateTargetStatusTestCase{
 			desc:                  tc.desc + "-cluster-pod-monitoring",
 			targets:               clusterTargets,
@@ -142,7 +147,7 @@ func targetFetchFromMap(m map[string]*prometheusv1.TargetsResult) getTargetFn {
 	}
 }
 
-func TestUpgradeTargetStatus(t *testing.T) {
+func TestUpdateTargetStatus(t *testing.T) {
 	scheme, err := getScheme()
 	if err != nil {
 		t.Fatal("Unable to get scheme")

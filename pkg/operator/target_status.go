@@ -130,7 +130,7 @@ func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcil
 
 	now := time.Now()
 	if err := pollAndUpdate(ctx, r.logger, r.opts, r.getTarget, r.kubeClient); err != nil {
-		r.logger.Error(err, "polling targets")
+		r.logger.Error(err, "poll and update")
 	} else {
 		// Only log metrics if target polling was successful.
 		duration := time.Since(now)
@@ -317,6 +317,7 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 		return err
 	}
 
+	var patchErr error
 	for job, endpointStatuses := range endpointMap {
 		// Kubelet scraping is configured through hard-coding and not through
 		// a PodMonitoring. As there's no status to update, we skip.
@@ -330,11 +331,15 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 		podMonitoringStatusContainer.GetStatus().EndpointStatuses = endpointStatuses
 
 		if err := patchPodMonitoringStatus(ctx, kubeClient, podMonitoringStatusContainer, *podMonitoringStatusContainer.GetStatus()); err != nil {
-			return errors.Wrapf(err, "patching job: %s", job)
+			// Save and log any error encountered while patching the status.
+			// We don't want to prematurely return if the error was transient
+			// as we should continue patching all statuses before exiting.
+			patchErr = err
+			logger.Error(err, "patching podmonitoring status", "job", job)
 		}
 	}
 
-	return nil
+	return patchErr
 }
 
 func getPrometheusPods(ctx context.Context, kubeClient client.Client, opts Options, selector labels.Selector) ([]*corev1.Pod, error) {
