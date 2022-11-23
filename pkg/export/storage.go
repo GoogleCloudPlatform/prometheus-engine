@@ -124,6 +124,7 @@ func (a *storageAppender) Commit() error {
 	// In the future we may want to populate the help text with information on the rule
 	// that produced the metric.
 	// Exemplars can be nil since rules do not query for exemplars.
+	// This support is raised in https://github.com/prometheus/prometheus/issues/8798.
 	a.storage.exporter.Export(gaugeMetadata, a.samples, nil)
 
 	// After export is complete, we can clear the labels again.
