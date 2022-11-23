@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: aerospike
+  labels:
+    app.kubernetes.io/name: aerospike
+spec:
+  serviceName: aerospike
+  replicas: 1
+  selector:
+    matchLabels:
++     app.kubernetes.io/name: aerospike
+  template:
+    metadata:
+      labels:
++       app.kubernetes.io/name: aerospike
+    spec:
+      containers:
+      - name: aerospike
+        image: aerospike/aerospike-server:6.0.0.2
+        ports:
+        - containerPort: 3000
++     - name: aerospike-prometheus-exporter
++       image: aerospike/aerospike-prometheus-exporter:1.8.0
++       ports:
++       - containerPort: 9145
++         name: prometheus
++       env:
++         - name: AS_HOST
++           value: localhost
++         - name: AS_PORT
++           value: "3000"

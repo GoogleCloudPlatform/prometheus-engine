@@ -40,6 +40,10 @@ metadata:
 rules:
 - apiGroups: [""]
   resources:
+  - pods
+  verbs: ["list", "watch"]
+- apiGroups: [""]
+  resources:
   - secrets
   verbs: ["list", "watch", "create"]
 - apiGroups: [""]

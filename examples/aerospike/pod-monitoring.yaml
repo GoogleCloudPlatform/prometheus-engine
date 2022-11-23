@@ -1,0 +1,14 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: aerospike
+  labels:
+    app.kubernetes.io/name: aerospike
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  endpoints:
+  - port: prometheus
+    interval: 30s
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aerospike

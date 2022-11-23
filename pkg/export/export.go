@@ -393,6 +393,11 @@ func (e *Exporter) SetLabelsByIDFunc(f func(storage.SeriesRef) labels.Labels) {
 
 // Export enqueues the samples and exemplars to be written to Cloud Monitoring.
 func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemplarMap map[storage.SeriesRef]record.RefExemplar) {
+	// Wether we're sending data or not, add batchsize of samples exported by
+	// Prometheus from appender commit.
+	batchSize := len(batch)
+	samplesExported.Add(float64(batchSize))
+
 	if e.opts.Disable {
 		return
 	}
@@ -405,8 +410,8 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 	e.mtx.Unlock()
 
 	if !ok {
-		prometheusSamplesDiscarded.WithLabelValues("no-ha-range").Inc()
 		exemplarsDropped.WithLabelValues("no-ha-range").Add(float64(len(exemplarMap)))
+		samplesDropped.WithLabelValues("no-ha-range").Add(float64(batchSize))
 		return
 	}
 	builder := newSampleBuilder(e.seriesCache)

@@ -77,6 +77,11 @@ const (
 	KubernetesAppName    = "app"
 	RuleEvaluatorAppName = "managed-prometheus-rule-evaluator"
 	AlertmanagerAppName  = "managed-prometheus-alertmanager"
+
+	// How often to poll the targets.
+	targetPollInterval = 10 * time.Second
+	// The level of concurrency to use to fetch all targets.
+	defaultTargetPollConcurrency = 4
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.
@@ -115,6 +120,11 @@ type Options struct {
 	ListenAddr string
 	// Cleanup resources without this annotation.
 	CleanupAnnotKey string
+	// Whether to disable target polling.
+	TargetPollDisabled bool
+	// The number of upper bound threads to use for target polling otherwise
+	// use the default.
+	TargetPollConcurrency uint16
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -136,11 +146,27 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	if o.Cluster == "" {
 		return errors.New("Cluster must be set")
 	}
+
+	if o.TargetPollConcurrency == 0 {
+		o.TargetPollConcurrency = defaultTargetPollConcurrency
+	}
 	return nil
 }
 
+func getScheme() (*runtime.Scheme, error) {
+	sc := runtime.NewScheme()
+
+	if err := scheme.AddToScheme(sc); err != nil {
+		return nil, errors.Wrap(err, "add Kubernetes core scheme")
+	}
+	if err := monitoringv1.AddToScheme(sc); err != nil {
+		return nil, errors.Wrap(err, "add monitoringv1 scheme")
+	}
+	return sc, nil
+}
+
 // New instantiates a new Operator.
-func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Registerer, opts Options) (*Operator, error) {
+func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator, error) {
 	if err := opts.defaultAndValidate(logger); err != nil {
 		return nil, errors.Wrap(err, "invalid options")
 	}
@@ -150,14 +176,11 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 		return nil, errors.Wrap(err, "create temporary certificate dir")
 	}
 
-	sc := runtime.NewScheme()
+	sc, err := getScheme()
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to initialize Kubernetes scheme")
+	}
 
-	if err := scheme.AddToScheme(sc); err != nil {
-		return nil, errors.Wrap(err, "add Kubernetes core scheme")
-	}
-	if err := monitoringv1.AddToScheme(sc); err != nil {
-		return nil, errors.Wrap(err, "add monitoringv1 scheme")
-	}
 	host, portStr, err := net.SplitHostPort(opts.ListenAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid listen address")
@@ -180,6 +203,9 @@ func New(logger logr.Logger, clientConfig *rest.Config, registry prometheus.Regi
 				// The presence of metadata.namespace has special handling internally causing the
 				// cache's watch-list to only watch that namespace.
 				SelectorsByObject: cache.SelectorsByObject{
+					&corev1.Pod{}: {
+						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+					},
 					&monitoringv1.PodMonitoring{}: {
 						Field: fields.Everything(),
 					},
@@ -342,7 +368,7 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 // Run the reconciliation loop of the operator.
 // The passed owner references are set on cluster-wide resources created by the
 // operator.
-func (o *Operator) Run(ctx context.Context) error {
+func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) error {
 	defer runtimeutil.HandleCrash()
 
 	if err := o.cleanupOldResources(ctx); err != nil {
@@ -359,6 +385,12 @@ func (o *Operator) Run(ctx context.Context) error {
 	}
 	if err := setupOperatorConfigControllers(o); err != nil {
 		return errors.Wrap(err, "setup rule-evaluator controllers")
+	}
+
+	if !o.opts.TargetPollDisabled {
+		if err := setupTargetStatusPoller(o, registry); err != nil {
+			return errors.Wrap(err, "setup target status processor")
+		}
 	}
 
 	o.logger.Info("starting GMP operator")
