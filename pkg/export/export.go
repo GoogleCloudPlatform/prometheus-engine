@@ -46,9 +46,17 @@ var (
 		Name: "gcm_export_samples_exported_total",
 		Help: "Number of samples exported at scrape time.",
 	})
+	exemplarsExported = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "gcm_export_exemplars_exported_total",
+		Help: "Number of exemplars exported at scrape time.",
+	})
 	samplesDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "gcm_export_samples_dropped_total",
 		Help: "Number of exported samples that were dropped because shard queues were full.",
+	}, []string{"reason"})
+	exemplarsDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "gcm_export_exemplars_dropped_total",
+		Help: "Number of exported exemplars that were dropped because shard queues were full.",
 	}, []string{"reason"})
 	samplesSent = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "gcm_export_samples_sent_total",
@@ -402,6 +410,7 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 	}
 	builder := newSampleBuilder(e.seriesCache)
 	defer builder.close()
+	exemplarsExported.Add(float64(len(exemplarMap)))
 
 	for len(batch) > 0 {
 		var (
@@ -418,6 +427,11 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 			if sampleInRange(s.proto, start, end) {
 				e.enqueue(s.hash, s.proto)
 			} else {
+				// Hashed protos should only ever have one point. If this is a distribution
+				// increase exemplarsDropped if there are exemplars.
+				if dist := s.proto.Points[0].Value.GetDistributionValue(); dist != nil {
+					exemplarsDropped.WithLabelValues("not-in-ha-range").Add(float64(len(dist.GetExemplars())))
+				}
 				samplesDropped.WithLabelValues("not-in-ha-range").Inc()
 			}
 		}

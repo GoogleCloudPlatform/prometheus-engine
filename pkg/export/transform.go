@@ -61,6 +61,14 @@ var (
 	)
 )
 
+// discardExemplarIncIfExists increments the counter prometheusExemplarsDiscarded
+// if an exemplar exists for the given storage.SeriesRef.
+func discardExemplarIncIfExists(series storage.SeriesRef, exemplars map[storage.SeriesRef]record.RefExemplar, reason string) {
+	if _, ok := exemplars[storage.SeriesRef(series)]; ok {
+		prometheusExemplarsDiscarded.WithLabelValues(reason).Inc()
+	}
+}
+
 type sampleBuilder struct {
 	series *seriesCache
 	dists  map[uint64]*distribution
@@ -89,12 +97,14 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 	// Staleness markers are currently not supported by Cloud Monitoring.
 	if value.IsStaleNaN(sample.V) {
 		prometheusSamplesDiscarded.WithLabelValues("staleness-marker").Inc()
+		discardExemplarIncIfExists(storage.SeriesRef(sample.Ref), exemplars, "staleness-marker")
 		return nil, tailSamples, nil
 	}
 
 	entry, ok := b.series.get(sample, externalLabels, metadata)
 	if !ok {
 		prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
+		discardExemplarIncIfExists(storage.SeriesRef(sample.Ref), exemplars, "no-cache-series-found")
 		return nil, tailSamples, nil
 	}
 	if entry.dropped {
@@ -156,9 +166,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 				value = &monitoring_pb.TypedValue{
 					Value: &monitoring_pb.TypedValue_DoubleValue{v},
 				}
-				if _, ok := exemplars[storage.SeriesRef(sample.Ref)]; ok {
-					prometheusExemplarsDiscarded.WithLabelValues("counters-unsupported").Inc()
-				}
+				discardExemplarIncIfExists(storage.SeriesRef(sample.Ref), exemplars, "counters-unsupported")
 			}
 		}
 		// We may not have produced a value if:
@@ -378,6 +386,7 @@ Loop:
 		if !ok {
 			consumed++
 			prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
+			discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "no-cache-series-found")
 			continue
 		}
 		name := e.lset.Get(labels.MetricName)
@@ -399,6 +408,7 @@ Loop:
 		if s.T != dist.timestamp {
 			dist.skip = true
 			prometheusSamplesDiscarded.WithLabelValues("mismatching-histogram-timestamps").Inc()
+			discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "mismatching-histogram-timestamps")
 			continue
 		}
 
@@ -427,10 +437,12 @@ Loop:
 			bound, err := strconv.ParseFloat(e.lset.Get(labels.BucketLabel), 64)
 			if err != nil {
 				prometheusSamplesDiscarded.WithLabelValues("malformed-bucket-le-label").Inc()
+				discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "malformed-bucket-le-label")
 				continue
 			}
 			if math.IsNaN(v) {
 				prometheusSamplesDiscarded.WithLabelValues("NaN-bucket-value").Inc()
+				discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "NaN-bucket-value")
 				continue
 			}
 			// Handle cases where +Inf bucket is out-of-order by not overwriting on the last-consumed bucket.
@@ -458,6 +470,7 @@ Loop:
 	}
 	if consumed == 0 {
 		prometheusSamplesDiscarded.WithLabelValues("zero-histogram-samples-processed").Inc()
+		discardExemplarIncIfExists(storage.SeriesRef(samples[0].Ref), exemplars, "zero-histogram-samples-processed")
 		return nil, 0, samples[1:], errors.New("no sample consumed for histogram")
 	}
 	// Batch ended without completing a further distribution
