@@ -15,6 +15,7 @@
 package export
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -33,6 +34,14 @@ import (
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
 	distribution_pb "google.golang.org/genproto/googleapis/api/distribution"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
+	"google.golang.org/protobuf/types/known/anypb"
+)
+
+const (
+	projectIDLabel    = "project_id"
+	traceIDLabel      = "trace_id"
+	spanIDLabel       = "span_id"
+	spanContextFormat = "projects/%s/traces/%s/spans/%s"
 )
 
 var (
@@ -43,12 +52,26 @@ var (
 		},
 		[]string{"reason"},
 	)
+	prometheusExemplarsDiscarded = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gcm_prometheus_exemplars_discarded_total",
+			Help: "Exemplars that were discarded during data model conversion.",
+		},
+		[]string{"reason"},
+	)
 )
+
+// discardExemplarIncIfExists increments the counter prometheusExemplarsDiscarded
+// if an exemplar exists for the given storage.SeriesRef.
+func discardExemplarIncIfExists(series storage.SeriesRef, exemplars map[storage.SeriesRef]record.RefExemplar, reason string) {
+	if _, ok := exemplars[storage.SeriesRef(series)]; ok {
+		prometheusExemplarsDiscarded.WithLabelValues(reason).Inc()
+	}
+}
 
 type sampleBuilder struct {
 	series *seriesCache
-
-	dists map[uint64]*distribution
+	dists  map[uint64]*distribution
 }
 
 func newSampleBuilder(c *seriesCache) *sampleBuilder {
@@ -65,21 +88,23 @@ func (b *sampleBuilder) close() {
 }
 
 // next extracts the next sample from the input sample batch and returns
-// the remainder of the input.
+// the remainder of the input. It also attaches valid exemplars if applicable.
 // Returns a nil time series for samples that couldn't be converted.
-func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels, samples []record.RefSample) ([]hashedSeries, []record.RefSample, error) {
+func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels, samples []record.RefSample, exemplars map[storage.SeriesRef]record.RefExemplar) ([]hashedSeries, []record.RefSample, error) {
 	sample := samples[0]
 	tailSamples := samples[1:]
 
 	// Staleness markers are currently not supported by Cloud Monitoring.
 	if value.IsStaleNaN(sample.V) {
 		prometheusSamplesDiscarded.WithLabelValues("staleness-marker").Inc()
+		discardExemplarIncIfExists(storage.SeriesRef(sample.Ref), exemplars, "staleness-marker")
 		return nil, tailSamples, nil
 	}
 
 	entry, ok := b.series.get(sample, externalLabels, metadata)
 	if !ok {
 		prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
+		discardExemplarIncIfExists(storage.SeriesRef(sample.Ref), exemplars, "no-cache-series-found")
 		return nil, tailSamples, nil
 	}
 	if entry.dropped {
@@ -117,7 +142,14 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 			// be the same as well.
 			var v *distribution_pb.Distribution
 			var err error
-			v, resetTimestamp, tailSamples, err = b.buildDistribution(entry.metadata.Metric, entry.lset, samples, externalLabels, metadata)
+			v, resetTimestamp, tailSamples, err = b.buildDistribution(
+				entry.metadata.Metric,
+				entry.lset,
+				samples,
+				exemplars,
+				externalLabels,
+				metadata,
+			)
 			if err != nil {
 				return nil, tailSamples, err
 			}
@@ -134,6 +166,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 				value = &monitoring_pb.TypedValue{
 					Value: &monitoring_pb.TypedValue_DoubleValue{v},
 				}
+				discardExemplarIncIfExists(storage.SeriesRef(sample.Ref), exemplars, "counters-unsupported")
 			}
 		}
 		// We may not have produced a value if:
@@ -187,6 +220,7 @@ type distribution struct {
 	count          float64
 	timestamp      int64
 	resetTimestamp int64
+	exemplars      []record.RefExemplar
 	// If all three are true, we can be sure to have observed all series for the
 	// distribution as buckets must be specified in ascending order.
 	hasSum, hasCount, hasInfBucket bool
@@ -315,6 +349,7 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 			},
 		},
 		BucketCounts: values,
+		Exemplars:    buildExemplars(d.exemplars),
 	}
 	return dp, nil
 }
@@ -335,11 +370,12 @@ func (b *sampleBuilder) buildDistribution(
 	metric string,
 	matchLset labels.Labels,
 	samples []record.RefSample,
+	exemplars map[storage.SeriesRef]record.RefExemplar,
 	externalLabels labels.Labels,
 	metadata MetadataFunc,
 ) (*distribution_pb.Distribution, int64, []record.RefSample, error) {
 	// The Prometheus/OpenMetrics exposition format does not require all histogram series for a single distribution
-	// to be grouped together. But it does require that all series for a histogram metric in generall are grouped
+	// to be grouped together. But it does require that all series for a histogram metric in general are grouped
 	// together and that buckets for a single histogram are specified in order.
 	// Thus, we build a cache and conclude a histogram complete once we've seen it's _sum series and its +Inf bucket
 	// series. We return for the first histogram where this condition is fulfilled.
@@ -350,6 +386,7 @@ Loop:
 		if !ok {
 			consumed++
 			prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
+			discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "no-cache-series-found")
 			continue
 		}
 		name := e.lset.Get(labels.MetricName)
@@ -371,6 +408,7 @@ Loop:
 		if s.T != dist.timestamp {
 			dist.skip = true
 			prometheusSamplesDiscarded.WithLabelValues("mismatching-histogram-timestamps").Inc()
+			discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "mismatching-histogram-timestamps")
 			continue
 		}
 
@@ -399,10 +437,12 @@ Loop:
 			bound, err := strconv.ParseFloat(e.lset.Get(labels.BucketLabel), 64)
 			if err != nil {
 				prometheusSamplesDiscarded.WithLabelValues("malformed-bucket-le-label").Inc()
+				discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "malformed-bucket-le-label")
 				continue
 			}
 			if math.IsNaN(v) {
 				prometheusSamplesDiscarded.WithLabelValues("NaN-bucket-value").Inc()
+				discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "NaN-bucket-value")
 				continue
 			}
 			// Handle cases where +Inf bucket is out-of-order by not overwriting on the last-consumed bucket.
@@ -411,6 +451,9 @@ Loop:
 			}
 			dist.bounds = append(dist.bounds, bound)
 			dist.values = append(dist.values, int64(v))
+			if exemplar, ok := exemplars[storage.SeriesRef(s.Ref)]; ok {
+				dist.exemplars = append(dist.exemplars, exemplar)
+			}
 
 		default:
 			break Loop
@@ -427,8 +470,86 @@ Loop:
 	}
 	if consumed == 0 {
 		prometheusSamplesDiscarded.WithLabelValues("zero-histogram-samples-processed").Inc()
+		discardExemplarIncIfExists(storage.SeriesRef(samples[0].Ref), exemplars, "zero-histogram-samples-processed")
 		return nil, 0, samples[1:], errors.New("no sample consumed for histogram")
 	}
 	// Batch ended without completing a further distribution
 	return nil, 0, samples[consumed:], nil
+}
+
+func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribution_Exemplar {
+	// The exemplars field of a distribution value field must be in increasing order of value
+	// (https://cloud.google.com/monitoring/api/ref_v3/rpc/google.api#distribution) -- let's sort them.
+	sort.Slice(exemplars, func(i, j int) bool {
+		return exemplars[i].V < exemplars[j].V
+	})
+	var result []*distribution_pb.Distribution_Exemplar
+	for _, pex := range exemplars {
+		attachments := buildExemplarAttachments(pex.Labels)
+		result = append(result, &distribution_pb.Distribution_Exemplar{
+			Value:       pex.V,
+			Timestamp:   getTimestamp(pex.T),
+			Attachments: attachments,
+		})
+	}
+	return result
+}
+
+// buildExemplarAttachments transforms the prometheus LabelSet into a GCM exemplar attachment.
+// If the following three fields are present in the LabelSet, then we will build a SpanContext:
+//  1. project_id
+//  2. span_id
+//  3. trace_id
+//
+// The rest of the LabelSet will go into the DroppedLabels attachment. If one of the above
+// fields is missing, we will put the entire LabelSet into a DroppedLabels attachment.
+// This is to maintain comptability with CloudTrace.
+// Note that the project_id needs to be the project_id where the span was written.
+// This may not necessarily be the same project_id where the metric was written.
+func buildExemplarAttachments(lset labels.Labels) []*anypb.Any {
+	var projectID, spanID, traceID string
+	var attachments []*anypb.Any
+	droppedLabels := make(map[string]string)
+	for _, label := range lset {
+		if label.Name == projectIDLabel {
+			projectID = label.Value
+		} else if label.Name == spanIDLabel {
+			spanID = label.Value
+		} else if label.Name == traceIDLabel {
+			traceID = label.Value
+		} else {
+			droppedLabels[label.Name] = label.Value
+		}
+	}
+	if projectID != "" && spanID != "" && traceID != "" {
+		spanCtx, err := anypb.New(&monitoring_pb.SpanContext{
+			SpanName: fmt.Sprintf(spanContextFormat, projectID, traceID, spanID),
+		})
+		if err != nil {
+			prometheusExemplarsDiscarded.WithLabelValues("error-creating-span-context").Inc()
+		} else {
+			attachments = append(attachments, spanCtx)
+		}
+	} else {
+		if projectID != "" {
+			droppedLabels[projectIDLabel] = projectID
+		}
+		if spanID != "" {
+			droppedLabels[spanIDLabel] = spanID
+		}
+		if traceID != "" {
+			droppedLabels[traceIDLabel] = traceID
+		}
+	}
+	if len(droppedLabels) > 0 {
+		droppedLabels, err := anypb.New(&monitoring_pb.DroppedLabels{
+			Label: droppedLabels,
+		})
+		if err != nil {
+			prometheusExemplarsDiscarded.WithLabelValues("error-creating-dropped-labels").Inc()
+		} else {
+			attachments = append(attachments, droppedLabels)
+		}
+	}
+	return attachments
 }

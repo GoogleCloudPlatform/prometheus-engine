@@ -26,7 +26,9 @@ import (
 	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
 	distribution_pb "google.golang.org/genproto/googleapis/api/distribution"
@@ -46,6 +48,14 @@ func testMetadataFunc(metadata metricMetadataMap) MetadataFunc {
 	}
 }
 
+func wrapAsAny(any proto.Message) *anypb.Any {
+	result, err := anypb.New(any)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
 func TestSampleBuilder(t *testing.T) {
 	externalLabels := labels.FromMap(map[string]string{
 		"project_id": "example-project",
@@ -58,6 +68,7 @@ func TestSampleBuilder(t *testing.T) {
 		metadata   MetadataFunc
 		series     seriesMap
 		samples    [][]record.RefSample
+		exemplars  []map[storage.SeriesRef]record.RefExemplar
 		matchers   Matchers
 		wantSeries []*monitoring_pb.TimeSeries
 		wantFail   bool
@@ -1266,6 +1277,199 @@ func TestSampleBuilder(t *testing.T) {
 				},
 			},
 		},
+		{
+			doc: "convert histogram with exemplars",
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1":         {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1_a_count": {Type: textparse.MetricTypeGauge, Help: "metric1_a_count help text"},
+			}),
+			series: seriesMap{
+				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
+				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
+				3: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "0.1"),
+				4: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "0.5"),
+				5: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "1"),
+				6: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "2.5"),
+				7: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "+Inf"),
+			},
+			samples: [][]record.RefSample{
+				// First sample set, should be skipped by reset handling.
+				// The buckets must be in ascending order for an individual histogram but otherwise
+				// no order or grouping constraints apply for series of a given histogram metric.
+				{
+					{Ref: 1, T: 1000, V: 55.1}, // hist1, sum
+					{Ref: 3, T: 1000, V: 2},    // hist1, 0.1
+					{Ref: 4, T: 1000, V: 5},    // hist1, 0.5
+					{Ref: 5, T: 1000, V: 6},    // hist1, 1
+					{Ref: 6, T: 1000, V: 8},    // hist1, 2.5
+					{Ref: 7, T: 1000, V: 10},   // hist1, inf
+					{Ref: 2, T: 1000, V: 10},   // hist1, count
+				},
+				// Second sample set should actually be emitted.
+				{
+					// Second samples for histograms should produce a distribution.
+					{Ref: 3, T: 2000, V: 4},     // hist1, 0.1
+					{Ref: 2, T: 2000, V: 21},    // hist1, count
+					{Ref: 1, T: 2000, V: 123.4}, // hist1, sum
+					{Ref: 4, T: 2000, V: 9},     // hist1, 0.5
+					{Ref: 5, T: 2000, V: 11},    // hist1, 1
+					{Ref: 6, T: 2000, V: 15},    // hist1, 2.5
+					{Ref: 7, T: 2000, V: 21},    // hist1, inf
+				},
+			},
+			exemplars: []map[storage.SeriesRef]record.RefExemplar{
+				// first sample set is skipped by reset handling
+				{},
+				{
+					// project_id, trace_id, and span_id should be in the span context
+					// random should be in the dropped labels
+					3: {Ref: 3, T: 1500, V: .099, Labels: labels.New(
+						labels.Label{Name: "project_id", Value: "1"},
+						labels.Label{Name: "trace_id", Value: "2"},
+						labels.Label{Name: "span_id", Value: "3"},
+						labels.Label{Name: "random", Value: "4"},
+					)},
+					// project_id and trace_id should both be in dropped labels
+					// since we have no span_id to make a full span context
+					4: {Ref: 4, T: 1500, V: .4, Labels: labels.New(
+						labels.Label{Name: "project_id", Value: "1"},
+						labels.Label{Name: "trace_id", Value: "2"},
+					)},
+					5: {Ref: 7, T: 1500, V: 2},
+					7: {Ref: 5, T: 1500, V: .99},
+				},
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				// 0: skipped by reset handling.
+				{ // 1
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "prometheus.googleapis.com/metric1/histogram",
+						Labels: map[string]string{},
+					},
+					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
+					ValueType:  metric_pb.MetricDescriptor_DISTRIBUTION,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							StartTime: &timestamp_pb.Timestamp{Seconds: 1},
+							EndTime:   &timestamp_pb.Timestamp{Seconds: 2},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DistributionValue{
+								DistributionValue: &distribution_pb.Distribution{
+									Count:                 11,
+									Mean:                  6.20909090909091,
+									SumOfSquaredDeviation: 270.301590909091,
+									BucketOptions: &distribution_pb.Distribution_BucketOptions{
+										Options: &distribution_pb.Distribution_BucketOptions_ExplicitBuckets{
+											ExplicitBuckets: &distribution_pb.Distribution_BucketOptions_Explicit{
+												Bounds: []float64{0.1, 0.5, 1, 2.5},
+											},
+										},
+									},
+									BucketCounts: []int64{2, 2, 1, 2, 4},
+									Exemplars: []*distribution_pb.Distribution_Exemplar{
+										{
+											Value:     .099,
+											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
+											Attachments: []*anypb.Any{
+												wrapAsAny(&monitoring_pb.SpanContext{
+													SpanName: "projects/1/traces/2/spans/3",
+												}),
+												wrapAsAny(&monitoring_pb.DroppedLabels{
+													Label: map[string]string{"random": "4"},
+												}),
+											},
+										},
+										{
+											Value:     .4,
+											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
+											Attachments: []*anypb.Any{
+												wrapAsAny(&monitoring_pb.DroppedLabels{
+													Label: map[string]string{"trace_id": "2", "project_id": "1"},
+												}),
+											},
+										},
+										{
+											Value:     .99,
+											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
+										},
+										{
+											Value:     2,
+											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
+										},
+									},
+								},
+							},
+						},
+					}},
+				},
+			},
+		},
+		{
+			doc: "convert counter with exemplars (exemplars should be dropped)",
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1_total": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+			}),
+			series: seriesMap{
+				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
+			},
+			samples: [][]record.RefSample{
+				{{Ref: 123, T: 2000, V: 5.5}},
+				{{Ref: 123, T: 3000, V: 8}},
+			},
+			exemplars: []map[storage.SeriesRef]record.RefExemplar{
+				// first sample set is skipped by reset handling
+				{},
+				{
+					// project_id, trace_id, and span_id should be in the span context
+					// random should be in the dropped labels
+					123: {Ref: 123, T: 2500, V: 7},
+				},
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				// First sample skipped to initialize reset handling.
+				// Subsequent samples are relative to the initial sample in value and timestamp.
+				{
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "prometheus.googleapis.com/metric1_total/counter",
+						Labels: map[string]string{"k1": "v1"},
+					},
+					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
+					ValueType:  metric_pb.MetricDescriptor_DOUBLE,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							StartTime: &timestamp_pb.Timestamp{Seconds: 2},
+							EndTime:   &timestamp_pb.Timestamp{Seconds: 3},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DoubleValue{2.5},
+						},
+					}},
+				},
+			},
+		},
 	}
 
 	for i, c := range cases {
@@ -1279,11 +1483,15 @@ func TestSampleBuilder(t *testing.T) {
 			// Process entire input sample batch.
 			var result []*monitoring_pb.TimeSeries
 
-			for _, batch := range c.samples {
+			for i, batch := range c.samples {
 				b := newSampleBuilder(cache)
 
 				for k := 0; len(batch) > 0; k++ {
-					out, tail, err := b.next(c.metadata, externalLabels, batch)
+					var exemplars map[storage.SeriesRef]record.RefExemplar
+					if len(c.exemplars) > i {
+						exemplars = c.exemplars[i]
+					}
+					out, tail, err := b.next(c.metadata, externalLabels, batch, exemplars)
 					if err == nil && c.wantFail {
 						t.Fatal("expected error but got none")
 					}
