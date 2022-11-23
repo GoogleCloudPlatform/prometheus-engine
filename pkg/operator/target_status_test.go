@@ -44,43 +44,49 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-type populateTargetsTestCase struct {
-	name                  string
-	prometheusTargets     []*prometheusv1.TargetsResult
+type updateTargetStatusTestCase struct {
+	desc                  string
+	targets               []*prometheusv1.TargetsResult
 	podMonitorings        []monitoringv1.PodMonitoring
 	clusterPodMonitorings []monitoringv1.ClusterPodMonitoring
+	expErr                bool
 }
 
 // Given a list of test cases on PodMonitoring, creates a new list containing
 // those test cases and equivalent test cases for ClusterPodMonitoring and
 // another equivalent set including both PodMonitoring and ClusterPodMonitoring.
-func expandPopulateTargetsTestCases(testCases []populateTargetsTestCase) []populateTargetsTestCase {
-	dataFinal := make([]populateTargetsTestCase, 0)
-	for _, data := range testCases {
-		if len(data.podMonitorings) == 0 {
+func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase {
+	dataFinal := make([]updateTargetStatusTestCase, 0)
+	for _, tc := range testCases {
+		if len(tc.podMonitorings) == 0 {
+			dataFinal = append(dataFinal, updateTargetStatusTestCase{
+				desc:    tc.desc,
+				targets: tc.targets,
+				expErr:  tc.expErr,
+			})
 			continue
 		}
-		clusterPrometheusTargets := make([]*prometheusv1.TargetsResult, 0, len(data.prometheusTargets))
-		clusterPodMonitorings := make([]monitoringv1.ClusterPodMonitoring, 0, len(data.podMonitorings))
-		for _, prometheusTarget := range data.prometheusTargets {
-			if prometheusTarget == nil {
-				clusterPrometheusTargets = append(clusterPrometheusTargets, nil)
+		clusterTargets := make([]*prometheusv1.TargetsResult, 0, len(tc.targets))
+		clusterPodMonitorings := make([]monitoringv1.ClusterPodMonitoring, 0, len(tc.podMonitorings))
+		for _, target := range tc.targets {
+			if target == nil {
+				clusterTargets = append(clusterTargets, nil)
 				continue
 			}
-			clusterActive := make([]prometheusv1.ActiveTarget, 0, len(prometheusTarget.Active))
-			for _, active := range prometheusTarget.Active {
+			clusterActive := make([]prometheusv1.ActiveTarget, 0, len(target.Active))
+			for _, active := range target.Active {
 				activeCluster := active
 				activeCluster.ScrapePool = podMonitoringScrapePoolToClusterPodMonitoringScrapePool(active.ScrapePool)
 				clusterActive = append(clusterActive, activeCluster)
 			}
-			prometheusTargetClusterPodMonitoring := &prometheusv1.TargetsResult{
+			targetClusterPodMonitoring := &prometheusv1.TargetsResult{
 				Active: clusterActive,
 			}
-			clusterPrometheusTargets = append(clusterPrometheusTargets, prometheusTargetClusterPodMonitoring)
+			clusterTargets = append(clusterTargets, targetClusterPodMonitoring)
 		}
-		for _, podMonitoring := range data.podMonitorings {
-			copy := podMonitoring.DeepCopy()
-			clusterPodMonitoring := monitoringv1.ClusterPodMonitoring{
+		for _, pm := range tc.podMonitorings {
+			copy := pm.DeepCopy()
+			cpm := monitoringv1.ClusterPodMonitoring{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: copy.Name,
 				},
@@ -92,29 +98,32 @@ func expandPopulateTargetsTestCases(testCases []populateTargetsTestCase) []popul
 				},
 				Status: copy.Status,
 			}
-			for endpointIndex, endpointStatus := range clusterPodMonitoring.Status.EndpointStatuses {
-				clusterPodMonitoring.Status.EndpointStatuses[endpointIndex].Name = podMonitoringScrapePoolToClusterPodMonitoringScrapePool(endpointStatus.Name)
+			for idx, status := range cpm.Status.EndpointStatuses {
+				cpm.Status.EndpointStatuses[idx].Name = podMonitoringScrapePoolToClusterPodMonitoringScrapePool(status.Name)
 			}
-			clusterPodMonitorings = append(clusterPodMonitorings, clusterPodMonitoring)
+			clusterPodMonitorings = append(clusterPodMonitorings, cpm)
 		}
-		dataPodMonitorings := populateTargetsTestCase{
-			name:              data.name + "-pod-monitoring",
-			prometheusTargets: data.prometheusTargets,
-			podMonitorings:    data.podMonitorings,
-		}
-		dataClusterPodMonitorings := populateTargetsTestCase{
-			name:                  data.name + "-cluster-pod-monitoring",
-			prometheusTargets:     clusterPrometheusTargets,
-			clusterPodMonitorings: clusterPodMonitorings,
-		}
-		prometheusTargetsBoth := append(data.prometheusTargets, clusterPrometheusTargets...)
-		dataBoth := populateTargetsTestCase{
-			name:                  data.name + "-both",
-			prometheusTargets:     prometheusTargetsBoth,
-			podMonitorings:        data.podMonitorings,
-			clusterPodMonitorings: data.clusterPodMonitorings,
+		dataPodMonitorings := updateTargetStatusTestCase{
+			desc:           tc.desc + "-pod-monitoring",
+			targets:        tc.targets,
+			podMonitorings: tc.podMonitorings,
+			expErr:         tc.expErr,
 		}
 		dataFinal = append(dataFinal, dataPodMonitorings)
+		dataClusterPodMonitorings := updateTargetStatusTestCase{
+			desc:                  tc.desc + "-cluster-pod-monitoring",
+			targets:               clusterTargets,
+			clusterPodMonitorings: clusterPodMonitorings,
+			expErr:                tc.expErr,
+		}
+		prometheusTargetsBoth := append(tc.targets, clusterTargets...)
+		dataBoth := updateTargetStatusTestCase{
+			desc:                  tc.desc + "-both",
+			targets:               prometheusTargetsBoth,
+			podMonitorings:        tc.podMonitorings,
+			clusterPodMonitorings: clusterPodMonitorings,
+			expErr:                tc.expErr,
+		}
 		dataFinal = append(dataFinal, dataClusterPodMonitorings)
 		dataFinal = append(dataFinal, dataBoth)
 	}
@@ -138,7 +147,7 @@ func targetFetchFromMap(m map[string]*prometheusv1.TargetsResult) getTargetFn {
 	}
 }
 
-func TestPopulateTargets(t *testing.T) {
+func TestUpdateTargetStatus(t *testing.T) {
 	scheme, err := getScheme()
 	if err != nil {
 		t.Fatal("Unable to get scheme")
@@ -146,15 +155,15 @@ func TestPopulateTargets(t *testing.T) {
 
 	var date = metav1.Date(2022, time.January, 4, 0, 0, 0, 0, time.UTC)
 
-	testCases := expandPopulateTargetsTestCases([]populateTargetsTestCase{
+	testCases := expand([]updateTargetStatusTestCase{
 		// All empty -- nothing happens.
 		{
-			name: "empty-monitorings",
+			desc: "empty-monitorings",
 		},
 		// Single target, no monitorings -- nothing happens.
 		{
-			name: "single-target-no-monitorings",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "single-target-no-monitorings",
+			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "up",
@@ -167,11 +176,12 @@ func TestPopulateTargets(t *testing.T) {
 					}},
 				},
 			},
+			expErr: true,
 		},
 		// Single healthy target with no error, with matching PodMonitoring.
 		{
-			name: "single-healthy-target",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "single-healthy-target",
+			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "up",
@@ -230,8 +240,8 @@ func TestPopulateTargets(t *testing.T) {
 		},
 		// Collectors target fetch failure.
 		{
-			name: "collectors-target-fetch-failure",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "collectors-target-fetch-failure",
+			targets: []*prometheusv1.TargetsResult{
 				nil,
 				{
 					Active: []prometheusv1.ActiveTarget{{
@@ -328,8 +338,8 @@ func TestPopulateTargets(t *testing.T) {
 		},
 		// Single healthy target with no error, with non-matching PodMonitoring.
 		{
-			name: "single-healthy-target-no-match",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "single-healthy-target-no-match",
+			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "up",
@@ -351,11 +361,12 @@ func TestPopulateTargets(t *testing.T) {
 						}},
 					},
 				}},
+			expErr: true,
 		},
 		// Single healthy target with no error, with single matching PodMonitoring.
 		{
-			name: "single-healthy-target-matching",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "single-healthy-target-matching",
+			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "up",
@@ -421,8 +432,8 @@ func TestPopulateTargets(t *testing.T) {
 		},
 		// Single healthy target with an error, with matching PodMonitoring.
 		{
-			name: "single-healthy-target-with-error-matching",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "single-healthy-target-with-error-matching",
+			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "up",
@@ -473,8 +484,8 @@ func TestPopulateTargets(t *testing.T) {
 		},
 		// Single unhealthy target with an error, with matching PodMonitoring.
 		{
-			name: "single-unhealthy-target-with-error-matching",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "single-unhealthy-target-with-error-matching",
+			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "down",
@@ -525,8 +536,8 @@ func TestPopulateTargets(t *testing.T) {
 		},
 		// One healthy and one unhealthy target.
 		{
-			name: "single-healthy-single-unhealthy",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "single-healthy-single-unhealthy",
+			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "down",
@@ -596,8 +607,8 @@ func TestPopulateTargets(t *testing.T) {
 		},
 		// Multiple targets with multiple endpoints.
 		{
-			name: "multiple-targets-multiple-endpoints",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "multiple-targets-multiple-endpoints",
+			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "down",
@@ -717,8 +728,8 @@ func TestPopulateTargets(t *testing.T) {
 		},
 		// Multiple unhealthy target with different errors.
 		{
-			name: "multiple-unhealthy-targets",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "multiple-unhealthy-targets",
+			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "down",
@@ -859,8 +870,8 @@ func TestPopulateTargets(t *testing.T) {
 		},
 		// Multiple unhealthy targets, one cut-off.
 		{
-			name: "multiple-unhealthy-targets-cut-off",
-			prometheusTargets: []*prometheusv1.TargetsResult{
+			desc: "multiple-unhealthy-targets-cut-off",
+			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "down",
@@ -1047,10 +1058,41 @@ func TestPopulateTargets(t *testing.T) {
 					},
 				}},
 		},
+		{
+			desc: "kubelet hardcoded scrape configs",
+			targets: []*prometheusv1.TargetsResult{
+				{
+					Active: []prometheusv1.ActiveTarget{
+						{
+							Health:     "up",
+							LastError:  "",
+							ScrapePool: "kubelet/cadvisor",
+							Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+								"instance": "node-1-default-pool-abcd1234:cadvisor",
+								"job":      "kubelet",
+								"node":     "node-1-default-pool-abcd1234",
+							}),
+							LastScrapeDuration: 0.2,
+						},
+						{
+							Health:     "up",
+							LastError:  "",
+							ScrapePool: "kubelet/metrics",
+							Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+								"instance": "node-1-default-pool-abcd1234:metrics",
+								"job":      "kubelet",
+								"node":     "node-1-default-pool-abcd1234",
+							}),
+							LastScrapeDuration: 0.2,
+						},
+					},
+				},
+			},
+		},
 	})
 
 	for _, testCase := range testCases {
-		t.Run(fmt.Sprintf("target-status-conversion-%s", testCase.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("target-status-conversion-%s", testCase.desc), func(t *testing.T) {
 			clientBuilder := fake.NewClientBuilder().WithScheme(scheme)
 			for _, podMonitoring := range testCase.podMonitorings {
 				copy := podMonitoring.DeepCopy()
@@ -1065,9 +1107,9 @@ func TestPopulateTargets(t *testing.T) {
 
 			kubeClient := clientBuilder.Build()
 
-			err := populateTargets(context.Background(), testr.New(t), kubeClient, testCase.prometheusTargets)
-			if err != nil {
-				t.Fatalf("Failed to populate targets: %s", err)
+			err := updateTargetStatus(context.Background(), testr.New(t), kubeClient, testCase.targets)
+			if err != nil && !testCase.expErr {
+				t.Fatalf("unexpected error updating target status: %s", err)
 			}
 
 			for _, podMonitoring := range testCase.podMonitorings {
