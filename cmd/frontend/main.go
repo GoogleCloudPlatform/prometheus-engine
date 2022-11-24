@@ -62,7 +62,7 @@ var (
 	externalURLStr = flag.String("web.external-url", "", "The URL under which the frontend is externally reachable (for example, if it is served via a reverse proxy). Used for generating relative and absolute links back to the frontend itself. If the URL has a path portion, it will be used to prefix served HTTP endpoints. If omitted, relevant URL components will be derived automatically.")
 
 	targetURLStr = flag.String("query.target-url", fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar),
-		fmt.Sprintf("The URL to forward authenticated requests to. (%s is replaced with the --project-id flag.)", projectIDVar))
+		fmt.Sprintf("The URL to forward authenticated requests to. (%s is replaced with the --query.project-id flag.)", projectIDVar))
 )
 
 func main() {
@@ -79,7 +79,7 @@ func main() {
 	)
 
 	if *projectID == "" {
-		level.Error(logger).Log("msg", "--project-id must be set")
+		level.Error(logger).Log("msg", "--query.project-id must be set")
 		os.Exit(1)
 	}
 
