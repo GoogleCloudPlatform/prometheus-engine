@@ -8,10 +8,13 @@ RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/
   && go install ./cmd/po-docgen
 RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.10.0
 
+FROM bitnami/kubectl:1.24.8 AS kubectl
+
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
 FROM golang:1.18-buster AS hermetic
 COPY --from=deps /go/bin /go/bin
+COPY --from=kubectl /opt/bitnami/kubectl/bin/kubectl /usr/local/bin/
 ARG RUNCMD='go fmt ./...'
 WORKDIR /workspace
 # Separate COPY directives to take advantage of docker's build cache.

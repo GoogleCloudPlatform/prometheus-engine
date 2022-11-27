@@ -49,7 +49,6 @@ spec:
                 operator: In
                 values:
                 - linux
-      serviceAccountName: collector
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419

@@ -29,7 +29,7 @@ kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/manifests/setup.yaml
 
 # TODO(pintohutch): find a way to incorporate webhooks back into our kind tests.
 # This is a workaround for now.
-for m in `ls -d ${SCRIPT_ROOT}/cmd/operator/deploy/operator/* | grep -v webhook`
+for m in `ls -d ${SCRIPT_ROOT}/cmd/operator/deploy/operator/* | grep -v webhook | grep -v kustomization`
 do
   kubectl --context kind-kind apply -f $m
 done

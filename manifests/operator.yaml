@@ -24,142 +24,220 @@ metadata:
   name: gmp-public
 ---
 apiVersion: scheduling.k8s.io/v1
+description: Used for GMP collector pods.
 kind: PriorityClass
 metadata:
   name: gmp-critical
-description: Used for GMP collector pods.
 value: 1000000000
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  namespace: gmp-system
   name: collector
+  namespace: gmp-system
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  namespace: gmp-system
   name: operator
+  namespace: gmp-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: gmp-system:collector
 rules:
-- apiGroups: [""]
+- apiGroups:
+  - ""
   resources:
   - endpoints
   - nodes
   - nodes/metrics
   - pods
   - services
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
   resources:
   - configmaps
-  verbs: ["get"]
-- nonResourceURLs: ["/metrics"]
-  verbs: ["get"]
+  verbs:
+  - get
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  namespace: gmp-system
   name: operator
+  namespace: gmp-system
 rules:
-- apiGroups: [""]
+- apiGroups:
+  - ""
   resources:
   - pods
-  verbs: ["list", "watch"]
-- apiGroups: [""]
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - ""
   resources:
   - secrets
-  verbs: ["list", "watch", "create"]
-- apiGroups: [""]
+  verbs:
+  - list
+  - watch
+  - create
+- apiGroups:
+  - ""
+  resourceNames:
+  - collection
+  - rules
+  - alertmanager
   resources:
   - secrets
-  resourceNames: ["collection", "rules", "alertmanager"]
-  verbs: ["get", "patch", "update"]
-- apiGroups: [""]
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
   resources:
   - configmaps
-  verbs: ["list", "watch", "create"]
-- apiGroups: [""]
+  verbs:
+  - list
+  - watch
+  - create
+- apiGroups:
+  - ""
+  resourceNames:
+  - collector
+  - rule-evaluator
+  - rules-generated
   resources:
   - configmaps
-  resourceNames: ["collector", "rule-evaluator", "rules-generated"]
-  verbs: ["get", "patch", "update"]
-- apiGroups: ["apps"]
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apps
+  resourceNames:
+  - collector
   resources:
   - daemonsets
-  resourceNames: ["collector"]
-  verbs: ["get", "list", "watch", "delete", "patch", "update"]
-- apiGroups: ["apps"]
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+  - patch
+  - update
+- apiGroups:
+  - apps
   resources:
   - deployments
-  verbs: ["list", "watch"]
-- apiGroups: ["apps"]
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resourceNames:
+  - rule-evaluator
   resources:
   - deployments
-  resourceNames: ["rule-evaluator"]
-  verbs: ["get", "delete", "patch", "update"]
-- apiGroups: [""]
+  verbs:
+  - get
+  - delete
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resourceNames:
+  - alertmanager
   resources:
   - services
-  resourceNames: ["alertmanager"]
-  verbs: ["get", "list", "watch"]
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  namespace: gmp-public
   name: operator
+  namespace: gmp-public
 rules:
-- apiGroups: [""]
+- apiGroups:
+  - ""
   resources:
   - secrets
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["monitoring.googleapis.com"]
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - monitoring.googleapis.com
   resources:
   - operatorconfigs
-  verbs: ["get", "list", "watch"]
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: gmp-system:operator
 rules:
-- apiGroups: ["admissionregistration.k8s.io"]
-  resources:
-  - validatingwebhookconfigurations
-  - mutatingwebhookconfigurations
+- apiGroups:
+  - admissionregistration.k8s.io
   resourceNames:
   - gmp-operator.gmp-system.monitoring.googleapis.com
-  verbs: ["get", "patch", "update", "watch"]
-- apiGroups: ["admissionregistration.k8s.io"]
   resources:
   - validatingwebhookconfigurations
   - mutatingwebhookconfigurations
+  verbs:
+  - get
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
   resourceNames:
   - gmp-operator
-  verbs: ["delete"]
-- apiGroups: ["monitoring.googleapis.com"]
+  resources:
+  - validatingwebhookconfigurations
+  - mutatingwebhookconfigurations
+  verbs:
+  - delete
+- apiGroups:
+  - monitoring.googleapis.com
   resources:
   - clusterpodmonitorings
   - clusterrules
   - globalrules
   - podmonitorings
   - rules
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["monitoring.googleapis.com"]
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - monitoring.googleapis.com
   resources:
   - clusterpodmonitorings/status
   - clusterrules/status
   - globalrules/status
   - podmonitorings/status
   - rules/status
-  verbs: ["get", "patch", "update"]
+  verbs:
+  - get
+  - patch
+  - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -171,28 +249,28 @@ roleRef:
   name: gmp-system:operator
 subjects:
 - kind: ServiceAccount
-  namespace: gmp-system
   name: operator
+  namespace: gmp-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
+  name: operator
   namespace: gmp-public
-  name: operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: operator
 subjects:
 - kind: ServiceAccount
-  namespace: gmp-system
   name: operator
+  namespace: gmp-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  namespace: gmp-system
   name: operator
+  namespace: gmp-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -211,32 +289,32 @@ roleRef:
   name: gmp-system:collector
 subjects:
 - kind: ServiceAccount
-  namespace: gmp-system
   name: collector
+  namespace: gmp-system
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: gmp-system
-  name: gmp-operator
   labels:
     app: managed-prometheus-operator
-    app.kubernetes.io/name: gmp-operator
     app.kubernetes.io/component: operator
+    app.kubernetes.io/name: gmp-operator
     app.kubernetes.io/part-of: gmp
+  name: gmp-operator
+  namespace: gmp-system
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: gmp-operator
       app.kubernetes.io/component: operator
+      app.kubernetes.io/name: gmp-operator
       app.kubernetes.io/part-of: gmp
   template:
     metadata:
       labels:
         app: managed-prometheus-operator
-        app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/component: operator
+        app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/part-of: gmp
     spec:
       affinity:
@@ -253,98 +331,88 @@ spec:
                 operator: In
                 values:
                 - linux
-      serviceAccountName: operator
       automountServiceAccountToken: true
       containers:
-      - name: operator
+      - args:
+        - --operator-namespace=gmp-system
+        - --public-namespace=gmp-public
+        - --webhook-addr=:10250
         image: gke.gcr.io/prometheus-engine/operator:v0.5.0-gke.0
-        args:
-        - "--operator-namespace=gmp-system"
-        - "--public-namespace=gmp-public"
-        - "--webhook-addr=:10250"
+        name: operator
         ports:
-        - name: web
-          # Note this should match the --listen-addr flag passed in to the operator args.
-          # Default is 10250.
-          containerPort: 10250
-        - name: metrics
-          # Note this should match the --metrics-addr flag passed in to the operator args.
-          # Default is 18080.
-          containerPort: 18080
+        - containerPort: 10250
+          name: web
+        - containerPort: 18080
+          name: metrics
         securityContext:
           allowPrivilegeEscalation: false
-          privileged: false
           capabilities:
             drop:
             - all
-          runAsUser: 1000
+          privileged: false
           runAsGroup: 1000
           runAsNonRoot: true
+          runAsUser: 1000
       priorityClassName: gmp-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: operator
       tolerations:
       - effect: NoExecute
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "amd64"
-        effect: "NoSchedule"
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "arm64"
-        effect: "NoSchedule"
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
+      - effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+        value: amd64
+      - effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+        value: arm64
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: gmp-system
   name: gmp-operator
+  namespace: gmp-system
 spec:
-  selector:
-    app.kubernetes.io/name: gmp-operator
-    app.kubernetes.io/component: operator
-    app.kubernetes.io/part-of: gmp
   ports:
-  # This port does not do anything, but allows upgrades in the case
-  # of server-side apply (SSA) conflicts.
-  # TODO(pintohutch): remove once the SSA issues from upgrades are resolved.
-  - protocol: TCP
+  - name: legacy
     port: 8443
+    protocol: TCP
     targetPort: webhook
-    name: legacy
-  - protocol: TCP
+  - name: webhook
     port: 443
+    protocol: TCP
     targetPort: web
-    name: webhook
+  selector:
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/name: gmp-operator
+    app.kubernetes.io/part-of: gmp
 ---
 apiVersion: monitoring.googleapis.com/v1
 kind: OperatorConfig
 metadata:
-  namespace: gmp-public
   name: config
+  namespace: gmp-public
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: gmp-operator.gmp-system.monitoring.googleapis.com
 webhooks:
-- name: validate.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
+- admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
+      namespace: gmp-system
       path: /validate/monitoring.googleapis.com/v1/podmonitorings
       port: 443
   failurePolicy: Fail
-  sideEffects: None
+  name: validate.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   rules:
   - apiGroups:
     - monitoring.googleapis.com
@@ -355,18 +423,17 @@ webhooks:
     - UPDATE
     resources:
     - podmonitorings
-- name: validate.clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
+  sideEffects: None
+- admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
+      namespace: gmp-system
       path: /validate/monitoring.googleapis.com/v1/clusterpodmonitorings
       port: 443
   failurePolicy: Fail
-  sideEffects: None
+  name: validate.clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   rules:
   - apiGroups:
     - monitoring.googleapis.com
@@ -377,18 +444,17 @@ webhooks:
     - UPDATE
     resources:
     - clusterpodmonitorings
-- name: validate.rules.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
+  sideEffects: None
+- admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
+      namespace: gmp-system
       path: /validate/monitoring.googleapis.com/v1/rules
       port: 443
   failurePolicy: Fail
-  sideEffects: None
+  name: validate.rules.gmp-operator.gmp-system.monitoring.googleapis.com
   rules:
   - apiGroups:
     - monitoring.googleapis.com
@@ -399,18 +465,17 @@ webhooks:
     - UPDATE
     resources:
     - rules
-- name: validate.clusterrules.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
+  sideEffects: None
+- admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
+      namespace: gmp-system
       path: /validate/monitoring.googleapis.com/v1/clusterrules
       port: 443
   failurePolicy: Fail
-  sideEffects: None
+  name: validate.clusterrules.gmp-operator.gmp-system.monitoring.googleapis.com
   rules:
   - apiGroups:
     - monitoring.googleapis.com
@@ -421,18 +486,17 @@ webhooks:
     - UPDATE
     resources:
     - clusterrules
-- name: validate.globalrules.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
+  sideEffects: None
+- admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
+      namespace: gmp-system
       path: /validate/monitoring.googleapis.com/v1/globalrules
       port: 443
   failurePolicy: Fail
-  sideEffects: None
+  name: validate.globalrules.gmp-operator.gmp-system.monitoring.googleapis.com
   rules:
   - apiGroups:
     - monitoring.googleapis.com
@@ -443,18 +507,17 @@ webhooks:
     - UPDATE
     resources:
     - globalrules
-- name: validate.operatorconfigs.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
+  sideEffects: None
+- admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
+      namespace: gmp-system
       path: /validate/monitoring.googleapis.com/v1/operatorconfigs
       port: 443
   failurePolicy: Fail
-  sideEffects: None
+  name: validate.operatorconfigs.gmp-operator.gmp-system.monitoring.googleapis.com
   rules:
   - apiGroups:
     - monitoring.googleapis.com
@@ -465,24 +528,23 @@ webhooks:
     - UPDATE
     resources:
     - operatorconfigs
+  sideEffects: None
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   name: gmp-operator.gmp-system.monitoring.googleapis.com
 webhooks:
-- name: default.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
+- admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
+      namespace: gmp-system
       path: /default/monitoring.googleapis.com/v1/podmonitorings
       port: 443
   failurePolicy: Fail
-  sideEffects: None
+  name: default.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   rules:
   - apiGroups:
     - monitoring.googleapis.com
@@ -493,18 +555,17 @@ webhooks:
     - UPDATE
     resources:
     - podmonitorings
-- name: default.clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
+  sideEffects: None
+- admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
+      namespace: gmp-system
       path: /default/monitoring.googleapis.com/v1/clusterpodmonitorings
       port: 443
   failurePolicy: Fail
-  sideEffects: None
+  name: default.clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   rules:
   - apiGroups:
     - monitoring.googleapis.com
@@ -515,28 +576,25 @@ webhooks:
     - UPDATE
     resources:
     - clusterpodmonitorings
+  sideEffects: None
 ---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  namespace: gmp-system
   name: collector
+  namespace: gmp-system
 spec:
   selector:
     matchLabels:
-      # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
-      # see: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#pod-selector
       app.kubernetes.io/name: collector
   template:
     metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        components.gke.io/component-name: managed_prometheus
       labels:
         app: managed-prometheus-collector
         app.kubernetes.io/name: collector
-      annotations:
-        components.gke.io/component-name: managed_prometheus
-        # The emptyDir for the storage and config directories prevents cluster
-        # autoscaling unless this annotation is set.
-        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
     spec:
       affinity:
         nodeAffinity:
@@ -552,46 +610,33 @@ spec:
                 operator: In
                 values:
                 - linux
-      initContainers:
-      - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
-        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
-        volumeMounts:
-        - name: config-out
-          mountPath: /prometheus/config_out
+      automountServiceAccountToken: true
       containers:
-      - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0
-        args:
+      - args:
         - --config.file=/prometheus/config_out/config.yaml
         - --storage.tsdb.path=/prometheus/data
         - --storage.tsdb.no-lockfile
-        # Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
-        # the containers memory usage. We could lower it further if this becomes problematic, but
-        # it the window for local data is quite convenient for debugging.
         - --storage.tsdb.retention.time=30m
         - --storage.tsdb.wal-compression
-        # Effectively disable compaction and make blocks short enough so that our retention window
-        # can be kept in practice.
         - --storage.tsdb.min-block-duration=10m
         - --storage.tsdb.max-block-duration=10m
         - --web.listen-address=:19090
         - --web.enable-lifecycle
         - --web.route-prefix=/
         - --export.user-agent=prometheus/2.35.0-gmp.2 (mode:kubectl)
-        # The environment variable EXTRA_ARGS will be populated by the operator.
-        # DO NOT specify it here.
         env:
         - name: GOGC
           value: "25"
-        ports:
-        - name: prom-metrics
-          containerPort: 19090
+        image: gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0
         livenessProbe:
           httpGet:
             path: /-/healthy
             port: 19090
             scheme: HTTP
+        name: prometheus
+        ports:
+        - containerPort: 19090
+          name: prom-metrics
         readinessProbe:
           httpGet:
             path: /-/ready
@@ -603,27 +648,25 @@ spec:
           requests:
             cpu: 100m
             memory: 200M
-        volumeMounts:
-        - name: storage
-          mountPath: /prometheus/data
-        - name: config-out
-          mountPath: /prometheus/config_out
-          readOnly: true
-        - name: collection-secret
-          mountPath: /etc/secrets
-          readOnly: true
         securityContext:
           allowPrivilegeEscalation: false
-          privileged: false
           capabilities:
             drop:
             - all
-          runAsUser: 1000
+          privileged: false
           runAsGroup: 1000
           runAsNonRoot: true
-      - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
-        args:
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /prometheus/data
+          name: storage
+        - mountPath: /prometheus/config_out
+          name: config-out
+          readOnly: true
+        - mountPath: /etc/secrets
+          name: collection-secret
+          readOnly: true
+      - args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
         - --reload-url=http://localhost:19090/-/reload
@@ -634,58 +677,68 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
+        name: config-reloader
         ports:
-        - name: cfg-rel-metrics
-          containerPort: 19091
+        - containerPort: 19091
+          name: cfg-rel-metrics
         resources:
           limits:
             memory: 32M
           requests:
             cpu: 5m
             memory: 16M
-        volumeMounts:
-        - name: config
-          mountPath: /prometheus/config
-          readOnly: true
-        - name: config-out
-          mountPath: /prometheus/config_out
         securityContext:
           allowPrivilegeEscalation: false
-          privileged: false
           capabilities:
             drop:
             - all
-          runAsUser: 1000
+          privileged: false
           runAsGroup: 1000
           runAsNonRoot: true
-      serviceAccountName: collector
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /prometheus/config
+          name: config
+          readOnly: true
+        - mountPath: /prometheus/config_out
+          name: config-out
+      initContainers:
+      - command:
+        - /bin/bash
+        - -c
+        - touch /prometheus/config_out/config.yaml
+        image: gke.gcr.io/gke-distroless/bash:20220419
+        name: config-init
+        volumeMounts:
+        - mountPath: /prometheus/config_out
+          name: config-out
+      priorityClassName: gmp-critical
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-      automountServiceAccountToken: true
-      priorityClassName: gmp-critical
+      serviceAccountName: collector
       tolerations:
       - effect: NoExecute
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "amd64"
-        effect: "NoSchedule"
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "arm64"
-        effect: "NoSchedule"
+      - effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+        value: amd64
+      - effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+        value: arm64
       volumes:
-      - name: storage
-        emptyDir: {}
-      - name: config
-        configMap:
+      - emptyDir: {}
+        name: storage
+      - configMap:
           name: collector
-      - name: config-out
-        emptyDir: {}
+        name: config
+      - emptyDir: {}
+        name: config-out
       - name: collection-secret
         secret:
           secretName: collection
@@ -693,25 +746,21 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: gmp-system
   name: rule-evaluator
+  namespace: gmp-system
 spec:
+  replicas: 1
   selector:
     matchLabels:
-      # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
-      # see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
       app.kubernetes.io/name: rule-evaluator
-  replicas: 1
   template:
     metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        components.gke.io/component-name: managed_prometheus
       labels:
         app: managed-prometheus-rule-evaluator
         app.kubernetes.io/name: rule-evaluator
-      annotations:
-        components.gke.io/component-name: managed_prometheus
-        # The emptyDir for the storage and config directories prevents cluster
-        # autoscaling unless this annotation is set.
-        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
     spec:
       affinity:
         nodeAffinity:
@@ -727,29 +776,22 @@ spec:
                 operator: In
                 values:
                 - linux
-      serviceAccountName: collector
-      initContainers:
-      - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
-        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
-        volumeMounts:
-        - name: config-out
-          mountPath: /prometheus/config_out
+      automountServiceAccountToken: true
       containers:
-      - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.5.0-gke.0
-        args:
+      - args:
         - --config.file=/prometheus/config_out/config.yaml
         - --web.listen-address=:19092
         - --export.user-agent=rule-evaluator/0.5.0 (mode:kubectl)
-        ports:
-        - name: r-eval-metrics
-          containerPort: 19092
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.5.0-gke.0
         livenessProbe:
           httpGet:
             path: /-/healthy
             port: 19092
             scheme: HTTP
+        name: evaluator
+        ports:
+        - containerPort: 19092
+          name: r-eval-metrics
         readinessProbe:
           httpGet:
             path: /-/ready
@@ -771,24 +813,24 @@ spec:
           runAsNonRoot: true
           runAsUser: 1000
         volumeMounts:
-        - name: config-out
-          mountPath: /prometheus/config_out
+        - mountPath: /prometheus/config_out
+          name: config-out
           readOnly: true
-        - name: rules
-          mountPath: /etc/rules
+        - mountPath: /etc/rules
+          name: rules
           readOnly: true
-        - name: rules-secret
-          mountPath: /etc/secrets
+        - mountPath: /etc/secrets
+          name: rules-secret
           readOnly: true
-      - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
-        args:
+      - args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
         - --watched-dir=/etc/rules
         - --watched-dir=/etc/secrets
         - --reload-url=http://localhost:19092/-/reload
         - --listen-address=:19093
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
+        name: config-reloader
         ports:
         - containerPort: 19093
           name: cfg-rel-metrics
@@ -808,48 +850,56 @@ spec:
           runAsNonRoot: true
           runAsUser: 1000
         volumeMounts:
-        - name: config
-          mountPath: /prometheus/config
+        - mountPath: /prometheus/config
+          name: config
           readOnly: true
-        - name: config-out
-          mountPath: /prometheus/config_out
-        - name: rules
-          mountPath: /etc/rules
+        - mountPath: /prometheus/config_out
+          name: config-out
+        - mountPath: /etc/rules
+          name: rules
           readOnly: true
-        - name: rules-secret
-          mountPath: /etc/secrets
+        - mountPath: /etc/secrets
+          name: rules-secret
           readOnly: true
+      initContainers:
+      - command:
+        - /bin/bash
+        - -c
+        - touch /prometheus/config_out/config.yaml
+        image: gke.gcr.io/gke-distroless/bash:20220419
+        name: config-init
+        volumeMounts:
+        - mountPath: /prometheus/config_out
+          name: config-out
       priorityClassName: gmp-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: collector
       tolerations:
       - effect: NoExecute
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "amd64"
-        effect: "NoSchedule"
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "arm64"
-        effect: "NoSchedule"
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-      serviceAccountName: collector
-      automountServiceAccountToken: true
+      - effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+        value: amd64
+      - effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+        value: arm64
       volumes:
-      - name: config
-        configMap:
+      - configMap:
           defaultMode: 420
           name: rule-evaluator
-      - name: config-out
-        emptyDir: {}
-      - name: rules
-        configMap:
+        name: config
+      - emptyDir: {}
+        name: config-out
+      - configMap:
           defaultMode: 420
           name: rules-generated
+        name: rules
       - name: rules-secret
         secret:
           defaultMode: 420
@@ -858,37 +908,37 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: gmp-system
   name: alertmanager
+  namespace: gmp-system
 spec:
-  selector:
-    app.kubernetes.io/name: alertmanager
   clusterIP: None
   ports:
-  - port: 9093
+  - name: alertmanager
+    port: 9093
     targetPort: 9093
-    name: alertmanager
+  selector:
+    app.kubernetes.io/name: alertmanager
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  namespace: gmp-system
   name: alertmanager
+  namespace: gmp-system
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: managed-prometheus-alertmanager
       app.kubernetes.io/name: alertmanager
   serviceName: alertmanager
-  replicas: 1
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: alertmanager
-        app: managed-prometheus-alertmanager
       annotations:
-        components.gke.io/component-name: managed_prometheus
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        components.gke.io/component-name: managed_prometheus
+      labels:
+        app: managed-prometheus-alertmanager
+        app.kubernetes.io/name: alertmanager
     spec:
       affinity:
         nodeAffinity:
@@ -904,19 +954,12 @@ spec:
                 operator: In
                 values:
                 - linux
-      initContainers:
-      - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
-        command: ['/bin/bash', '-c', 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  - name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml']
-        volumeMounts:
-        - name: alertmanager-config
-          mountPath: /alertmanager/config_out
       containers:
-      - name: alertmanager
-        image: gke.gcr.io/prometheus-engine/alertmanager:v0.24.0-gmp.0-gke.0
-        args:
+      - args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
+        image: gke.gcr.io/prometheus-engine/alertmanager:v0.24.0-gmp.0-gke.0
+        name: alertmanager
         ports:
         - containerPort: 9093
           name: alertmanager
@@ -926,12 +969,6 @@ spec:
           requests:
             cpu: 100m
             memory: 200M
-        volumeMounts:
-        - name: alertmanager-config
-          mountPath: /alertmanager/config_out
-          readOnly: true
-        - name: alertmanager-data
-          mountPath: /alertmanager-data
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -941,9 +978,13 @@ spec:
           runAsGroup: 1000
           runAsNonRoot: true
           runAsUser: 1000
-      - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
-        args:
+        volumeMounts:
+        - mountPath: /alertmanager/config_out
+          name: alertmanager-config
+          readOnly: true
+        - mountPath: /alertmanager-data
+          name: alertmanager-data
+      - args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
         - --reload-url=http://localhost:9093/-/reload
@@ -954,30 +995,43 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
+        name: config-reloader
         ports:
-        - name: cfg-rel-metrics
-          containerPort: 19091
+        - containerPort: 19091
+          name: cfg-rel-metrics
         resources:
           limits:
             memory: 32M
           requests:
             cpu: 5m
             memory: 16M
-        volumeMounts:
-        - name: config
-          mountPath: /alertmanager
-          readOnly: true
-        - name: alertmanager-config
-          mountPath: /alertmanager/config_out
         securityContext:
           allowPrivilegeEscalation: false
-          privileged: false
           capabilities:
             drop:
             - all
-          runAsUser: 1000
+          privileged: false
           runAsGroup: 1000
           runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /alertmanager
+          name: config
+          readOnly: true
+        - mountPath: /alertmanager/config_out
+          name: alertmanager-config
+      initContainers:
+      - command:
+        - /bin/bash
+        - -c
+        - 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  -
+          name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml'
+        image: gke.gcr.io/gke-distroless/bash:20220419
+        name: config-init
+        volumeMounts:
+        - mountPath: /alertmanager/config_out
+          name: alertmanager-config
       priorityClassName: gmp-critical
       securityContext:
         seccompProfile:
@@ -987,20 +1041,19 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "amd64"
-        effect: "NoSchedule"
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "arm64"
-        effect: "NoSchedule"
+      - effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+        value: amd64
+      - effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+        value: arm64
       volumes:
       - name: config
         secret:
           secretName: alertmanager
-      - name: alertmanager-data
-        emptyDir: {}
-      - name: alertmanager-config
-        emptyDir: {}
+      - emptyDir: {}
+        name: alertmanager-data
+      - emptyDir: {}
+        name: alertmanager-config
