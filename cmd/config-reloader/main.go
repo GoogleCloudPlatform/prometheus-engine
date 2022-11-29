@@ -63,6 +63,8 @@ func main() {
 	}
 
 	// Poll Prometheus's ready endpoint until it's up and running.
+	// Note: the ready and reload endpoints are expected to be formatted
+	// as per https://prometheus.io/docs/prometheus/latest/management_api/.
 	readyURLStr := strings.Replace(*reloadURLStr, "reload", "ready", 1)
 	req, _ := http.NewRequest(http.MethodGet, readyURLStr, nil)
 	if err := wait.Poll(2*time.Second, 2*time.Minute, func() (bool, error) {
