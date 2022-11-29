@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/thanos-io/thanos/pkg/reloader"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func main() {
@@ -60,6 +61,25 @@ func main() {
 		level.Error(logger).Log("msg", "parsing reloader URL failed", "err", err)
 		os.Exit(1)
 	}
+
+	// Poll Prometheus's ready endpoint until it's up and running.
+	readyURLStr := strings.Replace(*reloadURLStr, "reload", "ready", 1)
+	req, _ := http.NewRequest(http.MethodGet, readyURLStr, nil)
+	if err := wait.Poll(2*time.Second, 2*time.Minute, func() (bool, error) {
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return false, err
+		}
+		if resp.StatusCode == http.StatusOK {
+			level.Info(logger).Log("msg", "Prometheus is ready")
+			return true, nil
+		}
+		return false, nil
+	}); err != nil {
+		level.Error(logger).Log("msg", "waiting for Prometheus ready", "err", err)
+		os.Exit(1)
+	}
+
 	rel := reloader.New(
 		logger,
 		metrics,
