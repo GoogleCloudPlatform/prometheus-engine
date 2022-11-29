@@ -17,7 +17,7 @@ The test expects various resources, which are part of deploying the operator, to
 in the cluster:
 
 ```bash
-kubectl apply -k ../../cmd/operator/deploy/crds/
+kubectl apply -k ../../manifests/base/setup
 kubectl apply -f ../../cmd/operator/deploy/operator/00-namespace.yaml
 kubectl apply -f ../../cmd/operator/deploy/operator/01-priority-class.yaml
 ```

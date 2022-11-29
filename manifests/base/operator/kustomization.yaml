@@ -1,0 +1,7 @@
+resources:
+  - ../../../cmd/operator/deploy/operator
+
+components:
+  - ../../components/config-reloader
+  - ../../components/operator
+  - ../../components/rule-evaluator

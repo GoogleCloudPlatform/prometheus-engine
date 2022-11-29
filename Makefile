@@ -14,10 +14,18 @@ DOCKER_VOLUME:=$(DOCKER_HOST:unix://%=%)
 IMAGE_REGISTRY?=gcr.io/$(PROJECT_ID)/prometheus-engine
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
-# TODO(pintohutch): this is a bit hacky, but can be useful when testing.
-# Ultimately this should be replaced with go templating.
+define image_file
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+images:
+- name: gke.gcr.io/prometheus-engine/$(1)
+  newName: ${IMAGE_REGISTRY}/$(1)
+  newTag: ${TAG_NAME}
+endef
+
 define update_manifests
-	find manifests examples cmd/operator/deploy -type f -name "*.yaml" -exec sed -i "s#image: .*/$(1):.*#image: ${IMAGE_REGISTRY}/$(1):${TAG_NAME}#g" {} \;
+	$(file > build/manifests/components/$(1)/kustomization.yaml,$(call image_file,$(1)))
 endef
 
 define docker_build
@@ -28,6 +36,8 @@ define docker_tag_push
 	docker tag $(1) $(2)
 	docker push $(2)
 endef
+
+.PHONY: manifests
 
 help:        ## Show this help.
              ##
@@ -41,6 +51,15 @@ lint:        ## Lint code.
              ##
 	@echo ">> linting code"
 	DOCKER_BUILDKIT=1 docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.43.0 golangci-lint run -v --timeout=5m
+
+# manifests:   ## Sets up a locally-built `manifests` directory inside `build`
+
+manifests:
+# Must be separate job, otherwise Makefile will complain about non-existant files.
+	mkdir -p build/cmd/operator/deploy
+	mkdir -p build/manifests
+	cp -ru cmd/operator/deploy/* build/cmd/operator/deploy
+	cp -ru manifests/* build/manifests
 
 $(GOCMDS):   ## Build go binary from cmd/ (e.g. 'operator').
              ## The following env variables configure the build, and are mutually exclusive:
@@ -71,6 +90,8 @@ else
 	$(call docker_build, --tag gmp/$@ -f ./cmd/$@/Dockerfile .)
 endif
 
+$(GOCMDS): manifests
+
 bin:         ## Build all go binaries from cmd/.
              ## All env vars from $(GOCMDS) work here as well.
              ##
@@ -94,7 +115,7 @@ test:        ## Run all tests. Setting NO_DOCKER=1 writes real data to GCM API u
              ##
 	@echo ">> running tests"
 ifeq ($(NO_DOCKER), 1)
-	kubectl apply -f manifests/setup.yaml
+	kubectl apply -k manifests/base/setup
 	kubectl apply -f cmd/operator/deploy/operator/01-priority-class.yaml
 	kubectl apply -f cmd/operator/deploy/operator/03-role.yaml
 	go test `go list ./... | grep -v operator/e2e | grep -v export/bench`

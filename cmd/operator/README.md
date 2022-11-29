@@ -1,6 +1,6 @@
 # Operator
 
-See the [package documentation](../../cmd/operator/README.md) for testing
+See the [package documentation](../../pkg/operator/README.md) for testing
 instructions.
 
 This binary is a Kubernetes operator that provides Managed Collection for Google
@@ -37,8 +37,13 @@ URL and update all necessary configurations to use it.
 Next, apply the Kubernetes configuration files, starting with the CRDs:
 
 ```bash
-kubectl apply -k cmd/operator/deploy/crds/
-kubectl apply -k cmd/operator/deploy/operator/
+kubectl apply -k manifests/base/setup
+```
+
+The operator image is updated in the `build` directory:
+
+```bash
+kubectl apply -k build/manifests/base/operator
 ```
 
 Finally, wait until the operator starts up. You will see a status of `Running`
@@ -50,10 +55,10 @@ kubectl get all -ngmp-system
 
 ## Run Locally
 
-Deploy all CRDs. In this directory:
+Deploy all CRDs. In the root directory:
 
 ```bash
-kubectl apply -k deploy/crds/
+kubectl apply -k manifests/base/setup
 ```
 
 Deploy all of the required configurations besides the operator deployment
@@ -65,7 +70,7 @@ they apply to other configurations in the group. This avoids errors when
 updating configurations and the operator is not present to process the webhook.
 
 Run the operator locally (requires active kubectl context to have all
-permissions the operator needs):
+permissions the operator needs). In this directory:
 
 ```bash
 go run main.go
@@ -85,9 +90,10 @@ Go to `http://localhost:19090/targets`.
 
 ## Teardown
 
-Simply stop running the operator locally and remove all manifests in the cluster
-with:
+First stop running the local operator, if any, and then remove all manifests in
+the cluster in reverse order:
 
 ```bash
-kubectl delete -f deploy/ --recursive
+kubectl delete -k manifests/base/operator
+kubectl delete -k manifests/base/setup
 ```
