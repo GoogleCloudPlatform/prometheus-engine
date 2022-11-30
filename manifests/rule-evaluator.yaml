@@ -92,10 +92,10 @@ spec:
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419
-        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        command: ['/bin/bash', '-c', 'touch /etc/config/config.yaml']
         volumeMounts:
-        - name: config-out
-          mountPath: /prometheus/config_out
+        - name: config
+          mountPath: /etc/config
       containers:
       - name: evaluator
         image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.5.0-gke.0
