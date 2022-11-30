@@ -1335,8 +1335,9 @@ func TestSampleBuilder(t *testing.T) {
 						labels.Label{Name: "project_id", Value: "1"},
 						labels.Label{Name: "trace_id", Value: "2"},
 					)},
-					5: {Ref: 7, T: 1500, V: 2},
-					7: {Ref: 5, T: 1500, V: .99},
+					6: {Ref: 6, T: 1500, V: 2},
+					5: {Ref: 5, T: 1500, V: .99},
+					7: {Ref: 7, T: 1500, V: 11},
 				},
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
@@ -1406,6 +1407,10 @@ func TestSampleBuilder(t *testing.T) {
 										},
 										{
 											Value:     2,
+											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
+										},
+										{
+											Value:     11,
 											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
 										},
 									},
