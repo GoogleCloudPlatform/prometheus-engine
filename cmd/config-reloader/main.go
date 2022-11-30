@@ -39,8 +39,13 @@ func main() {
 		watchedDirs      stringSlice
 		configFile       = flag.String("config-file", "", "config file to watch for changes")
 		configFileOutput = flag.String("config-file-output", "", "config file to write with interpolated environment variables")
-		reloadURLStr     = flag.String("reload-url", "http://127.0.0.1:19090/-/reload", "Prometheus reload endpoint")
-		listenAddress    = flag.String("listen-address", ":19091", "address on which to expose metrics")
+		// Ready and reload endpoints should be compatible with Prometheus-style
+		// management APIs, e.g.
+		// https://prometheus.io/docs/prometheus/latest/management_api/
+		// https://prometheus.io/docs/alerting/latest/management_api/
+		reloadURLStr  = flag.String("reload-url", "http://127.0.0.1:19090/-/reload", "reload endpoint triggers a reload of the configuration file")
+		readyURLStr   = flag.String("ready-url", "http://127.0.0.1:19090/-/ready", "ready endpoint returns a 200 when ready to serve traffic")
+		listenAddress = flag.String("listen-address", ":19091", "address on which to expose metrics")
 	)
 	flag.Var(&watchedDirs, "watched-dir", "directory to watch for file changes (for rule and secret files, may be repeated)")
 
@@ -62,23 +67,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Poll Prometheus's ready endpoint until it's up and running.
-	// Note: the ready and reload endpoints are expected to be formatted
-	// as per https://prometheus.io/docs/prometheus/latest/management_api/.
-	readyURLStr := strings.Replace(*reloadURLStr, "reload", "ready", 1)
-	req, _ := http.NewRequest(http.MethodGet, readyURLStr, nil)
-	if err := wait.Poll(2*time.Second, 2*time.Minute, func() (bool, error) {
+	// Poll ready endpoint indefinitely until it's up and running.
+	req, _ := http.NewRequest(http.MethodGet, *readyURLStr, nil)
+	if err := wait.PollInfinite(2*time.Second, func() (bool, error) {
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return false, err
 		}
 		if resp.StatusCode == http.StatusOK {
-			level.Info(logger).Log("msg", "Prometheus is ready")
+			level.Info(logger).Log("msg", "ready-url is ready")
 			return true, nil
 		}
 		return false, nil
 	}); err != nil {
-		level.Error(logger).Log("msg", "waiting for Prometheus ready", "err", err)
+		level.Error(logger).Log("msg", "waiting for ready-url ready", "err", err)
 		os.Exit(1)
 	}
 

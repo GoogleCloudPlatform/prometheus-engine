@@ -123,6 +123,7 @@ spec:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
         - --reload-url=http://localhost:19090/-/reload
+        - --ready-url=http://localhost:19090/-/ready
         - --listen-address=:19091
         env:
         - name: NODE_NAME
