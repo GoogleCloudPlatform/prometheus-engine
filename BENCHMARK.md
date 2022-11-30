@@ -68,9 +68,9 @@ popd
 Deploy the base monitoring stack:
 
 ```bash
-kubectl apply -f "$BASE_DIR/examples/setup.yaml" &&
+kubectl apply -f "$BASE_DIR/manifests/setup.yaml" &&
 sleep 3 &&
-kubectl apply -f "$BASE_DIR/examples/operator.yaml"
+kubectl apply -f "$BASE_DIR/manifests/operator.yaml"
 ```
 
 Next, define a [size](./../examples/example-app.yaml#L25) of our example
