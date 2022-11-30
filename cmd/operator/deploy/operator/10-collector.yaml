@@ -52,6 +52,12 @@ spec:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
@@ -110,13 +116,10 @@ spec:
           readOnly: true
         securityContext:
           allowPrivilegeEscalation: false
-          privileged: false
           capabilities:
             drop:
             - all
-          runAsUser: 1000
-          runAsGroup: 1000
-          runAsNonRoot: true
+          privileged: false
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
         args:
@@ -139,23 +142,23 @@ spec:
           requests:
             cpu: 5m
             memory: 16M
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
         volumeMounts:
         - name: config
           mountPath: /prometheus/config
           readOnly: true
         - name: config-out
           mountPath: /prometheus/config_out
-        securityContext:
-          allowPrivilegeEscalation: false
-          privileged: false
-          capabilities:
-            drop:
-            - all
-          runAsUser: 1000
-          runAsGroup: 1000
-          runAsNonRoot: true
       serviceAccountName: collector
       securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       automountServiceAccountToken: true

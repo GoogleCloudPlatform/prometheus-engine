@@ -71,13 +71,10 @@ spec:
           containerPort: 18080
         securityContext:
           allowPrivilegeEscalation: false
-          privileged: false
           capabilities:
             drop:
             - all
-          runAsUser: 1000
-          runAsGroup: 1000
-          runAsNonRoot: true
+          privileged: false
       priorityClassName: gmp-critical
       tolerations:
       - effect: NoExecute
@@ -94,5 +91,8 @@ spec:
         value: "arm64"
         effect: "NoSchedule"
       securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault

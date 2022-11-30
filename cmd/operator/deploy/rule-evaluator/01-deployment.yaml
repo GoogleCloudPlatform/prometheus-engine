@@ -43,6 +43,10 @@ spec:
                 operator: In
                 values:
                 - linux
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
       tolerations:
       - effect: NoExecute
         operator: Exists
@@ -82,6 +86,12 @@ spec:
           requests:
             cpu: 100m
             memory: 200M
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
         volumeMounts:
         - mountPath: /etc/config
           name: config
@@ -106,6 +116,12 @@ spec:
           requests:
             cpu: 5m
             memory: 16M
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
         volumeMounts:
         - mountPath: /etc/config
           name: config

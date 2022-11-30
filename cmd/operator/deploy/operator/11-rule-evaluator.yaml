@@ -49,11 +49,16 @@ spec:
                 operator: In
                 values:
                 - linux
-      serviceAccountName: collector
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
@@ -89,9 +94,6 @@ spec:
             drop:
             - all
           privileged: false
-          runAsGroup: 1000
-          runAsNonRoot: true
-          runAsUser: 1000
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
@@ -126,9 +128,6 @@ spec:
             drop:
             - all
           privileged: false
-          runAsGroup: 1000
-          runAsNonRoot: true
-          runAsUser: 1000
         volumeMounts:
         - name: config
           mountPath: /prometheus/config
@@ -157,6 +156,9 @@ spec:
         value: "arm64"
         effect: "NoSchedule"
       securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
       serviceAccountName: collector
