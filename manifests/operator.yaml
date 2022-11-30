@@ -271,6 +271,12 @@ spec:
           # Note this should match the --metrics-addr flag passed in to the operator args.
           # Default is 18080.
           containerPort: 18080
+        resources:
+          limits:
+            memory: 256M
+          requests:
+            cpu: 8m
+            memory: 32M
         securityContext:
           allowPrivilegeEscalation: false
           privileged: false
@@ -601,8 +607,8 @@ spec:
           limits:
             memory: 3G
           requests:
-            cpu: 100m
-            memory: 200M
+            cpu: 2m
+            memory: 32M
         volumeMounts:
         - name: storage
           mountPath: /prometheus/data
@@ -759,8 +765,8 @@ spec:
           limits:
             memory: 1G
           requests:
-            cpu: 100m
-            memory: 200M
+            cpu: 2m
+            memory: 32M
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -924,8 +930,8 @@ spec:
           limits:
             memory: 1G
           requests:
-            cpu: 100m
-            memory: 200M
+            cpu: 2m
+            memory: 32M
         volumeMounts:
         - name: alertmanager-config
           mountPath: /alertmanager/config_out
@@ -961,7 +967,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 5m
+            cpu: 2m
             memory: 16M
         volumeMounts:
         - name: config

@@ -80,8 +80,8 @@ spec:
           limits:
             memory: 1G
           requests:
-            cpu: 100m
-            memory: 200M
+            cpu: 2m
+            memory: 32M
         volumeMounts:
         - name: alertmanager-config
           mountPath: /alertmanager/config_out
@@ -117,7 +117,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 5m
+            cpu: 2m
             memory: 16M
         volumeMounts:
         - name: config

@@ -69,6 +69,12 @@ spec:
           # Note this should match the --metrics-addr flag passed in to the operator args.
           # Default is 18080.
           containerPort: 18080
+        resources:
+          limits:
+            memory: 256M
+          requests:
+            cpu: 8m
+            memory: 32M
         securityContext:
           allowPrivilegeEscalation: false
           privileged: false
