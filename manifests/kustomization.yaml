@@ -1,0 +1,4 @@
+resources:
+- setup.yaml
+- operator.yaml
+- rule-evaluator.yaml

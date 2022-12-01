@@ -35,7 +35,6 @@ import (
 	"google.golang.org/api/iterator"
 	gcmpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	arv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -100,6 +99,7 @@ func TestMain(m *testing.M) {
 
 func TestCollector(t *testing.T) {
 	tctx := newTestContext(t)
+	cleanupOperatorConfigs(context.Background(), tctx)
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
@@ -111,6 +111,7 @@ func TestCollector(t *testing.T) {
 
 func TestRuleEvaluation(t *testing.T) {
 	tctx := newTestContext(t)
+	cleanupOperatorConfigs(context.Background(), tctx)
 
 	cert, key, err := cert.GenerateSelfSignedCertKey("test", nil, nil)
 	if err != nil {
@@ -136,6 +137,7 @@ func TestRuleEvaluation(t *testing.T) {
 
 func TestAlertmanagerDefault(t *testing.T) {
 	tctx := newTestContext(t)
+	cleanupOperatorConfigs(context.Background(), tctx)
 
 	alertmanagerConfig := `
 receivers:
@@ -155,6 +157,7 @@ route:
 
 func TestAlertmanagerCustom(t *testing.T) {
 	tctx := newTestContext(t)
+	cleanupOperatorConfigs(context.Background(), tctx)
 
 	alertmanagerConfig := `
 receivers:
@@ -241,6 +244,9 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 			Key: "key.json",
 		}
 	}
+	// t.Cleanup(func() {
+	// 	cleanupOperatorConfigs(ctx, t)
+	// })
 	_, err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
@@ -459,6 +465,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 // webhook configurations.
 func TestWebhookCABundleInjection(t *testing.T) {
 	tctx := newTestContext(t)
+	cleanupOperatorConfigs(context.Background(), tctx)
 
 	const (
 		expectedValidatingWebhookCount = 6
@@ -467,55 +474,10 @@ func TestWebhookCABundleInjection(t *testing.T) {
 
 	var (
 		whConfigName = fmt.Sprintf("gmp-operator.%s.monitoring.googleapis.com", tctx.operatorNamespace)
-		policy       = arv1.Ignore // Prevent collisions with other test or real usage
-		sideEffects  = arv1.SideEffectClassNone
-		url          = "https://0.1.2.3/"
 		ctx          = context.Background()
 	)
-
-	// Create webhook configs. The operator must populate their caBundles.
-	vwc := &arv1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            whConfigName,
-			OwnerReferences: tctx.ownerReferences,
-		},
-	}
-	for i := 0; i < expectedValidatingWebhookCount; i++ {
-		vwc.Webhooks = append(vwc.Webhooks, arv1.ValidatingWebhook{
-			Name:                    fmt.Sprintf("wh%d.monitoring.googleapis.com", i),
-			ClientConfig:            arv1.WebhookClientConfig{URL: &url},
-			FailurePolicy:           &policy,
-			SideEffects:             &sideEffects,
-			AdmissionReviewVersions: []string{"v1"},
-		})
-	}
-	_, err := tctx.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(ctx, vwc, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("unable to create validatingwebhook: %s", err)
-	}
-
-	mwc := &arv1.MutatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            whConfigName,
-			OwnerReferences: tctx.ownerReferences,
-		},
-	}
-	for i := 0; i < expectedMutatingWebhookCount; i++ {
-		mwc.Webhooks = append(mwc.Webhooks, arv1.MutatingWebhook{
-			Name:                    fmt.Sprintf("wh%d.monitoring.googleapis.com", i),
-			ClientConfig:            arv1.WebhookClientConfig{URL: &url},
-			FailurePolicy:           &policy,
-			SideEffects:             &sideEffects,
-			AdmissionReviewVersions: []string{"v1"},
-		})
-	}
-	_, err = tctx.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(ctx, mwc, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("unable to create mutatingwebhook: %s", err)
-	}
-
 	// Wait for caBundle injection.
-	err = wait.Poll(3*time.Second, 2*time.Minute, func() (bool, error) {
+	err := wait.Poll(3*time.Second, 2*time.Minute, func() (bool, error) {
 		vwc, err := tctx.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, whConfigName, metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Errorf("get validatingwebhook configuration: %s", err)
@@ -554,6 +516,16 @@ func TestWebhookCABundleInjection(t *testing.T) {
 	}
 }
 
+func cleanupOperatorConfigs(ctx context.Context, t *testContext) {
+	if err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Delete(ctx, operator.NameOperatorConfig, metav1.DeleteOptions{}); err != nil {
+		// Not found indicates the resource was never created, so nothing to
+		// cleanup (and no error).
+		if !apierrors.IsNotFound(err) {
+			t.Fatalf("cleaning up OperatorConfig: %s", err)
+		}
+	}
+}
+
 // testCollectorDeployed does a high-level verification on whether the
 // collector is deployed to the cluster.
 func testCollectorDeployed(ctx context.Context, t *testContext) {
@@ -585,6 +557,9 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			Key: "key.json",
 		}
 	}
+	t.Cleanup(func() {
+		cleanupOperatorConfigs(ctx, t)
+	})
 	_, err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create rules operatorconfig: %s", err)
@@ -1159,6 +1134,9 @@ func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(c
 				Key: "key.json",
 			}
 		}
+		t.Cleanup(func() {
+			cleanupOperatorConfigs(ctx, t)
+		})
 		_, err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
 		if err != nil {
 			t.Fatalf("create rules operatorconfig: %s", err)

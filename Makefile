@@ -14,18 +14,24 @@ DOCKER_VOLUME:=$(DOCKER_HOST:unix://%=%)
 IMAGE_REGISTRY?=gcr.io/$(PROJECT_ID)/prometheus-engine
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
+LOCAL_REGISTRY_NAME=kind-registry
+LOCAL_REGISTRY_PORT=5001
+LOCAL_IMAGE_REGISTRY?=$(LOCAL_REGISTRY_NAME):$(LOCAL_REGISTRY_PORT)/prometheus-engine
+
 define image_file
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
 images:
 - name: gke.gcr.io/prometheus-engine/$(1)
-  newName: ${IMAGE_REGISTRY}/$(1)
+  newName: $(2)/$(1)
   newTag: ${TAG_NAME}
 endef
 
 define update_manifests
-	$(file > build/manifests/components/$(1)/kustomization.yaml,$(call image_file,$(1)))
+	$(file > build/manifests/components/$(1)/kustomization.yaml,$(call image_file,$(1),${IMAGE_REGISTRY}))
+	$(file > build/kindtest/components/$(1)/kustomization.yaml,$(call image_file,$(1),localhost:5001/prometheus-engine))
+
 endef
 
 define docker_build
@@ -58,8 +64,10 @@ manifests:
 # Must be separate job, otherwise Makefile will complain about non-existant files.
 	mkdir -p build/cmd/operator/deploy
 	mkdir -p build/manifests
-	cp -ru cmd/operator/deploy/* build/cmd/operator/deploy
+	mkdir -p build/kindtest
+	cp -r cmd/operator/deploy/* build/cmd/operator/deploy
 	cp -ru manifests/* build/manifests
+	cp -ru manifests/* build/kindtest
 
 $(GOCMDS):   ## Build go binary from cmd/ (e.g. 'operator').
              ## The following env variables configure the build, and are mutually exclusive:
@@ -79,6 +87,8 @@ else ifeq ($(DOCKER_PUSH), 1)
 	$(call docker_tag_push,gmp/$@,${IMAGE_REGISTRY}/$@:${TAG_NAME})
 	@echo ">> updating manifests with pushed images"
 	$(call update_manifests,$@)
+	@echo ">> tagging and pushing local images"
+	$(call docker_tag_push,gmp/$@,localhost:${LOCAL_REGISTRY_PORT}/prometheus-engine/$@:${TAG_NAME})
 # Run on cloudbuild and tag multi-arch image to GCR.
 # TODO(pintohutch): cache source tarball between binary builds?
 else ifeq ($(CLOUD_BUILD), 1)
@@ -128,12 +138,21 @@ endif
 
 kindtest:    ## Run e2e test suite against fresh kind k8s cluster.
              ##
+kindtest:
+ifeq ($(NO_DOCKER), 1)
+	$(error kindtest requires Docker images. Please run without NO_DOCKER=1)
+endif
+ifeq ($(DOCKER_PUSH), 0)
+	$(error kindtest requires pushing Docker images. Please run with DOCKER_PUSH=1)
+endif
 	@echo ">> building image"
 	$(call docker_build, -f hack/Dockerfile --target kindtest -t gmp/kindtest .)
 	@echo ">> running container"
 # We lose some isolation by sharing the host network with the kind containers.
 # However, we avoid a gcloud-shell "Dockerception" and save on build times.
-	docker run --network host --rm -v $(DOCKER_VOLUME):/var/run/docker.sock gmp/kindtest ./hack/kind-test.sh
+	docker run --env "TAG=$(TAG_NAME)" --network host --rm -v $(DOCKER_VOLUME):/var/run/docker.sock gmp/kindtest ./hack/kind-test.sh
+
+kindtest: bin
 
 presubmit:   ## Run all checks and tests before submitting a change 
              ## Use DRY_RUN=1 to only validate without regenerating changes.
