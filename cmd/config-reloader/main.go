@@ -31,7 +31,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/thanos-io/thanos/pkg/reloader"
-	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func main() {
@@ -67,22 +66,37 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Set up interrupt signal handler.
+	term := make(chan os.Signal, 1)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+
 	// Poll ready endpoint indefinitely until it's up and running.
 	req, _ := http.NewRequest(http.MethodGet, *readyURLStr, nil)
-	if err := wait.PollInfinite(2*time.Second, func() (bool, error) {
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return false, err
+	ticker := time.NewTicker(500 * time.Millisecond)
+	done := make(chan bool)
+	go func() {
+		level.Info(logger).Log("msg", "ensure ready-url is healthy")
+		for {
+			select {
+			case <-term:
+				level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+				os.Exit(0)
+			case <-ticker.C:
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					level.Error(logger).Log("msg", "polling ready-url", "err", err)
+					os.Exit(1)
+				}
+				if resp.StatusCode == http.StatusOK {
+					level.Info(logger).Log("msg", "ready-url is healthy")
+					ticker.Stop()
+					done <- true
+					return
+				}
+			}
 		}
-		if resp.StatusCode == http.StatusOK {
-			level.Info(logger).Log("msg", "ready-url is ready")
-			return true, nil
-		}
-		return false, nil
-	}); err != nil {
-		level.Error(logger).Log("msg", "waiting for ready-url ready", "err", err)
-		os.Exit(1)
-	}
+	}()
+	<-done
 
 	rel := reloader.New(
 		logger,
@@ -112,10 +126,7 @@ func main() {
 		})
 	}
 	{
-		term := make(chan os.Signal, 1)
 		cancel := make(chan struct{})
-		signal.Notify(term, os.Interrupt, syscall.SIGTERM)
-
 		g.Add(
 			func() error {
 				select {
