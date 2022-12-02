@@ -1,5 +1,8 @@
 # Operator
 
+See the [package documentation](../../cmd/operator/README.md) for testing
+instructions.
+
 This binary is a Kubernetes operator that provides Managed Collection for Google
 Cloud Prometheus Engine on Kubernetes.
 
@@ -34,8 +37,8 @@ URL and update all necessary configurations to use it.
 Next, apply the Kubernetes configuration files, starting with the CRDs:
 
 ```bash
-kubectl apply -f cmd/operator/deploy/crds/
-kubectl apply -f cmd/operator/deploy/operator/
+kubectl apply -k cmd/operator/deploy/crds/
+kubectl apply -k cmd/operator/deploy/operator/
 ```
 
 Finally, wait until the operator starts up. You will see a status of `Running`
@@ -50,38 +53,22 @@ kubectl get all -ngmp-system
 Deploy all CRDs. In this directory:
 
 ```bash
-kubectl apply -f deploy/crds/
+kubectl apply -k deploy/crds/
 ```
 
-Deploy all of the operator required configurations besides the operator
-deployment, otherwise you will have an operator deployed in addition to your
-local one.
-
-```bash
-kubectl apply -f deploy/operator/00-namespace.yaml
-kubectl apply -f deploy/operator/01-priority-class.yaml
-kubectl apply -f deploy/operator/02-service-account.yaml
-kubectl apply -f deploy/operator/03-role.yaml
-kubectl apply -f deploy/operator/04-rolebinding.yaml
-```
+Deploy all of the required configurations besides the operator deployment
+otherwise you will have an operator deployed in addition to your local one. The
+easiest way to do this is by removing `deployment.yaml` in
+[deploy/operator/kustomization.yaml](deploy/operator/kustomization.yaml).
+Additionally, you may also consider removing the webhook configurations because
+they apply to other configurations in the group. This avoids errors when
+updating configurations and the operator is not present to process the webhook.
 
 Run the operator locally (requires active kubectl context to have all
 permissions the operator needs):
 
 ```bash
 go run main.go
-```
-
-Finally because the webhooks are configured to the operator apply the rest of
-the configurations in a separate terminal session:
-
-```bash
-kubectl apply -f deploy/operator/06-service.yaml
-kubectl apply -f deploy/operator/07-operatorconfig.yaml
-kubectl apply -f deploy/operator/08-validatingwebhookconfiguration.yaml
-kubectl apply -f deploy/operator/09-mutatingwebhookconfiguration.yaml
-kubectl apply -f deploy/operator/10-collector.yaml
-kubectl apply -f deploy/operator/11-rule-evaluator.yaml
 ```
 
 The operator updates the configuration of all collectors after which they start

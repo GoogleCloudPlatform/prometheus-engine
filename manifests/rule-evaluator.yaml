@@ -24,6 +24,7 @@ data:
     global:
       external_labels: {}
       evaluation_interval: 60s
+
     rule_files:
     - "/etc/rules/*.yaml"
 ---
@@ -65,7 +66,10 @@ spec:
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419
-        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        command:
+        - /bin/bash
+        - -c
+        - touch /prometheus/config_out/config.yaml
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
@@ -107,8 +111,8 @@ spec:
       - name: evaluator
         image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.6.0-gke.0
         args:
-        - "--config.file=/prometheus/config_out/config.yaml"
-        - "--web.listen-address=:9092"
+        - --config.file=/prometheus/config_out/config.yaml
+        - --web.listen-address=:9092
         ports:
         - name: r-eval-metrics
           containerPort: 9092
@@ -133,7 +137,6 @@ spec:
           httpGet:
             port: r-eval-metrics
             path: /-/ready
-          # Readiness attempts a query round-trip so we need a more generous timeout.
           timeoutSeconds: 5
         securityContext:
           allowPrivilegeEscalation: false
@@ -169,15 +172,14 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - value: "amd64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
-      - value: "arm64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
+      - value: amd64
+        effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+      - value: arm64
+        effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
       securityContext:
         runAsGroup: 1000
         runAsNonRoot: true
@@ -199,14 +201,22 @@ rules:
   - nodes/metrics
   - pods
   - services
-  apiGroups: [""]
-  verbs: ["get", "list", "watch"]
+  apiGroups:
+  - ""
+  verbs:
+  - get
+  - list
+  - watch
 - resources:
   - configmaps
-  apiGroups: [""]
-  verbs: ["get"]
-- nonResourceURLs: ["/metrics"]
-  verbs: ["get"]
+  apiGroups:
+  - ""
+  verbs:
+  - get
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

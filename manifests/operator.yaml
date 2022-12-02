@@ -53,14 +53,22 @@ rules:
   - nodes/metrics
   - pods
   - services
-  apiGroups: [""]
-  verbs: ["get", "list", "watch"]
+  apiGroups:
+  - ""
+  verbs:
+  - get
+  - list
+  - watch
 - resources:
   - configmaps
-  apiGroups: [""]
-  verbs: ["get"]
-- nonResourceURLs: ["/metrics"]
-  verbs: ["get"]
+  apiGroups:
+  - ""
+  verbs:
+  - get
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -70,45 +78,92 @@ metadata:
 rules:
 - resources:
   - pods
-  apiGroups: [""]
-  verbs: ["list", "watch"]
+  apiGroups:
+  - ""
+  verbs:
+  - list
+  - watch
 - resources:
   - secrets
-  apiGroups: [""]
-  verbs: ["list", "watch", "create"]
+  apiGroups:
+  - ""
+  verbs:
+  - list
+  - watch
+  - create
 - resources:
   - secrets
-  apiGroups: [""]
-  resourceNames: ["collection", "rules", "alertmanager"]
-  verbs: ["get", "patch", "update"]
+  apiGroups:
+  - ""
+  resourceNames:
+  - collection
+  - rules
+  - alertmanager
+  verbs:
+  - get
+  - patch
+  - update
 - resources:
   - configmaps
-  apiGroups: [""]
-  verbs: ["list", "watch", "create"]
+  apiGroups:
+  - ""
+  verbs:
+  - list
+  - watch
+  - create
 - resources:
   - configmaps
-  apiGroups: [""]
-  resourceNames: ["collector", "rule-evaluator", "rules-generated"]
-  verbs: ["get", "patch", "update"]
+  apiGroups:
+  - ""
+  resourceNames:
+  - collector
+  - rule-evaluator
+  - rules-generated
+  verbs:
+  - get
+  - patch
+  - update
 - resources:
   - daemonsets
-  apiGroups: ["apps"]
-  resourceNames: ["collector"]
-  verbs: ["get", "list", "watch", "delete", "patch", "update"]
+  apiGroups:
+  - apps
+  resourceNames:
+  - collector
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+  - patch
+  - update
 - resources:
   - deployments
-  apiGroups: ["apps"]
-  verbs: ["list", "watch"]
+  apiGroups:
+  - apps
+  verbs:
+  - list
+  - watch
 - resources:
   - deployments
-  apiGroups: ["apps"]
-  resourceNames: ["rule-evaluator"]
-  verbs: ["get", "delete", "patch", "update"]
+  apiGroups:
+  - apps
+  resourceNames:
+  - rule-evaluator
+  verbs:
+  - get
+  - delete
+  - patch
+  - update
 - resources:
   - services
-  apiGroups: [""]
-  resourceNames: ["alertmanager"]
-  verbs: ["get", "list", "watch"]
+  apiGroups:
+  - ""
+  resourceNames:
+  - alertmanager
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -118,12 +173,20 @@ metadata:
 rules:
 - resources:
   - secrets
-  apiGroups: [""]
-  verbs: ["get", "list", "watch"]
+  apiGroups:
+  - ""
+  verbs:
+  - get
+  - list
+  - watch
 - resources:
   - operatorconfigs
-  apiGroups: ["monitoring.googleapis.com"]
-  verbs: ["get", "list", "watch"]
+  apiGroups:
+  - monitoring.googleapis.com
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -133,33 +196,48 @@ rules:
 - resources:
   - validatingwebhookconfigurations
   - mutatingwebhookconfigurations
-  apiGroups: ["admissionregistration.k8s.io"]
+  apiGroups:
+  - admissionregistration.k8s.io
   resourceNames:
   - gmp-operator.gmp-system.monitoring.googleapis.com
-  verbs: ["get", "patch", "update", "watch"]
+  verbs:
+  - get
+  - patch
+  - update
+  - watch
 - resources:
   - validatingwebhookconfigurations
   - mutatingwebhookconfigurations
-  apiGroups: ["admissionregistration.k8s.io"]
+  apiGroups:
+  - admissionregistration.k8s.io
   resourceNames:
   - gmp-operator
-  verbs: ["delete"]
+  verbs:
+  - delete
 - resources:
   - clusterpodmonitorings
   - clusterrules
   - globalrules
   - podmonitorings
   - rules
-  apiGroups: ["monitoring.googleapis.com"]
-  verbs: ["get", "list", "watch"]
+  apiGroups:
+  - monitoring.googleapis.com
+  verbs:
+  - get
+  - list
+  - watch
 - resources:
   - clusterpodmonitorings/status
   - clusterrules/status
   - globalrules/status
   - podmonitorings/status
   - rules/status
-  apiGroups: ["monitoring.googleapis.com"]
-  verbs: ["get", "patch", "update"]
+  apiGroups:
+  - monitoring.googleapis.com
+  verbs:
+  - get
+  - patch
+  - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -246,17 +324,13 @@ spec:
       - name: operator
         image: gke.gcr.io/prometheus-engine/operator:v0.6.0-gke.0
         args:
-        - "--operator-namespace=gmp-system"
-        - "--public-namespace=gmp-public"
-        - "--webhook-addr=:10250"
+        - --operator-namespace=gmp-system
+        - --public-namespace=gmp-public
+        - --webhook-addr=:10250
         ports:
         - name: web
-          # Note this should match the --listen-addr flag passed in to the operator args.
-          # Default is 10250.
           containerPort: 10250
         - name: metrics
-          # Note this should match the --metrics-addr flag passed in to the operator args.
-          # Default is 18080.
           containerPort: 18080
         securityContext:
           allowPrivilegeEscalation: false
@@ -283,15 +357,14 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - value: "amd64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
-      - value: "arm64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
+      - value: amd64
+        effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+      - value: arm64
+        effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
       securityContext:
         runAsGroup: 1000
         runAsNonRoot: true
@@ -310,9 +383,6 @@ spec:
     app.kubernetes.io/name: gmp-operator
     app.kubernetes.io/part-of: gmp
   ports:
-  # This port does not do anything, but allows upgrades in the case
-  # of server-side apply (SSA) conflicts.
-  # TODO(pintohutch): remove once the SSA issues from upgrades are resolved.
   - name: legacy
     protocol: TCP
     port: 8443
@@ -337,7 +407,6 @@ webhooks:
   admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
       name: gmp-operator
       namespace: gmp-system
@@ -359,7 +428,6 @@ webhooks:
   admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
       name: gmp-operator
       namespace: gmp-system
@@ -381,7 +449,6 @@ webhooks:
   admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
       name: gmp-operator
       namespace: gmp-system
@@ -403,7 +470,6 @@ webhooks:
   admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
       name: gmp-operator
       namespace: gmp-system
@@ -425,7 +491,6 @@ webhooks:
   admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
       name: gmp-operator
       namespace: gmp-system
@@ -447,7 +512,6 @@ webhooks:
   admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
       name: gmp-operator
       namespace: gmp-system
@@ -475,7 +539,6 @@ webhooks:
   admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
       name: gmp-operator
       namespace: gmp-system
@@ -497,7 +560,6 @@ webhooks:
   admissionReviewVersions:
   - v1
   clientConfig:
-    # caBundle populated by operator.
     service:
       name: gmp-operator
       namespace: gmp-system
@@ -524,8 +586,6 @@ metadata:
 spec:
   selector:
     matchLabels:
-      # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
-      # see: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#pod-selector
       app.kubernetes.io/name: collector
   template:
     metadata:
@@ -533,8 +593,6 @@ spec:
         app: managed-prometheus-collector
         app.kubernetes.io/name: collector
       annotations:
-        # The emptyDir for the storage and config directories prevents cluster
-        # autoscaling unless this annotation is set.
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
     spec:
@@ -544,7 +602,10 @@ spec:
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419
-        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        command:
+        - /bin/bash
+        - -c
+        - touch /prometheus/config_out/config.yaml
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
@@ -596,13 +657,8 @@ spec:
         - --config.file=/prometheus/config_out/config.yaml
         - --storage.tsdb.path=/prometheus/data
         - --storage.tsdb.no-lockfile
-        # Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
-        # the containers memory usage. We could lower it further if this becomes problematic, but
-        # it the window for local data is quite convenient for debugging.
         - --storage.tsdb.retention.time=30m
         - --storage.tsdb.wal-compression
-        # Effectively disable compaction and make blocks short enough so that our retention window
-        # can be kept in practice.
         - --storage.tsdb.min-block-duration=10m
         - --storage.tsdb.max-block-duration=10m
         - --web.listen-address=:19090
@@ -612,8 +668,6 @@ spec:
         ports:
         - name: prom-metrics
           containerPort: 19090
-        # The environment variable EXTRA_ARGS will be populated by the operator.
-        # DO NOT specify it here.
         env:
         - name: GOGC
           value: "25"
@@ -678,15 +732,14 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - value: "amd64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
-      - value: "arm64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
+      - value: amd64
+        effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+      - value: arm64
+        effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
       securityContext:
         runAsGroup: 1000
         runAsNonRoot: true
@@ -703,8 +756,6 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
-      # see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
       app.kubernetes.io/name: rule-evaluator
   template:
     metadata:
@@ -712,8 +763,6 @@ spec:
         app: managed-prometheus-rule-evaluator
         app.kubernetes.io/name: rule-evaluator
       annotations:
-        # The emptyDir for the storage and config directories prevents cluster
-        # autoscaling unless this annotation is set.
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
     spec:
@@ -723,7 +772,10 @@ spec:
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419
-        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        command:
+        - /bin/bash
+        - -c
+        - touch /prometheus/config_out/config.yaml
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
@@ -846,15 +898,14 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - value: "amd64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
-      - value: "arm64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
+      - value: amd64
+        effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+      - value: arm64
+        effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
       securityContext:
         runAsGroup: 1000
         runAsNonRoot: true
@@ -900,7 +951,10 @@ spec:
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419
-        command: ['/bin/bash', '-c', 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  - name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml']
+        command:
+        - /bin/bash
+        - -c
+        - 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  - name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml'
         volumeMounts:
         - name: alertmanager-config
           mountPath: /alertmanager/config_out
@@ -1007,15 +1061,14 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - value: "amd64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
-      - value: "arm64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
+      - value: amd64
+        effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
+      - value: arm64
+        effect: NoSchedule
+        key: kubernetes.io/arch
+        operator: Equal
       securityContext:
         runAsGroup: 1000
         runAsNonRoot: true
