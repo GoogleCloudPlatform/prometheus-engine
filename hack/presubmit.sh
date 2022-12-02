@@ -16,7 +16,7 @@
 
 set -o errexit
 set -o nounset
-set -o pipefail 
+set -o pipefail
 
 usage() {
       cat >&2 << EOF
@@ -106,12 +106,19 @@ update_docgen() {
   sed -i 's/Prometheus Operator/GMP CRDs/g' doc/api.md
 }
 
+sort_manifests() {
+  kustomize cfg fmt $1
+}
+
 update_manifests() {
   echo ">>> regenerating example yamls"
 
   CRD_DIR=${SCRIPT_ROOT}/cmd/operator/deploy/crds
+  sort_manifests $CRD_DIR
   OP_DIR=${SCRIPT_ROOT}/cmd/operator/deploy/operator
+  sort_manifests $OP_DIR
   RE_DIR=${SCRIPT_ROOT}/cmd/operator/deploy/rule-evaluator
+  sort_manifests $RE_DIR
 
   combine $CRD_DIR '^.*/.*.yaml$' ${SCRIPT_ROOT}/manifests/setup.yaml
   combine $OP_DIR '^.*/[0-9][0-9]-\w.*.yaml$' ${SCRIPT_ROOT}/manifests/operator.yaml
