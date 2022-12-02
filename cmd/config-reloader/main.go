@@ -71,7 +71,11 @@ func main() {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	// Poll ready endpoint indefinitely until it's up and running.
-	req, _ := http.NewRequest(http.MethodGet, *readyURLStr, nil)
+	req, err := http.NewRequest(http.MethodGet, *readyURLStr, nil)
+	if err != nil {
+		level.Error(logger).Log("msg", "creating request", "err", err)
+		os.Exit(1)
+	}
 	ticker := time.NewTicker(500 * time.Millisecond)
 	done := make(chan bool)
 	go func() {
