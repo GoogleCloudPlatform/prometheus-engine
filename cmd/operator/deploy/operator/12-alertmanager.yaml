@@ -14,65 +14,51 @@
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: gmp-system
   name: alertmanager
+  namespace: gmp-system
 spec:
   selector:
     app.kubernetes.io/name: alertmanager
-  clusterIP: None
   ports:
-  - port: 9093
+  - name: alertmanager
+    port: 9093
     targetPort: 9093
-    name: alertmanager
+  clusterIP: None
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  namespace: gmp-system
   name: alertmanager
+  namespace: gmp-system
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: managed-prometheus-alertmanager
       app.kubernetes.io/name: alertmanager
-  serviceName: alertmanager
-  replicas: 1
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: alertmanager
         app: managed-prometheus-alertmanager
+        app.kubernetes.io/name: alertmanager
       annotations:
-        components.gke.io/component-name: managed_prometheus
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        components.gke.io/component-name: managed_prometheus
     spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.io/arch
-                operator: In
-                values:
-                - arm64
-                - amd64
-              - key: kubernetes.io/os
-                operator: In
-                values:
-                - linux
+      priorityClassName: gmp-critical
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419
         command: ['/bin/bash', '-c', 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  - name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml']
+        volumeMounts:
+        - name: alertmanager-config
+          mountPath: /alertmanager/config_out
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
             - all
           privileged: false
-        volumeMounts:
-        - name: alertmanager-config
-          mountPath: /alertmanager/config_out
       containers:
       - name: alertmanager
         image: gke.gcr.io/prometheus-engine/alertmanager:v0.24.0-gmp.0-gke.0
@@ -80,8 +66,8 @@ spec:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
         ports:
-        - containerPort: 9093
-          name: alertmanager
+        - name: alertmanager
+          containerPort: 9093
         resources:
           limits:
             memory: 1G
@@ -90,8 +76,8 @@ spec:
             memory: 200M
         volumeMounts:
         - name: alertmanager-config
-          mountPath: /alertmanager/config_out
           readOnly: true
+          mountPath: /alertmanager/config_out
         - name: alertmanager-data
           mountPath: /alertmanager-data
         securityContext:
@@ -108,15 +94,15 @@ spec:
         - --reload-url=http://localhost:9093/-/reload
         - --ready-url=http://localhost:9093/-/ready
         - --listen-address=:19091
+        ports:
+        - name: cfg-rel-metrics
+          containerPort: 19091
         env:
         - name: NODE_NAME
           valueFrom:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        ports:
-        - name: cfg-rel-metrics
-          containerPort: 19091
         resources:
           limits:
             memory: 32M
@@ -125,8 +111,8 @@ spec:
             memory: 16M
         volumeMounts:
         - name: config
-          mountPath: /alertmanager
           readOnly: true
+          mountPath: /alertmanager
         - name: alertmanager-config
           mountPath: /alertmanager/config_out
         securityContext:
@@ -135,27 +121,6 @@ spec:
             drop:
             - all
           privileged: false
-      priorityClassName: gmp-critical
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
-      tolerations:
-      - effect: NoExecute
-        operator: Exists
-      - effect: NoSchedule
-        operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "amd64"
-        effect: "NoSchedule"
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "arm64"
-        effect: "NoSchedule"
       volumes:
       - name: config
         secret:
@@ -164,3 +129,38 @@ spec:
         emptyDir: {}
       - name: alertmanager-config
         emptyDir: {}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      tolerations:
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
+      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
+      - value: "amd64"
+        effect: "NoSchedule"
+        key: "kubernetes.io/arch"
+        operator: "Equal"
+      - value: "arm64"
+        effect: "NoSchedule"
+        key: "kubernetes.io/arch"
+        operator: "Equal"
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+  serviceName: alertmanager

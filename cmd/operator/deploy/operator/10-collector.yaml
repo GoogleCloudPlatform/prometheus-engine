@@ -15,8 +15,8 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  namespace: gmp-system
   name: collector
+  namespace: gmp-system
 spec:
   selector:
     matchLabels:
@@ -29,39 +29,63 @@ spec:
         app: managed-prometheus-collector
         app.kubernetes.io/name: collector
       annotations:
-        components.gke.io/component-name: managed_prometheus
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        components.gke.io/component-name: managed_prometheus
     spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.io/arch
-                operator: In
-                values:
-                - arm64
-                - amd64
-              - key: kubernetes.io/os
-                operator: In
-                values:
-                - linux
+      serviceAccountName: collector
+      automountServiceAccountToken: true
+      priorityClassName: gmp-critical
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        volumeMounts:
+        - name: config-out
+          mountPath: /prometheus/config_out
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
             - all
           privileged: false
+      containers:
+      - name: config-reloader
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
+        args:
+        - --config-file=/prometheus/config/config.yaml
+        - --config-file-output=/prometheus/config_out/config.yaml
+        - --reload-url=http://localhost:19090/-/reload
+        - --ready-url=http://localhost:19090/-/ready
+        - --listen-address=:19091
+        ports:
+        - name: cfg-rel-metrics
+          containerPort: 19091
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        resources:
+          limits:
+            memory: 32M
+          requests:
+            cpu: 5m
+            memory: 16M
         volumeMounts:
+        - name: config
+          readOnly: true
+          mountPath: /prometheus/config
         - name: config-out
           mountPath: /prometheus/config_out
-      containers:
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
       - name: prometheus
         image: gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.2-gke.0
         args:
@@ -81,24 +105,14 @@ spec:
         - --web.enable-lifecycle
         - --web.route-prefix=/
         - --export.user-agent=prometheus/2.35.0-gmp.2 (mode:kubectl)
+        ports:
+        - name: prom-metrics
+          containerPort: 19090
         # The environment variable EXTRA_ARGS will be populated by the operator.
         # DO NOT specify it here.
         env:
         - name: GOGC
           value: "25"
-        ports:
-        - name: prom-metrics
-          containerPort: 19090
-        livenessProbe:
-          httpGet:
-            path: /-/healthy
-            port: 19090
-            scheme: HTTP
-        readinessProbe:
-          httpGet:
-            path: /-/ready
-            port: 19090
-            scheme: HTTP
         resources:
           limits:
             memory: 3G
@@ -109,75 +123,27 @@ spec:
         - name: storage
           mountPath: /prometheus/data
         - name: config-out
-          mountPath: /prometheus/config_out
           readOnly: true
+          mountPath: /prometheus/config_out
         - name: collection-secret
+          readOnly: true
           mountPath: /etc/secrets
-          readOnly: true
+        livenessProbe:
+          httpGet:
+            port: 19090
+            path: /-/healthy
+            scheme: HTTP
+        readinessProbe:
+          httpGet:
+            port: 19090
+            path: /-/ready
+            scheme: HTTP
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
             - all
           privileged: false
-      - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
-        args:
-        - --config-file=/prometheus/config/config.yaml
-        - --config-file-output=/prometheus/config_out/config.yaml
-        - --reload-url=http://localhost:19090/-/reload
-        - --ready-url=http://localhost:19090/-/ready
-        - --listen-address=:19091
-        env:
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: spec.nodeName
-        ports:
-        - name: cfg-rel-metrics
-          containerPort: 19091
-        resources:
-          limits:
-            memory: 32M
-          requests:
-            cpu: 5m
-            memory: 16M
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          privileged: false
-        volumeMounts:
-        - name: config
-          mountPath: /prometheus/config
-          readOnly: true
-        - name: config-out
-          mountPath: /prometheus/config_out
-      serviceAccountName: collector
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
-      automountServiceAccountToken: true
-      priorityClassName: gmp-critical
-      tolerations:
-      - effect: NoExecute
-        operator: Exists
-      - effect: NoSchedule
-        operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "amd64"
-        effect: "NoSchedule"
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "arm64"
-        effect: "NoSchedule"
       volumes:
       - name: storage
         emptyDir: {}
@@ -189,3 +155,37 @@ spec:
       - name: collection-secret
         secret:
           secretName: collection
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      tolerations:
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
+      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
+      - value: "amd64"
+        effect: "NoSchedule"
+        key: "kubernetes.io/arch"
+        operator: "Equal"
+      - value: "arm64"
+        effect: "NoSchedule"
+        key: "kubernetes.io/arch"
+        operator: "Equal"
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault

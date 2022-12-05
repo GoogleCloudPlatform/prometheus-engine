@@ -15,44 +15,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: gmp-system
   name: gmp-operator
+  namespace: gmp-system
   labels:
     app: managed-prometheus-operator
-    app.kubernetes.io/name: gmp-operator
     app.kubernetes.io/component: operator
+    app.kubernetes.io/name: gmp-operator
     app.kubernetes.io/part-of: gmp
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: gmp-operator
       app.kubernetes.io/component: operator
+      app.kubernetes.io/name: gmp-operator
       app.kubernetes.io/part-of: gmp
   template:
     metadata:
       labels:
         app: managed-prometheus-operator
-        app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/component: operator
+        app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/part-of: gmp
     spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.io/arch
-                operator: In
-                values:
-                - arm64
-                - amd64
-              - key: kubernetes.io/os
-                operator: In
-                values:
-                - linux
       serviceAccountName: operator
       automountServiceAccountToken: true
+      priorityClassName: gmp-critical
       containers:
       - name: operator
         image: gke.gcr.io/prometheus-engine/operator:v0.5.0-gke.0
@@ -75,24 +62,37 @@ spec:
             drop:
             - all
           privileged: false
-      priorityClassName: gmp-critical
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
       tolerations:
       - effect: NoExecute
         operator: Exists
       - effect: NoSchedule
         operator: Exists
       # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "amd64"
+      - value: "amd64"
         effect: "NoSchedule"
-      - key: "kubernetes.io/arch"
+        key: "kubernetes.io/arch"
         operator: "Equal"
-        value: "arm64"
+      - value: "arm64"
         effect: "NoSchedule"
+        key: "kubernetes.io/arch"
+        operator: "Equal"
       securityContext:
-        runAsUser: 1000
         runAsGroup: 1000
         runAsNonRoot: true
+        runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault

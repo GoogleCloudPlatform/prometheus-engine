@@ -11,6 +11,7 @@ RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.10.0
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
 FROM golang:1.18-buster AS hermetic
+RUN curl -L https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv4.5.7/kustomize_v4.5.7_linux_amd64.tar.gz | tar -zx -C /usr/local/bin
 COPY --from=deps /go/bin /go/bin
 ARG RUNCMD='go fmt ./...'
 WORKDIR /workspace

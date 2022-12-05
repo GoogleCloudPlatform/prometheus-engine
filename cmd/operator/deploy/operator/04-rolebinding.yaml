@@ -17,50 +17,50 @@ kind: ClusterRoleBinding
 metadata:
   name: gmp-system:operator
 roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
   name: gmp-system:operator
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
 subjects:
-- kind: ServiceAccount
+- name: operator
   namespace: gmp-system
-  name: operator
+  kind: ServiceAccount
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
+  name: operator
   namespace: gmp-public
-  name: operator
 roleRef:
-  apiGroup: rbac.authorization.k8s.io
+  name: operator
   kind: Role
-  name: operator
+  apiGroup: rbac.authorization.k8s.io
 subjects:
-- kind: ServiceAccount
+- name: operator
   namespace: gmp-system
-  name: operator
+  kind: ServiceAccount
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
+  name: operator
   namespace: gmp-system
-  name: operator
 roleRef:
-  apiGroup: rbac.authorization.k8s.io
+  name: operator
   kind: Role
-  name: operator
+  apiGroup: rbac.authorization.k8s.io
 subjects:
-- kind: ServiceAccount
-  name: operator
+- name: operator
+  kind: ServiceAccount
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: gmp-system:collector
 roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
   name: gmp-system:collector
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
 subjects:
-- kind: ServiceAccount
+- name: collector
   namespace: gmp-system
-  name: collector
+  kind: ServiceAccount
