@@ -38,8 +38,13 @@ func main() {
 		watchedDirs      stringSlice
 		configFile       = flag.String("config-file", "", "config file to watch for changes")
 		configFileOutput = flag.String("config-file-output", "", "config file to write with interpolated environment variables")
-		reloadURLStr     = flag.String("reload-url", "http://127.0.0.1:19090/-/reload", "Prometheus reload endpoint")
-		listenAddress    = flag.String("listen-address", ":19091", "address on which to expose metrics")
+		// Ready and reload endpoints should be compatible with Prometheus-style
+		// management APIs, e.g.
+		// https://prometheus.io/docs/prometheus/latest/management_api/
+		// https://prometheus.io/docs/alerting/latest/management_api/
+		reloadURLStr  = flag.String("reload-url", "http://127.0.0.1:19090/-/reload", "reload endpoint triggers a reload of the configuration file")
+		readyURLStr   = flag.String("ready-url", "http://127.0.0.1:19090/-/ready", "ready endpoint returns a 200 when ready to serve traffic")
+		listenAddress = flag.String("listen-address", ":19091", "address on which to expose metrics")
 	)
 	flag.Var(&watchedDirs, "watched-dir", "directory to watch for file changes (for rule and secret files, may be repeated)")
 
@@ -60,6 +65,43 @@ func main() {
 		level.Error(logger).Log("msg", "parsing reloader URL failed", "err", err)
 		os.Exit(1)
 	}
+
+	// Set up interrupt signal handler.
+	term := make(chan os.Signal, 1)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+
+	// Poll ready endpoint indefinitely until it's up and running.
+	req, err := http.NewRequest(http.MethodGet, *readyURLStr, nil)
+	if err != nil {
+		level.Error(logger).Log("msg", "creating request", "err", err)
+		os.Exit(1)
+	}
+	ticker := time.NewTicker(500 * time.Millisecond)
+	done := make(chan bool)
+	go func() {
+		level.Info(logger).Log("msg", "ensure ready-url is healthy")
+		for {
+			select {
+			case <-term:
+				level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+				os.Exit(0)
+			case <-ticker.C:
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					level.Error(logger).Log("msg", "polling ready-url", "err", err)
+					os.Exit(1)
+				}
+				if resp.StatusCode == http.StatusOK {
+					level.Info(logger).Log("msg", "ready-url is healthy")
+					ticker.Stop()
+					done <- true
+					return
+				}
+			}
+		}
+	}()
+	<-done
+
 	rel := reloader.New(
 		logger,
 		metrics,
@@ -88,10 +130,7 @@ func main() {
 		})
 	}
 	{
-		term := make(chan os.Signal, 1)
 		cancel := make(chan struct{})
-		signal.Notify(term, os.Interrupt, syscall.SIGTERM)
-
 		g.Add(
 			func() error {
 				select {

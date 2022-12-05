@@ -106,6 +106,7 @@ spec:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
         - --reload-url=http://localhost:9093/-/reload
+        - --ready-url=http://localhost:9093/-/ready
         - --listen-address=:19091
         env:
         - name: NODE_NAME

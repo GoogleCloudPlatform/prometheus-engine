@@ -112,6 +112,7 @@ spec:
         - --watched-dir=/etc/rules
         - --watched-dir=/etc/secrets
         - --reload-url=http://localhost:19092/-/reload
+        - --ready-url=http://localhost:19092/-/ready
         - --listen-address=:19093
         ports:
         - containerPort: 19093

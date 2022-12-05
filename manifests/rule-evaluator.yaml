@@ -93,6 +93,13 @@ spec:
         operator: "Equal"
         value: "arm64"
         effect: "NoSchedule"
+      initContainers:
+      - name: config-init
+        image: gke.gcr.io/gke-distroless/bash:20220419
+        command: ['/bin/bash', '-c', 'touch /etc/config/config.yaml']
+        volumeMounts:
+        - name: config
+          mountPath: /etc/config
       containers:
       - name: evaluator
         image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.5.0-gke.0
@@ -136,6 +143,7 @@ spec:
         - --config-file=/etc/config/config.yaml
         - --watched-dir=/etc/rules
         - --reload-url=http://localhost:9092/-/reload
+        - --ready-url=http://localhost:9092/-/ready
         - --listen-address=:9093
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
         ports:

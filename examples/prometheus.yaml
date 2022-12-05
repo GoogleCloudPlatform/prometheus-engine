@@ -126,6 +126,7 @@ spec:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
         - --reload-url=http://localhost:9090/-/reload
+        - --ready-url=http://localhost:9090/-/ready
         - --listen-address=:19091
         ports:
         - name: reloader-web
