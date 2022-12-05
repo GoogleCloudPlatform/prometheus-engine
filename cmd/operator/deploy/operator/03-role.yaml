@@ -17,17 +17,17 @@ kind: ClusterRole
 metadata:
   name: gmp-system:collector
 rules:
-- apiGroups: [""]
-  resources:
+- resources:
   - endpoints
   - nodes
   - nodes/metrics
   - pods
   - services
+  apiGroups: [""]
   verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources:
+- resources:
   - configmaps
+  apiGroups: [""]
   verbs: ["get"]
 - nonResourceURLs: ["/metrics"]
   verbs: ["get"]
@@ -35,64 +35,64 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  namespace: gmp-system
   name: operator
+  namespace: gmp-system
 rules:
-- apiGroups: [""]
-  resources:
+- resources:
   - pods
+  apiGroups: [""]
   verbs: ["list", "watch"]
-- apiGroups: [""]
-  resources:
+- resources:
   - secrets
+  apiGroups: [""]
   verbs: ["list", "watch", "create"]
-- apiGroups: [""]
-  resources:
+- resources:
   - secrets
+  apiGroups: [""]
   resourceNames: ["collection", "rules", "alertmanager"]
   verbs: ["get", "patch", "update"]
-- apiGroups: [""]
-  resources:
+- resources:
   - configmaps
+  apiGroups: [""]
   verbs: ["list", "watch", "create"]
-- apiGroups: [""]
-  resources:
+- resources:
   - configmaps
+  apiGroups: [""]
   resourceNames: ["collector", "rule-evaluator", "rules-generated"]
   verbs: ["get", "patch", "update"]
-- apiGroups: ["apps"]
-  resources:
+- resources:
   - daemonsets
+  apiGroups: ["apps"]
   resourceNames: ["collector"]
   verbs: ["get", "list", "watch", "delete", "patch", "update"]
-- apiGroups: ["apps"]
-  resources:
+- resources:
   - deployments
+  apiGroups: ["apps"]
   verbs: ["list", "watch"]
-- apiGroups: ["apps"]
-  resources:
+- resources:
   - deployments
+  apiGroups: ["apps"]
   resourceNames: ["rule-evaluator"]
   verbs: ["get", "delete", "patch", "update"]
-- apiGroups: [""]
-  resources:
+- resources:
   - services
+  apiGroups: [""]
   resourceNames: ["alertmanager"]
   verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  namespace: gmp-public
   name: operator
+  namespace: gmp-public
 rules:
-- apiGroups: [""]
-  resources:
+- resources:
   - secrets
+  apiGroups: [""]
   verbs: ["get", "list", "watch"]
-- apiGroups: ["monitoring.googleapis.com"]
-  resources:
+- resources:
   - operatorconfigs
+  apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -101,36 +101,36 @@ metadata:
   name: gmp-system:operator
 rules:
 # Permission to inject CA bundles into webhook configs of fixed name.
-- apiGroups: ["admissionregistration.k8s.io"]
-  resources:
+- resources:
   - validatingwebhookconfigurations
   - mutatingwebhookconfigurations
+  apiGroups: ["admissionregistration.k8s.io"]
   resourceNames:
   - gmp-operator.gmp-system.monitoring.googleapis.com
   verbs: ["get", "patch", "update", "watch"]
 # Permission to delete legacy webhook config the operator directly created
 # in previous versions.
-- apiGroups: ["admissionregistration.k8s.io"]
-  resources:
+- resources:
   - validatingwebhookconfigurations
   - mutatingwebhookconfigurations
+  apiGroups: ["admissionregistration.k8s.io"]
   resourceNames:
   - gmp-operator
   verbs: ["delete"]
 # Resources controlled by the operator.
-- apiGroups: ["monitoring.googleapis.com"]
-  resources:
+- resources:
   - clusterpodmonitorings
   - clusterrules
   - globalrules
   - podmonitorings
   - rules
+  apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "list", "watch"]
-- apiGroups: ["monitoring.googleapis.com"]
-  resources:
+- resources:
   - clusterpodmonitorings/status
   - clusterrules/status
   - globalrules/status
   - podmonitorings/status
   - rules/status
+  apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "patch", "update"]

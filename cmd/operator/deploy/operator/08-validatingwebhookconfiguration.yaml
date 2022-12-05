@@ -23,130 +23,129 @@ webhooks:
   clientConfig:
     # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
-      path: /validate/monitoring.googleapis.com/v1/podmonitorings
+      namespace: gmp-system
       port: 443
+      path: /validate/monitoring.googleapis.com/v1/podmonitorings
   failurePolicy: Fail
-  sideEffects: None
   rules:
-  - apiGroups:
+  - resources:
+    - podmonitorings
+    apiGroups:
     - monitoring.googleapis.com
     apiVersions:
     - v1
     operations:
     - CREATE
     - UPDATE
-    resources:
-    - podmonitorings
+  sideEffects: None
 - name: validate.clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
-      path: /validate/monitoring.googleapis.com/v1/clusterpodmonitorings
+      namespace: gmp-system
       port: 443
+      path: /validate/monitoring.googleapis.com/v1/clusterpodmonitorings
   failurePolicy: Fail
-  sideEffects: None
   rules:
-  - apiGroups:
+  - resources:
+    - clusterpodmonitorings
+    apiGroups:
     - monitoring.googleapis.com
     apiVersions:
     - v1
     operations:
     - CREATE
     - UPDATE
-    resources:
-    - clusterpodmonitorings
+  sideEffects: None
 - name: validate.rules.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
-      path: /validate/monitoring.googleapis.com/v1/rules
+      namespace: gmp-system
       port: 443
+      path: /validate/monitoring.googleapis.com/v1/rules
   failurePolicy: Fail
-  sideEffects: None
   rules:
-  - apiGroups:
+  - resources:
+    - rules
+    apiGroups:
     - monitoring.googleapis.com
     apiVersions:
     - v1
     operations:
     - CREATE
     - UPDATE
-    resources:
-    - rules
+  sideEffects: None
 - name: validate.clusterrules.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
-      path: /validate/monitoring.googleapis.com/v1/clusterrules
+      namespace: gmp-system
       port: 443
+      path: /validate/monitoring.googleapis.com/v1/clusterrules
   failurePolicy: Fail
-  sideEffects: None
   rules:
-  - apiGroups:
+  - resources:
+    - clusterrules
+    apiGroups:
     - monitoring.googleapis.com
     apiVersions:
     - v1
     operations:
     - CREATE
     - UPDATE
-    resources:
-    - clusterrules
+  sideEffects: None
 - name: validate.globalrules.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
-      path: /validate/monitoring.googleapis.com/v1/globalrules
+      namespace: gmp-system
       port: 443
+      path: /validate/monitoring.googleapis.com/v1/globalrules
   failurePolicy: Fail
-  sideEffects: None
   rules:
-  - apiGroups:
+  - resources:
+    - globalrules
+    apiGroups:
     - monitoring.googleapis.com
     apiVersions:
     - v1
     operations:
     - CREATE
     - UPDATE
-    resources:
-    - globalrules
+  sideEffects: None
 - name: validate.operatorconfigs.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
-      path: /validate/monitoring.googleapis.com/v1/operatorconfigs
+      namespace: gmp-system
       port: 443
+      path: /validate/monitoring.googleapis.com/v1/operatorconfigs
   failurePolicy: Fail
-  sideEffects: None
   rules:
-  - apiGroups:
+  - resources:
+    - operatorconfigs
+    apiGroups:
     - monitoring.googleapis.com
     apiVersions:
     - v1
     operations:
     - CREATE
     - UPDATE
-    resources:
-    - operatorconfigs
-
+  sideEffects: None

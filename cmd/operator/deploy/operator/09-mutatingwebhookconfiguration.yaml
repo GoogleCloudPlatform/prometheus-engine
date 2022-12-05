@@ -23,41 +23,41 @@ webhooks:
   clientConfig:
     # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
-      path: /default/monitoring.googleapis.com/v1/podmonitorings
+      namespace: gmp-system
       port: 443
+      path: /default/monitoring.googleapis.com/v1/podmonitorings
   failurePolicy: Fail
-  sideEffects: None
   rules:
-  - apiGroups:
+  - resources:
+    - podmonitorings
+    apiGroups:
     - monitoring.googleapis.com
     apiVersions:
     - v1
     operations:
     - CREATE
     - UPDATE
-    resources:
-    - podmonitorings
+  sideEffects: None
 - name: default.clusterpodmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
     # caBundle populated by operator.
     service:
-      namespace: gmp-system
       name: gmp-operator
-      path: /default/monitoring.googleapis.com/v1/clusterpodmonitorings
+      namespace: gmp-system
       port: 443
+      path: /default/monitoring.googleapis.com/v1/clusterpodmonitorings
   failurePolicy: Fail
-  sideEffects: None
   rules:
-  - apiGroups:
+  - resources:
+    - clusterpodmonitorings
+    apiGroups:
     - monitoring.googleapis.com
     apiVersions:
     - v1
     operations:
     - CREATE
     - UPDATE
-    resources:
-    - clusterpodmonitorings
+  sideEffects: None

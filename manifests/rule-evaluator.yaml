@@ -61,6 +61,89 @@ spec:
         app.kubernetes.io/name: rule-evaluator
     spec:
       automountServiceAccountToken: true
+      initContainers:
+      - name: config-init
+        image: gke.gcr.io/gke-distroless/bash:20220419
+        command: ['/bin/bash', '-c', 'touch /etc/config/config.yaml']
+        volumeMounts:
+        - name: config
+          mountPath: /etc/config
+      containers:
+      - name: config-reloader
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
+        args:
+        - --config-file=/etc/config/config.yaml
+        - --watched-dir=/etc/rules
+        - --reload-url=http://localhost:9092/-/reload
+        - --ready-url=http://localhost:9092/-/ready
+        - --listen-address=:9093
+        ports:
+        - name: cfg-rel-metrics
+          protocol: TCP
+          containerPort: 9093
+        resources:
+          limits:
+            memory: 64M
+          requests:
+            cpu: 5m
+            memory: 16M
+        volumeMounts:
+        - name: config
+          readOnly: true
+          mountPath: /etc/config
+        - name: rules
+          readOnly: true
+          mountPath: /etc/rules
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
+      - name: evaluator
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.5.0-gke.0
+        args:
+        - "--config.file=/etc/config/config.yaml"
+        - "--web.listen-address=:9092"
+        ports:
+        - name: r-eval-metrics
+          containerPort: 9092
+        resources:
+          limits:
+            memory: 1G
+          requests:
+            cpu: 100m
+            memory: 200M
+        volumeMounts:
+        - name: config
+          readOnly: true
+          mountPath: /etc/config
+        - name: rules
+          readOnly: true
+          mountPath: /etc/rules
+        livenessProbe:
+          httpGet:
+            port: r-eval-metrics
+            path: /-/healthy
+        readinessProbe:
+          httpGet:
+            port: r-eval-metrics
+            path: /-/ready
+          # Readiness attempts a query round-trip so we need a more generous timeout.
+          timeoutSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
+      volumes:
+      - name: config
+        configMap:
+          name: rule-evaluator
+      - name: rules
+        configMap:
+          name: rules
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -75,104 +158,21 @@ spec:
                 operator: In
                 values:
                 - linux
-      securityContext:
-        runAsGroup: 1000
-        runAsNonRoot: true
-        runAsUser: 1000
       tolerations:
       - effect: NoExecute
         operator: Exists
       - effect: NoSchedule
         operator: Exists
       # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "amd64"
+      - value: "amd64"
         effect: "NoSchedule"
-      - key: "kubernetes.io/arch"
+        key: "kubernetes.io/arch"
         operator: "Equal"
-        value: "arm64"
+      - value: "arm64"
         effect: "NoSchedule"
-      initContainers:
-      - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
-        command: ['/bin/bash', '-c', 'touch /etc/config/config.yaml']
-        volumeMounts:
-        - name: config
-          mountPath: /etc/config
-      containers:
-      - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.5.0-gke.0
-        args:
-        - "--config.file=/etc/config/config.yaml"
-        - "--web.listen-address=:9092"
-        ports:
-        - name: r-eval-metrics
-          containerPort: 9092
-        livenessProbe:
-          httpGet:
-            path: /-/healthy
-            port: r-eval-metrics
-        readinessProbe:
-          httpGet:
-            path: /-/ready
-            port: r-eval-metrics
-          # Readiness attempts a query round-trip so we need a more generous timeout.
-          timeoutSeconds: 5
-        resources:
-          limits:
-            memory: 1G
-          requests:
-            cpu: 100m
-            memory: 200M
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          privileged: false
-        volumeMounts:
-        - mountPath: /etc/config
-          name: config
-          readOnly: true
-        - mountPath: /etc/rules
-          name: rules
-          readOnly: true
-      - name: config-reloader
-        args:
-        - --config-file=/etc/config/config.yaml
-        - --watched-dir=/etc/rules
-        - --reload-url=http://localhost:9092/-/reload
-        - --ready-url=http://localhost:9092/-/ready
-        - --listen-address=:9093
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.5.0-gke.0
-        ports:
-        - containerPort: 9093
-          name: cfg-rel-metrics
-          protocol: TCP
-        resources:
-          limits:
-            memory: 64M
-          requests:
-            cpu: 5m
-            memory: 16M
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          privileged: false
-        volumeMounts:
-        - mountPath: /etc/config
-          name: config
-          readOnly: true
-        - mountPath: /etc/rules
-          name: rules
-          readOnly: true
-      volumes:
-      - name: config
-        configMap:
-          name: rule-evaluator
-      - name: rules
-        configMap:
-          name: rules
+        key: "kubernetes.io/arch"
+        operator: "Equal"
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
