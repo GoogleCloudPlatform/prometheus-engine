@@ -1,0 +1,24 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: postgresql-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: postgresql-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: postgresql
+    interval: 30s
+    rules:
+    - alert: PostgreSQLDatabaseSizeTooLarge
+      annotations:
+        description: |-
+          PostgreSQL database size too large
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: PostgreSQL database size too large (instance {{ $labels.instance }})
+      expr: pg_database_size_bytes > 100000000000
+      for: 5m
+      labels:
+        severity: warning

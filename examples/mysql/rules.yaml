@@ -1,0 +1,24 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: mysql-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: mysql-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: mysql
+    interval: 30s
+    rules:
+    - alert: MySQLConnectionErrors
+      annotations:
+        description: |-
+          MySQL connection errors
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: MySQL connection errors (instance {{ $labels.instance }})
+      expr: mysql_global_status_connection_errors_total > 0
+      for: 5m
+      labels:
+        severity: warning

@@ -1,0 +1,31 @@
+kind: StatefulSet
+metadata:
+  name: consul
+spec:
+  serviceName: consul
+  selector:
+    matchLabels:
++     app.kubernetes.io/name: consul
+  template:
+    metadata:
+      labels:
++       app.kubernetes.io/name: consul
+    spec:
+      containers:
+      - name: consul
+        image: consul:1.13.3
+        ports:
+        - containerPort: 8500
+          name: consul
+          protocol: TCP
++       volumeMounts:
++       - mountPath: /consul/config/metrics.hcl
++         subPath: metrics.hcl
++         name: consul-telemetry
++     volumes:
++     - name: consul-telemetry
++       configMap:
++         name: consul-telemetry
++         items:
++         - key: metrics.hcl
++           path: metrics.hcl

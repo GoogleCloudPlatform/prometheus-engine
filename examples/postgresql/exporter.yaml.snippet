@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql
+spec:
+  serviceName: postgresql
+  selector:
+    matchLabels:
++     app.kubernetes.io/name: postgresql
+  template:
+    metadata:
+      labels:
++       app.kubernetes.io/name: postgresql
+    spec:
+      containers:
+      - image: postgres:14.0
+        name: postgresql
+        env:
+        - name: POSTGRES_USER
+          value: root
+        - name: POSTGRES_PASSWORD
+          value: password
+        - name: POSTGRES_DB
+          value: dev
++     - name: exporter
++       image: quay.io/prometheuscommunity/postgres-exporter:v0.11.1
++       env:
++       - name: DATA_SOURCE_NAME
++         value: postgresql://root:password@localhost:5432/dev?sslmode=disable
++       ports:
++       - containerPort: 9187
++         name: prometheus
