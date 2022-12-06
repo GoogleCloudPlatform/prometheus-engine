@@ -104,7 +104,7 @@ spec:
         - --web.listen-address=:19090
         - --web.enable-lifecycle
         - --web.route-prefix=/
-        - --export.user-agent=prometheus/2.35.0-gmp.2 (mode:kubectl)
+        - --export.user-agent-mode=kubectl
         ports:
         - name: prom-metrics
           containerPort: 19090
