@@ -4,17 +4,24 @@ See the [binary documentation](../../cmd/operator/README.md) for deployment inst
 
 ## Testing
 
-The operator has an end-to-end test suite to run functional tests against a real
-Kubernetes cluster.
+The operator has an end-to-end test suite to run functional tests against a real Kubernetes cluster.
 
-To run the tests a kubeconfig pointing to a GKE cluster is required. This is generally
-already taken care of while setting up a GKE cluster
+To run the tests a kubeconfig pointing to a GKE cluster is required. This is generally already taken
+care of while setting up a GKE cluster
 ([instructions](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-zonal-cluster)).
 Use `kubectl config {current,set}-context` to verify or change which cluster the tests will
 execute against.
 
-The test expects various resources, which are part of deploying the operator, to be installed
-in the cluster:
+The easiest way to run end-to-end tests is to deploy all the operator yourself and connect to that
+cluster by passing `--local-operator` to your test:
+
+```bash
+go test ./e2e/ --local-operator \
+    --project-id=$PROJECT_ID --cluster=$CLUSTER_NAME --location=$LOCATION
+```
+
+To run the test with a test-deployed operator, the test expects various resources, which are part of
+deploying the operator, to be installed in the cluster:
 
 ```bash
 kubectl apply -f ../../cmd/operator/deploy/crds/
