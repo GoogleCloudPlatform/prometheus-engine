@@ -1,0 +1,19 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: consul
+  labels:
+    app.kubernetes.io/name: consul
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  endpoints:
+  - port: 8500
+    scheme: http
+    interval: 30s
+    path: /v1/agent/metrics
+    params:
+      format:
+      - prometheus
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: consul

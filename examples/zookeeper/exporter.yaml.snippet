@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+spec:
+  selector:
+    matchLabels:
++     app.kubernetes.io/name: zookeeper
+  template:
+    metadata:
+      labels:
++       app.kubernetes.io/name: zookeeper
+    spec:
+      containers:
+      - name: zookeeper
+        image: zookeeper:3.8.0
++       env:
++       - name: ZOO_CFG_EXTRA
++         value: "metricsProvider.className=org.apache.zookeeper.metrics.prometheus.PrometheusMetricsProvider metricsProvider.httpPort=7000 metricsProvider.exportJvmInfo=true"
++       ports:
++       - containerPort: 7000
++         name: prometheus

@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-exporter
+  labels:
+    app.kubernetes.io/name: kafka-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka-exporter
+    spec:
+      containers:
+      - name: exporter
+        image: danielqsj/kafka-exporter:v1.6.0
+        args:
+        - --kafka.server=kafka:9092
+        ports:
+        - containerPort: 9308
+          name: prometheus

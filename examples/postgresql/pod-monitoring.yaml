@@ -1,0 +1,16 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: postgresql
+  labels:
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  endpoints:
+  - port: prometheus
+    scheme: http
+    interval: 30s
+    path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql

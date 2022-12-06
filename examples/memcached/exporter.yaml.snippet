@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memcached
+spec:
+  selector:
+    matchLabels:
++     app.kubernetes.io/name: memcached
+  template:
+    metadata:
+      labels:
++       app.kubernetes.io/name: memcached
+    spec:
+      containers:
+      - name: memcached
+        image: ubuntu/memcached:1.6-22.04_beta
+        ports:
+        - containerPort: 11211
+          name: memcached
+          protocol: TCP
++     - name: memcached-exporter
++       image: quay.io/prometheus/memcached-exporter:v0.10.0
++       ports:
++       - containerPort: 9150
++         name: prometheus

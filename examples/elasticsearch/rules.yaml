@@ -1,0 +1,46 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: elasticsearch-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: elasticsearch-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: elasticsearch
+    interval: 30s
+    rules:
+    - alert: ElasticsearchHighJVMMemoryUsage
+      annotations:
+        description: |-
+          Elasticsearch high jvm memory usage
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Elasticsearch high jvm memory usage (instance {{ $labels.instance }})
+      expr: (elasticsearch_jvm_memory_used_bytes / elasticsearch_jvm_memory_max_bytes) > 0.9
+      for: 5m
+      labels:
+        severity: critical
+    - alert: ElasticsearchRedClusterStatus
+      annotations:
+        description: |-
+          Elasticsearch red cluster status
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Elasticsearch red cluster status (instance {{ $labels.instance }})
+      expr: sum(elasticsearch_cluster_health_status{color="red"}) > 0
+      for: 5m
+      labels:
+        severity: critical
+    - alert: ElasticsearchYellowClusterStatus
+      annotations:
+        description: |-
+          Elasticsearch yellow cluster status
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Elasticsearch yellow cluster status (instance {{ $labels.instance }})
+      expr: sum(elasticsearch_cluster_health_status{color="yellow"}) > 0
+      for: 5m
+      labels:
+        severity: warning
