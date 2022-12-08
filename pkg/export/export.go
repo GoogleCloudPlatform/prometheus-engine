@@ -157,8 +157,13 @@ type ExporterOpts struct {
 	CredentialsFile string
 	// Disable authentication (for debugging purposes).
 	DisableAuth bool
-	// A user agent string added as a suffix to the regular user agent.
-	UserAgent string
+	// A user agent product string added to the regular user agent.
+	// See: https://www.rfc-editor.org/rfc/rfc7231#section-5.5.3
+	UserAgentProduct string
+	// A string added as a suffix to the regular user agent.
+	UserAgentMode string
+	// UserAgentEnv where calls to GCM API are made.
+	UserAgentEnv string
 
 	// Default monitored resource fields set on exported data.
 	ProjectID string
@@ -227,7 +232,8 @@ func (alwaysLease) OnLeaderChange(f func()) {
 
 func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.MetricClient, error) {
 	// Identity User Agent for all gRPC requests.
-	ua := strings.TrimSpace(fmt.Sprintf("%s/%s %s", ClientName, Version, opts.UserAgent))
+	ua := strings.TrimSpace(fmt.Sprintf("%s/%s %s (env:%s;mode:%s)",
+		ClientName, Version, opts.UserAgentProduct, opts.UserAgentEnv, opts.UserAgentMode))
 
 	clientOpts := []option.ClientOption{
 		option.WithGRPCDialOption(grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor)),

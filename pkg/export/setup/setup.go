@@ -36,10 +36,18 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
-// Supported HA backend modes.
 const (
+	// Supported HA backend modes.
 	HABackendNone       = "none"
 	HABackendKubernetes = "kube"
+	// User agent environments.
+	UAEnvGKE         = "gke"
+	UAEnvGCE         = "gce"
+	UAEnvUnspecified = "unspecified"
+	// User agent modes.
+	UAModeGKE         = "gke"
+	UAModeKubectl     = "kubectl"
+	UAModeUnspecified = "unspecified"
 )
 
 // Environment variable that contains additional command line arguments.
@@ -78,15 +86,20 @@ func Global() *export.Exporter {
 // FromFlags returns a constructor for a new exporter that is configured through flags that are
 // registered with the given application. The constructor must be called after the flags
 // have been parsed.
-func FromFlags(a *kingpin.Application, userAgent string) func(log.Logger, prometheus.Registerer) (*export.Exporter, error) {
+func FromFlags(a *kingpin.Application, userAgentProduct string) func(log.Logger, prometheus.Registerer) (*export.Exporter, error) {
 	var opts export.ExporterOpts
+	env := UAEnvUnspecified
 
 	// Default target fields if we can detect them in GCP.
 	if metadata.OnGCE() {
+		env = UAEnvGCE
 		opts.ProjectID, _ = metadata.ProjectID()
-		opts.Cluster, _ = metadata.InstanceAttributeValue("cluster-name")
+		cluster, _ := metadata.InstanceAttributeValue("cluster-name")
+		if cluster != "" {
+			env = UAEnvGKE
+		}
 		// These attributes are set for GKE nodes. For the location, we first check
-		// the clustr location, which may be a zone or a region. We must always use that value
+		// the cluster location, which may be a zone or a region. We must always use that value
 		// to avoid collisions with other clusters, as the same cluster name may be reused
 		// in different locations.
 		// In particular, we cannot set the location to the node's zone for a regional cluster,
@@ -100,6 +113,8 @@ func FromFlags(a *kingpin.Application, userAgent string) func(log.Logger, promet
 			opts.Location, _ = metadata.Zone()
 		}
 	}
+	opts.UserAgentEnv = env
+	opts.UserAgentProduct = userAgentProduct
 
 	a.Flag("export.disable", "Disable exporting to GCM.").
 		Default("false").BoolVar(&opts.Disable)
@@ -116,8 +131,8 @@ func FromFlags(a *kingpin.Application, userAgent string) func(log.Logger, promet
 	a.Flag("export.label.project-id", fmt.Sprintf("Default project ID set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", export.KeyProjectID)).
 		Default(opts.ProjectID).StringVar(&opts.ProjectID)
 
-	a.Flag("export.user-agent", "Override for the user agent used for requests against the GCM API.").
-		Default(userAgent).StringVar(&opts.UserAgent)
+	a.Flag("export.user-agent-mode", fmt.Sprintf("Mode for user agent used for requests against the GCM API. Valid values are %q, %q, or %q.", UAModeGKE, UAModeKubectl, UAModeUnspecified)).
+		Default("unspecified").EnumVar(&opts.UserAgentMode, UAModeUnspecified, UAModeGKE, UAModeKubectl)
 
 	// The location and cluster flag should probably not be used. On the other hand, they make it easy
 	// to populate these important values in the monitored resource without interfering with existing
