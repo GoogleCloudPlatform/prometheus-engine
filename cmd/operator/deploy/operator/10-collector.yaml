@@ -72,7 +72,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 5m
+            cpu: 2m
             memory: 16M
         volumeMounts:
         - name: config
@@ -117,8 +117,10 @@ spec:
           limits:
             memory: 3G
           requests:
-            cpu: 100m
-            memory: 200M
+            # Resource requests were empirically determined to be in this range
+            # when running idle (i.e. no scraping).
+            cpu: 2m
+            memory: 32M
         volumeMounts:
         - name: storage
           mountPath: /prometheus/data

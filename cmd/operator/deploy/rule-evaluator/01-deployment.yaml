@@ -55,7 +55,7 @@ spec:
           limits:
             memory: 64M
           requests:
-            cpu: 5m
+            cpu: 2m
             memory: 16M
         volumeMounts:
         - name: config
@@ -84,8 +84,10 @@ spec:
           limits:
             memory: 1G
           requests:
-            cpu: 100m
-            memory: 200M
+            # Resource requests were empirically determined to be in this range
+            # when running idle (i.e. no querying/writing).
+            cpu: 2m
+            memory: 32M
         volumeMounts:
         - name: config-out
           readOnly: true

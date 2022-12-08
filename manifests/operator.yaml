@@ -258,6 +258,12 @@ spec:
           # Note this should match the --metrics-addr flag passed in to the operator args.
           # Default is 18080.
           containerPort: 18080
+        resources:
+          limits:
+            memory: 256M
+          requests:
+            cpu: 8m
+            memory: 32M
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -576,7 +582,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 5m
+            cpu: 2m
             memory: 16M
         volumeMounts:
         - name: config
@@ -621,8 +627,10 @@ spec:
           limits:
             memory: 3G
           requests:
-            cpu: 100m
-            memory: 200M
+            # Resource requests were empirically determined to be in this range
+            # when running idle (i.e. no scraping).
+            cpu: 2m
+            memory: 32M
         volumeMounts:
         - name: storage
           mountPath: /prometheus/data
@@ -751,7 +759,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 5m
+            cpu: 2m
             memory: 16M
         volumeMounts:
         - name: config
@@ -784,8 +792,10 @@ spec:
           limits:
             memory: 1G
           requests:
-            cpu: 100m
-            memory: 200M
+            # Resource requests were empirically determined to be in this range
+            # when running idle (i.e. no querying/writing).
+            cpu: 2m
+            memory: 32M
         volumeMounts:
         - name: config-out
           readOnly: true
@@ -923,8 +933,10 @@ spec:
           limits:
             memory: 1G
           requests:
-            cpu: 100m
-            memory: 200M
+            # Resource requests were empirically determined to be in this range
+            # when running idle (i.e. no alerting).
+            cpu: 2m
+            memory: 32M
         volumeMounts:
         - name: alertmanager-config
           readOnly: true
@@ -958,7 +970,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 5m
+            cpu: 2m
             memory: 16M
         volumeMounts:
         - name: config
