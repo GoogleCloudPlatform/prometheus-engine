@@ -1,0 +1,60 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: ingress-nginx-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: ingress-nginx-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: ingress-nginx
+    interval: 30s
+    rules:
+    - alert: NGINXIngressDroppedConnections
+      annotations:
+        description: |-
+          NGINX Ingress dropped connections
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: NGINX Ingress dropped connections (instance {{ $labels.instance }})
+      expr: (nginx_ingress_controller_nginx_process_connections_total{state="accepted"} - nginx_ingress_controller_nginx_process_connections_total{state="handled"}) > 0
+      for: 5m
+      labels:
+        severity: critical
+    - alert: NGINXIngressHighRequestRate
+      annotations:
+        description: |-
+          NGINX Ingress high request rate
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: NGINX Ingress high request rate (instance {{ $labels.instance }})
+      expr: rate(nginx_ingress_controller_requests[5m]) > 100
+      for: 5m
+      labels:
+        severity: warning
+    - alert: NGINXIngressLowRequestRate
+      annotations:
+        description: |-
+          NGINX Ingress low request rate
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: NGINX Ingress low request rate (instance {{ $labels.instance }})
+      expr: rate(nginx_ingress_controller_requests[5m]) < 10
+      for: 5m
+      labels:
+        severity: warning
