@@ -78,8 +78,6 @@ const (
 	RuleEvaluatorAppName = "managed-prometheus-rule-evaluator"
 	AlertmanagerAppName  = "managed-prometheus-alertmanager"
 
-	// How often to poll the targets.
-	targetPollInterval = 10 * time.Second
 	// The level of concurrency to use to fetch all targets.
 	defaultTargetPollConcurrency = 4
 )

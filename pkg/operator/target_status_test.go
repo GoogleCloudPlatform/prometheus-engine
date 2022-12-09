@@ -1251,9 +1251,11 @@ func TestPolling(t *testing.T) {
 	expectStatus := func(t *testing.T, description string, expected []monitoringv1.ScrapeEndpointStatus) {
 		// Must poll because status is updated via other thread.
 		var err error
-		if pollErr := wait.Poll(100*time.Millisecond, 2*time.Second, func() (done bool, err error) {
+		if pollErr := wait.Poll(100*time.Millisecond, 2*time.Second, func() (bool, error) {
 			var podMonitorings monitoringv1.PodMonitoringList
-			kubeClient.List(ctx, &podMonitorings)
+			if err := kubeClient.List(ctx, &podMonitorings); err != nil {
+				return false, nil
+			}
 			switch amount := len(podMonitorings.Items); amount {
 			case 0:
 				err = fmt.Errorf("Could not find %s PodMonitoring", description)
@@ -1285,7 +1287,9 @@ func TestPolling(t *testing.T) {
 			Object: &appsv1.DaemonSet{},
 		}
 		for range ch {
-			reconciler.Reconcile(ctx, reconcile.Request{})
+			if _, err := reconciler.Reconcile(ctx, reconcile.Request{}); err != nil {
+				t.Errorf("error reconciling: %s", err)
+			}
 		}
 	}()
 
