@@ -55,17 +55,21 @@ import (
 )
 
 var (
-	kubeconfig        *rest.Config
-	projectID         string
-	cluster           string
-	location          string
-	skipGCM           bool
-	gcpServiceAccount string
-	localOperator     bool
+	kubeconfig         *rest.Config
+	projectID          string
+	cluster            string
+	location           string
+	skipGCM            bool
+	gcpServiceAccount  string
+	localOperator      bool
+	leakResources      bool
+	cleanGlobalConfigs bool
 )
 
 func TestMain(m *testing.M) {
 	flag.BoolVar(&localOperator, "local-operator", false, "If set, prevents deploying an operator. An operator is expected to be deployed.")
+	flag.BoolVar(&leakResources, "leak-resources", false, "If set, prevents deleting resources. Useful for debugging.")
+	flag.BoolVar(&cleanGlobalConfigs, "clean-global-configs", false, "If set, cleans global GMP configurations. Useful for --local-operator")
 	flag.StringVar(&projectID, "project-id", "", "The GCP project to write metrics to.")
 	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
 	flag.StringVar(&location, "location", "", "The location of the Kubernetes cluster that's tested against.")
@@ -94,9 +98,11 @@ func TestMain(m *testing.M) {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	<-term
-	if err := cleanupAllNamespaces(context.Background()); err != nil {
-		fmt.Fprintln(os.Stderr, "Cleaning up namespaces failed:", err)
-		os.Exit(1)
+	if !leakResources {
+		if err := cleanupAllNamespaces(context.Background()); err != nil {
+			fmt.Fprintln(os.Stderr, "Cleaning up namespaces failed:", err)
+			os.Exit(1)
+		}
 	}
 }
 

@@ -29,6 +29,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -87,6 +88,18 @@ func newTestContext(t *testing.T) *testContext {
 	} else {
 		operatorNamespace = operator.DefaultOperatorNamespace
 		pubNamespace = operator.DefaultPublicNamespace
+
+		if cleanGlobalConfigs {
+			cleanGlobalConfigsF(context.Background(), pubNamespace, operatorNamespace)
+		} else {
+			errs := checkGlobalConfigs(context.Background(), pubNamespace, operatorNamespace)
+			if len(errs) > 0 {
+				for err := range errs {
+					t.Error(err)
+				}
+				t.Fatalf("global configs not clean")
+			}
+		}
 	}
 
 	tctx := &testContext{
@@ -101,10 +114,27 @@ func newTestContext(t *testing.T) *testContext {
 	// cleanup of namespaces in TestMain.
 	t.Cleanup(cancel)
 	t.Cleanup(func() {
-		ctx := context.Background()
-		tctx.cleanupBaseNamespaces(ctx)
-		if !localOperator {
-			tctx.cleanupGMPNamespaces(ctx)
+		if !leakResources {
+			ctx := context.Background()
+			tctx.cleanupBaseNamespaces(ctx)
+			if !localOperator {
+				tctx.cleanupGMPNamespaces(ctx)
+			} else if cleanGlobalConfigs {
+				err := cleanGlobalConfigsF(context.Background(), pubNamespace, operatorNamespace)
+				if err != nil {
+					t.Fatalf("unable to clean global configs: %s", err)
+				}
+			} else {
+				if err := wait.Poll(2*time.Second, 30*time.Second, func() (bool, error) {
+					errs := checkGlobalConfigs(ctx, pubNamespace, operatorNamespace)
+					ready := len(errs) == 0
+					return ready, nil
+				}); err != nil {
+					t.Fatalf("timed out waiting for configs to be garbage collected: %s", err)
+				}
+			}
+		} else {
+			t.Logf("leaked namespace: %s", namespace)
 		}
 	})
 
@@ -383,5 +413,91 @@ func cleanupAllNamespaces(ctx context.Context) error {
 			fmt.Fprintf(os.Stderr, "deleting namespace %q failed: %s\n", ns.Name, err)
 		}
 	}
+	return nil
+}
+
+// checkGlobalConfigs checks whether there are any global configurations and if
+// so, throws an error.
+func checkGlobalConfigs(ctx context.Context, publicNamespace, operatorNamespace string) []error {
+	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
+	if err != nil {
+		return []error{errors.Errorf("Build Kubernetes clientset: %s", err)}
+	}
+	operatorClient, err := clientset.NewForConfig(kubeconfig)
+	if err != nil {
+		return []error{errors.Errorf("Build operator clientset: %s", err)}
+	}
+
+	errs := make([]error, 0)
+
+	secretList, err := kubeClient.CoreV1().Secrets(publicNamespace).List(ctx, metav1.ListOptions{})
+	if secretList != nil && len(secretList.Items) != 0 {
+		errs = append(errs, errors.Errorf("expected no Secrets in %s", publicNamespace))
+	}
+
+	if _, err := operatorClient.MonitoringV1().OperatorConfigs(publicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		errs = append(errs, errors.Errorf("expected no OperatorConfig in %s", publicNamespace))
+	}
+	podMonitoringList, err := operatorClient.MonitoringV1().PodMonitorings(operatorNamespace).List(ctx, metav1.ListOptions{})
+	if podMonitoringList != nil && len(podMonitoringList.Items) != 0 {
+		errs = append(errs, errors.Errorf("expected no PodMonitorings in %s", operatorNamespace))
+	}
+	clusterPodMonitoringList, err := operatorClient.MonitoringV1().ClusterPodMonitorings().List(ctx, metav1.ListOptions{})
+	if clusterPodMonitoringList != nil && len(clusterPodMonitoringList.Items) != 0 {
+		errs = append(errs, errors.Errorf("expected no ClusterPodMonitorings"))
+	}
+	globalRulesList, err := operatorClient.MonitoringV1().GlobalRules().List(ctx, metav1.ListOptions{})
+	if globalRulesList != nil && len(globalRulesList.Items) != 0 {
+		errs = append(errs, errors.Errorf("expected no GlobalRules"))
+	}
+	rulesList, err := operatorClient.MonitoringV1().Rules(operatorNamespace).List(ctx, metav1.ListOptions{})
+	if rulesList != nil && len(rulesList.Items) != 0 {
+		errs = append(errs, errors.Errorf("expected no Rules in %s", operatorNamespace))
+	}
+	clusterRulesList, err := operatorClient.MonitoringV1().ClusterRules().List(ctx, metav1.ListOptions{})
+	if clusterRulesList != nil && len(clusterRulesList.Items) != 0 {
+		errs = append(errs, errors.Errorf("expected no ClusterRules"))
+	}
+
+	return errs
+}
+
+// cleanGlobalConfigs cleans all global configurations.
+func cleanGlobalConfigsF(ctx context.Context, publicNamespace, operatorNamespace string) error {
+	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
+	if err != nil {
+		return errors.Wrap(err, "build Kubernetes clientset")
+	}
+	operatorClient, err := clientset.NewForConfig(kubeconfig)
+	if err != nil {
+		return errors.Wrap(err, "build operator clientset")
+	}
+
+	if err := kubeClient.CoreV1().Secrets(publicNamespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return errors.Wrap(err, "delete secrets")
+	}
+
+	if err := operatorClient.MonitoringV1().OperatorConfigs(publicNamespace).Delete(ctx, operator.NameOperatorConfig, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return errors.Wrap(err, "delete OperatorConfig")
+	}
+
+	// Self-scraping requires the resource to be on the same namespace as the
+	// operator, so delete all GMP resources.
+	if err := operatorClient.MonitoringV1().PodMonitorings(operatorNamespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return errors.Wrap(err, "delete PodMonitorings")
+	}
+	if err := operatorClient.MonitoringV1().ClusterPodMonitorings().DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return errors.Wrap(err, "delete ClusterPodMonitorings")
+	}
+	if err := operatorClient.MonitoringV1().GlobalRules().DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return errors.Wrap(err, "delete GlobalRules")
+	}
+	if err := operatorClient.MonitoringV1().Rules(operatorNamespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return errors.Wrap(err, "delete Rules")
+	}
+	if err := operatorClient.MonitoringV1().ClusterRules().DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return errors.Wrap(err, "delete ClusterRules")
+	}
+
 	return nil
 }
