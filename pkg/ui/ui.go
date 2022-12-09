@@ -29,7 +29,11 @@ func Handler(externalURL *url.URL) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, path.Join(externalURL.Path, "/graph"), http.StatusFound)
+		// The "/" pattern matches everything, so we need to check
+		// that we're at the root here.
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, path.Join(externalURL.Path, "graph"), http.StatusFound)
+		}
 	})
 
 	// Serve UI index.
