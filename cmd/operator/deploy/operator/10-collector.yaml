@@ -118,7 +118,7 @@ spec:
             memory: 2G
           requests:
             cpu: 16m
-            memory: 32M
+            memory: 128M
         volumeMounts:
         - name: storage
           mountPath: /prometheus/data
