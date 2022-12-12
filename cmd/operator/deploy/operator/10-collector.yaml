@@ -115,7 +115,7 @@ spec:
           value: "25"
         resources:
           limits:
-            memory: 3G
+            memory: 2G
           requests:
             cpu: 16m
             memory: 32M

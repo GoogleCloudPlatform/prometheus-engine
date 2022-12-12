@@ -260,7 +260,7 @@ spec:
           containerPort: 18080
         resources:
           limits:
-            memory: 256M
+            memory: 512M
           requests:
             cpu: 8m
             memory: 32M
@@ -582,7 +582,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 2m
+            cpu: 8m
             memory: 16M
         volumeMounts:
         - name: config
@@ -625,11 +625,9 @@ spec:
           value: "25"
         resources:
           limits:
-            memory: 3G
+            memory: 2G
           requests:
-            # Resource requests were empirically determined to be in this range
-            # when running idle (i.e. no scraping).
-            cpu: 2m
+            cpu: 16m
             memory: 32M
         volumeMounts:
         - name: storage
@@ -759,7 +757,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 2m
+            cpu: 8m
             memory: 16M
         volumeMounts:
         - name: config
@@ -790,11 +788,9 @@ spec:
           containerPort: 19092
         resources:
           limits:
-            memory: 1G
+            memory: 256M
           requests:
-            # Resource requests were empirically determined to be in this range
-            # when running idle (i.e. no querying/writing).
-            cpu: 2m
+            cpu: 8m
             memory: 32M
         volumeMounts:
         - name: config-out
@@ -931,11 +927,9 @@ spec:
           containerPort: 9093
         resources:
           limits:
-            memory: 1G
+            memory: 128M
           requests:
-            # Resource requests were empirically determined to be in this range
-            # when running idle (i.e. no alerting).
-            cpu: 2m
+            cpu: 8m
             memory: 32M
         volumeMounts:
         - name: alertmanager-config
@@ -970,7 +964,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 2m
+            cpu: 8m
             memory: 16M
         volumeMounts:
         - name: config
