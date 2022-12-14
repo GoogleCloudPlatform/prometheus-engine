@@ -67,7 +67,6 @@ spec:
         - --storage.path=/alertmanager-data
         - --cluster.listen-address=[$(POD_IP)]:9094
         - --web.listen-address=:9093
-        - --web.route-prefix=/
         ports:
         - name: alertmanager
           containerPort: 9093
