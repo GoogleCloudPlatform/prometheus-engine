@@ -65,9 +65,17 @@ spec:
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
+        - --cluster.listen-address=[$(POD_IP)]:9094
+        - --web.listen-address=:9093
         ports:
         - name: alertmanager
           containerPort: 9093
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
         resources:
           limits:
             memory: 1G
