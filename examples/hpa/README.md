@@ -1,3 +1,5 @@
+For further instructions, see https://cloud.google.com/stackdriver/docs/managed-prometheus/hpa
+
 # custom-metrics-stackdriver-adapter example instructions
 
 The Custom Metrics Stackdriver Adapter supports querying metrics from
@@ -46,22 +48,22 @@ Adapter, do the following:
    kubectl -n default apply -f podmonitoring.yaml
    ```
 
-   Within a couple of minutes, {{managed_prometheus_name_short}} processes the
-   metrics scraped from the exporter and stores them in {{monitoring_name}}
+   Within a couple of minutes, Managed Service for Prometheus processes the
+   metrics scraped from the exporter and stores them in Cloud Monitoring
    using a long-form name. Prometheus metrics are stored with the following conventions:
       - The prefix `prometheus.googleapis.com`.
       - This suffix is usually one of `gauge`, `counter`, `summary`, or `histogram`,
       although untyped metrics might have the `unknown` or `unknown:counter` suffix.
-      To verify the suffix, look up the metric in {{monitoring_name}} by using
-      {{metrics_explorer}}.
+      To verify the suffix, look up the metric in Cloud Monitoring by using
+      Metrics Explorer.
 
-6. Update the deployed HPA to query the metric from {{monitoring_name}}. The
+6. Update the deployed HPA to query the metric from Cloud Monitoring. The
    metric `foo` is ingested as `prometheus.googleapis.com/foo/gauge`. To make
    the metric queryable by the deployed HorizontalPodAutoscaler resource, you
    use the long-form name in the deployed HPA, but you have to modify it
    by replacing the all forward slashes (`/`)  with the pipe character (`|`):
    `prometheus.googleapis.com|foo|gauge`. For more information, see the
-   [Metrics available from Stackdriver section][cm-sd-adapter-metrics]{:class="external"}
+   [Metrics available from Stackdriver section](https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/custom-metrics-stackdriver-adapter#metrics-available-from-stackdriver)
    of the Custom Metrics Stackdriver Adapter repository.
 
    1. Update the deployed HPA by running the following command:
