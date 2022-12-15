@@ -13,13 +13,13 @@ Adapter, do the following:
 2. Install Custom Metrics Stackdriver Adapter in your cluster.
 
    ```sh
-   kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
+   kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/8d1799d8dc0069f573515ea6a241a3b6ed6fb3d2/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
    ```
 
 3. Deploy an example Prometheus metrics exporter and an HPA resource:
 
    ```sh
-   kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd/custom-metrics-prometheus-sd.yaml
+   kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/8d1799d8dc0069f573515ea6a241a3b6ed6fb3d2/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd/custom-metrics-prometheus-sd.yaml
    ```
 
    This command deploys an exporter application that emits the metric `foo` and
@@ -63,7 +63,7 @@ Adapter, do the following:
    use the long-form name in the deployed HPA, but you have to modify it
    by replacing the all forward slashes (`/`)  with the pipe character (`|`):
    `prometheus.googleapis.com|foo|gauge`. For more information, see the
-   [Metrics available from Stackdriver section](https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/custom-metrics-stackdriver-adapter#metrics-available-from-stackdriver)
+   [Metrics available from Stackdriver section](https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/8d1799d8dc0069f573515ea6a241a3b6ed6fb3d2/custom-metrics-stackdriver-adapter#metrics-available-from-stackdriver)
    of the Custom Metrics Stackdriver Adapter repository.
 
    1. Update the deployed HPA by running the following command:
@@ -159,12 +159,12 @@ Adapter, do the following:
 10. To clean up the deployed example, run the following commands:
 
    ```sh
-   kubectl delete -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
-   kubectl delete -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/master/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd/custom-metrics-prometheus-sd.yaml
+   kubectl delete -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/8d1799d8dc0069f573515ea6a241a3b6ed6fb3d2/custom-metrics-stackdriver-adapter/deploy/production/adapter_new_resource_model.yaml
+   kubectl delete -f https://raw.githubusercontent.com/GoogleCloudPlatform/k8s-stackdriver/8d1799d8dc0069f573515ea6a241a3b6ed6fb3d2/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd/custom-metrics-prometheus-sd.yaml
    kubectl delete podmonitoring/prom-example
    ```
 
-For more information, see the [Prometheus example](https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/master/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd) in the Custom Metrics Stackdriver Adapter repository, or see [Scaling an application](https://cloud.google.com/kubernetes-engine/docs/how-to/scaling-apps).
+For more information, see the [Prometheus example](https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/8d1799d8dc0069f573515ea6a241a3b6ed6fb3d2/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd) in the Custom Metrics Stackdriver Adapter repository, or see [Scaling an application](https://cloud.google.com/kubernetes-engine/docs/how-to/scaling-apps).
 
 # prometheus-adapter example instructions
 1. Setup managed-collection on cluster.
