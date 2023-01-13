@@ -105,6 +105,7 @@ spec:
     subresources:
       status: {}
   - name: v1alpha1
+    deprecated: true
     schema:
       openAPIV3Schema:
         type: object
