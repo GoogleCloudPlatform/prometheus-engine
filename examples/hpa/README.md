@@ -170,7 +170,7 @@ For more information, see the [Prometheus example](https://github.com/GoogleClou
 1. Setup managed-collection on cluster.
 1. Deploy the [frontend](../frontend.yaml).
 1. Install prometheus-adapter on cluster using instructions from
-   the deployment [README](https://github.com/kubernetes-sigs/prometheus-adapter/blob/9008b12a0173e2604e794c1614081b63c17e0340/deploy/README.md).
+   the deployment [README](https://github.com/kubernetes-sigs/prometheus-adapter/blob/7bdb7f14b922298df2de392d5450205467b32404/deploy/README.md).
 1. Deploy the manifests in this directory, which include:
     * `prometheus-example-app` deployment and service to emit metrics.
     * PodMonitoring to scrape `prometheus-example-app`.
