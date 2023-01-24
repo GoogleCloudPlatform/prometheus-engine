@@ -295,6 +295,7 @@ spec:
     subresources:
       status: {}
   - name: v1alpha1
+    deprecated: true
     schema:
       openAPIV3Schema:
         type: object
@@ -597,6 +598,7 @@ spec:
     subresources:
       status: {}
   - name: v1alpha1
+    deprecated: true
     schema:
       openAPIV3Schema:
         type: object
@@ -768,6 +770,7 @@ spec:
     subresources:
       status: {}
   - name: v1alpha1
+    deprecated: true
     schema:
       openAPIV3Schema:
         type: object
@@ -1142,6 +1145,7 @@ spec:
     served: true
     storage: true
   - name: v1alpha1
+    deprecated: true
     schema:
       openAPIV3Schema:
         type: object
@@ -1662,6 +1666,7 @@ spec:
     subresources:
       status: {}
   - name: v1alpha1
+    deprecated: true
     schema:
       openAPIV3Schema:
         type: object
@@ -1964,6 +1969,7 @@ spec:
     subresources:
       status: {}
   - name: v1alpha1
+    deprecated: true
     schema:
       openAPIV3Schema:
         type: object

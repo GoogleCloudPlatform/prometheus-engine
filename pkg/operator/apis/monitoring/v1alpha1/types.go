@@ -30,6 +30,7 @@ var (
 // OperatorConfig defines configuration of the gmp-operator.
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:deprecatedversion
 type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -160,6 +161,7 @@ type SecretOrConfigMap struct {
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion
 type PodMonitoring struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -185,6 +187,7 @@ type PodMonitoringList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion
 type ClusterPodMonitoring struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -364,6 +367,7 @@ type MonitoringCondition struct {
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion
 type Rules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -393,6 +397,7 @@ type RulesList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion
 type ClusterRules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -421,6 +426,7 @@ type ClusterRulesList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion
 type GlobalRules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
