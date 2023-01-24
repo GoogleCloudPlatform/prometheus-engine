@@ -31,7 +31,7 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: ClusterPodMonitoring defines monitoring for a set of pods.
+        description: ClusterPodMonitoring defines monitoring for a set of pods, scoped to all pods within the cluster.
         properties:
           apiVersion:
             type: string

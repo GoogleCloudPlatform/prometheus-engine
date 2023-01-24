@@ -209,7 +209,8 @@ type PodMonitoringStatusContainer interface {
 	GetStatus() *PodMonitoringStatus
 }
 
-// PodMonitoring defines monitoring for a set of pods.
+// PodMonitoring defines monitoring for a set of pods, scoped to pods
+// within the PodMonitoring's namespace.
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:subresource:status
@@ -241,7 +242,8 @@ type PodMonitoringList struct {
 	Items           []PodMonitoring `json:"items"`
 }
 
-// ClusterPodMonitoring defines monitoring for a set of pods.
+// ClusterPodMonitoring defines monitoring for a set of pods, scoped to all
+// pods within the cluster.
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
