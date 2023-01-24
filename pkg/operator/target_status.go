@@ -113,12 +113,14 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error
 	}
 
 	// Start the controller only once.
-	op.manager.Add(manager.RunnableFunc(func(ctx context.Context) error {
+	if err := op.manager.Add(manager.RunnableFunc(func(ctx context.Context) error {
 		reconciler.ch <- event.GenericEvent{
 			Object: &appsv1.DaemonSet{},
 		}
 		return nil
-	}))
+	})); err != nil {
+		return errors.Wrap(err, "unable to start target status controller")
+	}
 
 	return nil
 }
@@ -230,7 +232,7 @@ func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, getTarg
 				// Fetch operation is blocking.
 				target, err := getTarget(ctx, logger, prometheusPod.port, prometheusPod.pod)
 				if err != nil {
-					logger.Error(err, "failed to fetch target")
+					logger.Error(err, "failed to fetch target", "pod", prometheusPod.pod.GetName())
 				}
 				// nil represents being unable to reach a target.
 				targetCh <- target
@@ -381,6 +383,9 @@ func getPrometheusPods(ctx context.Context, kubeClient client.Client, opts Optio
 }
 
 func getTarget(ctx context.Context, logger logr.Logger, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error) {
+	if pod.Status.PodIP == "" {
+		return nil, errors.New("pod does not have IP allocated")
+	}
 	podUrl := fmt.Sprintf("http://%s:%d", pod.Status.PodIP, port)
 	client, err := api.NewClient(api.Config{
 		Address: podUrl,
