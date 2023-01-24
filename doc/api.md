@@ -105,7 +105,7 @@ Authorization specifies a subset of the Authorization struct, that is safe for u
 
 ## ClusterPodMonitoring
 
-ClusterPodMonitoring defines monitoring for a set of pods.
+ClusterPodMonitoring defines monitoring for a set of pods, scoped to all pods within the cluster.
 
 
 <em>appears in: [ClusterPodMonitoringList](#clusterpodmonitoringlist)</em>
@@ -314,7 +314,7 @@ OperatorConfigList is a list of OperatorConfigs.
 
 ## PodMonitoring
 
-PodMonitoring defines monitoring for a set of pods.
+PodMonitoring defines monitoring for a set of pods, scoped to pods within the PodMonitoring's namespace.
 
 
 <em>appears in: [PodMonitoringList](#podmonitoringlist)</em>
