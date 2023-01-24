@@ -129,12 +129,31 @@ func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcil
 	timer := r.clock.NewTimer(pollDurationMin)
 
 	now := time.Now()
-	if err := pollAndUpdate(ctx, r.logger, r.opts, r.getTarget, r.kubeClient); err != nil {
-		r.logger.Error(err, "poll and update")
-	} else {
-		// Only log metrics if target polling was successful.
-		duration := time.Since(now)
-		targetStatusDuration.WithLabelValues().Set(float64(duration.Milliseconds()))
+
+	// Short-circuit target polling.
+	shouldPoll := true
+	var podMonitoringList monitoringv1.PodMonitoringList
+	if err := r.kubeClient.List(ctx, &podMonitoringList); err != nil {
+		r.logger.Error(err, "fetch PodMonitorings")
+		shouldPoll = false
+	} else if len(podMonitoringList.Items) == 0 {
+		var clusterPodMonitoringList monitoringv1.PodMonitoringList
+		if err := r.kubeClient.List(ctx, &clusterPodMonitoringList); err != nil {
+			r.logger.Error(err, "fetch ClusterPodMonitorings")
+			shouldPoll = false
+		} else if len(clusterPodMonitoringList.Items) == 0 {
+			shouldPoll = false
+		}
+	}
+
+	if shouldPoll {
+		if err := pollAndUpdate(ctx, r.logger, r.opts, r.getTarget, r.kubeClient); err != nil {
+			r.logger.Error(err, "poll and update")
+		} else {
+			// Only log metrics if target polling was successful.
+			duration := time.Since(now)
+			targetStatusDuration.WithLabelValues().Set(float64(duration.Milliseconds()))
+		}
 	}
 
 	// Check if we beat the timer, otherwise wait.
