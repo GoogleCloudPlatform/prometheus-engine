@@ -41,6 +41,7 @@ spec:
       labels:
         app: managed-prometheus-alertmanager
         app.kubernetes.io/name: alertmanager
+        app.kubernetes.io/version: 0.6.0
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
