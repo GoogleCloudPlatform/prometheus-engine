@@ -594,6 +594,7 @@ spec:
         image: gke.gcr.io/prometheus-engine/prometheus:v2.35.0-gmp.3-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
+        - --enable-feature=exemplar-storage
         - --storage.tsdb.path=/prometheus/data
         - --storage.tsdb.no-lockfile
         # Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
