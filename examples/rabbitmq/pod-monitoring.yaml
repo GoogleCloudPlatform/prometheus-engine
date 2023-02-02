@@ -27,4 +27,7 @@ spec:
     path: /metrics
   selector:
     matchLabels:
+      # If RabbitMQ is installed via the operator, use this label selector
       app.kubernetes.io/component: rabbitmq
+      # If installing RabbitMQ via GCP click-to-deploy, use this instead
+      # app.kubernetes.io/component: rabbitmq-server
