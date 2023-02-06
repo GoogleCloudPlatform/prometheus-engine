@@ -213,6 +213,8 @@ func putDistribution(d *distribution) {
 	distributionPool.Put(d)
 }
 
+// If adding fields to this object, be sure to reset them to their
+// zero value in the reset method below.
 type distribution struct {
 	bounds         []float64
 	values         []int64
@@ -228,6 +230,8 @@ type distribution struct {
 	skip bool
 }
 
+// TODO: create a unit test that makes sure distribution objects
+// are reset properly, especially when adding new fields.
 func (d *distribution) reset() {
 	d.bounds = d.bounds[:0]
 	d.values = d.values[:0]
@@ -235,6 +239,7 @@ func (d *distribution) reset() {
 	d.hasSum, d.hasCount, d.hasInfBucket = false, false, false
 	d.timestamp, d.resetTimestamp = 0, 0
 	d.skip = false
+	d.exemplars = d.exemplars[:0]
 }
 
 func (d *distribution) inputSampleCount() (c int) {
