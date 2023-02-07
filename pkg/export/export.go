@@ -478,7 +478,7 @@ func (e *Exporter) triggerNext() {
 // ClientName and Version are used to identify to User Agent. TODO(maxamin): automate versioning.
 const (
 	ClientName = "prometheus-engine-export"
-	Version    = "0.6.0"
+	Version    = "0.6.1"
 )
 
 // Run sends exported samples to Google Cloud Monitoring. Must be called at most once.
