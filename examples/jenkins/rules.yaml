@@ -1,0 +1,35 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: jenkins-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: jenkins-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: jenkins
+    interval: 30s
+    rules:
+    - alert: JenkinsHealthScoreBelowOne
+      annotations:
+        description: |-
+          Jenkins health score below one
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Jenkins health score below one (instance {{ $labels.instance }})
+      expr: jenkins_health_check_score < 1
+      for: 5m
+      labels:
+        severity: critical
+    - alert: JenkinsPluginFailure
+      annotations:
+        description: |-
+          Jenkins plugin failure
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Jenkins plugin failure (instance {{ $labels.instance }})
+      expr: jenkins_plugins_failed > 0
+      for: 5m
+      labels:
+        severity: critical

@@ -1,0 +1,16 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: flink
+  labels:
+    app.kubernetes.io/name: flink
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  endpoints:
+  - port: 9249
+    scheme: http
+    interval: 30s
+    path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: flink
