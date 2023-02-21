@@ -1,0 +1,16 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: kibana
+  labels:
+    app.kubernetes.io/name: kibana
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  endpoints:
+  - port: 5601
+    scheme: http
+    interval: 30s
+    path: /_prometheus/metrics
+  selector:
+    matchLabels:
+     app.kubernetes.io/name: kibana

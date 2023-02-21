@@ -1,0 +1,35 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: flink-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: flink-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: flink
+    interval: 30s
+    rules:
+    - alert: FlinkHighJVMMemoryNonHeapUsage
+      annotations:
+        description: |-
+          Flink high jvm memory non-heap usage
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Flink high jvm memory non-heap usage (instance {{ $labels.instance }})
+      expr: (flink_jobmanager_Status_JVM_Memory_NonHeap_Used/flink_jobmanager_Status_JVM_Memory_NonHeap_Max) >= 0.9
+      for: 5m
+      labels:
+        severity: critical
+    - alert: FlinkHighJVMMemoryHeapUsage
+      annotations:
+        description: |-
+          Flink high jvm memory heap usage
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Flink high jvm memory heap usage (instance {{ $labels.instance }})
+      expr: (flink_jobmanager_Status_JVM_Memory_Heap_Used/flink_jobmanager_Status_JVM_Memory_Heap_Max) >= 0.9
+      for: 5m
+      labels:
+        severity: warning

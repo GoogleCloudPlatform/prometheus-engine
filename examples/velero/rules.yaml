@@ -1,0 +1,46 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: velero-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: velero-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: velero
+    interval: 30s
+    rules:
+    - alert: VeleroBackupFailure
+      annotations:
+        description: |-
+          Velero backup failure
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Velero backup failure (instance {{ $labels.instance }})
+      expr: velero_backup_failure_total > 0
+      for: 5m
+      labels:
+        severity: critical
+    - alert: VeleroPartialBackupFailure
+      annotations:
+        description: |-
+          Velero partial backup failure
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Velero partial backup failure (instance {{ $labels.instance }})
+      expr: velero_backup_partial_failure_total > 0
+      for: 5m
+      labels:
+        severity: warning
+    - alert: VeleroRestoreFailure
+      annotations:
+        description: |-
+          Velero restore failure
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Velero restore failure (instance {{ $labels.instance }})
+      expr: velero_restore_failed_total > 0
+      for: 5m
+      labels:
+        severity: critical

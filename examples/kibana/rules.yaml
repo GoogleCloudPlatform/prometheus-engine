@@ -1,0 +1,35 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: kibana-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: kibana-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: kibana
+    interval: 30s
+    rules:
+    - alert: KibanaHighCPUUsage
+      annotations:
+        description: |-
+          Kibana high cpu usage
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Kibana high cpu usage (instance {{ $labels.instance }})
+      expr: kibana_os_load5 >= 90
+      for: 5m
+      labels:
+        severity: critical
+    - alert: KibanaHighMemoryUsage
+      annotations:
+        description: |-
+          Kibana high memory usage
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Kibana high memory usage (instance {{ $labels.instance }})
+      expr: kibana_os_mem_bytes_used / kibana_os_mem_bytes_total >= 0.9
+      for: 5m
+      labels:
+        severity: critical
