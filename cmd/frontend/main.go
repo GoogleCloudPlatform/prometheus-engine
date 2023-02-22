@@ -33,6 +33,7 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
@@ -79,8 +80,14 @@ func main() {
 	)
 
 	if *projectID == "" {
-		level.Error(logger).Log("msg", "--query.project-id must be set")
-		os.Exit(1)
+		metadataProjectID, err := metadata.ProjectID()
+		if err != nil {
+			level.Error(logger).Log("msg", "--query.project-id must be set")
+			os.Exit(1)
+		}
+		level.Debug(logger).Log("msg", "found project via metadata", "projectID", metadataProjectID)
+
+		projectID = &metadataProjectID
 	}
 
 	targetURL, err := url.Parse(strings.ReplaceAll(*targetURLStr, projectIDVar, *projectID))
