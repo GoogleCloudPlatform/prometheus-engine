@@ -1,6 +1,6 @@
 # deps builds binaries in an isolated environment to avoid
 # funkiness in the hermetic build.
-FROM golang:1.17-buster as deps
+FROM golang:1.20-buster as deps
 WORKDIR /workspace
 # Have to clone and install this as the go.mod uses replace directives.
 RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
@@ -10,7 +10,7 @@ RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.7.0
 
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
-FROM golang:1.17-buster AS hermetic
+FROM golang:1.20-buster AS hermetic
 COPY --from=deps /go/bin /go/bin
 ARG RUNCMD='go fmt ./...'
 WORKDIR /workspace
@@ -45,7 +45,7 @@ COPY --from=hermetic /workspace/pkg pkg
 COPY --from=hermetic /workspace/vendor vendor.tmp
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
-FROM golang:1.17-buster as buildbase
+FROM golang:1.20-buster as buildbase
 FROM google/cloud-sdk:slim as kindtest
 
 WORKDIR /build
