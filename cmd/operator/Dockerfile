@@ -1,4 +1,4 @@
-FROM golang:1.17-buster AS buildbase
+FROM golang:1.20-buster AS buildbase
 WORKDIR /app
 COPY . ./
 
