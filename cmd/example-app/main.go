@@ -282,7 +282,7 @@ func updateMetrics(ctx context.Context) error {
 				metricOutgoingRequestErrors.With(labels).Add(float64(rand.Intn(5)))
 			})
 			forNumInstances(*histogramCount, func(labels prometheus.Labels) {
-				// Record exemplar with histogram depending on example fraction.
+				// Record exemplar with histogram depending on sampling fraction.
 				samp := rand.Uint64()
 				thresh := uint64(*exemplarSampling * (1 << 63))
 				if samp < thresh {
