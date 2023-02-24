@@ -11,22 +11,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+//go:build go1.15
+// +build go1.15
 
-import "regexp"
+package collectors
 
-type GoCollectorRule struct {
-	Matcher *regexp.Regexp
-	Deny    bool
+import (
+	"database/sql"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+func (c *dbStatsCollector) describeNewInGo115(ch chan<- *prometheus.Desc) {
+	ch <- c.maxIdleTimeClosed
 }
 
-// GoCollectorOptions should not be used be directly by anything, except `collectors` package.
-// Use it via collectors package instead. See issue
-// https://github.com/prometheus/client_golang/issues/1030.
-//
-// This is internal, so external users only can use it via `collector.WithGoCollector*` methods
-type GoCollectorOptions struct {
-	DisableMemStatsLikeMetrics bool
-	RuntimeMetricSumForHist    map[string]string
-	RuntimeMetricRules         []GoCollectorRule
+func (c *dbStatsCollector) collectNewInGo115(ch chan<- prometheus.Metric, stats sql.DBStats) {
+	ch <- prometheus.MustNewConstMetric(c.maxIdleTimeClosed, prometheus.CounterValue, float64(stats.MaxIdleTimeClosed))
 }

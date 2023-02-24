@@ -224,7 +224,7 @@ func Transform(...option) cmp.Option {
 }
 
 func isMessageType(t reflect.Type) bool {
-	// Avoid transforming the Message itself.
+	// Avoid tranforming the Message itself.
 	if t == reflect.TypeOf(Message(nil)) || t == reflect.TypeOf((*Message)(nil)) {
 		return false
 	}

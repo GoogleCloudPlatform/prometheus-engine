@@ -79,13 +79,10 @@ type XfrmStat struct {
 	// Policy is dead
 	XfrmOutPolDead int
 	// Policy Error
-	XfrmOutPolError int
-	// Forward routing of a packet is not allowed
-	XfrmFwdHdrError int
-	// State is invalid, perhaps expired
+	XfrmOutPolError     int
+	XfrmFwdHdrError     int
 	XfrmOutStateInvalid int
-	// State hasn’t been fully acquired before use
-	XfrmAcquireError int
+	XfrmAcquireError    int
 }
 
 // NewXfrmStat reads the xfrm_stat statistics.
