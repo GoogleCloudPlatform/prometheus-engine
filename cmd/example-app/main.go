@@ -256,7 +256,7 @@ func burnCPU(ctx context.Context, ops int) error {
 	}
 }
 
-func newIDs(traceBytes, spanBytes []byte) (string, string) {
+func newTraceIDs(traceBytes, spanBytes []byte) (string, string) {
 	rand.Read(traceBytes)
 	rand.Read(spanBytes)
 	return hex.EncodeToString(traceBytes), hex.EncodeToString(spanBytes)
@@ -282,10 +282,11 @@ func updateMetrics(ctx context.Context) error {
 				metricOutgoingRequestErrors.With(labels).Add(float64(rand.Intn(5)))
 			})
 			forNumInstances(*histogramCount, func(labels prometheus.Labels) {
+				// Record exemplar with histogram depending on example fraction.
 				samp := rand.Uint64()
 				thresh := uint64(*exemplarSampling * (1 << 63))
 				if samp < thresh {
-					traceID, spanID := newIDs(traceBytes, spanBytes)
+					traceID, spanID := newTraceIDs(traceBytes, spanBytes)
 					exemplar := prometheus.Labels{"trace_id": traceID, "span_id": spanID, "project_id": projectID}
 					metricIncomingRequestDurationHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(rand.NormFloat64()*300+500, exemplar)
 				} else {
