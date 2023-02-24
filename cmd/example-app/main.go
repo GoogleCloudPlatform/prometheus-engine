@@ -226,6 +226,8 @@ func main() {
 	}
 }
 
+// allocateMemoryBallast allocates the heap with random data to simulate
+// memory pressure from a real workload.
 func allocateMemoryBallast(buf *[]byte, sz int) {
 	// Fill memory ballast. Fill it with random values so it results in actual memory usage.
 	*buf = make([]byte, sz)
@@ -256,12 +258,16 @@ func burnCPU(ctx context.Context, ops int) error {
 	}
 }
 
+// newTraceIDs generates random trace and span ID strings that conform to the
+// open telemetry spec: https://github.com/open-telemetry/opentelemetry-specification/blob/v1.18.0/specification/overview.md#spancontext.
 func newTraceIDs(traceBytes, spanBytes []byte) (string, string) {
 	rand.Read(traceBytes)
 	rand.Read(spanBytes)
 	return hex.EncodeToString(traceBytes), hex.EncodeToString(spanBytes)
 }
 
+// updateMetrics is a blocking function that periodically updates toy metrics
+// with new values.
 func updateMetrics(ctx context.Context) error {
 	projectID := "example-project"
 	traceBytes := make([]byte, 16)
@@ -302,6 +308,8 @@ func updateMetrics(ctx context.Context) error {
 	}
 }
 
+// forNumInstances calls a provided function to parameterize exported metrics
+// with various combinations of Prometheus labels up to `c` times.
 func forNumInstances(c int, f func(prometheus.Labels)) {
 	if c < 0 {
 		c = *maxCount
