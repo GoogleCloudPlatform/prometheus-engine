@@ -16,8 +16,8 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -25,25 +25,24 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	addr           = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
-	cpuBurnOps     = flag.Int("cpu-burn-ops", 0, "Operatins per second burning CPU. (Used to simulate high CPU utilization. Sensible values: 0-100.)")
-	memBallastMBs  = flag.Int("memory-ballast-mbs", 0, "Megabytes of memory ballast to allocate. (Used to simulate high memory utilization.)")
-	maxCount       = flag.Int("max-count", labelCombinations, "Maximum metric instance count for all metric types.")
-	histogramCount = flag.Int("histogram-count", 2, "Number of unique instances per histogram metric.")
-	gaugeCount     = flag.Int("gauge-count", -1, "Number of unique instances per gauge metric.")
-	counterCount   = flag.Int("counter-count", -1, "Number of unique instances per counter metric.")
-	summaryCount   = flag.Int("summary-count", -1, "Number of unique instances per summary metric.")
+	addr             = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
+	cpuBurnOps       = flag.Int("cpu-burn-ops", 0, "Operatins per second burning CPU. (Used to simulate high CPU utilization. Sensible values: 0-100.)")
+	memBallastMBs    = flag.Int("memory-ballast-mbs", 0, "Megabytes of memory ballast to allocate. (Used to simulate high memory utilization.)")
+	maxCount         = flag.Int("max-count", labelCombinations, "Maximum metric instance count for all metric types.")
+	histogramCount   = flag.Int("histogram-count", 2, "Number of unique instances per histogram metric.")
+	gaugeCount       = flag.Int("gauge-count", -1, "Number of unique instances per gauge metric.")
+	counterCount     = flag.Int("counter-count", -1, "Number of unique instances per counter metric.")
+	summaryCount     = flag.Int("summary-count", -1, "Number of unique instances per summary metric.")
+	exemplarSampling = flag.Float64("exemplar-sampling", 0.1, "Fraction of observations to include exemplars on histograms.")
 )
 
 var (
@@ -78,32 +77,32 @@ var (
 var (
 	metricIncomingRequestsPending = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "example_incoming_requests_pending11",
+			Name: "example_incoming_requests_pending",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestsPending = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "example_outgoing_requests_pending11",
+			Name: "example_outgoing_requests_pending",
 		},
 		[]string{"status", "method", "path"},
 	)
 
 	metricIncomingRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "example_incoming_requests_total11",
+			Name: "example_incoming_requests_total",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "example_outgoing_requests_total11",
+			Name: "example_outgoing_requests_total",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricIncomingRequestErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "example_incoming_request_errors_total11",
+			Name: "example_incoming_request_errors_total",
 		},
 		[]string{"status", "method", "path"},
 	)
@@ -116,14 +115,14 @@ var (
 
 	metricIncomingRequestDurationHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "example_histogram_incoming_request_duration11",
+			Name:    "example_histogram_incoming_request_duration",
 			Buckets: prometheus.LinearBuckets(0, 100, 8),
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestDurationHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "example_histogram_outgoing_request_duration11",
+			Name:    "example_histogram_outgoing_request_duration",
 			Buckets: prometheus.LinearBuckets(0, 100, 8),
 		},
 		[]string{"status", "method", "path"},
@@ -131,13 +130,13 @@ var (
 
 	metricIncomingRequestDurationSummary = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: "example_summary_incoming_request_duration11",
+			Name: "example_summary_incoming_request_duration",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestDurationSummary = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: "example_summary_outgoing_request_duration11",
+			Name: "example_summary_outgoing_request_duration",
 		},
 		[]string{"status", "method", "path"},
 	)
@@ -257,7 +256,16 @@ func burnCPU(ctx context.Context, ops int) error {
 	}
 }
 
+func newIDs(traceBytes, spanBytes []byte) (string, string) {
+	rand.Read(traceBytes)
+	rand.Read(spanBytes)
+	return hex.EncodeToString(traceBytes), hex.EncodeToString(spanBytes)
+}
+
 func updateMetrics(ctx context.Context) error {
+	projectID := "example-project"
+	traceBytes := make([]byte, 16)
+	spanBytes := make([]byte, 8)
 	for {
 		select {
 		case <-ctx.Done():
@@ -274,14 +282,16 @@ func updateMetrics(ctx context.Context) error {
 				metricOutgoingRequestErrors.With(labels).Add(float64(rand.Intn(5)))
 			})
 			forNumInstances(*histogramCount, func(labels prometheus.Labels) {
-				traceID := strings.Replace(uuid.New().String(), "-", "", -1)
-				spanID := fmt.Sprintf("%d", uint64(rand.Uint32())<<32+uint64(rand.Uint32()))
-				projectID := "test-project"
-				metricIncomingRequestDurationHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(rand.NormFloat64()*300+500, prometheus.Labels{"trace_id": traceID, "span_id": spanID, "project_id": projectID})
-				traceID = strings.Replace(uuid.New().String(), "-", "", -1)
-				spanID = fmt.Sprintf("%d", uint64(rand.Uint32())<<32+uint64(rand.Uint32()))
-				fmt.Printf("%s", traceID)
-				metricOutgoingRequestDurationHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(rand.NormFloat64()*200+300, prometheus.Labels{"trace_id": traceID, "span_id": spanID, "project_id": projectID})
+				samp := rand.Uint64()
+				thresh := uint64(*exemplarSampling * (1 << 63))
+				if samp < thresh {
+					traceID, spanID := newIDs(traceBytes, spanBytes)
+					exemplar := prometheus.Labels{"trace_id": traceID, "span_id": spanID, "project_id": projectID}
+					metricIncomingRequestDurationHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(rand.NormFloat64()*300+500, exemplar)
+				} else {
+					metricIncomingRequestDurationHistogram.With(labels).Observe(rand.NormFloat64()*300 + 500)
+				}
+				metricOutgoingRequestDurationHistogram.With(labels).Observe(rand.NormFloat64()*200 + 300)
 			})
 			forNumInstances(*summaryCount, func(labels prometheus.Labels) {
 				metricIncomingRequestDurationSummary.With(labels).Observe(rand.NormFloat64()*300 + 500)

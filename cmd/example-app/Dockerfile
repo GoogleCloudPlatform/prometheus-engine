@@ -1,4 +1,4 @@
-FROM golang:latest AS buildbase
+FROM golang:1.20 AS buildbase
 WORKDIR /app
 COPY . ./
 
