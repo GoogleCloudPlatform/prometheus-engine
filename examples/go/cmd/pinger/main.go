@@ -45,7 +45,7 @@ import (
 var (
 	addr               = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
 	endpoint           = flag.String("endpoint", "http://observable-ping.default.svc.cluster.local:8080/ping", "The address of pong app we can connect to and send requests.")
-	appVersion         = flag.String("set-version", "v0.1.0", "Injected version to be presented via metrics.")
+	appVersion         = flag.String("set-version", "v0.2.0", "Injected version to be presented via metrics.")
 	pingsPerSec        = flag.Int("pings-per-second", 10, "How many pings per second we should request")
 	traceEndpoint      = flag.String("trace-endpoint", "", "Optional GRPC OTLP endpoint for tracing backend. Set it to 'stdout' to print traces to the output instead.")
 	traceSamplingRatio = flag.Float64("trace-sampling-ratio", 1.0, "Sampling ratio. Currently 1.0 is the best value to use with exemplars.")

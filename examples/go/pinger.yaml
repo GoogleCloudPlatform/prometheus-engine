@@ -28,6 +28,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: observable-pinger
+        app.kubernetes.io/group: observable
     spec:
       affinity:
         nodeAffinity:
@@ -44,7 +45,7 @@ spec:
                     values:
                       - linux
       containers:
-        - image: bplotka/go-observable-app:v0.1.0
+        - image: bplotka/go-observable-app:v0.2.0
           name: observable-pinger
           ports:
             - name: http

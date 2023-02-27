@@ -8,7 +8,7 @@ This directory contains `go-observable-app` that showcases Go instrumentation fo
 
 The application is in a form of HTTP client-server architecture, that mimics ping (server) and pinger (client). 
 
-The binary is also available in a form of docker image [bplotka/go-observable-app:v0.1.0](https://hub.docker.com/r/bplotka/go-observable-app).
+The binary is also available in a form of docker image [bplotka/go-observable-app:v0.2.0](https://hub.docker.com/r/bplotka/go-observable-app).
 
 ## Observability
 

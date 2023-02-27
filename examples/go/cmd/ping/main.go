@@ -47,7 +47,7 @@ import (
 
 var (
 	addr               = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
-	appVersion         = flag.String("set-version", "v0.1.0", "Injected version to be presented via metrics.")
+	appVersion         = flag.String("set-version", "v0.2.0", "Injected version to be presented via metrics.")
 	lat                = flag.String("latency", "90%500ms,10%200ms", "Encoded latency and probability of the response in format as: <probability>%<duration>,<probability>%<duration>....")
 	successProb        = flag.Float64("success-probability", 100, "The probability (in %) of getting a successful response")
 	traceEndpoint      = flag.String("trace-endpoint", "", "Optional GRPC OTLP endpoint for tracing backend. Set it to 'stdout' to print traces to the output instead.")
