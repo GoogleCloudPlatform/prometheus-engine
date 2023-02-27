@@ -1,0 +1,15 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: observable
+  labels:
+    app.kubernetes.io/group: observable
+spec:
+  selector:
+    matchLabels:
+      # We can select group of applications to monitor!
+      # Both observable-ping and observable-pinger share this label and monitoring settings.
+      app.kubernetes.io/group: observable
+  endpoints:
+    - port: http
+      interval: 15s
