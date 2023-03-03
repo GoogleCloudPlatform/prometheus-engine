@@ -161,10 +161,6 @@ spec:
                 values:
                 - linux
       tolerations:
-      - effect: NoExecute
-        operator: Exists
-      - effect: NoSchedule
-        operator: Exists
       # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
       - value: "amd64"
         effect: "NoSchedule"
