@@ -161,7 +161,6 @@ spec:
                 values:
                 - linux
       tolerations:
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
       - value: "amd64"
         effect: "NoSchedule"
         key: "kubernetes.io/arch"
