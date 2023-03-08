@@ -70,7 +70,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 5m
+            cpu: 8m
             memory: 16M
         volumeMounts:
         - name: config
@@ -101,10 +101,10 @@ spec:
           containerPort: 19092
         resources:
           limits:
-            memory: 1G
+            memory: 256M
           requests:
-            cpu: 100m
-            memory: 200M
+            cpu: 8m
+            memory: 32M
         volumeMounts:
         - name: config-out
           readOnly: true

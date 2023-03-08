@@ -73,7 +73,7 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 5m
+            cpu: 8m
             memory: 16M
         volumeMounts:
         - name: config
@@ -117,10 +117,10 @@ spec:
           value: "25"
         resources:
           limits:
-            memory: 3G
+            memory: 2G
           requests:
-            cpu: 100m
-            memory: 200M
+            cpu: 16m
+            memory: 128M
         volumeMounts:
         - name: storage
           mountPath: /prometheus/data
