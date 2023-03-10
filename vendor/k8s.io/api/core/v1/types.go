@@ -522,7 +522,6 @@ type PersistentVolumeClaimSpec struct {
 }
 
 // PersistentVolumeClaimConditionType is a valid value of PersistentVolumeClaimCondition.Type
-// +enum
 type PersistentVolumeClaimConditionType string
 
 const (
@@ -2635,10 +2634,9 @@ const (
 )
 
 // PodConditionType is a valid value for PodCondition.Type
-// +enum
 type PodConditionType string
 
-// These are valid conditions of pod.
+// These are built-in conditions of pod. An application may use a custom condition not listed here.
 const (
 	// ContainersReady indicates whether all containers in the pod are ready.
 	ContainersReady PodConditionType = "ContainersReady"
@@ -3584,7 +3582,8 @@ type PodDNSConfigOption struct {
 
 // IP address information for entries in the (plural) PodIPs field.
 // Each entry includes:
-//    IP: An IP address allocated to the pod. Routable at least within the cluster.
+//
+//	IP: An IP address allocated to the pod. Routable at least within the cluster.
 type PodIP struct {
 	// ip is an IP address (IPv4 or IPv6) assigned to the pod
 	IP string `json:"ip,omitempty" protobuf:"bytes,1,opt,name=ip"`
@@ -4643,17 +4642,18 @@ type ServiceAccountList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Endpoints is a collection of endpoints that implement the actual service. Example:
-//   Name: "mysvc",
-//   Subsets: [
-//     {
-//       Addresses: [{"ip": "10.10.1.1"}, {"ip": "10.10.2.2"}],
-//       Ports: [{"name": "a", "port": 8675}, {"name": "b", "port": 309}]
-//     },
-//     {
-//       Addresses: [{"ip": "10.10.3.3"}],
-//       Ports: [{"name": "a", "port": 93}, {"name": "b", "port": 76}]
-//     },
-//  ]
+//
+//	 Name: "mysvc",
+//	 Subsets: [
+//	   {
+//	     Addresses: [{"ip": "10.10.1.1"}, {"ip": "10.10.2.2"}],
+//	     Ports: [{"name": "a", "port": 8675}, {"name": "b", "port": 309}]
+//	   },
+//	   {
+//	     Addresses: [{"ip": "10.10.3.3"}],
+//	     Ports: [{"name": "a", "port": 93}, {"name": "b", "port": 76}]
+//	   },
+//	]
 type Endpoints struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
@@ -4675,13 +4675,16 @@ type Endpoints struct {
 // EndpointSubset is a group of addresses with a common set of ports. The
 // expanded set of endpoints is the Cartesian product of Addresses x Ports.
 // For example, given:
-//   {
-//     Addresses: [{"ip": "10.10.1.1"}, {"ip": "10.10.2.2"}],
-//     Ports:     [{"name": "a", "port": 8675}, {"name": "b", "port": 309}]
-//   }
+//
+//	{
+//	  Addresses: [{"ip": "10.10.1.1"}, {"ip": "10.10.2.2"}],
+//	  Ports:     [{"name": "a", "port": 8675}, {"name": "b", "port": 309}]
+//	}
+//
 // The resulting set of endpoints can be viewed as:
-//     a: [ 10.10.1.1:8675, 10.10.2.2:8675 ],
-//     b: [ 10.10.1.1:309, 10.10.2.2:309 ]
+//
+//	a: [ 10.10.1.1:8675, 10.10.2.2:8675 ],
+//	b: [ 10.10.1.1:309, 10.10.2.2:309 ]
 type EndpointSubset struct {
 	// IP addresses which offer the related ports that are marked as ready. These endpoints
 	// should be considered safe for load balancers and clients to utilize.
@@ -5055,11 +5058,10 @@ const (
 	NodeTerminated NodePhase = "Terminated"
 )
 
-// +enum
 type NodeConditionType string
 
-// These are valid conditions of node. Currently, we don't have enough information to decide
-// node condition. In the future, we will add more. The proposed set of conditions are:
+// These are valid but not exhaustive conditions of node. A cloud provider may set a condition not listed here.
+// The built-in set of conditions are:
 // NodeReachable, NodeLive, NodeReady, NodeSchedulable, NodeRunnable.
 const (
 	// NodeReady means kubelet is healthy and ready to accept pods.
@@ -5094,10 +5096,9 @@ type NodeCondition struct {
 	Message string `json:"message,omitempty" protobuf:"bytes,6,opt,name=message"`
 }
 
-// +enum
 type NodeAddressType string
 
-// These are valid address type of node.
+// These are built-in addresses type of node. A cloud provider may set a type not listed here.
 const (
 	// NodeHostName identifies a name of the node. Although every node can be assumed
 	// to have a NodeAddress of this type, its exact syntax and semantics are not
@@ -5267,10 +5268,9 @@ const (
 	NamespaceTerminatingCause metav1.CauseType = "NamespaceTerminating"
 )
 
-// +enum
 type NamespaceConditionType string
 
-// These are valid conditions of a namespace.
+// These are built-in conditions of a namespace.
 const (
 	// NamespaceDeletionDiscoveryFailure contains information about namespace deleter errors during resource discovery.
 	NamespaceDeletionDiscoveryFailure NamespaceConditionType = "NamespaceDeletionDiscoveryFailure"
@@ -5559,6 +5559,7 @@ type ServiceProxyOptions struct {
 //     and the version of the actual struct is irrelevant.
 //  5. We cannot easily change it.  Because this type is embedded in many locations, updates to this type
 //     will affect numerous schemas.  Don't make new APIs embed an underspecified API type they do not control.
+//
 // Instead of using this type, create a locally provided and used type that is well-focused on your reference.
 // For example, ServiceReferences for admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533 .
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -5758,8 +5759,8 @@ type EventList struct {
 // List holds a list of objects, which may not be known by the server.
 type List metav1.List
 
-// LimitType is a type of object that is limited
-// +enum
+// LimitType is a type of object that is limited. It can be Pod, Container, PersistentVolumeClaim or
+// a fully qualified resource name.
 type LimitType string
 
 const (
