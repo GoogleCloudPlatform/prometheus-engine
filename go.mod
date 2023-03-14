@@ -29,6 +29,7 @@ require (
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
+	// TODO: When upgrading k8s libraries to 0.25, remove go-restful directive.
 	k8s.io/api v0.23.17
 	k8s.io/apimachinery v0.23.17
 	k8s.io/client-go v0.23.17
@@ -149,3 +150,6 @@ exclude (
 // Go modules keeps resetting the required v0.35.0 to a random unversioned commit.
 // So this is required for unknown reasons.
 replace github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.35.0
+
+// Tempoarily patch CVE-2022-1996 until we upgrade k8s libraries to 0.25.
+replace github.com/emicklei/go-restful v2.9.5+incompatible => github.com/emicklei/go-restful v2.16.0+incompatible
