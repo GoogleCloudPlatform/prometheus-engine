@@ -166,7 +166,7 @@ func authenticate(next http.Handler) http.Handler {
 		if len(username) > 0 && len(password) > 0 {
 			reqUser, reqPass, ok := req.BasicAuth()
 			if !ok {
-				w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
+				w.Header().Set("WWW-Authenticate", "Basic")
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
