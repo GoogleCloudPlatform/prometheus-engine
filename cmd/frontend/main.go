@@ -130,7 +130,7 @@ func main() {
 
 		server := &http.Server{Addr: *listenAddress}
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
-		http.Handle("/api/", forward(logger, targetURL, transport))
+		http.Handle("/api/", authenticate(forward(logger, targetURL, transport)))
 
 		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -141,7 +141,7 @@ func main() {
 			fmt.Fprintf(w, "Prometheus frontend is Ready.\n")
 		})
 
-		http.Handle("/", ui.Handler(externalURL))
+		http.Handle("/", authenticate(ui.Handler(externalURL)))
 
 		g.Add(func() error {
 			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
@@ -159,16 +159,14 @@ func main() {
 	}
 }
 
-func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) http.Handler {
-	client := http.Client{Transport: transport}
-
+func authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		username := os.Getenv(authUsernameEnv)
 		password := os.Getenv(authPasswordEnv)
 		if len(username) > 0 && len(password) > 0 {
-			level.Info(logger).Log("msg", "AUTH_USERNAME and AUTH_PASSWORD are set, handling request with basic auth")
 			reqUser, reqPass, ok := req.BasicAuth()
 			if !ok {
+				w.Header().Set("WWW-Authenticate", "Basic")
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
@@ -178,6 +176,14 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 			}
 		}
 
+		next.ServeHTTP(w, req)
+	})
+}
+
+func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) http.Handler {
+	client := http.Client{Transport: transport}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		u := *target
 		u.Path = path.Join(u.Path, req.URL.Path)
 
