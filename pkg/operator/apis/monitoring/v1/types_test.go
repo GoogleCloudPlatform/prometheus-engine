@@ -555,6 +555,23 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 					Path:     "/prometheus",
 					ProxyURL: "http://foo.bar/test",
 				},
+				// Testing behaviour of multiple jobs with the same port.
+				{
+					Port:     intstr.FromString("http"),
+					Interval: "60s",
+					Path:     "/probe",
+					Params: map[string][]string{
+						"target": {"http://target1"},
+					},
+				},
+				{
+					Port:     intstr.FromString("http"),
+					Interval: "60s",
+					Path:     "/probe",
+					Params: map[string][]string{
+						"target": {"http://target2"},
+					},
+				},
 			},
 			TargetLabels: TargetLabels{
 				FromPod: []LabelMapping{
@@ -706,6 +723,134 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_pod_ip]
   target_label: __address__
   replacement: $1:8080
+  action: replace
+- source_labels: [__meta_kubernetes_pod_label_key1]
+  target_label: key2
+  action: replace
+- source_labels: [__meta_kubernetes_pod_label_key3]
+  target_label: key3
+  action: replace
+kubernetes_sd_configs:
+- role: pod
+  kubeconfig_file: ""
+  follow_redirects: true
+  enable_http2: true
+  selectors:
+  - role: pod
+    field: spec.nodeName=$(NODE_NAME)
+`,
+		`job_name: PodMonitoring/ns1/name1/http
+honor_timestamps: false
+params:
+  target:
+  - http://target1
+scrape_interval: 1m
+scrape_timeout: 1m
+metrics_path: /probe
+sample_limit: 1
+label_limit: 2
+label_name_length_limit: 3
+label_value_length_limit: 4
+follow_redirects: true
+enable_http2: true
+relabel_configs:
+- source_labels: [__meta_kubernetes_namespace]
+  regex: ns1
+  action: keep
+- source_labels: [__meta_kubernetes_namespace]
+  target_label: namespace
+  action: replace
+- target_label: job
+  replacement: name1
+  action: replace
+- target_label: project_id
+  replacement: test_project
+  action: replace
+- target_label: location
+  replacement: test_location
+  action: replace
+- target_label: cluster
+  replacement: test_cluster
+  action: replace
+- source_labels: [__meta_kubernetes_pod_name]
+  target_label: __tmp_instance
+  action: replace
+- source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
+  regex: DaemonSet;(.*)
+  target_label: __tmp_instance
+  replacement: $1
+  action: replace
+- source_labels: [__meta_kubernetes_pod_container_port_name]
+  regex: http
+  action: keep
+- source_labels: [__tmp_instance, __meta_kubernetes_pod_container_port_name]
+  regex: (.+);(.+)
+  target_label: instance
+  replacement: $1:$2
+  action: replace
+- source_labels: [__meta_kubernetes_pod_label_key1]
+  target_label: key2
+  action: replace
+- source_labels: [__meta_kubernetes_pod_label_key3]
+  target_label: key3
+  action: replace
+kubernetes_sd_configs:
+- role: pod
+  kubeconfig_file: ""
+  follow_redirects: true
+  enable_http2: true
+  selectors:
+  - role: pod
+    field: spec.nodeName=$(NODE_NAME)
+`,
+		`job_name: PodMonitoring/ns1/name1/http
+honor_timestamps: false
+params:
+  target:
+  - http://target2
+scrape_interval: 1m
+scrape_timeout: 1m
+metrics_path: /probe
+sample_limit: 1
+label_limit: 2
+label_name_length_limit: 3
+label_value_length_limit: 4
+follow_redirects: true
+enable_http2: true
+relabel_configs:
+- source_labels: [__meta_kubernetes_namespace]
+  regex: ns1
+  action: keep
+- source_labels: [__meta_kubernetes_namespace]
+  target_label: namespace
+  action: replace
+- target_label: job
+  replacement: name1
+  action: replace
+- target_label: project_id
+  replacement: test_project
+  action: replace
+- target_label: location
+  replacement: test_location
+  action: replace
+- target_label: cluster
+  replacement: test_cluster
+  action: replace
+- source_labels: [__meta_kubernetes_pod_name]
+  target_label: __tmp_instance
+  action: replace
+- source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
+  regex: DaemonSet;(.*)
+  target_label: __tmp_instance
+  replacement: $1
+  action: replace
+- source_labels: [__meta_kubernetes_pod_container_port_name]
+  regex: http
+  action: keep
+- source_labels: [__tmp_instance, __meta_kubernetes_pod_container_port_name]
+  regex: (.+);(.+)
+  target_label: instance
+  replacement: $1:$2
   action: replace
 - source_labels: [__meta_kubernetes_pod_label_key1]
   target_label: key2
