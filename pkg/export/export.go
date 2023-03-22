@@ -170,6 +170,12 @@ type ExporterOpts struct {
 	Location  string
 	Cluster   string
 
+	// If true, automatically populate the project id in an exemplar labelset.
+	PopulateExemplarProjectID bool
+	// Automatically populate exemplar labelset with this project id
+	// if PopulateExemplarProjectID is true.
+	ExemplarProjectID string
+
 	// A list of metric matchers. Only Prometheus time series satisfying at
 	// least one of the matchers are exported.
 	// This option matches the semantics of the Prometheus federation match[]

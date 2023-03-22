@@ -133,6 +133,12 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(log.Logger,
 	a.Flag("export.label.project-id", fmt.Sprintf("Default project ID set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", export.KeyProjectID)).
 		Default(opts.ProjectID).StringVar(&opts.ProjectID)
 
+	a.Flag("export.exemplars.populate-exemplar-project-id", "If true, automatically populate the 'project_id' label in an exemplar labelset.").
+		Default("true").BoolVar(&opts.PopulateExemplarProjectID)
+
+	a.Flag("export.exemplars.project-id", "If non-empty and export.exemplars.populate-exemplar-project-id is true, use this project_id as the project_id for exemplar labelsets.").
+		Default(opts.ProjectID).StringVar(&opts.ExemplarProjectID)
+
 	a.Flag("export.user-agent-mode", fmt.Sprintf("Mode for user agent used for requests against the GCM API. Valid values are %q, %q, %q, %q or %q.", UAModeGKE, UAModeKubectl, UAModeAVMW, UAModeABM, UAModeUnspecified)).
 		Default("unspecified").EnumVar(&opts.UserAgentMode, UAModeUnspecified, UAModeGKE, UAModeKubectl, UAModeAVMW, UAModeABM)
 
