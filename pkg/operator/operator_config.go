@@ -523,6 +523,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 				InsecureSkipVerify: am.TLS.InsecureSkipVerify,
 				ServerName:         am.TLS.ServerName,
 			}
+
 			if am.TLS.CA != nil {
 				p := pathForSelector(r.opts.PublicNamespace, am.TLS.CA)
 				b, err := getSecretOrConfigMapBytes(ctx, r.client, r.opts.PublicNamespace, am.TLS.CA)

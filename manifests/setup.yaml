@@ -145,6 +145,16 @@ spec:
                     timeout:
                       type: string
                       description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                    tls:
+                      type: object
+                      description: Configures the scrape request's TLS settings.
+                      properties:
+                        insecureSkipVerify:
+                          type: boolean
+                          description: Disable target certificate validation.
+                        serverName:
+                          type: string
+                          description: Used to verify the hostname for the targets.
                   required:
                   - port
               limits:
@@ -1535,6 +1545,16 @@ spec:
                     timeout:
                       type: string
                       description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                    tls:
+                      type: object
+                      description: Configures the scrape request's TLS settings.
+                      properties:
+                        insecureSkipVerify:
+                          type: boolean
+                          description: Disable target certificate validation.
+                        serverName:
+                          type: string
+                          description: Used to verify the hostname for the targets.
                   required:
                   - port
               limits:

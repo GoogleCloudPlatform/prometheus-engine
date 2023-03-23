@@ -204,7 +204,15 @@ type Authorization struct {
 	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
-// SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
+// TLS specifies TLS configuration parameters from Kubernetes resources.
+type TLS struct {
+	// Used to verify the hostname for the targets.
+	ServerName string `json:"serverName,omitempty"`
+	// Disable target certificate validation.
+	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
+}
+
+// TLSConfig specifies TLS configuration parameters from Kubernetes resources.
 type TLSConfig struct {
 	// Struct containing the CA cert to use for the targets.
 	CA *SecretOrConfigMap `json:"ca,omitempty"`
@@ -708,6 +716,10 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 		httpCfg.ProxyURL.URL = proxyURL
 	}
 
+	if ep.HTTPClientConfig.TLS != nil {
+		httpCfg.TLSConfig = *ep.HTTPClientConfig.TLS.ToPrometheusConfig()
+	}
+
 	scrapeCfg := &promconfig.ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
@@ -1012,6 +1024,14 @@ type ScrapeEndpoint struct {
 	// instance, or __address__) are not permitted. The labelmap action is not permitted
 	// in general.
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
+	// Prometheus HTTP client configuration.
+	HTTPClientConfig `json:",inline"`
+}
+
+// HTTPClientConfig stores HTTP-client configurations.
+type HTTPClientConfig struct {
+	// Configures the scrape request's TLS settings.
+	TLS *TLS `json:"tls,omitempty"`
 }
 
 // TargetLabels configures labels for the discovered Prometheus targets.
