@@ -72,6 +72,7 @@ func TestSampleBuilder(t *testing.T) {
 		matchers   Matchers
 		wantSeries []*monitoring_pb.TimeSeries
 		wantFail   bool
+		exOpts     *exemplarOpts
 	}{
 		{
 			doc: "convert gauge",
@@ -1489,7 +1490,7 @@ func TestSampleBuilder(t *testing.T) {
 			var result []*monitoring_pb.TimeSeries
 
 			for i, batch := range c.samples {
-				b := newSampleBuilder(cache, nil)
+				b := newSampleBuilder(cache, c.exOpts)
 
 				for k := 0; len(batch) > 0; k++ {
 					var exemplars map[storage.SeriesRef]record.RefExemplar
