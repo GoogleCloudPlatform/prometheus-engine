@@ -1489,7 +1489,7 @@ func TestSampleBuilder(t *testing.T) {
 			var result []*monitoring_pb.TimeSeries
 
 			for i, batch := range c.samples {
-				b := newSampleBuilder(cache)
+				b := newSampleBuilder(cache, nil)
 
 				for k := 0; len(batch) > 0; k++ {
 					var exemplars map[storage.SeriesRef]record.RefExemplar

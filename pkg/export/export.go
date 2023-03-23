@@ -426,7 +426,11 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 		samplesDropped.WithLabelValues("no-ha-range").Add(float64(batchSize))
 		return
 	}
-	builder := newSampleBuilder(e.seriesCache)
+	exOpts := &exemplarOpts{
+		autoPopulateProjectID: e.opts.PopulateExemplarProjectID,
+		exemplarProjectID:     e.opts.ExemplarProjectID,
+	}
+	builder := newSampleBuilder(e.seriesCache, exOpts)
 	defer builder.close()
 	exemplarsExported.Add(float64(len(exemplarMap)))
 
