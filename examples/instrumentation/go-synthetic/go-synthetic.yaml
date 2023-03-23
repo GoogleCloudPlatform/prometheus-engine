@@ -34,6 +34,12 @@ spec:
         - "--listen-address=:8080"
         - "--cpu-burn-ops=75"
         - "--memory-ballast-mbs=1024"
+        env:
+        # Needed when using --tls-create-self-signed
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         ports:
         - name: web
           containerPort: 8080
