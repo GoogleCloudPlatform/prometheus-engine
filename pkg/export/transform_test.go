@@ -1476,6 +1476,149 @@ func TestSampleBuilder(t *testing.T) {
 				},
 			},
 		},
+		{
+			doc: "convert histogram with exemplars project_id default",
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1":         {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1_a_count": {Type: textparse.MetricTypeGauge, Help: "metric1_a_count help text"},
+			}),
+			series: seriesMap{
+				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
+				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
+				3: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "0.1"),
+				4: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "0.5"),
+				5: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "1"),
+				6: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "2.5"),
+				7: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "+Inf"),
+			},
+			samples: [][]record.RefSample{
+				// First sample set, should be skipped by reset handling.
+				// The buckets must be in ascending order for an individual histogram but otherwise
+				// no order or grouping constraints apply for series of a given histogram metric.
+				{
+					{Ref: 1, T: 1000, V: 55.1}, // hist1, sum
+					{Ref: 3, T: 1000, V: 2},    // hist1, 0.1
+					{Ref: 4, T: 1000, V: 5},    // hist1, 0.5
+					{Ref: 5, T: 1000, V: 6},    // hist1, 1
+					{Ref: 6, T: 1000, V: 8},    // hist1, 2.5
+					{Ref: 7, T: 1000, V: 10},   // hist1, inf
+					{Ref: 2, T: 1000, V: 10},   // hist1, count
+				},
+				// Second sample set should actually be emitted.
+				{
+					// Second samples for histograms should produce a distribution.
+					{Ref: 3, T: 2000, V: 4},     // hist1, 0.1
+					{Ref: 2, T: 2000, V: 21},    // hist1, count
+					{Ref: 1, T: 2000, V: 123.4}, // hist1, sum
+					{Ref: 4, T: 2000, V: 9},     // hist1, 0.5
+					{Ref: 5, T: 2000, V: 11},    // hist1, 1
+					{Ref: 6, T: 2000, V: 15},    // hist1, 2.5
+					{Ref: 7, T: 2000, V: 21},    // hist1, inf
+				},
+			},
+			exemplars: []map[storage.SeriesRef]record.RefExemplar{
+				// First sample set is skipped by reset handling.
+				{},
+				{
+					3: {Ref: 3, T: 1500, V: .099, Labels: labels.New(
+						labels.Label{Name: "trace_id", Value: "2"},
+						labels.Label{Name: "span_id", Value: "3"},
+					)},
+					4: {Ref: 4, T: 1500, V: .4, Labels: labels.New(
+						labels.Label{Name: "project_id", Value: "explicit-project-id"},
+						labels.Label{Name: "trace_id", Value: "2"},
+						labels.Label{Name: "span_id", Value: "3"},
+					)},
+					5: {Ref: 5, T: 1500, V: .99},
+					6: {Ref: 6, T: 1500, V: 2},
+					7: {Ref: 7, T: 1500, V: 11},
+				},
+			},
+			exOpts: &exemplarOpts{
+				autoPopulateProjectID: true,
+				exemplarProjectID:     "exemplar-project-id",
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				// 0: skipped by reset handling.
+				{ // 1
+					Resource: &monitoredres_pb.MonitoredResource{
+						Type: "prometheus_target",
+						Labels: map[string]string{
+							"project_id": "example-project",
+							"location":   "europe",
+							"cluster":    "foo-cluster",
+							"namespace":  "",
+							"job":        "job1",
+							"instance":   "instance1",
+						},
+					},
+					Metric: &metric_pb.Metric{
+						Type:   "prometheus.googleapis.com/metric1/histogram",
+						Labels: map[string]string{},
+					},
+					MetricKind: metric_pb.MetricDescriptor_CUMULATIVE,
+					ValueType:  metric_pb.MetricDescriptor_DISTRIBUTION,
+					Points: []*monitoring_pb.Point{{
+						Interval: &monitoring_pb.TimeInterval{
+							StartTime: &timestamp_pb.Timestamp{Seconds: 1},
+							EndTime:   &timestamp_pb.Timestamp{Seconds: 2},
+						},
+						Value: &monitoring_pb.TypedValue{
+							Value: &monitoring_pb.TypedValue_DistributionValue{
+								DistributionValue: &distribution_pb.Distribution{
+									Count:                 11,
+									Mean:                  6.20909090909091,
+									SumOfSquaredDeviation: 270.301590909091,
+									BucketOptions: &distribution_pb.Distribution_BucketOptions{
+										Options: &distribution_pb.Distribution_BucketOptions_ExplicitBuckets{
+											ExplicitBuckets: &distribution_pb.Distribution_BucketOptions_Explicit{
+												Bounds: []float64{0.1, 0.5, 1, 2.5},
+											},
+										},
+									},
+									BucketCounts: []int64{2, 2, 1, 2, 4},
+									Exemplars: []*distribution_pb.Distribution_Exemplar{
+										{
+											Value:     .099,
+											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
+											Attachments: []*anypb.Any{
+												wrapAsAny(&monitoring_pb.SpanContext{
+													SpanName: "projects/exemplar-project-id/traces/2/spans/3",
+												}),
+												wrapAsAny(&monitoring_pb.DroppedLabels{
+													Label: map[string]string{"random": "4"},
+												}),
+											},
+										},
+										{
+											Value:     .4,
+											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
+											Attachments: []*anypb.Any{
+												wrapAsAny(&monitoring_pb.SpanContext{
+													SpanName: "projects/explicit-project-id/traces/2/spans/3",
+												}),
+											},
+										},
+										{
+											Value:     .99,
+											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
+										},
+										{
+											Value:     2,
+											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
+										},
+										{
+											Value:     11,
+											Timestamp: &timestamp_pb.Timestamp{Seconds: 1, Nanos: 500000000},
+										},
+									},
+								},
+							},
+						},
+					}},
+				},
+			},
+		},
 	}
 
 	for i, c := range cases {
