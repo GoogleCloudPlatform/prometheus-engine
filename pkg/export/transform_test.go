@@ -1585,9 +1585,6 @@ func TestSampleBuilder(t *testing.T) {
 												wrapAsAny(&monitoring_pb.SpanContext{
 													SpanName: "projects/exemplar-project-id/traces/2/spans/3",
 												}),
-												wrapAsAny(&monitoring_pb.DroppedLabels{
-													Label: map[string]string{"random": "4"},
-												}),
 											},
 										},
 										{
