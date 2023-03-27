@@ -1,0 +1,90 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
++ apiVersion: v1
++ kind: ConfigMap
++ metadata:
++   name: hbase-exporter
++ data:
++   config.yaml: |
++     hostPort: localhost:9900
++     rules:
++     - pattern: "Hadoop<service=HBase, name=RegionServer, sub=TableLatencies><>Namespace_(\\w+)_table_(\\w+)_metric_(\\w+)"
++       name: "hbase_$3"
++       labels:
++         namespace: "$1"
++         table: "$2"
++     - pattern: "Hadoop<service=HBase, name=RegionServer, sub=Regions><>Namespace_(\\w+)_table_(\\w+)_region(\\W+)_metric_(\\w+)"
++       name: "hbase_$4"
++       labels:
++         namespace: "$1"
++         table: "$2"
++         region: "$3"
++     - pattern: "Hadoop<service=HBase, name=(\\w+), sub=(\\w+)><>(\\w+)"
++       name: "hbase_$1_$2_$3"
++     - pattern: "Hadoop<service=HBase, name=(\\w+)><>(\\w+)"
++       name: "hbase_$1_$2"
++     - pattern: "org.apache.ZooKeeperService<name0=StandaloneServer_port(\\d+)><>(\\w+)"
++       type: GAUGE
++       name: "zookeeper_$2"
++     - pattern: "org.apache.ZooKeeperService<name0=StandaloneServer_port(\\d+), name1=InMemoryDataTree><>(\\w+)"
++       type: GAUGE
++       name: "zookeeper_$2"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hbase
+spec:
+  selector:
+    matchLabels:
++     app.kubernetes.io/name: hbase
+  template:
+    metadata:
+      labels:
++       app.kubernetes.io/name: hbase
+    spec:
+      containers:
+      - name: hbase
++       image: dajobe/hbase:latest
+        ports:
++       - containerPort: 9900
++         name: jmx
+        env:
++       - name: HBASE_MASTER_OPTS
++         value: -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.rmi.port=9900 -Dcom.sun.management.jmxremote.port=9900
++     - name: jmx-exporter
++       image: bitnami/jmx-exporter:0.17.0
++       command:
++         - java
++         - -jar
++         - jmx_prometheus_httpserver.jar
++       args:
++         - "9000"
++         - config.yaml
++       ports:
++       - containerPort: 9000
++         name: prometheus
++       volumeMounts:
++       - mountPath: /opt/bitnami/jmx-exporter/config.yaml
++         subPath: config.yaml
++         name: hbase-exporter
++     volumes:
++     - name: hbase-exporter
++       configMap:
++         name: hbase-exporter
++         defaultMode: 0644
++         items:
++         - key: config.yaml
++           path: config.yaml

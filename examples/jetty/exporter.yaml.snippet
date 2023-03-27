@@ -1,0 +1,184 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jetty-exporter
+data:
+  config.yaml: |
+    hostPort: 127.0.0.1:1099
+    rules:
+    - pattern: "org.eclipse.jetty.deploy<(.*)><>(.*)"
+      name: "jetty_deploy_$2"
+      labels:
+        labelList: "$1"
+    - pattern: "org.eclipse.jetty.deploy.providers<type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_deploy_providers_$3"
+      labels:
+        id: "$2"
+        type: "$1"
+    - pattern: "org.eclipse.jetty.io<context=(.*), type=(.*), id=(\\d+)><>(\\w+)"
+      name: "jetty_io_$4"
+      labels:
+        id: "$3"
+        type: "$2"
+        context: "$1"
+    - pattern: "org.eclipse.jetty.io<type=(.*), id=(\\d+)><>(\\w+)"
+      name: "jetty_io_$3"
+      labels:
+        id: "$2"
+        type: "$1"
+    - pattern: "org.eclipse.jetty.jmx<type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_jmx_$3"
+      labels:
+        id: "$2"
+        type: "$1"
+    - pattern: "org.eclipse.jetty.logging<type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_logging_$3"
+      labels:
+        id: "$2"
+        type: "$1"
+    - pattern: "org.eclipse.jetty.server<type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_server_$3"
+      labels:
+        id: "$2"
+        type: "$1"
+    - pattern: "org.eclipse.jetty.server<context=(.*), type=(.*), id=(\\d+)><>(\\w+)"
+      name: "jetty_server_$4"
+      labels:
+        id: "$3"
+        type: "$2"
+        context: "$1"
+    - pattern: "org.eclipse.jetty.server.handler<type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_server_handler_$3"
+      labels:
+        id: "$2"
+        type: "$1"
+    - pattern: "org.eclipse.jetty.server.session<type=(.*), id=(\\d+)><>(\\w+)"
+      name: "jetty_server_session_$3"
+      labels:
+        id: "$2"
+        type: "$1"
+    - pattern: "org.eclipse.jetty.server.session<context=(.*), type=(.*), id=(\\d+)><>(\\w+)"
+      name: "jetty_server_session_$4"
+      labels:
+        id: "$3"
+        type: "$2"
+        context: "$1"
+    - pattern: "org.eclipse.jetty.util<type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_util_$3"
+      labels:
+        id: "$2"
+        type: "$1"
+    - pattern: "org.eclipse.jetty.util.component<type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_util_component_$3"
+      labels:
+        id: "$2"
+        type: "$1"
+    - pattern: "org.eclipse.jetty.servlet<context=(.*), type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_servlet_$4"
+      labels:
+        id: "$3"
+        type: "$2"
+        context: "$1"
+    - pattern: "org.eclipse.jetty.servlet<context=(.*), type=(\\w+), name=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_servlet_$5"
+      labels:
+        id: "$4"
+        type: "$2"
+        name: "$3"
+        context: "$1"
+    - pattern: "org.eclipse.jetty.util.thread<type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_util_thread_$3"
+      labels:
+        id: "$2"
+        type: "$1"
+    - pattern: "org.eclipse.jetty.util.thread.strategy<context=(.*), type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_util_thread_strategy_$4"
+      labels:
+        id: "$3"
+        type: "$2"
+        context: "$1"
+    - pattern: "org.eclipse.jetty.webapp<context=(.*), type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_webapp_$4"
+      labels:
+        id: "$3"
+        type: "$2"
+        context: "$1"
+    - pattern: "org.eclipse.jetty.websocket.common<context=(.*), type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_websocket_jakarta_common_$4"
+      labels:
+        id: "$3"
+        type: "$2"
+        context: "$1"
+    - pattern: "org.eclipse.jetty.websocket.jakarta.common<context=(.*), type=(\\w+), id=(\\d+)><>(\\w+)"
+      name: "jetty_websocket_jakarta_common_$4"
+      labels:
+        id: "$3"
+        type: "$2"
+        context: "$1"
+    - pattern: "org.eclipse.jetty.(.*)"
+      name: jetty_metric_$1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jetty
+spec:
+  selector:
+    matchLabels:
++      app.kubernetes.io/name: jetty
+  replicas: 1
+  template:
+    metadata:
+      labels:
++        app.kubernetes.io/name: jetty
+    spec:
+      containers:
+      - name: jetty
+        image: jetty:11-jdk17-alpine
++        ports:
++        - containerPort: 1099
++          name: jmx
++        env:
++        - name: JAVA_OPTIONS
++          value: "-Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.port=1099 -Dcom.sun.management.jmxremote.rmi.port=1099"
++        args:
++        - "--module=jmx"
++        - "jetty.threadPool.maxThreads=500"
++      - name: exporter
++        image: bitnami/jmx-exporter:0.17.0
++        ports:
++        - containerPort: 9000
++          name: prometheus
++        command:
++          - java
++          - -jar
++          - jmx_prometheus_httpserver.jar
++        args:
++          - "9000"
++          - /opt/jmx_exporter/config.yaml
++        volumeMounts:
++        - mountPath: /opt/jmx_exporter/config.yaml
++          subPath: config.yaml
++          name: jetty-exporter
++      volumes:
++      - name: jetty-exporter
++        configMap:
++          name: jetty-exporter
++          items:
++          - key: config.yaml
++            path: config.yaml
+---

@@ -1,0 +1,71 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: varnish-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: varnish-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: varnish
+    interval: 30s
+    rules:
+    - alert: VarnishBackendConnectionFailure
+      annotations:
+        description: |-
+          Varnish backend connection failure
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Varnish backend connection failure (instance {{ $labels.instance }})
+      expr: varnish_backend_fail > 0
+      for: 5m
+      labels:
+        severity: critical
+    - alert: VarnishHighCacheEvictions
+      annotations:
+        description: |-
+          Varnish high cache evictions
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Varnish high cache evictions (instance {{ $labels.instance }})
+      expr: rate(varnish_main_n_obj_purged[5m]) >= 10
+      for: 5m
+      labels:
+        severity: warning
+    - alert: VarnishHighServerLimit
+      annotations:
+        description: |-
+          Varnish high server limit
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Varnish high server limit (instance {{ $labels.instance }})
+      expr: varnish_main_threads_failed > 0
+      for: 5m
+      labels:
+        severity: critical
+    - alert: VarnishSessionsDropped
+      annotations:
+        description: |-
+          Varnish sessions dropped
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Varnish sessions dropped (instance {{ $labels.instance }})
+      expr: varnish_main_sessions{type="dropped"} > 0
+      for: 5m
+      labels:
+        severity: critical
