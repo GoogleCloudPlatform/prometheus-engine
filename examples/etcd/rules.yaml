@@ -1,0 +1,49 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: etcd-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: etcd-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: etcd
+    interval: 30s
+    rules:
+    - alert: EtcdLongFsyncDuration
+      annotations:
+        description: |-
+          Etcd long fsync duration
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Etcd long fsync duration (instance {{ $labels.instance }})
+      expr: histogram_quantile(0.9, rate(etcd_disk_wal_fsync_duration_seconds_bucket[10m])) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+    - alert: EtcdRapidLeaderChanges
+      annotations:
+        description: |-
+          Etcd rapid leader changes
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Etcd rapid leader changes (instance {{ $labels.instance }})
+      expr: etcd_server_leader_changes_seen_total >= 0.05
+      for: 5m
+      labels:
+        severity: critical

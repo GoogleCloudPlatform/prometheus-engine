@@ -1,0 +1,49 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: jetty-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: jetty-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: jetty
+    interval: 30s
+    rules:
+    - alert: JettyLongThreadQueue
+      annotations:
+        description: |-
+          Jetty long thread queue
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Jetty long thread queue (instance {{ $labels.instance }})
+      expr: jetty_util_thread_queueSize >= 10
+      for: 5m
+      labels:
+        severity: critical
+    - alert: JettyNoThreadsAvailable
+      annotations:
+        description: |-
+          Jetty no threads available
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Jetty no threads available (instance {{ $labels.instance }})
+      expr: jetty_util_thread_idleThreads == 0
+      for: 5m
+      labels:
+        severity: critical
