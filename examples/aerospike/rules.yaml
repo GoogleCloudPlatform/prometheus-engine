@@ -1,0 +1,60 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: aerospike-rules
+  labels:
+    app.kubernetes.io/component: rules
+    app.kubernetes.io/name: aerospike-rules
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  groups:
+  - name: aerospike
+    interval: 30s
+    rules:
+    - alert: AerospikeHighMemoryUtilization
+      annotations:
+        description: |-
+          Aerospike high memory utilization
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Aerospike high memory utilization (instance {{ $labels.instance }})
+      expr: aerospike_node_stats_system_free_mem_pct < 5
+      for: 5m
+      labels:
+        severity: critical
+    - alert: AerospikeHighNamespaceDiskUtilization
+      annotations:
+        description: |-
+          Aerospike high namespace disk utilization
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Aerospike high namespace disk utilization (instance {{ $labels.instance }})
+      expr: aerospike_namespace_device_available_pct < 5
+      for: 5m
+      labels:
+        severity: warning
+    - alert: AerospikeHighNamespaceMemoryUtilization
+      annotations:
+        description: |-
+          Aerospike high namespace memory utilization
+            VALUE = {{ $value }}
+            LABELS: {{ $labels }}
+        summary: Aerospike high namespace memory utilization (instance {{ $labels.instance }})
+      expr: aerospike_namespace_memory_free_pct < 5
+      for: 5m
+      labels:
+        severity: warning
