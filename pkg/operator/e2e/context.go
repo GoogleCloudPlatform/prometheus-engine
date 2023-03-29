@@ -30,6 +30,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -55,9 +56,9 @@ func init() {
 type testContext struct {
 	*testing.T
 
-	namespace, pubNamespace string
-	// A list of owner references that can be attached to non-namespaced
-	// test resources so that they'll get cleaned up on teardown.
+	namespace, operatorNamespace, pubNamespace string
+	// A list of owner references that can be attached to test resources so that they'll get cleaned
+	// up on teardown. This must be attached to resources that are not part of `namespace`.
 	ownerReferences []metav1.OwnerReference
 
 	kubeClient     kubernetes.Interface
@@ -79,54 +80,120 @@ func newTestContext(t *testing.T) *testContext {
 	// tests don't falsify results. Either by old test resources not being cleaned up
 	// (less likely) or metrics observed in GCP being from a previous run (more likely).
 	namespace := fmt.Sprintf("gmp-test-%s-%s", strings.ToLower(t.Name()), startTime.Format("20060102-150405"))
-	pubNamespace := fmt.Sprintf("%s-pub", namespace)
+	var operatorNamespace, pubNamespace string
+	if !localOperator {
+		operatorNamespace = fmt.Sprintf("%s-system", namespace)
+		pubNamespace = fmt.Sprintf("%s-pub", namespace)
+	} else {
+		operatorNamespace = operator.DefaultOperatorNamespace
+		pubNamespace = operator.DefaultPublicNamespace
+	}
 
 	tctx := &testContext{
-		T:              t,
-		namespace:      namespace,
-		pubNamespace:   pubNamespace,
-		kubeClient:     kubeClient,
-		operatorClient: operatorClient,
+		T:                 t,
+		namespace:         namespace,
+		operatorNamespace: operatorNamespace,
+		pubNamespace:      pubNamespace,
+		kubeClient:        kubeClient,
+		operatorClient:    operatorClient,
 	}
 	// The testing package runs cleanup on a best-effort basis. Thus we have a fallback
 	// cleanup of namespaces in TestMain.
 	t.Cleanup(cancel)
-	t.Cleanup(func() { tctx.cleanupNamespaces() })
-
-	tctx.ownerReferences, err = tctx.createBaseResources(context.TODO())
-	if err != nil {
-		t.Fatalf("create test namespace: %s", err)
-	}
-
-	op, err := operator.New(globalLogger, kubeconfig, operator.Options{
-		ProjectID:         projectID,
-		Cluster:           cluster,
-		Location:          location,
-		OperatorNamespace: tctx.namespace,
-		PublicNamespace:   tctx.pubNamespace,
-		ListenAddr:        ":10250",
-	})
-	if err != nil {
-		t.Fatalf("instantiating operator: %s", err)
-	}
-
-	go func() {
-		if err := op.Run(ctx, prometheus.NewRegistry()); err != nil {
-			// Since we aren't in the main test goroutine we cannot fail with Fatal here.
-			t.Errorf("running operator: %s", err)
+	t.Cleanup(func() {
+		ctx := context.Background()
+		tctx.cleanupBaseNamespaces(ctx)
+		if !localOperator {
+			tctx.cleanupGMPNamespaces(ctx)
 		}
-	}()
+	})
+
+	err = tctx.createBaseResources(context.Background())
+	if err != nil {
+		t.Fatalf("create base resources: %s", err)
+	}
+	if !localOperator {
+		if err := tctx.createGMPResources(context.Background()); err != nil {
+			t.Fatalf("create GMP resources: %s", err)
+		}
+
+		op, err := operator.New(globalLogger, kubeconfig, operator.Options{
+			ProjectID:         projectID,
+			Cluster:           cluster,
+			Location:          location,
+			OperatorNamespace: tctx.operatorNamespace,
+			PublicNamespace:   tctx.pubNamespace,
+			ListenAddr:        ":10250",
+		})
+		if err != nil {
+			t.Fatalf("instantiating operator: %s", err)
+		}
+
+		go func() {
+			if err := op.Run(ctx, prometheus.NewRegistry()); err != nil {
+				// Since we aren't in the main test goroutine we cannot fail with Fatal here.
+				t.Errorf("running operator: %s", err)
+			}
+		}()
+	} else {
+		if err := tctx.waitForGMPOperatorReady(context.Background()); err != nil {
+			t.Fatalf("timed out waiting for GMP operator: %s", err)
+		}
+	}
 
 	return tctx
 }
 
-// createBaseResources creates resources the operator requires to exist already.
-// These are resources which don't depend on runtime state and can thus be deployed
-// statically, allowing to run the operator without critical write permissions.
-func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.OwnerReference, error) {
+func (tctx *testContext) waitForGMPOperatorReady(ctx context.Context) error {
+	return wait.Poll(10*time.Second, 120*time.Second, func() (bool, error) {
+		deployment, err := tctx.kubeClient.AppsV1().Deployments(tctx.operatorNamespace).Get(ctx, operator.NameOperator, metav1.GetOptions{})
+		if err != nil {
+			return false, nil
+		}
+		expected := int32(1)
+		if deployment.Spec.Replicas != nil {
+			expected = *deployment.Spec.Replicas
+		}
+		ready := deployment.Status.AvailableReplicas == expected
+		return ready, nil
+	})
+}
+
+// createBaseResources creates resources for the test.
+func (tctx *testContext) createBaseResources(ctx context.Context) error {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: tctx.namespace,
+			// Apply a consistent label to make it easy manually cleanup in case
+			// something went wrong with the test cleanup.
+			Labels: map[string]string{
+				"gmp-operator-test": "true",
+			},
+		},
+	}
+
+	ns, err := tctx.kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "create namespace %q", ns)
+	}
+
+	tctx.ownerReferences = append(tctx.ownerReferences, metav1.OwnerReference{
+		APIVersion: "v1",
+		Kind:       "Namespace",
+		Name:       ns.Name,
+		UID:        ns.UID,
+	})
+
+	return nil
+}
+
+// createGMPResources creates resources the operator requires to exist already.
+// These are resources which don't depend on runtime state and can thus be deployed
+// statically, allowing to run the operator without critical write permissions.
+func (tctx *testContext) createGMPResources(ctx context.Context) error {
+	ons := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: tctx.operatorNamespace,
 			// Apply a consistent label to make it easy manually cleanup in case
 			// something went wrong with the test cleanup.
 			Labels: map[string]string{
@@ -146,30 +213,21 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	}
 	// This will also fail is the namespace already exists, thereby detecting if a previous
 	// test run wasn't cleaned up correctly.
-	ns, err := tctx.kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	_, err := tctx.kubeClient.CoreV1().Namespaces().Create(ctx, ons, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "create namespace %q", ns)
+		return errors.Wrapf(err, "create namespace %q", ons)
 	}
 	_, err = tctx.kubeClient.CoreV1().Namespaces().Create(ctx, pns, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "create namespace %q", pns)
-	}
-
-	ors := []metav1.OwnerReference{
-		{
-			APIVersion: "v1",
-			Kind:       "Namespace",
-			Name:       ns.Name,
-			UID:        ns.UID,
-		},
+		return errors.Wrapf(err, "create namespace %q", pns)
 	}
 
 	svcAccount := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{Name: operator.NameCollector},
 	}
-	_, err = tctx.kubeClient.CoreV1().ServiceAccounts(tctx.namespace).Create(ctx, svcAccount, metav1.CreateOptions{})
+	_, err = tctx.kubeClient.CoreV1().ServiceAccounts(tctx.operatorNamespace).Create(ctx, svcAccount, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "create collector service account")
+		return errors.Wrap(err, "create collector service account")
 	}
 
 	// The cluster role expected to exist already.
@@ -180,7 +238,7 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 			Name: clusterRoleName + ":" + tctx.namespace,
 			// Tie to the namespace so the binding gets deleted alongside it, even though
 			// it's an cluster-wide resource.
-			OwnerReferences: ors,
+			OwnerReferences: tctx.ownerReferences,
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
@@ -191,20 +249,20 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Namespace: tctx.namespace,
+				Namespace: tctx.operatorNamespace,
 				Name:      operator.NameCollector,
 			},
 		},
 	}
 	_, err = tctx.kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, roleBinding, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "create cluster role binding")
+		return errors.Wrap(err, "create cluster role binding")
 	}
 
 	if gcpServiceAccount != "" {
 		b, err := ioutil.ReadFile(gcpServiceAccount)
 		if err != nil {
-			return nil, errors.Wrap(err, "read GCP service account file")
+			return errors.Wrap(err, "read GCP service account file")
 		}
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -216,79 +274,86 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 		}
 		_, err = tctx.kubeClient.CoreV1().Secrets(tctx.pubNamespace).Create(ctx, secret, metav1.CreateOptions{})
 		if err != nil {
-			return nil, errors.Wrap(err, "create GCP service account secret")
+			return errors.Wrap(err, "create GCP service account secret")
 		}
 	}
 
 	// Load workloads from YAML files and update the namespace to the test namespace.
 	collectorBytes, err := ioutil.ReadFile("collector.yaml")
 	if err != nil {
-		return nil, errors.Wrap(err, "read collector YAML")
+		return errors.Wrap(err, "read collector YAML")
 	}
 	obj, _, err := scheme.Codecs.UniversalDeserializer().Decode(collectorBytes, nil, nil)
 	collector := obj.(*appsv1.DaemonSet)
-	collector.Namespace = tctx.namespace
+	collector.Namespace = tctx.operatorNamespace
 
-	_, err = tctx.kubeClient.AppsV1().DaemonSets(tctx.namespace).Create(ctx, collector, metav1.CreateOptions{})
+	_, err = tctx.kubeClient.AppsV1().DaemonSets(tctx.operatorNamespace).Create(ctx, collector, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "create collector DaemonSet")
+		return errors.Wrap(err, "create collector DaemonSet")
 	}
 	evaluatorBytes, err := ioutil.ReadFile("rule-evaluator.yaml")
 	if err != nil {
-		return nil, errors.Wrap(err, "read rule-evaluator YAML")
+		return errors.Wrap(err, "read rule-evaluator YAML")
 	}
 
 	obj, _, err = scheme.Codecs.UniversalDeserializer().Decode(evaluatorBytes, nil, nil)
 	evaluator := obj.(*appsv1.Deployment)
-	evaluator.Namespace = tctx.namespace
+	evaluator.Namespace = tctx.operatorNamespace
 
-	_, err = tctx.kubeClient.AppsV1().Deployments(tctx.namespace).Create(ctx, evaluator, metav1.CreateOptions{})
+	_, err = tctx.kubeClient.AppsV1().Deployments(tctx.operatorNamespace).Create(ctx, evaluator, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "create rule-evaluator Deployment")
+		return errors.Wrap(err, "create rule-evaluator Deployment")
 	}
 
 	alertmanagerBytes, err := ioutil.ReadFile("alertmanager.yaml")
 	if err != nil {
-		return nil, errors.Wrap(err, "read alertmanager YAML")
+		return errors.Wrap(err, "read alertmanager YAML")
 	}
 	for _, doc := range strings.Split(string(alertmanagerBytes), "---") {
 		obj, _, err = scheme.Codecs.UniversalDeserializer().Decode([]byte(doc), nil, nil)
 		if err != nil {
-			return nil, errors.Wrap(err, "deserializing alertmanager manifest")
+			return errors.Wrap(err, "deserializing alertmanager manifest")
 		}
 		switch obj.(type) {
 		case *appsv1.StatefulSet:
 			alertmanager := obj.(*appsv1.StatefulSet)
-			alertmanager.Namespace = tctx.namespace
-			if _, err := tctx.kubeClient.AppsV1().StatefulSets(tctx.namespace).Create(ctx, alertmanager, metav1.CreateOptions{}); err != nil {
-				return nil, errors.Wrap(err, "create alertmanager statefulset")
+			alertmanager.Namespace = tctx.operatorNamespace
+			if _, err := tctx.kubeClient.AppsV1().StatefulSets(tctx.operatorNamespace).Create(ctx, alertmanager, metav1.CreateOptions{}); err != nil {
+				return errors.Wrap(err, "create alertmanager statefulset")
 			}
 		case *corev1.Secret:
 			amSecret := obj.(*corev1.Secret)
-			amSecret.Namespace = tctx.namespace
-			if _, err := tctx.kubeClient.CoreV1().Secrets(tctx.namespace).Create(ctx, amSecret, metav1.CreateOptions{}); err != nil {
-				return nil, errors.Wrap(err, "create alertmanager secret")
+			amSecret.Namespace = tctx.operatorNamespace
+			if _, err := tctx.kubeClient.CoreV1().Secrets(tctx.operatorNamespace).Create(ctx, amSecret, metav1.CreateOptions{}); err != nil {
+				return errors.Wrap(err, "create alertmanager secret")
 			}
 		case *corev1.Service:
 			amSvc := obj.(*corev1.Service)
-			amSvc.Namespace = tctx.namespace
-			if _, err := tctx.kubeClient.CoreV1().Services(tctx.namespace).Create(ctx, amSvc, metav1.CreateOptions{}); err != nil {
-				return nil, errors.Wrap(err, "create alertmanager service")
+			amSvc.Namespace = tctx.operatorNamespace
+			if _, err := tctx.kubeClient.CoreV1().Services(tctx.operatorNamespace).Create(ctx, amSvc, metav1.CreateOptions{}); err != nil {
+				return errors.Wrap(err, "create alertmanager service")
 			}
 		}
 	}
 
-	return ors, nil
+	return nil
 }
 
-func (tctx *testContext) cleanupNamespaces() {
-	err := tctx.kubeClient.CoreV1().Namespaces().Delete(context.TODO(), tctx.namespace, metav1.DeleteOptions{})
+func (tctx *testContext) cleanupBaseNamespaces(ctx context.Context) {
+	err := tctx.kubeClient.CoreV1().Namespaces().Delete(ctx, tctx.namespace, metav1.DeleteOptions{})
 	if err != nil {
 		tctx.Errorf("cleanup namespace %q: %s", tctx.namespace, err)
 	}
-	err = tctx.kubeClient.CoreV1().Namespaces().Delete(context.TODO(), tctx.pubNamespace, metav1.DeleteOptions{})
+}
+
+func (tctx *testContext) cleanupGMPNamespaces(ctx context.Context) {
+	err := tctx.kubeClient.CoreV1().Namespaces().Delete(ctx, tctx.operatorNamespace, metav1.DeleteOptions{})
 	if err != nil {
-		tctx.Errorf("cleanup public namespace %q: %s", tctx.namespace, err)
+		tctx.Errorf("cleanup operator namespace %q: %s", tctx.operatorNamespace, err)
+	}
+	err = tctx.kubeClient.CoreV1().Namespaces().Delete(ctx, tctx.pubNamespace, metav1.DeleteOptions{})
+	if err != nil {
+		tctx.Errorf("cleanup public namespace %q: %s", tctx.pubNamespace, err)
 	}
 }
 

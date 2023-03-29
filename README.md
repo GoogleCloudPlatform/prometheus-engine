@@ -24,31 +24,70 @@ For the fully Prometheus-compatible binary that writes ingested data into GMP/GC
 see [GoogleCloudPlatform/prometheus](https://github.com/GoogleCloudPlatform/prometheus).
 
 ## Build
-Run `make help` shows a list of candidate targets with documentation.
+To build and deploy everything to your GKE cluster, connect to your GKE cluster and run:
 
-Any go application in `./cmd/` with an associated `main.go`, e.g. `./cmd/operator/main.go`
-is a candidate for build by running:
 ```bash
-make operator
+DOCKER_PUSH=1 make bin
+kubectl apply -f manifests/setup.yaml
+kubectl apply -f manifests/operator.yaml
 ```
 
-- Running `make bin` will generate all the go binaries.
-  - Setting `NO_DOCKER=1` here will build all the binaries natively on the host machine.
-- Running `make test` will run unit and e2e tests.
-  - If `NO_DOCKER=1` is set, end-to-end tests will be run against the current
-  kubectl context. It is assumed the cluster has access to the GCM API.
-  Ensure `GMP_CLUSTER` and `GMP_LOCATION` are set, e.g.
-  ```bash
-  NO_DOCKER=1 GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make test
-  ```
-- Running `make presubmit` will run various checks on the repo to ensure it is
-ready to submit a pull request. This includes testing, formatting,
-and regenerating files in-place.
-  - Setting `DRY_RUN=1` won't regenerate any files but will return a
-  non-zero exit code if the current changes differ from what would be. This
-  can be useful in running in CI workflows.
+The Kubernetes configurations under `manifests/` will be updated with the new Docker image after
+each build.
 
-### Dependencies
+To build a single application, you can use `make` with the application name. Any Go application in
+[`cmd/`](cmd/) with an associated `main.go`, e.g. `./cmd/operator/main.go` is a candidate for build:
+
+```bash
+DOCKER_PUSH=1 make operator
+```
+
+Setting `NO_DOCKER=1` in front of `make` will simply build a binary without tagging it. If you want
+to run binaries locally, do not apply the manifests YAML configurations otherwise you may have two
+instances of the binary running -- the one you run locally and the one from the Kubernetes
+`Deployment` configuration.
+
+For a list of candidate targets with documentation, run:
+
+```bash
+make help
+```
+
+## Unit Tests
+To run unit tests:
+
+```bash
+make test
+```
+
+If `NO_DOCKER=1` is set, end-to-end tests will be run against the current Kubernetes context. It is
+assumed the cluster has access to the GCM API. Ensure `GMP_CLUSTER` and `GMP_LOCATION` are set, e.g.
+
+```bash
+NO_DOCKER=1 GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make test
+```
+
+## Integration Tests
+To run end-to-end tests against a `kind` cluster:
+
+```bash
+make kindtest
+```
+
+See the [operator README](./pkg/operator/README.md) for instructions on running the end-to-end test
+on your own cluster.
+
+## Contributing
+To run various checks on the repo to ensure your changes are ready to submit a pull request, run:
+
+```bash
+make presubmit
+```
+
+This includes testing, formatting, and regenerating files in-place. Setting `DRY_RUN=1` won't
+regenerate any files but will return a non-zero exit code if the current changes differ from what
+would be. This can be useful in running in CI workflows.
+
 In order to best develop and contribute to this repository, the following dependencies are
 recommended:
 1. [`go`](https://golang.org/doc/install)

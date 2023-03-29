@@ -61,9 +61,11 @@ var (
 	location          string
 	skipGCM           bool
 	gcpServiceAccount string
+	localOperator     bool
 )
 
 func TestMain(m *testing.M) {
+	flag.BoolVar(&localOperator, "local-operator", false, "If set, prevents deploying an operator. An operator is expected to be deployed.")
 	flag.StringVar(&projectID, "project-id", "", "The GCP project to write metrics to.")
 	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
 	flag.StringVar(&location, "location", "", "The location of the Kubernetes cluster that's tested against.")
@@ -144,7 +146,10 @@ route:
   receiver: "foobar"
 `
 	secret := &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: operator.AlertmanagerPublicSecretName},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            operator.AlertmanagerPublicSecretName,
+			OwnerReferences: tctx.ownerReferences,
+		},
 		Data: map[string][]byte{
 			operator.AlertmanagerPublicSecretKey: []byte(alertmanagerConfig),
 		},
@@ -171,7 +176,10 @@ route:
 		},
 	}
 	secret := &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-secret-name"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "my-secret-name",
+			OwnerReferences: tctx.ownerReferences,
+		},
 		Data: map[string][]byte{
 			"my-secret-key": []byte(alertmanagerConfig),
 		},
@@ -196,7 +204,8 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 
 	opCfg := &monitoringv1.OperatorConfig{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: operator.NameOperatorConfig,
+			Name:            operator.NameOperatorConfig,
+			OwnerReferences: t.ownerReferences,
 		},
 		Rules: monitoringv1.RuleEvaluatorSpec{
 			ExternalLabels: map[string]string{
@@ -251,7 +260,8 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext, cert, ke
 	secrets := []*corev1.Secret{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "alertmanager-authorization",
+				Name:            "alertmanager-authorization",
+				OwnerReferences: t.ownerReferences,
 			},
 			Data: map[string][]byte{
 				"token": []byte("auth-bearer-password"),
@@ -259,7 +269,8 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext, cert, ke
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "alertmanager-tls",
+				Name:            "alertmanager-tls",
+				OwnerReferences: t.ownerReferences,
 			},
 			Data: map[string][]byte{
 				"cert": cert,
@@ -284,13 +295,13 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []b
 		fmt.Sprintf("secret_%s_alertmanager-authorization_token", t.pubNamespace): []byte("auth-bearer-password"),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
-		secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
+		secret, err := t.kubeClient.CoreV1().Secrets(t.operatorNamespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
 			return false, errors.Wrap(err, "get secret")
 		}
-		delete(secret.Data, fmt.Sprintf("secret_%s_user-gcp-service-account_key.json", t.pubNamespace))
+		delete(secret.Data, fmt.Sprintf("secret_%s_user-gcp-service-account_key.json", t.operatorNamespace))
 
 		if diff := cmp.Diff(want, secret.Data); diff != "" {
 			return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
@@ -306,7 +317,9 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []b
 func testRuleEvaluatorConfig(ctx context.Context, t *testContext) {
 	replace := func(s string) string {
 		return strings.NewReplacer(
-			"{namespace}", t.namespace, "{pubNamespace}", t.pubNamespace,
+			"{operatorNamespace}", t.operatorNamespace,
+			"{pubNamespace}", t.pubNamespace,
+			"{namespace}", t.namespace,
 		).Replace(s)
 	}
 
@@ -369,13 +382,13 @@ alerting:
               namespaces:
                 own_namespace: false
                 names:
-                    - {namespace}
+                    - {operatorNamespace}
 rule_files:
     - /etc/rules/*.yaml
 `),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
-		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
+		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.operatorNamespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
@@ -394,7 +407,7 @@ rule_files:
 
 func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
-		deploy, err := t.kubeClient.AppsV1().Deployments(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
+		deploy, err := t.kubeClient.AppsV1().Deployments(t.operatorNamespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
@@ -458,73 +471,70 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 func TestWebhookCABundleInjection(t *testing.T) {
 	tctx := newTestContext(t)
 
-	var (
-		whConfigName = fmt.Sprintf("gmp-operator.%s.monitoring.googleapis.com", tctx.namespace)
-		policy       = arv1.Ignore // Prevent collisions with other test or real usage
-		sideEffects  = arv1.SideEffectClassNone
-		url          = "https://0.1.2.3/"
+	const (
+		expectedValidatingWebhookCount = 6
+		expectedMutatingWebhookCount   = 2
 	)
 
-	// Create webhook configs. The operator must populate their caBundles.
-	vwc := &arv1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            whConfigName,
-			OwnerReferences: tctx.ownerReferences,
-		},
-		Webhooks: []arv1.ValidatingWebhook{
-			{
-				Name:                    "wh1.monitoring.googleapis.com",
-				ClientConfig:            arv1.WebhookClientConfig{URL: &url},
-				FailurePolicy:           &policy,
-				SideEffects:             &sideEffects,
-				AdmissionReviewVersions: []string{"v1"},
-			}, {
-				Name:                    "wh2.monitoring.googleapis.com",
-				ClientConfig:            arv1.WebhookClientConfig{URL: &url},
-				FailurePolicy:           &policy,
-				SideEffects:             &sideEffects,
-				AdmissionReviewVersions: []string{"v1"},
+	ctx := context.Background()
+	whConfigName := fmt.Sprintf("gmp-operator.%s.monitoring.googleapis.com", tctx.operatorNamespace)
+	if !localOperator {
+		var (
+			policy      = arv1.Ignore // Prevent collisions with other test or real usage
+			sideEffects = arv1.SideEffectClassNone
+			url         = "https://0.1.2.3/"
+		)
+
+		// Create webhook configs. The operator must populate their caBundles.
+		vwc := &arv1.ValidatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            whConfigName,
+				OwnerReferences: tctx.ownerReferences,
 			},
-		},
-	}
-	_, err := tctx.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(context.Background(), vwc, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	mwc := &arv1.MutatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            whConfigName,
-			OwnerReferences: tctx.ownerReferences,
-		},
-		Webhooks: []arv1.MutatingWebhook{
-			{
-				Name:                    "wh1.monitoring.googleapis.com",
+		}
+		for i := 0; i < expectedValidatingWebhookCount; i++ {
+			vwc.Webhooks = append(vwc.Webhooks, arv1.ValidatingWebhook{
+				Name:                    fmt.Sprintf("wh%d.monitoring.googleapis.com", i),
 				ClientConfig:            arv1.WebhookClientConfig{URL: &url},
 				FailurePolicy:           &policy,
 				SideEffects:             &sideEffects,
 				AdmissionReviewVersions: []string{"v1"},
-			}, {
-				Name:                    "wh2.monitoring.googleapis.com",
-				ClientConfig:            arv1.WebhookClientConfig{URL: &url},
-				FailurePolicy:           &policy,
-				SideEffects:             &sideEffects,
-				AdmissionReviewVersions: []string{"v1"},
+			})
+		}
+		_, err := tctx.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(ctx, vwc, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatalf("unable to create validatingwebhook: %s", err)
+		}
+
+		mwc := &arv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            whConfigName,
+				OwnerReferences: tctx.ownerReferences,
 			},
-		},
-	}
-	_, err = tctx.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.Background(), mwc, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatal(err)
+		}
+		for i := 0; i < expectedMutatingWebhookCount; i++ {
+			mwc.Webhooks = append(mwc.Webhooks, arv1.MutatingWebhook{
+				Name:                    fmt.Sprintf("wh%d.monitoring.googleapis.com", i),
+				ClientConfig:            arv1.WebhookClientConfig{URL: &url},
+				FailurePolicy:           &policy,
+				SideEffects:             &sideEffects,
+				AdmissionReviewVersions: []string{"v1"},
+			})
+		}
+		_, err = tctx.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(ctx, mwc, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatalf("unable to create mutatingwebhook: %s", err)
+		}
 	}
 
 	// Wait for caBundle injection.
-	err = wait.Poll(3*time.Second, 2*time.Minute, func() (bool, error) {
-		vwc, err := tctx.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.Background(), whConfigName, metav1.GetOptions{})
+	err := wait.Poll(3*time.Second, 2*time.Minute, func() (bool, error) {
+		vwc, err := tctx.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, whConfigName, metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Errorf("get validatingwebhook configuration: %s", err)
 		}
-		if len(vwc.Webhooks) != 2 {
-			return false, errors.Errorf("expected 2 webhooks but got %d", len(vwc.Webhooks))
+		if len(vwc.Webhooks) != expectedValidatingWebhookCount {
+			return false, errors.Errorf("expected %d webhooks but got %d", expectedValidatingWebhookCount, len(vwc.Webhooks))
 		}
 		for _, wh := range vwc.Webhooks {
 			if len(wh.ClientConfig.CABundle) == 0 {
@@ -538,12 +548,12 @@ func TestWebhookCABundleInjection(t *testing.T) {
 	}
 
 	err = wait.Poll(3*time.Second, 2*time.Minute, func() (bool, error) {
-		mwc, err := tctx.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.Background(), whConfigName, metav1.GetOptions{})
+		mwc, err := tctx.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, whConfigName, metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Errorf("get mutatingwebhook configuration: %s", err)
 		}
-		if len(mwc.Webhooks) != 2 {
-			return false, errors.Errorf("expected 2 webhooks but got %d", len(vwc.Webhooks))
+		if len(mwc.Webhooks) != expectedMutatingWebhookCount {
+			return false, errors.Errorf("expected %d webhooks but got %d", expectedMutatingWebhookCount, len(mwc.Webhooks))
 		}
 		for _, wh := range mwc.Webhooks {
 			if len(wh.ClientConfig.CABundle) == 0 {
@@ -563,7 +573,8 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 	// Create initial OperatorConfig to trigger deployment of resources.
 	opCfg := &monitoringv1.OperatorConfig{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: operator.NameOperatorConfig,
+			Name:            operator.NameOperatorConfig,
+			OwnerReferences: t.ownerReferences,
 		},
 		Collection: monitoringv1.CollectionSpec{
 			ExternalLabels: map[string]string{
@@ -594,7 +605,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 	}
 
 	err = wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
-		ds, err := t.kubeClient.AppsV1().DaemonSets(t.namespace).Get(ctx, operator.NameCollector, metav1.GetOptions{})
+		ds, err := t.kubeClient.AppsV1().DaemonSets(t.operatorNamespace).Get(ctx, operator.NameCollector, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
@@ -671,7 +682,8 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 	// should show up in Cloud Monitoring shortly after.
 	podmon := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "collector-podmon",
+			Name:            "collector-podmon",
+			OwnerReferences: t.ownerReferences,
 		},
 		Spec: monitoringv1.PodMonitoringSpec{
 			Selector: metav1.LabelSelector{
@@ -692,7 +704,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 		},
 	}
 
-	_, err := t.operatorClient.MonitoringV1().PodMonitorings(t.namespace).Create(ctx, podmon, metav1.CreateOptions{})
+	_, err := t.operatorClient.MonitoringV1().PodMonitorings(t.operatorNamespace).Create(ctx, podmon, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create collector PodMonitoring: %s", err)
 	}
@@ -700,7 +712,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 
 	var resVer = ""
 	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-		pm, err := t.operatorClient.MonitoringV1().PodMonitorings(t.namespace).Get(ctx, "collector-podmon", metav1.GetOptions{})
+		pm, err := t.operatorClient.MonitoringV1().PodMonitorings(t.operatorNamespace).Get(ctx, "collector-podmon", metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Errorf("getting PodMonitoring failed: %s", err)
 		}
@@ -764,7 +776,7 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 	if err != nil {
 		t.Fatalf("create collector ClusterPodMonitoring: %s", err)
 	}
-	t.Log("Waiting for PodMonitoring collector-podmon to be processed")
+	t.Log("Waiting for ClusterPodMonitoring collector-cmon to be processed")
 
 	var resVer = ""
 	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
@@ -1009,7 +1021,7 @@ spec:
 	}
 	globalRules.OwnerReferences = t.ownerReferences
 
-	if _, err := t.operatorClient.MonitoringV1().GlobalRules().Create(context.TODO(), &globalRules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.MonitoringV1().GlobalRules().Create(ctx, &globalRules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1033,7 +1045,7 @@ spec:
 	}
 	clusterRules.OwnerReferences = t.ownerReferences
 
-	if _, err := t.operatorClient.MonitoringV1().ClusterRules().Create(context.TODO(), &clusterRules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.MonitoringV1().ClusterRules().Create(ctx, &clusterRules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1060,7 +1072,7 @@ spec:
 	if err := kyaml.Unmarshal([]byte(content), &rules); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := t.operatorClient.MonitoringV1().Rules(t.namespace).Create(context.TODO(), &rules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.MonitoringV1().Rules(t.namespace).Create(ctx, &rules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1110,7 +1122,7 @@ spec:
 	var diff string
 
 	err := wait.Poll(1*time.Second, time.Minute, func() (bool, error) {
-		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.namespace).Get(context.TODO(), "rules-generated", metav1.GetOptions{})
+		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.operatorNamespace).Get(ctx, "rules-generated", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
@@ -1136,7 +1148,8 @@ func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(c
 	return func(ctx context.Context, t *testContext) {
 		opCfg := &monitoringv1.OperatorConfig{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: operator.NameOperatorConfig,
+				Name:            operator.NameOperatorConfig,
+				OwnerReferences: t.ownerReferences,
 			},
 			Collection: monitoringv1.CollectionSpec{
 				ExternalLabels: map[string]string{
@@ -1168,7 +1181,7 @@ func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(c
 		}
 
 		err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-			ss, err := t.kubeClient.AppsV1().StatefulSets(t.namespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
+			ss, err := t.kubeClient.AppsV1().StatefulSets(t.operatorNamespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			} else if err != nil {
@@ -1201,7 +1214,7 @@ func testAlertmanagerConfig(pub *corev1.Secret, key string) func(context.Context
 		}
 
 		err = wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
-			secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
+			secret, err := t.kubeClient.CoreV1().Secrets(t.operatorNamespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			} else if err != nil {
