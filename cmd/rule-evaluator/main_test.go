@@ -36,7 +36,7 @@ func expandSeriesSet(s storage.SeriesSet) promql.Matrix {
 	m := promql.Matrix{}
 	for s.Next() {
 		storageSeries := s.At()
-		it := storageSeries.Iterator()
+		it := storageSeries.Iterator(nil)
 		pts := []promql.Point{}
 		for it.Next() != chunkenc.ValNone {
 			t, v := it.At()
