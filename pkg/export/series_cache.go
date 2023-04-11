@@ -112,7 +112,7 @@ const (
 
 // valid returns true if the Prometheus series can be converted to a GCM series.
 func (e *seriesCacheEntry) valid() bool {
-	return e.lset != nil && (e.dropped || !e.protos.empty())
+	return !e.lset.IsEmpty() && (e.dropped || !e.protos.empty())
 }
 
 // shouldRefresh returns true if the cached state should be refreshed.
@@ -335,9 +335,9 @@ const maxLabelCount = 100
 
 // populate cached state for the given entry.
 func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, externalLabels labels.Labels, getMetadata MetadataFunc) error {
-	if entry.lset == nil {
+	if entry.lset.IsEmpty() {
 		entry.lset = c.getLabelsByRef(ref)
-		if entry.lset == nil {
+		if entry.lset.IsEmpty() {
 			return errors.New("series reference invalid")
 		}
 		entry.dropped = !c.matchers.Matches(entry.lset)
@@ -352,15 +352,13 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 	}
 
 	// Remove the __name__ label as it becomes the metric type in the GCM time series.
-	for i, l := range metricLabels {
-		if l.Name == "__name__" {
-			metricLabels = append(metricLabels[:i], metricLabels[i+1:]...)
-			break
-		}
-	}
+	metricLabelsBuilder := labels.NewBuilder(metricLabels)
+	metricLabelsBuilder.Del(labels.MetricName)
+	metricLabels = metricLabelsBuilder.Labels(metricLabels)
+
 	// Drop series with too many labels.
 	// TODO: remove once field limit is lifted in the GCM API.
-	if len(metricLabels) > maxLabelCount {
+	if metricLabels.Len() > maxLabelCount {
 		return fmt.Errorf("metric labels %s exceed the limit of %d", metricLabels, maxLabelCount)
 	}
 
@@ -386,12 +384,9 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 	// Handle label modifications for histograms early so we don't build the label map twice.
 	// We have to remove the 'le' label which defines the bucket boundary.
 	if metadata.Type == textparse.MetricTypeHistogram {
-		for i, l := range metricLabels {
-			if l.Name == "le" {
-				metricLabels = append(metricLabels[:i], metricLabels[i+1:]...)
-				break
-			}
-		}
+		metricLabelsBuilder := labels.NewBuilder(metricLabels)
+		metricLabelsBuilder.Del(labels.BucketLabel)
+		metricLabels = metricLabelsBuilder.Labels(metricLabels)
 	}
 
 	newSeries := func(mtype string, kind metric_pb.MetricDescriptor_MetricKind, vtype metric_pb.MetricDescriptor_ValueType) hashedSeries {
@@ -499,19 +494,19 @@ func extractResource(externalLabels, lset labels.Labels) (*monitoredres_pb.Monit
 	// and when they come up.
 	builder := labels.NewBuilder(lset)
 
-	for _, l := range externalLabels {
+	externalLabels.Range(func(l labels.Label) {
 		if !lset.Has(l.Name) {
 			builder.Set(l.Name, l.Value)
 		}
-	}
+	})
 	lset = builder.Labels(labels.EmptyLabels())
 
 	// Ensure project_id and location are set but leave validating of the values to the API.
 	if lset.Get(KeyProjectID) == "" {
-		return nil, nil, fmt.Errorf("missing required resource field %q", KeyProjectID)
+		return nil, labels.EmptyLabels(), fmt.Errorf("missing required resource field %q", KeyProjectID)
 	}
 	if lset.Get(KeyLocation) == "" {
-		return nil, nil, fmt.Errorf("missing required resource field %q", KeyLocation)
+		return nil, labels.EmptyLabels(), fmt.Errorf("missing required resource field %q", KeyLocation)
 	}
 
 	// Transfer resource fields from label set onto the resource. If they are not set,
@@ -571,11 +566,11 @@ func hashLabels(h hash.Hash, lset map[string]string) {
 	sep := []byte{'\xff'}
 	// Map iteration is randomized. We thus convert the labels to sorted slices
 	// with labels.FromMap before hashing.
-	for _, l := range labels.FromMap(lset) {
+	labels.FromMap(lset).Range(func(l labels.Label) {
 		h.Write(sep)
 		h.Write([]byte(l.Name))
 		h.Write(sep)
 		h.Write([]byte(l.Value))
-	}
+	})
 	h.Write(sep)
 }
