@@ -119,7 +119,8 @@ func TestExtractResource(t *testing.T) {
 				"job":        "j1",
 				"key":        "v1",
 			}),
-			wantOk: false,
+			wantLabels: labels.EmptyLabels(),
+			wantOk:     false,
 		}, {
 			doc: "project_id must be set",
 			seriesLabels: labels.FromMap(map[string]string{
@@ -129,7 +130,8 @@ func TestExtractResource(t *testing.T) {
 				"job":       "j1",
 				"key":       "v1",
 			}),
-			wantOk: false,
+			wantLabels: labels.EmptyLabels(),
+			wantOk:     false,
 		},
 	}
 	for _, c := range cases {
@@ -144,7 +146,7 @@ func TestExtractResource(t *testing.T) {
 			if diff := cmp.Diff(c.wantResource, resource, protocmp.Transform()); diff != "" {
 				t.Errorf("unexpected resource (-want, +got): %s", diff)
 			}
-			if diff := cmp.Diff(c.wantLabels, lset); diff != "" {
+			if diff := cmp.Diff(c.wantLabels.String(), lset.String()); diff != "" {
 				t.Errorf("unexpected labels (-want, +got): %s", diff)
 			}
 		})
@@ -155,15 +157,15 @@ func TestSeriesCache_garbageCollect(t *testing.T) {
 	cache := newSeriesCache(nil, nil, MetricTypePrefix, nil)
 	// Always return empty labels. This will cause cache entries to be added but not populated,
 	// which we don't need to test garbage collection.
-	cache.getLabelsByRef = func(storage.SeriesRef) labels.Labels { return nil }
+	cache.getLabelsByRef = func(storage.SeriesRef) labels.Labels { return labels.EmptyLabels() }
 
 	// Fake now second timestamp.
 	now := int64(100000)
 	cache.now = func() time.Time { return time.Unix(now, 0) }
 
 	// Populate some cache entries. Timestamps are converted to milliseconds.
-	cache.get(record.RefSample{Ref: 1, T: (now - 100) * 1000}, nil, nil)
-	cache.get(record.RefSample{Ref: 2, T: (now - 101) * 1000}, nil, nil)
+	cache.get(record.RefSample{Ref: 1, T: (now - 100) * 1000}, labels.EmptyLabels(), nil)
+	cache.get(record.RefSample{Ref: 2, T: (now - 101) * 1000}, labels.EmptyLabels(), nil)
 
 	cache.garbageCollect(100 * time.Second)
 

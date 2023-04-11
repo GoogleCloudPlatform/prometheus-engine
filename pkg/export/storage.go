@@ -105,7 +105,7 @@ type storageAppender struct {
 }
 
 func (a *storageAppender) Append(_ storage.SeriesRef, lset labels.Labels, t int64, v float64) (storage.SeriesRef, error) {
-	if lset == nil {
+	if lset.IsEmpty() {
 		return 0, errors.New("label set is nil")
 	}
 	a.samples = append(a.samples, record.RefSample{

@@ -515,7 +515,7 @@ func buildExemplarAttachments(lset labels.Labels) []*anypb.Any {
 	var projectID, spanID, traceID string
 	var attachments []*anypb.Any
 	droppedLabels := make(map[string]string)
-	for _, label := range lset {
+	lset.Range(func(label labels.Label) {
 		if label.Name == projectIDLabel {
 			projectID = label.Value
 		} else if label.Name == spanIDLabel {
@@ -525,7 +525,7 @@ func buildExemplarAttachments(lset labels.Labels) []*anypb.Any {
 		} else {
 			droppedLabels[label.Name] = label.Value
 		}
-	}
+	})
 	if projectID != "" && spanID != "" && traceID != "" {
 		spanCtx, err := anypb.New(&monitoring_pb.SpanContext{
 			SpanName: fmt.Sprintf(spanContextFormat, projectID, traceID, spanID),
