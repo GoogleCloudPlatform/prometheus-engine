@@ -14,6 +14,10 @@ DOCKER_VOLUME:=$(DOCKER_HOST:unix://%=%)
 IMAGE_REGISTRY?=gcr.io/$(PROJECT_ID)/prometheus-engine
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
+# Support gsed on OSX (installed via brew), falling back to sed. On Linux
+# systems gsed won't be installed, so will use sed as expected.
+SED ?= $(shell which gsed 2>/dev/null || which sed)
+
 # TODO(pintohutch): this is a bit hacky, but can be useful when testing.
 # Ultimately this should be replaced with go templating.
 define update_manifests
@@ -118,3 +122,19 @@ presubmit:   ## Run all checks and tests before submitting a change
              ## Use DRY_RUN=1 to only validate without regenerating changes.
              ##
 presubmit: regen bin test kindtest
+
+CURRENT_TAG = v0.6.3-gke.0
+CURRENT_PROM_TAG = v2.35.0-gmp.5-gke.0
+CURRENT_AM_TAG = v0.24.0-gmp.3-gke.1
+LABEL_API_VERSION = 0.6.3
+FILES_TO_UPDATE = $(shell find . -type f -name "*.yaml" ! -name "kube-state-metrics.yaml" ! -name "node-exporter.yaml")
+updateversions: $(SED)
+	@echo ">> Updating prometheus-engine images in manifests to $(CURRENT_TAG)"
+	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/(.*):.*#image: gke.gcr.io/prometheus-engine/\1:$(CURRENT_TAG)#g' $(FILES_TO_UPDATE) # This will match all, but Prom and AM will be fixed below.
+	@echo ">> Updating prometheus images in manifests to $(CURRENT_PROM_TAG)"
+	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/prometheus:.*#image: gke.gcr.io/prometheus-engine/prometheus:$(CURRENT_PROM_TAG)#g' $(FILES_TO_UPDATE)
+	@echo ">> Updating alertmanager images in manifests to $(CURRENT_AM_TAG)"
+	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/alertmanager:.*#image: gke.gcr.io/prometheus-engine/alertmanager:$(CURRENT_AM_TAG)#g' $(FILES_TO_UPDATE)
+	@echo ">> Updating app.kubernetes.io/version to $(LABEL_API_VERSION)"
+	@$(SED) -i -r 's#app.kubernetes.io/version: .*#app.kubernetes.io/version: $(LABEL_API_VERSION)#g' $(FILES_TO_UPDATE)
+
