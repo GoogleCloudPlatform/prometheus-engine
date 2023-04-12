@@ -41,7 +41,7 @@ spec:
       labels:
         app: managed-prometheus-alertmanager
         app.kubernetes.io/name: alertmanager
-        app.kubernetes.io/version: 0.6.1
+        app.kubernetes.io/version: 0.6.3
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
@@ -62,7 +62,7 @@ spec:
           privileged: false
       containers:
       - name: alertmanager
-        image: gke.gcr.io/prometheus-engine/alertmanager:v0.24.0-gmp.2-gke.0
+        image: gke.gcr.io/prometheus-engine/alertmanager:v0.24.0-gmp.3-gke.1
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
@@ -96,7 +96,7 @@ spec:
             - all
           privileged: false
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.6.1-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.6.3-gke.0
         args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
