@@ -323,7 +323,7 @@ alerting:
           api_version: v2
           static_configs:
             - targets:
-                - alertmanager.{namespace}.svc.cluster.local:9093
+                - alertmanager.{namespace}:9093
         - authorization:
             type: Bearer
             credentials_file: /etc/secrets/secret_{pubNamespace}_alertmanager-authorization_token

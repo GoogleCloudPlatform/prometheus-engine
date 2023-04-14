@@ -464,7 +464,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		if ports := amSvc.Spec.Ports; len(ports) > 0 {
 			// Assume first port on service is the correct endpoint.
 			port := ports[0].Port
-			svcDNSName := fmt.Sprintf("%s.%s.svc.cluster.local:%d", amSvc.Name, amSvc.Namespace, port)
+			svcDNSName := fmt.Sprintf("%s.%s:%d", amSvc.Name, amSvc.Namespace, port)
 			cfg := promconfig.DefaultAlertmanagerConfig
 			cfg.ServiceDiscoveryConfigs = discovery.Configs{
 				discovery.StaticConfig{
