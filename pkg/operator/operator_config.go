@@ -25,10 +25,12 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	promcommonconfig "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
+	"github.com/prometheus/prometheus/discovery/targetgroup"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/relabel"
 	yaml "gopkg.in/yaml.v3"
@@ -38,7 +40,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -452,8 +453,6 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		secretData = make(map[string][]byte)
 	)
 
-	alertManagers := spec.Alertmanagers
-
 	amNamespacedName := types.NamespacedName{
 		Namespace: r.opts.OperatorNamespace,
 		Name:      NameAlertmanager,
@@ -465,18 +464,20 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		if ports := amSvc.Spec.Ports; len(ports) > 0 {
 			// Assume first port on service is the correct endpoint.
 			port := ports[0].Port
-			alertManagers = append(alertManagers, monitoringv1.AlertmanagerEndpoints{
-				Name:      amNamespacedName.Name,
-				Namespace: amNamespacedName.Namespace,
-				Port: intstr.IntOrString{
-					Type:   intstr.Int,
-					IntVal: port,
+			svcDNSName := fmt.Sprintf("%s.%s.svc.cluster.local:%d", amSvc.Name, amSvc.Namespace, port)
+			cfg := promconfig.DefaultAlertmanagerConfig
+			cfg.ServiceDiscoveryConfigs = discovery.Configs{
+				discovery.StaticConfig{
+					&targetgroup.Group{
+						Targets: []model.LabelSet{{model.AddressLabel: model.LabelValue(svcDNSName)}},
+					},
 				},
-			})
+			}
+			configs = append(configs, &cfg)
 		}
 	}
 
-	for _, am := range alertManagers {
+	for _, am := range spec.Alertmanagers {
 		// The upstream struct is lacking the omitempty field on the API version. Thus it looks
 		// like we explicitly set it to empty (invalid) even if left empty after marshalling.
 		// Thus we initialize the config with defaulting. Similar applies for the embedded HTTPConfig.

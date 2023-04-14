@@ -316,6 +316,14 @@ func testRuleEvaluatorConfig(ctx context.Context, t *testContext) {
         external_key: external_val
 alerting:
     alertmanagers:
+        - follow_redirects: true
+          enable_http2: true
+          scheme: http
+          timeout: 10s
+          api_version: v2
+          static_configs:
+            - targets:
+                - alertmanager.{namespace}.svc.cluster.local:9093
         - authorization:
             type: Bearer
             credentials_file: /etc/secrets/secret_{pubNamespace}_alertmanager-authorization_token
@@ -337,29 +345,6 @@ alerting:
               regex: (.+):\d+
               target_label: __address__
               replacement: $1:19093
-              action: replace
-          kubernetes_sd_configs:
-            - role: endpoints
-              kubeconfig_file: ""
-              follow_redirects: true
-              enable_http2: true
-              namespaces:
-                own_namespace: false
-                names:
-                    - {namespace}
-        - follow_redirects: true
-          enable_http2: true
-          scheme: http
-          timeout: 10s
-          api_version: v2
-          relabel_configs:
-            - source_labels: [__meta_kubernetes_endpoints_name]
-              regex: alertmanager
-              action: keep
-            - source_labels: [__address__]
-              regex: (.+):\d+
-              target_label: __address__
-              replacement: $1:9093
               action: replace
           kubernetes_sd_configs:
             - role: endpoints
