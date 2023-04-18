@@ -89,7 +89,6 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error
 
 	err := ctrl.NewControllerManagedBy(op.manager).
 		Named("target-status").
-		WithEventFilter(predicate.ResourceVersionChangedPredicate{}).
 		// controller-runtime requires a For clause of the manager otherwise
 		// this controller will fail to build at runtime when calling
 		// `Complete`. The reconcile loop doesn't strictly need to watch a
