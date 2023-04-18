@@ -121,8 +121,8 @@ type OperatorFeatures struct {
 
 // TargetStatusSpec holds configuration for target status reporting.
 type TargetStatusSpec struct {
-	// Minimum duration between polls.
-	MinInterval string `json:"minInterval,omitempty"`
+	// Enable target status reporting.
+	Enabled bool `json:"enabled,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=none;gzip
