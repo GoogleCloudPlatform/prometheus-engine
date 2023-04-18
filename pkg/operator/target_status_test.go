@@ -1216,7 +1216,19 @@ func TestPolling(t *testing.T) {
 				},
 			},
 		},
-	}).WithObjects(&monitoringv1.PodMonitoring{
+	}).WithObjects(
+		&monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "config",
+				Namespace: "gmp-system",
+			},
+			Features: monitoringv1.OperatorFeatures{
+				TargetStatus: monitoringv1.TargetStatusSpec{
+					Enabled: true,
+				},
+			},
+		},
+	).WithObjects(&monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
 		Spec: v1.PodMonitoringSpec{
 			Endpoints: []v1.ScrapeEndpoint{{

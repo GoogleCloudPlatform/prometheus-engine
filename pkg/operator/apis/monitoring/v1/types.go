@@ -58,7 +58,7 @@ type OperatorConfig struct {
 	// +kubebuilder:default={configSecret: {name: alertmanager, key: alertmanager.yaml}}
 	ManagedAlertmanager *ManagedAlertmanagerSpec `json:"managedAlertmanager,omitempty"`
 	// Features holds configuration for optional managed-collection features.
-	Features OperatorFeatures `json:"features"`
+	Features OperatorFeatures `json:"features,omitempty"`
 }
 
 // OperatorConfigList is a list of OperatorConfigs.

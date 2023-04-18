@@ -35,6 +35,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [MonitoringCondition](#monitoringcondition)
 * [OperatorConfig](#operatorconfig)
 * [OperatorConfigList](#operatorconfiglist)
+* [OperatorFeatures](#operatorfeatures)
 * [PodMonitoring](#podmonitoring)
 * [PodMonitoringList](#podmonitoringlist)
 * [PodMonitoringSpec](#podmonitoringspec)
@@ -54,6 +55,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [SecretOrConfigMap](#secretorconfigmap)
 * [TLSConfig](#tlsconfig)
 * [TargetLabels](#targetlabels)
+* [TargetStatusSpec](#targetstatusspec)
 
 ## AlertingSpec
 
@@ -298,6 +300,7 @@ OperatorConfig defines configuration of the gmp-operator.
 | rules | Rules specifies how the operator configures and deployes rule-evaluator. | [RuleEvaluatorSpec](#ruleevaluatorspec) | false |
 | collection | Collection specifies how the operator configures collection. | [CollectionSpec](#collectionspec) | false |
 | managedAlertmanager | ManagedAlertmanager holds information for configuring the managed instance of Alertmanager. | *[ManagedAlertmanagerSpec](#managedalertmanagerspec) | false |
+| features | Features holds configuration for optional managed-collection features. | [OperatorFeatures](#operatorfeatures) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -309,6 +312,19 @@ OperatorConfigList is a list of OperatorConfigs.
 | ----- | ----------- | ------ | -------- |
 | metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#listmeta-v1-meta) | false |
 | items |  | [][OperatorConfig](#operatorconfig) | true |
+
+[Back to TOC](#table-of-contents)
+
+## OperatorFeatures
+
+OperatorFeatures holds configuration for optional managed-collection features.
+
+
+<em>appears in: [OperatorConfig](#operatorconfig)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| targetStatus | Configuration of target status reporting. | [TargetStatusSpec](#targetstatusspec) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -603,5 +619,18 @@ TargetLabels configures labels for the discovered Prometheus targets.
 | ----- | ----------- | ------ | -------- |
 | metadata | Pod metadata labels that are set on all scraped targets. Permitted keys are `pod`, `container`, and `node` for PodMonitoring and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. The `container` label is only populated if the scrape port is referenced by name. Defaults to [pod, container] for PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring. If set to null, it will be interpreted as the empty list for PodMonitoring and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility only. | *[]string | false |
 | fromPod | Labels to transfer from the Kubernetes Pod to Prometheus target labels. Mappings are applied in order. | [][LabelMapping](#labelmapping) | false |
+
+[Back to TOC](#table-of-contents)
+
+## TargetStatusSpec
+
+TargetStatusSpec holds configuration for target status reporting.
+
+
+<em>appears in: [OperatorFeatures](#operatorfeatures)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| enabled | Enable target status reporting. | bool | false |
 
 [Back to TOC](#table-of-contents)
