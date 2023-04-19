@@ -127,15 +127,13 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error
 
 // shouldPoll verifies if polling collectors is configured or necessary.
 func shouldPoll(ctx context.Context, cfgNamespacedName types.NamespacedName, kubeClient client.Client) (bool, error) {
-	poll := true
-
 	// Check if target status is enabled.
 	var config monitoringv1.OperatorConfig
 	if err := kubeClient.Get(ctx, cfgNamespacedName, &config); err != nil {
 		return false, err
 	}
 	if !config.Features.TargetStatus.Enabled {
-		poll = false
+		return false, nil
 	}
 
 	// No need to poll if there's no PodMonitorings.
@@ -150,7 +148,7 @@ func shouldPoll(ctx context.Context, cfgNamespacedName types.NamespacedName, kub
 			return false, nil
 		}
 	}
-	return poll, nil
+	return true, nil
 }
 
 // Reconcile polls the collector pods, fetches and aggregates target status and
