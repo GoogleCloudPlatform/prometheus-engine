@@ -118,8 +118,6 @@ type Options struct {
 	ListenAddr string
 	// Cleanup resources without this annotation.
 	CleanupAnnotKey string
-	// Whether to disable target polling.
-	TargetPollDisabled bool
 	// The number of upper bound threads to use for target polling otherwise
 	// use the default.
 	TargetPollConcurrency uint16
@@ -384,11 +382,8 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 	if err := setupOperatorConfigControllers(o); err != nil {
 		return errors.Wrap(err, "setup rule-evaluator controllers")
 	}
-
-	if !o.opts.TargetPollDisabled {
-		if err := setupTargetStatusPoller(o, registry); err != nil {
-			return errors.Wrap(err, "setup target status processor")
-		}
+	if err := setupTargetStatusPoller(o, registry); err != nil {
+		return errors.Wrap(err, "setup target status processor")
 	}
 
 	o.logger.Info("starting GMP operator")
