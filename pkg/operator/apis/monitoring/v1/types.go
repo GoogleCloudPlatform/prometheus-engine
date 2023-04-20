@@ -57,6 +57,8 @@ type OperatorConfig struct {
 	// ManagedAlertmanager holds information for configuring the managed instance of Alertmanager.
 	// +kubebuilder:default={configSecret: {name: alertmanager, key: alertmanager.yaml}}
 	ManagedAlertmanager *ManagedAlertmanagerSpec `json:"managedAlertmanager,omitempty"`
+	// Features holds configuration for optional managed-collection features.
+	Features OperatorFeatures `json:"features,omitempty"`
 }
 
 // OperatorConfigList is a list of OperatorConfigs.
@@ -109,6 +111,18 @@ type CollectionSpec struct {
 	KubeletScraping *KubeletScraping `json:"kubeletScraping,omitempty"`
 	// Compression enables compression of metrics collection data
 	Compression CompressionType `json:"compression,omitempty"`
+}
+
+// OperatorFeatures holds configuration for optional managed-collection features.
+type OperatorFeatures struct {
+	// Configuration of target status reporting.
+	TargetStatus TargetStatusSpec `json:"targetStatus,omitempty"`
+}
+
+// TargetStatusSpec holds configuration for target status reporting.
+type TargetStatusSpec struct {
+	// Enable target status reporting.
+	Enabled bool `json:"enabled,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=none;gzip

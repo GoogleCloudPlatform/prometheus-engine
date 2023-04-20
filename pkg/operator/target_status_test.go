@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	tclock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -1215,7 +1216,19 @@ func TestPolling(t *testing.T) {
 				},
 			},
 		},
-	}).WithObjects(&monitoringv1.PodMonitoring{
+	}).WithObjects(
+		&monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "config",
+				Namespace: "gmp-system",
+			},
+			Features: monitoringv1.OperatorFeatures{
+				TargetStatus: monitoringv1.TargetStatusSpec{
+					Enabled: true,
+				},
+			},
+		},
+	).WithObjects(&monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
 		Spec: v1.PodMonitoringSpec{
 			Endpoints: []v1.ScrapeEndpoint{{
@@ -1386,6 +1399,140 @@ func TestPolling(t *testing.T) {
 		},
 	}
 	expectStatus(t, "third tick", statusTick3)
+}
+
+func TestShouldPoll(t *testing.T) {
+	scheme, err := getScheme()
+	if err != nil {
+		t.Fatal("unable to get scheme")
+	}
+	cases := []struct {
+		desc   string
+		objs   []client.Object
+		should bool
+		expErr bool
+	}{
+		{
+			desc: "should poll targets - podmonitorings",
+			objs: []client.Object{
+				&monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
+					},
+					Features: monitoringv1.OperatorFeatures{
+						TargetStatus: monitoringv1.TargetStatusSpec{
+							Enabled: true,
+						},
+					},
+				},
+				&monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "pm1",
+						Namespace: "default",
+					},
+				},
+			},
+			should: true,
+			expErr: false,
+		},
+		{
+			desc: "should poll targets - clusterpodmonitorings",
+			objs: []client.Object{
+				&monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
+					},
+					Features: monitoringv1.OperatorFeatures{
+						TargetStatus: monitoringv1.TargetStatusSpec{
+							Enabled: true,
+						},
+					},
+				},
+				&monitoringv1.ClusterPodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cpm1",
+						Namespace: "default",
+					},
+				},
+			},
+			should: true,
+			expErr: false,
+		},
+		{
+			desc: "should not poll targets - no operatorconfig error",
+			objs: []client.Object{
+				&monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "pm1",
+						Namespace: "default",
+					},
+				},
+			},
+			should: false,
+			expErr: true,
+		},
+		{
+			desc: "should not poll targets - no podmonitorings",
+			objs: []client.Object{
+				&monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
+					},
+					Features: monitoringv1.OperatorFeatures{
+						TargetStatus: monitoringv1.TargetStatusSpec{
+							Enabled: true,
+						},
+					},
+				},
+			},
+			should: false,
+			expErr: false,
+		},
+		{
+			desc: "should not poll targets - disabled",
+			objs: []client.Object{
+				&monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
+					},
+					Features: monitoringv1.OperatorFeatures{
+						TargetStatus: monitoringv1.TargetStatusSpec{
+							Enabled: false,
+						},
+					},
+				},
+				&monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "pm1",
+						Namespace: "default",
+					},
+				},
+			},
+			should: false,
+			expErr: false,
+		},
+	}
+	for _, tc := range cases {
+		ctx := context.Background()
+		nn := types.NamespacedName{
+			Name:      "config",
+			Namespace: "gmp-public",
+		}
+		kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.objs...).Build()
+		t.Run(tc.desc, func(t *testing.T) {
+			should, err := shouldPoll(ctx, nn, kubeClient)
+			if err != nil && !tc.expErr {
+				t.Errorf("unexpected shouldPoll error: %s", err)
+			}
+			if should != tc.should {
+				t.Errorf("got %t, want %t", should, tc.should)
+			}
+		})
+	}
 }
 
 // Tests that for pod, targets are fetched correctly (concurrently).

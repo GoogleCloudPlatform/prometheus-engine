@@ -125,6 +125,32 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error
 	return nil
 }
 
+// shouldPoll verifies if polling collectors is configured or necessary.
+func shouldPoll(ctx context.Context, cfgNamespacedName types.NamespacedName, kubeClient client.Client) (bool, error) {
+	// Check if target status is enabled.
+	var config monitoringv1.OperatorConfig
+	if err := kubeClient.Get(ctx, cfgNamespacedName, &config); err != nil {
+		return false, err
+	}
+	if !config.Features.TargetStatus.Enabled {
+		return false, nil
+	}
+
+	// No need to poll if there's no PodMonitorings.
+	var podMonitoringList monitoringv1.PodMonitoringList
+	if err := kubeClient.List(ctx, &podMonitoringList); err != nil {
+		return false, err
+	} else if len(podMonitoringList.Items) == 0 {
+		var clusterPodMonitoringList monitoringv1.ClusterPodMonitoringList
+		if err := kubeClient.List(ctx, &clusterPodMonitoringList); err != nil {
+			return false, err
+		} else if len(clusterPodMonitoringList.Items) == 0 {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // Reconcile polls the collector pods, fetches and aggregates target status and
 // upserts into each PodMonitoring's Status field.
 func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
@@ -132,23 +158,14 @@ func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcil
 
 	now := time.Now()
 
-	// Short-circuit target polling.
-	shouldPoll := true
-	var podMonitoringList monitoringv1.PodMonitoringList
-	if err := r.kubeClient.List(ctx, &podMonitoringList); err != nil {
-		r.logger.Error(err, "fetch PodMonitorings")
-		shouldPoll = false
-	} else if len(podMonitoringList.Items) == 0 {
-		var clusterPodMonitoringList monitoringv1.PodMonitoringList
-		if err := r.kubeClient.List(ctx, &clusterPodMonitoringList); err != nil {
-			r.logger.Error(err, "fetch ClusterPodMonitorings")
-			shouldPoll = false
-		} else if len(clusterPodMonitoringList.Items) == 0 {
-			shouldPoll = false
-		}
+	cfgNamespacedName := types.NamespacedName{
+		Name:      NameOperatorConfig,
+		Namespace: r.opts.PublicNamespace,
 	}
 
-	if shouldPoll {
+	if should, err := shouldPoll(ctx, cfgNamespacedName, r.kubeClient); err != nil {
+		r.logger.Error(err, "should poll")
+	} else if should {
 		if err := pollAndUpdate(ctx, r.logger, r.opts, r.getTarget, r.kubeClient); err != nil {
 			r.logger.Error(err, "poll and update")
 		} else {

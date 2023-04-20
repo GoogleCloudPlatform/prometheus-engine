@@ -90,6 +90,17 @@ spec:
                     description: The interval at which the metric endpoints are scraped.
                 required:
                 - interval
+          features:
+            type: object
+            description: Features holds configuration for optional managed-collection features.
+            properties:
+              targetStatus:
+                type: object
+                description: Configuration of target status reporting.
+                properties:
+                  enabled:
+                    type: boolean
+                    description: Enable target status reporting.
           managedAlertmanager:
             type: object
             default:
