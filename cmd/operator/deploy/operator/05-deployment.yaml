@@ -59,7 +59,7 @@ spec:
           containerPort: 18080
         resources:
           limits:
-            memory: 512M
+            memory: 2G
           requests:
             cpu: 8m
             memory: 32M
