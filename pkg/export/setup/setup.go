@@ -50,6 +50,9 @@ const (
 	UAModeUnspecified = "unspecified"
 	UAModeAVMW        = "on-prem"
 	UAModeABM         = "baremetal"
+	UAModeAWS         = "aws"
+	UAModeAzure       = "azure"
+	UAModeAttached    = "attached"
 )
 
 // Environment variable that contains additional command line arguments.
@@ -133,7 +136,7 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(log.Logger,
 	a.Flag("export.label.project-id", fmt.Sprintf("Default project ID set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", export.KeyProjectID)).
 		Default(opts.ProjectID).StringVar(&opts.ProjectID)
 
-	a.Flag("export.user-agent-mode", fmt.Sprintf("Mode for user agent used for requests against the GCM API. Valid values are %q, %q, %q, %q or %q.", UAModeGKE, UAModeKubectl, UAModeAVMW, UAModeABM, UAModeUnspecified)).
+	a.Flag("export.user-agent-mode", fmt.Sprintf("Mode for user agent used for requests against the GCM API. Valid values are %q, %q, %q, %q, %q, %q, %q or %q.", UAModeGKE, UAModeKubectl, UAModeAVMW, UAModeABM, UAModeAWS, UAModeAzure, UAModeAttached, UAModeUnspecified)).
 		Default("unspecified").EnumVar(&opts.UserAgentMode, UAModeUnspecified, UAModeGKE, UAModeKubectl, UAModeAVMW, UAModeABM)
 
 	// The location and cluster flag should probably not be used. On the other hand, they make it easy
