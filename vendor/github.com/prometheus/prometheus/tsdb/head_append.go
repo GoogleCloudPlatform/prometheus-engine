@@ -114,7 +114,8 @@ func (h *Head) Appender(_ context.Context) storage.Appender {
 }
 
 func (h *Head) appender() *headAppender {
-	appendID, cleanupAppendIDsBelow := h.iso.newAppendID() // Every appender gets an ID that is cleared upon commit/rollback.
+	minValidTime := h.appendableMinValidTime()
+	appendID, cleanupAppendIDsBelow := h.iso.newAppendID(minValidTime) // Every appender gets an ID that is cleared upon commit/rollback.
 
 	// Allocate the exemplars buffer only if exemplars are enabled.
 	var exemplarsBuf []exemplarWithSeriesRef
@@ -124,7 +125,7 @@ func (h *Head) appender() *headAppender {
 
 	return &headAppender{
 		head:                  h,
-		minValidTime:          h.appendableMinValidTime(),
+		minValidTime:          minValidTime,
 		mint:                  math.MaxInt64,
 		maxt:                  math.MinInt64,
 		samples:               h.getAppendBuffer(),
@@ -519,7 +520,12 @@ func (s *memSeries) append(t int64, v float64, appendID uint64, chunkDiskMapper 
 	if numSamples == samplesPerChunk/4 {
 		s.nextAt = computeChunkEndTime(c.minTime, c.maxTime, s.nextAt)
 	}
-	if t >= s.nextAt {
+	// If numSamples > samplesPerChunk*2 then our previous prediction was invalid,
+	// most likely because samples rate has changed and now they are arriving more frequently.
+	// Since we assume that the rate is higher, we're being conservative and cutting at 2*samplesPerChunk
+	// as we expect more chunks to come.
+	// Note that next chunk will have its nextAt recalculated for the new rate.
+	if t >= s.nextAt || numSamples >= samplesPerChunk*2 {
 		c = s.cutNewHeadChunk(t, chunkDiskMapper)
 		chunkCreated = true
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
+	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 
@@ -71,7 +72,7 @@ type seriesCacheEntry struct {
 	lset labels.Labels
 
 	// Metadata for the metric of the series.
-	metadata MetricMetadata
+	metadata scrape.MetricMetadata
 	// A pre-populated time protobuf to be sent to the GCM API. It can
 	// be shallow-copied and populated with point values to avoid excessive
 	// allocations for each datapoint exported for the series.

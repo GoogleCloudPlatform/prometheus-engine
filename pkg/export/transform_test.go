@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/model/value"
+	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/protobuf/proto"
@@ -38,10 +39,10 @@ import (
 )
 
 type seriesMap map[storage.SeriesRef]labels.Labels
-type metricMetadataMap map[string]MetricMetadata
+type metricMetadataMap map[string]scrape.MetricMetadata
 
 func testMetadataFunc(metadata metricMetadataMap) MetadataFunc {
-	return func(metric string) (MetricMetadata, bool) {
+	return func(metric string) (scrape.MetricMetadata, bool) {
 		md, ok := metadata[metric]
 		md.Metric = metric
 		return md, ok

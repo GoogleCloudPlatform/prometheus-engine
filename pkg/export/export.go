@@ -33,6 +33,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/promql/parser"
+	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
@@ -582,37 +583,8 @@ func (e *Exporter) Run(ctx context.Context) error {
 	}
 }
 
-// CtxKey is a dedicated type for keys of context-embedded values propagated
-// with the scrape context.
-type ctxKey int
-
-// Valid CtxKey values.
-const (
-	ctxKeyMetadata ctxKey = iota + 1
-)
-
-// WithMetadataFunc stores mf in the context.
-func WithMetadataFunc(ctx context.Context, mf MetadataFunc) context.Context {
-	return context.WithValue(ctx, ctxKeyMetadata, mf)
-}
-
-// MetadataFuncFromContext extracts a MetataFunc from ctx.
-func MetadataFuncFromContext(ctx context.Context) (MetadataFunc, bool) {
-	mf, ok := ctx.Value(ctxKeyMetadata).(MetadataFunc)
-	return mf, ok
-}
-
-// MetricMetadata is a copy of MetricMetadata in Prometheus's scrape package.
-// It is copied to break a dependency cycle.
-type MetricMetadata struct {
-	Metric string
-	Type   textparse.MetricType
-	Help   string
-	Unit   string
-}
-
 // MetadataFunc gets metadata for a specific metric name.
-type MetadataFunc func(metric string) (MetricMetadata, bool)
+type MetadataFunc func(metric string) (scrape.MetricMetadata, bool)
 
 func (e *Exporter) wrapMetadata(f MetadataFunc) MetadataFunc {
 	// Metadata is nil for metrics ingested through recording or alerting rules.
@@ -635,8 +607,8 @@ func (e *Exporter) wrapMetadata(f MetadataFunc) MetadataFunc {
 
 // gaugeMetadata is a MetadataFunc that always returns the gauge type.
 // Help and Unit are left empty.
-func gaugeMetadata(metric string) (MetricMetadata, bool) {
-	return MetricMetadata{
+func gaugeMetadata(metric string) (scrape.MetricMetadata, bool) {
+	return scrape.MetricMetadata{
 		Metric: metric,
 		Type:   textparse.MetricTypeGauge,
 	}, true
@@ -644,15 +616,15 @@ func gaugeMetadata(metric string) (MetricMetadata, bool) {
 
 // untypedMetadata is a MetadataFunc that always returns the untyped/unknown type.
 // Help and Unit are left empty.
-func untypedMetadata(metric string) (MetricMetadata, bool) {
-	return MetricMetadata{
+func untypedMetadata(metric string) (scrape.MetricMetadata, bool) {
+	return scrape.MetricMetadata{
 		Metric: metric,
 		Type:   textparse.MetricTypeUnknown,
 	}, true
 }
 
 // Metrics Prometheus writes at scrape time for which no metadata is exposed.
-var internalMetricMetadata = map[string]MetricMetadata{
+var internalMetricMetadata = map[string]scrape.MetricMetadata{
 	"up": {
 		Metric: "up",
 		Type:   textparse.MetricTypeGauge,
@@ -683,7 +655,7 @@ var internalMetricMetadata = map[string]MetricMetadata{
 // withScrapeMetricMetadata wraps a MetadataFunc and additionally returns metadata
 // about Prometheues's synthetic scrape-time metrics.
 func withScrapeMetricMetadata(f MetadataFunc) MetadataFunc {
-	return func(metric string) (MetricMetadata, bool) {
+	return func(metric string) (scrape.MetricMetadata, bool) {
 		md, ok := internalMetricMetadata[metric]
 		if ok {
 			return md, true
@@ -701,7 +673,7 @@ func withScrapeMetricMetadata(f MetadataFunc) MetadataFunc {
 // create new metric names on the fly, for which no metadata is known.
 // This allows ingesting this data in a best-effort manner.
 func (e *Exporter) withUntypedDefaultMetadata(f MetadataFunc) MetadataFunc {
-	return func(metric string) (MetricMetadata, bool) {
+	return func(metric string) (scrape.MetricMetadata, bool) {
 		md, ok := f(metric)
 		if ok {
 			return md, true
@@ -715,7 +687,7 @@ func (e *Exporter) withUntypedDefaultMetadata(f MetadataFunc) MetadataFunc {
 			if _, ok := f(baseName); ok {
 				// There is metadata for the underlying metric, return false and let the
 				// conversion logic do its thing.
-				return MetricMetadata{}, false
+				return scrape.MetricMetadata{}, false
 			}
 		}
 		// We only log a message the first time for each metric. We check this against a global cache

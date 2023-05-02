@@ -15,9 +15,8 @@ package parser
 
 import (
 	"context"
+	"fmt"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
@@ -29,13 +28,12 @@ import (
 // or a chain of function definitions (e.g. String(), PromQLExpr(), etc.) convention is
 // to list them as follows:
 //
-// 	- Statements
-// 	- statement types (alphabetical)
-// 	- ...
-// 	- Expressions
-// 	- expression types (alphabetical)
-// 	- ...
-//
+//   - Statements
+//   - statement types (alphabetical)
+//   - ...
+//   - Expressions
+//   - expression types (alphabetical)
+//   - ...
 type Node interface {
 	// String representation of the node that returns the given node when parsed
 	// as part of a valid query.
@@ -394,7 +392,7 @@ func Children(node Node) []Node {
 		// nothing to do
 		return []Node{}
 	default:
-		panic(errors.Errorf("promql.Children: unhandled node type %T", node))
+		panic(fmt.Errorf("promql.Children: unhandled node type %T", node))
 	}
 }
 

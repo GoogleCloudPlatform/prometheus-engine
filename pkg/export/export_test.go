@@ -30,6 +30,7 @@ import (
 	gax "github.com/googleapis/gax-go/v2"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
+	"github.com/prometheus/prometheus/scrape"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
@@ -209,20 +210,20 @@ func TestExporter_wrapMetadata(t *testing.T) {
 		desc   string
 		mf     MetadataFunc
 		metric string
-		want   MetricMetadata
+		want   scrape.MetricMetadata
 		wantOK bool
 	}{
 		{
 			desc:   "nil MetadataFunc always defaults to gauge",
 			mf:     nil,
 			metric: "some_metric",
-			want:   MetricMetadata{Metric: "some_metric", Type: textparse.MetricTypeGauge},
+			want:   scrape.MetricMetadata{Metric: "some_metric", Type: textparse.MetricTypeGauge},
 			wantOK: true,
 		}, {
 			desc:   "nil MetadataFunc preserves synthetic metric metadata",
 			mf:     nil,
 			metric: "up",
-			want: MetricMetadata{
+			want: scrape.MetricMetadata{
 				Metric: "up",
 				Type:   textparse.MetricTypeGauge,
 				Help:   "Up indicates whether the last target scrape was successful.",
@@ -230,14 +231,14 @@ func TestExporter_wrapMetadata(t *testing.T) {
 			wantOK: true,
 		}, {
 			desc: "synthetic metric metadata precedence",
-			mf: func(string) (MetricMetadata, bool) {
-				return MetricMetadata{
+			mf: func(string) (scrape.MetricMetadata, bool) {
+				return scrape.MetricMetadata{
 					Metric: "up",
 					Type:   textparse.MetricTypeCounter,
 				}, false
 			},
 			metric: "up",
-			want: MetricMetadata{
+			want: scrape.MetricMetadata{
 				Metric: "up",
 				Type:   textparse.MetricTypeGauge,
 				Help:   "Up indicates whether the last target scrape was successful.",
@@ -245,15 +246,15 @@ func TestExporter_wrapMetadata(t *testing.T) {
 			wantOK: true,
 		}, {
 			desc: "regular metadata is returned as is",
-			mf: func(string) (MetricMetadata, bool) {
-				return MetricMetadata{
+			mf: func(string) (scrape.MetricMetadata, bool) {
+				return scrape.MetricMetadata{
 					Metric: "some_metric",
 					Type:   textparse.MetricTypeCounter,
 					Help:   "useful help",
 				}, true
 			},
 			metric: "some_metric",
-			want: MetricMetadata{
+			want: scrape.MetricMetadata{
 				Metric: "some_metric",
 				Type:   textparse.MetricTypeCounter,
 				Help:   "useful help",
@@ -261,47 +262,47 @@ func TestExporter_wrapMetadata(t *testing.T) {
 			wantOK: true,
 		}, {
 			desc: "not found metadata defaults to untyped",
-			mf: func(string) (MetricMetadata, bool) {
-				return MetricMetadata{}, false
+			mf: func(string) (scrape.MetricMetadata, bool) {
+				return scrape.MetricMetadata{}, false
 			},
 			metric: "some_metric",
-			want: MetricMetadata{
+			want: scrape.MetricMetadata{
 				Metric: "some_metric",
 				Type:   textparse.MetricTypeUnknown,
 			},
 			wantOK: true,
 		}, {
 			desc: "not found metadata returns false if base name has metadata (_sum)",
-			mf: func(m string) (MetricMetadata, bool) {
+			mf: func(m string) (scrape.MetricMetadata, bool) {
 				if m == "foo" {
-					return MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
+					return scrape.MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
 				}
-				return MetricMetadata{}, false
+				return scrape.MetricMetadata{}, false
 			},
 			metric: "foo_sum",
-			want:   MetricMetadata{},
+			want:   scrape.MetricMetadata{},
 			wantOK: false,
 		}, {
 			desc: "not found metadata returns false if base name has metadata (_bucket)",
-			mf: func(m string) (MetricMetadata, bool) {
+			mf: func(m string) (scrape.MetricMetadata, bool) {
 				if m == "foo" {
-					return MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
+					return scrape.MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
 				}
-				return MetricMetadata{}, false
+				return scrape.MetricMetadata{}, false
 			},
 			metric: "foo_bucket",
-			want:   MetricMetadata{},
+			want:   scrape.MetricMetadata{},
 			wantOK: false,
 		}, {
 			desc: "not found metadata returns false if base name has metadata (_count)",
-			mf: func(m string) (MetricMetadata, bool) {
+			mf: func(m string) (scrape.MetricMetadata, bool) {
 				if m == "foo" {
-					return MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
+					return scrape.MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
 				}
-				return MetricMetadata{}, false
+				return scrape.MetricMetadata{}, false
 			},
 			metric: "foo_count",
-			want:   MetricMetadata{},
+			want:   scrape.MetricMetadata{},
 			wantOK: false,
 		},
 	}

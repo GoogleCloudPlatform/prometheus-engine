@@ -636,6 +636,7 @@ func (h *Head) loadMmappedChunks(refSeries map[chunks.HeadSeriesRef]*memSeries) 
 		if !ok {
 			slice := mmappedChunks[seriesRef]
 			if len(slice) > 0 && slice[len(slice)-1].maxTime >= mint {
+				h.metrics.mmapChunkCorruptionTotal.Inc()
 				return errors.Errorf("out of sequence m-mapped chunk for series ref %d, last chunk: [%d, %d], new: [%d, %d]",
 					seriesRef, slice[len(slice)-1].minTime, slice[len(slice)-1].maxTime, mint, maxt)
 			}
@@ -650,6 +651,7 @@ func (h *Head) loadMmappedChunks(refSeries map[chunks.HeadSeriesRef]*memSeries) 
 		}
 
 		if len(ms.mmappedChunks) > 0 && ms.mmappedChunks[len(ms.mmappedChunks)-1].maxTime >= mint {
+			h.metrics.mmapChunkCorruptionTotal.Inc()
 			return errors.Errorf("out of sequence m-mapped chunk for series ref %d, last chunk: [%d, %d], new: [%d, %d]",
 				seriesRef, ms.mmappedChunks[len(ms.mmappedChunks)-1].minTime, ms.mmappedChunks[len(ms.mmappedChunks)-1].maxTime,
 				mint, maxt)
@@ -882,6 +884,13 @@ func (h *Head) WaitForPendingReadersInTimeRange(mint, maxt int64) {
 	}
 }
 
+// WaitForAppendersOverlapping waits for appends overlapping maxt to finish.
+func (h *Head) WaitForAppendersOverlapping(maxt int64) {
+	for maxt >= h.iso.lowestAppendTime() {
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
 // IsQuerierCollidingWithTruncation returns if the current querier needs to be closed and if a new querier
 // has to be created. In the latter case, the method also returns the new mint to be used for creating the
 // new range head and the new querier. This methods helps preventing races with the truncation of in-memory data.
@@ -1034,6 +1043,8 @@ func (h *Head) Stats(statsByLabelName string) *Stats {
 type RangeHead struct {
 	head       *Head
 	mint, maxt int64
+
+	isolationOff bool
 }
 
 // NewRangeHead returns a *RangeHead.
@@ -1046,12 +1057,23 @@ func NewRangeHead(head *Head, mint, maxt int64) *RangeHead {
 	}
 }
 
+// NewRangeHeadWithIsolationDisabled returns a *RangeHead that does not create an isolationState.
+func NewRangeHeadWithIsolationDisabled(head *Head, mint, maxt int64) *RangeHead {
+	rh := NewRangeHead(head, mint, maxt)
+	rh.isolationOff = true
+	return rh
+}
+
 func (h *RangeHead) Index() (IndexReader, error) {
 	return h.head.indexRange(h.mint, h.maxt), nil
 }
 
 func (h *RangeHead) Chunks() (ChunkReader, error) {
-	return h.head.chunksRange(h.mint, h.maxt, h.head.iso.State(h.mint, h.maxt))
+	var isoState *isolationState
+	if !h.isolationOff {
+		isoState = h.head.iso.State(h.mint, h.maxt)
+	}
+	return h.head.chunksRange(h.mint, h.maxt, isoState)
 }
 
 func (h *RangeHead) Tombstones() (tombstones.Reader, error) {
@@ -1113,6 +1135,10 @@ func (h *Head) Delete(mint, maxt int64, ms ...*labels.Matcher) error {
 	var stones []tombstones.Stone
 	for p.Next() {
 		series := h.series.getByID(chunks.HeadSeriesRef(p.At()))
+		if series == nil {
+			level.Debug(h.logger).Log("msg", "Series not found in Head.Delete")
+			continue
+		}
 
 		series.RLock()
 		t0, t1 := series.minTime(), series.maxTime()
