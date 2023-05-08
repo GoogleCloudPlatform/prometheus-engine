@@ -557,6 +557,18 @@ spec:
             drop:
             - all
           privileged: false
+      - name: tsdb-remove
+        image: gke.gcr.io/gke-distroless/bash:20220419
+        command: ['/bin/bash', '-c', 'rm -rf /prometheus/data/']
+        volumeMounts:
+        - name: storage
+          mountPath: /prometheus/data
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
       containers:
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.6.3-gke.0
