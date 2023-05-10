@@ -556,7 +556,7 @@ func makeKubeletScrapeConfigs(cfg *monitoringv1.KubeletScraping) ([]*promconfig.
 				Replacement:  `$1:cadvisor`,
 			}),
 			MetricRelabelConfigs: []*relabel.Config{
-				dropByName(`container_(network_tcp_usage_total|network_udp_usage_total|tasks_state|cpu_load_average_10s)`),
+				dropByName(`container_(network_tcp_usage_total|network_udp_usage_total|tasks_state|cpu_load_average_10s|blkio_device_usage_total|memory_failures_total)`),
 			},
 		},
 	}, nil
