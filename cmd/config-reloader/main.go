@@ -87,9 +87,10 @@ func main() {
 				os.Exit(0)
 			case <-ticker.C:
 				resp, err := http.DefaultClient.Do(req)
+				// Log but tolerate the error here as a "connection refused"
+				// error from Prometheus is a retryable event during startup.
 				if err != nil {
 					level.Error(logger).Log("msg", "polling ready-url", "err", err)
-					os.Exit(1)
 				}
 				if resp.StatusCode == http.StatusOK {
 					level.Info(logger).Log("msg", "ready-url is healthy")
