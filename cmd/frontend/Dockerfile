@@ -1,5 +1,5 @@
 
-FROM golang:1.20-buster AS buildbase
+FROM golang:1.20.4-buster AS buildbase
 
 # Compile the UI assets.
 FROM launcher.gcr.io/google/nodejs as assets
