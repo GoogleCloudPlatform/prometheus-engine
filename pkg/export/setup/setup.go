@@ -182,7 +182,7 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(log.Logger,
 		case HABackendKubernetes:
 			kubecfg, err := loadKubeConfig(*kubeConfigPath)
 			if err != nil {
-				return nil, errors.Wrap(err, "loading kube config failed")
+				return nil, fmt.Errorf("loading kube config failed: %w", err)
 			}
 			opts.Lease, err = lease.NewKubernetes(
 				logger,
@@ -192,7 +192,7 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(log.Logger,
 				&lease.Options{},
 			)
 			if err != nil {
-				return nil, errors.Wrap(err, "set up Kubernetes lease")
+				return nil, fmt.Errorf("set up Kubernetes lease: %w", err)
 			}
 		default:
 			return nil, errors.Errorf("unexpected HA backend %q", *haBackend)

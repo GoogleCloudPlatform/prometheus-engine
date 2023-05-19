@@ -645,20 +645,20 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 
 	// Add pod labels.
 	if pCfgs, err := labelMappingRelabelConfigs(podLabels, "__meta_kubernetes_pod_label_"); err != nil {
-		return nil, errors.Wrap(err, "invalid pod label mapping")
+		return nil, fmt.Errorf("invalid pod label mapping: %w", err)
 	} else {
 		relabelCfgs = append(relabelCfgs, pCfgs...)
 	}
 
 	interval, err := prommodel.ParseDuration(ep.Interval)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid scrape interval")
+		return nil, fmt.Errorf("invalid scrape interval: %w", err)
 	}
 	timeout := interval
 	if ep.Timeout != "" {
 		timeout, err = prommodel.ParseDuration(ep.Timeout)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid scrape timeout")
+			return nil, fmt.Errorf("invalid scrape timeout: %w", err)
 		}
 		if timeout > interval {
 			return nil, errors.Errorf("scrape timeout %v must not be greater than scrape interval %v", timeout, interval)
@@ -683,7 +683,7 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 	if ep.ProxyURL != "" {
 		proxyURL, err := url.Parse(ep.ProxyURL)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid proxy URL")
+			return nil, fmt.Errorf("invalid proxy URL: %w", err)
 		}
 		// Marshalling the config will redact the password, so we don't support those.
 		// It's not a good idea anyway and we will later support basic auth based on secrets to
@@ -721,11 +721,11 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 	// upstream provides at the end of this method.
 	b, err := yaml.Marshal(scrapeCfg)
 	if err != nil {
-		return nil, errors.Wrap(err, "scrape config cannot be marshalled")
+		return nil, fmt.Errorf("scrape config cannot be marshalled: %w", err)
 	}
 	var scrapeCfgCopy promconfig.ScrapeConfig
 	if err := yaml.Unmarshal(b, &scrapeCfgCopy); err != nil {
-		return nil, errors.Wrap(err, "invalid scrape configuration")
+		return nil, fmt.Errorf("invalid scrape configuration: %w", err)
 	}
 	return scrapeCfg, nil
 }

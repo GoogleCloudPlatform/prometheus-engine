@@ -288,7 +288,7 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []b
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
-			return false, errors.Wrap(err, "get secret")
+			return false, fmt.Errorf("get secret: %w", err)
 		}
 		delete(secret.Data, fmt.Sprintf("secret_%s_user-gcp-service-account_key.json", t.pubNamespace))
 
@@ -364,7 +364,7 @@ rule_files:
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
-			return false, errors.Wrap(err, "get configmap")
+			return false, fmt.Errorf("get configmap: %w", err)
 		}
 		if diff := cmp.Diff(want, cm.Data); diff != "" {
 			return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
@@ -383,7 +383,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
-			return false, errors.Wrap(err, "get deployment")
+			return false, fmt.Errorf("get deployment: %w", err)
 		}
 		// When not using GCM, we check the available replicas rather than ready ones
 		// as the rule-evaluator's readyness probe does check for connectivity to GCM.
@@ -858,7 +858,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 					t.Logf("No data, retrying...")
 					return false, nil
 				} else if err != nil {
-					return false, errors.Wrap(err, "querying metrics failed")
+					return false, fmt.Errorf("querying metrics failed: %w", err)
 				}
 				if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
 					t.Logf("Up still %v, retrying...", v)
@@ -944,7 +944,7 @@ func testCollectorScrapeKubelet(ctx context.Context, t *testContext) {
 					t.Logf("No data, retrying...")
 					return false, nil
 				} else if err != nil {
-					return false, errors.Wrap(err, "querying metrics failed")
+					return false, fmt.Errorf("querying metrics failed: %w", err)
 				}
 				if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
 					t.Logf("Up still %v, retrying...", v)
@@ -1099,7 +1099,7 @@ spec:
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
-			return false, errors.Wrap(err, "get ConfigMap")
+			return false, fmt.Errorf("get ConfigMap: %w", err)
 		}
 		// The operator observes Rules across all namespaces. For the purpose of this test we drop
 		// all outputs from the result that aren't in the expected set.
@@ -1260,7 +1260,7 @@ func testValidateRuleEvaluationMetrics(ctx context.Context, t *testContext) {
 			t.Logf("No data, retrying...")
 			return false, nil
 		} else if err != nil {
-			return false, errors.Wrap(err, "querying metrics failed")
+			return false, fmt.Errorf("querying metrics failed: %w", err)
 		}
 		if len(series.Points) == 0 {
 			return false, errors.New("unexpected zero points in result series")

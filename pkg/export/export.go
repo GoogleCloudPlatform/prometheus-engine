@@ -307,7 +307,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 
 	metricClient, err := newMetricClient(context.Background(), opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "create metric client")
+		return nil, fmt.Errorf("create metric client: %w", err)
 	}
 	e := &Exporter{
 		logger:               logger,

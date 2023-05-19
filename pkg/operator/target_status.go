@@ -109,7 +109,7 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error
 		}, &handler.EnqueueRequestForObject{}).
 		Complete(reconciler)
 	if err != nil {
-		return errors.Wrap(err, "create target status controller")
+		return fmt.Errorf("create target status controller: %w", err)
 	}
 
 	// Start the controller only once.
@@ -119,7 +119,7 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error
 		}
 		return nil
 	})); err != nil {
-		return errors.Wrap(err, "unable to start target status controller")
+		return fmt.Errorf("unable to start target status controller: %w", err)
 	}
 
 	return nil
@@ -338,11 +338,11 @@ func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, obj
 
 	patchBytes, err := json.Marshal(patchObject)
 	if err != nil {
-		return errors.Wrap(err, "unable to marshall status")
+		return fmt.Errorf("unable to marshall status: %w", err)
 	}
 	patch := client.RawPatch(types.MergePatchType, patchBytes)
 	if err := kubeClient.Status().Patch(ctx, object, patch); err != nil {
-		return errors.Wrap(err, "unable to patch status")
+		return fmt.Errorf("unable to patch status: %w", err)
 	}
 	return nil
 }

@@ -15,6 +15,8 @@
 package rules
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
@@ -47,7 +49,7 @@ func FromAPIRules(groups []monitoringv1.RuleGroup) (result rulefmt.RuleGroups, e
 			if r.For != "" {
 				rule.For, err = model.ParseDuration(r.For)
 				if err != nil {
-					return result, errors.Wrap(err, "parse 'for' duration")
+					return result, fmt.Errorf("parse 'for' duration: %w", err)
 				}
 			}
 			rules = append(rules, rule)
@@ -59,7 +61,7 @@ func FromAPIRules(groups []monitoringv1.RuleGroup) (result rulefmt.RuleGroups, e
 		if g.Interval != "" {
 			group.Interval, err = model.ParseDuration(g.Interval)
 			if err != nil {
-				return result, errors.Wrap(err, "parse evaluation interval")
+				return result, fmt.Errorf("parse evaluation interval: %w", err)
 			}
 		}
 		result.Groups = append(result.Groups, group)
@@ -71,7 +73,7 @@ func FromAPIRules(groups []monitoringv1.RuleGroup) (result rulefmt.RuleGroups, e
 	}
 	var validate rulefmt.RuleGroups
 	if err := yaml.Unmarshal(b, &validate); err != nil {
-		return result, errors.Wrap(err, "loading rules failed")
+		return result, fmt.Errorf("loading rules failed: %w", err)
 	}
 	return result, nil
 }
@@ -86,7 +88,7 @@ func Scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 		for i, r := range g.Rules {
 			expr, err := parser.ParseExpr(r.Expr.Value)
 			if err != nil {
-				return errors.Wrap(err, "parse PromQL expression")
+				return fmt.Errorf("parse PromQL expression: %w", err)
 			}
 
 			// Traverse the query and inject label matchers to all metric selectors

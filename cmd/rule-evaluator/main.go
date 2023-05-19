@@ -186,7 +186,7 @@ func main() {
 			level.Warn(logger).Log("msg", "Querying Promethues instance returned warnings", "warn", warnings)
 		}
 		if err != nil {
-			return nil, errors.Wrap(err, "execute query")
+			return nil, fmt.Errorf("execute query: %w", err)
 		}
 		vec, ok := v.(promql.Vector)
 		if !ok {

@@ -117,7 +117,7 @@ func setupCollectionControllers(op *Operator) error {
 			builder.WithPredicates(objFilterSecret)).
 		Complete(newCollectionReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
-		return errors.Wrap(err, "create collector config controller")
+		return fmt.Errorf("create collector config controller: %w", err)
 	}
 	return nil
 }
@@ -168,15 +168,15 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	}
 
 	if err := r.ensureCollectorSecrets(ctx, &config.Collection); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "ensure collector secrets")
+		return reconcile.Result{}, fmt.Errorf("ensure collector secrets: %w", err)
 	}
 	// Deploy Prometheus collector as a node agent.
 	if err := r.ensureCollectorDaemonSet(ctx, &config.Collection); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "ensure collector daemon set")
+		return reconcile.Result{}, fmt.Errorf("ensure collector daemon set: %w", err)
 	}
 
 	if err := r.ensureCollectorConfig(ctx, &config.Collection); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "ensure collector config")
+		return reconcile.Result{}, fmt.Errorf("ensure collector config: %w", err)
 	}
 
 	// Reconcile any status updates.
@@ -216,10 +216,10 @@ func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec 
 
 	if err := r.client.Update(ctx, secret); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, secret); err != nil {
-			return errors.Wrap(err, "create collector secrets")
+			return fmt.Errorf("create collector secrets: %w", err)
 		}
 	} else if err != nil {
-		return errors.Wrap(err, "update collector secrets")
+		return fmt.Errorf("update collector secrets: %w", err)
 	}
 	return nil
 }
@@ -305,11 +305,11 @@ func resolveLabels(opts Options, externalLabels map[string]string) (projectID st
 func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec) error {
 	cfg, err := r.makeCollectorConfig(ctx, spec)
 	if err != nil {
-		return errors.Wrap(err, "generate Prometheus config")
+		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
 	cfgEncoded, err := yaml.Marshal(cfg)
 	if err != nil {
-		return errors.Wrap(err, "marshal Prometheus config")
+		return fmt.Errorf("marshal Prometheus config: %w", err)
 	}
 
 	cm := &corev1.ConfigMap{
@@ -324,10 +324,10 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 
 	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, cm); err != nil {
-			return errors.Wrap(err, "create Prometheus config")
+			return fmt.Errorf("create Prometheus config: %w", err)
 		}
 	} else if err != nil {
-		return errors.Wrap(err, "update Prometheus config")
+		return fmt.Errorf("update Prometheus config: %w", err)
 	}
 	return nil
 }
@@ -344,7 +344,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	var err error
 	cfg.ScrapeConfigs, err = makeKubeletScrapeConfigs(spec.KubeletScraping)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create kubelet scrape config")
+		return nil, fmt.Errorf("failed to create kubelet scrape config: %w", err)
 	}
 
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
@@ -354,7 +354,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cond           *monitoringv1.MonitoringCondition
 	)
 	if err := r.client.List(ctx, &podMons); err != nil {
-		return nil, errors.Wrap(err, "failed to list PodMonitorings")
+		return nil, fmt.Errorf("failed to list PodMonitorings: %w", err)
 	}
 
 	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
@@ -395,7 +395,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	}
 
 	if err := r.client.List(ctx, &clusterPodMons); err != nil {
-		return nil, errors.Wrap(err, "failed to list ClusterPodMonitorings")
+		return nil, fmt.Errorf("failed to list ClusterPodMonitorings: %w", err)
 	}
 
 	// Mark status updates in batch with single timestamp.
@@ -495,7 +495,7 @@ func makeKubeletScrapeConfigs(cfg *monitoringv1.KubeletScraping) ([]*promconfig.
 	}
 	interval, err := prommodel.ParseDuration(cfg.Interval)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid scrape interval")
+		return nil, fmt.Errorf("invalid scrape interval: %w", err)
 	}
 	relabelCfgs := []*relabel.Config{
 		{
