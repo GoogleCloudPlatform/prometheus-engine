@@ -244,6 +244,10 @@ func (p *PodMonitoring) GetKey() string {
 	return fmt.Sprintf("PodMonitoring/%s/%s", p.Namespace, p.Name)
 }
 
+func (p *PodMonitoring) GetEndpointKey(index int) string {
+	return fmt.Sprintf("%s/%s/%d", p.GetKey(), &p.Spec.Endpoints[index].Port, index)
+}
+
 func (p *PodMonitoring) GetStatus() *PodMonitoringStatus {
 	return &p.Status
 }
@@ -277,6 +281,10 @@ type ClusterPodMonitoring struct {
 
 func (p *ClusterPodMonitoring) GetKey() string {
 	return fmt.Sprintf("ClusterPodMonitoring/%s", p.Name)
+}
+
+func (p *ClusterPodMonitoring) GetEndpointKey(index int) string {
+	return fmt.Sprintf("%s/%s/%d", p.GetKey(), &p.Spec.Endpoints[index].Port, index)
 }
 
 func (p *ClusterPodMonitoring) GetStatus() *PodMonitoringStatus {
@@ -452,7 +460,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	})
 
 	return endpointScrapeConfig(
-		pm.GetKey(),
+		pm.GetEndpointKey(index),
 		projectID, location, cluster,
 		pm.Spec.Endpoints[index],
 		relabelCfgs,
@@ -698,7 +706,7 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 	scrapeCfg := &promconfig.ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
-		JobName:                 fmt.Sprintf("%s/%s", id, &ep.Port),
+		JobName:                 id,
 		ServiceDiscoveryConfigs: discoveryCfgs,
 		MetricsPath:             metricsPath,
 		Scheme:                  ep.Scheme,
@@ -793,7 +801,7 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 	})
 
 	return endpointScrapeConfig(
-		cm.GetKey(),
+		cm.GetEndpointKey(index),
 		projectID, location, cluster,
 		cm.Spec.Endpoints[index],
 		relabelCfgs,

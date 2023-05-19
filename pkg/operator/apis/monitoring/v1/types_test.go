@@ -584,7 +584,7 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 		got = append(got, string(b))
 	}
 	want := []string{
-		`job_name: PodMonitoring/ns1/name1/web
+		`job_name: PodMonitoring/ns1/name1/web/0
 honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 10s
@@ -658,7 +658,7 @@ kubernetes_sd_configs:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
 `,
-		`job_name: PodMonitoring/ns1/name1/8080
+		`job_name: PodMonitoring/ns1/name1/8080/1
 honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 5s
@@ -796,7 +796,7 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 		got = append(got, string(b))
 	}
 	want := []string{
-		`job_name: ClusterPodMonitoring/name1/web
+		`job_name: ClusterPodMonitoring/name1/web/0
 honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 10s
@@ -865,7 +865,7 @@ kubernetes_sd_configs:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
 `,
-		`job_name: ClusterPodMonitoring/name1/8080
+		`job_name: ClusterPodMonitoring/name1/8080/1
 honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 5s
