@@ -357,7 +357,7 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
 	if !cfg.GlobalConfig.ExternalLabels.Has(KeyCluster) {
 		builder.Set(KeyCluster, e.opts.Cluster)
 	}
-	lset := builder.Labels()
+	lset := builder.Labels(labels.EmptyLabels())
 
 	// At this point we expect location and project ID to be set. They are effectively only a default
 	// however as they may be overriden by metric labels.
