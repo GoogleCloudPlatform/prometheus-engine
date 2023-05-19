@@ -52,7 +52,7 @@ func TestScope(t *testing.T) {
             l1: v1
             l2: v2
         - record: rule:2
-          expr: sum by(foo, bar) (rate(my_metric{l1="v1",l2="v2"}[5m]))
+          expr: sum by (foo, bar) (rate(my_metric{l1="v1",l2="v2"}[5m]))
           labels:
             a: b
             l1: v1

@@ -504,7 +504,7 @@ func extractResource(externalLabels, lset labels.Labels) (*monitoredres_pb.Monit
 			builder.Set(l.Name, l.Value)
 		}
 	}
-	lset = builder.Labels()
+	lset = builder.Labels(labels.EmptyLabels())
 
 	// Ensure project_id and location are set but leave validating of the values to the API.
 	if lset.Get(KeyProjectID) == "" {
@@ -535,7 +535,7 @@ func extractResource(externalLabels, lset labels.Labels) (*monitoredres_pb.Monit
 	builder.Del(KeyJob)
 	builder.Del(KeyInstance)
 
-	return mres, builder.Labels(), nil
+	return mres, builder.Labels(labels.EmptyLabels()), nil
 }
 
 func splitMetricSuffix(name string) (prefix string, suffix metricSuffix, ok bool) {
