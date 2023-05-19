@@ -315,7 +315,7 @@ func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster strin
 	for i := range cm.Spec.Endpoints {
 		c, err := cm.endpointScrapeConfig(i, projectID, location, cluster)
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
+			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
 		res = append(res, c)
 	}
@@ -347,7 +347,7 @@ func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res
 	for i := range pm.Spec.Endpoints {
 		c, err := pm.endpointScrapeConfig(i, projectID, location, cluster)
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
+			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
 		res = append(res, c)
 	}
@@ -589,7 +589,7 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 	if ep.Port.StrVal != "" {
 		portValue, err := relabel.NewRegexp(ep.Port.StrVal)
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid port name %q", ep.Port)
+			return nil, fmt.Errorf("invalid port name %q: %w", ep.Port, err)
 		}
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Keep,
@@ -827,7 +827,7 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 		var err error
 		re, err = relabel.NewRegexp(r.Regex)
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid regex %q", r.Regex)
+			return nil, fmt.Errorf("invalid regex %q: %w", r.Regex, err)
 		}
 		rcfg.Regex = re
 	}

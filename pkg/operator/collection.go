@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
@@ -164,7 +163,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	if err := r.client.Get(ctx, req.NamespacedName, &config); apierrors.IsNotFound(err) {
 		logger.Info("no operatorconfig created yet")
 	} else if err != nil {
-		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
+		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
 
 	if err := r.ensureCollectorSecrets(ctx, &config.Collection); err != nil {

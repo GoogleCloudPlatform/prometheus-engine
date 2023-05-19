@@ -451,7 +451,7 @@ func reloadConfig(filename string, logger log.Logger, rls ...reloader) (err erro
 
 	conf, err := config.LoadFile(filename, false, false, logger)
 	if err != nil {
-		return errors.Wrapf(err, "couldn't load configuration (--config.file=%q)", filename)
+		return fmt.Errorf("couldn't load configuration (--config.file=%q): %w", filename, err)
 	}
 
 	failed := false

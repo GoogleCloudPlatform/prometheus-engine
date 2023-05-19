@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap/zapcore"
 	appsv1 "k8s.io/api/apps/v1"
@@ -148,11 +147,11 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	// test run wasn't cleaned up correctly.
 	ns, err := tctx.kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "create namespace %q", ns)
+		return nil, fmt.Errorf("create namespace %q: %w", ns, err)
 	}
 	_, err = tctx.kubeClient.CoreV1().Namespaces().Create(ctx, pns, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "create namespace %q", pns)
+		return nil, fmt.Errorf("create namespace %q: %w", pns, err)
 	}
 
 	ors := []metav1.OwnerReference{

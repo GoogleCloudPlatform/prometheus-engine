@@ -16,6 +16,7 @@ package operator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"path"
@@ -210,7 +211,7 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	if err := r.client.Get(ctx, req.NamespacedName, config); apierrors.IsNotFound(err) {
 		logger.Info("no operatorconfig created yet")
 	} else if err != nil {
-		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
+		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
 	// Ensure the rule-evaluator config and grab any to-be-mirrored
 	// secret data on the way.
@@ -578,7 +579,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		if am.Port.StrVal != "" {
 			re, err := relabel.NewRegexp(am.Port.String())
 			if err != nil {
-				return nil, nil, errors.Wrapf(err, "cannot build regex from port %q", am.Port)
+				return nil, nil, fmt.Errorf("cannot build regex from port %q: %w", am.Port, err)
 			}
 			cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
 				Action:       relabel.Keep,
@@ -646,7 +647,7 @@ func getSecretKeyBytes(ctx context.Context, kClient client.Reader, namespace str
 	)
 	err := kClient.Get(ctx, nn, secret)
 	if err != nil {
-		return bytes, errors.Wrapf(err, "unable to get secret %q", sel.Name)
+		return bytes, fmt.Errorf("unable to get secret %q: %w", sel.Name, err)
 	}
 	bytes, ok := secret.Data[sel.Key]
 	if !ok {
@@ -668,7 +669,7 @@ func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace 
 	)
 	err := kClient.Get(ctx, nn, cm)
 	if err != nil {
-		return b, errors.Wrapf(err, "unable to get secret %q", sel.Name)
+		return b, fmt.Errorf("unable to get secret %q: %w", sel.Name, err)
 	}
 	// Check 'data' first, then 'binaryData'.
 	if s, ok := cm.Data[sel.Key]; ok {
@@ -707,7 +708,7 @@ func validateRules(rules *monitoringv1.RuleEvaluatorSpec) error {
 	}
 	for i, alertManagerEndpoint := range rules.Alerting.Alertmanagers {
 		if err := validateAlertManagerEndpoint(&alertManagerEndpoint); err != nil {
-			return errors.Wrapf(err, "invalid alert manager endpoint `%s` (index %d)", alertManagerEndpoint.Name, i)
+			return fmt.Errorf("invalid alert manager endpoint `%s` (index %d): %w", alertManagerEndpoint.Name, i, err)
 		}
 	}
 	return nil

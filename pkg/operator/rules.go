@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	yaml "gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -119,7 +118,7 @@ func (r *rulesReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	if err := r.client.Get(ctx, req.NamespacedName, &config); apierrors.IsNotFound(err) {
 		logger.Info("no operatorconfig created yet")
 	} else if err != nil {
-		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
+		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
 
 	var projectID, location, cluster = resolveLabels(r.opts, config.Rules.ExternalLabels)

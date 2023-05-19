@@ -97,7 +97,7 @@ func Scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 				if ok {
 					for name, value := range lset {
 						if err := setSelector(vs, name, value); err != nil {
-							return errors.Wrapf(err, "set isolation selector %s=%q on %s", name, value, vs)
+							return fmt.Errorf("set isolation selector %s=%q on %s: %w", name, value, vs, err)
 						}
 					}
 				}
@@ -112,7 +112,7 @@ func Scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 			// they got aggregated away.
 			for name, value := range lset {
 				if err := setLabel(&r, name, value); err != nil {
-					return errors.Wrapf(err, "set result isolation label %s=%q on %v", name, value, r)
+					return fmt.Errorf("set result isolation label %s=%q on %v: %w", name, value, r, err)
 				}
 			}
 

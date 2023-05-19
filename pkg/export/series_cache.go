@@ -348,7 +348,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 	// Break the series into resource and metric labels.
 	resource, metricLabels, err := extractResource(externalLabels, entry.lset)
 	if err != nil {
-		return errors.Wrapf(err, "extracting resource for series %s failed", entry.lset)
+		return fmt.Errorf("extracting resource for series %s failed: %w", entry.lset, err)
 	}
 
 	// Remove the __name__ label as it becomes the metric type in the GCM time series.

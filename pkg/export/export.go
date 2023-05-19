@@ -849,7 +849,7 @@ func (m *Matchers) Set(s string) error {
 	}
 	ms, err := parser.ParseMetricSelector(s)
 	if err != nil {
-		return errors.Wrapf(err, "invalid metric matcher %q", s)
+		return fmt.Errorf("invalid metric matcher %q: %w", s, err)
 	}
 	*m = append(*m, ms)
 	return nil

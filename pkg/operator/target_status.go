@@ -364,7 +364,7 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 		}
 		podMonitoringStatusContainer, err := buildPodMonitoring(job)
 		if err != nil {
-			return errors.Wrapf(err, "building podmonitoring: %s", job)
+			return fmt.Errorf("building podmonitoring: %s: %w", job, err)
 		}
 		podMonitoringStatusContainer.GetStatus().EndpointStatuses = endpointStatuses
 
