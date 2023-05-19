@@ -296,7 +296,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		opts.BatchSize = BatchSizeMax
 	}
 	if opts.BatchSize > BatchSizeMax {
-		return nil, errors.Errorf("Maximum supported batch size is %d, got %d", BatchSizeMax, opts.BatchSize)
+		return nil, fmt.Errorf("Maximum supported batch size is %d, got %d", BatchSizeMax, opts.BatchSize)
 	}
 	if opts.MetricTypePrefix == "" {
 		opts.MetricTypePrefix = MetricTypePrefix
@@ -364,10 +364,10 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
 	// In production scenarios, "location" should most likely never be overriden as it means crossing
 	// failure domains. Instead, each location should run a replica of the evaluator with the same rules.
 	if lset.Get(KeyProjectID) == "" {
-		return errors.Errorf("no label %q set via external labels or flag", KeyProjectID)
+		return fmt.Errorf("no label %q set via external labels or flag", KeyProjectID)
 	}
 	if loc := lset.Get(KeyLocation); loc == "" {
-		return errors.Errorf("no label %q set via external labels or flag", KeyLocation)
+		return fmt.Errorf("no label %q set via external labels or flag", KeyLocation)
 	} else if loc == "global" {
 		return ErrLocationGlobal
 	}

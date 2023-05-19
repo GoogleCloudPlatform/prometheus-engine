@@ -432,7 +432,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	if pm.Spec.TargetLabels.Metadata != nil {
 		for _, l := range *pm.Spec.TargetLabels.Metadata {
 			if allowed := []string{"pod", "container", "node"}; !containsString(allowed, l) {
-				return nil, errors.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
+				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
 			}
 			metadataLabels[l] = struct{}{}
 		}
@@ -661,7 +661,7 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 			return nil, fmt.Errorf("invalid scrape timeout: %w", err)
 		}
 		if timeout > interval {
-			return nil, errors.Errorf("scrape timeout %v must not be greater than scrape interval %v", timeout, interval)
+			return nil, fmt.Errorf("scrape timeout %v must not be greater than scrape interval %v", timeout, interval)
 		}
 	}
 
@@ -779,7 +779,7 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 	} else {
 		for _, l := range *cm.Spec.TargetLabels.Metadata {
 			if allowed := []string{"namespace", "pod", "container", "node"}; !containsString(allowed, l) {
-				return nil, errors.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
+				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
 			}
 			metadataLabels[l] = struct{}{}
 		}
@@ -838,17 +838,17 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 	case relabel.Replace, relabel.HashMod, "":
 		// These actions write into the target label and it must not be a protected one.
 		if isProtectedLabel(r.TargetLabel) {
-			return nil, errors.Errorf("cannot relabel with action %q onto protected label %q", r.Action, r.TargetLabel)
+			return nil, fmt.Errorf("cannot relabel with action %q onto protected label %q", r.Action, r.TargetLabel)
 		}
 	case relabel.LabelDrop:
 		if matchesAnyProtectedLabel(re) {
-			return nil, errors.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
+			return nil, fmt.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
 		}
 	case relabel.LabelKeep:
 		// Keep drops all labels that don't match the regex. So all protected labels must
 		// match keep.
 		if !matchesAllProtectedLabels(re) {
-			return nil, errors.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
+			return nil, fmt.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
 		}
 	case relabel.LabelMap:
 		// It is difficult to prove for certain that labelmap does not override a protected label.
@@ -856,11 +856,11 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 		// The most feasible way to support this would probably be store all protected labels
 		// in __tmp_protected_<name> via a replace rule, then apply labelmap, then replace the
 		// __tmp label back onto the protected label.
-		return nil, errors.Errorf("relabeling with action %q not allowed", r.Action)
+		return nil, fmt.Errorf("relabeling with action %q not allowed", r.Action)
 	case relabel.Keep, relabel.Drop:
 		// These actions don't modify a series and are OK.
 	default:
-		return nil, errors.Errorf("unknown relabeling action %q", r.Action)
+		return nil, fmt.Errorf("unknown relabeling action %q", r.Action)
 	}
 	return rcfg, nil
 }

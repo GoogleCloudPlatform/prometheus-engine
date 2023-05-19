@@ -482,7 +482,7 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 		// Use crt as the ca in the the self-sign case.
 		caData = crt
 	} else {
-		return nil, errors.Errorf("Flags key-base64 and cert-base64 must both be set.")
+		return nil, errors.New("Flags key-base64 and cert-base64 must both be set.")
 	}
 	// Create cert/key files.
 	if err := ioutil.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {

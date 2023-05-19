@@ -569,7 +569,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		}
 		svcNameRE, err := relabel.NewRegexp(am.Name)
 		if err != nil {
-			return nil, nil, errors.Errorf("cannot build regex from service name %q: %s", am.Name, err)
+			return nil, nil, fmt.Errorf("cannot build regex from service name %q: %w", am.Name, err)
 		}
 		cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
 			Action:       relabel.Keep,
@@ -651,7 +651,7 @@ func getSecretKeyBytes(ctx context.Context, kClient client.Reader, namespace str
 	}
 	bytes, ok := secret.Data[sel.Key]
 	if !ok {
-		return bytes, errors.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
+		return bytes, fmt.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
 	}
 
 	return bytes, nil
@@ -677,7 +677,7 @@ func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace 
 	} else if b, ok := cm.BinaryData[sel.Key]; ok {
 		return b, nil
 	} else {
-		return b, errors.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
+		return b, fmt.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
 	}
 }
 
@@ -767,7 +767,7 @@ func (v *operatorConfigValidator) ValidateCreate(ctx context.Context, o runtime.
 	oc := o.(*monitoringv1.OperatorConfig)
 
 	if oc.Namespace != v.namespace || oc.Name != NameOperatorConfig {
-		return errors.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
+		return fmt.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
 	}
 	if _, err := makeKubeletScrapeConfigs(oc.Collection.KubeletScraping); err != nil {
 		return fmt.Errorf("failed to create kubelet scrape config: %w", err)

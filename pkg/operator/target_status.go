@@ -327,7 +327,7 @@ func buildPodMonitoring(job string) (monitoringv1.PodMonitoringStatusContainer, 
 	if pm, err := buildClusterPodMonitoringFromJob(split); err == nil {
 		return pm, nil
 	}
-	return nil, errors.Errorf("unable to parse job: %s", job)
+	return nil, fmt.Errorf("unable to parse job: %s", job)
 }
 
 func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, object client.Object, status monitoringv1.PodMonitoringStatus) error {

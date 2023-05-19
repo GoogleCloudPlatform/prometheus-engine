@@ -293,7 +293,7 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []b
 		delete(secret.Data, fmt.Sprintf("secret_%s_user-gcp-service-account_key.json", t.pubNamespace))
 
 		if diff := cmp.Diff(want, secret.Data); diff != "" {
-			return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
+			return false, fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 		}
 		return true, nil
 	})
@@ -367,7 +367,7 @@ rule_files:
 			return false, fmt.Errorf("get configmap: %w", err)
 		}
 		if diff := cmp.Diff(want, cm.Data); diff != "" {
-			return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
+			return false, fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 		}
 		return true, nil
 	})
@@ -403,7 +403,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 			"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
 		}
 		if diff := cmp.Diff(wantedAnnotations, deploy.Spec.Template.Annotations); diff != "" {
-			return false, errors.Errorf("unexpected annotations (-want, +got): %s", diff)
+			return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
 		}
 
 		for _, c := range deploy.Spec.Template.Spec.Containers {
@@ -427,7 +427,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 			}
 
 			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
-				return false, errors.Errorf("unexpected flags (-want, +got): %s", diff)
+				return false, fmt.Errorf("unexpected flags (-want, +got): %s", diff)
 			}
 			return true, nil
 		}
@@ -506,10 +506,10 @@ func TestWebhookCABundleInjection(t *testing.T) {
 	err = wait.Poll(3*time.Second, 2*time.Minute, func() (bool, error) {
 		vwc, err := tctx.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(context.Background(), whConfigName, metav1.GetOptions{})
 		if err != nil {
-			return false, errors.Errorf("get validatingwebhook configuration: %s", err)
+			return false, fmt.Errorf("get validatingwebhook configuration: %w", err)
 		}
 		if len(vwc.Webhooks) != 2 {
-			return false, errors.Errorf("expected 2 webhooks but got %d", len(vwc.Webhooks))
+			return false, fmt.Errorf("expected 2 webhooks but got %d", len(vwc.Webhooks))
 		}
 		for _, wh := range vwc.Webhooks {
 			if len(wh.ClientConfig.CABundle) == 0 {
@@ -525,10 +525,10 @@ func TestWebhookCABundleInjection(t *testing.T) {
 	err = wait.Poll(3*time.Second, 2*time.Minute, func() (bool, error) {
 		mwc, err := tctx.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.Background(), whConfigName, metav1.GetOptions{})
 		if err != nil {
-			return false, errors.Errorf("get mutatingwebhook configuration: %s", err)
+			return false, fmt.Errorf("get mutatingwebhook configuration: %w", err)
 		}
 		if len(mwc.Webhooks) != 2 {
-			return false, errors.Errorf("expected 2 webhooks but got %d", len(vwc.Webhooks))
+			return false, fmt.Errorf("expected 2 webhooks but got %d", len(vwc.Webhooks))
 		}
 		for _, wh := range mwc.Webhooks {
 			if len(wh.ClientConfig.CABundle) == 0 {
@@ -583,8 +583,8 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
-			t.Log(errors.Errorf("getting collector DaemonSet failed: %s", err))
-			return false, errors.Errorf("getting collector DaemonSet failed: %s", err)
+			t.Log(fmt.Errorf("getting collector DaemonSet failed: %w", err))
+			return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
 		}
 		// At first creation the DaemonSet may appear with 0 desired replicas. This should
 		// change shortly after.
@@ -614,7 +614,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
 		}
 		if diff := cmp.Diff(wantedAnnotations, ds.Spec.Template.Annotations); diff != "" {
-			return false, errors.Errorf("unexpected annotations (-want, +got): %s", diff)
+			return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
 		}
 
 		for _, c := range ds.Spec.Template.Spec.Containers {
@@ -636,8 +636,8 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 			}
 
 			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
-				t.Log(errors.Errorf("unexpected flags (-want, +got): %s", diff))
-				return false, errors.Errorf("unexpected flags (-want, +got): %s", diff)
+				t.Log(fmt.Errorf("unexpected flags (-want, +got): %s", diff))
+				return false, fmt.Errorf("unexpected flags (-want, +got): %s", diff)
 			}
 			return true, nil
 		}
@@ -687,7 +687,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
 		pm, err := t.operatorClient.MonitoringV1().PodMonitorings(t.namespace).Get(ctx, "collector-podmon", metav1.GetOptions{})
 		if err != nil {
-			return false, errors.Errorf("getting PodMonitoring failed: %s", err)
+			return false, fmt.Errorf("getting PodMonitoring failed: %w", err)
 		}
 		// Ensure no status update cycles.
 		// This is not a perfect check as it's possible the get call returns before the operator
@@ -702,7 +702,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 			steadyVer := resVer == pm.ResourceVersion
 			return success && steadyVer, nil
 		} else if size > 1 {
-			return false, errors.Errorf("status conditions should be of length 1, but got: %d", size)
+			return false, fmt.Errorf("status conditions should be of length 1, but got: %d", size)
 		}
 		return false, nil
 	})
@@ -755,7 +755,7 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
 		pm, err := t.operatorClient.MonitoringV1().ClusterPodMonitorings().Get(ctx, "collector-cmon", metav1.GetOptions{})
 		if err != nil {
-			return false, errors.Errorf("getting ClusterPodMonitoring failed: %s", err)
+			return false, fmt.Errorf("getting ClusterPodMonitoring failed: %w", err)
 		}
 		// Ensure no status update cycles.
 		// This is not a perfect check as it's possible the get call returns before the operator
@@ -770,7 +770,7 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 			steadyVer := resVer == pm.ResourceVersion
 			return success && steadyVer, nil
 		} else if size > 1 {
-			return false, errors.Errorf("status conditions should be of length 1, but got: %d", size)
+			return false, fmt.Errorf("status conditions should be of length 1, but got: %d", size)
 		}
 		return false, nil
 	})
@@ -867,7 +867,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 				// We expect exactly one result.
 				series, err = iter.Next()
 				if err != iterator.Done {
-					return false, errors.Errorf("expected iterator to be done but got error %q and series %v", err, series)
+					return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
 				}
 				return true, nil
 			}, ctx.Done())
@@ -953,7 +953,7 @@ func testCollectorScrapeKubelet(ctx context.Context, t *testContext) {
 				// We expect exactly one result.
 				series, err = iter.Next()
 				if err != iterator.Done {
-					return false, errors.Errorf("expected iterator to be done but got error %q and series %v", err, series)
+					return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
 				}
 				return true, nil
 			}, ctx.Done())
@@ -1157,8 +1157,8 @@ func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(c
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			} else if err != nil {
-				t.Log(errors.Errorf("getting alertmanager StatefulSet failed: %s", err))
-				return false, errors.Errorf("getting alertmanager StatefulSet failed: %s", err)
+				t.Log(fmt.Errorf("getting alertmanager StatefulSet failed: %w", err))
+				return false, fmt.Errorf("getting alertmanager StatefulSet failed: %w", err)
 			}
 
 			// Assert we have the expected annotations.
@@ -1167,7 +1167,7 @@ func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(c
 				"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
 			}
 			if diff := cmp.Diff(wantedAnnotations, ss.Spec.Template.Annotations); diff != "" {
-				return false, errors.Errorf("unexpected annotations (-want, +got): %s", diff)
+				return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
 			}
 
 			return true, nil
@@ -1190,20 +1190,20 @@ func testAlertmanagerConfig(pub *corev1.Secret, key string) func(context.Context
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			} else if err != nil {
-				t.Log(errors.Errorf("getting alertmanager secret failed: %s", err))
-				return false, errors.Errorf("getting alertmanager secret failed: %s", err)
+				t.Log(fmt.Errorf("getting alertmanager secret failed: %w", err))
+				return false, fmt.Errorf("getting alertmanager secret failed: %w", err)
 			}
 
 			bytes, ok := secret.Data["config.yaml"]
 			if !ok {
-				t.Log(errors.Errorf("getting alertmanager secret data in config.yaml failed"))
-				return false, errors.Errorf("getting alertmanager secret data in config.yaml failed")
+				t.Log(errors.New("getting alertmanager secret data in config.yaml failed"))
+				return false, errors.New("getting alertmanager secret data in config.yaml failed")
 			}
 
 			// Grab data from public secret and compare.
 			data := pub.Data[key]
 			if diff := cmp.Diff(data, bytes); diff != "" {
-				return false, errors.Errorf("unexpected configuration (-want, +got): %s", diff)
+				return false, fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 			}
 			return true, nil
 		})
@@ -1268,7 +1268,7 @@ func testValidateRuleEvaluationMetrics(ctx context.Context, t *testContext) {
 		// We expect exactly one result.
 		series, err = iter.Next()
 		if err != iterator.Done {
-			return false, errors.Errorf("expected iterator to be done but got error %q and series %v", err, series)
+			return false, fmt.Errorf("expected iterator to be done but series %v: %w", series, err)
 		}
 		return true, nil
 	})

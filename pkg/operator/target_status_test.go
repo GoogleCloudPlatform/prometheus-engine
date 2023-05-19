@@ -28,7 +28,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
 	"github.com/google/go-cmp/cmp"
-	"github.com/pkg/errors"
 	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 	appsv1 "k8s.io/api/apps/v1"
@@ -1283,7 +1282,7 @@ func TestPolling(t *testing.T) {
 				}
 				return true, nil
 			default:
-				err = errors.Errorf("invalid PodMonitorings found: %d", amount)
+				err = fmt.Errorf("invalid PodMonitorings found: %d", amount)
 				return false, err
 			}
 		}); pollErr != nil {

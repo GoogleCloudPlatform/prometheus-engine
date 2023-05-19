@@ -17,7 +17,6 @@ package rules
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/rulefmt"
@@ -124,7 +123,7 @@ func Scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 
 func setLabel(r *rulefmt.RuleNode, name, value string) error {
 	if v, ok := r.Labels[name]; ok {
-		return errors.Errorf("label %q already set on rule with unexpected value %q", name, v)
+		return fmt.Errorf("label %q already set on rule with unexpected value %q", name, v)
 	}
 	if value == "" {
 		return nil
@@ -142,7 +141,7 @@ func setSelector(s *parser.VectorSelector, name, value string) error {
 			continue
 		}
 		if m.Type != labels.MatchEqual || m.Value != value {
-			return errors.Errorf("conflicting label matcher %s found", m)
+			return fmt.Errorf("conflicting label matcher %s found", m)
 		}
 	}
 	if value != "" {
