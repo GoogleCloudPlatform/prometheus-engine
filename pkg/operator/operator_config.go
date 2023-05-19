@@ -24,7 +24,6 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	promcommonconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	prommodel "github.com/prometheus/common/model"

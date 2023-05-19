@@ -16,6 +16,7 @@
 package setup
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -25,7 +26,6 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/lease"
 	"github.com/go-kit/log"
 	"github.com/google/shlex"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 	"k8s.io/client-go/rest"

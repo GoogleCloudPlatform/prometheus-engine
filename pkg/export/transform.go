@@ -15,6 +15,7 @@
 package export
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -23,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"

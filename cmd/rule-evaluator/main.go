@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -33,7 +34,6 @@ import (
 	"github.com/go-kit/log/level"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
-	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
 	"google.golang.org/grpc"
