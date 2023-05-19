@@ -22,12 +22,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
+	stringslices "k8s.io/utils/strings/slices"
 )
 
 var (
@@ -74,9 +74,12 @@ type Selector interface {
 	RequiresExactMatch(label string) (value string, found bool)
 }
 
+// Sharing this saves 1 alloc per use; this is safe because it's immutable.
+var sharedEverythingSelector Selector = internalSelector{}
+
 // Everything returns a selector that matches all labels.
 func Everything() Selector {
-	return internalSelector{}
+	return sharedEverythingSelector
 }
 
 type nothingSelector struct{}
@@ -91,9 +94,12 @@ func (n nothingSelector) RequiresExactMatch(label string) (value string, found b
 	return "", false
 }
 
+// Sharing this saves 1 alloc per use; this is safe because it's immutable.
+var sharedNothingSelector Selector = nothingSelector{}
+
 // Nothing returns a selector that matches no labels
 func Nothing() Selector {
-	return nothingSelector{}
+	return sharedNothingSelector
 }
 
 // NewSelector returns a nil selector
@@ -296,7 +302,7 @@ func (r Requirement) Equal(x Requirement) bool {
 	if r.operator != x.operator {
 		return false
 	}
-	return cmp.Equal(r.strValues, x.strValues)
+	return stringslices.Equal(r.strValues, x.strValues)
 }
 
 // Empty returns true if the internalSelector doesn't restrict selection space
