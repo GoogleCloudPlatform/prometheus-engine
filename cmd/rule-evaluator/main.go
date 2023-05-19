@@ -82,8 +82,12 @@ func main() {
 
 	// The rule-evaluator version is identical to the export library version for now, so
 	// we reuse that constant.
-	// TODO(freinartz): a linked built-time variable would be preferable.
-	newExporter := exportsetup.FromFlags(a, fmt.Sprintf("rule-evaluator/%s", export.Version))
+	version, err := export.Version()
+	if err != nil {
+		level.Error(logger).Log("msg", "Unable to fetch module version", "err", err)
+		os.Exit(1)
+	}
+	newExporter := exportsetup.FromFlags(a, fmt.Sprintf("rule-evaluator/%s", version))
 
 	notifierOptions := notifier.Options{Registerer: reg}
 
@@ -159,7 +163,7 @@ func main() {
 
 	opts := []option.ClientOption{
 		option.WithScopes("https://www.googleapis.com/auth/monitoring.read"),
-		option.WithUserAgent(fmt.Sprintf("rule-evaluator/%s", export.Version)),
+		option.WithUserAgent(fmt.Sprintf("rule-evaluator/%s", version)),
 		option.WithGRPCDialOption(grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor)),
 	}
 	if *queryCredentialsFile != "" {
