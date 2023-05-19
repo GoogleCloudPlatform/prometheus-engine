@@ -15,10 +15,14 @@
 package export
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"math"
+	"os/exec"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -231,9 +235,14 @@ func (alwaysLease) OnLeaderChange(f func()) {
 }
 
 func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.MetricClient, error) {
+	version, err := Version()
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch user agent version: %w", err)
+	}
+
 	// Identity User Agent for all gRPC requests.
 	ua := strings.TrimSpace(fmt.Sprintf("%s/%s %s (env:%s;mode:%s)",
-		ClientName, Version, opts.UserAgentProduct, opts.UserAgentEnv, opts.UserAgentMode))
+		ClientName, version, opts.UserAgentProduct, opts.UserAgentEnv, opts.UserAgentMode))
 
 	clientOpts := []option.ClientOption{
 		option.WithGRPCDialOption(grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor)),
@@ -475,11 +484,68 @@ func (e *Exporter) triggerNext() {
 	}
 }
 
-// ClientName and Version are used to identify to User Agent. TODO(maxamin): automate versioning.
 const (
+	// ClientName is used to identify the User Agent.
 	ClientName = "prometheus-engine-export"
-	Version    = "0.6.3"
+	// mainModuleVersion is the version of the main module. Align with git tag.
+	// TODO(TheSpiritXIII): Remove with https://github.com/golang/go/issues/50603
+	mainModuleVersion = "v0.7.0-rc.0"
+	// mainModuleName is the name of the main module. Align with go.mod.
+	mainModuleName = "github.com/GoogleCloudPlatform/prometheus-engine"
 )
+
+// Testing returns true if running within a unit test.
+// TODO(TheSpiritXIII): Replace with https://github.com/golang/go/issues/52600
+func Testing() bool {
+	return flag.Lookup("test.v") != nil
+}
+
+// Version is used in the User Agent. This version is automatically detected if
+// this function is imported as a library. However, the version is statically
+// set if this function is used in a binary in prometheus-engine due to Golang
+// restrictions. While testing, the static version is validated for correctness.
+func Version() (string, error) {
+	if Testing() {
+		// TODO(TheSpiritXIII): After https://github.com/golang/go/issues/50603 just return empty string here.
+		cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			return "(devel)", nil
+		}
+
+		version := strings.TrimSpace(stdout.String())
+		if version != mainModuleVersion {
+			return "", fmt.Errorf("export version %q does not match tag %q", mainModuleVersion, version)
+		}
+
+		// To prevent breaking in unit tests.
+		return version, nil
+	}
+
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "", fmt.Errorf("unable to retrieve build info")
+	}
+
+	if bi.Main.Path == mainModuleName {
+		return mainModuleVersion, nil
+	}
+
+	var exportDep *debug.Module
+	for _, dep := range bi.Deps {
+		if dep.Path == mainModuleName {
+			exportDep = dep
+			break
+		}
+	}
+	if exportDep == nil {
+		return "", fmt.Errorf("unable to find module %q %v", mainModuleName, bi.Deps)
+	}
+	return exportDep.Version, nil
+}
 
 // Run sends exported samples to Google Cloud Monitoring. Must be called at most once.
 // ApplyConfig must be called once prior to calling Run.
