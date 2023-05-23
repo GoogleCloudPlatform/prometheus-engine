@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -33,7 +34,6 @@ import (
 	"github.com/go-kit/log/level"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
-	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
 	"google.golang.org/grpc"
@@ -186,11 +186,11 @@ func main() {
 			level.Warn(logger).Log("msg", "Querying Promethues instance returned warnings", "warn", warnings)
 		}
 		if err != nil {
-			return nil, errors.Wrap(err, "execute query")
+			return nil, fmt.Errorf("execute query: %w", err)
 		}
 		vec, ok := v.(promql.Vector)
 		if !ok {
-			return nil, errors.Errorf("Error querying Prometheus, Expected type vector response. Actual type %v", v.Type())
+			return nil, fmt.Errorf("Error querying Prometheus, Expected type vector response. Actual type %v", v.Type())
 		}
 		return vec, nil
 	}
@@ -237,7 +237,7 @@ func main() {
 				for _, pat := range cfg.RuleFiles {
 					fs, err := filepath.Glob(pat)
 					if fs == nil || err != nil {
-						return errors.Errorf("Error retrieving rule file: %s", pat)
+						return fmt.Errorf("Error retrieving rule file: %s", pat)
 					}
 					files = append(files, fs...)
 				}
@@ -406,7 +406,7 @@ func main() {
 func QueryFunc(ctx context.Context, q string, t time.Time, v1api v1.API) (parser.Value, v1.Warnings, error) {
 	results, warnings, err := v1api.Query(ctx, q, t)
 	if err != nil {
-		return nil, warnings, errors.Errorf("Error querying Prometheus: %v", err)
+		return nil, warnings, fmt.Errorf("Error querying Prometheus: %w", err)
 	}
 	v, err := convertModelToPromQLValue(results)
 	return v, warnings, err
@@ -451,7 +451,7 @@ func reloadConfig(filename string, logger log.Logger, rls ...reloader) (err erro
 
 	conf, err := config.LoadFile(filename, false, false, logger)
 	if err != nil {
-		return errors.Wrapf(err, "couldn't load configuration (--config.file=%q)", filename)
+		return fmt.Errorf("couldn't load configuration (--config.file=%q): %w", filename, err)
 	}
 
 	failed := false
@@ -464,7 +464,7 @@ func reloadConfig(filename string, logger log.Logger, rls ...reloader) (err erro
 		timings = append(timings, rl.name, time.Since(rstart))
 	}
 	if failed {
-		return errors.Errorf("one or more errors occurred while applying the new configuration (--config.file=%q)", filename)
+		return fmt.Errorf("one or more errors occurred while applying the new configuration (--config.file=%q)", filename)
 	}
 
 	l := []interface{}{"msg", "Completed loading of configuration file", "filename", filename, "totalDuration", time.Since(start)}
@@ -519,7 +519,7 @@ func convertModelToPromQLValue(val model.Value) (parser.Value, error) {
 		return v, nil
 
 	default:
-		return nil, errors.Errorf("Expected Prometheus results of type matrix or vector. Actual results type: %v", val.Type())
+		return nil, fmt.Errorf("Expected Prometheus results of type matrix or vector. Actual results type: %v", val.Type())
 	}
 }
 
@@ -527,7 +527,7 @@ func convertModelToPromQLValue(val model.Value) (parser.Value, error) {
 func convertV1WarningsToStorageWarnings(w v1.Warnings) storage.Warnings {
 	warnings := make(storage.Warnings, len(w))
 	for i, warning := range w {
-		warnings[i] = errors.Errorf(warning)
+		warnings[i] = errors.New(warning)
 	}
 	return warnings
 }
@@ -608,7 +608,7 @@ type queryAccess struct {
 // Select returns a set of series that matches the given label matchers and time range.
 func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ...*labels.Matcher) storage.SeriesSet {
 	if sort || hints != nil {
-		return newListSeriesSet(nil, errors.Errorf("sorting series and select hints are not supported"), nil)
+		return newListSeriesSet(nil, fmt.Errorf("sorting series and select hints are not supported"), nil)
 	}
 
 	duration := db.maxt - db.mint
@@ -625,7 +625,7 @@ func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ..
 
 	m, ok := v.(promql.Matrix)
 	if !ok {
-		return newListSeriesSet(nil, errors.Errorf("Error querying Prometheus, Expected type matrix response. Actual type %v", v.Type()), nil)
+		return newListSeriesSet(nil, fmt.Errorf("Error querying Prometheus, Expected type matrix response. Actual type %v", v.Type()), nil)
 	}
 	// TODO(maxamin) GCM returns label names and values that are not in matchers.
 	// Ensure results from query are equivalent to the requested matchers because

@@ -16,6 +16,7 @@ package export
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -27,7 +28,6 @@ import (
 	"github.com/go-kit/log/level"
 	gax "github.com/googleapis/gax-go/v2"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
@@ -296,7 +296,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		opts.BatchSize = BatchSizeMax
 	}
 	if opts.BatchSize > BatchSizeMax {
-		return nil, errors.Errorf("Maximum supported batch size is %d, got %d", BatchSizeMax, opts.BatchSize)
+		return nil, fmt.Errorf("Maximum supported batch size is %d, got %d", BatchSizeMax, opts.BatchSize)
 	}
 	if opts.MetricTypePrefix == "" {
 		opts.MetricTypePrefix = MetricTypePrefix
@@ -307,7 +307,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 
 	metricClient, err := newMetricClient(context.Background(), opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "create metric client")
+		return nil, fmt.Errorf("create metric client: %w", err)
 	}
 	e := &Exporter{
 		logger:               logger,
@@ -364,10 +364,10 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
 	// In production scenarios, "location" should most likely never be overriden as it means crossing
 	// failure domains. Instead, each location should run a replica of the evaluator with the same rules.
 	if lset.Get(KeyProjectID) == "" {
-		return errors.Errorf("no label %q set via external labels or flag", KeyProjectID)
+		return fmt.Errorf("no label %q set via external labels or flag", KeyProjectID)
 	}
 	if loc := lset.Get(KeyLocation); loc == "" {
-		return errors.Errorf("no label %q set via external labels or flag", KeyLocation)
+		return fmt.Errorf("no label %q set via external labels or flag", KeyLocation)
 	} else if loc == "global" {
 		return ErrLocationGlobal
 	}
@@ -849,7 +849,7 @@ func (m *Matchers) Set(s string) error {
 	}
 	ms, err := parser.ParseMetricSelector(s)
 	if err != nil {
-		return errors.Wrapf(err, "invalid metric matcher %q", s)
+		return fmt.Errorf("invalid metric matcher %q: %w", s, err)
 	}
 	*m = append(*m, ms)
 	return nil

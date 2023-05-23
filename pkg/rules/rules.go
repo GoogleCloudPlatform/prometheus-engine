@@ -15,7 +15,8 @@
 package rules
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
+
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/rulefmt"
@@ -47,7 +48,7 @@ func FromAPIRules(groups []monitoringv1.RuleGroup) (result rulefmt.RuleGroups, e
 			if r.For != "" {
 				rule.For, err = model.ParseDuration(r.For)
 				if err != nil {
-					return result, errors.Wrap(err, "parse 'for' duration")
+					return result, fmt.Errorf("parse 'for' duration: %w", err)
 				}
 			}
 			rules = append(rules, rule)
@@ -59,7 +60,7 @@ func FromAPIRules(groups []monitoringv1.RuleGroup) (result rulefmt.RuleGroups, e
 		if g.Interval != "" {
 			group.Interval, err = model.ParseDuration(g.Interval)
 			if err != nil {
-				return result, errors.Wrap(err, "parse evaluation interval")
+				return result, fmt.Errorf("parse evaluation interval: %w", err)
 			}
 		}
 		result.Groups = append(result.Groups, group)
@@ -71,7 +72,7 @@ func FromAPIRules(groups []monitoringv1.RuleGroup) (result rulefmt.RuleGroups, e
 	}
 	var validate rulefmt.RuleGroups
 	if err := yaml.Unmarshal(b, &validate); err != nil {
-		return result, errors.Wrap(err, "loading rules failed")
+		return result, fmt.Errorf("loading rules failed: %w", err)
 	}
 	return result, nil
 }
@@ -86,7 +87,7 @@ func Scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 		for i, r := range g.Rules {
 			expr, err := parser.ParseExpr(r.Expr.Value)
 			if err != nil {
-				return errors.Wrap(err, "parse PromQL expression")
+				return fmt.Errorf("parse PromQL expression: %w", err)
 			}
 
 			// Traverse the query and inject label matchers to all metric selectors
@@ -95,7 +96,7 @@ func Scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 				if ok {
 					for name, value := range lset {
 						if err := setSelector(vs, name, value); err != nil {
-							return errors.Wrapf(err, "set isolation selector %s=%q on %s", name, value, vs)
+							return fmt.Errorf("set isolation selector %s=%q on %s: %w", name, value, vs, err)
 						}
 					}
 				}
@@ -110,7 +111,7 @@ func Scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 			// they got aggregated away.
 			for name, value := range lset {
 				if err := setLabel(&r, name, value); err != nil {
-					return errors.Wrapf(err, "set result isolation label %s=%q on %v", name, value, r)
+					return fmt.Errorf("set result isolation label %s=%q on %v: %w", name, value, r, err)
 				}
 			}
 
@@ -122,7 +123,7 @@ func Scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 
 func setLabel(r *rulefmt.RuleNode, name, value string) error {
 	if v, ok := r.Labels[name]; ok {
-		return errors.Errorf("label %q already set on rule with unexpected value %q", name, v)
+		return fmt.Errorf("label %q already set on rule with unexpected value %q", name, v)
 	}
 	if value == "" {
 		return nil
@@ -140,7 +141,7 @@ func setSelector(s *parser.VectorSelector, name, value string) error {
 			continue
 		}
 		if m.Type != labels.MatchEqual || m.Value != value {
-			return errors.Errorf("conflicting label matcher %s found", m)
+			return fmt.Errorf("conflicting label matcher %s found", m)
 		}
 	}
 	if value != "" {

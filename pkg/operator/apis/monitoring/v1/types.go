@@ -15,13 +15,13 @@
 package v1
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
@@ -315,7 +315,7 @@ func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster strin
 	for i := range cm.Spec.Endpoints {
 		c, err := cm.endpointScrapeConfig(i, projectID, location, cluster)
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
+			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
 		res = append(res, c)
 	}
@@ -347,7 +347,7 @@ func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res
 	for i := range pm.Spec.Endpoints {
 		c, err := pm.endpointScrapeConfig(i, projectID, location, cluster)
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid definition for endpoint with index %d", i)
+			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
 		res = append(res, c)
 	}
@@ -432,7 +432,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	if pm.Spec.TargetLabels.Metadata != nil {
 		for _, l := range *pm.Spec.TargetLabels.Metadata {
 			if allowed := []string{"pod", "container", "node"}; !containsString(allowed, l) {
-				return nil, errors.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
+				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
 			}
 			metadataLabels[l] = struct{}{}
 		}
@@ -589,7 +589,7 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 	if ep.Port.StrVal != "" {
 		portValue, err := relabel.NewRegexp(ep.Port.StrVal)
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid port name %q", ep.Port)
+			return nil, fmt.Errorf("invalid port name %q: %w", ep.Port, err)
 		}
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Keep,
@@ -645,23 +645,23 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 
 	// Add pod labels.
 	if pCfgs, err := labelMappingRelabelConfigs(podLabels, "__meta_kubernetes_pod_label_"); err != nil {
-		return nil, errors.Wrap(err, "invalid pod label mapping")
+		return nil, fmt.Errorf("invalid pod label mapping: %w", err)
 	} else {
 		relabelCfgs = append(relabelCfgs, pCfgs...)
 	}
 
 	interval, err := prommodel.ParseDuration(ep.Interval)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid scrape interval")
+		return nil, fmt.Errorf("invalid scrape interval: %w", err)
 	}
 	timeout := interval
 	if ep.Timeout != "" {
 		timeout, err = prommodel.ParseDuration(ep.Timeout)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid scrape timeout")
+			return nil, fmt.Errorf("invalid scrape timeout: %w", err)
 		}
 		if timeout > interval {
-			return nil, errors.Errorf("scrape timeout %v must not be greater than scrape interval %v", timeout, interval)
+			return nil, fmt.Errorf("scrape timeout %v must not be greater than scrape interval %v", timeout, interval)
 		}
 	}
 
@@ -683,7 +683,7 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 	if ep.ProxyURL != "" {
 		proxyURL, err := url.Parse(ep.ProxyURL)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid proxy URL")
+			return nil, fmt.Errorf("invalid proxy URL: %w", err)
 		}
 		// Marshalling the config will redact the password, so we don't support those.
 		// It's not a good idea anyway and we will later support basic auth based on secrets to
@@ -721,11 +721,11 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 	// upstream provides at the end of this method.
 	b, err := yaml.Marshal(scrapeCfg)
 	if err != nil {
-		return nil, errors.Wrap(err, "scrape config cannot be marshalled")
+		return nil, fmt.Errorf("scrape config cannot be marshalled: %w", err)
 	}
 	var scrapeCfgCopy promconfig.ScrapeConfig
 	if err := yaml.Unmarshal(b, &scrapeCfgCopy); err != nil {
-		return nil, errors.Wrap(err, "invalid scrape configuration")
+		return nil, fmt.Errorf("invalid scrape configuration: %w", err)
 	}
 	return scrapeCfg, nil
 }
@@ -779,7 +779,7 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 	} else {
 		for _, l := range *cm.Spec.TargetLabels.Metadata {
 			if allowed := []string{"namespace", "pod", "container", "node"}; !containsString(allowed, l) {
-				return nil, errors.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
+				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
 			}
 			metadataLabels[l] = struct{}{}
 		}
@@ -827,7 +827,7 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 		var err error
 		re, err = relabel.NewRegexp(r.Regex)
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid regex %q", r.Regex)
+			return nil, fmt.Errorf("invalid regex %q: %w", r.Regex, err)
 		}
 		rcfg.Regex = re
 	}
@@ -838,17 +838,17 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 	case relabel.Replace, relabel.HashMod, "":
 		// These actions write into the target label and it must not be a protected one.
 		if isProtectedLabel(r.TargetLabel) {
-			return nil, errors.Errorf("cannot relabel with action %q onto protected label %q", r.Action, r.TargetLabel)
+			return nil, fmt.Errorf("cannot relabel with action %q onto protected label %q", r.Action, r.TargetLabel)
 		}
 	case relabel.LabelDrop:
 		if matchesAnyProtectedLabel(re) {
-			return nil, errors.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
+			return nil, fmt.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
 		}
 	case relabel.LabelKeep:
 		// Keep drops all labels that don't match the regex. So all protected labels must
 		// match keep.
 		if !matchesAllProtectedLabels(re) {
-			return nil, errors.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
+			return nil, fmt.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
 		}
 	case relabel.LabelMap:
 		// It is difficult to prove for certain that labelmap does not override a protected label.
@@ -856,11 +856,11 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 		// The most feasible way to support this would probably be store all protected labels
 		// in __tmp_protected_<name> via a replace rule, then apply labelmap, then replace the
 		// __tmp label back onto the protected label.
-		return nil, errors.Errorf("relabeling with action %q not allowed", r.Action)
+		return nil, fmt.Errorf("relabeling with action %q not allowed", r.Action)
 	case relabel.Keep, relabel.Drop:
 		// These actions don't modify a series and are OK.
 	default:
-		return nil, errors.Errorf("unknown relabeling action %q", r.Action)
+		return nil, fmt.Errorf("unknown relabeling action %q", r.Action)
 	}
 	return rcfg, nil
 }

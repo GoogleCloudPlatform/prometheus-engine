@@ -17,6 +17,7 @@ package operator
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -25,7 +26,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -153,10 +153,10 @@ func getScheme() (*runtime.Scheme, error) {
 	sc := runtime.NewScheme()
 
 	if err := scheme.AddToScheme(sc); err != nil {
-		return nil, errors.Wrap(err, "add Kubernetes core scheme")
+		return nil, fmt.Errorf("add Kubernetes core scheme: %w", err)
 	}
 	if err := monitoringv1.AddToScheme(sc); err != nil {
-		return nil, errors.Wrap(err, "add monitoringv1 scheme")
+		return nil, fmt.Errorf("add monitoringv1 scheme: %w", err)
 	}
 	return sc, nil
 }
@@ -164,26 +164,26 @@ func getScheme() (*runtime.Scheme, error) {
 // New instantiates a new Operator.
 func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator, error) {
 	if err := opts.defaultAndValidate(logger); err != nil {
-		return nil, errors.Wrap(err, "invalid options")
+		return nil, fmt.Errorf("invalid options: %w", err)
 	}
 	// Create temporary directory to store webhook serving cert files.
 	certDir, err := ioutil.TempDir("", "operator-cert")
 	if err != nil {
-		return nil, errors.Wrap(err, "create temporary certificate dir")
+		return nil, fmt.Errorf("create temporary certificate dir: %w", err)
 	}
 
 	sc, err := getScheme()
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to initialize Kubernetes scheme")
+		return nil, fmt.Errorf("unable to initialize Kubernetes scheme: %w", err)
 	}
 
 	host, portStr, err := net.SplitHostPort(opts.ListenAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid listen address")
+		return nil, fmt.Errorf("invalid listen address: %w", err)
 	}
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid port")
+		return nil, fmt.Errorf("invalid port: %w", err)
 	}
 	manager, err := ctrl.NewManager(clientConfig, manager.Options{
 		Scheme: sc,
@@ -255,7 +255,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 		CertDir: certDir,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "create controller manager")
+		return nil, fmt.Errorf("create controller manager: %w", err)
 	}
 
 	namespaces := []string{opts.OperatorNamespace, opts.PublicNamespace}
@@ -263,12 +263,12 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 		Scheme: sc,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "create controller manager")
+		return nil, fmt.Errorf("create controller manager: %w", err)
 	}
 
 	client, err := client.New(clientConfig, client.Options{Scheme: sc})
 	if err != nil {
-		return nil, errors.Wrap(err, "create client")
+		return nil, fmt.Errorf("create client: %w", err)
 	}
 
 	op := &Operator{
@@ -368,22 +368,22 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 	defer runtimeutil.HandleCrash()
 
 	if err := o.cleanupOldResources(ctx); err != nil {
-		return errors.Wrap(err, "cleanup old resources")
+		return fmt.Errorf("cleanup old resources: %w", err)
 	}
 	if err := o.setupAdmissionWebhooks(ctx); err != nil {
-		return errors.Wrap(err, "init admission resources")
+		return fmt.Errorf("init admission resources: %w", err)
 	}
 	if err := setupCollectionControllers(o); err != nil {
-		return errors.Wrap(err, "setup collection controllers")
+		return fmt.Errorf("setup collection controllers: %w", err)
 	}
 	if err := setupRulesControllers(o); err != nil {
-		return errors.Wrap(err, "setup rules controllers")
+		return fmt.Errorf("setup rules controllers: %w", err)
 	}
 	if err := setupOperatorConfigControllers(o); err != nil {
-		return errors.Wrap(err, "setup rule-evaluator controllers")
+		return fmt.Errorf("setup rule-evaluator controllers: %w", err)
 	}
 	if err := setupTargetStatusPoller(o, registry); err != nil {
-		return errors.Wrap(err, "setup target status processor")
+		return fmt.Errorf("setup target status processor: %w", err)
 	}
 
 	o.logger.Info("starting GMP operator")
@@ -456,16 +456,16 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 	if o.opts.TLSKey != "" && o.opts.TLSCert != "" {
 		crt, err = base64.StdEncoding.DecodeString(o.opts.TLSCert)
 		if err != nil {
-			return nil, errors.Wrap(err, "decoding TLS certificate")
+			return nil, fmt.Errorf("decoding TLS certificate: %w", err)
 		}
 		key, err = base64.StdEncoding.DecodeString(o.opts.TLSKey)
 		if err != nil {
-			return nil, errors.Wrap(err, "decoding TLS key")
+			return nil, fmt.Errorf("decoding TLS key: %w", err)
 		}
 		if o.opts.CACert != "" {
 			caData, err = base64.StdEncoding.DecodeString(o.opts.CACert)
 			if err != nil {
-				return nil, errors.Wrap(err, "decoding certificate authority")
+				return nil, fmt.Errorf("decoding certificate authority: %w", err)
 			}
 		}
 	} else if o.opts.TLSKey == "" && o.opts.TLSCert == "" && o.opts.CACert == "" {
@@ -477,19 +477,19 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 
 		crt, key, err = cert.GenerateSelfSignedCertKey(fqdn, nil, nil)
 		if err != nil {
-			return nil, errors.Wrap(err, "generate self-signed TLS key pair")
+			return nil, fmt.Errorf("generate self-signed TLS key pair: %w", err)
 		}
 		// Use crt as the ca in the the self-sign case.
 		caData = crt
 	} else {
-		return nil, errors.Errorf("Flags key-base64 and cert-base64 must both be set.")
+		return nil, errors.New("Flags key-base64 and cert-base64 must both be set.")
 	}
 	// Create cert/key files.
 	if err := ioutil.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
-		return nil, errors.Wrap(err, "create cert file")
+		return nil, fmt.Errorf("create cert file: %w", err)
 	}
 	if err := ioutil.WriteFile(filepath.Join(dir, "tls.key"), key, 0666); err != nil {
-		return nil, errors.Wrap(err, "create key file")
+		return nil, fmt.Errorf("create key file: %w", err)
 	}
 	return caData, nil
 }

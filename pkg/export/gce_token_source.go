@@ -18,11 +18,11 @@ package export
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/time/rate"
@@ -48,7 +48,7 @@ type AltTokenSource struct {
 func (a *AltTokenSource) Token() (*oauth2.Token, error) {
 	r := a.throttle.Reserve()
 	if !r.OK() {
-		return nil, errors.Errorf("Rate limiter (rate: %f, burst: %d) cannot provide the requested token.",
+		return nil, fmt.Errorf("Rate limiter (rate: %f, burst: %d) cannot provide the requested token.",
 			a.throttle.Limit(), a.throttle.Burst())
 	}
 	time.Sleep(r.Delay())

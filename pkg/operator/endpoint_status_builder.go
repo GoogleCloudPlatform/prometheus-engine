@@ -15,12 +15,12 @@
 package operator
 
 import (
+	"errors"
 	"sort"
 	"strconv"
 	"strings"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	"github.com/pkg/errors"
 	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

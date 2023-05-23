@@ -15,6 +15,7 @@
 package export
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -23,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
@@ -314,7 +314,7 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 		// It's a possible caused of the zero-count issue below so we catch it here early.
 		if val < 0 {
 			prometheusSamplesDiscarded.WithLabelValues("negative-bucket-count").Add(float64(d.inputSampleCount()))
-			err := errors.Errorf("invalid bucket with negative count %s: count=%f, sum=%f, dev=%f, index=%d, bucketVal=%d, bucketPrevVal=%d",
+			err := fmt.Errorf("invalid bucket with negative count %s: count=%f, sum=%f, dev=%f, index=%d, bucketVal=%d, bucketPrevVal=%d",
 				lset, d.count, d.sum, dev, i, d.values[i], prevVal)
 			return nil, err
 		}
@@ -338,7 +338,7 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 	// one, which violates histogram's invariant.
 	if d.count == 0 && (mean != 0 || dev != 0) {
 		prometheusSamplesDiscarded.WithLabelValues("zero-count-violation").Add(float64(d.inputSampleCount()))
-		err := errors.Errorf("invalid histogram with 0 count for %s: count=%f, sum=%f, dev=%f",
+		err := fmt.Errorf("invalid histogram with 0 count for %s: count=%f, sum=%f, dev=%f",
 			lset, d.count, d.sum, dev)
 		return nil, err
 	}
