@@ -16,11 +16,12 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/pkg/errors"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
@@ -88,10 +89,10 @@ func TestSelect(t *testing.T) {
 					maxt := time.Unix(2000, 0)
 					expectedQuery := "{__name__=\"testLabel\"}[1000s]"
 					if q != expectedQuery {
-						return nil, nil, errors.Errorf("Expected query to be: %s, Actual query: %s ", expectedQuery, q)
+						return nil, nil, fmt.Errorf("Expected query to be: %s, Actual query: %s ", expectedQuery, q)
 					}
 					if timeValue != maxt {
-						return nil, nil, errors.Errorf("Expected t to be: %s, Actual t: %s ", maxt.String(), timeValue.String())
+						return nil, nil, fmt.Errorf("Expected t to be: %s, Actual t: %s ", maxt.String(), timeValue.String())
 					}
 					return promql.Matrix{{
 						Metric: labels.FromStrings(model.MetricNameLabel, "testLabel"),
@@ -111,12 +112,12 @@ func TestSelect(t *testing.T) {
 				mint: 1000,
 				maxt: 2000,
 				query: func(ctx context.Context, q string, timeValue time.Time, v1api v1.API) (parser.Value, v1.Warnings, error) {
-					return nil, nil, errors.Errorf("Query Error")
+					return nil, nil, errors.New("Query Error")
 				},
 			},
 			want: &listSeriesSet{
 				m:   promql.Matrix{},
-				err: errors.Errorf("Query Error"),
+				err: errors.New("Query Error"),
 			},
 		},
 		{
@@ -136,7 +137,7 @@ func TestSelect(t *testing.T) {
 			},
 			want: &listSeriesSet{
 				m:   promql.Matrix{},
-				err: errors.Errorf("Error querying Prometheus, Expected type matrix response. Actual type vector"),
+				err: errors.New("Error querying Prometheus, Expected type matrix response. Actual type vector"),
 			},
 		},
 		{
@@ -150,7 +151,7 @@ func TestSelect(t *testing.T) {
 			},
 			want: &listSeriesSet{
 				m:        promql.Matrix{},
-				warnings: storage.Warnings{errors.Errorf("warning test")},
+				warnings: storage.Warnings{errors.New("warning test")},
 			},
 		},
 	}

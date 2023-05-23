@@ -16,12 +16,12 @@ package lease
 
 import (
 	"context"
+	"errors"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"

@@ -17,6 +17,7 @@ package operator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -24,7 +25,6 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/api"
 	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/client_golang/prometheus"
@@ -109,7 +109,7 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error
 		}, &handler.EnqueueRequestForObject{}).
 		Complete(reconciler)
 	if err != nil {
-		return errors.Wrap(err, "create target status controller")
+		return fmt.Errorf("create target status controller: %w", err)
 	}
 
 	// Start the controller only once.
@@ -119,7 +119,7 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error
 		}
 		return nil
 	})); err != nil {
-		return errors.Wrap(err, "unable to start target status controller")
+		return fmt.Errorf("unable to start target status controller: %w", err)
 	}
 
 	return nil
@@ -327,7 +327,7 @@ func buildPodMonitoring(job string) (monitoringv1.PodMonitoringStatusContainer, 
 	if pm, err := buildClusterPodMonitoringFromJob(split); err == nil {
 		return pm, nil
 	}
-	return nil, errors.Errorf("unable to parse job: %s", job)
+	return nil, fmt.Errorf("unable to parse job: %s", job)
 }
 
 func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, object client.Object, status monitoringv1.PodMonitoringStatus) error {
@@ -338,11 +338,11 @@ func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, obj
 
 	patchBytes, err := json.Marshal(patchObject)
 	if err != nil {
-		return errors.Wrap(err, "unable to marshall status")
+		return fmt.Errorf("unable to marshall status: %w", err)
 	}
 	patch := client.RawPatch(types.MergePatchType, patchBytes)
 	if err := kubeClient.Status().Patch(ctx, object, patch); err != nil {
-		return errors.Wrap(err, "unable to patch status")
+		return fmt.Errorf("unable to patch status: %w", err)
 	}
 	return nil
 }
@@ -364,7 +364,7 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 		}
 		podMonitoringStatusContainer, err := buildPodMonitoring(job)
 		if err != nil {
-			return errors.Wrapf(err, "building podmonitoring: %s", job)
+			return fmt.Errorf("building podmonitoring: %s: %w", job, err)
 		}
 		podMonitoringStatusContainer.GetStatus().EndpointStatuses = endpointStatuses
 

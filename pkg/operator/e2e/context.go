@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap/zapcore"
 	appsv1 "k8s.io/api/apps/v1"
@@ -148,11 +147,11 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	// test run wasn't cleaned up correctly.
 	ns, err := tctx.kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "create namespace %q", ns)
+		return nil, fmt.Errorf("create namespace %q: %w", ns, err)
 	}
 	_, err = tctx.kubeClient.CoreV1().Namespaces().Create(ctx, pns, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrapf(err, "create namespace %q", pns)
+		return nil, fmt.Errorf("create namespace %q: %w", pns, err)
 	}
 
 	ors := []metav1.OwnerReference{
@@ -169,7 +168,7 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	}
 	_, err = tctx.kubeClient.CoreV1().ServiceAccounts(tctx.namespace).Create(ctx, svcAccount, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "create collector service account")
+		return nil, fmt.Errorf("create collector service account: %w", err)
 	}
 
 	// The cluster role expected to exist already.
@@ -198,13 +197,13 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	}
 	_, err = tctx.kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, roleBinding, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "create cluster role binding")
+		return nil, fmt.Errorf("create cluster role binding: %w", err)
 	}
 
 	if gcpServiceAccount != "" {
 		b, err := ioutil.ReadFile(gcpServiceAccount)
 		if err != nil {
-			return nil, errors.Wrap(err, "read GCP service account file")
+			return nil, fmt.Errorf("read GCP service account file: %w", err)
 		}
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -216,14 +215,14 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 		}
 		_, err = tctx.kubeClient.CoreV1().Secrets(tctx.pubNamespace).Create(ctx, secret, metav1.CreateOptions{})
 		if err != nil {
-			return nil, errors.Wrap(err, "create GCP service account secret")
+			return nil, fmt.Errorf("create GCP service account secret: %w", err)
 		}
 	}
 
 	// Load workloads from YAML files and update the namespace to the test namespace.
 	collectorBytes, err := ioutil.ReadFile("collector.yaml")
 	if err != nil {
-		return nil, errors.Wrap(err, "read collector YAML")
+		return nil, fmt.Errorf("read collector YAML: %w", err)
 	}
 	obj, _, err := scheme.Codecs.UniversalDeserializer().Decode(collectorBytes, nil, nil)
 	collector := obj.(*appsv1.DaemonSet)
@@ -231,11 +230,11 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 
 	_, err = tctx.kubeClient.AppsV1().DaemonSets(tctx.namespace).Create(ctx, collector, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "create collector DaemonSet")
+		return nil, fmt.Errorf("create collector DaemonSet: %w", err)
 	}
 	evaluatorBytes, err := ioutil.ReadFile("rule-evaluator.yaml")
 	if err != nil {
-		return nil, errors.Wrap(err, "read rule-evaluator YAML")
+		return nil, fmt.Errorf("read rule-evaluator YAML: %w", err)
 	}
 
 	obj, _, err = scheme.Codecs.UniversalDeserializer().Decode(evaluatorBytes, nil, nil)
@@ -244,36 +243,36 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 
 	_, err = tctx.kubeClient.AppsV1().Deployments(tctx.namespace).Create(ctx, evaluator, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "create rule-evaluator Deployment")
+		return nil, fmt.Errorf("create rule-evaluator Deployment: %w", err)
 	}
 
 	alertmanagerBytes, err := ioutil.ReadFile("alertmanager.yaml")
 	if err != nil {
-		return nil, errors.Wrap(err, "read alertmanager YAML")
+		return nil, fmt.Errorf("read alertmanager YAML: %w", err)
 	}
 	for _, doc := range strings.Split(string(alertmanagerBytes), "---") {
 		obj, _, err = scheme.Codecs.UniversalDeserializer().Decode([]byte(doc), nil, nil)
 		if err != nil {
-			return nil, errors.Wrap(err, "deserializing alertmanager manifest")
+			return nil, fmt.Errorf("deserializing alertmanager manifest: %w", err)
 		}
 		switch obj.(type) {
 		case *appsv1.StatefulSet:
 			alertmanager := obj.(*appsv1.StatefulSet)
 			alertmanager.Namespace = tctx.namespace
 			if _, err := tctx.kubeClient.AppsV1().StatefulSets(tctx.namespace).Create(ctx, alertmanager, metav1.CreateOptions{}); err != nil {
-				return nil, errors.Wrap(err, "create alertmanager statefulset")
+				return nil, fmt.Errorf("create alertmanager statefulset: %w", err)
 			}
 		case *corev1.Secret:
 			amSecret := obj.(*corev1.Secret)
 			amSecret.Namespace = tctx.namespace
 			if _, err := tctx.kubeClient.CoreV1().Secrets(tctx.namespace).Create(ctx, amSecret, metav1.CreateOptions{}); err != nil {
-				return nil, errors.Wrap(err, "create alertmanager secret")
+				return nil, fmt.Errorf("create alertmanager secret: %w", err)
 			}
 		case *corev1.Service:
 			amSvc := obj.(*corev1.Service)
 			amSvc.Namespace = tctx.namespace
 			if _, err := tctx.kubeClient.CoreV1().Services(tctx.namespace).Create(ctx, amSvc, metav1.CreateOptions{}); err != nil {
-				return nil, errors.Wrap(err, "create alertmanager service")
+				return nil, fmt.Errorf("create alertmanager service: %w", err)
 			}
 		}
 	}
@@ -305,13 +304,13 @@ func (tctx *testContext) subtest(f func(context.Context, *testContext)) func(*te
 func cleanupAllNamespaces(ctx context.Context) error {
 	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
-		return errors.Wrap(err, "build Kubernetes clientset")
+		return fmt.Errorf("build Kubernetes clientset: %w", err)
 	}
 	namespaces, err := kubeClient.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
 		LabelSelector: "gmp-operator-test=true",
 	})
 	if err != nil {
-		return errors.Wrap(err, "delete namespaces by label")
+		return fmt.Errorf("delete namespaces by label: %w", err)
 	}
 	for _, ns := range namespaces.Items {
 		if err := kubeClient.CoreV1().Namespaces().Delete(ctx, ns.Name, metav1.DeleteOptions{}); err != nil {
