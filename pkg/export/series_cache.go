@@ -17,6 +17,7 @@ package export
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash"
 	"hash/fnv"
@@ -27,7 +28,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
@@ -348,7 +348,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 	// Break the series into resource and metric labels.
 	resource, metricLabels, err := extractResource(externalLabels, entry.lset)
 	if err != nil {
-		return errors.Wrapf(err, "extracting resource for series %s failed", entry.lset)
+		return fmt.Errorf("extracting resource for series %s failed: %w", entry.lset, err)
 	}
 
 	// Remove the __name__ label as it becomes the metric type in the GCM time series.
@@ -361,7 +361,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 	// Drop series with too many labels.
 	// TODO: remove once field limit is lifted in the GCM API.
 	if len(metricLabels) > maxLabelCount {
-		return errors.Errorf("metric labels %s exceed the limit of %d", metricLabels, maxLabelCount)
+		return fmt.Errorf("metric labels %s exceed the limit of %d", metricLabels, maxLabelCount)
 	}
 
 	var (
@@ -380,7 +380,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 			metadata, ok = getMetadata(baseMetricName)
 		}
 		if !ok {
-			return errors.Errorf("no metadata found for metric name %q", metricName)
+			return fmt.Errorf("no metadata found for metric name %q", metricName)
 		}
 	}
 	// Handle label modifications for histograms early so we don't build the label map twice.
@@ -449,7 +449,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 				metric_pb.MetricDescriptor_DOUBLE)
 
 		default:
-			return errors.Errorf("unexpected metric name suffix %q for metric %q", suffix, metricName)
+			return fmt.Errorf("unexpected metric name suffix %q for metric %q", suffix, metricName)
 		}
 
 	case textparse.MetricTypeHistogram:
@@ -459,7 +459,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 			metric_pb.MetricDescriptor_DISTRIBUTION)
 
 	default:
-		return errors.Errorf("unexpected metric type %s for metric %q", metadata.Type, metricName)
+		return fmt.Errorf("unexpected metric type %s for metric %q", metadata.Type, metricName)
 	}
 
 	c.pool.release(entry.protos.gauge.proto)
@@ -508,10 +508,10 @@ func extractResource(externalLabels, lset labels.Labels) (*monitoredres_pb.Monit
 
 	// Ensure project_id and location are set but leave validating of the values to the API.
 	if lset.Get(KeyProjectID) == "" {
-		return nil, nil, errors.Errorf("missing required resource field %q", KeyProjectID)
+		return nil, nil, fmt.Errorf("missing required resource field %q", KeyProjectID)
 	}
 	if lset.Get(KeyLocation) == "" {
-		return nil, nil, errors.Errorf("missing required resource field %q", KeyLocation)
+		return nil, nil, fmt.Errorf("missing required resource field %q", KeyLocation)
 	}
 
 	// Transfer resource fields from label set onto the resource. If they are not set,

@@ -16,6 +16,7 @@ package operator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"path"
@@ -23,7 +24,6 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	promcommonconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	prommodel "github.com/prometheus/common/model"
@@ -170,7 +170,7 @@ func setupOperatorConfigControllers(op *Operator) error {
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
 
 	if err != nil {
-		return errors.Wrap(err, "operator-config controller")
+		return fmt.Errorf("operator-config controller: %w", err)
 	}
 	return nil
 }
@@ -210,28 +210,28 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	if err := r.client.Get(ctx, req.NamespacedName, config); apierrors.IsNotFound(err) {
 		logger.Info("no operatorconfig created yet")
 	} else if err != nil {
-		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
+		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
 	// Ensure the rule-evaluator config and grab any to-be-mirrored
 	// secret data on the way.
 	secretData, err := r.ensureRuleEvaluatorConfig(ctx, &config.Rules)
 	if err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator config")
+		return reconcile.Result{}, fmt.Errorf("ensure rule-evaluator config: %w", err)
 	}
 
 	if err := r.ensureAlertmanagerConfigSecret(ctx, config.ManagedAlertmanager); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "ensure alertmanager config secret")
+		return reconcile.Result{}, fmt.Errorf("ensure alertmanager config secret: %w", err)
 	}
 
 	// Mirror the fetched secret data to where the rule-evaluator can
 	// mount and access.
 	if err := r.ensureRuleEvaluatorSecrets(ctx, secretData); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator secrets")
+		return reconcile.Result{}, fmt.Errorf("ensure rule-evaluator secrets: %w", err)
 	}
 
 	// Ensure the rule-evaluator deployment and volume mounts.
 	if err := r.ensureRuleEvaluatorDeployment(ctx, &config.Rules); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "ensure rule-evaluator deploy")
+		return reconcile.Result{}, fmt.Errorf("ensure rule-evaluator deploy: %w", err)
 	}
 
 	return reconcile.Result{}, nil
@@ -241,16 +241,16 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1.RuleEvaluatorSpec) (map[string][]byte, error) {
 	cfg, secretData, err := r.makeRuleEvaluatorConfig(ctx, spec)
 	if err != nil {
-		return nil, errors.Wrap(err, "make rule-evaluator configmap")
+		return nil, fmt.Errorf("make rule-evaluator configmap: %w", err)
 	}
 
 	// Upsert rule-evaluator config.
 	if err := r.client.Update(ctx, cfg); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, cfg); err != nil {
-			return nil, errors.Wrap(err, "create rule-evaluator config")
+			return nil, fmt.Errorf("create rule-evaluator config: %w", err)
 		}
 	} else if err != nil {
-		return nil, errors.Wrap(err, "update rule-evaluator config")
+		return nil, fmt.Errorf("update rule-evaluator config: %w", err)
 	}
 	return secretData, nil
 }
@@ -261,13 +261,13 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, spec *monitoringv1.RuleEvaluatorSpec) (*corev1.ConfigMap, map[string][]byte, error) {
 	amConfigs, secretData, err := r.makeAlertmanagerConfigs(ctx, &spec.Alerting)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "make alertmanager config")
+		return nil, nil, fmt.Errorf("make alertmanager config: %w", err)
 	}
 	if spec.Credentials != nil {
 		p := pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials})
 		b, err := getSecretKeyBytes(ctx, r.client, r.opts.PublicNamespace, spec.Credentials)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "get service account credentials")
+			return nil, nil, fmt.Errorf("get service account credentials: %w", err)
 		}
 		secretData[p] = b
 	}
@@ -283,7 +283,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 	}
 	cfgEncoded, err := yaml.Marshal(cfg)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "marshal Prometheus config")
+		return nil, nil, fmt.Errorf("marshal Prometheus config: %w", err)
 	}
 
 	// Create rule-evaluator Secret.
@@ -316,10 +316,10 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Contex
 
 	if err := r.client.Update(ctx, secret); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, secret); err != nil {
-			return errors.Wrap(err, "create rule-evaluator secrets")
+			return fmt.Errorf("create rule-evaluator secrets: %w", err)
 		}
 	} else if err != nil {
-		return errors.Wrap(err, "update rule-evaluator secrets")
+		return fmt.Errorf("update rule-evaluator secrets: %w", err)
 	}
 	return nil
 }
@@ -373,10 +373,10 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 
 	if err := r.client.Update(ctx, secret); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, secret); err != nil {
-			return errors.Wrap(err, "create alertmanager config secret")
+			return fmt.Errorf("create alertmanager config secret: %w", err)
 		}
 	} else if err != nil {
-		return errors.Wrap(err, "update alertmanager config secret")
+		return fmt.Errorf("update alertmanager config secret: %w", err)
 	}
 
 	return nil
@@ -497,7 +497,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		if am.Timeout != "" {
 			cfg.Timeout, err = prommodel.ParseDuration(am.Timeout)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "invalid timeout")
+				return nil, nil, fmt.Errorf("invalid timeout: %w", err)
 			}
 		}
 		// Authorization.
@@ -568,7 +568,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		}
 		svcNameRE, err := relabel.NewRegexp(am.Name)
 		if err != nil {
-			return nil, nil, errors.Errorf("cannot build regex from service name %q: %s", am.Name, err)
+			return nil, nil, fmt.Errorf("cannot build regex from service name %q: %w", am.Name, err)
 		}
 		cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
 			Action:       relabel.Keep,
@@ -578,7 +578,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		if am.Port.StrVal != "" {
 			re, err := relabel.NewRegexp(am.Port.String())
 			if err != nil {
-				return nil, nil, errors.Wrapf(err, "cannot build regex from port %q", am.Port)
+				return nil, nil, fmt.Errorf("cannot build regex from port %q: %w", am.Port, err)
 			}
 			cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
 				Action:       relabel.Keep,
@@ -593,7 +593,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 			// deduplicated by the discovery engine.
 			re, err := relabel.NewRegexp(`(.+):\d+`)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "building address regex failed")
+				return nil, nil, fmt.Errorf("building address regex failed: %w", err)
 			}
 			cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
 				Action:       relabel.Replace,
@@ -646,11 +646,11 @@ func getSecretKeyBytes(ctx context.Context, kClient client.Reader, namespace str
 	)
 	err := kClient.Get(ctx, nn, secret)
 	if err != nil {
-		return bytes, errors.Wrapf(err, "unable to get secret %q", sel.Name)
+		return bytes, fmt.Errorf("unable to get secret %q: %w", sel.Name, err)
 	}
 	bytes, ok := secret.Data[sel.Key]
 	if !ok {
-		return bytes, errors.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
+		return bytes, fmt.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
 	}
 
 	return bytes, nil
@@ -668,7 +668,7 @@ func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace 
 	)
 	err := kClient.Get(ctx, nn, cm)
 	if err != nil {
-		return b, errors.Wrapf(err, "unable to get secret %q", sel.Name)
+		return b, fmt.Errorf("unable to get secret %q: %w", sel.Name, err)
 	}
 	// Check 'data' first, then 'binaryData'.
 	if s, ok := cm.Data[sel.Key]; ok {
@@ -676,7 +676,7 @@ func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace 
 	} else if b, ok := cm.BinaryData[sel.Key]; ok {
 		return b, nil
 	} else {
-		return b, errors.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
+		return b, fmt.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
 	}
 }
 
@@ -698,17 +698,16 @@ func pathForSelector(namespace string, scm *monitoringv1.SecretOrConfigMap) stri
 func validateRules(rules *monitoringv1.RuleEvaluatorSpec) error {
 	if rules.GeneratorURL != "" {
 		if _, err := url.Parse(rules.GeneratorURL); err != nil {
-			return errors.Wrap(err, "failed to parse generator URL")
+			return fmt.Errorf("failed to parse generator URL: %w", err)
 		}
 	}
 
 	if err := validateSecretKeySelector(rules.Credentials); err != nil {
-		return errors.Wrap(err, "invalid credentials")
+		return fmt.Errorf("invalid credentials: %w", err)
 	}
 	for i, alertManagerEndpoint := range rules.Alerting.Alertmanagers {
 		if err := validateAlertManagerEndpoint(&alertManagerEndpoint); err != nil {
-			errMsg := fmt.Sprintf("invalid alert manager endpoint `%s` (index %d)", alertManagerEndpoint.Name, i)
-			return errors.Wrap(err, errMsg)
+			return fmt.Errorf("invalid alert manager endpoint `%s` (index %d): %w", alertManagerEndpoint.Name, i, err)
 		}
 	}
 	return nil
@@ -717,18 +716,18 @@ func validateRules(rules *monitoringv1.RuleEvaluatorSpec) error {
 func validateAlertManagerEndpoint(alertManagerEndpoint *monitoringv1.AlertmanagerEndpoints) error {
 	if alertManagerEndpoint.Authorization != nil {
 		if err := validateSecretKeySelector(alertManagerEndpoint.Authorization.Credentials); err != nil {
-			return errors.Wrap(err, "invalid authorization credentials")
+			return fmt.Errorf("invalid authorization credentials: %w", err)
 		}
 	}
 	if alertManagerEndpoint.TLS != nil {
 		if err := validateSecretKeySelector(alertManagerEndpoint.TLS.KeySecret); err != nil {
-			return errors.Wrap(err, "invalid TLS key")
+			return fmt.Errorf("invalid TLS key: %w", err)
 		}
 		if err := validateSecretOrConfigMap(alertManagerEndpoint.TLS.CA); err != nil {
-			return errors.Wrap(err, "invalid TLS CA")
+			return fmt.Errorf("invalid TLS CA: %w", err)
 		}
 		if err := validateSecretOrConfigMap(alertManagerEndpoint.TLS.Cert); err != nil {
-			return errors.Wrap(err, "invalid TLS Cert")
+			return fmt.Errorf("invalid TLS Cert: %w", err)
 		}
 	}
 	return nil
@@ -767,22 +766,22 @@ func (v *operatorConfigValidator) ValidateCreate(ctx context.Context, o runtime.
 	oc := o.(*monitoringv1.OperatorConfig)
 
 	if oc.Namespace != v.namespace || oc.Name != NameOperatorConfig {
-		return errors.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
+		return fmt.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
 	}
 	if _, err := makeKubeletScrapeConfigs(oc.Collection.KubeletScraping); err != nil {
-		return errors.Wrap(err, "failed to create kubelet scrape config")
+		return fmt.Errorf("failed to create kubelet scrape config: %w", err)
 	}
 
 	if err := validateSecretKeySelector(oc.Collection.Credentials); err != nil {
-		return errors.Wrap(err, "invalid collection credentials")
+		return fmt.Errorf("invalid collection credentials: %w", err)
 	}
 	if oc.ManagedAlertmanager != nil {
 		if err := validateSecretKeySelector(oc.ManagedAlertmanager.ConfigSecret); err != nil {
-			return errors.Wrap(err, "invalid managed alert manager config secret")
+			return fmt.Errorf("invalid managed alert manager config secret: %w", err)
 		}
 	}
 	if err := validateRules(&oc.Rules); err != nil {
-		return errors.Wrap(err, "invalid rules config")
+		return fmt.Errorf("invalid rules config: %w", err)
 	}
 	return nil
 }

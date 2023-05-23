@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	yaml "gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -93,7 +92,7 @@ func setupRulesControllers(op *Operator) error {
 		).
 		Complete(newRulesReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
-		return errors.Wrap(err, "create rules config controller")
+		return fmt.Errorf("create rules config controller: %w", err)
 	}
 	return nil
 }
@@ -119,13 +118,13 @@ func (r *rulesReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	if err := r.client.Get(ctx, req.NamespacedName, &config); apierrors.IsNotFound(err) {
 		logger.Info("no operatorconfig created yet")
 	} else if err != nil {
-		return reconcile.Result{}, errors.Wrapf(err, "get operatorconfig for incoming: %q", req.String())
+		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
 
 	var projectID, location, cluster = resolveLabels(r.opts, config.Rules.ExternalLabels)
 
 	if err := r.ensureRuleConfigs(ctx, projectID, location, cluster); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "ensure rule configmaps")
+		return reconcile.Result{}, fmt.Errorf("ensure rule configmaps: %w", err)
 	}
 	return reconcile.Result{}, nil
 }
@@ -160,7 +159,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 	// to data as clusters may span locations.
 	var rulesList monitoringv1.RulesList
 	if err := r.client.List(ctx, &rulesList); err != nil {
-		return errors.Wrap(err, "list rules")
+		return fmt.Errorf("list rules: %w", err)
 	}
 	for _, rs := range rulesList.Items {
 		result, err := generateRules(&rs, projectID, location, cluster)
@@ -174,7 +173,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 
 	var clusterRulesList monitoringv1.ClusterRulesList
 	if err := r.client.List(ctx, &clusterRulesList); err != nil {
-		return errors.Wrap(err, "list cluster rules")
+		return fmt.Errorf("list cluster rules: %w", err)
 	}
 	for _, rs := range clusterRulesList.Items {
 		result, err := generateClusterRules(&rs, projectID, location, cluster)
@@ -188,7 +187,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 
 	var globalRulesList monitoringv1.GlobalRulesList
 	if err := r.client.List(ctx, &globalRulesList); err != nil {
-		return errors.Wrap(err, "list global rules")
+		return fmt.Errorf("list global rules: %w", err)
 	}
 	for _, rs := range globalRulesList.Items {
 		result, err := generateGlobalRules(&rs)
@@ -203,10 +202,10 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 	// Create or update generated rule ConfigMap.
 	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, cm); err != nil {
-			return errors.Wrap(err, "create generated rules")
+			return fmt.Errorf("create generated rules: %w", err)
 		}
 	} else if err != nil {
-		return errors.Wrap(err, "update generated rules")
+		return fmt.Errorf("update generated rules: %w", err)
 	}
 	return nil
 }
@@ -214,7 +213,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 func generateRules(apiRules *monitoringv1.Rules, projectID, location, cluster string) (string, error) {
 	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
 	if err != nil {
-		return "", errors.Wrap(err, "converting rules failed")
+		return "", fmt.Errorf("converting rules failed: %w", err)
 	}
 	if err := rules.Scope(&rs, map[string]string{
 		export.KeyProjectID: projectID,
@@ -222,11 +221,11 @@ func generateRules(apiRules *monitoringv1.Rules, projectID, location, cluster st
 		export.KeyCluster:   cluster,
 		export.KeyNamespace: apiRules.Namespace,
 	}); err != nil {
-		return "", errors.Wrap(err, "isolating rules failed")
+		return "", fmt.Errorf("isolating rules failed: %w", err)
 	}
 	result, err := yaml.Marshal(rs)
 	if err != nil {
-		return "", errors.Wrap(err, "marshalling rules failed")
+		return "", fmt.Errorf("marshalling rules failed: %w", err)
 	}
 	return string(result), nil
 }
@@ -234,18 +233,18 @@ func generateRules(apiRules *monitoringv1.Rules, projectID, location, cluster st
 func generateClusterRules(apiRules *monitoringv1.ClusterRules, projectID, location, cluster string) (string, error) {
 	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
 	if err != nil {
-		return "", errors.Wrap(err, "converting rules failed")
+		return "", fmt.Errorf("converting rules failed: %w", err)
 	}
 	if err := rules.Scope(&rs, map[string]string{
 		export.KeyProjectID: projectID,
 		export.KeyLocation:  location,
 		export.KeyCluster:   cluster,
 	}); err != nil {
-		return "", errors.Wrap(err, "isolating rules failed")
+		return "", fmt.Errorf("isolating rules failed: %w", err)
 	}
 	result, err := yaml.Marshal(rs)
 	if err != nil {
-		return "", errors.Wrap(err, "marshalling rules failed")
+		return "", fmt.Errorf("marshalling rules failed: %w", err)
 	}
 	return string(result), nil
 }
@@ -253,11 +252,11 @@ func generateClusterRules(apiRules *monitoringv1.ClusterRules, projectID, locati
 func generateGlobalRules(apiRules *monitoringv1.GlobalRules) (string, error) {
 	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
 	if err != nil {
-		return "", errors.Wrap(err, "converting rules failed")
+		return "", fmt.Errorf("converting rules failed: %w", err)
 	}
 	result, err := yaml.Marshal(rs)
 	if err != nil {
-		return "", errors.Wrap(err, "marshalling rules failed")
+		return "", fmt.Errorf("marshalling rules failed: %w", err)
 	}
 	return string(result), nil
 }
