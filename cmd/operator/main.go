@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"net/http"
 	"os"
@@ -47,10 +48,15 @@ func main() {
 		defaultCluster   string
 		defaultLocation  string
 	)
+	errList := []error{}
 	if metadata.OnGCE() {
-		defaultProjectID, _ = metadata.ProjectID()
-		defaultCluster, _ = metadata.InstanceAttributeValue("cluster-name")
-		defaultLocation, _ = metadata.InstanceAttributeValue("cluster-location")
+		var err error
+		defaultProjectID, err = metadata.ProjectID()
+		errList = append(errList, err)
+		defaultCluster, err = metadata.InstanceAttributeValue("cluster-name")
+		errList = append(errList, err)
+		defaultLocation, err = metadata.InstanceAttributeValue("cluster-location")
+		errList = append(errList, err)
 	}
 	var (
 		logVerbosity      = flag.Int("v", 0, "Logging verbosity")
@@ -79,6 +85,9 @@ func main() {
 
 	logger := zap.New(zap.Level(zapcore.Level(-*logVerbosity)))
 	ctrl.SetLogger(logger)
+	if err := errors.Join(errList...); err != nil {
+		logger.Error(err, "unable to fetch Google Cloud metadata")
+	}
 
 	cfg, err := ctrl.GetConfig()
 	if err != nil {

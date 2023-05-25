@@ -71,7 +71,11 @@ func main() {
 
 	var defaultProjectID string
 	if metadata.OnGCE() {
-		defaultProjectID, _ = metadata.ProjectID()
+		var err error
+		defaultProjectID, err = metadata.ProjectID()
+		if err != nil {
+			level.Error(logger).Log("msg", "Unable to fetch Google Cloud project", "err", err)
+		}
 	}
 
 	reg := prometheus.NewRegistry()
