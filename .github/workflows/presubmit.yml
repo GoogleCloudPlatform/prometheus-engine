@@ -35,6 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+      # Fetch the git tree so we can call `git` commands to validate the tag.
+      # TODO(TheSpiritXIII): Remove this when debug.ReadBuildInfo() is fixed.
+      with:
+        fetch-depth: 0
     - name: Run unit tests
       run: make test
   e2e-test:

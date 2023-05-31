@@ -105,7 +105,7 @@ ifeq ($(NO_DOCKER), 1)
 	go test `go list ./... | grep operator/e2e` -args -project-id=${PROJECT_ID} -cluster=${GMP_CLUSTER} -location=${GMP_LOCATION}
 else
 	$(call docker_build, -f ./hack/Dockerfile --target sync -o . -t gmp/hermetic \
-		--build-arg RUNCMD='./hack/presubmit.sh test' .)
+		--build-arg RUNCMD='GIT_TAG="$(shell git describe --tags --abbrev=0)" ./hack/presubmit.sh test' .)
 	rm -rf vendor.tmp
 endif
 
