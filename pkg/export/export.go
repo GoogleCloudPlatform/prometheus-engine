@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"os"
 	"os/exec"
 	"runtime/debug"
 	"strings"
@@ -506,17 +507,25 @@ func Testing() bool {
 // restrictions. While testing, the static version is validated for correctness.
 func Version() (string, error) {
 	if Testing() {
-		// TODO(TheSpiritXIII): After https://github.com/golang/go/issues/50603 just return empty string here.
+		// TODO(TheSpiritXIII): After https://github.com/golang/go/issues/50603 just return empty
+		// string here. For now, use the opportunity to confirm that the static version is correct.
+		// We manually get the closest git tag if the user is running the unit test locally, but
+		// fallback to the GIT_TAG environment variable in case the user is running the test via
+		// Docker (like `make test` does by default).
 		cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
-		var stdout, stderr bytes.Buffer
+		var stdout bytes.Buffer
 		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
 
+		version := ""
 		if err := cmd.Run(); err != nil {
-			return "(devel)", nil
+			version = strings.TrimSpace(os.Getenv("GIT_TAG"))
+			if version == "" {
+				return "", errors.New("unable to detect git tag, please set GIT_TAG env variable")
+			}
+		} else {
+			version = strings.TrimSpace(stdout.String())
 		}
 
-		version := strings.TrimSpace(stdout.String())
 		if version != mainModuleVersion {
 			return "", fmt.Errorf("export version %q does not match tag %q", mainModuleVersion, version)
 		}
@@ -524,6 +533,9 @@ func Version() (string, error) {
 		// To prevent breaking in unit tests.
 		return version, nil
 	}
+
+	// TODO(TheSpiritXIII): Due to https://github.com/golang/go/issues/50603 we must use a static
+	// string for the main module (when we import this function locally for binaries).
 
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
