@@ -90,7 +90,7 @@ func main() {
 				// Log but tolerate the error here as a "connection refused"
 				// error from Prometheus is a retryable event during startup.
 				if err != nil {
-					level.Error(logger).Log("msg", "polling ready-url", "err", err)
+					level.Error(logger).Log("msg", "polling ready-url", "status", resp.StatusCode, "err", err)
 				}
 				if resp.StatusCode == http.StatusOK {
 					level.Info(logger).Log("msg", "ready-url is healthy")
