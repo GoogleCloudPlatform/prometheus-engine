@@ -41,7 +41,7 @@ spec:
       labels:
         app: managed-prometheus-alertmanager
         app.kubernetes.io/name: alertmanager
-        app.kubernetes.io/version: 0.6.3
+        app.kubernetes.io/version: 0.7.0
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
@@ -96,7 +96,7 @@ spec:
             - all
           privileged: false
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.6.3-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.7.0-gke.0
         args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
