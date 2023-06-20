@@ -988,6 +988,8 @@ type ScrapeEndpoint struct {
 	// Proxy URL to scrape through. Encoded passwords are not supported.
 	ProxyURL string `json:"proxyUrl,omitempty"`
 	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
+	// +kubebuilder:validation:Pattern="^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$"
+	// +kubebuilder:default="1m"
 	Interval string `json:"interval,omitempty"`
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
 	// Must not be larger then the scrape interval.
