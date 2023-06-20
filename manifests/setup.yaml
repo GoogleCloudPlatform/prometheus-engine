@@ -18,8 +18,7 @@ kind: CustomResourceDefinition
 metadata:
   name: clusterpodmonitorings.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -509,8 +508,7 @@ kind: CustomResourceDefinition
 metadata:
   name: clusterrules.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -681,8 +679,7 @@ kind: CustomResourceDefinition
 metadata:
   name: globalrules.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -853,8 +850,7 @@ kind: CustomResourceDefinition
 metadata:
   name: operatorconfigs.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -1400,8 +1396,7 @@ kind: CustomResourceDefinition
 metadata:
   name: podmonitorings.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -1891,8 +1886,7 @@ kind: CustomResourceDefinition
 metadata:
   name: rules.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
