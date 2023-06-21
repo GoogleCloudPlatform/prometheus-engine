@@ -38,15 +38,15 @@ codegen_diff() {
 
 update_codegen() {
   echo ">>> regenerating CRD k8s go code"
-  
+
   # Refresh vendored dependencies to ensure script is found.
   go mod vendor
-  
+
   # Idempotently regenerate by deleting current resources.
   rm -rf $SCRIPT_ROOT/pkg/operator/generated
-  
+
   CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
-  
+
   # Invoke only for deepcopy first as it doesn't accept the pluralization flag
   # of the second invocation.
   bash "${CODEGEN_PKG}"/generate-groups.sh "deepcopy" \
@@ -54,14 +54,14 @@ update_codegen() {
     monitoring:v1 \
     --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt \
     --output-base "${SCRIPT_ROOT}"
-  
+
   bash "${CODEGEN_PKG}"/generate-groups.sh "client,informer,lister" \
     github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
     monitoring:v1 \
     --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt \
     --plural-exceptions "Rules:Rules,ClusterRules:ClusterRules,GlobalRules:GlobalRules" \
     --output-base "${SCRIPT_ROOT}"
-  
+
   cp -r $SCRIPT_ROOT/github.com/GoogleCloudPlatform/prometheus-engine/* $SCRIPT_ROOT
   rm -r $SCRIPT_ROOT/github.com
 }
