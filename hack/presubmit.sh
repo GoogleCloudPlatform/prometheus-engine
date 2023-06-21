@@ -81,7 +81,7 @@ combine() {
 update_crdgen() {
   echo ">>> regenerating CRD yamls"
 
-  which controller-gen || go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.10.0
+  which controller-gen || go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.12.0
 
   API_DIR=${SCRIPT_ROOT}/pkg/operator/apis/...
   CRD_DIR=${SCRIPT_ROOT}/cmd/operator/deploy/crds
