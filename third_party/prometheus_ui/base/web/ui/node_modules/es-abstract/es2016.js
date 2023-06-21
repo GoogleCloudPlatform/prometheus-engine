@@ -72,6 +72,7 @@ var ES2016 = {
 	MonthFromTime: require('./2016/MonthFromTime'),
 	msFromTime: require('./2016/msFromTime'),
 	ObjectCreate: require('./2016/ObjectCreate'),
+	ObjectDefineProperties: require('./2016/ObjectDefineProperties'),
 	OrdinaryCreateFromConstructor: require('./2016/OrdinaryCreateFromConstructor'),
 	OrdinaryDefineOwnProperty: require('./2016/OrdinaryDefineOwnProperty'),
 	OrdinaryGetOwnProperty: require('./2016/OrdinaryGetOwnProperty'),

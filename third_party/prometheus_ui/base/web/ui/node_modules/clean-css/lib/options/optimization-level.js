@@ -31,7 +31,8 @@ DEFAULTS[OptimizationLevel.One] = {
   specialComments: 'all',
   tidyAtRules: true,
   tidyBlockScopes: true,
-  tidySelectors: true
+  tidySelectors: true,
+  variableValueOptimizers: []
 };
 DEFAULTS[OptimizationLevel.Two] = {
   mergeAdjacentRules: true,
@@ -99,7 +100,7 @@ function optimizationLevelFrom(source) {
     source[One].roundingPrecision = roundingPrecisionFrom(source[One].roundingPrecision);
   }
 
-  if (Two in source && 'skipProperties' in source[Two] && typeof(source[Two].skipProperties) == 'string') {
+  if (Two in source && 'skipProperties' in source[Two] && typeof (source[Two].skipProperties) == 'string') {
     source[Two].skipProperties = source[Two].skipProperties.split(LIST_VALUE_SEPARATOR);
   }
 
@@ -157,14 +158,14 @@ function defaults(level, value) {
 
 function normalizeValue(value) {
   switch (value) {
-    case FALSE_KEYWORD_1:
-    case FALSE_KEYWORD_2:
-      return false;
-    case TRUE_KEYWORD_1:
-    case TRUE_KEYWORD_2:
-      return true;
-    default:
-      return value;
+  case FALSE_KEYWORD_1:
+  case FALSE_KEYWORD_2:
+    return false;
+  case TRUE_KEYWORD_1:
+  case TRUE_KEYWORD_2:
+    return true;
+  default:
+    return value;
   }
 }
 
@@ -195,7 +196,7 @@ function covertValuesToHashes(source) {
 function covertToHash(asString, level) {
   return asString
     .split(OPTION_SEPARATOR)
-    .reduce(function (accumulator, directive) {
+    .reduce(function(accumulator, directive) {
       var parts = directive.split(OPTION_VALUE_SEPARATOR);
       var name = parts[0];
       var value = parts[1];
@@ -213,5 +214,5 @@ function covertToHash(asString, level) {
 
 module.exports = {
   OptimizationLevel: OptimizationLevel,
-  optimizationLevelFrom: optimizationLevelFrom,
+  optimizationLevelFrom: optimizationLevelFrom
 };

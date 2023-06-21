@@ -11,6 +11,21 @@ var _core = require("@babel/core");
 
 var _noHelperImplementation = require("./no-helper-implementation");
 
+function buildLoopBody(path, declar, newBody) {
+  let block;
+  const bodyPath = path.get("body");
+  const body = newBody != null ? newBody : bodyPath.node;
+
+  if (_core.types.isBlockStatement(body) && Object.keys(path.getBindingIdentifiers()).some(id => bodyPath.scope.hasOwnBinding(id))) {
+    block = _core.types.blockStatement([declar, body]);
+  } else {
+    block = _core.types.toBlock(body);
+    block.body.unshift(declar);
+  }
+
+  return block;
+}
+
 var _default = (0, _helperPluginUtils.declare)((api, options) => {
   var _options$assumeArray, _options$allowArrayLi, _api$assumption;
 
@@ -81,17 +96,7 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
             assignment = _core.types.expressionStatement(_core.types.assignmentExpression("=", left, item));
           }
 
-          let blockBody;
-          const body = path.get("body");
-
-          if (body.isBlockStatement() && Object.keys(path.getBindingIdentifiers()).some(id => body.scope.hasOwnBinding(id))) {
-            blockBody = _core.types.blockStatement([assignment, body.node]);
-          } else {
-            blockBody = _core.types.toBlock(body.node);
-            blockBody.body.unshift(assignment);
-          }
-
-          path.replaceWith(_core.types.forStatement(_core.types.variableDeclaration("let", inits), _core.types.binaryExpression("<", _core.types.cloneNode(i), _core.types.memberExpression(_core.types.cloneNode(array), _core.types.identifier("length"))), _core.types.updateExpression("++", _core.types.cloneNode(i)), blockBody));
+          path.replaceWith(_core.types.forStatement(_core.types.variableDeclaration("let", inits), _core.types.binaryExpression("<", _core.types.cloneNode(i), _core.types.memberExpression(_core.types.cloneNode(array), _core.types.identifier("length"))), _core.types.updateExpression("++", _core.types.cloneNode(i)), buildLoopBody(path, assignment)));
         }
 
       }
@@ -141,19 +146,19 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
 
     _core.types.inherits(loop, node);
 
-    _core.types.ensureBlock(loop);
-
     const iterationValue = _core.types.memberExpression(_core.types.cloneNode(right), _core.types.cloneNode(iterationKey), true);
 
+    let declar;
     const left = node.left;
 
     if (_core.types.isVariableDeclaration(left)) {
       left.declarations[0].init = iterationValue;
-      loop.body.body.unshift(left);
+      declar = left;
     } else {
-      loop.body.body.unshift(_core.types.expressionStatement(_core.types.assignmentExpression("=", left, iterationValue)));
+      declar = _core.types.expressionStatement(_core.types.assignmentExpression("=", left, iterationValue));
     }
 
+    loop.body = buildLoopBody(path, declar, loop.body);
     return loop;
   }
 
@@ -190,15 +195,13 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
           declar = _core.types.expressionStatement(_core.types.assignmentExpression("=", left, stepValue));
         }
 
-        path.ensureBlock();
-        node.body.body.unshift(declar);
         const nodes = builder.build({
           CREATE_ITERATOR_HELPER: state.addHelper(builder.helper),
           ITERATOR_HELPER: scope.generateUidIdentifier("iterator"),
           ARRAY_LIKE_IS_ITERABLE: arrayLikeIsIterable ? _core.types.booleanLiteral(true) : null,
           STEP_KEY: _core.types.identifier(stepKey),
           OBJECT: node.right,
-          BODY: node.body
+          BODY: buildLoopBody(path, declar)
         });
         const container = builder.getContainer(nodes);
 

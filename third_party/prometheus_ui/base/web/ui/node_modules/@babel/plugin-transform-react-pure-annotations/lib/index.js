@@ -11,7 +11,7 @@ var _helperAnnotateAsPure = require("@babel/helper-annotate-as-pure");
 
 var _core = require("@babel/core");
 
-const PURE_CALLS = new Map([["react", ["cloneElement", "createContext", "createElement", "createFactory", "createRef", "forwardRef", "isValidElement", "memo", "lazy"]], ["react-dom", ["createPortal"]]]);
+const PURE_CALLS = [["react", new Set(["cloneElement", "createContext", "createElement", "createFactory", "createRef", "forwardRef", "isValidElement", "memo", "lazy"])], ["react-dom", new Set(["createPortal"])]];
 
 var _default = (0, _helperPluginUtils.declare)(api => {
   api.assertVersion(7);
@@ -31,12 +31,12 @@ var _default = (0, _helperPluginUtils.declare)(api => {
 exports.default = _default;
 
 function isReactCall(path) {
-  if (!_core.types.isMemberExpression(path.node.callee)) {
-    const callee = path.get("callee");
+  const calleePath = path.get("callee");
 
+  if (!calleePath.isMemberExpression()) {
     for (const [module, methods] of PURE_CALLS) {
       for (const method of methods) {
-        if (callee.referencesImport(module, method)) {
+        if (calleePath.referencesImport(module, method)) {
           return true;
         }
       }
@@ -45,19 +45,16 @@ function isReactCall(path) {
     return false;
   }
 
-  for (const [module, methods] of PURE_CALLS) {
-    const object = path.get("callee.object");
+  const object = calleePath.get("object");
+  const callee = calleePath.node;
 
-    if (object.referencesImport(module, "default") || object.referencesImport(module, "*")) {
-      for (const method of methods) {
-        if (_core.types.isIdentifier(path.node.callee.property, {
-          name: method
-        })) {
-          return true;
-        }
+  if (!callee.computed && _core.types.isIdentifier(callee.property)) {
+    const propertyName = callee.property.name;
+
+    for (const [module, methods] of PURE_CALLS) {
+      if (object.referencesImport(module, "default") || object.referencesImport(module, "*")) {
+        return methods.has(propertyName);
       }
-
-      return false;
     }
   }
 

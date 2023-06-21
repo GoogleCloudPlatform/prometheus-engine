@@ -154,8 +154,10 @@
     }
   }
 
+  var atomType = 'anchor|characterClass|characterClassEscape|dot|group|reference|unicodePropertyEscape|value';
+
   function generateAtom(node) {
-    assertType(node.type, 'anchor|characterClass|characterClassEscape|dot|group|reference|value');
+    assertType(node.type, atomType);
 
     return generate(node);
   }
@@ -200,7 +202,7 @@
   function generateClassStrings(node) {
     assertType(node.type, 'classStrings');
 
-    return '(' + generateSequence(generateClassString, node.strings, '|') + ')';
+    return '\\q{' + generateSequence(generateClassString, node.strings, '|') + '}';
   }
 
   function generateClassString(node) {
@@ -307,7 +309,7 @@
   }
 
   function generateTerm(node) {
-    assertType(node.type, 'anchor|characterClass|characterClassEscape|empty|group|quantifier|reference|unicodePropertyEscape|value|dot');
+    assertType(node.type, atomType + '|empty|quantifier');
 
     return generate(node);
   }

@@ -2,6 +2,7 @@
 
 var has = require('has');
 var inspect = require('object-inspect');
+var supportsDescriptors = require('define-properties').supportsDescriptors;
 
 var forEach = require('foreach');
 var availableFlags = require('available-regexp-flags');
@@ -89,5 +90,52 @@ module.exports = function runTests(flags, t) {
 			st['throws'](flags.bind(null, nonObject), TypeError, inspect(nonObject) + ' is not an Object');
 		};
 		nonObjects.forEach(throwsOnNonObject);
+	});
+
+	t.test('getters', { skip: !supportsDescriptors }, function (st) {
+		/* eslint getter-return: 0 */
+		var calls = '';
+		var re = {};
+		Object.defineProperty(re, 'hasIndices', {
+			get: function () {
+				calls += 'd';
+			}
+		});
+		Object.defineProperty(re, 'global', {
+			get: function () {
+				calls += 'g';
+			}
+		});
+		Object.defineProperty(re, 'ignoreCase', {
+			get: function () {
+				calls += 'i';
+			}
+		});
+		Object.defineProperty(re, 'multiline', {
+			get: function () {
+				calls += 'm';
+			}
+		});
+		Object.defineProperty(re, 'dotAll', {
+			get: function () {
+				calls += 's';
+			}
+		});
+		Object.defineProperty(re, 'unicode', {
+			get: function () {
+				calls += 'u';
+			}
+		});
+		Object.defineProperty(re, 'sticky', {
+			get: function () {
+				calls += 'y';
+			}
+		});
+
+		flags(re);
+
+		st.equal(calls, 'dgimsuy', 'getters are called in expected order');
+
+		st.end();
 	});
 };

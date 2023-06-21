@@ -49,5 +49,5 @@ var index = helperPluginUtils.declare(api => {
   };
 });
 
-exports.default = index;
+exports["default"] = index;
 //# sourceMappingURL=index.js.map

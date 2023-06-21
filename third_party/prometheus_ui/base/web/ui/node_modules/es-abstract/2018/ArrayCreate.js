@@ -42,12 +42,12 @@ module.exports = function ArrayCreate(length) {
 		A.length = length;
 	}
 	/* step 10, the above as a shortcut for the below
-    OrdinaryDefineOwnProperty(A, 'length', {
-        '[[Configurable]]': false,
-        '[[Enumerable]]': false,
-        '[[Value]]': length,
-        '[[Writable]]': true
-    });
-    */
+	OrdinaryDefineOwnProperty(A, 'length', {
+		'[[Configurable]]': false,
+		'[[Enumerable]]': false,
+		'[[Value]]': length,
+		'[[Writable]]': true
+	});
+	*/
 	return A;
 };

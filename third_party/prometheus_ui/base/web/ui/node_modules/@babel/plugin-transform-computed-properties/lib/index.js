@@ -15,7 +15,8 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
   api.assertVersion(7);
   const setComputedProperties = (_api$assumption = api.assumption("setComputedProperties")) != null ? _api$assumption : options.loose;
   const pushComputedProps = setComputedProperties ? pushComputedPropsLoose : pushComputedPropsSpec;
-  const buildMutatorMapAssign = (0, _core.template)(`
+
+  const buildMutatorMapAssign = _core.template.statements(`
     MUTATOR_MAP_REF[KEY] = MUTATOR_MAP_REF[KEY] || {};
     MUTATOR_MAP_REF[KEY].KIND = VALUE;
   `);
@@ -29,11 +30,7 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
   }
 
   function pushAssign(objId, prop, body) {
-    if (prop.kind === "get" && prop.kind === "set") {
-      pushMutatorDefine(objId, prop);
-    } else {
-      body.push(_core.types.expressionStatement(_core.types.assignmentExpression("=", _core.types.memberExpression(_core.types.cloneNode(objId), prop.key, prop.computed || _core.types.isLiteral(prop.key)), getValue(prop))));
-    }
+    body.push(_core.types.expressionStatement(_core.types.assignmentExpression("=", _core.types.memberExpression(_core.types.cloneNode(objId), prop.key, prop.computed || _core.types.isLiteral(prop.key)), getValue(prop))));
   }
 
   function pushMutatorDefine({
@@ -59,7 +56,7 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
 
   function pushComputedPropsLoose(info) {
     for (const prop of info.computedProps) {
-      if (prop.kind === "get" || prop.kind === "set") {
+      if (_core.types.isObjectMethod(prop) && (prop.kind === "get" || prop.kind === "set")) {
         pushMutatorDefine(info, prop);
       } else {
         pushAssign(_core.types.cloneNode(info.objId), prop, info.body);
@@ -78,13 +75,15 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
     for (const prop of computedProps) {
       const key = _core.types.toComputedKey(prop);
 
-      if (prop.kind === "get" || prop.kind === "set") {
+      if (_core.types.isObjectMethod(prop) && (prop.kind === "get" || prop.kind === "set")) {
         pushMutatorDefine(info, prop);
       } else {
+        const value = getValue(prop);
+
         if (computedProps.length === 1) {
-          return _core.types.callExpression(state.addHelper("defineProperty"), [info.initPropExpression, key, getValue(prop)]);
+          return _core.types.callExpression(state.addHelper("defineProperty"), [info.initPropExpression, key, value]);
         } else {
-          body.push(_core.types.expressionStatement(_core.types.callExpression(state.addHelper("defineProperty"), [_core.types.cloneNode(objId), key, getValue(prop)])));
+          body.push(_core.types.expressionStatement(_core.types.callExpression(state.addHelper("defineProperty"), [_core.types.cloneNode(objId), key, value])));
         }
       }
     }
@@ -113,6 +112,10 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
           let foundComputed = false;
 
           for (const prop of node.properties) {
+            if (_core.types.isSpreadElement(prop)) {
+              continue;
+            }
+
             if (prop.computed) {
               foundComputed = true;
             }

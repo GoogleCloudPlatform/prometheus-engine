@@ -20,6 +20,6 @@ See [language-tags](https://github.com/mattcg/language-tags) for a Javascript AP
 
 ## Credits and collaboration ##
 
-The JSON database is licensed an [Open Data Commons Attribution License (ODC-BY)](http://opendatacommons.org/licenses/by/1.0/).
+The JSON database is licensed under the [Creative Commons Zero v1.0 Universal (CC0-1.0)](https://creativecommons.org/publicdomain/zero/1.0/legalcode) license.
 
 Comments, feedback and suggestions are welcome. Please feel free to raise an issue or pull request. Enjoy.

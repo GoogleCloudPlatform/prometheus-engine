@@ -7,14 +7,20 @@ var calcRegex = new RegExp('^(\\-moz\\-|\\-webkit\\-)?calc\\([^\\)]+\\)$', 'i');
 var decimalRegex = /[0-9]/;
 var functionAnyRegex = new RegExp('^' + functionAnyRegexStr + '$', 'i');
 var hexAlphaColorRegex = /^#(?:[0-9a-f]{4}|[0-9a-f]{8})$/i;
-var hslColorRegex = /^hsl\(\s{0,31}[\-\.]?\d+\s{0,31},\s{0,31}\d*\.?\d+%\s{0,31},\s{0,31}\d*\.?\d+%\s{0,31}\)|hsla\(\s{0,31}[\-\.]?\d+\s{0,31},\s{0,31}\d*\.?\d+%\s{0,31},\s{0,31}\d*\.?\d+%\s{0,31},\s{0,31}\.?\d+\s{0,31}\)$/;
-var identifierRegex = /^(\-[a-z0-9_][a-z0-9\-_]*|[a-z_][a-z0-9\-_]*)$/i;
+// eslint-disable-next-line max-len
+var hslColorRegex = /^hsl\(\s{0,31}[-.]?\d+\s{0,31},\s{0,31}\d*\.?\d+%\s{0,31},\s{0,31}\d*\.?\d+%\s{0,31}\)|hsla\(\s{0,31}[-.]?\d+\s{0,31},\s{0,31}\d*\.?\d+%\s{0,31},\s{0,31}\d*\.?\d+%\s{0,31},\s{0,31}\.?\d+\s{0,31}\)$/;
+// eslint-disable-next-line max-len
+var hslColorWithSpacesRegex = /^hsl\(\s{0,31}[-.]?\d+(deg)?\s{1,31}\d*\.?\d+%\s{1,31}\d*\.?\d+%\s{0,31}\)|hsla\(\s{0,31}[-.]?\d+(deg)?\s{1,31}\d*\.?\d+%\s{1,31}\d*\.?\d+%\s{1,31}\/\s{1,31}\d*\.?\d+%?\s{0,31}\)$/;
+var identifierRegex = /^(-[a-z0-9_][a-z0-9\-_]*|[a-z_][a-z0-9\-_]*)$/i;
 var namedEntityRegex = /^[a-z]+$/i;
 var prefixRegex = /^-([a-z0-9]|-)*$/i;
 var quotedTextRegex = /^("[^"]*"|'[^']*')$/i;
-var rgbColorRegex = /^rgb\(\s{0,31}[\d]{1,3}\s{0,31},\s{0,31}[\d]{1,3}\s{0,31},\s{0,31}[\d]{1,3}\s{0,31}\)|rgba\(\s{0,31}[\d]{1,3}\s{0,31},\s{0,31}[\d]{1,3}\s{0,31},\s{0,31}[\d]{1,3}\s{0,31},\s{0,31}[\.\d]+\s{0,31}\)$/i;
+// eslint-disable-next-line max-len
+var rgbColorRegex = /^rgb\(\s{0,31}[\d]{1,3}\s{0,31},\s{0,31}[\d]{1,3}\s{0,31},\s{0,31}[\d]{1,3}\s{0,31}\)|rgba\(\s{0,31}[\d]{1,3}\s{0,31},\s{0,31}[\d]{1,3}\s{0,31},\s{0,31}[\d]{1,3}\s{0,31},\s{0,31}[.\d]+\s{0,31}\)$/i;
+// eslint-disable-next-line max-len
+var rgbColorWithSpacesRegex = /^rgb\(\s{0,31}[\d]{1,3}\s{1,31}[\d]{1,3}\s{1,31}[\d]{1,3}\s{0,31}\)|rgba\(\s{0,31}[\d]{1,3}\s{1,31}[\d]{1,3}\s{1,31}[\d]{1,3}\s{1,31}\/\s{1,31}[\d]*\.?[.\d]+%?\s{0,31}\)$/i;
 var timeUnitPattern = /\d+(s|ms)/;
-var timingFunctionRegex = /^(cubic\-bezier|steps)\([^\)]+\)$/;
+var timingFunctionRegex = /^(cubic-bezier|steps)\([^)]+\)$/;
 var validTimeUnits = ['ms', 's'];
 var urlRegex = /^url\([\s\S]+\)$/i;
 var variableRegex = new RegExp('^' + variableRegexStr + '$', 'i');
@@ -123,19 +129,19 @@ var Keywords = {
     'inherit',
     'separate'
   ],
-  'bottom': [
+  bottom: [
     'auto'
   ],
-  'clear': [
+  clear: [
     'both',
     'left',
     'none',
     'right'
   ],
-  'color': [
+  color: [
     'transparent'
   ],
-  'cursor': [
+  cursor: [
     'all-scroll',
     'auto',
     'col-resize',
@@ -160,7 +166,7 @@ var Keywords = {
     'w-resize',
     'wait'
   ],
-  'display': [
+  display: [
     'block',
     'inline',
     'inline-block',
@@ -177,15 +183,15 @@ var Keywords = {
     'table-row',
     'table-row-group'
   ],
-  'float': [
+  float: [
     'left',
     'none',
     'right'
   ],
-  'left': [
+  left: [
     'auto'
   ],
-  'font': [
+  font: [
     'caption',
     'icon',
     'menu',
@@ -265,19 +271,19 @@ var Keywords = {
     'upper-latin',
     'upper-roman'
   ],
-  'overflow': [
+  overflow: [
     'auto',
     'hidden',
     'scroll',
     'visible'
   ],
-  'position': [
+  position: [
     'absolute',
     'fixed',
     'relative',
     'static'
   ],
-  'right': [
+  right: [
     'auto'
   ],
   'text-align': [
@@ -297,7 +303,7 @@ var Keywords = {
     'clip',
     'ellipsis'
   ],
-  'top': [
+  top: [
     'auto'
   ],
   'vertical-align': [
@@ -310,7 +316,7 @@ var Keywords = {
     'text-top',
     'top'
   ],
-  'visibility': [
+  visibility: [
     'collapse',
     'hidden',
     'visible'
@@ -320,7 +326,7 @@ var Keywords = {
     'nowrap',
     'pre'
   ],
-  'width': [
+  width: [
     'inherit',
     'initial',
     'medium',
@@ -349,12 +355,12 @@ var Units = [
 ];
 
 function isColor(value) {
-  return value != 'auto' &&
-    (
-      isKeyword('color')(value) ||
-      isHexColor(value) ||
-      isColorFunction(value) ||
-      isNamedEntity(value)
+  return value != 'auto'
+    && (
+      isKeyword('color')(value)
+      || isHexColor(value)
+      || isColorFunction(value)
+      || isNamedEntity(value)
     );
 }
 
@@ -371,11 +377,14 @@ function isFunction(value) {
 }
 
 function isHexColor(value) {
-  return threeValueColorRegex.test(value) || fourValueColorRegex.test(value) || sixValueColorRegex.test(value) || eightValueColorRegex.test(value);
+  return threeValueColorRegex.test(value)
+    || fourValueColorRegex.test(value)
+    || sixValueColorRegex.test(value)
+    || eightValueColorRegex.test(value);
 }
 
 function isHslColor(value) {
-  return hslColorRegex.test(value);
+  return hslColorRegex.test(value) || hslColorWithSpacesRegex.test(value);
 }
 
 function isHexAlphaColor(value) {
@@ -409,7 +418,7 @@ function isNumber(value) {
 }
 
 function isRgbColor(value) {
-  return rgbColorRegex.test(value);
+  return rgbColorRegex.test(value) || rgbColorWithSpacesRegex.test(value);
 }
 
 function isPrefixed(value) {
@@ -417,8 +426,8 @@ function isPrefixed(value) {
 }
 
 function isPositiveNumber(value) {
-  return isNumber(value) &&
-    parseFloat(value) >= 0;
+  return isNumber(value)
+    && parseFloat(value) >= 0;
 }
 
 function isVariable(value) {
@@ -428,9 +437,9 @@ function isVariable(value) {
 function isTime(value) {
   var numberUpTo = scanForNumber(value);
 
-  return numberUpTo == value.length && parseInt(value) === 0 ||
-    numberUpTo > -1 && validTimeUnits.indexOf(value.slice(numberUpTo + 1)) > -1 ||
-    isCalculatedTime(value);
+  return numberUpTo == value.length && parseInt(value) === 0
+    || numberUpTo > -1 && validTimeUnits.indexOf(value.slice(numberUpTo + 1)) > -1
+    || isCalculatedTime(value);
 }
 
 function isCalculatedTime(value) {
@@ -440,7 +449,7 @@ function isCalculatedTime(value) {
 function isTimingFunction() {
   var isTimingFunctionKeyword = isKeyword('*-timing-function');
 
-  return function (value) {
+  return function(value) {
     return isTimingFunctionKeyword(value) || timingFunctionRegex.test(value);
   };
 }
@@ -448,10 +457,10 @@ function isTimingFunction() {
 function isUnit(validUnits, value) {
   var numberUpTo = scanForNumber(value);
 
-  return numberUpTo == value.length && parseInt(value) === 0 ||
-    numberUpTo > -1 && validUnits.indexOf(value.slice(numberUpTo + 1).toLowerCase()) > -1 ||
-    value == 'auto' ||
-    value == 'inherit';
+  return numberUpTo == value.length && parseInt(value) === 0
+    || numberUpTo > -1 && validUnits.indexOf(value.slice(numberUpTo + 1).toLowerCase()) > -1
+    || value == 'auto'
+    || value == 'inherit';
 }
 
 function isUrl(value) {
@@ -459,9 +468,9 @@ function isUrl(value) {
 }
 
 function isZIndex(value) {
-  return value == 'auto' ||
-    isNumber(value) ||
-    isKeyword('^')(value);
+  return value == 'auto'
+    || isNumber(value)
+    || isKeyword('^')(value);
 }
 
 function scanForNumber(value) {
@@ -492,7 +501,7 @@ function scanForNumber(value) {
 }
 
 function validator(compatibility) {
-  var validUnits = Units.slice(0).filter(function (value) {
+  var validUnits = Units.slice(0).filter(function(value) {
     return !(value in compatibility.units) || compatibility.units[value] === true;
   });
 

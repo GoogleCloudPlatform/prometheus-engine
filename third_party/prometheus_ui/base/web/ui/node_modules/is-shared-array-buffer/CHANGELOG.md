@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.2](https://github.com/inspect-js/is-shared-array-buffer/compare/v1.0.1...v1.0.2) - 2022-04-01
+
+### Commits
+
+- [actions] reuse common workflows [`48d01e6`](https://github.com/inspect-js/is-shared-array-buffer/commit/48d01e690f76c92f5c9072fbcb9b6215402db8a7)
+- [actions] use `node/install` instead of `node/run`; use `codecov` action [`7b0e12a`](https://github.com/inspect-js/is-shared-array-buffer/commit/7b0e12a4e8f5db8eac586be68c879119a4a12e7a)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `object-inspect`, `safe-publish-latest`, `tape` [`8d57a8e`](https://github.com/inspect-js/is-shared-array-buffer/commit/8d57a8e1d9ce093f04f83e196ca7c80a02617939)
+- [readme] update URLs [`dca4d27`](https://github.com/inspect-js/is-shared-array-buffer/commit/dca4d27d35352309da5abb4feb584158004008cf)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `aud`, `auto-changelog`, `object-inspect`, `tape` [`2a7bb99`](https://github.com/inspect-js/is-shared-array-buffer/commit/2a7bb990610d7f6c058bdae7f21c49cc7276848f)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `auto-changelog`, `object-inspect`, `safe-publish-latest`, `tape` [`389c6db`](https://github.com/inspect-js/is-shared-array-buffer/commit/389c6db4311a85a84fd4cb75646f26023b0c1685)
+- [actions] update codecov uploader [`b9661f9`](https://github.com/inspect-js/is-shared-array-buffer/commit/b9661f9ac2e1e002372b9b1e136faca837a6647f)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `aud`, `object-inspect` [`f99cd48`](https://github.com/inspect-js/is-shared-array-buffer/commit/f99cd4827e23bc893ed711cbffe28f3e51a4d401)
+- [readme] add actions and codecov badges [`9515ed2`](https://github.com/inspect-js/is-shared-array-buffer/commit/9515ed2184a3ed1ce913b92b5092884dad5ac794)
+- [Fix] add missing `call-bind` dependency [`cff5358`](https://github.com/inspect-js/is-shared-array-buffer/commit/cff53582740f9f053ec67e1acbf2bafc83bdb7b5)
+- [meta] add `safe-publish-latest`; use `prepublishOnly` script for npm 7+ [`ba0b719`](https://github.com/inspect-js/is-shared-array-buffer/commit/ba0b7190a42d4290d31a5fce215e874da573dd77)
+
 ## [v1.0.1](https://github.com/inspect-js/is-shared-array-buffer/compare/v1.0.0...v1.0.1) - 2021-03-04
 
 ### Commits

@@ -14,13 +14,15 @@ var _helperModuleImports = require("@babel/helper-module-imports");
 var _core = require("@babel/core");
 
 var _default = (0, _helperPluginUtils.declare)((api, options) => {
+  var _api$assumption, _api$assumption2;
+
   api.assertVersion(7);
   const {
     method,
     module
   } = options;
-  const noNewArrows = api.assumption("noNewArrows");
-  const ignoreFunctionLength = api.assumption("ignoreFunctionLength");
+  const noNewArrows = (_api$assumption = api.assumption("noNewArrows")) != null ? _api$assumption : true;
+  const ignoreFunctionLength = (_api$assumption2 = api.assumption("ignoreFunctionLength")) != null ? _api$assumption2 : false;
 
   if (method && module) {
     return {

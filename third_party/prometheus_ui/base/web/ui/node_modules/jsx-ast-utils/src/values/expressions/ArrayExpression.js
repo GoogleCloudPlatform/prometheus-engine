@@ -7,5 +7,8 @@
 export default function extractValueFromArrayExpression(value) {
   // eslint-disable-next-line global-require
   const getValue = require('.').default;
-  return value.elements.map((element) => getValue(element));
+  return value.elements.map((element) => {
+    if (element === null) return undefined;
+    return getValue(element);
+  });
 }

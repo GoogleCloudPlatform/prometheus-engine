@@ -23,7 +23,12 @@ For more documentation and to get started, go to [g.co/cloud/managedprometheus](
 For the fully Prometheus-compatible binary that writes ingested data into GMP/GCM,
 see [GoogleCloudPlatform/prometheus](https://github.com/GoogleCloudPlatform/prometheus).
 
+## Docker Images
+
+Images for this repo are regularly released [in the GKE release GCR](https://console.cloud.google.com/gcr/images/gke-release/global/prometheus-engine).
+
 ## Build
+
 Run `make help` shows a list of candidate targets with documentation.
 
 Any go application in `./cmd/` with an associated `main.go`, e.g. `./cmd/operator/main.go`
@@ -48,7 +53,14 @@ and regenerating files in-place.
   non-zero exit code if the current changes differ from what would be. This
   can be useful in running in CI workflows.
 
+### Vendoring
+
+Due to security policies, this repository is self-contained. This means [Go
+vendoring](./vendor) and vendoring of npm,'s packages is used. Bhas to be committed to
+source code.
+
 ### Dependencies
+
 In order to best develop and contribute to this repository, the following dependencies are
 recommended:
 1. [`go`](https://golang.org/doc/install)
@@ -58,10 +70,13 @@ recommended:
   ```
   gcloud components install kubectl
   ```
-4. [`Docker`](https://docs.docker.com/get-docker/)
+4. [`Docker`](https://docs.docker.com/get-docker/) with
+[`buildx`](https://docs.docker.com/build/architecture/#install-buildx) plugin
   - Can also be run via
   ```bash
   gcloud alpha cloud-shell ssh -- -nNT -L `pwd`/docker.sock:/var/run/docker.sock
   # Then in separate terminal.
   export DOCKER_HOST=unix://docker.sock
   ```
+5. For UI development or update (e.g. to resolve UI security issue), `npm` is
+required. See [pkg/ui documentation](pkg/ui/README.md) for details.

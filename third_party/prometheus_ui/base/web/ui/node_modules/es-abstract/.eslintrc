@@ -9,7 +9,6 @@
 
 	"rules": {
 		"array-bracket-newline": 0,
-		"array-element-newline": 0,
 		"complexity": 0,
 		"eqeqeq": [2, "allow-null"],
 		"func-name-matching": 0,
@@ -20,7 +19,6 @@
 		"no-magic-numbers": 0,
 		"new-cap": 0,
 		"no-extra-parens": 1,
-		"operator-linebreak": [2, "before"],
 		"sort-keys": 0,
 	},
 
@@ -51,14 +49,15 @@
 				"max-lines-per-function": 0,
 				"max-nested-callbacks": 0,
 				"max-statements": 0,
+				"no-magic-numbers": 0,
 				"no-throw-literal": 0,
-				"operator-linebreak": [2, "before"],
 			},
 		},
 		{
 			"files": "test/**",
 			"extends": "@ljharb/eslint-config/tests",
 			"rules": {
+				"max-len": 0,
 				"max-lines-per-function": 0,
 				"no-implicit-coercion": 0,
 				"no-invalid-this": 1,

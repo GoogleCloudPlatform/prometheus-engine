@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.2.6](https://github.com/es-shims/String.prototype.trim/compare/v1.2.5...v1.2.6) - 2022-04-24
+
+### Commits
+
+- [actions] reuse common workflows [`dbfc093`](https://github.com/es-shims/String.prototype.trim/commit/dbfc0932e7b2fad166245599310a1d84a1be0882)
+- [Fix] as of unicode v6, the mongolian vowel separator is no longer whitespace [`56bbb86`](https://github.com/es-shims/String.prototype.trim/commit/56bbb86b8e514a16fc47e095b8c1014e12a2e92a)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `@es-shims/api`, `safe-publish-latest`, `tape` [`7fa437e`](https://github.com/es-shims/String.prototype.trim/commit/7fa437e4c3d25798d979294a121f93cb4346ba04)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `aud`, `auto-changelog`, `functions-have-names`, `tape` [`716a060`](https://github.com/es-shims/String.prototype.trim/commit/716a06080dbca68ec8e3b2e0e18c0a333ed28594)
+- [actions] update codecov uploader [`9a39958`](https://github.com/es-shims/String.prototype.trim/commit/9a39958a13e20d6b9f01f9fce71dd37cc03da52e)
+- [Fix] ensure main entry point properly checks the receiver in ES3 engines [`24220c4`](https://github.com/es-shims/String.prototype.trim/commit/24220c49dcb7055b5b94eb52c4d610428e19d3e4)
+- [Deps] update `define-properties`, `es-abstract` [`c6008ea`](https://github.com/es-shims/String.prototype.trim/commit/c6008ea9007741755710b70ae05003cb71a7d1bd)
+
 ## [v1.2.5](https://github.com/es-shims/String.prototype.trim/compare/v1.2.4...v1.2.5) - 2021-10-03
 
 ### Commits

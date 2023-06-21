@@ -25,7 +25,10 @@ The primary class in this package is `FlatCompat`, which is a utility to transla
 ```js
 import { FlatCompat } from "@eslint/eslintrc";
 
-const compat = new FlatCompat();
+const compat = new FlatCompat({
+    baseDirectory: __dirname,                // optional; default: process.cwd()
+    resolvePluginsRelativeTo: __dirname      // optional
+});
 
 export default [
 

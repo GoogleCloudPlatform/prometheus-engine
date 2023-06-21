@@ -1,3 +1,40 @@
+## 0.5.7 (23 May 2022)
+
+### Fixes
+
+- Removed debug `console.log` statement (#631)
+
+### Internal
+
+- Run tests on Node.js 18 (#631)
+
+## 0.5.6 (10 May 2022)
+
+### Fixes
+
+- Fixed faulty `this` type import in loader (#624)
+- Made current script detection more robust for edge cases (#630)
+
+### Internal
+
+- Swapped to new `ReactDOM.createRoot` API in examples (#626)
+
+## 0.5.5 (4 April 2022)
+
+### Fixes
+
+- Handle unknown `moduleId` for dynamically generated modules (#547)
+- Handle WDS `auto` value on `port` (#574)
+- Fixed `react-refresh@0.12.0` compatibility (#576)
+- Fixed crash when parsing compile errors in overlay (#577)
+- Respect virtual modules when injecting loader (#593)
+- Allow `port` to be missing for WDS, also some general refactoring (#623)
+
+### Internal
+
+- A couple documentation changes in README (#575, 8c39623, #597)
+- Bumped dependencies for testing infrastructure (#526, #564, #567, #581, #588, #591, #594, #616)
+
 ## 0.5.4 (22 December 2021)
 
 ### Fixes

@@ -79,25 +79,6 @@ Sass's support for the legacy JavaScript API has the following limitations:
 [`precision`]: https://github.com/sass/node-sass#precision
 [`sourceComments`]: https://github.com/sass/node-sass#sourcecomments
 
-### From Pub
-
-If you're a Dart user, you can install Dart Sass globally using `pub global
-activate sass`, which will provide a `sass` executable. You can also add it to
-your pubspec and use it as a library. We strongly recommend importing it with
-the prefix `sass`:
-
-```dart
-import 'package:sass/sass.dart' as sass;
-
-void main(List<String> args) {
-  print(sass.compile(args.first));
-}
-```
-
-See [the Dart API docs][api] for details.
-
-[api]: https://www.dartdocs.org/documentation/sass/latest/sass/sass-library.html
-
 ## See Also
 
 * [Dart Sass][], from which this package is compiled, can be used either as a

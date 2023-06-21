@@ -1,6 +1,6 @@
 # MooColor
 
-[![Build Status](https://travis-ci.org/archco/moo-color.svg?branch=master)](https://travis-ci.org/archco/moo-color)
+[![Node.js CI](https://github.com/archco/moo-color/actions/workflows/node.js.yml/badge.svg)](https://github.com/archco/moo-color/actions/workflows/node.js.yml)
 [![npm version](https://badge.fury.io/js/moo-color.svg)](https://www.npmjs.com/package/moo-color)
 [![Downloads](https://img.shields.io/npm/dm/moo-color.svg)](https://www.npmjs.com/package/moo-color)
 

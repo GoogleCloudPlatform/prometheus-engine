@@ -32,7 +32,7 @@ var _default = (0, _helperPluginUtils.declare)(api => {
 
         path.get("properties").forEach(propPath => {
           if (!propPath.isMethod()) return;
-          replacePropertySuper(propPath, getObjectRef, state);
+          replacePropertySuper(propPath, getObjectRef, state.file);
         });
 
         if (objectRef) {

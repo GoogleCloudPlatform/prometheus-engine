@@ -39,8 +39,7 @@ module.exports = function GetIterator(obj, hint, method) {
 				{
 					AdvanceStringIndex: AdvanceStringIndex,
 					GetMethod: GetMethod,
-					IsArray: IsArray,
-					Type: Type
+					IsArray: IsArray
 				},
 				obj
 			);

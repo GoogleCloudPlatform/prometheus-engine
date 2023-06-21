@@ -100,13 +100,17 @@ function ignoreBlock(path) {
   return _core.types.isLoop(path.parent) || _core.types.isCatchClause(path.parent);
 }
 
-const buildRetCheck = (0, _core.template)(`
+const buildRetCheck = _core.template.statement(`
   if (typeof RETURN === "object") return RETURN.v;
 `);
 
 function isBlockScoped(node) {
   if (!_core.types.isVariableDeclaration(node)) return false;
-  if (node[_core.types.BLOCK_SCOPED_SYMBOL]) return true;
+
+  if (node[_core.types.BLOCK_SCOPED_SYMBOL]) {
+    return true;
+  }
+
   if (node.kind !== "let" && node.kind !== "const") return false;
   return true;
 }
@@ -275,7 +279,7 @@ const loopVisitor = {
       node,
       scope
     } = path;
-    if (node[this.LOOP_IGNORE]) return;
+    if (state.loopIgnored.has(node)) return;
     let replace;
     let loopText = loopNodeTo(node);
 
@@ -296,7 +300,7 @@ const loopVisitor = {
       }
 
       state.hasBreakContinue = true;
-      state.map[loopText] = node;
+      state.map.set(loopText, node);
       replace = _core.types.stringLiteral(loopText);
     }
 
@@ -307,7 +311,7 @@ const loopVisitor = {
 
     if (replace) {
       replace = _core.types.returnStatement(replace);
-      replace[this.LOOP_IGNORE] = true;
+      state.loopIgnored.add(replace);
       path.skip();
       path.replaceWith(_core.types.inherits(replace, node));
     }
@@ -515,7 +519,7 @@ class BlockScoping {
     this.hoistVarDeclarations();
     const args = Array.from(outsideRefs.values(), node => _core.types.cloneNode(node));
     const params = args.map(id => _core.types.cloneNode(id));
-    const isSwitch = this.blockPath.isSwitchStatement();
+    const isSwitch = block.type === "SwitchStatement";
 
     const fn = _core.types.functionExpression(null, params, _core.types.blockStatement(isSwitch ? [block] : block.body));
 
@@ -628,14 +632,12 @@ class BlockScoping {
     }
 
     const addDeclarationsFromChild = (path, node) => {
-      node = node || path.node;
-
       if (_core.types.isClassDeclaration(node) || _core.types.isFunctionDeclaration(node) || isBlockScoped(node)) {
         if (isBlockScoped(node)) {
           convertBlockScopedToVar(path, node, block, this.scope);
         }
 
-        if (node.declarations) {
+        if (node.type === "VariableDeclaration") {
           for (let i = 0; i < node.declarations.length; i++) {
             declarators.push(node.declarations[i]);
           }
@@ -649,15 +651,7 @@ class BlockScoping {
       }
     };
 
-    if (block.body) {
-      const declarPaths = this.blockPath.get("body");
-
-      for (let i = 0; i < block.body.length; i++) {
-        addDeclarationsFromChild(declarPaths[i]);
-      }
-    }
-
-    if (block.cases) {
+    if (block.type === "SwitchStatement") {
       const declarPaths = this.blockPath.get("cases");
 
       for (let i = 0; i < block.cases.length; i++) {
@@ -667,6 +661,12 @@ class BlockScoping {
           const declar = consequents[j];
           addDeclarationsFromChild(declarPaths[i], declar);
         }
+      }
+    } else {
+      const declarPaths = this.blockPath.get("body");
+
+      for (let i = 0; i < block.body.length; i++) {
+        addDeclarationsFromChild(declarPaths[i], declarPaths[i].node);
       }
     }
 
@@ -707,8 +707,8 @@ class BlockScoping {
       innerLabels: [],
       hasReturn: false,
       isLoop: !!this.loop,
-      map: {},
-      LOOP_IGNORE: Symbol()
+      map: new Map(),
+      loopIgnored: new WeakSet()
     };
     this.blockPath.traverse(loopLabelVisitor, state);
     this.blockPath.traverse(loopVisitor, state);
@@ -748,8 +748,8 @@ class BlockScoping {
     const has = this.has;
 
     if (has.hasBreakContinue) {
-      for (const key of Object.keys(has.map)) {
-        body.push(_core.types.ifStatement(_core.types.binaryExpression("===", _core.types.identifier(ret), _core.types.stringLiteral(key)), has.map[key]));
+      for (const key of has.map.keys()) {
+        body.push(_core.types.ifStatement(_core.types.binaryExpression("===", _core.types.identifier(ret), _core.types.stringLiteral(key)), has.map.get(key)));
       }
     }
 

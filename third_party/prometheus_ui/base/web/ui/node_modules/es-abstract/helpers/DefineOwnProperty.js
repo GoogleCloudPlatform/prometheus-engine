@@ -1,23 +1,15 @@
 'use strict';
 
+var hasPropertyDescriptors = require('has-property-descriptors');
+
 var GetIntrinsic = require('get-intrinsic');
 
-var $defineProperty = GetIntrinsic('%Object.defineProperty%', true);
+var $defineProperty = hasPropertyDescriptors() && GetIntrinsic('%Object.defineProperty%', true);
 
-if ($defineProperty) {
-	try {
-		$defineProperty({}, 'a', { value: 1 });
-	} catch (e) {
-		// IE 8 has a broken defineProperty
-		$defineProperty = null;
-	}
-}
-
-// node v0.6 has a bug where array lengths can be Set but not Defined
-var hasArrayLengthDefineBug = Object.defineProperty && Object.defineProperty([], 'length', { value: 1 }).length === 0;
+var hasArrayLengthDefineBug = hasPropertyDescriptors.hasArrayLengthDefineBug();
 
 // eslint-disable-next-line global-require
-var isArray = hasArrayLengthDefineBug && require('../2020/IsArray'); // this does not depend on any other AOs.
+var isArray = hasArrayLengthDefineBug && require('../helpers/IsArray');
 
 var callBound = require('call-bind/callBound');
 

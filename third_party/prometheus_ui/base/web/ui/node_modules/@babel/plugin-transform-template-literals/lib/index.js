@@ -83,6 +83,10 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
       },
 
       TemplateLiteral(path) {
+        if (path.parent.type === "TSLiteralType") {
+          return;
+        }
+
         const nodes = [];
         const expressions = path.get("expressions");
         let index = 0;

@@ -76,6 +76,7 @@ var ES2018 = {
 	msFromTime: require('./2018/msFromTime'),
 	NumberToString: require('./2018/NumberToString'),
 	ObjectCreate: require('./2018/ObjectCreate'),
+	ObjectDefineProperties: require('./2018/ObjectDefineProperties'),
 	OrdinaryCreateFromConstructor: require('./2018/OrdinaryCreateFromConstructor'),
 	OrdinaryDefineOwnProperty: require('./2018/OrdinaryDefineOwnProperty'),
 	OrdinaryGetOwnProperty: require('./2018/OrdinaryGetOwnProperty'),

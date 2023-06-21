@@ -1,54 +1,110 @@
-// Type definitions for filelist v0.0.6
-// Project: https://github.com/mde/filelist
-// Definitions by: Christophe MASSOLIN <https://github.com/FuriouZz>
-// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
+// IncludeOptions definitions copied from minimatch (https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/minimatch/index.d.ts)
+interface IncludeOptions {
+  /**
+   * Dump a ton of stuff to stderr.
+   *
+   * @default false
+   */
+  debug?: boolean;
 
-declare module "filelist" {
-  export class FileList {
-    pendingAdd: string[]
-    pending: boolean
-    excludes: {
-      pats: RegExp[],
-      funcs: Function[],
-      regex: null | RegExp
-    }
-    items: string[]
-    static clone(): FileList
-    static verbose: boolean
-    toArray(): string[]
-    include(options: any, ...items: string[]): void
-    exclude(...items: string[]): void
-    resolve(): void
-    clearInclusions(): void
-    clearExclusions(): void
-    length(): number
-    toString(): string;
-    toLocaleString(): string;
-    push(...items: string[]): number;
-    pop(): string | undefined;
-    concat(...items: ReadonlyArray<string>[]): string[];
-    concat(...items: (string | ReadonlyArray<string>)[]): string[];
-    join(separator?: string): string;
-    reverse(): string[];
-    shift(): string | undefined;
-    slice(start?: number, end?: number): string[];
-    sort(compareFn?: (a: string, b: string) => number): this;
-    splice(start: number, deleteCount?: number): string[];
-    splice(start: number, deleteCount: number, ...items: string[]): string[];
-    unshift(...items: string[]): number;
-    indexOf(searchElement: string, fromIndex?: number): number;
-    lastIndexOf(searchElement: string, fromIndex?: number): number;
-    every(callbackfn: (value: string, index: number, array: string[]) => boolean, thisArg?: any): boolean;
-    some(callbackfn: (value: string, index: number, array: string[]) => boolean, thisArg?: any): boolean;
-    forEach(callbackfn: (value: string, index: number, array: string[]) => void, thisArg?: any): void;
-    map<U>(callbackfn: (value: string, index: number, array: string[]) => U, thisArg?: any): U[];
-    filter<S extends string>(callbackfn: (value: string, index: number, array: string[]) => value is S, thisArg?: any): S[];
-    filter(callbackfn: (value: string, index: number, array: string[]) => any, thisArg?: any): string[];
-    reduce(callbackfn: (previousValue: string, currentValue: string, currentIndex: number, array: string[]) => string): string;
-    reduce(callbackfn: (previousValue: string, currentValue: string, currentIndex: number, array: string[]) => string, initialValue: string): string;
-    reduce<U>(callbackfn: (previousValue: U, currentValue: string, currentIndex: number, array: string[]) => U, initialValue: U): U;
-    reduceRight(callbackfn: (previousValue: string, currentValue: string, currentIndex: number, array: string[]) => string): string;
-    reduceRight(callbackfn: (previousValue: string, currentValue: string, currentIndex: number, array: string[]) => string, initialValue: string): string;
-    reduceRight<U>(callbackfn: (previousValue: U, currentValue: string, currentIndex: number, array: string[]) => U, initialValue: U): U;
+  /**
+   * Do not expand {a,b} and {1..3} brace sets.
+   *
+   * @default false
+   */
+  nobrace?: boolean;
+
+  /**
+   * Disable ** matching against multiple folder names.
+   *
+   * @default false
+   */
+  noglobstar?: boolean;
+
+  /**
+   * Allow patterns to match filenames starting with a period,
+   * even if the pattern does not explicitly have a period in that spot.
+   *
+   * @default false
+   */
+  dot?: boolean;
+
+  /**
+   * Disable "extglob" style patterns like +(a|b).
+   *
+   * @default false
+   */
+  noext?: boolean;
+
+  /**
+   * Perform a case-insensitive match.
+   *
+   * @default false
+   */
+  nocase?: boolean;
+
+  /**
+   * When a match is not found by minimatch.match,
+   * return a list containing the pattern itself if this option is set.
+   * Otherwise, an empty list is returned if there are no matches.
+   *
+   * @default false
+   */
+  nonull?: boolean;
+
+  /**
+   * If set, then patterns without slashes will be matched against
+   * the basename of the path if it contains slashes.
+   *
+   * @default false
+   */
+  matchBase?: boolean;
+
+  /**
+   * Suppress the behavior of treating #
+   * at the start of a pattern as a comment.
+   *
+   * @default false
+   */
+  nocomment?: boolean;
+
+  /**
+   * Suppress the behavior of treating a leading ! character as negation.
+   *
+   * @default false
+   */
+  nonegate?: boolean;
+
+  /**
+   * Returns from negate expressions the same as if they were not negated.
+   * (Ie, true on a hit, false on a miss.)
+   *
+   * @default false
+   */
+  flipNegate?: boolean;
+}
+
+export class FileList {
+  static clone(): FileList
+  static verbose: boolean
+}
+
+export interface FileList extends Omit<Array<string>, "length"> {
+  pendingAdd: string[]
+  pending: boolean
+  excludes: {
+    pats: RegExp[],
+    funcs: Function[],
+    regex: null | RegExp
   }
+  items: string[]
+  toArray(): string[]
+  include(...items: string[]): this
+  include(...items: (IncludeOptions | string)[]): this
+  exclude(...items: string[]): this
+  shouldExclude(item: string): boolean
+  resolve(): this
+  clearInclusions(): this
+  clearExclusions(): this
+  length(): number
 }

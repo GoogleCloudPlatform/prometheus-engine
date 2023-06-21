@@ -71,6 +71,7 @@ var ES6 = {
 	MonthFromTime: require('./2015/MonthFromTime'),
 	msFromTime: require('./2015/msFromTime'),
 	ObjectCreate: require('./2015/ObjectCreate'),
+	ObjectDefineProperties: require('./2015/ObjectDefineProperties'),
 	OrdinaryCreateFromConstructor: require('./2015/OrdinaryCreateFromConstructor'),
 	OrdinaryDefineOwnProperty: require('./2015/OrdinaryDefineOwnProperty'),
 	OrdinaryGetOwnProperty: require('./2015/OrdinaryGetOwnProperty'),

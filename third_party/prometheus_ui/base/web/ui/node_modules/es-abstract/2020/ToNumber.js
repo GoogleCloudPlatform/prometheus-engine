@@ -8,7 +8,7 @@ var $RegExp = GetIntrinsic('%RegExp%');
 var $parseInteger = GetIntrinsic('%parseInt%');
 
 var callBound = require('call-bind/callBound');
-var regexTester = require('../helpers/regexTester');
+var regexTester = require('safe-regex-test');
 var isPrimitive = require('../helpers/isPrimitive');
 
 var $strSlice = callBound('String.prototype.slice');

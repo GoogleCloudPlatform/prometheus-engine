@@ -1,3 +1,7 @@
+# 6.0.10
+
+- Fixed: `isPseudoElement()` supports `:first-letter` and `:first-line`
+
 # 6.0.9
 
 - Fixed: `Combinator.raws` property type

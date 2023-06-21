@@ -40,9 +40,9 @@ test('type error', function (t) {
         '{ [TypeError] foo: 555, bar: [ 1, 2, 3 ] }',
         '{ [TypeError: tuv] baz: 555 }',
         '{ [SyntaxError: whoa] message: \'whoa\', \'a-b\': 5 }',
-        '{ [Error: foo] [cause]: \'bar\' }',
-        '{ [Error: foo] [cause]: \'bar\', foo: \'bar\' }',
-        '{ [Error: foo] [cause]: undefined }',
+        'cause' in Error.prototype ? '[Error: foo]' : '{ [Error: foo] [cause]: \'bar\' }',
+        '{ [Error: foo] ' + ('cause' in Error.prototype ? '' : '[cause]: \'bar\', ') + 'foo: \'bar\' }',
+        'cause' in Error.prototype ? '[Error: foo]' : '{ [Error: foo] [cause]: undefined }',
         '{ [Error: foo] cause: \'bar\' }'
     ].join(', ') + ' ]');
 });

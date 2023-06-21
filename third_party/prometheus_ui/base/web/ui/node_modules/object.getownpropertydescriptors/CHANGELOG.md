@@ -1,3 +1,13 @@
+2.1.4 / 2022-05-19
+=================
+  * [Fix] `Array.prototype.reduce` isn’t present in ES3 engines
+  * [meta] use `npmignore` to autogenerate an npmignore file
+  * [Deps] update `define-properties`, `es-abstract`
+  * [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `@es-shims/api`, `aud`, `auto-changelog`, `functions-have-names`, `safe-publish-latest`, `tape`
+  * [Tests] use `mock-property`
+  * [actions] reuse common workflows
+  * [actions] update codecov uploader
+
 2.1.3 / 2021-10-03
 =================
   * [readme] remove travis badge; add actions and codecov badges
