@@ -28,12 +28,17 @@ usage: $(basename "$0") [all] [codegen] [crdgen] [diff] [docgen] [manifests] [fo
 EOF
 }
 
+warn() {
+  echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: Warning: $*" >&2
+}
+
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 
 codegen_diff() {
-  TMPDIR=$(mktemp -d)
-  git clone https://github.com/GoogleCloudPlatform/prometheus-engine "${TMPDIR}/prometheus-engine"
-  git diff -s --exit-code "${SCRIPT_ROOT}/pkg/operator/apis" "${TMPDIR}/prometheus-engine/pkg/operator/apis"
+  git fetch https://github.com/GoogleCloudPlatform/prometheus-engine
+  git merge-base --is-ancestor FETCH_HEAD HEAD || warn "Current commit is not a descendent of main branch. Consider rebasing."
+  APIS_DIR=$(git rev-parse --show-toplevel)/pkg/operator/apis
+  git diff -s --exit-code FETCH_HEAD -- "${APIS_DIR}"
 }
 
 update_codegen() {
