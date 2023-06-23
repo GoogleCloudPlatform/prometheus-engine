@@ -123,10 +123,10 @@ presubmit:   ## Run all checks and tests before submitting a change
              ##
 presubmit: regen bin test kindtest
 
-CURRENT_TAG = v0.7.0-gke.0
+CURRENT_TAG = v0.7.1-gke.0
 CURRENT_PROM_TAG = v2.35.0-gmp.5-gke.0
 CURRENT_AM_TAG = v0.24.0-gmp.3-gke.1
-LABEL_API_VERSION = 0.7.0
+LABEL_API_VERSION = 0.7.1
 FILES_TO_UPDATE = $(shell find . -type f -name "*.yaml" ! -name "kube-state-metrics.yaml" ! -name "node-exporter.yaml")
 updateversions: $(SED)
 	@echo ">> Updating prometheus-engine images in manifests to $(CURRENT_TAG)"
