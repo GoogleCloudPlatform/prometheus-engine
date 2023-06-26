@@ -14,6 +14,9 @@ DOCKER_VOLUME:=$(DOCKER_HOST:unix://%=%)
 IMAGE_REGISTRY?=gcr.io/$(PROJECT_ID)/prometheus-engine
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
+# TODO(TheSpiritXIII): Temporary env variables part of `export.go` unit tests.
+export TEST_TAG=true
+
 # Support gsed on OSX (installed via brew), falling back to sed. On Linux
 # systems gsed won't be installed, so will use sed as expected.
 SED ?= $(shell which gsed 2>/dev/null || which sed)
@@ -104,8 +107,9 @@ ifeq ($(NO_DOCKER), 1)
 	go test `go list ./... | grep -v operator/e2e | grep -v export/bench`
 	go test `go list ./... | grep operator/e2e` -args -project-id=${PROJECT_ID} -cluster=${GMP_CLUSTER} -location=${GMP_LOCATION}
 else
+	# TODO(TheSpiritXIII): Temporary env variables part of `export.go` unit tests.
 	$(call docker_build, -f ./hack/Dockerfile --target sync -o . -t gmp/hermetic \
-		--build-arg RUNCMD='GIT_TAG="$(shell git describe --tags --abbrev=0)" ./hack/presubmit.sh test' .)
+		--build-arg RUNCMD='GIT_TAG="$(shell git describe --tags --abbrev=0)" TEST_TAG=true ./hack/presubmit.sh test' .)
 	rm -rf vendor.tmp
 endif
 
