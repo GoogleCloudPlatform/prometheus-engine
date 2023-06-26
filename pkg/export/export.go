@@ -507,11 +507,14 @@ func Testing() bool {
 // restrictions. While testing, the static version is validated for correctness.
 func Version() (string, error) {
 	if Testing() {
-		// TODO(TheSpiritXIII): After https://github.com/golang/go/issues/50603 just return empty
+		// TODO(TheSpiritXIII): After https://github.com/golang/go/issues/50603 just return an empty
 		// string here. For now, use the opportunity to confirm that the static version is correct.
 		// We manually get the closest git tag if the user is running the unit test locally, but
 		// fallback to the GIT_TAG environment variable in case the user is running the test via
 		// Docker (like `make test` does by default).
+		if testTag, found := os.LookupEnv("TEST_TAG"); !found || testTag == "false" {
+			return mainModuleVersion, nil
+		}
 		cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
 		var stdout bytes.Buffer
 		cmd.Stdout = &stdout
