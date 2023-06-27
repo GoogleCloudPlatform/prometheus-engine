@@ -96,8 +96,8 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(log.Logger,
 	if metadata.OnGCE() {
 		env = UAEnvGCE
 		opts.ProjectID, _ = metadata.ProjectID()
-		cluster, _ := metadata.InstanceAttributeValue("cluster-name")
-		if cluster != "" {
+		opts.Cluster, _ = metadata.InstanceAttributeValue("cluster-name")
+		if opts.Cluster != "" {
 			env = UAEnvGKE
 		}
 		// These attributes are set for GKE nodes. For the location, we first check
