@@ -18,7 +18,6 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/../..
 SCRIPT_DIR=$(realpath $(dirname "${BASH_SOURCE[0]}"))
 
 # eslint depends not only on eslintrc.json configuration, but also various versions of plugins and components.

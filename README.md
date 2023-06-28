@@ -53,12 +53,6 @@ and regenerating files in-place.
   non-zero exit code if the current changes differ from what would be. This
   can be useful in running in CI workflows.
 
-### Vendoring
-
-Due to security policies, this repository is self-contained. This means [Go
-vendoring](./vendor) and vendoring of npm,'s packages is used. Bhas to be committed to
-source code.
-
 ### Dependencies
 
 In order to best develop and contribute to this repository, the following dependencies are
