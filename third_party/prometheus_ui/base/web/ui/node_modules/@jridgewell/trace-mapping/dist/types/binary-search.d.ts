@@ -1,9 +1,10 @@
-import type { SourceMapSegment } from './types';
-declare type MemoState = {
+import type { SourceMapSegment, ReverseSegment } from './sourcemap-segment';
+export declare type MemoState = {
     lastKey: number;
     lastNeedle: number;
     lastIndex: number;
 };
+export declare let found: boolean;
 /**
  * A binary search implementation that returns the index if a match is found.
  * If no match is found, then the left-index (the index associated with the item that comes just
@@ -20,11 +21,12 @@ declare type MemoState = {
  * assert.deepEqual(array, [1, 2, 3]);
  * ```
  */
-export declare function binarySearch(haystack: SourceMapSegment[], needle: number, low: number, high: number): number;
+export declare function binarySearch(haystack: SourceMapSegment[] | ReverseSegment[], needle: number, low: number, high: number): number;
+export declare function upperBound(haystack: SourceMapSegment[] | ReverseSegment[], needle: number, index: number): number;
+export declare function lowerBound(haystack: SourceMapSegment[] | ReverseSegment[], needle: number, index: number): number;
 export declare function memoizedState(): MemoState;
 /**
  * This overly complicated beast is just to record the last tested line/column and the resulting
  * index, allowing us to skip a few tests if mappings are monotonically increasing.
  */
-export declare function memoizedBinarySearch(haystack: SourceMapSegment[], needle: number, state: MemoState, key: number): number;
-export {};
+export declare function memoizedBinarySearch(haystack: SourceMapSegment[] | ReverseSegment[], needle: number, state: MemoState, key: number): number;

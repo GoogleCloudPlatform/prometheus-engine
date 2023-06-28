@@ -32,13 +32,17 @@ import {
   CountOverTime,
   DayOfMonth,
   DayOfWeek,
+  DayOfYear,
   DaysInMonth,
   Deg,
   Delta,
   Deriv,
   Exp,
   Floor,
+  HistogramCount,
+  HistogramFraction,
   HistogramQuantile,
+  HistogramSum,
   HoltWinters,
   Hour,
   Idelta,
@@ -78,7 +82,7 @@ import {
   Timestamp,
   Vector,
   Year,
-} from 'lezer-promql';
+} from '@prometheus-io/lezer-promql';
 
 export enum ValueType {
   none = 'none',
@@ -224,6 +228,12 @@ const promqlFunctions: { [key: number]: PromQLFunction } = {
     variadic: 1,
     returnType: ValueType.vector,
   },
+  [DayOfYear]: {
+    name: 'day_of_year',
+    argTypes: [ValueType.vector],
+    variadic: 1,
+    returnType: ValueType.vector,
+  },
   [Deg]: {
     name: 'deg',
     argTypes: [ValueType.vector],
@@ -254,9 +264,27 @@ const promqlFunctions: { [key: number]: PromQLFunction } = {
     variadic: 0,
     returnType: ValueType.vector,
   },
+  [HistogramCount]: {
+    name: 'histogram_count',
+    argTypes: [ValueType.vector],
+    variadic: 0,
+    returnType: ValueType.vector,
+  },
+  [HistogramFraction]: {
+    name: 'histogram_fraction',
+    argTypes: [ValueType.scalar, ValueType.scalar, ValueType.vector],
+    variadic: 0,
+    returnType: ValueType.vector,
+  },
   [HistogramQuantile]: {
     name: 'histogram_quantile',
     argTypes: [ValueType.scalar, ValueType.vector],
+    variadic: 0,
+    returnType: ValueType.vector,
+  },
+  [HistogramSum]: {
+    name: 'histogram_sum',
+    argTypes: [ValueType.vector],
     variadic: 0,
     returnType: ValueType.vector,
   },

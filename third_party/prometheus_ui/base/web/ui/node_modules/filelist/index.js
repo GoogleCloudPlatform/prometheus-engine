@@ -24,6 +24,8 @@ var fs = require('fs')
 , _readDir
 , readdirR
 , globSync;
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+var hasOwn = function (obj, key) { return hasOwnProperty.apply(obj, [key]); };
 
   /**
     @name escapeRegExpChars
@@ -59,8 +61,15 @@ var fs = require('fs')
       , key, value;
 
     for (key in otherObj) {
-      value = otherObj[key];
 
+      if (!hasOwn(otherObj, key)) {
+        continue;
+      }
+      if (key === '__proto__' || key === 'constructor') {
+        continue;
+      }
+
+      value = otherObj[key];
       // Check if a value is an Object, if so recursively add it's key/values
       if (typeof value === 'object' && !(value instanceof Array)) {
         // Update value of object to the one from otherObj

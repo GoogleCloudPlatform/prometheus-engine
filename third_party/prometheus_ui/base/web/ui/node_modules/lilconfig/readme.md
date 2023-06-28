@@ -59,12 +59,14 @@ Lilconfig does not intend to be 100% compatible with `cosmiconfig` but tries to 
 |stopDir                 | ✅        |
 |transform               | ✅        |
 
-## Loaders example
+## Loaders examples
+
+### Yaml loader
 
 If you need the YAML support you can provide your own loader
 
 ```js
-import {lilconig} from 'lilconfig';
+import {lilconfig} from 'lilconfig';
 import yaml from 'yaml';
 
 function loadYaml(filepath, content) {
@@ -84,6 +86,29 @@ lilconfig('myapp', options)
     .search()
     .then(result => {
         result // {config, filepath}
+    });
+```
+
+### ESM loader
+
+Lilconfig v2 does not support ESM modules out of the box. However, you can support it with a custom a loader. Note that this will only work with the async `lilconfig` function and won't work with the sync `lilconfigSync`.
+
+```js
+import {lilconfig} from 'lilconfig';
+
+const loadEsm = filepath => import(filepath);
+
+lilconfig('myapp', {
+    loaders: {
+        '.js': loadEsm,
+        '.mjs': loadEsm,
+    }
+})
+    .search()
+    .then(result => {
+        result // {config, filepath}
+
+        result.config.default // if config uses `export default`
     });
 ```
 

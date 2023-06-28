@@ -1,6 +1,6 @@
 {
   "name": "filelist",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "Lazy-evaluating list of files, based on globs or regex patterns",
   "main": "index.js",
   "types": "index.d.ts",
@@ -23,6 +23,6 @@
   },
   "homepage": "https://github.com/mde/filelist",
   "dependencies": {
-    "minimatch": "^3.0.4"
+    "minimatch": "^5.0.1"
   }
 }

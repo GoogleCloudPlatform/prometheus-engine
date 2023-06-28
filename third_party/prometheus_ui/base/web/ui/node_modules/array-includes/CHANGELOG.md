@@ -1,3 +1,11 @@
+3.1.5 / 2022-05-03
+=================
+  * [Fix] install polyfill on FF 99+
+  * [Deps] update `define-properties`, `es-abstract`
+  * [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `@es-shims/api`, `aud`, `functions-have-names`, `safe-publish-latest`, `tape`
+  * [actions] reuse common workflows
+  * [actions] update codecov uploader
+
 3.1.4 / 2021-10-04
 =================
   * [Robustness] avoid a runtime `Math.max` call

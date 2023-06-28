@@ -277,7 +277,6 @@ export function getComponentStack(
 export function simulateError(
   error,
   catchingInstance,
-  rootNode, // TODO: remove `rootNode` next semver-major
   hierarchy,
   getNodeType = nodeTypeFromType,
   getDisplayName = displayNameOfNode,

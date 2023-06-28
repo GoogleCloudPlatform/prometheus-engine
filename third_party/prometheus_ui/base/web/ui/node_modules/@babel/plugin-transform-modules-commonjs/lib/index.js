@@ -22,17 +22,18 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
   const transformImportCall = (0, _utils.createDynamicImportTransform)(api);
   const {
     strictNamespace = false,
-    mjsStrictNamespace = true,
+    mjsStrictNamespace = strictNamespace,
     allowTopLevelThis,
     strict,
     strictMode,
     noInterop,
     importInterop,
     lazy = false,
-    allowCommonJSExports = true
+    allowCommonJSExports = true,
+    loose = false
   } = options;
-  const constantReexports = (_api$assumption = api.assumption("constantReexports")) != null ? _api$assumption : options.loose;
-  const enumerableModuleMeta = (_api$assumption2 = api.assumption("enumerableModuleMeta")) != null ? _api$assumption2 : options.loose;
+  const constantReexports = (_api$assumption = api.assumption("constantReexports")) != null ? _api$assumption : loose;
+  const enumerableModuleMeta = (_api$assumption2 = api.assumption("enumerableModuleMeta")) != null ? _api$assumption2 : loose;
   const noIncompleteNsImportDetection = (_api$assumption3 = api.assumption("noIncompleteNsImportDetection")) != null ? _api$assumption3 : false;
 
   if (typeof lazy !== "boolean" && typeof lazy !== "function" && (!Array.isArray(lazy) || !lazy.every(item => typeof item === "string"))) {
@@ -78,6 +79,7 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
 
     UpdateExpression(path) {
       const arg = path.get("argument");
+      if (!arg.isIdentifier()) return;
       const localName = arg.node.name;
       if (localName !== "module" && localName !== "exports") return;
       const localBinding = path.scope.getBinding(localName);
@@ -90,7 +92,7 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
       const left = path.get("left");
 
       if (left.isIdentifier()) {
-        const localName = path.node.name;
+        const localName = left.node.name;
         if (localName !== "module" && localName !== "exports") return;
         const localBinding = path.scope.getBinding(localName);
         const rootBinding = this.scope.getBinding(localName);
@@ -166,7 +168,8 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
             importInterop,
             lazy,
             esNamespaceOnly: typeof state.filename === "string" && /\.mjs$/.test(state.filename) ? mjsStrictNamespace : strictNamespace,
-            noIncompleteNsImportDetection
+            noIncompleteNsImportDetection,
+            filename: this.file.opts.filename
           });
 
           for (const [source, metadata] of meta.source) {
@@ -181,7 +184,7 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
               const init = (0, _helperModuleTransforms.wrapInterop)(path, loadExpr, metadata.interop) || loadExpr;
 
               if (metadata.lazy) {
-                header = _core.template.ast`
+                header = _core.template.statement.ast`
                   function ${metadata.name}() {
                     const data = ${init};
                     ${metadata.name} = function(){ return data; };
@@ -189,7 +192,7 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
                   }
                 `;
               } else {
-                header = _core.template.ast`
+                header = _core.template.statement.ast`
                   var ${metadata.name} = ${init};
                 `;
               }

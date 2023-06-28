@@ -54,7 +54,7 @@ function normalizeOptions(options = {}) {
   };
 }
 
-var index = helperPluginUtils.declare((api, opts) => {
+var index = helperPluginUtils.declarePreset((api, opts) => {
   api.assertVersion(7);
   const {
     allExtensions,
@@ -80,24 +80,24 @@ var index = helperPluginUtils.declare((api, opts) => {
 
   return {
     overrides: allExtensions ? [{
-      plugins: [[transformTypeScript__default['default'], pluginOptions(isTSX, disallowAmbiguousJSXLike)]]
+      plugins: [[transformTypeScript__default["default"], pluginOptions(isTSX, disallowAmbiguousJSXLike)]]
     }] : [{
       test: /\.ts$/,
-      plugins: [[transformTypeScript__default['default'], pluginOptions(false, false)]]
+      plugins: [[transformTypeScript__default["default"], pluginOptions(false, false)]]
     }, {
       test: /\.mts$/,
       sourceType: "module",
-      plugins: [[transformTypeScript__default['default'], pluginOptions(false, true)]]
+      plugins: [[transformTypeScript__default["default"], pluginOptions(false, true)]]
     }, {
       test: /\.cts$/,
       sourceType: "script",
-      plugins: [[transformTypeScript__default['default'], pluginOptions(false, true)]]
+      plugins: [[transformTypeScript__default["default"], pluginOptions(false, true)]]
     }, {
       test: /\.tsx$/,
-      plugins: [[transformTypeScript__default['default'], pluginOptions(true, false)]]
+      plugins: [[transformTypeScript__default["default"], pluginOptions(true, false)]]
     }]
   };
 });
 
-exports.default = index;
+exports["default"] = index;
 //# sourceMappingURL=index.js.map

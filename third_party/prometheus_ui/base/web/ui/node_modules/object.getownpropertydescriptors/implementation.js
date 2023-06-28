@@ -5,12 +5,12 @@ var IsCallable = require('es-abstract/2021/IsCallable');
 var RequireObjectCoercible = require('es-abstract/2021/RequireObjectCoercible');
 var ToObject = require('es-abstract/2021/ToObject');
 var callBound = require('call-bind/callBound');
+var reduce = require('array.prototype.reduce');
 
 var $gOPD = Object.getOwnPropertyDescriptor;
 var $getOwnNames = Object.getOwnPropertyNames;
 var $getSymbols = Object.getOwnPropertySymbols;
 var $concat = callBound('Array.prototype.concat');
-var $reduce = callBound('Array.prototype.reduce');
 var getAll = $getSymbols ? function (obj) {
 	return $concat($getOwnNames(obj), $getSymbols(obj));
 } : $getOwnNames;
@@ -24,7 +24,7 @@ module.exports = function getOwnPropertyDescriptors(value) {
 	}
 
 	var O = ToObject(value);
-	return $reduce(
+	return reduce(
 		getAll(O),
 		function (acc, key) {
 			var descriptor = $gOPD(O, key);

@@ -1,12 +1,12 @@
-import t from "@babel/types";
+import * as t from "@babel/types";
 
 export default function generateAsserts() {
   let output = `/*
  * This file is auto-generated! Do not modify it directly.
  * To re-generate run 'make build'
  */
-import * as t from "@babel/types";
-import NodePath from "../index";
+import type * as t from "@babel/types";
+import type NodePath from "../index";
 
 
 export interface NodePathAssetions {`;

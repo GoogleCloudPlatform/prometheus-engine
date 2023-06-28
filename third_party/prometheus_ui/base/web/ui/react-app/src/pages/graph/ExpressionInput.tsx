@@ -1,26 +1,30 @@
 import React, { FC, useState, useEffect, useRef } from 'react';
-import { Button, InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
+import { Alert, Button, InputGroup, InputGroupAddon, InputGroupText } from 'reactstrap';
 
 import { EditorView, highlightSpecialChars, keymap, ViewUpdate, placeholder } from '@codemirror/view';
 import { EditorState, Prec, Compartment } from '@codemirror/state';
-import { indentOnInput, syntaxTree } from '@codemirror/language';
-import { history, historyKeymap } from '@codemirror/history';
-import { defaultKeymap, insertNewlineAndIndent } from '@codemirror/commands';
-import { bracketMatching } from '@codemirror/matchbrackets';
-import { closeBrackets, closeBracketsKeymap } from '@codemirror/closebrackets';
+import { bracketMatching, indentOnInput, syntaxHighlighting, syntaxTree } from '@codemirror/language';
+import { defaultKeymap, history, historyKeymap, insertNewlineAndIndent } from '@codemirror/commands';
 import { highlightSelectionMatches } from '@codemirror/search';
-import { commentKeymap } from '@codemirror/comment';
 import { lintKeymap } from '@codemirror/lint';
-import { autocompletion, completionKeymap, CompletionContext, CompletionResult } from '@codemirror/autocomplete';
-import { baseTheme, lightTheme, darkTheme, promqlHighlighter } from './CMTheme';
+import {
+  autocompletion,
+  completionKeymap,
+  CompletionContext,
+  CompletionResult,
+  closeBrackets,
+  closeBracketsKeymap,
+} from '@codemirror/autocomplete';
+import { baseTheme, lightTheme, darkTheme, promqlHighlighter, darkPromqlHighlighter } from './CMTheme';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faSpinner, faGlobeEurope } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faSpinner, faGlobeEurope, faIndent, faCheck } from '@fortawesome/free-solid-svg-icons';
 import MetricsExplorer from './MetricsExplorer';
 import { usePathPrefix } from '../../contexts/PathPrefixContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { CompleteStrategy, PromQLExtension } from 'codemirror-promql';
-import { newCompleteStrategy } from 'codemirror-promql/dist/esm/complete';
+import { CompleteStrategy, PromQLExtension } from '@prometheus-io/codemirror-promql';
+import { newCompleteStrategy } from '@prometheus-io/codemirror-promql/dist/esm/complete';
+import { API_PATH } from '../../constants/constants';
 
 const promqlExtension = new PromQLExtension();
 
@@ -67,7 +71,7 @@ export class HistoryCompleteStrategy implements CompleteStrategy {
           apply: q,
           info: q.length < 80 ? undefined : q,
         })),
-        span: /^[a-zA-Z0-9_:]+$/,
+        validFor: /^[a-zA-Z0-9_:]+$/,
       };
 
       if (res !== null) {
@@ -95,6 +99,10 @@ const ExpressionInput: FC<CMExpressionInputProps> = ({
   const pathPrefix = usePathPrefix();
   const { theme } = useTheme();
 
+  const [formatError, setFormatError] = useState<string | null>(null);
+  const [isFormatting, setIsFormatting] = useState<boolean>(false);
+  const [exprFormatted, setExprFormatted] = useState<boolean>(false);
+
   // (Re)initialize editor based on settings / setting changes.
   useEffect(() => {
     // Build the dynamic part of the config.
@@ -109,8 +117,14 @@ const ExpressionInput: FC<CMExpressionInputProps> = ({
           queryHistory
         ),
       });
+
+    let highlighter = syntaxHighlighting(theme === 'dark' ? darkPromqlHighlighter : promqlHighlighter);
+    if (theme === 'dark') {
+      highlighter = syntaxHighlighting(darkPromqlHighlighter);
+    }
+
     const dynamicConfig = [
-      enableHighlighting ? promqlHighlighter : [],
+      enableHighlighting ? highlighter : [],
       promqlExtension.asExtension(),
       theme === 'dark' ? darkTheme : lightTheme,
     ];
@@ -136,14 +150,7 @@ const ExpressionInput: FC<CMExpressionInputProps> = ({
           autocompletion(),
           highlightSelectionMatches(),
           EditorView.lineWrapping,
-          keymap.of([
-            ...closeBracketsKeymap,
-            ...defaultKeymap,
-            ...historyKeymap,
-            ...commentKeymap,
-            ...completionKeymap,
-            ...lintKeymap,
-          ]),
+          keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...completionKeymap, ...lintKeymap]),
           placeholder('Expression (press Shift+Enter for newlines)'),
           dynamicConfigCompartment.of(dynamicConfig),
           // This keymap is added without precedence so that closing the autocomplete dropdown
@@ -157,7 +164,7 @@ const ExpressionInput: FC<CMExpressionInputProps> = ({
               },
             },
           ]),
-          Prec.override(
+          Prec.highest(
             keymap.of([
               {
                 key: 'Enter',
@@ -173,7 +180,10 @@ const ExpressionInput: FC<CMExpressionInputProps> = ({
             ])
           ),
           EditorView.updateListener.of((update: ViewUpdate): void => {
-            onExpressionChange(update.state.doc.toString());
+            if (update.docChanged) {
+              onExpressionChange(update.state.doc.toString());
+              setExprFormatted(false);
+            }
           }),
         ],
       });
@@ -213,6 +223,47 @@ const ExpressionInput: FC<CMExpressionInputProps> = ({
     );
   };
 
+  const formatExpression = () => {
+    setFormatError(null);
+    setIsFormatting(true);
+
+    fetch(
+      `${pathPrefix}/${API_PATH}/format_query?${new URLSearchParams({
+        query: value,
+      })}`,
+      {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      }
+    )
+      .then((resp) => {
+        if (!resp.ok && resp.status !== 400) {
+          throw new Error(`format HTTP request failed: ${resp.statusText}`);
+        }
+
+        return resp.json();
+      })
+      .then((json) => {
+        if (json.status !== 'success') {
+          throw new Error(json.error || 'invalid response JSON');
+        }
+
+        const view = viewRef.current;
+        if (view === null) {
+          return;
+        }
+
+        view.dispatch(view.state.update({ changes: { from: 0, to: view.state.doc.length, insert: json.data } }));
+        setExprFormatted(true);
+      })
+      .catch((err) => {
+        setFormatError(err.message);
+      })
+      .finally(() => {
+        setIsFormatting(false);
+      });
+  };
+
   return (
     <>
       <InputGroup className="expression-input">
@@ -224,7 +275,21 @@ const ExpressionInput: FC<CMExpressionInputProps> = ({
         <div ref={containerRef} className="cm-expression-input" />
         <InputGroupAddon addonType="append">
           <Button
-            className="metrics-explorer-btn"
+            className="expression-input-action-btn"
+            title={isFormatting ? 'Formatting expression' : exprFormatted ? 'Expression formatted' : 'Format expression'}
+            onClick={formatExpression}
+            disabled={isFormatting || exprFormatted}
+          >
+            {isFormatting ? (
+              <FontAwesomeIcon icon={faSpinner} spin />
+            ) : exprFormatted ? (
+              <FontAwesomeIcon icon={faCheck} />
+            ) : (
+              <FontAwesomeIcon icon={faIndent} />
+            )}
+          </Button>
+          <Button
+            className="expression-input-action-btn"
             title="Open metrics explorer"
             onClick={() => setShowMetricsExplorer(true)}
           >
@@ -235,6 +300,8 @@ const ExpressionInput: FC<CMExpressionInputProps> = ({
           </Button>
         </InputGroupAddon>
       </InputGroup>
+
+      {formatError && <Alert color="danger">Error formatting expression: {formatError}</Alert>}
 
       <MetricsExplorer
         show={showMetricsExplorer}

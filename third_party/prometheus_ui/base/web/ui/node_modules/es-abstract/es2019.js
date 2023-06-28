@@ -78,6 +78,7 @@ var ES2019 = {
 	msFromTime: require('./2019/msFromTime'),
 	NumberToString: require('./2019/NumberToString'),
 	ObjectCreate: require('./2019/ObjectCreate'),
+	ObjectDefineProperties: require('./2019/ObjectDefineProperties'),
 	OrdinaryCreateFromConstructor: require('./2019/OrdinaryCreateFromConstructor'),
 	OrdinaryDefineOwnProperty: require('./2019/OrdinaryDefineOwnProperty'),
 	OrdinaryGetOwnProperty: require('./2019/OrdinaryGetOwnProperty'),

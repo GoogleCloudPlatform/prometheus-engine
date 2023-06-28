@@ -1,4 +1,4 @@
-/** @license ReactShallowRenderer v16.14.1
+/** @license ReactShallowRenderer v16.15.0
  * react-shallow-renderer.js
  *
  * Copyright (c) Facebook, Inc. and its affiliates.
@@ -114,69 +114,51 @@
 	// ATTENTION
 	// When adding new symbols to this file,
 	// Please consider also adding to 'react-devtools-shared/src/backend/ReactSymbols'
-	// The Symbol used to tag the ReactElement-like types. If there is no native Symbol
-	// nor polyfill, then a plain number is used for performance.
-	var REACT_ELEMENT_TYPE = 0xeac7;
-	var REACT_PORTAL_TYPE = 0xeaca;
-	var REACT_FRAGMENT_TYPE = 0xeacb;
-	var REACT_STRICT_MODE_TYPE = 0xeacc;
-	var REACT_PROFILER_TYPE = 0xead2;
-	var REACT_PROVIDER_TYPE = 0xeacd;
-	var REACT_CONTEXT_TYPE = 0xeace;
-	var REACT_FORWARD_REF_TYPE = 0xead0;
-	var REACT_SUSPENSE_TYPE = 0xead1;
-	var REACT_SUSPENSE_LIST_TYPE = 0xead8;
-	var REACT_MEMO_TYPE = 0xead3;
-	var REACT_LAZY_TYPE = 0xead4;
-	var REACT_BLOCK_TYPE = 0xead9;
-	var REACT_SERVER_BLOCK_TYPE = 0xeada;
-	var REACT_FUNDAMENTAL_TYPE = 0xead5;
-	var REACT_SCOPE_TYPE = 0xead7;
-	var REACT_OPAQUE_ID_TYPE = 0xeae0;
-	var REACT_DEBUG_TRACING_MODE_TYPE = 0xeae1;
-	var REACT_OFFSCREEN_TYPE = 0xeae2;
-	var REACT_LEGACY_HIDDEN_TYPE = 0xeae3;
+	// The Symbol used to tag the ReactElement-like types.
+	var REACT_ELEMENT_TYPE = Symbol.for('react.element');
+	var REACT_PORTAL_TYPE = Symbol.for('react.portal');
+	var REACT_FRAGMENT_TYPE = Symbol.for('react.fragment');
+	var REACT_STRICT_MODE_TYPE = Symbol.for('react.strict_mode');
+	var REACT_PROFILER_TYPE = Symbol.for('react.profiler');
+	var REACT_PROVIDER_TYPE = Symbol.for('react.provider');
+	var REACT_CONTEXT_TYPE = Symbol.for('react.context');
+	var REACT_SERVER_CONTEXT_TYPE = Symbol.for('react.server_context');
+	var REACT_FORWARD_REF_TYPE = Symbol.for('react.forward_ref');
+	var REACT_SUSPENSE_TYPE = Symbol.for('react.suspense');
+	var REACT_SUSPENSE_LIST_TYPE = Symbol.for('react.suspense_list');
+	var REACT_MEMO_TYPE = Symbol.for('react.memo');
+	var REACT_LAZY_TYPE = Symbol.for('react.lazy');
+	var REACT_OFFSCREEN_TYPE = Symbol.for('react.offscreen');
 
-	if (typeof Symbol === 'function' && Symbol.for) {
-	  var symbolFor = Symbol.for;
-	  REACT_ELEMENT_TYPE = symbolFor('react.element');
-	  REACT_PORTAL_TYPE = symbolFor('react.portal');
-	  REACT_FRAGMENT_TYPE = symbolFor('react.fragment');
-	  REACT_STRICT_MODE_TYPE = symbolFor('react.strict_mode');
-	  REACT_PROFILER_TYPE = symbolFor('react.profiler');
-	  REACT_PROVIDER_TYPE = symbolFor('react.provider');
-	  REACT_CONTEXT_TYPE = symbolFor('react.context');
-	  REACT_FORWARD_REF_TYPE = symbolFor('react.forward_ref');
-	  REACT_SUSPENSE_TYPE = symbolFor('react.suspense');
-	  REACT_SUSPENSE_LIST_TYPE = symbolFor('react.suspense_list');
-	  REACT_MEMO_TYPE = symbolFor('react.memo');
-	  REACT_LAZY_TYPE = symbolFor('react.lazy');
-	  REACT_BLOCK_TYPE = symbolFor('react.block');
-	  REACT_SERVER_BLOCK_TYPE = symbolFor('react.server.block');
-	  REACT_FUNDAMENTAL_TYPE = symbolFor('react.fundamental');
-	  REACT_SCOPE_TYPE = symbolFor('react.scope');
-	  REACT_OPAQUE_ID_TYPE = symbolFor('react.opaque.id');
-	  REACT_DEBUG_TRACING_MODE_TYPE = symbolFor('react.debug_trace_mode');
-	  REACT_OFFSCREEN_TYPE = symbolFor('react.offscreen');
-	  REACT_LEGACY_HIDDEN_TYPE = symbolFor('react.legacy_hidden');
-	}
-
-	// Filter certain DOM attributes (e.g. src, href) if their values are empty strings.
+	// -----------------------------------------------------------------------------
 
 	var enableScopeAPI = false; // Experimental Create Event Handle API.
+	var enableCacheElement = false;
+	var enableTransitionTracing = false; // No known bugs, but needs performance testing
 
+	var enableLegacyHidden = false; // Enables unstable_avoidThisFallback feature in Fiber
+	// stuff. Intended to enable React core members to more easily debug scheduling
+	// issues in DEV builds.
+
+	var enableDebugTracing = false; // Track which Fiber(s) schedule render work.
+
+	var REACT_MODULE_REFERENCE = Symbol.for('react.module.reference');
 	function isValidElementType(type) {
 	  if (typeof type === 'string' || typeof type === 'function') {
 	    return true;
 	  } // Note: typeof might be other than 'symbol' or 'number' (e.g. if it's a polyfill).
 
 
-	  if (type === REACT_FRAGMENT_TYPE || type === REACT_PROFILER_TYPE || type === REACT_DEBUG_TRACING_MODE_TYPE || type === REACT_STRICT_MODE_TYPE || type === REACT_SUSPENSE_TYPE || type === REACT_SUSPENSE_LIST_TYPE || type === REACT_LEGACY_HIDDEN_TYPE || enableScopeAPI ) {
+	  if (type === REACT_FRAGMENT_TYPE || type === REACT_PROFILER_TYPE || enableDebugTracing  || type === REACT_STRICT_MODE_TYPE || type === REACT_SUSPENSE_TYPE || type === REACT_SUSPENSE_LIST_TYPE || enableLegacyHidden  || type === REACT_OFFSCREEN_TYPE || enableScopeAPI  || enableCacheElement  || enableTransitionTracing ) {
 	    return true;
 	  }
 
 	  if (typeof type === 'object' && type !== null) {
-	    if (type.$$typeof === REACT_LAZY_TYPE || type.$$typeof === REACT_MEMO_TYPE || type.$$typeof === REACT_PROVIDER_TYPE || type.$$typeof === REACT_CONTEXT_TYPE || type.$$typeof === REACT_FORWARD_REF_TYPE || type.$$typeof === REACT_FUNDAMENTAL_TYPE || type.$$typeof === REACT_BLOCK_TYPE || type[0] === REACT_SERVER_BLOCK_TYPE) {
+	    if (type.$$typeof === REACT_LAZY_TYPE || type.$$typeof === REACT_MEMO_TYPE || type.$$typeof === REACT_PROVIDER_TYPE || type.$$typeof === REACT_CONTEXT_TYPE || type.$$typeof === REACT_FORWARD_REF_TYPE || // This needs to include all possible module reference object
+	    // types supported by any Flight configuration anywhere since
+	    // we don't know which Flight build this will end up being used
+	    // with.
+	    type.$$typeof === REACT_MODULE_REFERENCE || type.getModuleId !== undefined) {
 	      return true;
 	    }
 	  }
@@ -204,6 +186,7 @@
 	            var $$typeofType = type && type.$$typeof;
 
 	            switch ($$typeofType) {
+	              case REACT_SERVER_CONTEXT_TYPE:
 	              case REACT_CONTEXT_TYPE:
 	              case REACT_FORWARD_REF_TYPE:
 	              case REACT_LAZY_TYPE:
@@ -235,6 +218,7 @@
 	var Profiler = REACT_PROFILER_TYPE;
 	var StrictMode = REACT_STRICT_MODE_TYPE;
 	var Suspense = REACT_SUSPENSE_TYPE;
+	var SuspenseList = REACT_SUSPENSE_LIST_TYPE;
 	var hasWarnedAboutDeprecatedIsAsyncMode = false;
 	var hasWarnedAboutDeprecatedIsConcurrentMode = false; // AsyncMode should be deprecated
 
@@ -293,6 +277,9 @@
 	function isSuspense(object) {
 	  return typeOf(object) === REACT_SUSPENSE_TYPE;
 	}
+	function isSuspenseList(object) {
+	  return typeOf(object) === REACT_SUSPENSE_LIST_TYPE;
+	}
 
 	exports.ContextConsumer = ContextConsumer;
 	exports.ContextProvider = ContextProvider;
@@ -305,6 +292,7 @@
 	exports.Profiler = Profiler;
 	exports.StrictMode = StrictMode;
 	exports.Suspense = Suspense;
+	exports.SuspenseList = SuspenseList;
 	exports.isAsyncMode = isAsyncMode;
 	exports.isConcurrentMode = isConcurrentMode;
 	exports.isContextConsumer = isContextConsumer;
@@ -318,6 +306,7 @@
 	exports.isProfiler = isProfiler;
 	exports.isStrictMode = isStrictMode;
 	exports.isSuspense = isSuspense;
+	exports.isSuspenseList = isSuspenseList;
 	exports.isValidElementType = isValidElementType;
 	exports.typeOf = typeOf;
 	  })();
@@ -334,21 +323,23 @@
 	var reactIs_development_9 = reactIs_development.Profiler;
 	var reactIs_development_10 = reactIs_development.StrictMode;
 	var reactIs_development_11 = reactIs_development.Suspense;
-	var reactIs_development_12 = reactIs_development.isAsyncMode;
-	var reactIs_development_13 = reactIs_development.isConcurrentMode;
-	var reactIs_development_14 = reactIs_development.isContextConsumer;
-	var reactIs_development_15 = reactIs_development.isContextProvider;
-	var reactIs_development_16 = reactIs_development.isElement;
-	var reactIs_development_17 = reactIs_development.isForwardRef;
-	var reactIs_development_18 = reactIs_development.isFragment;
-	var reactIs_development_19 = reactIs_development.isLazy;
-	var reactIs_development_20 = reactIs_development.isMemo;
-	var reactIs_development_21 = reactIs_development.isPortal;
-	var reactIs_development_22 = reactIs_development.isProfiler;
-	var reactIs_development_23 = reactIs_development.isStrictMode;
-	var reactIs_development_24 = reactIs_development.isSuspense;
-	var reactIs_development_25 = reactIs_development.isValidElementType;
-	var reactIs_development_26 = reactIs_development.typeOf;
+	var reactIs_development_12 = reactIs_development.SuspenseList;
+	var reactIs_development_13 = reactIs_development.isAsyncMode;
+	var reactIs_development_14 = reactIs_development.isConcurrentMode;
+	var reactIs_development_15 = reactIs_development.isContextConsumer;
+	var reactIs_development_16 = reactIs_development.isContextProvider;
+	var reactIs_development_17 = reactIs_development.isElement;
+	var reactIs_development_18 = reactIs_development.isForwardRef;
+	var reactIs_development_19 = reactIs_development.isFragment;
+	var reactIs_development_20 = reactIs_development.isLazy;
+	var reactIs_development_21 = reactIs_development.isMemo;
+	var reactIs_development_22 = reactIs_development.isPortal;
+	var reactIs_development_23 = reactIs_development.isProfiler;
+	var reactIs_development_24 = reactIs_development.isStrictMode;
+	var reactIs_development_25 = reactIs_development.isSuspense;
+	var reactIs_development_26 = reactIs_development.isSuspenseList;
+	var reactIs_development_27 = reactIs_development.isValidElementType;
+	var reactIs_development_28 = reactIs_development.typeOf;
 
 	var reactIs = createCommonjsModule(function (module) {
 
@@ -785,6 +776,7 @@
 	    this._didScheduleRenderPhaseUpdate = false;
 	    this._renderPhaseUpdates = null;
 	    this._numberOfReRenders = 0;
+	    this._idCounter = 0;
 	  };
 
 	  _proto2._validateCurrentlyRenderingComponent = function _validateCurrentlyRenderingComponent() {
@@ -941,8 +933,7 @@
 	        props: props,
 	        responder: responder
 	      };
-	    }; // TODO: implement if we decide to keep the shallow renderer
-
+	    };
 
 	    var useTransition = function useTransition(config) {
 	      _this._validateCurrentlyRenderingComponent();
@@ -952,13 +943,25 @@
 	      };
 
 	      return [startTransition, false];
-	    }; // TODO: implement if we decide to keep the shallow renderer
-
+	    };
 
 	    var useDeferredValue = function useDeferredValue(value, config) {
 	      _this._validateCurrentlyRenderingComponent();
 
 	      return value;
+	    };
+
+	    var useId = function useId() {
+	      _this._validateCurrentlyRenderingComponent();
+
+	      var nextId = ++_this._idCounter;
+	      return ':r' + nextId + ':';
+	    };
+
+	    var useSyncExternalStore = function useSyncExternalStore(subscribe, getSnapshot) {
+	      _this._validateCurrentlyRenderingComponent();
+
+	      return getSnapshot();
 	    };
 
 	    return {
@@ -973,13 +976,16 @@
 	      useEffect: noOp,
 	      useImperativeHandle: noOp,
 	      useLayoutEffect: noOp,
+	      useInsertionEffect: noOp,
 	      useMemo: useMemo,
 	      useReducer: useReducer,
 	      useRef: useRef,
 	      useState: useState,
 	      useResponder: useResponder,
+	      useId: useId,
 	      useTransition: useTransition,
-	      useDeferredValue: useDeferredValue
+	      useDeferredValue: useDeferredValue,
+	      useSyncExternalStore: useSyncExternalStore
 	    };
 	  };
 
@@ -1077,11 +1083,13 @@
 
 	      this._workInProgressHook = null;
 	      this._rendering = false;
+	      this._idCounter = 0;
 	      this.render(element, context);
 	    } else {
 	      this._workInProgressHook = null;
 	      this._renderPhaseUpdates = null;
 	      this._numberOfReRenders = 0;
+	      this._idCounter = 0;
 	    }
 	  };
 

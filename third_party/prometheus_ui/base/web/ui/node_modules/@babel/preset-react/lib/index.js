@@ -52,7 +52,7 @@ function normalizeOptions(options = {}) {
   }
 }
 
-var index = helperPluginUtils.declare((api, opts) => {
+var index = helperPluginUtils.declarePreset((api, opts) => {
   api.assertVersion(7);
   const {
     development,
@@ -64,7 +64,7 @@ var index = helperPluginUtils.declare((api, opts) => {
     throwIfNamespace
   } = normalizeOptions(opts);
   return {
-    plugins: [[development ? transformReactJSXDevelopment__default['default'] : transformReactJSX__default['default'], {
+    plugins: [[development ? transformReactJSXDevelopment__default["default"] : transformReactJSX__default["default"], {
       importSource,
       pragma,
       pragmaFrag,
@@ -73,9 +73,9 @@ var index = helperPluginUtils.declare((api, opts) => {
       pure,
       useBuiltIns: !!opts.useBuiltIns,
       useSpread: opts.useSpread
-    }], transformReactDisplayName__default['default'], pure !== false && transformReactPure__default['default']].filter(Boolean)
+    }], transformReactDisplayName__default["default"], pure !== false && transformReactPure__default["default"]].filter(Boolean)
   };
 });
 
-exports.default = index;
+exports["default"] = index;
 //# sourceMappingURL=index.js.map

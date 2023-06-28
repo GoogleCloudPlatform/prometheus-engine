@@ -5,10 +5,11 @@ export const getSuggestion = ({
   suggestions,
   format = (suggestion) => `Did you mean '${suggestion}'?`,
 }: {
-  value: string;
+  value: string | null;
   suggestions: string[];
   format?: (suggestion: string) => string;
 }): string => {
+  if (!value) return '';
   const bestSuggestion = suggestions.reduce(
     (best, current) => {
       const distance = leven(value, current);

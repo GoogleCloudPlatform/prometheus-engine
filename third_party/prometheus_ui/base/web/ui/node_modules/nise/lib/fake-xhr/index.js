@@ -333,7 +333,11 @@ function fakeXMLHttpRequestFor(globalScope) {
 
     function verifyRequestOpened(xhr) {
         if (xhr.readyState !== FakeXMLHttpRequest.OPENED) {
-            throw new Error(`INVALID_STATE_ERR - ${xhr.readyState}`);
+            const errorMessage =
+                xhr.readyState === FakeXMLHttpRequest.UNSENT
+                    ? "INVALID_STATE_ERR - you might be trying to set the request state for a request that has already been aborted, it is recommended to check 'readyState' first..."
+                    : `INVALID_STATE_ERR - ${xhr.readyState}`;
+            throw new Error(errorMessage);
         }
     }
 

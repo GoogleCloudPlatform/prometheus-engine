@@ -1,3 +1,11 @@
+1.3.0 / 2022-04-11
+=================
+  * [New] `shim`/`auto`: add `flat` to `Symbol.unscopables`
+  * [Deps] update `es-abstract`
+  * [actions] reuse common workflows
+  * [actions] update codecov uploader
+  * [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `@es-shims/api`, `aud`, `auto-changelog`, `object-inspect`, `safe-publish-latest`, `tape`
+
 1.2.5 / 2021-10-01
 =================
   * [readme] add github actions/codecov badges; remove travis badge

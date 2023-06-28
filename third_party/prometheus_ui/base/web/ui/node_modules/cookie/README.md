@@ -112,9 +112,23 @@ so if both are set, they should point to the same date and time.
 Specifies the value for the [`Path` `Set-Cookie` attribute][rfc-6265-5.2.4]. By default, the path
 is considered the ["default path"][rfc-6265-5.1.4].
 
+##### priority
+
+Specifies the `string` to be the value for the [`Priority` `Set-Cookie` attribute][rfc-west-cookie-priority-00-4.1].
+
+  - `'low'` will set the `Priority` attribute to `Low`.
+  - `'medium'` will set the `Priority` attribute to `Medium`, the default priority when not set.
+  - `'high'` will set the `Priority` attribute to `High`.
+
+More information about the different priority levels can be found in
+[the specification][rfc-west-cookie-priority-00-4.1].
+
+**note** This is an attribute that has not yet been fully standardized, and may change in the future.
+This also means many clients may ignore this attribute until they understand it.
+
 ##### sameSite
 
-Specifies the `boolean` or `string` to be the value for the [`SameSite` `Set-Cookie` attribute][rfc-6265bis-03-4.1.2.7].
+Specifies the `boolean` or `string` to be the value for the [`SameSite` `Set-Cookie` attribute][rfc-6265bis-09-5.4.7].
 
   - `true` will set the `SameSite` attribute to `Strict` for strict same site enforcement.
   - `false` will not set the `SameSite` attribute.
@@ -123,7 +137,7 @@ Specifies the `boolean` or `string` to be the value for the [`SameSite` `Set-Coo
   - `'strict'` will set the `SameSite` attribute to `Strict` for strict same site enforcement.
 
 More information about the different enforcement levels can be found in
-[the specification][rfc-6265bis-03-4.1.2.7].
+[the specification][rfc-6265bis-09-5.4.7].
 
 **note** This is an attribute that has not yet been fully standardized, and may change in the future.
 This also means many clients may ignore this attribute until they understand it.
@@ -198,12 +212,12 @@ $ npm test
 ```
 $ npm run bench
 
-> cookie@0.4.1 bench
+> cookie@0.4.2 bench
 > node benchmark/index.js
 
-  node@16.13.1
-  v8@9.4.146.24-node.14
-  uv@1.42.0
+  node@16.14.0
+  v8@9.4.146.24-node.20
+  uv@1.43.0
   zlib@1.2.11
   brotli@1.0.9
   ares@1.18.1
@@ -211,11 +225,11 @@ $ npm run bench
   nghttp2@1.45.1
   napi@8
   llhttp@6.0.4
-  openssl@1.1.1l+quic
-  cldr@39.0
-  icu@69.1
-  tz@2021a
-  unicode@13.0
+  openssl@1.1.1m+quic
+  cldr@40.0
+  icu@70.1
+  tz@2021a3
+  unicode@14.0
   ngtcp2@0.1.0-DEV
   nghttp3@0.1.0-DEV
 
@@ -225,21 +239,22 @@ $ npm run bench
 
   15 tests completed.
 
-  parse accounts.google.com x   504,358 ops/sec ±6.55% (171 runs sampled)
-  parse apple.com           x 1,369,991 ops/sec ±0.84% (189 runs sampled)
-  parse cloudflare.com      x   360,669 ops/sec ±3.75% (182 runs sampled)
-  parse docs.google.com     x   521,496 ops/sec ±4.90% (180 runs sampled)
-  parse drive.google.com    x   553,514 ops/sec ±0.59% (189 runs sampled)
-  parse en.wikipedia.org    x   286,052 ops/sec ±0.62% (188 runs sampled)
-  parse linkedin.com        x   178,817 ops/sec ±0.61% (192 runs sampled)
-  parse maps.google.com     x   284,585 ops/sec ±0.68% (188 runs sampled)
-  parse microsoft.com       x   161,230 ops/sec ±0.56% (192 runs sampled)
-  parse play.google.com     x   352,144 ops/sec ±1.01% (181 runs sampled)
-  parse plus.google.com     x   275,204 ops/sec ±7.78% (156 runs sampled)
-  parse support.google.com  x   339,493 ops/sec ±1.02% (191 runs sampled)
-  parse www.google.com      x   286,110 ops/sec ±0.90% (191 runs sampled)
-  parse youtu.be            x   548,557 ops/sec ±0.60% (184 runs sampled)
-  parse youtube.com         x   545,293 ops/sec ±0.65% (191 runs sampled)
+  parse accounts.google.com x 2,421,245 ops/sec ±0.80% (188 runs sampled)
+  parse apple.com           x 2,684,710 ops/sec ±0.59% (189 runs sampled)
+  parse cloudflare.com      x 2,231,418 ops/sec ±0.76% (186 runs sampled)
+  parse docs.google.com     x 2,316,357 ops/sec ±1.28% (187 runs sampled)
+  parse drive.google.com    x 2,363,543 ops/sec ±0.49% (189 runs sampled)
+  parse en.wikipedia.org    x   839,414 ops/sec ±0.53% (189 runs sampled)
+  parse linkedin.com        x   553,797 ops/sec ±0.63% (190 runs sampled)
+  parse maps.google.com     x 1,314,779 ops/sec ±0.72% (189 runs sampled)
+  parse microsoft.com       x   153,783 ops/sec ±0.53% (190 runs sampled)
+  parse play.google.com     x 2,249,574 ops/sec ±0.59% (187 runs sampled)
+  parse plus.google.com     x 2,258,682 ops/sec ±0.60% (188 runs sampled)
+  parse sites.google.com    x 2,247,069 ops/sec ±0.68% (189 runs sampled)
+  parse support.google.com  x 1,456,840 ops/sec ±0.70% (187 runs sampled)
+  parse www.google.com      x 1,046,028 ops/sec ±0.58% (188 runs sampled)
+  parse youtu.be            x   937,428 ops/sec ±1.47% (190 runs sampled)
+  parse youtube.com         x   963,878 ops/sec ±0.59% (190 runs sampled)
 
 > node benchmark/parse.js
 
@@ -247,20 +262,21 @@ $ npm run bench
 
   6 tests completed.
 
-  simple      x 1,266,646 ops/sec ±0.65% (191 runs sampled)
-  decode      x   838,413 ops/sec ±0.60% (191 runs sampled)
-  unquote     x   877,820 ops/sec ±0.72% (189 runs sampled)
-  duplicates  x   516,680 ops/sec ±0.61% (191 runs sampled)
-  10 cookies  x   156,874 ops/sec ±0.52% (189 runs sampled)
-  100 cookies x    14,663 ops/sec ±0.53% (191 runs sampled)
+  simple      x 2,745,604 ops/sec ±0.77% (185 runs sampled)
+  decode      x   557,287 ops/sec ±0.60% (188 runs sampled)
+  unquote     x 2,498,475 ops/sec ±0.55% (189 runs sampled)
+  duplicates  x   868,591 ops/sec ±0.89% (187 runs sampled)
+  10 cookies  x   306,745 ops/sec ±0.49% (190 runs sampled)
+  100 cookies x    22,414 ops/sec ±2.38% (182 runs sampled)
 ```
 
 ## References
 
 - [RFC 6265: HTTP State Management Mechanism][rfc-6265]
-- [Same-site Cookies][rfc-6265bis-03-4.1.2.7]
+- [Same-site Cookies][rfc-6265bis-09-5.4.7]
 
-[rfc-6265bis-03-4.1.2.7]: https://tools.ietf.org/html/draft-ietf-httpbis-rfc6265bis-03#section-4.1.2.7
+[rfc-west-cookie-priority-00-4.1]: https://tools.ietf.org/html/draft-west-cookie-priority-00#section-4.1
+[rfc-6265bis-09-5.4.7]: https://tools.ietf.org/html/draft-ietf-httpbis-rfc6265bis-09#section-5.4.7
 [rfc-6265]: https://tools.ietf.org/html/rfc6265
 [rfc-6265-5.1.4]: https://tools.ietf.org/html/rfc6265#section-5.1.4
 [rfc-6265-5.2.1]: https://tools.ietf.org/html/rfc6265#section-5.2.1
