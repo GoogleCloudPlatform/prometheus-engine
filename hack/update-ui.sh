@@ -58,6 +58,10 @@ touch static/.gitignore
 # as npm does not respect package-lock.json. Npm CI does.
 npm ci
 
+# We can't use npm ci --omit=dev as some Prometheus packages put production packages
+# as dev. Removing some known vulnerable and not used packages manually.
+rm -r node_modules/rst-selector-operator
+
 # Remove lock files which tend to trigger scanners assuming we host our
 # source code in vendor folder.
 rm -r node_modules/**/package-lock.json
