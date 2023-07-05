@@ -397,12 +397,12 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 func (o *Operator) cleanupOldResources(ctx context.Context) error {
 	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
 	// in previous versions.
-	err := o.client.Delete(ctx, &arv1.ValidatingWebhookConfiguration{
+	validatingWebhookConfig := arv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
-	})
-	if err != nil && !apierrors.IsNotFound(err) {
+	}
+	if err := o.client.Delete(ctx, &validatingWebhookConfig); client.IgnoreNotFound(err) != nil {
 		o.logger.Error(err, "deleting legacy ValidatingWebhookConfiguration")
-		return err
+		return fmt.Errorf("delete legacy ValidatingWebHookConfiguration: %w", err)
 	}
 
 	// If cleanup annotations are not provided, do not clean up any further.
@@ -412,34 +412,36 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 
 	// Cleanup resources without the provided annotation.
 	// Check the collector DaemonSet.
-	var ds appsv1.DaemonSet
-	if err := o.client.Get(ctx, client.ObjectKey{
+	dsKey := client.ObjectKey{
 		Name:      NameCollector,
 		Namespace: o.opts.OperatorNamespace,
-	}, &ds); err != nil && apierrors.IsNotFound(err) {
+	}
+	var ds appsv1.DaemonSet
+	if err := o.client.Get(ctx, dsKey, &ds); apierrors.IsNotFound(err) {
 		o.logger.Error(err, "Getting collector DaemonSet failed")
-		return err
+		return fmt.Errorf("get collector DaemonSet: %w", err)
 	}
 	if _, ok := ds.Annotations[o.opts.CleanupAnnotKey]; !ok {
-		if err := o.client.Delete(ctx, &ds); err != nil && !apierrors.IsNotFound(err) {
+		if err := o.client.Delete(ctx, &ds); client.IgnoreNotFound(err) != nil {
 			o.logger.Error(err, "cleaning up collector DaemonSet")
-			return err
+			return fmt.Errorf("delete collector DaemonSet: %w", err)
 		}
 	}
 
 	// Check the rule-evaluator Deployment.
-	var deploy appsv1.Deployment
-	if err := o.client.Get(ctx, client.ObjectKey{
+	deployKey := client.ObjectKey{
 		Name:      NameRuleEvaluator,
 		Namespace: o.opts.OperatorNamespace,
-	}, &deploy); err != nil && apierrors.IsNotFound(err) {
+	}
+	var deploy appsv1.Deployment
+	if err := o.client.Get(ctx, deployKey, &deploy); apierrors.IsNotFound(err) {
 		o.logger.Error(err, "Getting rule-evaluator deployment failed")
-		return err
+		return fmt.Errorf("get rule-evaluator Deployment: %w", err)
 	}
 	if _, ok := deploy.Annotations[o.opts.CleanupAnnotKey]; !ok {
-		if err := o.client.Delete(ctx, &deploy); err != nil && !apierrors.IsNotFound(err) {
+		if err := o.client.Delete(ctx, &deploy); client.IgnoreNotFound(err) != nil {
 			o.logger.Error(err, "cleaning up rule-evaluator Deployment")
-			return err
+			return fmt.Errorf("delete rule-evaluator Deployment: %w", err)
 		}
 	}
 
