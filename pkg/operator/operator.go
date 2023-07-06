@@ -401,7 +401,6 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
 	}
 	if err := o.client.Delete(ctx, &validatingWebhookConfig); client.IgnoreNotFound(err) != nil {
-		o.logger.Error(err, "deleting legacy ValidatingWebhookConfiguration")
 		return fmt.Errorf("delete legacy ValidatingWebHookConfiguration: %w", err)
 	}
 
@@ -418,12 +417,10 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 	}
 	var ds appsv1.DaemonSet
 	if err := o.client.Get(ctx, dsKey, &ds); apierrors.IsNotFound(err) {
-		o.logger.Error(err, "Getting collector DaemonSet failed")
 		return fmt.Errorf("get collector DaemonSet: %w", err)
 	}
 	if _, ok := ds.Annotations[o.opts.CleanupAnnotKey]; !ok {
 		if err := o.client.Delete(ctx, &ds); client.IgnoreNotFound(err) != nil {
-			o.logger.Error(err, "cleaning up collector DaemonSet")
 			return fmt.Errorf("delete collector DaemonSet: %w", err)
 		}
 	}
@@ -435,12 +432,10 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 	}
 	var deploy appsv1.Deployment
 	if err := o.client.Get(ctx, deployKey, &deploy); apierrors.IsNotFound(err) {
-		o.logger.Error(err, "Getting rule-evaluator deployment failed")
 		return fmt.Errorf("get rule-evaluator Deployment: %w", err)
 	}
 	if _, ok := deploy.Annotations[o.opts.CleanupAnnotKey]; !ok {
 		if err := o.client.Delete(ctx, &deploy); client.IgnoreNotFound(err) != nil {
-			o.logger.Error(err, "cleaning up rule-evaluator Deployment")
 			return fmt.Errorf("delete rule-evaluator Deployment: %w", err)
 		}
 	}
