@@ -125,7 +125,7 @@ kindtest:    ## Run e2e test suite against fresh kind k8s cluster.
 presubmit:   ## Run all checks and tests before submitting a change 
              ## Use DRY_RUN=1 to only validate without regenerating changes.
              ##
-presubmit: regen bin test kindtest
+presubmit: updateversions regen bin test kindtest
 
 CURRENT_TAG = v0.7.1-gke.0
 CURRENT_PROM_TAG = v2.35.0-gmp.5-gke.0
