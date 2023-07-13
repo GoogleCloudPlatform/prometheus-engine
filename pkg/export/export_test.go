@@ -41,7 +41,7 @@ import (
 )
 
 func TestBatchAdd(t *testing.T) {
-	b := newBatch(nil, 100)
+	b := newBatch(nil, DefaultShardCount, 100)
 
 	if !b.empty() {
 		t.Fatalf("batch unexpectedly not empty")
@@ -98,7 +98,7 @@ func TestBatchFillFromShardsAndSend(t *testing.T) {
 		})
 	}
 
-	b := newBatch(nil, 101)
+	b := newBatch(nil, DefaultShardCount, 101)
 
 	for _, s := range shards {
 		s.fill(b)

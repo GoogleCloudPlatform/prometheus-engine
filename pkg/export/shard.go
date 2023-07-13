@@ -32,7 +32,7 @@ type shard struct {
 	seen map[uint64]struct{}
 }
 
-func newShard(queueSize int) *shard {
+func newShard(queueSize uint) *shard {
 	return &shard{
 		queue: newQueue(queueSize),
 		seen:  map[uint64]struct{}{},
@@ -124,7 +124,7 @@ type queueEntry struct {
 	sample *monitoring_pb.TimeSeries
 }
 
-func newQueue(size int) *queue {
+func newQueue(size uint) *queue {
 	return &queue{buf: make([]queueEntry, size)}
 }
 
