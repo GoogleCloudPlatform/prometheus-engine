@@ -155,7 +155,13 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(log.Logger,
 		Default("false").BoolVar(&opts.DisableAuth)
 
 	a.Flag("export.debug.batch-size", "Maximum number of points to send in one batch to the GCM API.").
-		Default(strconv.Itoa(export.BatchSizeMax)).UintVar(&opts.BatchSize)
+		Default(strconv.Itoa(export.BatchSizeMax)).UintVar(&opts.Efficiency.BatchSize)
+
+	a.Flag("export.debug.shard-count", "Number of shards that track series to send.").
+		Default(strconv.Itoa(export.BatchSizeMax)).UintVar(&opts.Efficiency.ShardCount)
+
+	a.Flag("export.debug.shard-buffer-size", "The buffer size for each individual shard. Each element in buffer (queue) consists of sample and hash.").
+		Default(strconv.Itoa(export.DefaultShardBufferSize)).UintVar(&opts.Efficiency.ShardBufferSize)
 
 	a.Flag("export.token-url", "The request URL to generate token that's needed to ingest metrics to the project").
 		StringVar(&opts.TokenURL)
