@@ -646,6 +646,10 @@ spec:
             port: 19090
             path: /-/ready
             scheme: HTTP
+        lifecycle:
+          postStart:
+            exec:
+              command: ["sh", "-c", "rm -r /prometheus/data/wal/*"]
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
