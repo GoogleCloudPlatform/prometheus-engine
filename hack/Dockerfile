@@ -55,6 +55,7 @@ WORKDIR /build
 COPY --from=buildbase /usr/local/go /usr/local
 
 # Install kubectl.
+RUN apt-get update
 RUN apt-get install kubectl
 
 # Install kind.

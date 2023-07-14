@@ -74,3 +74,19 @@ recommended:
   ```
 5. For UI development or update (e.g. to resolve UI security issue), `npm` is
 required. See [pkg/ui documentation](pkg/ui/README.md) for details.
+
+### Testing
+
+#### Unit
+
+To run unit tests, use `go test`, your IDE or `make test`.
+
+#### e2e
+
+To run e2e tests using kind cluster (created for you) use `make kind`.
+
+The tests are available in ...
+
+##### Benchmarking
+
+See [BENCHMARK.md](./BENCHMARK.md).
