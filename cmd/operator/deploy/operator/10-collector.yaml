@@ -107,6 +107,8 @@ spec:
         - --web.enable-lifecycle
         - --web.route-prefix=/
         - --export.user-agent-mode=kubectl
+        # JSON log format is needed for GKE to display log levels correctly.
+        - --log.format=json
         ports:
         - name: prom-metrics
           containerPort: 19090
