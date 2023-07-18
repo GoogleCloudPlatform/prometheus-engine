@@ -43,6 +43,7 @@ COPY --from=hermetic /workspace/doc doc
 COPY --from=hermetic /workspace/examples examples
 COPY --from=hermetic /workspace/manifests manifests
 COPY --from=hermetic /workspace/pkg pkg
+COPY --from=hermetic /workspace/e2e e2e
 COPY --from=hermetic /workspace/vendor vendor.tmp
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
