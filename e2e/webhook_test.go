@@ -26,7 +26,7 @@ import (
 
 // webhook configurations.
 func TestWebhookCABundleInjection(t *testing.T) {
-	tctx := newTestContext(t)
+	tctx := newOperatorContext(t)
 
 	var (
 		whConfigName = fmt.Sprintf("gmp-operator.%s.monitoring.googleapis.com", tctx.namespace)

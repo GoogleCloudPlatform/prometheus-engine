@@ -41,7 +41,7 @@ import (
 )
 
 func TestCollector(t *testing.T) {
-	tctx := newTestContext(t)
+	tctx := newOperatorContext(t)
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
@@ -53,7 +53,7 @@ func TestCollector(t *testing.T) {
 
 // testCollectorDeployed does a high-level verification on whether the
 // collector is deployed to the cluster.
-func testCollectorDeployed(ctx context.Context, t *testContext) {
+func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 	// Create initial OperatorConfig to trigger deployment of resources.
 	opCfg := &monitoringv1.OperatorConfig{
 		ObjectMeta: metav1.ObjectMeta{
@@ -160,7 +160,7 @@ func testCollectorDeployed(ctx context.Context, t *testContext) {
 
 // testCollectorSelfPodMonitoring sets up pod monitoring of the collector itself
 // and waits for samples to become available in Cloud Monitoring.
-func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
+func testCollectorSelfPodMonitoring(ctx context.Context, t *OperatorContext) {
 	// The operator should configure the collector to scrape itself and its metrics
 	// should show up in Cloud Monitoring shortly after.
 	podmon := &monitoringv1.PodMonitoring{
@@ -227,7 +227,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *testContext) {
 
 // testCollectorSelfClusterPodMonitoring sets up pod monitoring of the collector itself
 // and waits for samples to become available in Cloud Monitoring.
-func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) {
+func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *OperatorContext) {
 	// The operator should configure the collector to scrape itself and its metrics
 	// should show up in Cloud Monitoring shortly after.
 	podmon := &monitoringv1.ClusterPodMonitoring{
@@ -295,7 +295,7 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *testContext) 
 
 // validateCollectorUpMetrics checks whether the scrape-time up metrics for all collector
 // pods can be queried from GCM.
-func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string) {
+func validateCollectorUpMetrics(ctx context.Context, t *OperatorContext, job string) {
 	// The project, location, and cluster name in which we look for the metric data must
 	// be provided by the user. Check this only in this test so tests that don't need these
 	// flags can still be run without them.
@@ -388,7 +388,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *testContext, job string)
 }
 
 // testCollectorScrapeKubelet verifies that kubelet metric endpoints are successfully scraped.
-func testCollectorScrapeKubelet(ctx context.Context, t *testContext) {
+func testCollectorScrapeKubelet(ctx context.Context, t *OperatorContext) {
 	if skipGCM {
 		t.Log("Not validating scraping of kubelets when --skip-gcm is set")
 		return

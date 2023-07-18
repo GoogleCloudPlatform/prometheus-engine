@@ -33,7 +33,7 @@ import (
 )
 
 func TestAlertmanagerDefault(t *testing.T) {
-	tctx := newTestContext(t)
+	tctx := newOperatorContext(t)
 
 	alertmanagerConfig := `
 receivers:
@@ -52,7 +52,7 @@ route:
 }
 
 func TestAlertmanagerCustom(t *testing.T) {
-	tctx := newTestContext(t)
+	tctx := newOperatorContext(t)
 
 	alertmanagerConfig := `
 receivers:
@@ -78,7 +78,7 @@ route:
 	t.Run("config set", tctx.subtest(testAlertmanagerConfig(secret, "my-secret-key")))
 }
 
-func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext, cert, key []byte) {
+func testCreateAlertmanagerSecrets(ctx context.Context, t *OperatorContext, cert, key []byte) {
 	secrets := []*corev1.Secret{
 		{
 			ObjectMeta: metav1.ObjectMeta{
@@ -106,8 +106,8 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *testContext, cert, ke
 	}
 }
 
-func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(context.Context, *testContext) {
-	return func(ctx context.Context, t *testContext) {
+func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(context.Context, *OperatorContext) {
+	return func(ctx context.Context, t *OperatorContext) {
 		opCfg := &monitoringv1.OperatorConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: operator.NameOperatorConfig,
@@ -167,8 +167,8 @@ func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(c
 	}
 }
 
-func testAlertmanagerConfig(pub *corev1.Secret, key string) func(context.Context, *testContext) {
-	return func(ctx context.Context, t *testContext) {
+func testAlertmanagerConfig(pub *corev1.Secret, key string) func(context.Context, *OperatorContext) {
+	return func(ctx context.Context, t *OperatorContext) {
 		_, err := t.kubeClient.CoreV1().Secrets(t.pubNamespace).Create(ctx, pub, metav1.CreateOptions{})
 		if err != nil {
 			t.Fatalf("unable to create alertmanager config secret: %s", err)

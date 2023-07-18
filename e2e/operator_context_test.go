@@ -105,11 +105,16 @@ func TestMain(m *testing.M) {
 	}
 }
 
-// testContext manages shared state for a group of test. Test contexts are isolated
-// based on an unqiue namespace. This requires that no test affects or can be affected by
-// resources outside the namespace managed by the context.
+// OperatorContext manages shared state for a group of test which tests interaction
+// of operator and operated resources. OperatorContext mimics cluster with the
+// GMP operator. It runs operator code directly in the background (as opposed to
+// letting Kubernetes run it). It also deploys collector, rule and alertmanager
+// manually for this context.
+//
+// Contexts are isolated based on an unique namespace. This requires that no
+// test affects or can be affected by resources outside the namespace managed by the context.
 // The cluster must be left in a clean state after the cleanup handler completed successfully.
-type testContext struct {
+type OperatorContext struct {
 	*testing.T
 
 	namespace, pubNamespace string
@@ -121,7 +126,7 @@ type testContext struct {
 	operatorClient clientset.Interface
 }
 
-func newTestContext(t *testing.T) *testContext {
+func newOperatorContext(t *testing.T) *OperatorContext {
 	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
 		t.Fatalf("Build Kubernetes clientset: %s", err)
@@ -138,7 +143,7 @@ func newTestContext(t *testing.T) *testContext {
 	namespace := fmt.Sprintf("gmp-test-%s-%s", strings.ToLower(t.Name()), startTime.Format("20060102-150405"))
 	pubNamespace := fmt.Sprintf("%s-pub", namespace)
 
-	tctx := &testContext{
+	tctx := &OperatorContext{
 		T:              t,
 		namespace:      namespace,
 		pubNamespace:   pubNamespace,
@@ -180,7 +185,7 @@ func newTestContext(t *testing.T) *testContext {
 // createBaseResources creates resources the operator requires to exist already.
 // These are resources which don't depend on runtime state and can thus be deployed
 // statically, allowing to run the operator without critical write permissions.
-func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.OwnerReference, error) {
+func (tctx *OperatorContext) createBaseResources(ctx context.Context) ([]metav1.OwnerReference, error) {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: tctx.namespace,
@@ -338,7 +343,7 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	return ors, nil
 }
 
-func (tctx *testContext) cleanupNamespaces() {
+func (tctx *OperatorContext) cleanupNamespaces() {
 	err := tctx.kubeClient.CoreV1().Namespaces().Delete(context.TODO(), tctx.namespace, metav1.DeleteOptions{})
 	if err != nil {
 		tctx.Errorf("cleanup namespace %q: %s", tctx.namespace, err)
@@ -350,7 +355,7 @@ func (tctx *testContext) cleanupNamespaces() {
 }
 
 // subtest derives a new test function from a function accepting a test context.
-func (tctx *testContext) subtest(f func(context.Context, *testContext)) func(*testing.T) {
+func (tctx *OperatorContext) subtest(f func(context.Context, *OperatorContext)) func(*testing.T) {
 	return func(t *testing.T) {
 		childCtx := *tctx
 		childCtx.T = t

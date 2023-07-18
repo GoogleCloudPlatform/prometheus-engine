@@ -39,18 +39,18 @@ import (
 )
 
 func TestRuleEvaluation(t *testing.T) {
-	tctx := newTestContext(t)
+	tctx := newOperatorContext(t)
 
 	cert, key, err := cert.GenerateSelfSignedCertKey("test", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Run("rule evaluator create alertmanager secrets", tctx.subtest(func(ctx context.Context, t *testContext) {
+	t.Run("rule evaluator create alertmanager secrets", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
 		testCreateAlertmanagerSecrets(ctx, t, cert, key)
 	}))
 	t.Run("rule evaluator operatorconfig", tctx.subtest(testRuleEvaluatorOperatorConfig))
-	t.Run("rule evaluator secrets", tctx.subtest(func(ctx context.Context, t *testContext) {
+	t.Run("rule evaluator secrets", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
 		testRuleEvaluatorSecrets(ctx, t, cert, key)
 	}))
 	t.Run("rule evaluator config", tctx.subtest(testRuleEvaluatorConfig))
@@ -65,7 +65,7 @@ func TestRuleEvaluation(t *testing.T) {
 
 // testRuleEvaluatorOperatorConfig ensures an OperatorConfig can be deployed
 // that contains rule-evaluator configuration.
-func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
+func testRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) {
 	// Setup TLS secret selectors.
 	certSecret := &corev1.SecretKeySelector{
 		LocalObjectReference: corev1.LocalObjectReference{
@@ -130,7 +130,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testContext) {
 	}
 }
 
-func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []byte) {
+func testRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key []byte) {
 	// Verify contents but without the GCP SA credentials file to not leak secrets in tests logs.
 	// Whether the contents were copied correctly is implicitly verified by the credentials working.
 	want := map[string][]byte{
@@ -158,7 +158,7 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testContext, cert, key []b
 
 }
 
-func testRuleEvaluatorConfig(ctx context.Context, t *testContext) {
+func testRuleEvaluatorConfig(ctx context.Context, t *OperatorContext) {
 	replace := func(s string) string {
 		return strings.NewReplacer(
 			"{namespace}", t.namespace, "{pubNamespace}", t.pubNamespace,
@@ -232,7 +232,7 @@ rule_files:
 
 }
 
-func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
+func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
 		deploy, err := t.kubeClient.AppsV1().Deployments(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
@@ -293,7 +293,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *testContext) {
 	}
 }
 
-func testRulesGeneration(_ context.Context, t *testContext) {
+func testRulesGeneration(_ context.Context, t *OperatorContext) {
 	replace := strings.NewReplacer(
 		"{project_id}", projectID,
 		"{cluster}", cluster,
@@ -446,7 +446,7 @@ spec:
 	}
 }
 
-func testValidateRuleEvaluationMetrics(ctx context.Context, t *testContext) {
+func testValidateRuleEvaluationMetrics(ctx context.Context, t *OperatorContext) {
 	// The project, location and cluster name in which we look for the metric data must
 	// be provided by the user. Check this only in this test so tests that don't need these
 	// flags can still be run without them.
