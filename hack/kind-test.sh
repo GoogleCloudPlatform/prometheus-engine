@@ -21,6 +21,9 @@ set -o pipefail
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 
 kind delete cluster
+
+# We expect kind create to run "kind export kubeconfig" for us, which should
+# export 'kind kind' kubernetes context referenced later.
 kind create cluster
 
 # Need to ensure namespace is deployed first explicitly.
@@ -36,4 +39,4 @@ done
 kubectl --context kind-kind apply -f ${SCRIPT_ROOT}/manifests/rule-evaluator.yaml
 
 echo ">>> executing gmp e2e tests"
-go test -v ${SCRIPT_ROOT}/pkg/operator/e2e -args -project-id=test-proj -cluster=test-cluster -location=test-loc -skip-gcm
+go test -v ${SCRIPT_ROOT}/e2e -args -project-id=test-proj -cluster=test-cluster -location=test-loc -skip-gcm
