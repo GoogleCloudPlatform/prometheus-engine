@@ -46,6 +46,12 @@ import (
 	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
 
+const (
+	collectorManifest    = "../cmd/operator/deploy/operator/10-collector.yaml"
+	ruleEvalManifest     = "../cmd/operator/deploy/operator/11-rule-evaluator.yaml"
+	alertmanagerManifest = "../cmd/operator/deploy/operator/12-alertmanager.yaml"
+)
+
 var (
 	startTime    = time.Now().UTC()
 	globalLogger = zap.New(zap.Level(zapcore.Level(-1)))
@@ -272,7 +278,7 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	}
 
 	// Load workloads from YAML files and update the namespace to the test namespace.
-	collectorBytes, err := ioutil.ReadFile("collector.yaml")
+	collectorBytes, err := os.ReadFile(collectorManifest)
 	if err != nil {
 		return nil, fmt.Errorf("read collector YAML: %w", err)
 	}
@@ -284,7 +290,7 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	if err != nil {
 		return nil, fmt.Errorf("create collector DaemonSet: %w", err)
 	}
-	evaluatorBytes, err := ioutil.ReadFile("rule-evaluator.yaml")
+	evaluatorBytes, err := os.ReadFile(ruleEvalManifest)
 	if err != nil {
 		return nil, fmt.Errorf("read rule-evaluator YAML: %w", err)
 	}
@@ -298,7 +304,7 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 		return nil, fmt.Errorf("create rule-evaluator Deployment: %w", err)
 	}
 
-	alertmanagerBytes, err := ioutil.ReadFile("alertmanager.yaml")
+	alertmanagerBytes, err := os.ReadFile(alertmanagerManifest)
 	if err != nil {
 		return nil, fmt.Errorf("read alertmanager YAML: %w", err)
 	}
