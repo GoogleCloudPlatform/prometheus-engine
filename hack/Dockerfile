@@ -26,6 +26,7 @@ COPY manifests manifests
 COPY cmd cmd
 COPY doc doc
 COPY pkg pkg
+COPY e2e e2e
 # Init a dummy git repo so we can check if generated code changes via
 # git diff.
 RUN git config --global user.email "test@test.com" \
