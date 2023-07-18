@@ -105,7 +105,6 @@ test:        ## Run unit tests. Setting NO_DOCKER=1 runs test on host machine.
              ##
 	@echo ">> running unit tests"
 ifeq ($(NO_DOCKER), 1)
-
 	go test `go list ./... | grep -v e2e | grep -v export/bench`
 else
 	# TODO(TheSpiritXIII): Temporary env variables part of `export.go` unit tests.

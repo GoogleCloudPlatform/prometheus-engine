@@ -16,7 +16,8 @@ COPY --from=deps /go/bin /go/bin
 ARG RUNCMD='go fmt ./...'
 WORKDIR /workspace
 # Separate COPY directives to take advantage of docker's build cache.
-# Least-changed dirs should go first.
+# Least-changed dirs should go first. NOTE: When adding new directories
+# ensure .dockerignore is updated.
 COPY vendor vendor
 COPY hack hack
 COPY go.mod go.mod
@@ -27,6 +28,7 @@ COPY cmd cmd
 COPY doc doc
 COPY pkg pkg
 COPY e2e e2e
+
 # Init a dummy git repo so we can check if generated code changes via
 # git diff.
 RUN git config --global user.email "test@test.com" \
