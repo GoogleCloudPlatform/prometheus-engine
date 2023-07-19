@@ -117,7 +117,7 @@ endif
 e2e:         ## Run e2e test suite against fresh kind k8s cluster. By default it
              ## deploys and uses single-node kind cluster (left up after the tests). Setting
              ## NO_DOCKER=1 execute tests from the host machine assuming kubectl
-             ## is already configured against the Kubernetes cluster of you choice.
+             ## is already configured against the Kubernetes cluster of your choice.
              ##
              ## Setting NO_DOCKER=1 also writes real data to GCM API under $PROJECT_ID
              # environment variable. Use $GMP_CLUSTER, $GMP_LOCATION to specify
@@ -125,6 +125,9 @@ e2e:         ## Run e2e test suite against fresh kind k8s cluster. By default it
              ##
 ifeq ($(NO_DOCKER), 1)
 	@echo ">> running e2e against your cluster"
+	kubectl apply -f manifests/setup.yaml
+	kubectl apply -f cmd/operator/deploy/operator/01-priority-class.yaml
+	kubectl apply -f cmd/operator/deploy/operator/03-role.yaml
 	go test `go list ./... | grep e2e` -args -project-id=${PROJECT_ID} -cluster=${GMP_CLUSTER} -location=${GMP_LOCATION}
 else
 	@echo ">> building kindtest image"
@@ -152,7 +155,7 @@ CURRENT_PROM_TAG = v2.35.0-gmp.5-gke.0
 CURRENT_AM_TAG = v0.24.0-gmp.3-gke.1
 LABEL_API_VERSION = 0.7.1
 FILES_TO_UPDATE = $(shell find . -type f -name "*.yaml" ! -name "kube-state-metrics.yaml" ! -name "node-exporter.yaml")
-updateversions: ## Modifie all manifests, so it contains the expected versions.
+updateversions: ## Modify all manifests, so it contains the expected versions.
                 ##
                 ## TODO(bwplotka): CI does not check updateversions--add that there.
                 ## Also, consider moving updateversion to hack/presubmit.sh for

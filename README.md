@@ -45,7 +45,7 @@ Can be also installed via:
 4. [`Docker`](https://docs.docker.com/get-docker/) with
    [`buildx`](https://docs.docker.com/build/architecture/#install-buildx) plugin.
 
-If you want to execute docker containers on remove machine you can run:
+If you want to execute docker containers on remote machine you can run:
   ```bash
   gcloud alpha cloud-shell ssh --authorize-session -- -nNT -L `pwd`/docker.sock:/var/run/docker.sock
   
@@ -82,7 +82,7 @@ make example-app
 make config-reloader
 ```
 
-Running `make bin` will build all of th[kind-test.sh](hack%2Fkind-test.sh)e above go binaries.
+Running `make bin` will build all of the above go binaries.
   * Setting `NO_DOCKER=1` here will build all the binaries natively on the host machine.
 
 ### Testing
@@ -105,7 +105,7 @@ a single node kind cluster and runs [e2e](./e2e) tests against it.
   NO_DOCKER=1 GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make e2e
   ```
 
-In docker mode, to run single a test or debug a cluster during or after failed
+In docker mode, to run a single test or debug a cluster during or after failed
 test, you can try entering shell of the `kindtest` container. Before doing so, 
 run `make e2e` to setup `kind` and start a cluster.
 
@@ -132,7 +132,9 @@ kind export kubeconfig
 go test -v ./e2e -run "TestAlertmanagerDefault" -args -project-id=test-proj -cluster=test-cluster -location=test-loc -skip-gcm
 ```
 
-Each test case is creating a separate set of namespaces e.g. `gmp-test-testalertmanagerdefault-20230714-120756` and `gmp-test-testalertmanagerdefault-20230714-120756-pub`, so to debug tests you
+Each test case is creating a separate set of namespaces e.g.
+`gmp-test-testalertmanagerdefault-20230714-120756` and
+`gmp-test-testalertmanagerdefault-20230714-120756-pub`, so to debug tests you
 have to ensure those namespaces are not cleaned. You can also provide time.Sleep in
 the place you want debug in.
 
