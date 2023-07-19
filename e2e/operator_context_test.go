@@ -12,14 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package e2e contains tests that validate the behavior of gmp-operator against a cluster.
+// To make tests simple and fast, the test suite runs the operator internally. The CRDs
+// are expected to be installed out of band (along with the operator deployment itself in
+// a real world setup).
 package e2e
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -31,6 +38,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -38,20 +46,75 @@ import (
 	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
 
+const (
+	collectorManifest    = "../cmd/operator/deploy/operator/10-collector.yaml"
+	ruleEvalManifest     = "../cmd/operator/deploy/operator/11-rule-evaluator.yaml"
+	alertmanagerManifest = "../cmd/operator/deploy/operator/12-alertmanager.yaml"
+)
+
 var (
 	startTime    = time.Now().UTC()
 	globalLogger = zap.New(zap.Level(zapcore.Level(-1)))
+
+	kubeconfig        *rest.Config
+	projectID         string
+	cluster           string
+	location          string
+	skipGCM           bool
+	gcpServiceAccount string
 )
 
 func init() {
 	ctrl.SetLogger(globalLogger)
 }
 
-// testContext manages shared state for a group of test. Test contexts are isolated
-// based on a unqiue namespace. This requires that no test affects or can be affected by
-// resources outside of the namespace managed by the context.
+// TestMain injects custom flags and adds extra signal handling to ensure testing
+// namespaces are cleaned after tests were executed.
+func TestMain(m *testing.M) {
+	flag.StringVar(&projectID, "project-id", "", "The GCP project to write metrics to.")
+	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
+	flag.StringVar(&location, "location", "", "The location of the Kubernetes cluster that's tested against.")
+	flag.BoolVar(&skipGCM, "skip-gcm", false, "Skip validating GCM ingested points.")
+	flag.StringVar(&gcpServiceAccount, "gcp-service-account", "", "Path to GCP service account file for usage by deployed containers.")
+
+	flag.Parse()
+
+	var err error
+	kubeconfig, err = ctrl.GetConfig()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Loading kubeconfig failed:", err)
+		os.Exit(1)
+	}
+
+	go func() {
+		os.Exit(m.Run())
+	}()
+
+	// If the process gets terminated by the user, the Go test package
+	// doesn't ensure that test cleanup functions are run.
+	// Deleting all namespaces ensures we don't leave anything behind regardless.
+	// Non-namespaced resources are owned by a namespace and thus cleaned up
+	// by Kubernetes' garbage collection.
+	term := make(chan os.Signal, 1)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+
+	<-term
+	if err := cleanupAllNamespaces(context.Background()); err != nil {
+		fmt.Fprintln(os.Stderr, "Cleaning up namespaces failed:", err)
+		os.Exit(1)
+	}
+}
+
+// OperatorContext manages shared state for a group of test which tests interaction
+// of operator and operated resources. OperatorContext mimics cluster with the
+// GMP operator. It runs operator code directly in the background (as opposed to
+// letting Kubernetes run it). It also deploys collector, rule and alertmanager
+// manually for this context.
+//
+// Contexts are isolated based on an unique namespace. This requires that no
+// test affects or can be affected by resources outside the namespace managed by the context.
 // The cluster must be left in a clean state after the cleanup handler completed successfully.
-type testContext struct {
+type OperatorContext struct {
 	*testing.T
 
 	namespace, pubNamespace string
@@ -63,7 +126,7 @@ type testContext struct {
 	operatorClient clientset.Interface
 }
 
-func newTestContext(t *testing.T) *testContext {
+func newOperatorContext(t *testing.T) *OperatorContext {
 	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
 		t.Fatalf("Build Kubernetes clientset: %s", err)
@@ -80,7 +143,7 @@ func newTestContext(t *testing.T) *testContext {
 	namespace := fmt.Sprintf("gmp-test-%s-%s", strings.ToLower(t.Name()), startTime.Format("20060102-150405"))
 	pubNamespace := fmt.Sprintf("%s-pub", namespace)
 
-	tctx := &testContext{
+	tctx := &OperatorContext{
 		T:              t,
 		namespace:      namespace,
 		pubNamespace:   pubNamespace,
@@ -122,7 +185,7 @@ func newTestContext(t *testing.T) *testContext {
 // createBaseResources creates resources the operator requires to exist already.
 // These are resources which don't depend on runtime state and can thus be deployed
 // statically, allowing to run the operator without critical write permissions.
-func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.OwnerReference, error) {
+func (tctx *OperatorContext) createBaseResources(ctx context.Context) ([]metav1.OwnerReference, error) {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: tctx.namespace,
@@ -220,7 +283,7 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	}
 
 	// Load workloads from YAML files and update the namespace to the test namespace.
-	collectorBytes, err := ioutil.ReadFile("collector.yaml")
+	collectorBytes, err := os.ReadFile(collectorManifest)
 	if err != nil {
 		return nil, fmt.Errorf("read collector YAML: %w", err)
 	}
@@ -232,7 +295,7 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	if err != nil {
 		return nil, fmt.Errorf("create collector DaemonSet: %w", err)
 	}
-	evaluatorBytes, err := ioutil.ReadFile("rule-evaluator.yaml")
+	evaluatorBytes, err := os.ReadFile(ruleEvalManifest)
 	if err != nil {
 		return nil, fmt.Errorf("read rule-evaluator YAML: %w", err)
 	}
@@ -246,7 +309,7 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 		return nil, fmt.Errorf("create rule-evaluator Deployment: %w", err)
 	}
 
-	alertmanagerBytes, err := ioutil.ReadFile("alertmanager.yaml")
+	alertmanagerBytes, err := os.ReadFile(alertmanagerManifest)
 	if err != nil {
 		return nil, fmt.Errorf("read alertmanager YAML: %w", err)
 	}
@@ -280,7 +343,7 @@ func (tctx *testContext) createBaseResources(ctx context.Context) ([]metav1.Owne
 	return ors, nil
 }
 
-func (tctx *testContext) cleanupNamespaces() {
+func (tctx *OperatorContext) cleanupNamespaces() {
 	err := tctx.kubeClient.CoreV1().Namespaces().Delete(context.TODO(), tctx.namespace, metav1.DeleteOptions{})
 	if err != nil {
 		tctx.Errorf("cleanup namespace %q: %s", tctx.namespace, err)
@@ -292,7 +355,7 @@ func (tctx *testContext) cleanupNamespaces() {
 }
 
 // subtest derives a new test function from a function accepting a test context.
-func (tctx *testContext) subtest(f func(context.Context, *testContext)) func(*testing.T) {
+func (tctx *OperatorContext) subtest(f func(context.Context, *OperatorContext)) func(*testing.T) {
 	return func(t *testing.T) {
 		childCtx := *tctx
 		childCtx.T = t
