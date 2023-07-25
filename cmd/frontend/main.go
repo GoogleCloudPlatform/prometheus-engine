@@ -20,10 +20,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -196,6 +198,25 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 			u.RawQuery = req.Form.Encode()
 		} else {
 			u.RawQuery = req.URL.RawQuery
+		}
+
+		// Workaround for Thanos Ruler
+		if req.URL.Path == "/api/v1/query" || req.URL.Path == "/api/v1/query_range" {
+			body, err := ioutil.ReadAll(req.Body)
+			if err != nil {
+				level.Error(logger).Log("msg", "reading request body failed", "err", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			// Remove parameters that are unrecognized by Cloud Monitoring
+			body = bytes.ReplaceAll(body, []byte(`dedup=true&`), []byte{})
+			body = bytes.ReplaceAll(body, []byte(`dedup=false&`), []byte{})
+			body = bytes.ReplaceAll(body, []byte(`partial_response=false&`), []byte{})
+			body = bytes.ReplaceAll(body, []byte(`partial_response=true&`), []byte{})
+
+			// Override the original request body
+			req.Body = io.NopCloser(bytes.NewReader(body))
 		}
 
 		newReq, err := http.NewRequestWithContext(req.Context(), method, u.String(), req.Body)
