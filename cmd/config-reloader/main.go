@@ -29,6 +29,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/thanos-io/thanos/pkg/reloader"
 )
@@ -42,9 +43,11 @@ func main() {
 		// management APIs, e.g.
 		// https://prometheus.io/docs/prometheus/latest/management_api/
 		// https://prometheus.io/docs/alerting/latest/management_api/
-		reloadURLStr  = flag.String("reload-url", "http://127.0.0.1:19090/-/reload", "reload endpoint triggers a reload of the configuration file")
-		readyURLStr   = flag.String("ready-url", "http://127.0.0.1:19090/-/ready", "ready endpoint returns a 200 when ready to serve traffic")
+		reloadURLStr  = flag.String("reload-url", "http://127.0.0.1:19090/-/reload", "Reload endpoint triggers a reload of the configuration file")
 		listenAddress = flag.String("listen-address", ":19091", "address on which to expose metrics")
+
+		// Deprecated, left for seamless upgrades.
+		_ = flag.String("ready-url", "http://127.0.0.1:19090/-/ready", "Deprecated: Not used. Config-reloader does not rely on readiness anymore.")
 	)
 	flag.Var(&watchedDirs, "watched-dir", "directory to watch for file changes (for rule and secret files, may be repeated)")
 
@@ -56,8 +59,8 @@ func main() {
 
 	metrics := prometheus.NewRegistry()
 	metrics.MustRegister(
-		prometheus.NewGoCollector(),
-		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
 
 	reloadURL, err := url.Parse(*reloadURLStr)
@@ -70,38 +73,9 @@ func main() {
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
-	// Poll ready endpoint indefinitely until it's up and running.
-	req, err := http.NewRequest(http.MethodGet, *readyURLStr, nil)
-	if err != nil {
-		level.Error(logger).Log("msg", "creating request", "err", err)
-		os.Exit(1)
-	}
-	ticker := time.NewTicker(500 * time.Millisecond)
-	done := make(chan bool)
-	go func() {
-		level.Info(logger).Log("msg", "ensure ready-url is healthy")
-		for {
-			select {
-			case <-term:
-				level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
-				os.Exit(0)
-			case <-ticker.C:
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					level.Error(logger).Log("msg", "polling ready-url", "err", err)
-					os.Exit(1)
-				}
-				if resp.StatusCode == http.StatusOK {
-					level.Info(logger).Log("msg", "ready-url is healthy")
-					ticker.Stop()
-					done <- true
-					return
-				}
-			}
-		}
-	}()
-	<-done
-
+	// NOTE(bwplotka): If the target component to reload is down, reloader will
+	// increment reloader_reloads_failed_total and watch further changes without
+	// issues.
 	rel := reloader.New(
 		logger,
 		metrics,
@@ -111,7 +85,7 @@ func main() {
 			CfgOutputFile: *configFileOutput,
 			WatchedDirs:   watchedDirs,
 			// There are some reliability issues with fsnotify picking up file changes.
-			// Configure a very aggress refresh for now. The reloader will only send reload signals
+			// Configure a very aggressively refresh for now. The reloader will only send reload signals
 			// to Prometheus if the contents actually changed. So this should not have any practical
 			// drawbacks.
 			WatchInterval: 10 * time.Second,
