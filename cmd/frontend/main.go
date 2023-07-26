@@ -20,12 +20,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -202,21 +200,17 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 
 		// Workaround for Thanos Ruler
 		if req.URL.Path == "/api/v1/query" || req.URL.Path == "/api/v1/query_range" {
-			body, err := ioutil.ReadAll(req.Body)
-			if err != nil {
-				level.Error(logger).Log("msg", "reading request body failed", "err", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			// Remove parameters that are unrecognized by Cloud Monitoring
-			body = bytes.ReplaceAll(body, []byte(`dedup=true&`), []byte{})
-			body = bytes.ReplaceAll(body, []byte(`dedup=false&`), []byte{})
-			body = bytes.ReplaceAll(body, []byte(`partial_response=false&`), []byte{})
-			body = bytes.ReplaceAll(body, []byte(`partial_response=true&`), []byte{})
+			req.ParseForm()
+			// Delete Thanos Parameters
+			// https://github.com/thanos-io/thanos/blob/510c05448d4f1af9e04c74b72e54559c49c785b9/pkg/promclient/promclient.go#L367-L390
+			req.Form.Del("dedup")
+			req.Form.Del("max_source_resolution")
+			req.Form.Del("explain")
+			req.Form.Del("engine")
+			req.Form.Del("partial_response")
 
 			// Override the original request body
-			req.Body = io.NopCloser(bytes.NewReader(body))
+			req.Body = io.NopCloser(strings.NewReader(req.Form.Encode()))
 		}
 
 		newReq, err := http.NewRequestWithContext(req.Context(), method, u.String(), req.Body)
