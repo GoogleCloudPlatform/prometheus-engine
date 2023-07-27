@@ -1,0 +1,16 @@
+name: (Privileged) Auto Assign
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  auto-assign:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Auto-assign issue
+      uses: bwplotka/auto-assign-issue@v1
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        assignees: bwplotka
+        abortIfPreviousAssignees: true

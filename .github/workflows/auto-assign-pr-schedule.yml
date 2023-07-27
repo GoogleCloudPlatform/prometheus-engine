@@ -11,4 +11,12 @@ jobs:
   schedule:
     runs-on: ubuntu-latest
     steps:
+    - name: Pass parameters to Auto Assign job
+      run: |
+        mkdir -p ./pr
+        echo ${{ github.event.number }} > ./pr/NR
+    - uses: actions/upload-artifact@v3
+      with:
+        name: auto-assign-pr
+        path: pr/
     - run: echo "Scheduled!"
