@@ -1,0 +1,14 @@
+name: Auto Assign PR
+
+# This job triggers privileged auto-assign job in secure manner.
+# See: https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "Scheduled!"
