@@ -1,4 +1,4 @@
-name: (Privileged) Auto Assign
+name: Auto Assign Issue
 
 on:
   issues:
