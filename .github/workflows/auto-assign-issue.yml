@@ -1,4 +1,4 @@
-name: Auto Assign Issue
+name: (Privileged) Auto Assign Issue
 
 on:
   issues:
@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Auto-assign issue
-      uses: bwplotka/auto-assign-issue@v1
+      uses: pozil/auto-assign-issue@v1
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
-        assignees: bwplotka
+        assignees: ${{ secrets.DEFAULT_ISSUE_ASSIGNEE }}
         abortIfPreviousAssignees: true
