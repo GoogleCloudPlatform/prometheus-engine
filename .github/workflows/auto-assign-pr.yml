@@ -1,0 +1,53 @@
+name: (Privileged) Auto Assign
+
+on:
+  # Don't use pull_request or pull_request_target here.
+  # See auto-assign-pr-schedule.yaml for explanation.
+  workflow_run:
+    workflows: [ "Auto Assign PR" ]
+    types:
+    - completed
+
+jobs:
+  auto-assign:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+    - name: 'Download parameter'
+      uses: actions/github-script@v3.1.0
+      with:
+        script: |
+          var artifacts = await github.actions.listWorkflowRunArtifacts({
+             owner: context.repo.owner,
+             repo: context.repo.repo,
+             run_id: ${{github.event.workflow_run.id }},
+          });
+          var matchArtifact = artifacts.data.artifacts.filter((artifact) => {
+            return artifact.name == "auto-assign-pr"
+          })[0];
+          var download = await github.actions.downloadArtifact({
+             owner: context.repo.owner,
+             repo: context.repo.repo,
+             artifact_id: matchArtifact.id,
+             archive_format: 'zip',
+          });
+          var fs = require('fs');
+          fs.writeFileSync('${{github.workspace}}/pr.zip', Buffer.from(download.data));
+    - run: unzip pr.zip
+    - name: 'Get PR number'
+      uses: actions/github-script@v6
+      id: set-result
+      with:
+        script: |
+          var fs = require('fs');
+          return Number(fs.readFileSync('./NR'));
+        result-encoding: string
+    - name: 'Auto-assign issue'
+      uses: bwplotka/auto-assign-issue@v1
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        assignees: bwplotka
+        abortIfPreviousAssignees: true
+        issueNumber: ${{steps.set-result.outputs.result}}
