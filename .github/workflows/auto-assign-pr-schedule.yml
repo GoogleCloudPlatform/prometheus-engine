@@ -8,7 +8,7 @@ on:
     types: [opened, edited, synchronize, reopened]
 
 jobs:
-  build:
+  schedule:
     runs-on: ubuntu-latest
     steps:
     - run: echo "Scheduled!"
