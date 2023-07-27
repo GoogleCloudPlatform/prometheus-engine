@@ -1,10 +1,14 @@
-name: Issue assignment
+name: (Privileged) Auto Assign
 
 on:
   issues:
     types: [opened]
-  pull_request:
-    types: [opened, edited, synchronize, reopened]
+  # Don't use pull_request or pull_request_target here.
+  # See auto-assign-pr-schedule.yaml for explanation.
+  workflow_run:
+    workflows: [ "Auto Assign PR" ]
+    types:
+    - completed
 
 jobs:
   auto-assign:
