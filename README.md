@@ -78,8 +78,13 @@ is a candidate for build by running, for example:
 make operator
 make frontend
 make rule-evaluator
-make example-app
 make config-reloader
+```
+
+This also includes example Go apps from `/examples/instrumentation/`:
+
+```bash
+make go-synthetic
 ```
 
 Running `make bin` will build all of the above go binaries.
@@ -93,7 +98,7 @@ To run unit tests locally, use `go test`, your IDE or `NO_DOCKER=1 make test`.
 
 To run unit tests from docker container run `make test`
 
-#### End-to-end tests
+#### Kubernetes End-to-end tests
 
 Running `make e2e` will run e2e tests against Kubernetes cluster:
   * By default, it run in hermetic docker container, downloads kind, recreates

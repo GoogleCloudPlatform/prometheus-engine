@@ -30,36 +30,44 @@ import (
 
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	addr             = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
-	cpuBurnOps       = flag.Int("cpu-burn-ops", 0, "Operatins per second burning CPU. (Used to simulate high CPU utilization. Sensible values: 0-100.)")
-	memBallastMBs    = flag.Int("memory-ballast-mbs", 0, "Megabytes of memory ballast to allocate. (Used to simulate high memory utilization.)")
-	maxCount         = flag.Int("max-count", labelCombinations, "Maximum metric instance count for all metric types.")
-	histogramCount   = flag.Int("histogram-count", 2, "Number of unique instances per histogram metric.")
-	gaugeCount       = flag.Int("gauge-count", -1, "Number of unique instances per gauge metric.")
-	counterCount     = flag.Int("counter-count", -1, "Number of unique instances per counter metric.")
-	summaryCount     = flag.Int("summary-count", -1, "Number of unique instances per summary metric.")
+	addr                 = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
+	cpuBurnOps           = flag.Int("cpu-burn-ops", 0, "Operations per second burning CPU. (Used to simulate high CPU utilization. Sensible values: 0-100.)")
+	memBallastMBs        = flag.Int("memory-ballast-mbs", 0, "Megabytes of memory ballast to allocate. (Used to simulate high memory utilization.)")
+	maxCount             = flag.Int("max-count", labelCombinations, "Maximum metric instance count for all metric types.")
+	histogramCount       = flag.Int("histogram-count", 2, "Number of unique instances per histogram metric.")
+	nativeHistogramCount = flag.Int("native-histogram-count", -1, "Number of unique instances per native-histogram metric."+
+		"Note that native histograms are not supported in text format exposition, so traditional protobuf format has to be enabled on your collector. See https://prometheus.io/docs/prometheus/latest/feature_flags/#native-histograms")
+	gaugeCount   = flag.Int("gauge-count", -1, "Number of unique instances per gauge metric.")
+	counterCount = flag.Int("counter-count", -1, "Number of unique instances per counter metric.")
+	summaryCount = flag.Int("summary-count", -1, "Number of unique instances per summary metric.")
+
+	omStateSetCount       = flag.Int("om-stateset-count", -1, "Number of OpenMetrics StateSet metrics (https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
+	omInfoCount           = flag.Int("om-info-count", -1, "Number of OpenMetrics Info metrics (https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
+	omGaugeHistogramCount = flag.Int("om-gaugehistogram-count", -1, "Number of OpenMetrics GaugeHistogram metrics (https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
+
 	exemplarSampling = flag.Float64("exemplar-sampling", 0.1, "Fraction of observations to include exemplars on histograms.")
 )
 
 var (
 	availableLabels = map[string][]string{
-		"method": []string{
+		"method": {
 			"POST",
 			"PUT",
 			"GET",
 		},
-		"status": []string{
+		"status": {
 			"200",
 			"300",
 			"400",
 			"404",
 			"500",
 		},
-		"path": []string{
+		"path": {
 			"/",
 			"/index",
 			"/topics",
@@ -128,6 +136,25 @@ var (
 		[]string{"status", "method", "path"},
 	)
 
+	metricIncomingRequestDurationNativeHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:                            "example_native_histogram_incoming_request_duration",
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  150,
+			NativeHistogramMinResetDuration: time.Hour,
+		},
+		[]string{"status", "method", "path"},
+	)
+	metricOutgoingRequestDurationNativeHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:                            "example_native_histogram_outgoing_request_duration",
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  150,
+			NativeHistogramMinResetDuration: time.Hour,
+		},
+		[]string{"status", "method", "path"},
+	)
+
 	metricIncomingRequestDurationSummary = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name: "example_summary_incoming_request_duration",
@@ -146,10 +173,9 @@ func main() {
 	flag.Parse()
 
 	metrics := prometheus.NewRegistry()
-
 	metrics.MustRegister(
-		prometheus.NewGoCollector(),
-		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+		collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsAll)),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		metricIncomingRequestsPending,
 		metricOutgoingRequestsPending,
 		metricIncomingRequests,
@@ -158,6 +184,8 @@ func main() {
 		metricOutgoingRequestErrors,
 		metricIncomingRequestDurationHistogram,
 		metricOutgoingRequestDurationHistogram,
+		metricIncomingRequestDurationNativeHistogram,
+		metricOutgoingRequestDurationNativeHistogram,
 		metricIncomingRequestDurationSummary,
 		metricOutgoingRequestDurationSummary,
 	)
@@ -300,12 +328,29 @@ func updateMetrics(ctx context.Context) error {
 				}
 				metricOutgoingRequestDurationHistogram.With(labels).Observe(rand.NormFloat64()*200 + 300)
 			})
+			forNumInstances(*nativeHistogramCount, func(labels prometheus.Labels) {
+				// Record exemplar with native histogram depending on sampling fraction.
+				samp := rand.Uint64()
+				thresh := uint64(*exemplarSampling * (1 << 63))
+				if samp < thresh {
+					traceID, spanID := newTraceIDs(traceBytes, spanBytes)
+					exemplar := prometheus.Labels{"trace_id": traceID, "span_id": spanID, "project_id": projectID}
+					metricIncomingRequestDurationNativeHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(rand.NormFloat64()*300+500, exemplar)
+				} else {
+					metricIncomingRequestDurationNativeHistogram.With(labels).Observe(rand.NormFloat64()*300 + 500)
+				}
+				metricOutgoingRequestDurationNativeHistogram.With(labels).Observe(rand.NormFloat64()*200 + 300)
+			})
 			forNumInstances(*summaryCount, func(labels prometheus.Labels) {
 				metricIncomingRequestDurationSummary.With(labels).Observe(rand.NormFloat64()*300 + 500)
 				metricOutgoingRequestDurationSummary.With(labels).Observe(rand.NormFloat64()*200 + 300)
 			})
 		}
 	}
+}
+
+type omCollector struct {
+	// TODO(bwplotka): Add om custom types.
 }
 
 // forNumInstances calls a provided function to parameterize exported metrics
