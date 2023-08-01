@@ -16,20 +16,21 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   namespace: default
-  name: example-app
+  name: go-synthetic
 spec:
   replicas: 2
   selector:
     matchLabels: 
-      app: "example-app"
+      app: "go-synthetic"
   template:
     metadata:
       labels:
-        app: "example-app"
+        app: "go-synthetic"
     spec:
       containers:
-      - name: example-app
-        image: "gcr.io/gpe-test-1/prometheus-engine/example-app:gmp-20232402_0258"
+      - name: go-synthetic
+        # TODO(bwplotka): Move to go-synthetic image once released.
+        image: "gcr.io/gke-release/prometheus-engine/example-app:v0.7.2-gke.0"
         args:
         - "--listen-address=:8080"
         - "--max-count=32"
@@ -49,11 +50,11 @@ spec:
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
-  name: example-app
+  name: go-synthetic
 spec:
   selector:
     matchLabels:
-      app: example-app
+      app: go-synthetic
   endpoints:
   - port: 8080
-    interval: 10s
+    interval: 15s
