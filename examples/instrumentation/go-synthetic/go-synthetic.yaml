@@ -15,7 +15,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: default
   name: go-synthetic
 spec:
   replicas: 2

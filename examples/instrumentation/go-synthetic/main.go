@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/hex"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -38,7 +39,6 @@ var (
 	addr                 = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
 	cpuBurnOps           = flag.Int("cpu-burn-ops", 0, "Operations per second burning CPU. (Used to simulate high CPU utilization. Sensible values: 0-100.)")
 	memBallastMBs        = flag.Int("memory-ballast-mbs", 0, "Megabytes of memory ballast to allocate. (Used to simulate high memory utilization.)")
-	maxCount             = flag.Int("max-count", labelCombinations, "Maximum metric instance count for all metric types.")
 	histogramCount       = flag.Int("histogram-count", 2, "Number of unique instances per histogram metric.")
 	nativeHistogramCount = flag.Int("native-histogram-count", -1, "Number of unique instances per native-histogram metric."+
 		"Note that native histograms are not supported in text format exposition, so traditional protobuf format has to be enabled on your collector. See https://prometheus.io/docs/prometheus/latest/feature_flags/#native-histograms")
@@ -54,6 +54,9 @@ var (
 )
 
 var (
+	// availableLabels represents human-readable labels. This gives us max
+	// of len(availableLabels["method"]) * len(availableLabels["status"]) * len(availableLabels["path"])
+	// combinations of those. If the specified metric count surpasses that, artificial GET, 200, /yolo/<number> will be generated.
 	availableLabels = map[string][]string{
 		"method": {
 			"POST",
@@ -79,7 +82,6 @@ var (
 			"/imprint",
 		},
 	}
-	labelCombinations = len(availableLabels["method"]) * len(availableLabels["status"]) * len(availableLabels["path"])
 )
 
 var (
@@ -357,7 +359,7 @@ type omCollector struct {
 // with various combinations of Prometheus labels up to `c` times.
 func forNumInstances(c int, f func(prometheus.Labels)) {
 	if c < 0 {
-		c = *maxCount
+		c = len(availableLabels["method"]) * len(availableLabels["status"]) * len(availableLabels["path"])
 	}
 	for _, path := range availableLabels["path"] {
 		for _, status := range availableLabels["status"] {
@@ -372,6 +374,16 @@ func forNumInstances(c int, f func(prometheus.Labels)) {
 				})
 				c--
 			}
+		}
+	}
+
+	if c > 0 {
+		for ; c > 0; c-- {
+			f(prometheus.Labels{
+				"path":   fmt.Sprintf("/yolo/%d", c),
+				"status": "200",
+				"method": "GET",
+			})
 		}
 	}
 }
