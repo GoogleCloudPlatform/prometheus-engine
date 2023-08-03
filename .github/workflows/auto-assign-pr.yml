@@ -52,9 +52,7 @@ jobs:
           return Number(fs.readFileSync('./NR'));
         result-encoding: string
     - name: 'Auto-assign issue'
-      # TODO(bwplotka): Use pozil repo after
-      # https://github.com/pozil/auto-assign-issue/pull/115 is merged.
-      uses: bwplotka/auto-assign-issue@v1
+      uses: pozil/auto-assign-issue@v1
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
         assignees: ${{ secrets.DEFAULT_ISSUE_ASSIGNEE }}
