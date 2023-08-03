@@ -18,11 +18,12 @@ metadata:
   name: haproxy
 data:
   haproxy.cfg: |
-+   frontend stats
+    ...
++   frontend prometheus
 +     mode http
 +     bind *:8404
-+     stats enable
-+     stats uri /stats
++     http-request use-service prometheus-exporter if { path /metrics }
+    ...
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -38,18 +39,11 @@ spec:
 +       app.kubernetes.io/name: haproxy
     spec:
       containers:
-+     - name: exporter
-+       image: quay.io/prometheus/haproxy-exporter:v0.13.0
-+       args:
-+       - --haproxy.scrape-uri=http://localhost:8404/stats?stats;csv
-+       ports:
-+       - containerPort: 9101
-+         name: prometheus
       - name: haproxy
-        image: haproxy:2.3
+        image: haproxy:2.8
         ports:
 +       - containerPort: 8404
-+         name: stats
++         name: prometheus
         volumeMounts:
         - mountPath: /usr/local/etc/haproxy/haproxy.cfg
           subPath: haproxy.cfg
