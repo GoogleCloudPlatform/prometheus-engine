@@ -64,14 +64,15 @@ func TestSampleBuilder(t *testing.T) {
 	})
 
 	cases := []struct {
-		doc        string
-		metadata   MetadataFunc
-		series     seriesMap
-		samples    [][]record.RefSample
-		exemplars  []map[storage.SeriesRef]record.RefExemplar
-		matchers   Matchers
-		wantSeries []*monitoring_pb.TimeSeries
-		wantFail   bool
+		doc              string
+		metadata         MetadataFunc
+		series           seriesMap
+		samples          [][]record.RefSample
+		histogramSamples [][]record.RefHistogramSample
+		exemplars        []map[storage.SeriesRef]record.RefExemplar
+		matchers         Matchers
+		wantSeries       []*monitoring_pb.TimeSeries
+		wantFail         bool
 	}{
 		{
 			doc: "convert gauge",
@@ -896,7 +897,29 @@ func TestSampleBuilder(t *testing.T) {
 					}},
 				},
 			},
-		}, {
+		},
+		{
+			doc: "native histogram",
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+			}),
+			series: seriesMap{
+				// TODO(bwplotka): Mix it up with traditional histogram?
+				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1"),
+			},
+			samples: [][]record.RefSample{
+				// ??
+				{
+					{Ref: 1, T: 1000, V: 5},
+					{Ref: 2, T: 1000, V: 2},
+				},
+			},
+			wantSeries: []*monitoring_pb.TimeSeries{
+				// skipped by reset handling.
+				// skipped due to zero buckets.
+			},
+		},
+		{
 			doc: "histogram with 0 buckets is ignored",
 			metadata: testMetadataFunc(metricMetadataMap{
 				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
@@ -920,7 +943,8 @@ func TestSampleBuilder(t *testing.T) {
 				// skipped by reset handling.
 				// skipped due to zero buckets.
 			},
-		}, {
+		},
+		{
 			doc: "histogram with only Inf buckets is ignored",
 			metadata: testMetadataFunc(metricMetadataMap{
 				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
@@ -947,7 +971,8 @@ func TestSampleBuilder(t *testing.T) {
 				// skipped by reset handling.
 				// skipped due to zero buckets.
 			},
-		}, {
+		},
+		{
 			doc: "histogram NaN sum",
 			metadata: testMetadataFunc(metricMetadataMap{
 				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
@@ -1014,7 +1039,8 @@ func TestSampleBuilder(t *testing.T) {
 					}},
 				},
 			},
-		}, {
+		},
+		{
 			doc: "histogram NaN count",
 			metadata: testMetadataFunc(metricMetadataMap{
 				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
@@ -1496,7 +1522,7 @@ func TestSampleBuilder(t *testing.T) {
 					if len(c.exemplars) > i {
 						exemplars = c.exemplars[i]
 					}
-					out, tail, err := b.next(c.metadata, externalLabels, batch, exemplars)
+					out, tail, err := b.nextFloat64(c.metadata, externalLabels, batch, exemplars)
 					if err == nil && c.wantFail {
 						t.Fatal("expected error but got none")
 					}
@@ -1516,6 +1542,36 @@ func TestSampleBuilder(t *testing.T) {
 				}
 				b.close()
 			}
+
+			for i, batch := range c.histogramSamples {
+				b := newSampleBuilder(cache)
+
+				for k := 0; len(batch) > 0; k++ {
+					var exemplars map[storage.SeriesRef]record.RefExemplar
+					if len(c.exemplars) > i {
+						exemplars = c.exemplars[i]
+					}
+					out, tail, err := b.nextHistogram(c.metadata, externalLabels, batch, exemplars)
+					if err == nil && c.wantFail {
+						t.Fatal("expected error but got none")
+					}
+					if err != nil && !c.wantFail {
+						t.Fatalf("unexpected error: %s", err)
+					}
+					if err != nil {
+						break
+					}
+					if len(tail) >= len(batch) {
+						t.Fatalf("no histogram sample was consumed")
+					}
+					for _, s := range out {
+						result = append(result, s.proto)
+					}
+					batch = tail
+				}
+				b.close()
+			}
+
 			if diff := cmp.Diff(c.wantSeries, result, protocmp.Transform(), cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("unexpected result (-want, +got): %v", diff)
 			}
