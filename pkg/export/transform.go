@@ -87,10 +87,15 @@ func (b *sampleBuilder) close() {
 	}
 }
 
-// next extracts the next sample from the input sample batch and returns
-// the remainder of the input. It also attaches valid exemplars if applicable.
+// nextFloat64 extracts the next sample from the input float64 sample batch and
+// returns the remainder of the input. It also attaches valid exemplars if applicable.
 // Returns a nil time series for samples that couldn't be converted.
-func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels, samples []record.RefSample, exemplars map[storage.SeriesRef]record.RefExemplar) ([]hashedSeries, []record.RefSample, error) {
+func (b *sampleBuilder) nextFloat64(
+	metadata MetadataFunc,
+	externalLabels labels.Labels,
+	samples []record.RefSample,
+	exemplars map[storage.SeriesRef]record.RefExemplar,
+) ([]hashedSeries, []record.RefSample, error) {
 	sample := samples[0]
 	tailSamples := samples[1:]
 
@@ -101,7 +106,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 		return nil, tailSamples, nil
 	}
 
-	entry, ok := b.series.get(sample, externalLabels, metadata)
+	entry, ok := b.series.get(sample.Ref, sample.T, externalLabels, metadata)
 	if !ok {
 		prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
 		discardExemplarIncIfExists(storage.SeriesRef(sample.Ref), exemplars, "no-cache-series-found")
@@ -135,23 +140,23 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 			value          *monitoring_pb.TypedValue
 			resetTimestamp int64
 		)
-		if entry.metadata.Type == textparse.MetricTypeHistogram {
-			// Consume a set of series as a single distribution sample.
 
-			// We pass in the original lset for matching since Prometheus's target label must
-			// be the same as well.
+		if entry.metadata.Type == textparse.MetricTypeHistogram {
+			// Consume a set of traditional histogram series as a single distribution
+			// sample.
+			// NOTE(bwplotka): Native histogram uses separate sample type handled by
+			// nextNativeHistogram method.
 			var v *distribution_pb.Distribution
 			var err error
-			v, resetTimestamp, tailSamples, err = b.buildDistribution(
+			v, resetTimestamp, tailSamples, err = b.buildDistributionFromTraditional(
 				entry.metadata.Metric,
-				entry.lset,
 				samples,
 				exemplars,
 				externalLabels,
 				metadata,
 			)
 			if err != nil {
-				return nil, tailSamples, err
+				return nil, tailSamples, fmt.Errorf("build distribution: %w", err)
 			}
 			if v != nil {
 				value = &monitoring_pb.TypedValue{
@@ -189,6 +194,95 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 	return result, tailSamples, nil
 }
 
+// nextHistogram builds cumulative distribution from native histogram sample.
+// It has simplified logic compared to nextFloat64 as we are sure in this case
+// that each sample represent self-contained metric.
+// TODO(bwplotka): Add support for float histograms and exemplars.
+// Returns error for samples that couldn't be converted.
+func (b *sampleBuilder) nextHistogram(
+	metadata MetadataFunc,
+	externalLabels labels.Labels,
+	histogramSample record.RefHistogramSample,
+) (hashedSeries, error) {
+
+	// Staleness markers are currently not supported by Cloud Monitoring.
+	// Native histograms store staleness markers in .Sum.
+	if value.IsStaleNaN(histogramSample.H.Sum) {
+		prometheusSamplesDiscarded.WithLabelValues("staleness-marker").Inc()
+		//discardExemplarIncIfExists(storage.SeriesRef(histogramSample.Ref), exemplars, "staleness-marker")
+		return hashedSeries{}, nil
+	}
+
+	entry, ok := b.series.get(histogramSample.Ref, histogramSample.T, externalLabels, metadata)
+	if !ok {
+		prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
+		//discardExemplarIncIfExists(storage.SeriesRef(histogramSample.Ref), exemplars, "no-cache-series-found")
+		return hashedSeries{}, nil
+	}
+	if entry.dropped {
+		return hashedSeries{}, nil
+	}
+
+	// Safe checks.
+	if c := entry.protos.gauge; c.proto != nil {
+		prometheusSamplesDiscarded.WithLabelValues("wrong-cache-series-found").Inc()
+		return hashedSeries{}, fmt.Errorf("metric %v: got gauge proto, expected only cumulative for histogram sample", entry.metadata.Metric)
+	}
+	if entry.metadata.Type != textparse.MetricTypeHistogram {
+		prometheusSamplesDiscarded.WithLabelValues("wrong-cache-series-found").Inc()
+		return hashedSeries{}, fmt.Errorf("metric %v, type %v: expected histogram type for histogram sample", entry.metadata.Metric, entry.metadata.Type)
+	}
+	c := entry.protos.cumulative
+	if c.proto == nil {
+		prometheusSamplesDiscarded.WithLabelValues("wrong-cache-series-found").Inc()
+		return hashedSeries{}, fmt.Errorf("metric %v: no cumulative proto cache, expected cumulative proto for histogram sample", entry.metadata.Metric)
+	}
+
+	//
+	v, resetTimestamp, err := b.buildDistributionFromNative(
+		entry.metadata.Metric,
+		histogramSample,
+		externalLabels,
+		metadata,
+	)
+	if err != nil {
+		return hashedSeries{}, fmt.Errorf("build distribution: %w", err)
+	}
+
+	value = &monitoring_pb.TypedValue{
+		Value: &monitoring_pb.TypedValue_DistributionValue{v},
+	}
+		}
+	} else {
+		// A regular counter series.
+		var v float64
+		resetTimestamp, v, ok = b.series.getResetAdjusted(storage.SeriesRef(sample.Ref), sample.T, sample.V)
+		if ok {
+			value = &monitoring_pb.TypedValue{
+				Value: &monitoring_pb.TypedValue_DoubleValue{v},
+			}
+			discardExemplarIncIfExists(storage.SeriesRef(sample.Ref), exemplars, "counters-unsupported")
+		}
+	}
+	// We may not have produced a value if:
+	//
+	//   1. It was the first sample of a cumulative and we only initialized  the reset timestamp with it.
+	//   2. We could not observe all necessary series to build a full distribution sample.
+	if value != nil {
+		ts := *c.proto
+
+		ts.Points = []*monitoring_pb.Point{{
+			Interval: &monitoring_pb.TimeInterval{
+				StartTime: getTimestamp(resetTimestamp),
+				EndTime:   getTimestamp(sample.T),
+			},
+			Value: value,
+		}}
+		result = append(result, hashedSeries{hash: c.hash, proto: &ts})
+	}
+	return result, tailSamples, nil
+}
+
 // getTimestamp converts a millisecond timestamp into a protobuf timestamp.
 func getTimestamp(t int64) *timestamp_pb.Timestamp {
 	return &timestamp_pb.Timestamp{
@@ -213,6 +307,10 @@ func putDistribution(d *distribution) {
 	distributionPool.Put(d)
 }
 
+// distribution is a cached entity that allows stateful transformation of
+// traditional Prometheus histograms to cumulative distribution with explicit
+// buckets on GCM. Statefullness is important is to calculate reset timestamp.
+//
 // If adding fields to this object, be sure to reset them to their
 // zero value in the reset method below.
 type distribution struct {
@@ -367,13 +465,13 @@ func isHistogramSeries(metric, name string) bool {
 	return s == metricSuffixBucket || s == metricSuffixSum || s == metricSuffixCount
 }
 
-// buildDistribution consumes series from the input slice and populates the histogram cache with it.
+// buildDistributionFromTraditional consumes series from the input slice and
+// populates the histogram cache with it.
 // It returns when a series is consumed which completes a full distribution.
 // Once all series for a single distribution have been observed, it returns it.
-// It returns the reset timestamp along with the distrubution and the remaining samples.
-func (b *sampleBuilder) buildDistribution(
+// It returns the reset timestamp along with the distribution and the remaining samples.
+func (b *sampleBuilder) buildDistributionFromTraditional(
 	metric string,
-	matchLset labels.Labels,
 	samples []record.RefSample,
 	exemplars map[storage.SeriesRef]record.RefExemplar,
 	externalLabels labels.Labels,
@@ -387,7 +485,7 @@ func (b *sampleBuilder) buildDistribution(
 	consumed := 0
 Loop:
 	for _, s := range samples {
-		e, ok := b.series.get(s, externalLabels, metadata)
+		e, ok := b.series.get(s.Ref, s.T, externalLabels, metadata)
 		if !ok {
 			consumed++
 			prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
@@ -396,7 +494,7 @@ Loop:
 		}
 		name := e.lset.Get(labels.MetricName)
 		// Abort if the series is not for the intended histogram metric. All series for it must be grouped
-		// together so we can rely on no further relevant series are in the batch.
+		// together, so we can rely on no further relevant series are in the batch.
 		if !isHistogramSeries(metric, name) {
 			break
 		}
@@ -480,6 +578,94 @@ Loop:
 	}
 	// Batch ended without completing a further distribution
 	return nil, 0, samples[consumed:], nil
+}
+
+// buildDistributionFromTraditional consumes histogram sample and populates the
+// histogram cache with it.
+// TODO(bwplotka): Add support for exemplars.
+// It returns distribution and the reset timestamp.
+func (b *sampleBuilder) buildDistributionFromNative(
+		s record.RefHistogramSample,
+		externalLabels labels.Labels,
+		metadata MetadataFunc,
+) (*distribution_pb.Distribution, int64, error) {
+	e, ok := b.series.get(s.Ref, s.T, externalLabels, metadata)
+	if !ok {
+		prometheusSamplesDiscarded.WithLabelValues("no-cache-series-found").Inc()
+		//discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "no-cache-series-found")
+		return nil, 0, errors.New("no cache series found")
+	}
+
+	// Create or update the cached distribution for the given histogram series
+	dist, ok := b.dists[e.protos.cumulative.hash]
+	if !ok {
+		dist = getDistribution()
+		dist.timestamp = s.T
+		b.dists[e.protos.cumulative.hash] = dist
+	}
+
+	// We don't this (?)
+	//// If there are diverging timestamps within a single batch, the histogram is not valid.
+	//if s.T != dist.timestamp {
+	//	dist.skip = true
+	//	prometheusSamplesDiscarded.WithLabelValues("mismatching-histogram-timestamps").Inc()
+	//	//discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "mismatching-histogram-timestamps")
+	//	return nil, 0, nil
+	//}
+	//prometheusSamplesDiscarded.WithLabelValues("zero-histogram-samples-processed").Inc()
+	//		discardExemplarIncIfExists(storage.SeriesRef(samples[0].Ref), exemplars, "zero-histogram-samples-processed")
+	//		return nil, 0, samples[1:], errors.New("no sample consumed for histogram")
+
+	// Cannibalization of the first point is skipped for now, due to complexity.
+	// Yolo interpolation of scrape interval for now.
+	// TODO(bwplotka): Use created timestamp in future.
+	//rt, v, ok := b.series.getResetAdjusted(storage.SeriesRef(s.Ref), s.T, s.V)
+	//// If a series appeared for the first time, we won't get a valid reset timestamp yet.
+	//// This may happen if the histogram is entirely new or if new series appeared through bucket changes.
+	//// We skip the entire distribution sample in this case.
+	//if !ok {
+	//	dist.skip = true
+	//	return nil, 0, nil
+	//}
+
+	dist.hasSum = true
+	dist.sum = s.H.Sum
+
+	dist.hasCount = true
+	dist.count = float64(s.H.Count) // TODO(bwplotka): Potentially imprecise conversion.
+
+	// We take the count series as the authoritative source for the overall reset timestamp
+	// when the counter timestamp isn't there.
+	dist.resetTimestamp = ?
+
+	for _, pb := range s.H.PositiveBuckets {
+		bound, err := strconv.ParseFloat(e.lset.Get(labels.BucketLabel), 64)
+		if err != nil {
+			prometheusSamplesDiscarded.WithLabelValues("malformed-bucket-le-label").Inc()
+			discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "malformed-bucket-le-label")
+			continue
+		}
+		if math.IsNaN(v) {
+			prometheusSamplesDiscarded.WithLabelValues("NaN-bucket-value").Inc()
+			discardExemplarIncIfExists(storage.SeriesRef(s.Ref), exemplars, "NaN-bucket-value")
+			continue
+		}
+		// Handle cases where +Inf bucket is out-of-order by not overwriting on the last-consumed bucket.
+		if !dist.hasInfBucket {
+			dist.hasInfBucket = math.IsInf(bound, 1)
+		}
+		dist.bounds = append(dist.bounds, bound)
+		dist.values = append(dist.values, int64(v))
+		//if exemplar, ok := exemplars[storage.SeriesRef(s.Ref)]; ok {
+		//	dist.exemplars = append(dist.exemplars, exemplar)
+		//}
+	}
+
+	dp, err := dist.build(e.lset)
+	if err != nil {
+		return nil, 0,  err
+	}
+	return dp, dist.resetTimestamp, nil
 }
 
 func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribution_Exemplar {

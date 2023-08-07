@@ -438,10 +438,17 @@ func (e *Exporter) SetLabelsByIDFunc(f func(storage.SeriesRef) labels.Labels) {
 }
 
 // Export enqueues the samples and exemplars to be written to Cloud Monitoring.
-func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemplarMap map[storage.SeriesRef]record.RefExemplar) {
-	// Wether we're sending data or not, add batchsize of samples exported by
+// TODO(bwplotka): Add support for float histograms, offered by 2.42+ Prometheus.
+func (e *Exporter) Export(
+	metadata MetadataFunc,
+	batchedSamples []record.RefSample,
+	// Native histogram samples consists of complex sample value type.
+	batchedIntHistograms []record.RefHistogramSample,
+	exemplarMap map[storage.SeriesRef]record.RefExemplar,
+) {
+	// Whether we're sending data or not, add batch size of samples exported by
 	// Prometheus from appender commit.
-	batchSize := len(batch)
+	batchSize := len(batchedSamples) + len(batchedIntHistograms)
 	samplesExported.Add(float64(batchSize))
 
 	if e.opts.Disable {
@@ -464,12 +471,12 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 	defer builder.close()
 	exemplarsExported.Add(float64(len(exemplarMap)))
 
-	for len(batch) > 0 {
+	for len(batchedSamples) > 0 {
 		var (
 			samples []hashedSeries
 			err     error
 		)
-		samples, batch, err = builder.next(metadata, externalLabels, batch, exemplarMap)
+		samples, batchedSamples, err = builder.nextFloat64(metadata, externalLabels, batchedSamples, exemplarMap)
 		if err != nil {
 			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
 			continue
@@ -488,6 +495,27 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 			}
 		}
 	}
+
+	for _, hs := range batchedIntHistograms {
+		s, err := builder.nextHistogram(metadata, externalLabels, hs)
+		if err != nil {
+			level.Debug(e.logger).Log("msg", "building int histogram sample failed", "err", err)
+			continue
+		}
+
+		// Only enqueue samples for within our HA range.
+		if sampleInRange(s.proto, start, end) {
+			e.enqueue(s.hash, s.proto)
+		} else {
+			// Hashed series protos should only ever have one point. If this is
+			// a distribution increase exemplarsDropped if there are exemplars.
+			if dist := s.proto.Points[0].Value.GetDistributionValue(); dist != nil {
+				exemplarsDropped.WithLabelValues("not-in-ha-range").Add(float64(len(dist.GetExemplars())))
+			}
+			samplesDropped.WithLabelValues("not-in-ha-range").Inc()
+		}
+	}
+
 	// Signal that new data is available.
 	e.triggerNext()
 }

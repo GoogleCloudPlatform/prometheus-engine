@@ -32,8 +32,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/storage"
-	"github.com/prometheus/prometheus/tsdb/record"
-
+	"github.com/prometheus/prometheus/tsdb/chunks"
 	metric_pb "google.golang.org/genproto/googleapis/api/metric"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
@@ -85,7 +84,7 @@ type seriesCacheEntry struct {
 	// Whether the series is dropped from exporting.
 	dropped bool
 
-	// Tracked counter reset state for conversion to GCM cumulatives.
+	// Tracked counter reset state for conversion to GCM cumulative.
 	hasReset       bool
 	resetValue     float64
 	lastValue      float64
@@ -223,14 +222,19 @@ func (c *seriesCache) garbageCollect(delay time.Duration) error {
 	return nil
 }
 
-// get a cache entry for the given series reference. The passed timestamp indicates when data was
-// last seen for the entry.
+// get a cache entry for the given series reference. The passed timestamp
+// indicates when data was last seen for the entry.
 // If the series cannot be converted the returned boolean is false.
-func (c *seriesCache) get(s record.RefSample, externalLabels labels.Labels, metadata MetadataFunc) (*seriesCacheEntry, bool) {
+func (c *seriesCache) get(
+	sampleRef chunks.HeadSeriesRef,
+	sampleT int64,
+	externalLabels labels.Labels,
+	metadata MetadataFunc,
+) (*seriesCacheEntry, bool) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	ref := storage.SeriesRef(s.Ref)
+	ref := storage.SeriesRef(sampleRef)
 
 	e, ok := c.entries[ref]
 	if !ok {
@@ -239,12 +243,12 @@ func (c *seriesCache) get(s record.RefSample, externalLabels labels.Labels, meta
 	}
 	if e.shouldRefresh() {
 		if err := c.populate(ref, e, externalLabels, metadata); err != nil {
-			level.Debug(c.logger).Log("msg", "populating series failed", "ref", s.Ref, "err", err)
+			level.Debug(c.logger).Log("msg", "populating series failed", "ref", sampleRef, "err", err)
 		}
 		e.setNextRefresh()
 	}
 	// Store millisecond sample timestamp in seconds.
-	e.lastUsed = s.T / 1000
+	e.lastUsed = sampleT / 1000
 	return e, e.valid()
 }
 
@@ -453,6 +457,8 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 		}
 
 	case textparse.MetricTypeHistogram:
+		// DEBUG.
+		fmt.Println(baseMetricName, gcmMetricSuffixHistogram, gcmMetricSuffixNone)
 		protos.cumulative = newSeries(
 			c.getMetricType(baseMetricName, gcmMetricSuffixHistogram, gcmMetricSuffixNone),
 			metric_pb.MetricDescriptor_CUMULATIVE,
