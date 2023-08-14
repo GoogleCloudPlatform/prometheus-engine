@@ -49,12 +49,12 @@ spec:
 +         subPath: httpd.conf
 +         name: httpd
 +     - name: httpd-exporter
-+       image: lusotycoon/apache-exporter:v0.11.0
++       image: lusotycoon/apache-exporter:v1.0.0
 +       ports:
 +       - containerPort: 9117
 +         name: prometheus
 +       command: ["/bin/apache_exporter"]
-+       args: ['--scrape_uri=http://localhost/server-status?auto', '--telemetry.address=:9117', '--telemetry.endpoint=/metrics']
++       args: ["--scrape_uri=http://localhost/server-status?auto", "--web.listen-address=:9117", "--telemetry.endpoint=/metrics"]
 +     volumes:
 +     - name: httpd
 +       configMap:
