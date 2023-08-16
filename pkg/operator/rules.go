@@ -254,6 +254,9 @@ func generateGlobalRules(apiRules *monitoringv1.GlobalRules) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("converting rules failed: %w", err)
 	}
+	if err := rules.Scope(&rs, map[string]string{}); err != nil {
+		return "", fmt.Errorf("isolating rules failed: %w", err)
+	}
 	result, err := yaml.Marshal(rs)
 	if err != nil {
 		return "", fmt.Errorf("marshalling rules failed: %w", err)
