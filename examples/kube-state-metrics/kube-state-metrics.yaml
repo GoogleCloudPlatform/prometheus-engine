@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ kind: StatefulSet
 metadata:
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.3.0
+    app.kubernetes.io/version: 2.8.2
   namespace: gmp-public
   name: kube-state-metrics
 spec:
@@ -30,7 +30,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: kube-state-metrics
-        app.kubernetes.io/version: 2.3.0
+        app.kubernetes.io/version: 2.8.2
     spec:
       affinity:
         nodeAffinity:
@@ -48,7 +48,7 @@ spec:
                 - linux
       containers:
       - name: kube-state-metric
-        image: k8s.gcr.io/kube-state-metrics/kube-state-metrics:v2.3.0
+        image: k8s.gcr.io/kube-state-metrics/kube-state-metrics:v2.8.2
         env:
         - name: POD_NAME
           valueFrom:
@@ -101,7 +101,7 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.3.0
+    app.kubernetes.io/version: 2.8.2
   namespace: gmp-public
   name: kube-state-metrics
 spec:
@@ -123,7 +123,7 @@ metadata:
   name: kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.3.0
+    app.kubernetes.io/version: 2.8.2
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -131,7 +131,7 @@ metadata:
   name: gmp-public:kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.3.0
+    app.kubernetes.io/version: 2.8.2
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -147,7 +147,7 @@ metadata:
   name: gmp-public:kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.3.0
+    app.kubernetes.io/version: 2.8.2
 rules:
 - apiGroups:
   - ""
