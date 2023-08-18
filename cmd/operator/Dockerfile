@@ -1,4 +1,4 @@
-FROM golang:1.20-buster AS buildbase
+FROM golang:1.20-bookworm AS buildbase
 WORKDIR /app
 COPY . ./
 
