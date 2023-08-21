@@ -1,5 +1,5 @@
 
-FROM golang:1.20-bookworm AS buildbase
+FROM golang:1.20-bullseye AS buildbase
 
 # Compile the UI assets.
 FROM launcher.gcr.io/google/nodejs as assets
@@ -22,6 +22,6 @@ WORKDIR /app
 COPY --from=assets /app ./
 RUN CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
 
-FROM gcr.io/distroless/static:latest
+FROM gcr.io/distroless/static-debian11:latest
 COPY --from=appbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]
