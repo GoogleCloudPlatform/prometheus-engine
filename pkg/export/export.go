@@ -304,7 +304,9 @@ func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.Metric
 
 // New returns a new Cloud Monitoring Exporter.
 func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Exporter, error) {
-	grpc_prometheus.EnableClientHandlingTimeHistogram()
+	grpc_prometheus.EnableClientHandlingTimeHistogram(
+		grpc_prometheus.WithHistogramBuckets([]float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15, 20, 30, 40, 50, 60}),
+	)
 
 	if logger == nil {
 		logger = log.NewNopLogger()
