@@ -32,7 +32,6 @@ spec:
         image: "gcr.io/gke-release/prometheus-engine/example-app:v0.7.2-gke.0"
         args:
         - "--listen-address=:8080"
-        - "--max-count=32"
         - "--cpu-burn-ops=75"
         - "--memory-ballast-mbs=1024"
         ports:
