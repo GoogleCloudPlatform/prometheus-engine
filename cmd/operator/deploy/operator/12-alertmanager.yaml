@@ -82,8 +82,8 @@ spec:
           limits:
             memory: 128M
           requests:
-            cpu: 8m
-            memory: 32M
+            cpu: 1m
+            memory: 16M
         volumeMounts:
         - name: alertmanager-config
           readOnly: true
@@ -117,8 +117,8 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 8m
-            memory: 16M
+            cpu: 1m
+            memory: 4M
         volumeMounts:
         - name: config
           readOnly: true
