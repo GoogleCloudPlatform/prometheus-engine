@@ -522,7 +522,7 @@ const (
 	ClientName = "prometheus-engine-export"
 	// mainModuleVersion is the version of the main module. Align with git tag.
 	// TODO(TheSpiritXIII): Remove with https://github.com/golang/go/issues/50603
-	mainModuleVersion = "v0.7.3-rc.4"
+	mainModuleVersion = "v0.7.4-rc.0"
 	// mainModuleName is the name of the main module. Align with go.mod.
 	mainModuleName = "github.com/GoogleCloudPlatform/prometheus-engine"
 )
