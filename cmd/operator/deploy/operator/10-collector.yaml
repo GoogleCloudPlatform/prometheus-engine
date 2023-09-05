@@ -73,8 +73,8 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 8m
-            memory: 16M
+            cpu: 1m
+            memory: 4M
         volumeMounts:
         - name: config
           readOnly: true
@@ -121,8 +121,8 @@ spec:
           limits:
             memory: 2G
           requests:
-            cpu: 16m
-            memory: 128M
+            cpu: 8m
+            memory: 32M
         volumeMounts:
         - name: storage
           mountPath: /prometheus/data

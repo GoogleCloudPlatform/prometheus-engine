@@ -263,8 +263,8 @@ spec:
           limits:
             memory: 2G
           requests:
-            cpu: 8m
-            memory: 32M
+            cpu: 1m
+            memory: 16M
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -579,8 +579,8 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 8m
-            memory: 16M
+            cpu: 1m
+            memory: 4M
         volumeMounts:
         - name: config
           readOnly: true
@@ -627,8 +627,8 @@ spec:
           limits:
             memory: 2G
           requests:
-            cpu: 16m
-            memory: 128M
+            cpu: 8m
+            memory: 32M
         volumeMounts:
         - name: storage
           mountPath: /prometheus/data
@@ -749,8 +749,8 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 8m
-            memory: 16M
+            cpu: 1m
+            memory: 4M
         volumeMounts:
         - name: config
           readOnly: true
@@ -782,8 +782,8 @@ spec:
           limits:
             memory: 1G
           requests:
-            cpu: 8m
-            memory: 32M
+            cpu: 1m
+            memory: 16M
         volumeMounts:
         - name: config-out
           readOnly: true
@@ -926,8 +926,8 @@ spec:
           limits:
             memory: 128M
           requests:
-            cpu: 8m
-            memory: 32M
+            cpu: 1m
+            memory: 16M
         volumeMounts:
         - name: alertmanager-config
           readOnly: true
@@ -961,8 +961,8 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 8m
-            memory: 16M
+            cpu: 1m
+            memory: 4M
         volumeMounts:
         - name: config
           readOnly: true

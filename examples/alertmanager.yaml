@@ -64,10 +64,10 @@ spec:
             scheme: HTTP
         resources:
           requests:
-            cpu: 100m
-            memory: 200Mi
+            cpu: 1m
+            memory: 16M
           limits:
-            memory: 3000Mi
+            memory: 128M
         volumeMounts:
         - mountPath: /etc/alertmanager/config
           name: config
@@ -95,10 +95,10 @@ spec:
           name: reloader-web
         resources:
           requests:
-            cpu: 50m
-            memory: 25Mi
+            cpu: 1m
+            memory: 4M
           limits:
-            memory: 50Mi
+            memory: 32M
         volumeMounts:
         - mountPath: /etc/alertmanager/config
           name: config
