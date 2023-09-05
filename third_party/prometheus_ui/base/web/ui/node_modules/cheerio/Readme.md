@@ -53,7 +53,7 @@ Cheerio wraps around [parse5](https://github.com/inikulin/parse5) parser and can
 
 ## Cheerio is not a web browser
 
-Cheerio parses markup and provides an API for traversing/manipulating the resulting data structure. It does not interpret the result as a web browser does. Specifically, it does _not_ produce a visual rendering, apply CSS, load external resources, or execute JavaScript. This makes Cheerio **much, much faster than other solutions**. If your use case requires any of this functionality, you should consider projects like [Puppeteer](https://github.com/puppeteer/puppeteer) or [JSDom](https://github.com/jsdom/jsdom).
+Cheerio parses markup and provides an API for traversing/manipulating the resulting data structure. It does not interpret the result as a web browser does. Specifically, it does _not_ produce a visual rendering, apply CSS, load external resources, or execute JavaScript which is common for a SPA (single page application). This makes Cheerio **much, much faster than other solutions**. If your use case requires any of this functionality, you should consider browser automation software like [Puppeteer](https://github.com/puppeteer/puppeteer) and [Playwright](https://github.com/microsoft/playwright) or DOM emulation projects like [JSDom](https://github.com/jsdom/jsdom).
 
 ## API
 
@@ -134,6 +134,11 @@ The options in the `xml` object are taken directly from [htmlparser2](https://gi
 For a full list of options and their effects, see [domhandler](https://github.com/fb55/DomHandler) and
 [htmlparser2's options](https://github.com/fb55/htmlparser2/wiki/Parser-options).
 
+#### Using `htmlparser2`
+
+Cheerio ships with two parsers, `parse5` and `htmlparser2`. The
+former is the default for HTML, the latter the default for XML.
+
 Some users may wish to parse markup with the `htmlparser2` library, and
 traverse/manipulate the resulting structure with Cheerio. This may be the case
 for those upgrading from pre-1.0 releases of Cheerio (which relied on
@@ -154,6 +159,13 @@ const htmlparser2 = require('htmlparser2');
 const dom = htmlparser2.parseDocument(document, options);
 
 const $ = cheerio.load(dom);
+```
+
+If you want to save some bytes, you can use Cheerio's _slim_ export, which
+always uses `htmlparser2`:
+
+```js
+const cheerio = require('cheerio/lib/slim');
 ```
 
 ### Selectors
@@ -210,21 +222,6 @@ cheerio.html($('.pear'));
 //=> <li class="pear">Pear</li>
 ```
 
-By default, `html` will leave some tags open. Sometimes you may instead want to render a valid XML document. For example, you might parse the following XML snippet:
-
-```js
-const $ = cheerio.load(
-  '<media:thumbnail url="http://www.foo.com/keyframe.jpg" width="75" height="50" time="12:05:01.123"/>'
-);
-```
-
-... and later want to render to XML. To do this, you can use the 'xml' utility function:
-
-```js
-$.xml();
-//=> <media:thumbnail url="http://www.foo.com/keyframe.jpg" width="75" height="50" time="12:05:01.123"/>
-```
-
 You may also render the text content of a Cheerio object using the `text` static method:
 
 ```js
@@ -246,7 +243,7 @@ $.prototype.logHtml = function () {
 $('body').logHtml(); // logs "Hello, <b>world</b>!" to the console
 ```
 
-If you're using TypeScript, you should also add a type definition for your new method:
+If you're using TypeScript, you should add a type definition for your new method:
 
 ```ts
 declare module 'cheerio' {
@@ -285,8 +282,30 @@ Does your company use Cheerio in production? Please consider [sponsoring this pr
 
 <!-- BEGIN SPONSORS: sponsor -->
 
-<a href="https://substack.com/" target="_blank">![Substack](https://avatars.githubusercontent.com/u/53023767?v=4&s=128)</a>
-<a href="https://www.airbnb.com/" target="_blank">![Airbnb](https://images.opencollective.com/airbnb/d327d66/logo.png)</a>
+<a href="https://github.com/about" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://avatars.githubusercontent.com/u/9919?v=4&s=128" title="GitHub" alt="GitHub"></img>
+          </a>
+<a href="https://cryptocasinos.com/" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://images.opencollective.com/cryptocasinos/99b168e/logo.png" title="CryptoCasinos" alt="CryptoCasinos"></img>
+          </a>
+<a href="https://www.casinoonlineaams.com" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://images.opencollective.com/casinoonlineaamscom/da74236/logo.png" title="Casinoonlineaams.com" alt="Casinoonlineaams.com"></img>
+          </a>
+<a href="https://casinofiables.com/" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://images.opencollective.com/casinofiables-com/b824bab/logo.png" title="Casinofiables.com" alt="Casinofiables.com"></img>
+          </a>
+<a href="https://apify.com/" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://avatars.githubusercontent.com/u/24586296?v=4&s=128" title="Apify" alt="Apify"></img>
+          </a>
+<a href="https://freebets.ltd.uk" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://images.opencollective.com/freebets/e21c41b/logo.png" title="Free Bets" alt="Free Bets"></img>
+          </a>
+<a href="https://casinoutansvensklicens.co/" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://images.opencollective.com/casino-utan-svensk-licens3/f7e9357/logo.png" title="Casino utan svensk licens" alt="Casino utan svensk licens"></img>
+          </a>
+<a href="https://starwarscasinos.com/" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://images.opencollective.com/casino-utan-svensk-licens1/f3487ff/logo.png" title="Casino utan svensk licens" alt="Casino utan svensk licens"></img>
+          </a>
 
 <!-- END SPONSORS -->
 
@@ -296,8 +315,27 @@ Does your company use Cheerio in production? Please consider [sponsoring this pr
 
 <!-- BEGIN SPONSORS: backer -->
 
-<a href="https://medium.com/norch" target="_blank">![Espen Klem](https://images.opencollective.com/espenklem/6075b19/avatar.png)</a>
-<a href="https://nishant-singh.com" target="_blank">![Nishant Singh](https://avatars.githubusercontent.com/u/10304344?u=9cd1389a1a8211b64979ca3693f96d90f5bf0be9&v=4&s=128)</a>
+<a href="https://www.airbnb.com/" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://images.opencollective.com/airbnb/d327d66/logo.png" title="Airbnb" alt="Airbnb"></img>
+          </a>
+<a href="https://kafidoff.com" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://images.opencollective.com/kafidoff-vasy/d7ff85c/avatar.png" title="Vasy Kafidoff" alt="Vasy Kafidoff"></img>
+          </a>
+<a href="https://medium.com/norch" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://images.opencollective.com/espenklem/6075b19/avatar.png" title="Espen Klem" alt="Espen Klem"></img>
+          </a>
+<a href="https://jarrodldavis.com" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://avatars.githubusercontent.com/u/235875?v=4&s=128" title="Jarrod Davis" alt="Jarrod Davis"></img>
+          </a>
+<a href="https://nishant-singh.com" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://avatars.githubusercontent.com/u/10304344?u=2f98c0a745b5352c6e758b9a5bc7a9d9d4e3e969&v=4&s=128" title="Nishant Singh" alt="Nishant Singh"></img>
+          </a>
+<a href="https://github.com/gauthamchandra" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://avatars.githubusercontent.com/u/5430280?u=1115bcd3ed7aa8b2a62ff28f62ee4c2b92729903&v=4&s=128" title="Gautham Chandra" alt="Gautham Chandra"></img>
+          </a>
+<a href="http://www.dr-chuck.com/" target="_blank" rel="noopener noreferrer">
+            <img style="max-height:128px;max-width:128px" src="https://avatars.githubusercontent.com/u/1197222?u=d6dc85c064736ab851c6d9e3318dcdd1be00fb2c&v=4&s=128" title="Charles Severance" alt="Charles Severance"></img>
+          </a>
 
 <!-- END SPONSORS -->
 

@@ -25,7 +25,8 @@ var CHARSET_REGEXP = new RegExp('^' + CHARSET_TOKEN, 'i');
 
 var DEFAULT_ROUNDING_PRECISION = require('../../options/rounding-precision').DEFAULT;
 
-var PROPERTY_NAME_PATTERN = /^(?:\-chrome\-|\-[\w\-]+\w|\w[\w\-]+\w|\w{1,}|\-\-\S+)$/;
+var VARIABLE_PROPERTY_NAME_PATTERN = /^--\S+$/;
+var PROPERTY_NAME_PATTERN = /^(?:-chrome-|-[\w-]+\w|\w[\w-]+\w|\w{1,})$/;
 var IMPORT_PREFIX_PATTERN = /^@import/i;
 var URL_PREFIX_PATTERN = /^url\(/i;
 
@@ -43,15 +44,16 @@ function isLegacyFilter(property) {
   if (property.name == 'filter' || property.name == '-ms-filter') {
     value = property.value[0][1];
 
-    return value.indexOf('progid') > -1 ||
-      value.indexOf('alpha') === 0 ||
-      value.indexOf('chroma') === 0;
-  } else {
-    return false;
+    return value.indexOf('progid') > -1
+      || value.indexOf('alpha') === 0
+      || value.indexOf('chroma') === 0;
   }
+  return false;
 }
 
 function noop() {}
+
+function noopValueOptimizer(_name, value, _options) { return value; }
 
 function optimizeBody(rule, properties, context) {
   var options = context.options;
@@ -63,9 +65,9 @@ function optimizeBody(rule, properties, context) {
   var _properties = wrapForOptimizing(properties);
   var pluginValueOptimizers = context.options.plugins.level1Value;
   var pluginPropertyOptimizers = context.options.plugins.level1Property;
+  var isVariable;
   var i, l;
 
-  propertyLoop:
   for (i = 0, l = _properties.length; i < l; i++) {
     var j, k, m, n;
 
@@ -73,8 +75,15 @@ function optimizeBody(rule, properties, context) {
     name = property.name;
     propertyOptimizer = configuration[name] && configuration[name].propertyOptimizer || noop;
     valueOptimizers = configuration[name] && configuration[name].valueOptimizers || [optimizers.whiteSpace];
+    isVariable = VARIABLE_PROPERTY_NAME_PATTERN.test(name);
 
-    if (!PROPERTY_NAME_PATTERN.test(name)) {
+    if (isVariable) {
+      valueOptimizers = options.variableOptimizers.length > 0
+        ? options.variableOptimizers
+        : [optimizers.whiteSpace];
+    }
+
+    if (!isVariable && !PROPERTY_NAME_PATTERN.test(name)) {
       propertyToken = property.all[property.position];
       context.warnings.push('Invalid property name \'' + name + '\' at ' + formatPosition(propertyToken[1][2][0]) + '. Ignoring.');
       property.unused = true;
@@ -89,9 +98,10 @@ function optimizeBody(rule, properties, context) {
     }
 
     if (property.hack && (
-        (property.hack[0] == Hack.ASTERISK || property.hack[0] == Hack.UNDERSCORE) && !options.compatibility.properties.iePrefixHack ||
-        property.hack[0] == Hack.BACKSLASH && !options.compatibility.properties.ieSuffixHack ||
-        property.hack[0] == Hack.BANG && !options.compatibility.properties.ieBangHack)) {
+      (property.hack[0] == Hack.ASTERISK || property.hack[0] == Hack.UNDERSCORE)
+        && !options.compatibility.properties.iePrefixHack
+        || property.hack[0] == Hack.BACKSLASH && !options.compatibility.properties.ieSuffixHack
+        || property.hack[0] == Hack.BANG && !options.compatibility.properties.ieBangHack)) {
       property.unused = true;
       continue;
     }
@@ -106,7 +116,6 @@ function optimizeBody(rule, properties, context) {
       continue;
     }
 
-    valuesLoop:
     for (j = 0, m = property.value.length; j < m; j++) {
       type = property.value[j][0];
       value = property.value[j][1];
@@ -181,11 +190,9 @@ function cleanupCharsets(tokens) {
   for (var i = 0, l = tokens.length; i < l; i++) {
     var token = tokens[i];
 
-    if (token[0] != Token.AT_RULE)
-      continue;
+    if (token[0] != Token.AT_RULE) { continue; }
 
-    if (!CHARSET_REGEXP.test(token[1]))
-      continue;
+    if (!CHARSET_REGEXP.test(token[1])) { continue; }
 
     if (hasCharset || token[1].indexOf(CHARSET_TOKEN) == -1) {
       tokens.splice(i, 1);
@@ -203,7 +210,7 @@ function buildUnitRegexp(options) {
   var units = ['px', 'em', 'ex', 'cm', 'mm', 'in', 'pt', 'pc', '%'];
   var otherUnits = ['ch', 'rem', 'vh', 'vm', 'vmax', 'vmin', 'vw'];
 
-  otherUnits.forEach(function (unit) {
+  otherUnits.forEach(function(unit) {
     if (options.compatibility.units[unit]) {
       units.push(unit);
     }
@@ -215,7 +222,7 @@ function buildUnitRegexp(options) {
 function buildPrecisionOptions(roundingPrecision) {
   var precisionOptions = {
     matcher: null,
-    units: {},
+    units: {}
   };
   var optimizable = [];
   var unit;
@@ -227,7 +234,7 @@ function buildPrecisionOptions(roundingPrecision) {
     if (value != DEFAULT_ROUNDING_PRECISION) {
       precisionOptions.units[unit] = {};
       precisionOptions.units[unit].value = value;
-      precisionOptions.units[unit].multiplier = Math.pow(10, value);
+      precisionOptions.units[unit].multiplier = 10 ** value;
 
       optimizable.push(unit);
     }
@@ -240,6 +247,16 @@ function buildPrecisionOptions(roundingPrecision) {
   }
 
   return precisionOptions;
+}
+
+function buildVariableOptimizers(options) {
+  return options.level[OptimizationLevel.One].variableValueOptimizers.map(function(optimizer) {
+    if (typeof (optimizer) == 'string') {
+      return optimizers[optimizer] || noopValueOptimizer;
+    }
+
+    return optimizer;
+  });
 }
 
 function level1Optimize(tokens, context) {
@@ -255,37 +272,43 @@ function level1Optimize(tokens, context) {
   options.unitsRegexp = options.unitsRegexp || buildUnitRegexp(options);
   options.precision = options.precision || buildPrecisionOptions(levelOptions.roundingPrecision);
   options.commentsKept = options.commentsKept || 0;
+  options.variableOptimizers = options.variableOptimizers || buildVariableOptimizers(options);
 
   for (var i = 0, l = tokens.length; i < l; i++) {
     var token = tokens[i];
 
     switch (token[0]) {
-      case Token.AT_RULE:
-        token[1] = isImport(token) && afterRules ? '' : token[1];
-        token[1] = levelOptions.tidyAtRules ? tidyAtRule(token[1]) : token[1];
-        mayHaveCharset = true;
-        break;
-      case Token.AT_RULE_BLOCK:
-        optimizeBody(token[1], token[2], context);
-        afterRules = true;
-        break;
-      case Token.NESTED_BLOCK:
-        token[1] = levelOptions.tidyBlockScopes ? tidyBlock(token[1], spaceAfterClosingBrace) : token[1];
-        level1Optimize(token[2], context);
-        afterRules = true;
-        break;
-      case Token.COMMENT:
-        optimizeComment(token, options);
-        break;
-      case Token.RULE:
-        token[1] = levelOptions.tidySelectors ? tidyRules(token[1], !ie7Hack, adjacentSpace, format, context.warnings) : token[1];
-        token[1] = token[1].length > 1 ? sortSelectors(token[1], levelOptions.selectorsSortingMethod) : token[1];
-        optimizeBody(token[1], token[2], context);
-        afterRules = true;
-        break;
+    case Token.AT_RULE:
+      token[1] = isImport(token) && afterRules ? '' : token[1];
+      token[1] = levelOptions.tidyAtRules ? tidyAtRule(token[1]) : token[1];
+      mayHaveCharset = true;
+      break;
+    case Token.AT_RULE_BLOCK:
+      optimizeBody(token[1], token[2], context);
+      afterRules = true;
+      break;
+    case Token.NESTED_BLOCK:
+      token[1] = levelOptions.tidyBlockScopes ? tidyBlock(token[1], spaceAfterClosingBrace) : token[1];
+      level1Optimize(token[2], context);
+      afterRules = true;
+      break;
+    case Token.COMMENT:
+      optimizeComment(token, options);
+      break;
+    case Token.RULE:
+      token[1] = levelOptions.tidySelectors
+        ? tidyRules(token[1], !ie7Hack, adjacentSpace, format, context.warnings)
+        : token[1];
+      token[1] = token[1].length > 1 ? sortSelectors(token[1], levelOptions.selectorsSortingMethod) : token[1];
+      optimizeBody(token[1], token[2], context);
+      afterRules = true;
+      break;
     }
 
-    if (token[0] == Token.COMMENT && token[1].length === 0 || levelOptions.removeEmpty && (token[1].length === 0 || (token[2] && token[2].length === 0))) {
+    if (token[0] == Token.COMMENT
+      && token[1].length === 0
+      || levelOptions.removeEmpty
+      && (token[1].length === 0 || (token[2] && token[2].length === 0))) {
       tokens.splice(i, 1);
       i--;
       l--;

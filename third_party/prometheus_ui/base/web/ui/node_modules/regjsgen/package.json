@@ -1,6 +1,6 @@
 {
   "name": "regjsgen",
-  "version": "0.6.0",
+  "version": "0.7.1",
   "description": "Generate regular expressions from regjsparser’s AST.",
   "homepage": "https://github.com/bnjmnt4n/regjsgen",
   "main": "regjsgen.js",
@@ -34,7 +34,7 @@
   "devDependencies": {
     "codecov": "^3.8.3",
     "nyc": "^15.1.0",
-    "regjsparser": "^0.7.0",
+    "regjsparser": "^0.8.2",
     "request": "^2.88.2"
   }
 }

@@ -13,14 +13,15 @@ var _helperCreateClassFeaturesPlugin = require("@babel/helper-create-class-featu
 
 var _helperAnnotateAsPure = require("@babel/helper-annotate-as-pure");
 
-var _default = (0, _helperPluginUtils.declare)(({
-  assertVersion,
-  types: t,
-  template
-}, {
-  loose
-}) => {
-  assertVersion(7);
+var _default = (0, _helperPluginUtils.declare)((api, opt) => {
+  api.assertVersion(7);
+  const {
+    types: t,
+    template
+  } = api;
+  const {
+    loose
+  } = opt;
   const classWeakSets = new WeakMap();
   const fieldsWeakSets = new WeakMap();
 
@@ -33,10 +34,12 @@ var _default = (0, _helperPluginUtils.declare)(({
 
   function injectToFieldInit(fieldPath, expr, before = false) {
     if (fieldPath.node.value) {
+      const value = fieldPath.get("value");
+
       if (before) {
-        fieldPath.get("value").insertBefore(expr);
+        value.insertBefore(expr);
       } else {
-        fieldPath.get("value").insertAfter(expr);
+        value.insertAfter(expr);
       }
     } else {
       fieldPath.set("value", t.unaryExpression("void", expr));
@@ -68,11 +71,11 @@ var _default = (0, _helperPluginUtils.declare)(({
   }
 
   function getWeakSetId(weakSets, outerClass, reference, name = "", inject) {
-    let id = classWeakSets.get(reference.node);
+    let id = weakSets.get(reference.node);
 
     if (!id) {
       id = outerClass.scope.generateUidIdentifier(`${name || ""} brandCheck`);
-      classWeakSets.set(reference.node, id);
+      weakSets.set(reference.node, id);
       inject(reference, template.expression.ast`${t.cloneNode(id)}.add(this)`);
       const newExpr = t.newExpression(t.identifier("WeakSet"), []);
       (0, _helperAnnotateAsPure.default)(newExpr);
@@ -114,7 +117,7 @@ var _default = (0, _helperPluginUtils.declare)(({
           return;
         }
 
-        if (privateElement.isMethod()) {
+        if (privateElement.node.type === "ClassPrivateMethod") {
           if (privateElement.node.static) {
             if (outerClass.node.id) {
               unshadow(outerClass.node.id.name, outerClass.scope, path.scope);

@@ -1,6 +1,6 @@
 {
   "name": "@babel/plugin-proposal-private-property-in-object",
-  "version": "7.16.7",
+  "version": "7.18.6",
   "description": "This plugin transforms checks for a private property in an object",
   "repository": {
     "type": "git",
@@ -17,20 +17,21 @@
     "babel-plugin"
   ],
   "dependencies": {
-    "@babel/helper-annotate-as-pure": "^7.16.7",
-    "@babel/helper-create-class-features-plugin": "^7.16.7",
-    "@babel/helper-plugin-utils": "^7.16.7",
+    "@babel/helper-annotate-as-pure": "^7.18.6",
+    "@babel/helper-create-class-features-plugin": "^7.18.6",
+    "@babel/helper-plugin-utils": "^7.18.6",
     "@babel/plugin-syntax-private-property-in-object": "^7.14.5"
   },
   "peerDependencies": {
     "@babel/core": "^7.0.0-0"
   },
   "devDependencies": {
-    "@babel/core": "^7.16.7",
-    "@babel/helper-plugin-test-runner": "^7.16.7"
+    "@babel/core": "^7.18.6",
+    "@babel/helper-plugin-test-runner": "^7.18.6"
   },
   "engines": {
     "node": ">=6.9.0"
   },
-  "author": "The Babel Team (https://babel.dev/team)"
+  "author": "The Babel Team (https://babel.dev/team)",
+  "type": "commonjs"
 }

@@ -49,8 +49,19 @@ rm -rf \
   web/ui/static/* web/ui/react-app/.gitignore \
   scripts/!(compress_assets.sh)
 
-# Ensure empty target dir is committed.
-touch web/ui/static/.gitignore
+cd web/ui
 
-# Install node_modules for vendoring.
-make ui-install
+# Ensure empty target dir is committed.
+touch static/.gitignore
+
+# Install node_modules for vendoring. Don't use Prometheus's make ui-install
+# as npm does not respect package-lock.json. Npm CI does.
+npm ci
+
+# We can't use npm ci --omit=dev as some Prometheus packages put production packages
+# as dev. Removing some known vulnerable and not used packages manually.
+rm -r node_modules/rst-selector-operator
+
+# Remove lock files which tend to trigger scanners assuming we host our
+# source code in vendor folder.
+rm -r node_modules/**/package-lock.json

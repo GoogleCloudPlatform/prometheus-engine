@@ -1,5 +1,7 @@
 'use strict';
 
+var functionsHaveConfigurableNames = require('functions-have-names').functionsHaveConfigurableNames();
+
 var $Object = Object;
 var $TypeError = TypeError;
 
@@ -31,3 +33,7 @@ module.exports = function flags() {
 	}
 	return result;
 };
+
+if (functionsHaveConfigurableNames && Object.defineProperty) {
+	Object.defineProperty(module.exports, 'name', { value: 'get flags' });
+}

@@ -105,7 +105,7 @@ function lilconfig(name, options) {
                 const content = String(await fsReadFileAsync(filepath));
                 const loader = loaders[loaderKey];
                 if (fileName === 'package.json') {
-                    const pkg = loader(filepath, content);
+                    const pkg = await loader(filepath, content);
                     const maybeConfig = getPackageProp(packageProp, pkg);
                     if (maybeConfig != null) {
                         result.config = maybeConfig;
@@ -123,7 +123,7 @@ function lilconfig(name, options) {
                 }
                 else {
                     validateLoader(loader, loaderKey);
-                    result.config = loader(filepath, content);
+                    result.config = await loader(filepath, content);
                 }
                 result.filepath = filepath;
                 break;

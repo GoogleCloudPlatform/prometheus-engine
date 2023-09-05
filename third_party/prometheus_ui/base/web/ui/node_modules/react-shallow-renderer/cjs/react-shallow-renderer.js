@@ -1,4 +1,4 @@
-/** @license ReactShallowRenderer v16.14.1
+/** @license ReactShallowRenderer v16.15.0
  * react-shallow-renderer.js
  *
  * Copyright (c) Facebook, Inc. and its affiliates.
@@ -438,6 +438,7 @@ var ReactShallowRenderer = /*#__PURE__*/function () {
     this._didScheduleRenderPhaseUpdate = false;
     this._renderPhaseUpdates = null;
     this._numberOfReRenders = 0;
+    this._idCounter = 0;
   };
 
   _proto2._validateCurrentlyRenderingComponent = function _validateCurrentlyRenderingComponent() {
@@ -594,8 +595,7 @@ var ReactShallowRenderer = /*#__PURE__*/function () {
         props: props,
         responder: responder
       };
-    }; // TODO: implement if we decide to keep the shallow renderer
-
+    };
 
     var useTransition = function useTransition(config) {
       _this._validateCurrentlyRenderingComponent();
@@ -605,13 +605,25 @@ var ReactShallowRenderer = /*#__PURE__*/function () {
       };
 
       return [startTransition, false];
-    }; // TODO: implement if we decide to keep the shallow renderer
-
+    };
 
     var useDeferredValue = function useDeferredValue(value, config) {
       _this._validateCurrentlyRenderingComponent();
 
       return value;
+    };
+
+    var useId = function useId() {
+      _this._validateCurrentlyRenderingComponent();
+
+      var nextId = ++_this._idCounter;
+      return ':r' + nextId + ':';
+    };
+
+    var useSyncExternalStore = function useSyncExternalStore(subscribe, getSnapshot) {
+      _this._validateCurrentlyRenderingComponent();
+
+      return getSnapshot();
     };
 
     return {
@@ -626,13 +638,16 @@ var ReactShallowRenderer = /*#__PURE__*/function () {
       useEffect: noOp,
       useImperativeHandle: noOp,
       useLayoutEffect: noOp,
+      useInsertionEffect: noOp,
       useMemo: useMemo,
       useReducer: useReducer,
       useRef: useRef,
       useState: useState,
       useResponder: useResponder,
+      useId: useId,
       useTransition: useTransition,
-      useDeferredValue: useDeferredValue
+      useDeferredValue: useDeferredValue,
+      useSyncExternalStore: useSyncExternalStore
     };
   };
 
@@ -730,11 +745,13 @@ var ReactShallowRenderer = /*#__PURE__*/function () {
 
       this._workInProgressHook = null;
       this._rendering = false;
+      this._idCounter = 0;
       this.render(element, context);
     } else {
       this._workInProgressHook = null;
       this._renderPhaseUpdates = null;
       this._numberOfReRenders = 0;
+      this._idCounter = 0;
     }
   };
 

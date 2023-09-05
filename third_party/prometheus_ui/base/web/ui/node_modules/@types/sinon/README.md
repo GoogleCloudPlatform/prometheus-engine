@@ -8,7 +8,7 @@ This package contains type definitions for Sinon (https://sinonjs.org).
 Files were exported from https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/sinon.
 
 ### Additional Details
- * Last updated: Tue, 08 Feb 2022 09:31:34 GMT
+ * Last updated: Sun, 14 May 2023 04:32:51 GMT
  * Dependencies: [@types/sinonjs__fake-timers](https://npmjs.com/package/@types/sinonjs__fake-timers)
  * Global values: `sinon`
 

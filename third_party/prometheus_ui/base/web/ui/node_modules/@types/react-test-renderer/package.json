@@ -1,7 +1,8 @@
 {
     "name": "@types/react-test-renderer",
-    "version": "17.0.1",
+    "version": "18.0.0",
     "description": "TypeScript definitions for react-test-renderer",
+    "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react-test-renderer",
     "license": "MIT",
     "contributors": [
         {
@@ -33,6 +34,11 @@
             "name": "Dhruv Jain",
             "url": "https://github.com/maddhruv",
             "githubUsername": "maddhruv"
+        },
+        {
+            "name": "Sebastian Silbermann",
+            "url": "https://github.com/eps1lon",
+            "githubUsername": "eps1lon"
         }
     ],
     "main": "",
@@ -46,6 +52,6 @@
     "dependencies": {
         "@types/react": "*"
     },
-    "typesPublisherContentHash": "27eb49b7d293ac829816e7de0c590dcb5878de71f98fd50d99a39211bb921047",
-    "typeScriptVersion": "3.4"
+    "typesPublisherContentHash": "5cedaf420d3274bac1826b94a61b3df106f2589d29af16fc4fe8ee2716cf6579",
+    "typeScriptVersion": "3.9"
 }

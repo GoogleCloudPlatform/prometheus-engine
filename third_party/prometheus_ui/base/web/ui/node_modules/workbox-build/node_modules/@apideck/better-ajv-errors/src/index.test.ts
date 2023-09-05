@@ -257,6 +257,33 @@ describe('betterAjvErrors', () => {
         },
       ]);
     });
+
+    it('should not crash on null value', () => {
+      data = {
+        type: null,
+      };
+      schema = {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['primary', 'secondary'],
+          },
+        },
+      };
+      ajv.validate(schema, data);
+      const errors = betterAjvErrors({ data, schema, errors: ajv.errors });
+      expect(errors).toEqual([
+        {
+          context: {
+            allowedValues: ['primary', 'secondary'],
+            errorType: 'enum',
+          },
+          message: "'type' property must be equal to one of the allowed values",
+          path: '{base}.type',
+        },
+      ]);
+    });
   });
 
   it('should handle array paths', () => {

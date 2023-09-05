@@ -30,7 +30,7 @@ rm -rf "$SCRIPT_DIR/static"
 # This is because make will check whether yarn.lock and package.json are older than
 # node_modules/
 cp -r --preserve=timestamps ${SCRIPT_ROOT}/third_party/prometheus_ui/base $BUILD_DIR
-cp -r ${SCRIPT_ROOT}/third_party/prometheus_ui/override/* $BUILD_DIR/web/ui/react-app/
+cp -r ${SCRIPT_ROOT}/third_party/prometheus_ui/override/* $BUILD_DIR/
 
 cd $BUILD_DIR
 

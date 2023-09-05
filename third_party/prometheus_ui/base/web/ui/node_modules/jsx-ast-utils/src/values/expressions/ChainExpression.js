@@ -9,5 +9,5 @@
 export default function extractValueFromChainExpression(value) {
   // eslint-disable-next-line global-require
   const getValue = require('.').default;
-  return getValue(value.expression);
+  return getValue(value.expression || value);
 }

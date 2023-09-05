@@ -100,6 +100,7 @@ var ES2021 = {
 	Number: require('./2021/Number'),
 	NumberBitwiseOp: require('./2021/NumberBitwiseOp'),
 	NumberToBigInt: require('./2021/NumberToBigInt'),
+	ObjectDefineProperties: require('./2021/ObjectDefineProperties'),
 	OrdinaryCreateFromConstructor: require('./2021/OrdinaryCreateFromConstructor'),
 	OrdinaryDefineOwnProperty: require('./2021/OrdinaryDefineOwnProperty'),
 	OrdinaryGetOwnProperty: require('./2021/OrdinaryGetOwnProperty'),

@@ -241,14 +241,14 @@ export interface IProduceWithPatches {
 	): InferCurriedFromInitialStateAndRecipe<State, Recipe, true>
 	<Base, D = Draft<Base>>(
 		base: Base,
-		recipe: (draft: D) => ValidRecipeReturnType<Base>,
+		recipe: (draft: D) => ValidRecipeReturnType<D>,
 		listener?: PatchListener
 	): PatchesTuple<Base>
 	<Base, D = Draft<Base>>(
 		base: Base,
-		recipe: (draft: D) => Promise<ValidRecipeReturnType<Base>>,
+		recipe: (draft: D) => Promise<ValidRecipeReturnType<D>>,
 		listener?: PatchListener
-	): PatchesTuple<Promise<Base>>
+	): Promise<PatchesTuple<Base>>
 }
 
 // Fixes #507: bili doesn't export the types of this file if there is no actual source in it..

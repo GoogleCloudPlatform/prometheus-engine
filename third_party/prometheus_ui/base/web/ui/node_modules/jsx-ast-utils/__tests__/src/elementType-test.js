@@ -62,16 +62,15 @@ describe('elementType tests', () => {
     assert.equal(actual, expected);
   });
 
-  it('should return the correct type of the multiple custom object element given its node object',
-    () => {
-      const code = '<UX.Slider.Blue.Light />';
-      const node = getOpeningElement(code);
+  it('should return the correct type of the multiple custom object element given its node object', () => {
+    const code = '<UX.Slider.Blue.Light />';
+    const node = getOpeningElement(code);
 
-      const expected = 'UX.Slider.Blue.Light';
-      const actual = elementType(node);
+    const expected = 'UX.Slider.Blue.Light';
+    const actual = elementType(node);
 
-      assert.equal(actual, expected);
-    });
+    assert.equal(actual, expected);
+  });
 
   it('should return this.Component when given its node object', () => {
     const code = '<this.Component />';

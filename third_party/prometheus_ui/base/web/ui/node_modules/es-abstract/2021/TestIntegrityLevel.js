@@ -3,10 +3,10 @@
 var GetIntrinsic = require('get-intrinsic');
 
 var $gOPD = require('../helpers/getOwnPropertyDescriptor');
-var $gOPN = GetIntrinsic('%Object.getOwnPropertyNames%');
 var $TypeError = GetIntrinsic('%TypeError%');
 
 var every = require('../helpers/every');
+var OwnPropertyKeys = require('../helpers/OwnPropertyKeys');
 
 var IsDataDescriptor = require('./IsDataDescriptor');
 var IsExtensible = require('./IsExtensible');
@@ -26,7 +26,7 @@ module.exports = function TestIntegrityLevel(O, level) {
 	if (status) {
 		return false;
 	}
-	var theKeys = $gOPN(O);
+	var theKeys = OwnPropertyKeys(O);
 	return theKeys.length === 0 || every(theKeys, function (k) {
 		var currentDesc = $gOPD(O, k);
 		if (typeof currentDesc !== 'undefined') {

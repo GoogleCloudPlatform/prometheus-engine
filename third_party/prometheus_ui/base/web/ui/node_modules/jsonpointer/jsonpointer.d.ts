@@ -2,13 +2,13 @@ interface JSONPointer {
     /**
      * Looks up a JSON pointer in an object
      */
-    get(object: Object, pointer: string): any;
+    get(object: Object): any;
 
 
     /**
      * Set a value for a JSON pointer on object
      */
-    set(object: Object, pointer: string, value: any): void;
+    set(object: Object, value: any): void;
 }
 
 

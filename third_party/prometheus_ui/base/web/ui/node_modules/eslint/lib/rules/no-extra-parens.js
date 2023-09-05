@@ -17,7 +17,7 @@ module.exports = {
         type: "layout",
 
         docs: {
-            description: "disallow unnecessary parentheses",
+            description: "Disallow unnecessary parentheses",
             recommended: false,
             url: "https://eslint.org/docs/rules/no-extra-parens"
         },
@@ -634,10 +634,10 @@ module.exports = {
 
                 currentNode = currentNode.parent;
 
-                /* istanbul ignore if */
+                /* c8 ignore start */
                 if (currentNode === null) {
                     throw new Error("Nodes are not in the ancestor-descendant relationship.");
-                }
+                }/* c8 ignore stop */
 
                 path.push(currentNode);
             }

@@ -105,8 +105,9 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
         exit(path) {
           if (!(0, _helperModuleTransforms.isModule)(path)) return;
           const browserGlobals = globals || {};
-          let moduleName = (0, _helperModuleTransforms.getModuleName)(this.file.opts, options);
-          if (moduleName) moduleName = _core.types.stringLiteral(moduleName);
+          const moduleName = (0, _helperModuleTransforms.getModuleName)(this.file.opts, options);
+          let moduleNameLiteral;
+          if (moduleName) moduleNameLiteral = _core.types.stringLiteral(moduleName);
           const {
             meta,
             headers
@@ -117,7 +118,8 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
             strictMode,
             allowTopLevelThis,
             noInterop,
-            importInterop
+            importInterop,
+            filename: this.file.opts.filename
           });
           const amdArgs = [];
           const commonjsArgs = [];
@@ -160,12 +162,12 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
           path.node.directives = [];
           path.node.body = [];
           const umdWrapper = path.pushContainer("body", [buildWrapper({
-            MODULE_NAME: moduleName,
+            MODULE_NAME: moduleNameLiteral,
             AMD_ARGUMENTS: _core.types.arrayExpression(amdArgs),
             COMMONJS_ARGUMENTS: commonjsArgs,
             BROWSER_ARGUMENTS: browserArgs,
             IMPORT_NAMES: importNames,
-            GLOBAL_TO_ASSIGN: buildBrowserInit(browserGlobals, exactGlobals, this.filename || "unknown", moduleName)
+            GLOBAL_TO_ASSIGN: buildBrowserInit(browserGlobals, exactGlobals, this.filename || "unknown", moduleNameLiteral)
           })])[0];
           const umdFactory = umdWrapper.get("expression.arguments")[1].get("body");
           umdFactory.pushContainer("directives", directives);

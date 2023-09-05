@@ -18,8 +18,7 @@ kind: CustomResourceDefinition
 metadata:
   name: clusterpodmonitorings.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -93,7 +92,9 @@ spec:
                       x-kubernetes-int-or-string: true
                     interval:
                       type: string
+                      default: 1m
                       description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
+                      pattern: ^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$
                     metricRelabeling:
                       type: array
                       description: Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general.
@@ -509,8 +510,7 @@ kind: CustomResourceDefinition
 metadata:
   name: clusterrules.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -681,8 +681,7 @@ kind: CustomResourceDefinition
 metadata:
   name: globalrules.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -853,8 +852,7 @@ kind: CustomResourceDefinition
 metadata:
   name: operatorconfigs.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -1400,8 +1398,7 @@ kind: CustomResourceDefinition
 metadata:
   name: podmonitorings.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -1475,7 +1472,9 @@ spec:
                       x-kubernetes-int-or-string: true
                     interval:
                       type: string
+                      default: 1m
                       description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
+                      pattern: ^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$
                     metricRelabeling:
                       type: array
                       description: Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general.
@@ -1891,8 +1890,7 @@ kind: CustomResourceDefinition
 metadata:
   name: rules.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
 spec:
   group: monitoring.googleapis.com
   names:

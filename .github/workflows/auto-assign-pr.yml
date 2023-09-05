@@ -1,0 +1,60 @@
+name: (Privileged) Auto Assign PR
+
+# This job is run when auto-assign-pr-schedule.yaml is finished.
+# This is to avoid pull_request or pull_request_target as per
+# https://securitylab.github.com/research/github-actions-preventing-pwn-requests/.
+#
+# This job requires origin PR number which is not populated for external forks.
+# Instead, we use artifact with the auto-assign-pr name.
+
+on:
+  workflow_run:
+    workflows: [ "Auto Assign PR" ]
+    types:
+    - completed
+
+jobs:
+  auto-assign:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+    - name: 'Download parameter'
+      # NOTE(bwplotka): We keep 3.1.0 version as listWorkflowRunArtifacts is not
+      # present in v6 for some reason (to be researched why).
+      uses: actions/github-script@v3.1.0
+      with:
+        script: |
+          const artifacts = await github.actions.listWorkflowRunArtifacts({
+             owner: context.repo.owner,
+             repo: context.repo.repo,
+             run_id: ${{github.event.workflow_run.id }},
+          });
+          const matchArtifact = artifacts.data.artifacts.filter((artifact) => {
+            return artifact.name == "auto-assign-pr"
+          })[0];
+          const download = await github.actions.downloadArtifact({
+             owner: context.repo.owner,
+             repo: context.repo.repo,
+             artifact_id: matchArtifact.id,
+             archive_format: 'zip',
+          });
+          const fs = require('fs');
+          fs.writeFileSync('${{github.workspace}}/pr.zip', Buffer.from(download.data));
+    - run: unzip pr.zip
+    - name: 'Get PR number'
+      uses: actions/github-script@v6
+      id: set-result
+      with:
+        script: |
+          const fs = require('fs');
+          return Number(fs.readFileSync('./NR'));
+        result-encoding: string
+    - name: 'Auto-assign issue'
+      uses: pozil/auto-assign-issue@v1
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        assignees: ${{ secrets.DEFAULT_ISSUE_ASSIGNEE }}
+        abortIfPreviousAssignees: true
+        issueNumber: ${{ steps.set-result.outputs.result }}

@@ -43,8 +43,6 @@ export function rgbToHsl(r: number, g: number, b: number): number[] {
   const min = Math.min(r, g, b);
   const delta = max - min;
   let h;
-  let s;
-  let l;
   if (delta === 0) {
     h = 0;
   } else if (max === r) {
@@ -54,8 +52,8 @@ export function rgbToHsl(r: number, g: number, b: number): number[] {
   } else {
     h = 60 * ((r - g) / delta + 4);
   }
-  l = (max + min) / 2;
-  s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
+  const l = (max + min) / 2;
+  const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
   return [h, s * 100, l * 100];
 }
 
@@ -162,8 +160,6 @@ export function hsvToRgb(h: number, s: number, v: number): number[] {
 export function rgbToHsv(r: number, g: number, b: number): number[] {
   r /= 255, g /= 255, b /= 255;
   let h;
-  let s;
-  let v;
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const delta = max - min;
@@ -176,8 +172,8 @@ export function rgbToHsv(r: number, g: number, b: number): number[] {
   } else {
     h = 60 * ((r - g) / delta + 4);
   }
-  s = max === 0 ? 0 : delta / max;
-  v = max;
+  const s = max === 0 ? 0 : delta / max;
+  const v = max;
   return [h, s * 100, v * 100];
 }
 

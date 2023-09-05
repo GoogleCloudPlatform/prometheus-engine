@@ -1,6 +1,6 @@
 {
   "name": "eslint-config-react-app",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "description": "ESLint configuration used by Create React App",
   "repository": {
     "type": "git",
@@ -38,5 +38,5 @@
   "engines": {
     "node": ">=14.0.0"
   },
-  "gitHead": "221e511730ca51c036c6954a9d2ee7659ff860f9"
+  "gitHead": "19fa58d527ae74f2b6baa0867463eea1d290f9a5"
 }

@@ -13,11 +13,12 @@ var _core = require("@babel/core");
 
 var _utils = require("babel-plugin-dynamic-import-node/utils");
 
-const buildWrapper = (0, _core.template)(`
+const buildWrapper = _core.template.statement(`
   define(MODULE_NAME, AMD_ARGUMENTS, function(IMPORT_NAMES) {
   })
 `);
-const buildAnonymousWrapper = (0, _core.template)(`
+
+const buildAnonymousWrapper = _core.template.statement(`
   define(["require"], function(REQUIRE) {
   })
 `);
@@ -29,8 +30,9 @@ function injectWrapper(path, wrapper) {
   } = path.node;
   path.node.directives = [];
   path.node.body = [];
-  const amdWrapper = path.pushContainer("body", wrapper)[0];
-  const amdFactory = amdWrapper.get("expression.arguments").filter(arg => arg.isFunctionExpression())[0].get("body");
+  const amdFactoryCall = path.pushContainer("body", wrapper)[0].get("expression");
+  const amdFactoryCallArgs = amdFactoryCall.get("arguments");
+  const amdFactory = amdFactoryCallArgs[amdFactoryCallArgs.length - 1].get("body");
   amdFactory.pushContainer("directives", directives);
   amdFactory.pushContainer("body", body);
 }
@@ -124,7 +126,8 @@ var _default = (0, _helperPluginUtils.declare)((api, options) => {
             strictMode,
             allowTopLevelThis,
             importInterop,
-            noInterop
+            noInterop,
+            filename: this.file.opts.filename
           });
 
           if ((0, _helperModuleTransforms.hasExports)(meta)) {
