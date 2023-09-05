@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.1.1](https://github.com/es-shims/Object.hasOwn/compare/v1.1.0...v1.1.1) - 2022-05-05
+
+### Commits
+
+- [actions] remove unused actions [`4ca5814`](https://github.com/es-shims/Object.hasOwn/commit/4ca5814dc12ce990058574b84eccfdbe71e36506)
+- [actions] reuse common workflows [`e265a2f`](https://github.com/es-shims/Object.hasOwn/commit/e265a2f9c7a538acbe7d84f8d1373c9a22d0aaa7)
+- [meta] use `npmignore` to autogenerate an npmignore file [`4f54d5e`](https://github.com/es-shims/Object.hasOwn/commit/4f54d5e68bdbf390715138f1f228c51adb7e2d1d)
+- [Fix] `shim`: properly install when already present [`f580b50`](https://github.com/es-shims/Object.hasOwn/commit/f580b50b84aeced35eab728629cb0e2c3d734685)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `aud`, `auto-changelog`, `functions-have-names`, `has-symbols`, `tape` [`335d3c1`](https://github.com/es-shims/Object.hasOwn/commit/335d3c15429aa0936cdf8019d9ec7563cc362488)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `@es-shims/api`, `safe-publish-latest`, `tape` [`c040e94`](https://github.com/es-shims/Object.hasOwn/commit/c040e94ab5edce66787873d398c68c90c594e999)
+- [actions] update codecov uploader [`723dd15`](https://github.com/es-shims/Object.hasOwn/commit/723dd15c7fb49fef5c76fe95f14c2a1b32d3967d)
+- [Deps] update `define-properties`, `es-abstract` [`4fb99f9`](https://github.com/es-shims/Object.hasOwn/commit/4fb99f93fa493e134416fe8dfaaa8fd2db335ee6)
+- [Dev Deps] update `@ljharb/eslint-config` [`9a5e992`](https://github.com/es-shims/Object.hasOwn/commit/9a5e9921328858e359e6835d29f3a4349496aea2)
+
 ## [v1.1.0](https://github.com/es-shims/Object.hasOwn/compare/v1.0.0...v1.1.0) - 2021-10-03
 
 ### Commits

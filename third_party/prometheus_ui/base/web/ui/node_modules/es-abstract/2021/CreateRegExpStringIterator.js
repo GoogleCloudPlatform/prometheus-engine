@@ -48,11 +48,11 @@ var RegExpStringIteratorNext = function next() {
 	}
 	if (
 		!(O instanceof RegExpStringIterator)
-        || !SLOT.has(O, '[[IteratingRegExp]]')
-        || !SLOT.has(O, '[[IteratedString]]')
-        || !SLOT.has(O, '[[Global]]')
-        || !SLOT.has(O, '[[Unicode]]')
-        || !SLOT.has(O, '[[Done]]')
+		|| !SLOT.has(O, '[[IteratingRegExp]]')
+		|| !SLOT.has(O, '[[IteratedString]]')
+		|| !SLOT.has(O, '[[Global]]')
+		|| !SLOT.has(O, '[[Unicode]]')
+		|| !SLOT.has(O, '[[Done]]')
 	) {
 		throw new $TypeError('"this" value must be a RegExpStringIterator instance');
 	}

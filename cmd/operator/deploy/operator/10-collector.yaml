@@ -73,8 +73,8 @@ spec:
           limits:
             memory: 32M
           requests:
-            cpu: 8m
-            memory: 16M
+            cpu: 1m
+            memory: 4M
         volumeMounts:
         - name: config
           readOnly: true
@@ -107,6 +107,8 @@ spec:
         - --web.enable-lifecycle
         - --web.route-prefix=/
         - --export.user-agent-mode=kubectl
+        # JSON log format is needed for GKE to display log levels correctly.
+        - --log.format=json
         ports:
         - name: prom-metrics
           containerPort: 19090
@@ -119,8 +121,8 @@ spec:
           limits:
             memory: 2G
           requests:
-            cpu: 16m
-            memory: 128M
+            cpu: 8m
+            memory: 32M
         volumeMounts:
         - name: storage
           mountPath: /prometheus/data
@@ -176,15 +178,6 @@ spec:
         operator: Exists
       - effect: NoSchedule
         operator: Exists
-      # TODO(TheSpiritXIII): GKE Autopilot Bug: catch-all toleration is not detected.
-      - value: "amd64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
-      - value: "arm64"
-        effect: "NoSchedule"
-        key: "kubernetes.io/arch"
-        operator: "Equal"
       securityContext:
         runAsGroup: 1000
         runAsNonRoot: true

@@ -82,14 +82,14 @@ const color = new MooColor(str = '');
 
 ## [Modification](modification.md)
 
-- [lighten](modifier.md#lighten): Increase lightness.
-- [darken](modifier.md#darken): Decrease darkness.
-- [saturate](modifier.md#saturate): Increase saturation.
-- [desaturate](modifier.md#desaturate): Decrease saturation.
-- [grayscale](modifier.md#grayscale): Sets saturation value to 0.
-- [whiten](modifier.md#whiten): Modify whiteness.
-- [blacken](modifier.md#blacken): Modify blackness.
-- [rotate](modifier.md#rotate): Rotate hue value.
-- [mix](modifier.md#mix): Mix two colors.
-- [complement](modifier.md#complement): Sets color to the complement of a color.
-- [invert](modifier.md#invert): Sets color to the inverse (negative) of a color.
+- [lighten](modification.md#lighten): Increase lightness.
+- [darken](modification.md#darken): Decrease darkness.
+- [saturate](modification.md#saturate): Increase saturation.
+- [desaturate](modification.md#desaturate): Decrease saturation.
+- [grayscale](modification.md#grayscale): Sets saturation value to 0.
+- [whiten](modification.md#whiten): Modify whiteness.
+- [blacken](modification.md#blacken): Modify blackness.
+- [rotate](modification.md#rotate): Rotate hue value.
+- [mix](modification.md#mix): Mix two colors.
+- [complement](modification.md#complement): Sets color to the complement of a color.
+- [invert](modification.md#invert): Sets color to the inverse (negative) of a color.

@@ -30,7 +30,7 @@ var _default = (0, _helperPluginUtils.declare)(api => {
     inherits: _pluginSyntaxDynamicImport.default,
 
     pre() {
-      this.file.set("@babel/plugin-proposal-dynamic-import", "7.16.7");
+      this.file.set("@babel/plugin-proposal-dynamic-import", "7.18.6");
     },
 
     visitor: {

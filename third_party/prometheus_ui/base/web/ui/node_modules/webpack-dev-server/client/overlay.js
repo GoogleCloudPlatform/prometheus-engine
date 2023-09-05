@@ -23,9 +23,24 @@ var containerElement;
 /** @type {Array<(element: HTMLDivElement) => void>} */
 
 var onLoadQueue = [];
-ansiHTML.setColors(colors);
+/** @type {TrustedTypePolicy | undefined} */
 
-function createContainer() {
+var overlayTrustedTypesPolicy;
+ansiHTML.setColors(colors);
+/**
+ * @param {string | null} trustedTypesPolicyName
+ */
+
+function createContainer(trustedTypesPolicyName) {
+  // Enable Trusted Types if they are available in the current browser.
+  if (window.trustedTypes) {
+    overlayTrustedTypesPolicy = window.trustedTypes.createPolicy(trustedTypesPolicyName || "webpack-dev-server#overlay", {
+      createHTML: function createHTML(value) {
+        return value;
+      }
+    });
+  }
+
   iframeContainerElement = document.createElement("iframe");
   iframeContainerElement.id = "webpack-dev-server-client-overlay";
   iframeContainerElement.src = "about:blank";
@@ -101,10 +116,11 @@ function createContainer() {
 }
 /**
  * @param {(element: HTMLDivElement) => void} callback
+ * @param {string | null} trustedTypesPolicyName
  */
 
 
-function ensureOverlayExists(callback) {
+function ensureOverlayExists(callback, trustedTypesPolicyName) {
   if (containerElement) {
     // Everything is ready, call the callback right away.
     callback(containerElement);
@@ -117,7 +133,7 @@ function ensureOverlayExists(callback) {
     return;
   }
 
-  createContainer();
+  createContainer(trustedTypesPolicyName);
 } // Successful compilation.
 
 
@@ -162,10 +178,11 @@ function formatProblem(type, item) {
 /**
  * @param {string} type
  * @param {Array<string  | { file?: string, moduleName?: string, loc?: string, message?: string }>} messages
+ * @param {string | null} trustedTypesPolicyName
  */
 
 
-function show(type, messages) {
+function show(type, messages, trustedTypesPolicyName) {
   ensureOverlayExists(function () {
     messages.forEach(function (message) {
       var entryElement = document.createElement("div");
@@ -180,7 +197,7 @@ function show(type, messages) {
 
       var text = ansiHTML(encode(body));
       var messageTextNode = document.createElement("div");
-      messageTextNode.innerHTML = text;
+      messageTextNode.innerHTML = overlayTrustedTypesPolicy ? overlayTrustedTypesPolicy.createHTML(text) : text;
       entryElement.appendChild(typeElement);
       entryElement.appendChild(document.createElement("br"));
       entryElement.appendChild(document.createElement("br"));
@@ -191,7 +208,7 @@ function show(type, messages) {
 
       containerElement.appendChild(entryElement);
     });
-  });
+  }, trustedTypesPolicyName);
 }
 
 export { formatProblem, show, hide };

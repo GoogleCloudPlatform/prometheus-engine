@@ -129,12 +129,13 @@ type Exporter struct {
 }
 
 const (
-	// Number of shards by which series are bucketed.
-	shardCount = 1024
-	// Buffer size for each individual shard.
-	shardBufferSize = 2048
+	// DefaultShardCount represents number of shards by which series are bucketed.
+	DefaultShardCount = 1024
+	// DefaultShardBufferSize represents the buffer size for each individual shard.
+	// Each element in buffer (queue) consists of sample and hash.
+	DefaultShardBufferSize = 2048
 
-	// Maximum number of samples to pack into a batch sent to GCM.
+	// BatchSizeMax represents maximum number of samples to pack into a batch sent to GCM.
 	BatchSizeMax = 200
 	// Time after an accumulating batch is flushed to GCM. This avoids data being
 	// held indefinititely if not enough new data flows in to fill up the batch.
@@ -181,9 +182,6 @@ type ExporterOpts struct {
 	// parameter.
 	Matchers Matchers
 
-	// Maximum batch size to use when sending data to the GCM API. The default
-	// maximum will be used if set to 0.
-	BatchSize uint
 	// Prefix under which metrics are written to GCM.
 	MetricTypePrefix string
 
@@ -199,6 +197,31 @@ type ExporterOpts struct {
 
 	// The project ID of an alternative project for quota attribution.
 	QuotaProject string
+
+	// Efficiency represents exporter options that allows fine-tuning of
+	// internal data structure sizes. Only for advance users. No compatibility
+	// guarantee (might change in future).
+	Efficiency EfficiencyOpts
+}
+
+// EfficiencyOpts represents exporter options that allows fine-tuning of
+// internal data structure sizes. Only for advance users. No compatibility
+// guarantee (might change in future).
+type EfficiencyOpts struct {
+	// BatchSize controls a maximum batch size to use when sending data to the GCM
+	// API. Defaults to BatchSizeMax when 0. The BatchSizeMax is also
+	// the maximum number this field can have due to GCM quota for write requests
+	// size. See https://cloud.google.com/monitoring/quotas?hl=en#custom_metrics_quotas.
+	BatchSize uint
+
+	// ShardCount controls number of shards. Refer to Exporter.Run documentation
+	// to learn more about algorithm. Defaults to DefaultShardCount when 0.
+	ShardCount uint
+	// ShardBufferSize controls the size for each individual shard. Each element
+	// in buffer (queue) consists of sample and hash. Refer to Exporter.Run
+	// documentation to learn more about algorithm. Defaults to
+	// DefaultShardBufferSize when 0.
+	ShardBufferSize uint
 }
 
 // NopExporter returns an inactive exporter.
@@ -281,7 +304,9 @@ func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.Metric
 
 // New returns a new Cloud Monitoring Exporter.
 func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Exporter, error) {
-	grpc_prometheus.EnableClientHandlingTimeHistogram()
+	grpc_prometheus.EnableClientHandlingTimeHistogram(
+		grpc_prometheus.WithHistogramBuckets([]float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15, 20, 30, 40, 50, 60}),
+	)
 
 	if logger == nil {
 		logger = log.NewNopLogger()
@@ -302,12 +327,19 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		)
 	}
 
-	if opts.BatchSize == 0 {
-		opts.BatchSize = BatchSizeMax
+	if opts.Efficiency.BatchSize == 0 {
+		opts.Efficiency.BatchSize = BatchSizeMax
 	}
-	if opts.BatchSize > BatchSizeMax {
-		return nil, fmt.Errorf("Maximum supported batch size is %d, got %d", BatchSizeMax, opts.BatchSize)
+	if opts.Efficiency.BatchSize > BatchSizeMax {
+		return nil, fmt.Errorf("maximum supported batch size is %d, got %d", BatchSizeMax, opts.Efficiency.BatchSize)
 	}
+	if opts.Efficiency.ShardCount == 0 {
+		opts.Efficiency.ShardCount = DefaultShardCount
+	}
+	if opts.Efficiency.ShardBufferSize == 0 {
+		opts.Efficiency.ShardBufferSize = DefaultShardBufferSize
+	}
+
 	if opts.MetricTypePrefix == "" {
 		opts.MetricTypePrefix = MetricTypePrefix
 	}
@@ -324,7 +356,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		opts:                 opts,
 		metricClient:         metricClient,
 		nextc:                make(chan struct{}, 1),
-		shards:               make([]*shard, shardCount),
+		shards:               make([]*shard, opts.Efficiency.ShardCount),
 		warnedUntypedMetrics: map[string]struct{}{},
 	}
 	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, opts.Matchers)
@@ -334,7 +366,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 	opts.Lease.OnLeaderChange(e.seriesCache.clear)
 
 	for i := range e.shards {
-		e.shards[i] = newShard(shardBufferSize)
+		e.shards[i] = newShard(opts.Efficiency.ShardBufferSize)
 	}
 
 	return e, nil
@@ -490,7 +522,7 @@ const (
 	ClientName = "prometheus-engine-export"
 	// mainModuleVersion is the version of the main module. Align with git tag.
 	// TODO(TheSpiritXIII): Remove with https://github.com/golang/go/issues/50603
-	mainModuleVersion = "v0.7.1"
+	mainModuleVersion = "v0.7.4-rc.0"
 	// mainModuleName is the name of the main module. Align with go.mod.
 	mainModuleName = "github.com/GoogleCloudPlatform/prometheus-engine"
 )
@@ -507,11 +539,14 @@ func Testing() bool {
 // restrictions. While testing, the static version is validated for correctness.
 func Version() (string, error) {
 	if Testing() {
-		// TODO(TheSpiritXIII): After https://github.com/golang/go/issues/50603 just return empty
+		// TODO(TheSpiritXIII): After https://github.com/golang/go/issues/50603 just return an empty
 		// string here. For now, use the opportunity to confirm that the static version is correct.
 		// We manually get the closest git tag if the user is running the unit test locally, but
 		// fallback to the GIT_TAG environment variable in case the user is running the test via
 		// Docker (like `make test` does by default).
+		if testTag, found := os.LookupEnv("TEST_TAG"); !found || testTag == "false" {
+			return mainModuleVersion, nil
+		}
 		cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
 		var stdout bytes.Buffer
 		cmd.Stdout = &stdout
@@ -561,6 +596,29 @@ func Version() (string, error) {
 
 // Run sends exported samples to Google Cloud Monitoring. Must be called at most once.
 // ApplyConfig must be called once prior to calling Run.
+//
+// Run starts a loop that gathers samples and sends them to GCM.
+//
+// Samples must not arrive at the GCM API out of order. To ensure that, there
+// must be at most one in-flight request per series. Tracking every series individually
+// would also require separate queue per series. This would come with a lot of overhead
+// and implementation complexity.
+// Instead, we shard the series space and maintain one queue per shard. For every shard
+// we ensure that there is at most one in-flight request.
+//
+// One solution would be to have a separate send loop per shard that reads from
+// the queue, accumulates a batch, and sends it to the GCM API. The drawback is that one
+// has to get the number of shards right. Too low, and samples per shard cannot be sent
+// fast enough. Too high, and batches do not fill up, potentially sending new requests
+// for every sample.
+// As a result, fine-tuning at startup but also runtime is necessary to respond to changing
+// load patterns and latency of the API.
+//
+// We largely avoid this issue by filling up batches from multiple shards. Under high load,
+// a batch contains samples from fewer shards, under low load from more.
+// The per-shard overhead is minimal and thus a high number can be picked, which allows us
+// to cover a large range of potential throughput and latency combinations without requiring
+// user configuration or, even worse, runtime changes to the shard number.
 func (e *Exporter) Run(ctx context.Context) error {
 	defer e.metricClient.Close()
 	go e.seriesCache.run(ctx)
@@ -577,30 +635,7 @@ func (e *Exporter) Run(ctx context.Context) error {
 	}
 	defer stopTimer()
 
-	// Start a loop that gathers samples and sends them to GCM.
-	//
-	// Samples must not arrive at the GCM API out of order. To ensure that, there
-	// must be at most one in-flight request per series. Tracking every series individually
-	// would also require separate queue per series. This would come with a lot of overhead
-	// and implementation complexity.
-	// Instead, we shard the series space and maintain one queue per shard. For every shard
-	// we ensure that there is at most one in-flight request.
-	//
-	// One solution would be to have a separate send loop per shard that reads from
-	// the queue, accumulates a batch, and sends it to the GCM API. The drawback is that one
-	// has to get the number of shards right. Too low, and samples per shard cannot be sent
-	// fast enough. Too high, and batches do not fill up, potentially sending new requests
-	// for every sample.
-	// As a result, fine-tuning at startup but also runtime is necessary to respond to changing
-	// load patterns and latency of the API.
-	//
-	// We largely avoid this issue by filling up batches from multiple shards. Under high load,
-	// a batch contains samples from fewer shards, under low load from more.
-	// The per-shard overhead is minimal and thus a high number can be picked, which allows us
-	// to cover a large range of potential throughput and latency combinations without requiring
-	// user configuration or, even worse, runtime changes to the shard number.
-
-	curBatch := newBatch(e.logger, e.opts.BatchSize)
+	curBatch := newBatch(e.logger, e.opts.Efficiency.ShardCount, e.opts.Efficiency.BatchSize)
 
 	// Send the currently accumulated batch to GCM asynchronously.
 	send := func() {
@@ -619,7 +654,7 @@ func (e *Exporter) Run(ctx context.Context) error {
 		stopTimer()
 		timer.Reset(batchDelayMax)
 
-		curBatch = newBatch(e.logger, e.opts.BatchSize)
+		curBatch = newBatch(e.logger, e.opts.Efficiency.ShardCount, e.opts.Efficiency.BatchSize)
 	}
 
 	for {
@@ -821,7 +856,7 @@ type batch struct {
 	total   int
 }
 
-func newBatch(logger log.Logger, maxSize uint) *batch {
+func newBatch(logger log.Logger, shardsCount uint, maxSize uint) *batch {
 	if logger == nil {
 		logger = log.NewNopLogger()
 	}
@@ -829,7 +864,7 @@ func newBatch(logger log.Logger, maxSize uint) *batch {
 		logger:  logger,
 		maxSize: maxSize,
 		m:       make(map[string][]*monitoring_pb.TimeSeries, 1),
-		shards:  make([]*shard, 0, shardCount/2),
+		shards:  make([]*shard, 0, shardsCount/2),
 	}
 }
 

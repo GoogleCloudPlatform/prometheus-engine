@@ -15,7 +15,11 @@ if (gOPD) {
 }
 
 functionsHaveNames.functionsHaveConfigurableNames = function functionsHaveConfigurableNames() {
-	return functionsHaveNames() && gOPD && !!gOPD(function () {}, 'name').configurable;
+	if (!functionsHaveNames() || !gOPD) {
+		return false;
+	}
+	var desc = gOPD(function () {}, 'name');
+	return !!desc && !!desc.configurable;
 };
 
 var $bind = Function.prototype.bind;

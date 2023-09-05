@@ -41,7 +41,7 @@ import (
 )
 
 func TestBatchAdd(t *testing.T) {
-	b := newBatch(nil, 100)
+	b := newBatch(nil, DefaultShardCount, 100)
 
 	if !b.empty() {
 		t.Fatalf("batch unexpectedly not empty")
@@ -98,7 +98,7 @@ func TestBatchFillFromShardsAndSend(t *testing.T) {
 		})
 	}
 
-	b := newBatch(nil, 101)
+	b := newBatch(nil, DefaultShardCount, 101)
 
 	for _, s := range shards {
 		s.fill(b)
@@ -306,7 +306,7 @@ func TestExporter_wrapMetadata(t *testing.T) {
 		},
 	}
 
-	e, err := New(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
+	e, err := New(log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,7 +360,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 		t.Fatalf("Creating metric client failed: %s", err)
 	}
 
-	e, err := New(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
+	e, err := New(log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
 	if err != nil {
 		t.Fatalf("Creating Exporter failed: %s", err)
 	}

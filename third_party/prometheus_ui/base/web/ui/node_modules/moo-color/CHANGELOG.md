@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 1.0.3 - 2022-04-04
+
+- Lint codes.
+- Fix docs.
+- Update dependencies.
+
 ## [1.0.2] - 2019-12-31
 
 - Refined some regex. (073832a8ef0a74503cc30cfe89489fbefbc1d160)

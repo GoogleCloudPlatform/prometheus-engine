@@ -328,7 +328,7 @@ fakeServerWithClock.restore = function restore() {
 
 module.exports = fakeServerWithClock;
 
-},{"./index":8,"@sinonjs/fake-timers":31}],8:[function(require,module,exports){
+},{"./index":8,"@sinonjs/fake-timers":32}],8:[function(require,module,exports){
 "use strict";
 
 var fakeXhr = require("../fake-xhr");
@@ -663,7 +663,7 @@ var fakeServer = {
 
 module.exports = fakeServer;
 
-},{"../configure-logger":1,"../fake-xhr":11,"./log":9,"path-to-regexp":37}],9:[function(require,module,exports){
+},{"../configure-logger":1,"../fake-xhr":11,"./log":9,"path-to-regexp":38}],9:[function(require,module,exports){
 "use strict";
 var inspect = require("util").inspect;
 
@@ -681,7 +681,7 @@ function log(response, request) {
 
 module.exports = log;
 
-},{"util":41}],10:[function(require,module,exports){
+},{"util":42}],10:[function(require,module,exports){
 "use strict";
 
 exports.isSupported = (function() {
@@ -1028,7 +1028,11 @@ function fakeXMLHttpRequestFor(globalScope) {
 
     function verifyRequestOpened(xhr) {
         if (xhr.readyState !== FakeXMLHttpRequest.OPENED) {
-            throw new Error(`INVALID_STATE_ERR - ${xhr.readyState}`);
+            const errorMessage =
+                xhr.readyState === FakeXMLHttpRequest.UNSENT
+                    ? "INVALID_STATE_ERR - you might be trying to set the request state for a request that has already been aborted, it is recommended to check 'readyState' first..."
+                    : `INVALID_STATE_ERR - ${xhr.readyState}`;
+            throw new Error(errorMessage);
         }
     }
 
@@ -1614,7 +1618,7 @@ module.exports = extend(fakeXMLHttpRequestFor(globalObject), {
     fakeXMLHttpRequestFor: fakeXMLHttpRequestFor
 });
 
-},{"../configure-logger":1,"../event":5,"./blob":10,"@sinonjs/commons":19,"@sinonjs/text-encoding":32,"just-extend":36}],12:[function(require,module,exports){
+},{"../configure-logger":1,"../event":5,"./blob":10,"@sinonjs/commons":19,"@sinonjs/text-encoding":33,"just-extend":37}],12:[function(require,module,exports){
 "use strict";
 
 module.exports = {
@@ -1723,8 +1727,8 @@ module.exports = className;
  * @param  {string} msg
  * @returns {Function}
  */
-exports.wrap = function(func, msg) {
-    var wrapped = function() {
+exports.wrap = function (func, msg) {
+    var wrapped = function () {
         exports.printWarning(msg);
         return func.apply(this, arguments);
     };
@@ -1742,15 +1746,8 @@ exports.wrap = function(func, msg) {
  * @param  {string} funcName
  * @returns {string}
  */
-exports.defaultMsg = function(packageName, funcName) {
-    return (
-        packageName +
-        "." +
-        funcName +
-        " is deprecated and will be removed from the public API in a future version of " +
-        packageName +
-        "."
-    );
+exports.defaultMsg = function (packageName, funcName) {
+    return `${packageName}.${funcName} is deprecated and will be removed from the public API in a future version of ${packageName}.`;
 };
 
 /**
@@ -1759,7 +1756,7 @@ exports.defaultMsg = function(packageName, funcName) {
  * @param  {string} msg
  * @returns {undefined}
  */
-exports.printWarning = function(msg) {
+exports.printWarning = function (msg) {
     /* istanbul ignore next */
     if (typeof process === "object" && process.emitWarning) {
         // Emit Warnings in Node
@@ -1787,7 +1784,7 @@ module.exports = function every(obj, fn) {
 
     try {
         // eslint-disable-next-line @sinonjs/no-prototype-methods/no-prototype-methods
-        obj.forEach(function() {
+        obj.forEach(function () {
             if (!fn.apply(this, arguments)) {
                 // Throwing an error is the only way to break `forEach`
                 throw new Error();
@@ -1868,10 +1865,10 @@ module.exports = {
     orderByFirstCall: require("./order-by-first-call"),
     prototypes: require("./prototypes"),
     typeOf: require("./type-of"),
-    valueToString: require("./value-to-string")
+    valueToString: require("./value-to-string"),
 };
 
-},{"./called-in-order":13,"./class-name":14,"./deprecated":15,"./every":16,"./function-name":17,"./global":18,"./order-by-first-call":20,"./prototypes":24,"./type-of":29,"./value-to-string":30}],20:[function(require,module,exports){
+},{"./called-in-order":13,"./class-name":14,"./deprecated":15,"./every":16,"./function-name":17,"./global":18,"./order-by-first-call":20,"./prototypes":24,"./type-of":30,"./value-to-string":31}],20:[function(require,module,exports){
 "use strict";
 
 var sort = require("./prototypes/array").sort;
@@ -1912,41 +1909,60 @@ module.exports = orderByFirstCall;
 },{"./prototypes/array":21}],21:[function(require,module,exports){
 "use strict";
 
-var copyPrototype = require("./copy-prototype");
+var copyPrototype = require("./copy-prototype-methods");
 
 module.exports = copyPrototype(Array.prototype);
 
-},{"./copy-prototype":22}],22:[function(require,module,exports){
+},{"./copy-prototype-methods":22}],22:[function(require,module,exports){
 "use strict";
 
 var call = Function.call;
+var throwsOnProto = require("./throws-on-proto");
+
+var disallowedProperties = [
+    // ignore size because it throws from Map
+    "size",
+    "caller",
+    "callee",
+    "arguments",
+];
+
+// This branch is covered when tests are run with `--disable-proto=throw`,
+// however we can test both branches at the same time, so this is ignored
+/* istanbul ignore next */
+if (throwsOnProto) {
+    disallowedProperties.push("__proto__");
+}
 
 module.exports = function copyPrototypeMethods(prototype) {
     // eslint-disable-next-line @sinonjs/no-prototype-methods/no-prototype-methods
-    return Object.getOwnPropertyNames(prototype).reduce(function(result, name) {
-        // ignore size because it throws from Map
-        if (
-            name !== "size" &&
-            name !== "caller" &&
-            name !== "callee" &&
-            name !== "arguments" &&
-            typeof prototype[name] === "function"
-        ) {
-            result[name] = call.bind(prototype[name]);
+    return Object.getOwnPropertyNames(prototype).reduce(function (
+        result,
+        name
+    ) {
+        if (disallowedProperties.includes(name)) {
+            return result;
         }
 
+        if (typeof prototype[name] !== "function") {
+            return result;
+        }
+
+        result[name] = call.bind(prototype[name]);
+
         return result;
-    }, Object.create(null));
+    },
+    Object.create(null));
 };
 
-},{}],23:[function(require,module,exports){
+},{"./throws-on-proto":29}],23:[function(require,module,exports){
 "use strict";
 
-var copyPrototype = require("./copy-prototype");
+var copyPrototype = require("./copy-prototype-methods");
 
 module.exports = copyPrototype(Function.prototype);
 
-},{"./copy-prototype":22}],24:[function(require,module,exports){
+},{"./copy-prototype-methods":22}],24:[function(require,module,exports){
 "use strict";
 
 module.exports = {
@@ -1955,38 +1971,66 @@ module.exports = {
     map: require("./map"),
     object: require("./object"),
     set: require("./set"),
-    string: require("./string")
+    string: require("./string"),
 };
 
 },{"./array":21,"./function":23,"./map":25,"./object":26,"./set":27,"./string":28}],25:[function(require,module,exports){
 "use strict";
 
-var copyPrototype = require("./copy-prototype");
+var copyPrototype = require("./copy-prototype-methods");
 
 module.exports = copyPrototype(Map.prototype);
 
-},{"./copy-prototype":22}],26:[function(require,module,exports){
+},{"./copy-prototype-methods":22}],26:[function(require,module,exports){
 "use strict";
 
-var copyPrototype = require("./copy-prototype");
+var copyPrototype = require("./copy-prototype-methods");
 
 module.exports = copyPrototype(Object.prototype);
 
-},{"./copy-prototype":22}],27:[function(require,module,exports){
+},{"./copy-prototype-methods":22}],27:[function(require,module,exports){
 "use strict";
 
-var copyPrototype = require("./copy-prototype");
+var copyPrototype = require("./copy-prototype-methods");
 
 module.exports = copyPrototype(Set.prototype);
 
-},{"./copy-prototype":22}],28:[function(require,module,exports){
+},{"./copy-prototype-methods":22}],28:[function(require,module,exports){
 "use strict";
 
-var copyPrototype = require("./copy-prototype");
+var copyPrototype = require("./copy-prototype-methods");
 
 module.exports = copyPrototype(String.prototype);
 
-},{"./copy-prototype":22}],29:[function(require,module,exports){
+},{"./copy-prototype-methods":22}],29:[function(require,module,exports){
+"use strict";
+
+/**
+ * Is true when the environment causes an error to be thrown for accessing the
+ * __proto__ property.
+ *
+ * This is necessary in order to support `node --disable-proto=throw`.
+ *
+ * See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/proto
+ *
+ * @type {boolean}
+ */
+let throwsOnProto;
+try {
+    const object = {};
+    // eslint-disable-next-line no-proto, no-unused-expressions
+    object.__proto__;
+    throwsOnProto = false;
+} catch (_) {
+    // This branch is covered when tests are run with `--disable-proto=throw`,
+    // however we can test both branches at the same time, so this is ignored
+    /* istanbul ignore next */
+    throwsOnProto = true;
+}
+
+module.exports = throwsOnProto;
+
+},{}],30:[function(require,module,exports){
 "use strict";
 
 var type = require("type-detect");
@@ -2001,7 +2045,7 @@ module.exports = function typeOf(value) {
     return type(value).toLowerCase();
 };
 
-},{"type-detect":38}],30:[function(require,module,exports){
+},{"type-detect":39}],31:[function(require,module,exports){
 "use strict";
 
 /**
@@ -2020,7 +2064,7 @@ function valueToString(value) {
 
 module.exports = valueToString;
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 "use strict";
 
 const globalObject = require("@sinonjs/commons").global;
@@ -2448,6 +2492,7 @@ function withGlobal(_global) {
         target.parse = source.parse;
         target.UTC = source.UTC;
         target.prototype.toUTCString = source.prototype.toUTCString;
+        target.isFake = true;
 
         return target;
     }
@@ -2462,7 +2507,6 @@ function withGlobal(_global) {
          * @param {number} minute
          * @param {number} second
          * @param {number} ms
-         *
          * @returns {Date}
          */
         function ClockDate(year, month, date, hour, minute, second, ms) {
@@ -2608,16 +2652,27 @@ function withGlobal(_global) {
 
         if (addTimerReturnsObject) {
             const res = {
+                refed: true,
                 ref: function () {
+                    this.refed = true;
                     return res;
                 },
                 unref: function () {
+                    this.refed = false;
                     return res;
                 },
+                hasRef: function () {
+                    return this.refed;
+                },
                 refresh: function () {
-                    clearTimeout(timer.id);
-                    const args = [timer.func, timer.delay].concat(timer.args);
-                    return setTimeout.apply(null, args);
+                    timer.callAt =
+                        clock.now +
+                        (parseInt(timer.delay) || (clock.duringTick ? 1 : 0));
+
+                    // it _might_ have been removed, but if not the assignment is perfectly fine
+                    clock.timers[timer.id] = timer;
+
+                    return res;
                 },
                 [Symbol.toPrimitive]: function () {
                     return timer.id;
@@ -2677,7 +2732,6 @@ function withGlobal(_global) {
      * @param {Clock} clock
      * @param {number} from
      * @param {number} to
-     *
      * @returns {Timer}
      */
     function firstTimerInRange(clock, from, to) {
@@ -3108,6 +3162,12 @@ function withGlobal(_global) {
             return [secsSinceStart, remainderInNanos];
         }
 
+        function fakePerformanceNow() {
+            const hrt = hrtime();
+            const millis = hrt[0] * 1000 + hrt[1] / 1e6;
+            return millis;
+        }
+
         if (hrtimeBigintPresent) {
             hrtime.bigint = function () {
                 const parts = hrtime();
@@ -3150,19 +3210,18 @@ function withGlobal(_global) {
             });
         };
         if (typeof _global.Promise !== "undefined" && utilPromisify) {
-            clock.setTimeout[
-                utilPromisify.custom
-            ] = function promisifiedSetTimeout(timeout, arg) {
-                return new _global.Promise(function setTimeoutExecutor(
-                    resolve
-                ) {
-                    addTimer(clock, {
-                        func: resolve,
-                        args: [arg],
-                        delay: timeout,
+            clock.setTimeout[utilPromisify.custom] =
+                function promisifiedSetTimeout(timeout, arg) {
+                    return new _global.Promise(function setTimeoutExecutor(
+                        resolve
+                    ) {
+                        addTimer(clock, {
+                            func: resolve,
+                            args: [arg],
+                            delay: timeout,
+                        });
                     });
-                });
-            };
+                };
         }
 
         clock.clearTimeout = function clearTimeout(timerId) {
@@ -3206,19 +3265,18 @@ function withGlobal(_global) {
             };
 
             if (typeof _global.Promise !== "undefined" && utilPromisify) {
-                clock.setImmediate[
-                    utilPromisify.custom
-                ] = function promisifiedSetImmediate(arg) {
-                    return new _global.Promise(function setImmediateExecutor(
-                        resolve
-                    ) {
-                        addTimer(clock, {
-                            func: resolve,
-                            args: [arg],
-                            immediate: true,
-                        });
-                    });
-                };
+                clock.setImmediate[utilPromisify.custom] =
+                    function promisifiedSetImmediate(arg) {
+                        return new _global.Promise(
+                            function setImmediateExecutor(resolve) {
+                                addTimer(clock, {
+                                    func: resolve,
+                                    args: [arg],
+                                    immediate: true,
+                                });
+                            }
+                        );
+                    };
             }
 
             clock.clearImmediate = function clearImmediate(timerId) {
@@ -3237,7 +3295,9 @@ function withGlobal(_global) {
             const result = addTimer(clock, {
                 func: func,
                 delay: getTimeToNextFrame(),
-                args: [clock.now + getTimeToNextFrame()],
+                get args() {
+                    return [fakePerformanceNow()];
+                },
                 animation: true,
             });
 
@@ -3524,8 +3584,9 @@ function withGlobal(_global) {
                                         return;
                                     }
 
-                                    numTimers = Object.keys(clock.timers)
-                                        .length;
+                                    numTimers = Object.keys(
+                                        clock.timers
+                                    ).length;
                                     if (numTimers === 0) {
                                         resetIsNearInfiniteLimit();
                                         resolve(clock.now);
@@ -3573,7 +3634,7 @@ function withGlobal(_global) {
                                 resolve(clock.now);
                             }
 
-                            resolve(clock.tickAsync(timer.callAt));
+                            resolve(clock.tickAsync(timer.callAt - clock.now));
                         } catch (e) {
                             reject(e);
                         }
@@ -3613,11 +3674,7 @@ function withGlobal(_global) {
 
         if (performancePresent) {
             clock.performance = Object.create(null);
-            clock.performance.now = function FakeTimersNow() {
-                const hrt = hrtime();
-                const millis = hrt[0] * 1000 + hrt[1] / 1e6;
-                return millis;
-            };
+            clock.performance.now = fakePerformanceNow;
         }
 
         if (hrtimePresent) {
@@ -3644,6 +3701,14 @@ function withGlobal(_global) {
                 `FakeTimers.install called with ${String(
                     config
                 )} install requires an object parameter`
+            );
+        }
+
+        if (_global.Date.isFake === true) {
+            // Timers are already faked; this is a problem.
+            // Make the user reset timers before continuing.
+            throw new TypeError(
+                "Can't install fake timers twice on the same global object."
             );
         }
 
@@ -3768,7 +3833,7 @@ exports.createClock = defaultImplementation.createClock;
 exports.install = defaultImplementation.install;
 exports.withGlobal = withGlobal;
 
-},{"@sinonjs/commons":19,"util":41}],32:[function(require,module,exports){
+},{"@sinonjs/commons":19,"util":42}],33:[function(require,module,exports){
 // This is free and unencumbered software released into the public domain.
 // See LICENSE.md for more information.
 
@@ -3779,7 +3844,7 @@ module.exports = {
   TextDecoder: encoding.TextDecoder,
 };
 
-},{"./lib/encoding.js":34}],33:[function(require,module,exports){
+},{"./lib/encoding.js":35}],34:[function(require,module,exports){
 (function(global) {
   'use strict';
 
@@ -3827,7 +3892,7 @@ module.exports = {
 // For strict environments where `this` inside the global scope
 // is `undefined`, take a pure object instead
 }(this || {}));
-},{}],34:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 // This is free and unencumbered software released into the public domain.
 // See LICENSE.md for more information.
 
@@ -7141,12 +7206,12 @@ module.exports = {
 // For strict environments where `this` inside the global scope
 // is `undefined`, take a pure object instead
 }(this || {}));
-},{"./encoding-indexes.js":33}],35:[function(require,module,exports){
+},{"./encoding-indexes.js":34}],36:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],36:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 module.exports = extend;
 
 /*
@@ -7220,7 +7285,7 @@ function isUnextendable(val) {
   return !val || (typeof val != 'object' && typeof val != 'function');
 }
 
-},{}],37:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 var isarray = require('isarray')
 
 /**
@@ -7648,7 +7713,7 @@ function pathToRegexp (path, keys, options) {
   return stringToRegexp(/** @type {string} */ (path), /** @type {!Array} */ (keys), options)
 }
 
-},{"isarray":35}],38:[function(require,module,exports){
+},{"isarray":36}],39:[function(require,module,exports){
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
 	typeof define === 'function' && define.amd ? define(factory) :
@@ -8038,7 +8103,7 @@ return typeDetect;
 
 })));
 
-},{}],39:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -8063,14 +8128,14 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],40:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],41:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -8658,5 +8723,5 @@ function hasOwnProperty(obj, prop) {
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-},{"./support/isBuffer":40,"inherits":39}]},{},[12])(12)
+},{"./support/isBuffer":41,"inherits":40}]},{},[12])(12)
 });

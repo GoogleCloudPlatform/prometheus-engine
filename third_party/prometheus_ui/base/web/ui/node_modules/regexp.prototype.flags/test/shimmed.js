@@ -8,6 +8,7 @@ var callBind = require('call-bind');
 
 var isEnumerable = Object.prototype.propertyIsEnumerable;
 var functionsHaveNames = require('functions-have-names')();
+var functionsHaveConfigurableNames = require('functions-have-names').functionsHaveConfigurableNames();
 var hasStrictMode = require('has-strict-mode')();
 
 var runTests = require('./tests');
@@ -18,7 +19,7 @@ test('shimmed', function (t) {
 	t.equal(descriptor.get.length, 0, 'RegExp#flags getter has a length of 0');
 
 	t.test('Function name', { skip: !functionsHaveNames }, function (st) {
-		st.match(descriptor.get.name, /^(get )?flags$/, 'RegExp#flasgs getter has name "flags"');
+		st.equal(descriptor.get.name, functionsHaveConfigurableNames ? 'get flags' : 'flags', 'RegExp#flags getter has name "get flags" (or "flags" if function names are not configurable)');
 		st.end();
 	});
 

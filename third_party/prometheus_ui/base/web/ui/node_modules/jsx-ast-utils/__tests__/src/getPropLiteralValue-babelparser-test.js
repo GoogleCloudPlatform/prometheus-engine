@@ -168,6 +168,17 @@ describe('getLiteralPropValue', () => {
     });
   });
 
+  describeIfNotBabylon('Chain Expression', () => {
+    it('should return null', () => {
+      const prop = extractProp('<div foo={abc?.def} />');
+
+      const expected = null;
+      const actual = getLiteralPropValue(prop);
+
+      assert.equal(actual, expected);
+    });
+  });
+
   describe('Template literal', () => {
     it('should return template literal with vars wrapped in curly braces', () => {
       const prop = extractProp('<div foo={`bar ${baz}`} />');

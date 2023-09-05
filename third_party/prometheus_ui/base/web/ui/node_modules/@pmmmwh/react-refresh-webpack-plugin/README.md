@@ -28,12 +28,12 @@ and thus cannot be made compatible.
 
 We recommend using the following versions:
 
-| Dependency      | Version               |
-| --------------- | --------------------- |
-| `react`         | `16.13.0`+ or `17.x`  |
-| `react-dom`     | `16.13.0`+ or `17.x`  |
-| `react-refresh` | `0.10.0`+             |
-| `webpack`       | `4.46.0`+ or `5.2.0`+ |
+| Dependency      | Version                      |
+| --------------- | ---------------------------- |
+| `react`         | `16.13.0`+, `17.x` or `18.x` |
+| `react-dom`     | `16.13.0`+, `17.x` or `18.x` |
+| `react-refresh` | `0.10.0`+                    |
+| `webpack`       | `4.46.0`+ or `5.2.0`+        |
 
 <details>
 <summary>Minimum requirements</summary>
@@ -49,9 +49,7 @@ We recommend using the following versions:
 </details>
 
 <details>
-<summary>
-Using custom renderers (e.g. <code>react-three-fiber</code>, <code>react-pdf</code>, <code>ink</code>)
-</summary>
+<summary>Using custom renderers (e.g. <code>react-three-fiber</code>, <code>react-pdf</code>, <code>ink</code>)</summary>
 <br />
 
 To ensure full support of "Fast Refresh" with components rendered by custom renderers,
@@ -109,7 +107,7 @@ pnpm add -D type-fest
 
 ### Usage
 
-For most setups, we recommend integrate using `babel-loader`.
+For most setups, we recommend integrating with `babel-loader`.
 It covers the most use cases and is officially supported by the React team.
 
 The example below will assume you're using `webpack-dev-server`.
@@ -192,8 +190,7 @@ module.exports = {
 
 > **:memo: Note**:
 >
-> Even though both the Babel transform (`react-refresh/babel`) and this plugin have optimisations to do nothing in `production`,
-> it is suggested to only have them both enabled in `development` mode to prevent shipping any additional code accidentally.
+> Ensure both the Babel transform (`react-refresh/babel`) and this plugin are enabled only in `development` mode!
 
 <details>
 <summary>Using <code>ts-loader</code></summary>
@@ -220,11 +217,13 @@ Then, instead of wiring up `react-refresh/babel` via `babel-loader`,
 you can wire-up `react-refresh-typescript` with `ts-loader`:
 
 ```js
+const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 const ReactRefreshTypeScript = require('react-refresh-typescript');
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
 module.exports = {
+  mode: isDevelopment ? 'development' : 'production',
   module: {
     rules: [
       {
@@ -244,6 +243,7 @@ module.exports = {
       },
     ],
   },
+  plugins: [isDevelopment && new ReactRefreshWebpackPlugin()].filter(Boolean),
 };
 ```
 
@@ -266,7 +266,12 @@ Then, instead of wiring up `react-refresh/babel` via `babel-loader`,
 you can wire-up `swc-loader` and use the `refresh` transform:
 
 ```js
+const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
+
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
 module.exports = {
+  mode: isDevelopment ? 'development' : 'production',
   module: {
     rules: [
       {
@@ -290,6 +295,7 @@ module.exports = {
       },
     ],
   },
+  plugins: [isDevelopment && new ReactRefreshWebpackPlugin()].filter(Boolean),
 };
 ```
 

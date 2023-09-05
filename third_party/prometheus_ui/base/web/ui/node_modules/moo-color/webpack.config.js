@@ -1,5 +1,5 @@
 const path = require('path');
-const merge = require('webpack-merge');
+const { merge } = require('webpack-merge');
 const WebpackNotifierPlugin = require('webpack-notifier');
 
 const dev = {

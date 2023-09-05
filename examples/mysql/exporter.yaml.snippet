@@ -12,6 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
++ apiVersion: v1
++ kind: ConfigMap
++ metadata:
++  name: mysql-exporter-config
++ data:
++   my.cnf: |
++     [client]
++     user=root
++     password=password
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -28,15 +38,18 @@ spec:
     spec:
       containers:
 +     - name: exporter
-+       image: prom/mysqld-exporter:v0.14.0
-+       env:
-+         - name: DATA_SOURCE_NAME
-+           value: root:password@(localhost:3306)/
++       image: prom/mysqld-exporter:v0.15.0
++       args:
++         - --config.my-cnf=/home/my.cnf
 +       ports:
 +       - containerPort: 9104
 +         name: prometheus
-      - image: mysql:5.7
-        name: mysql
++       volumeMounts:
++       - mountPath: /home/my.cnf
++         subPath: my.cnf
++         name: mysql-exporter-config
+      - name: mysql
+        image: mysql:5.7
         env:
         - name: MYSQL_ROOT_PASSWORD
           value: password
@@ -48,4 +61,10 @@ spec:
           value: sbtest
         ports:
         - containerPort: 3306
-          name: mysql
++     volumes:
++     - name: mysql-exporter-config
++       configMap:
++         name: mysql-exporter-config
++         items:
++         - key: my.cnf
++           path: my.cnf
