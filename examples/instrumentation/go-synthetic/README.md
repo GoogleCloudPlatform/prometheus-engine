@@ -9,6 +9,31 @@ types (including exotic OpenMetrics types and Native Histograms).
 It's used for testing and validation purposes, but also can be used to demo and debug
 Prometheus monitoring infrastructure.
 
+## Running Locally
+
+You can run this application locally via:
+
+```bash
+go run ./examples/instrumentation/go-synthetic/
+```
+
+Then, you can access the [`/metrics`](http://localhost:8080/metrics) endpoint. For example, via `curl`:
+
+```bash
+curl localhost:8080/metrics
+```
+
+### Authorization
+
+The example application can be protected with various authorization methods:
+
+#### BasicAuth
+
+```bash
+go run ./examples/instrumentation/go-synthetic/ --basic-auth-username=admin --basic-auth-password=pw
+curl localhost:8080/metrics -u "admin:pw"
+```
+
 ## Running on Kubernetes
 
 If running managed-collection on a Kubernetes cluster, the `go-synthetic` can be
