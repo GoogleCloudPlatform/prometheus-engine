@@ -172,6 +172,7 @@ var (
 )
 
 func main() {
+	basicAuthConfig := newBasicAuthConfigFromFlags()
 	flag.Parse()
 
 	metrics := prometheus.NewRegistry()
@@ -217,8 +218,16 @@ func main() {
 		)
 	}
 	{
-		server := &http.Server{Addr: *addr}
-		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics, EnableOpenMetrics: true}))
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", basicAuthConfig.handle(promhttp.HandlerFor(metrics, promhttp.HandlerOpts{
+			Registry:          metrics,
+			EnableOpenMetrics: true,
+		})))
+
+		server := &http.Server{
+			Addr:    *addr,
+			Handler: mux,
+		}
 
 		g.Add(func() error {
 			return server.ListenAndServe()
@@ -251,7 +260,7 @@ func main() {
 		)
 	}
 	if err := g.Run(); err != nil {
-		log.Println("Exit with error", err)
+		log.Println("Exit with error:", err)
 		os.Exit(1)
 	}
 }
