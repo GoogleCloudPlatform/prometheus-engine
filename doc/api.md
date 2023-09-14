@@ -26,6 +26,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [ClusterRules](#clusterrules)
 * [ClusterRulesList](#clusterruleslist)
 * [CollectionSpec](#collectionspec)
+* [ConfigSpec](#configspec)
 * [ExportFilters](#exportfilters)
 * [GlobalRules](#globalrules)
 * [GlobalRulesList](#globalruleslist)
@@ -190,6 +191,19 @@ CollectionSpec specifies how the operator configures collection of metric data.
 
 [Back to TOC](#table-of-contents)
 
+## ConfigSpec
+
+ConfigSpec holds configurations for the Prometheus configuration.
+
+
+<em>appears in: [OperatorFeatures](#operatorfeatures)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| compression | Compression enables compression of the config data propagated by the operator to collectors. It is recommended to use the gzip option when using a large number of ClusterPodMonitoring and/or PodMonitoring. | CompressionType | false |
+
+[Back to TOC](#table-of-contents)
+
 ## ExportFilters
 
 ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
@@ -325,6 +339,7 @@ OperatorFeatures holds configuration for optional managed-collection features.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | targetStatus | Configuration of target status reporting. | [TargetStatusSpec](#targetstatusspec) | false |
+| config | Settings for the collector configuration propagation. | [ConfigSpec](#configspec) | false |
 
 [Back to TOC](#table-of-contents)
 

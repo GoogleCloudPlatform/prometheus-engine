@@ -15,6 +15,8 @@
 package operator
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -174,7 +176,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, fmt.Errorf("ensure collector daemon set: %w", err)
 	}
 
-	if err := r.ensureCollectorConfig(ctx, &config.Collection); err != nil {
+	if err := r.ensureCollectorConfig(ctx, &config.Collection, config.Features.Config.Compression); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector config: %w", err)
 	}
 
@@ -255,7 +257,7 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 		flags = append(flags, fmt.Sprintf("--export.credentials-file=%q", p))
 	}
 
-	if len(spec.Compression) > 0 && spec.Compression != "none" {
+	if len(spec.Compression) > 0 && spec.Compression != monitoringv1.CompressionNone {
 		flags = append(flags, fmt.Sprintf("--export.compression=%s", spec.Compression))
 	}
 
@@ -300,8 +302,20 @@ func resolveLabels(opts Options, externalLabels map[string]string) (projectID st
 	return
 }
 
+func gzipData(data []byte) ([]byte, error) {
+	var b bytes.Buffer
+	gz := gzip.NewWriter(&b)
+	if _, err := gz.Write(data); err != nil {
+		return nil, err
+	}
+	if err := gz.Close(); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
 // ensureCollectorConfig generates the collector config and creates or updates it.
-func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec) error {
+func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, compression monitoringv1.CompressionType) error {
 	cfg, err := r.makeCollectorConfig(ctx, spec)
 	if err != nil {
 		return fmt.Errorf("generate Prometheus config: %w", err)
@@ -316,9 +330,26 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 			Namespace: r.opts.OperatorNamespace,
 			Name:      NameCollector,
 		},
-		Data: map[string]string{
+	}
+
+	// Thanos config-reloader detects gzip compression automatically, so no sync with
+	// config-reloaders is needed when switching between these.
+	switch compression {
+	case monitoringv1.CompressionGzip:
+		compressedCfg, err := gzipData(cfgEncoded)
+		if err != nil {
+			return fmt.Errorf("gzip Prometheus config: %w", err)
+		}
+
+		cm.BinaryData = map[string][]byte{
+			configFilename: compressedCfg,
+		}
+	case "", monitoringv1.CompressionNone:
+		cm.Data = map[string]string{
 			configFilename: string(cfgEncoded),
-		},
+		}
+	default:
+		return fmt.Errorf("unknown compression type: %q", compression)
 	}
 
 	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
