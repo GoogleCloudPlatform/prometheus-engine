@@ -34,6 +34,13 @@ go run ./examples/instrumentation/go-synthetic/ --basic-auth-username=admin --ba
 curl localhost:8080/metrics -u "admin:pw"
 ```
 
+#### Authorization
+
+```bash
+go run ./examples/instrumentation/go-synthetic/ --auth-scheme=Bearer --auth-parameters=xyz
+curl -H "Authorization: Bearer xyz" localhost:8080/metrics
+```
+
 ## Running on Kubernetes
 
 If running managed-collection on a Kubernetes cluster, the `go-synthetic` can be
