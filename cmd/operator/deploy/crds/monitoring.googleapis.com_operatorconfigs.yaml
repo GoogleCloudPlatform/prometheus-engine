@@ -93,6 +93,16 @@ spec:
             type: object
             description: Features holds configuration for optional managed-collection features.
             properties:
+              config:
+                type: object
+                description: Settings for the collector configuration propagation.
+                properties:
+                  compression:
+                    type: string
+                    description: Compression enables compression of the config data propagated by the operator to collectors. It is recommended to use the gzip option when using a large number of ClusterPodMonitoring and/or PodMonitoring.
+                    enum:
+                    - none
+                    - gzip
               targetStatus:
                 type: object
                 description: Configuration of target status reporting.

@@ -117,6 +117,16 @@ type CollectionSpec struct {
 type OperatorFeatures struct {
 	// Configuration of target status reporting.
 	TargetStatus TargetStatusSpec `json:"targetStatus,omitempty"`
+	// Settings for the collector configuration propagation.
+	Config ConfigSpec `json:"config,omitempty"`
+}
+
+// ConfigSpec holds configurations for the Prometheus configuration.
+type ConfigSpec struct {
+	// Compression enables compression of the config data propagated by the operator to collectors.
+	// It is recommended to use the gzip option when using a large number of ClusterPodMonitoring
+	// and/or PodMonitoring.
+	Compression CompressionType `json:"compression,omitempty"`
 }
 
 // TargetStatusSpec holds configuration for target status reporting.
@@ -127,6 +137,9 @@ type TargetStatusSpec struct {
 
 // +kubebuilder:validation:Enum=none;gzip
 type CompressionType string
+
+const CompressionNone CompressionType = "none"
+const CompressionGzip CompressionType = "gzip"
 
 // KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
 type KubeletScraping struct {
