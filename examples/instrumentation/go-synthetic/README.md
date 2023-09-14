@@ -50,6 +50,13 @@ curl "localhost:8080/token?grant_type=client_credentials&client_id=abc&client_se
 curl -H "Authorization: Bearer DZ~9UYwD" localhost:8080/metrics
 ```
 
+#### mTLS
+
+```bash
+go run ./examples/instrumentation/go-synthetic/ --tls-create-self-signed=true
+curl -k https://localhost:8080/metrics
+```
+
 ## Running on Kubernetes
 
 If running managed-collection on a Kubernetes cluster, the `go-synthetic` can be

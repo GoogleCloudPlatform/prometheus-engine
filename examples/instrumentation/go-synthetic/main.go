@@ -230,12 +230,24 @@ func main() {
 		})))
 		httpClientConfig.register(mux)
 
+		tlsConfig, err := httpClientConfig.getTLSConfig()
+		if err != nil {
+			log.Println("Unable to create TLS config", err)
+			os.Exit(1)
+		}
+
 		server := &http.Server{
-			Addr:    *addr,
-			Handler: mux,
+			Addr:      *addr,
+			Handler:   mux,
+			TLSConfig: tlsConfig,
 		}
 
 		g.Add(func() error {
+			if tlsConfig != nil {
+				log.Printf("Starting server on %q with TLS\n", *addr)
+				return server.ListenAndServeTLS("", "")
+			}
+			log.Printf("Starting server on %q\n", *addr)
 			return server.ListenAndServe()
 		}, func(err error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
