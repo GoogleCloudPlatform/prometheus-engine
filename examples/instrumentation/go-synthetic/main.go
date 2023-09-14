@@ -172,8 +172,13 @@ var (
 )
 
 func main() {
-	basicAuthConfig := newBasicAuthConfigFromFlags()
+	httpClientConfig := newHttpClientConfigFromFlags()
 	flag.Parse()
+
+	if err := httpClientConfig.validate(); err != nil {
+		log.Println("Invalid HTTP client config flags:", err)
+		os.Exit(1)
+	}
 
 	metrics := prometheus.NewRegistry()
 	metrics.MustRegister(
@@ -219,7 +224,7 @@ func main() {
 	}
 	{
 		mux := http.NewServeMux()
-		mux.Handle("/metrics", basicAuthConfig.handle(promhttp.HandlerFor(metrics, promhttp.HandlerOpts{
+		mux.Handle("/metrics", httpClientConfig.handle(promhttp.HandlerFor(metrics, promhttp.HandlerOpts{
 			Registry:          metrics,
 			EnableOpenMetrics: true,
 		})))
