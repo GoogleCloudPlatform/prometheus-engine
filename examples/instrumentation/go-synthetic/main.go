@@ -228,6 +228,7 @@ func main() {
 			Registry:          metrics,
 			EnableOpenMetrics: true,
 		})))
+		httpClientConfig.register(mux)
 
 		server := &http.Server{
 			Addr:    *addr,
