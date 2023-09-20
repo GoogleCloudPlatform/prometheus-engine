@@ -23,16 +23,16 @@ import (
 	"time"
 
 	gcm "cloud.google.com/go/monitoring/apiv3/v2"
+	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
-	gcmpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
+
 	// Blank import required to register GCP auth handlers to talk to GKE clusters.
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
@@ -75,7 +75,7 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 		},
 	}
 	if gcpServiceAccount != "" {
-		opCfg.Collection.Credentials = &v1.SecretKeySelector{
+		opCfg.Collection.Credentials = &corev1.SecretKeySelector{
 			LocalObjectReference: corev1.LocalObjectReference{
 				Name: "user-gcp-service-account",
 			},
