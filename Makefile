@@ -51,7 +51,7 @@ clean:       ## Clean build time resources, primarily, unused docker images.
 lint:        ## Lint code.
              ##
 	@echo ">> linting code"
-	DOCKER_BUILDKIT=1 docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.43.0 golangci-lint run -v --timeout=5m
+	DOCKER_BUILDKIT=1 docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.54.2 golangci-lint run -v --timeout=5m
 
 $(GOCMDS):   ## Build go binary from cmd/ (e.g. 'operator').
              ## The following env variables configure the build, and are mutually exclusive:

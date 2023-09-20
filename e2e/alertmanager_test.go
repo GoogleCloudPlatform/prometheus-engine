@@ -28,8 +28,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 func TestAlertmanagerDefault(t *testing.T) {
@@ -41,7 +39,7 @@ receivers:
 route:
   receiver: "foobar"
 `
-	secret := &v1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: operator.AlertmanagerPublicSecretName},
 		Data: map[string][]byte{
 			operator.AlertmanagerPublicSecretKey: []byte(alertmanagerConfig),
@@ -61,14 +59,14 @@ route:
   receiver: "foobar"
 `
 	spec := &monitoringv1.ManagedAlertmanagerSpec{
-		ConfigSecret: &v1.SecretKeySelector{
-			LocalObjectReference: v1.LocalObjectReference{
-				"my-secret-name",
+		ConfigSecret: &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "my-secret-name",
 			},
 			Key: "my-secret-key",
 		},
 	}
-	secret := &v1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-secret-name"},
 		Data: map[string][]byte{
 			"my-secret-key": []byte(alertmanagerConfig),
@@ -129,7 +127,7 @@ func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(c
 			ManagedAlertmanager: spec,
 		}
 		if gcpServiceAccount != "" {
-			opCfg.Collection.Credentials = &v1.SecretKeySelector{
+			opCfg.Collection.Credentials = &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: "user-gcp-service-account",
 				},

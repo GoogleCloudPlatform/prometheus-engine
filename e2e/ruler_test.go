@@ -22,14 +22,13 @@ import (
 	"time"
 
 	gcm "cloud.google.com/go/monitoring/apiv3/v2"
+	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
-	gcmpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -98,7 +97,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) {
 						Scheme:     "https",
 						Authorization: &monitoringv1.Authorization{
 							Type: "Bearer",
-							Credentials: &v1.SecretKeySelector{
+							Credentials: &corev1.SecretKeySelector{
 								LocalObjectReference: corev1.LocalObjectReference{
 									Name: "alertmanager-authorization",
 								},
@@ -117,7 +116,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) {
 		},
 	}
 	if gcpServiceAccount != "" {
-		opCfg.Rules.Credentials = &v1.SecretKeySelector{
+		opCfg.Rules.Credentials = &corev1.SecretKeySelector{
 			LocalObjectReference: corev1.LocalObjectReference{
 				Name: "user-gcp-service-account",
 			},

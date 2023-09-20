@@ -288,6 +288,9 @@ func (tctx *OperatorContext) createBaseResources(ctx context.Context) ([]metav1.
 		return nil, fmt.Errorf("read collector YAML: %w", err)
 	}
 	obj, _, err := scheme.Codecs.UniversalDeserializer().Decode(collectorBytes, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("decode collector: %w", err)
+	}
 	collector := obj.(*appsv1.DaemonSet)
 	collector.Namespace = tctx.namespace
 
@@ -301,6 +304,9 @@ func (tctx *OperatorContext) createBaseResources(ctx context.Context) ([]metav1.
 	}
 
 	obj, _, err = scheme.Codecs.UniversalDeserializer().Decode(evaluatorBytes, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("decode evaluator: %w", err)
+	}
 	evaluator := obj.(*appsv1.Deployment)
 	evaluator.Namespace = tctx.namespace
 
@@ -318,23 +324,20 @@ func (tctx *OperatorContext) createBaseResources(ctx context.Context) ([]metav1.
 		if err != nil {
 			return nil, fmt.Errorf("deserializing alertmanager manifest: %w", err)
 		}
-		switch obj.(type) {
+		switch obj := obj.(type) {
 		case *appsv1.StatefulSet:
-			alertmanager := obj.(*appsv1.StatefulSet)
-			alertmanager.Namespace = tctx.namespace
-			if _, err := tctx.kubeClient.AppsV1().StatefulSets(tctx.namespace).Create(ctx, alertmanager, metav1.CreateOptions{}); err != nil {
+			obj.Namespace = tctx.namespace
+			if _, err := tctx.kubeClient.AppsV1().StatefulSets(tctx.namespace).Create(ctx, obj, metav1.CreateOptions{}); err != nil {
 				return nil, fmt.Errorf("create alertmanager statefulset: %w", err)
 			}
 		case *corev1.Secret:
-			amSecret := obj.(*corev1.Secret)
-			amSecret.Namespace = tctx.namespace
-			if _, err := tctx.kubeClient.CoreV1().Secrets(tctx.namespace).Create(ctx, amSecret, metav1.CreateOptions{}); err != nil {
+			obj.Namespace = tctx.namespace
+			if _, err := tctx.kubeClient.CoreV1().Secrets(tctx.namespace).Create(ctx, obj, metav1.CreateOptions{}); err != nil {
 				return nil, fmt.Errorf("create alertmanager secret: %w", err)
 			}
 		case *corev1.Service:
-			amSvc := obj.(*corev1.Service)
-			amSvc.Namespace = tctx.namespace
-			if _, err := tctx.kubeClient.CoreV1().Services(tctx.namespace).Create(ctx, amSvc, metav1.CreateOptions{}); err != nil {
+			obj.Namespace = tctx.namespace
+			if _, err := tctx.kubeClient.CoreV1().Services(tctx.namespace).Create(ctx, obj, metav1.CreateOptions{}); err != nil {
 				return nil, fmt.Errorf("create alertmanager service: %w", err)
 			}
 		}
