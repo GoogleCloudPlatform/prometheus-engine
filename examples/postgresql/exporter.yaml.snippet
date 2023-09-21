@@ -27,7 +27,7 @@ spec:
 +       app.kubernetes.io/name: postgresql
     spec:
       containers:
-      - image: postgres:14.0
+      - image: postgres:15.3
         name: postgresql
         env:
         - name: POSTGRES_USER
@@ -37,7 +37,9 @@ spec:
         - name: POSTGRES_DB
           value: dev
 +     - name: exporter
-+       image: quay.io/prometheuscommunity/postgres-exporter:v0.11.1
++       image: quay.io/prometheuscommunity/postgres-exporter:v0.14.0
++       args:
++         - --collector.stat_statements
 +       env:
 +       - name: DATA_SOURCE_NAME
 +         value: postgresql://root:password@localhost:5432/dev?sslmode=disable
