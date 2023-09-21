@@ -34,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/cert"
-	kyaml "sigs.k8s.io/yaml"
 )
 
 func TestRuleEvaluation(t *testing.T) {
@@ -78,7 +77,8 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) {
 
 	opCfg := &monitoringv1.OperatorConfig{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: operator.NameOperatorConfig,
+			Name:   operator.NameOperatorConfig,
+			Labels: t.getSubTestLabels(),
 		},
 		Rules: monitoringv1.RuleEvaluatorSpec{
 			ExternalLabels: map[string]string{
@@ -154,7 +154,6 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key
 	if err != nil {
 		t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
 	}
-
 }
 
 func testRuleEvaluatorConfig(ctx context.Context, t *OperatorContext) {
@@ -292,7 +291,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
 	}
 }
 
-func testRulesGeneration(_ context.Context, t *OperatorContext) {
+func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 	replace := strings.NewReplacer(
 		"{project_id}", projectID,
 		"{cluster}", cluster,
@@ -302,78 +301,88 @@ func testRulesGeneration(_ context.Context, t *OperatorContext) {
 
 	// Create multiple rules in the cluster and expect their scoped equivalents
 	// to be present in the generated rule file.
-	content := replace(`
-apiVersion: monitoring.googleapis.com/v1alpha1
-kind: GlobalRules
-metadata:
-  name: global-rules
-spec:
-  groups:
-  - name: group-1
-    rules:
-    - record: bar
-      expr: avg(up)
-      labels:
-        flavor: test
-`)
-	var globalRules monitoringv1.GlobalRules
-	if err := kyaml.Unmarshal([]byte(content), &globalRules); err != nil {
-		t.Fatal(err)
+	globalRules := monitoringv1.GlobalRules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "global-rules",
+			Labels: t.getSubTestLabels(),
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{
+					Name: "group-1",
+					Rules: []monitoringv1.Rule{
+						{
+							Record: "bar",
+							Expr:   "avg(up)",
+							Labels: map[string]string{
+								"flavor": "test",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
-	globalRules.OwnerReferences = t.ownerReferences
-
-	if _, err := t.operatorClient.MonitoringV1().GlobalRules().Create(context.TODO(), &globalRules, metav1.CreateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-
-	content = replace(`
-apiVersion: monitoring.googleapis.com/v1alpha1
-kind: ClusterRules
-metadata:
-  name: {namespace}-cluster-rules
-spec:
-  groups:
-  - name: group-1
-    rules:
-    - record: foo
-      expr: sum(up)
-      labels:
-        flavor: test
-`)
-	var clusterRules monitoringv1.ClusterRules
-	if err := kyaml.Unmarshal([]byte(content), &clusterRules); err != nil {
-		t.Fatal(err)
-	}
-	clusterRules.OwnerReferences = t.ownerReferences
-
-	if _, err := t.operatorClient.MonitoringV1().ClusterRules().Create(context.TODO(), &clusterRules, metav1.CreateOptions{}); err != nil {
+	if _, err := t.operatorClient.MonitoringV1().GlobalRules().Create(ctx, &globalRules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
-	// TODO(freinartz): Instantiate structs directly rather than templating strings.
-	content = `
-apiVersion: monitoring.googleapis.com/v1alpha1
-kind: Rules
-metadata:
-  name: rules
-spec:
-  groups:
-  - name: group-1
-    rules:
-    - alert: Bar
-      expr: avg(down) > 1
-      annotations:
-        description: "bar avg down"
-      labels:
-        flavor: test
-    - record: always_one
-      expr: vector(1)
-`
-	var rules monitoringv1.Rules
-	if err := kyaml.Unmarshal([]byte(content), &rules); err != nil {
+	clusterRules := monitoringv1.ClusterRules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   t.namespace + "-cluster-rules",
+			Labels: t.getSubTestLabels(),
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{
+					Name: "group-1",
+					Rules: []monitoringv1.Rule{
+						{
+							Record: "foo",
+							Expr:   "sum(up)",
+							Labels: map[string]string{
+								"flavor": "test",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	if _, err := t.operatorClient.MonitoringV1().ClusterRules().Create(ctx, &clusterRules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := t.operatorClient.MonitoringV1().Rules(t.namespace).Create(context.TODO(), &rules, metav1.CreateOptions{}); err != nil {
+
+	rules := monitoringv1.Rules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "rules",
+			Labels: t.getSubTestLabels(),
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{
+					Name: "group-1",
+					Rules: []monitoringv1.Rule{
+						{
+							Alert: "Bar",
+							Expr:  "avg(down) > 1",
+							Annotations: map[string]string{
+								"description": "bar avg down",
+							},
+							Labels: map[string]string{
+								"flavor": "test",
+							},
+						},
+						{
+							Record: "always_one",
+							Expr:   "vector(1)",
+						},
+					},
+				},
+			},
+		},
+	}
+	if _, err := t.operatorClient.MonitoringV1().Rules(t.namespace).Create(ctx, &rules, metav1.CreateOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -423,7 +432,7 @@ spec:
 	var diff string
 
 	err := wait.Poll(1*time.Second, time.Minute, func() (bool, error) {
-		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.namespace).Get(context.TODO(), "rules-generated", metav1.GetOptions{})
+		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.namespace).Get(ctx, "rules-generated", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {

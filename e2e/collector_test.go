@@ -57,7 +57,8 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 	// Create initial OperatorConfig to trigger deployment of resources.
 	opCfg := &monitoringv1.OperatorConfig{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: operator.NameOperatorConfig,
+			Name:   operator.NameOperatorConfig,
+			Labels: t.getSubTestLabels(),
 		},
 		Collection: monitoringv1.CollectionSpec{
 			ExternalLabels: map[string]string{
@@ -165,7 +166,8 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *OperatorContext) {
 	// should show up in Cloud Monitoring shortly after.
 	podmon := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "collector-podmon",
+			Name:   "collector-podmon",
+			Labels: t.getSubTestLabels(),
 		},
 		Spec: monitoringv1.PodMonitoringSpec{
 			Selector: metav1.LabelSelector{
@@ -232,8 +234,8 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *OperatorConte
 	// should show up in Cloud Monitoring shortly after.
 	podmon := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            "collector-cmon",
-			OwnerReferences: t.ownerReferences,
+			Name:   "collector-cmon",
+			Labels: t.getSubTestLabels(),
 		},
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector: metav1.LabelSelector{
