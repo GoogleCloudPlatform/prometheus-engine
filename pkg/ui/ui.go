@@ -17,7 +17,7 @@ package ui
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -48,7 +48,7 @@ func Handler(externalURL *url.URL) http.Handler {
 				fmt.Fprintf(w, "Error opening React index.html: %v", err)
 				return
 			}
-			idx, err := ioutil.ReadAll(f)
+			idx, err := io.ReadAll(f)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprintf(w, "Error reading React index.html: %v", err)
