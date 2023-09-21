@@ -103,12 +103,22 @@ To run unit tests from docker container run `make test`
 Running `make e2e` will run e2e tests against Kubernetes cluster:
   * By default, it run in hermetic docker container, downloads kind, recreates
 a single node kind cluster and runs [e2e](./e2e) tests against it.
+  * To run a single test, use the `TEST_RUN` environment variable. For example, to run all collector tests, pass `TEST_RUN=TestCollector`:
+  ```bash
+  TEST_RUN=TestCollector make e2e
+  ```
+  * To pass args to the test, use the `TEST_ARGS` environment variable. For example, to add `-skip-gcm`, pass `TEST_ARGS=-skip-gcm`:
+  ```bash
+  NO_DOCKER=1 TEST_ARGS=-skip-gcm make e2e
+  ```
   * If `NO_DOCKER=1` is set, end-to-end tests will be run against the current
     kubectl context. It is assumed the cluster has access to the GCM API.
     Ensure `GMP_CLUSTER` and `GMP_LOCATION` are set, e.g.
   ```bash
   NO_DOCKER=1 GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make e2e
   ```
+
+##### Debugging
 
 In docker mode, to run a single test or debug a cluster during or after failed
 test, you can try entering shell of the `kindtest` container. Before doing so, 
@@ -140,8 +150,8 @@ go test -v ./e2e -run "TestAlertmanagerDefault" -args -project-id=test-proj -clu
 Each test case is creating a separate set of namespaces e.g.
 `gmp-test-testalertmanagerdefault-20230714-120756` and
 `gmp-test-testalertmanagerdefault-20230714-120756-pub`, so to debug tests you
-have to ensure those namespaces are not cleaned. You can also provide time.Sleep in
-the place you want debug in.
+have to ensure those namespaces are not cleaned. You can also provide
+`time.Sleep` in the place you want debug in.
 
 ##### Benchmarking
 
