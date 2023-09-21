@@ -22,7 +22,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"strings"
@@ -264,7 +263,7 @@ func (tctx *OperatorContext) createBaseResources(ctx context.Context) ([]metav1.
 	}
 
 	if gcpServiceAccount != "" {
-		b, err := ioutil.ReadFile(gcpServiceAccount)
+		b, err := os.ReadFile(gcpServiceAccount)
 		if err != nil {
 			return nil, fmt.Errorf("read GCP service account file: %w", err)
 		}

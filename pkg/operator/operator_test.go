@@ -16,7 +16,6 @@ package operator
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -32,11 +31,11 @@ import (
 )
 
 func readKeyAndCertFiles(dir string, t *testing.T) ([]byte, []byte) {
-	outCert, err := ioutil.ReadFile(path.Join(dir, "tls.crt"))
+	outCert, err := os.ReadFile(path.Join(dir, "tls.crt"))
 	if err != nil {
 		t.Fatalf("error reading from cert file: %v", err)
 	}
-	outKey, err := ioutil.ReadFile(path.Join(dir, "tls.key"))
+	outKey, err := os.ReadFile(path.Join(dir, "tls.key"))
 	if err != nil {
 		t.Fatalf("error reading from key file: %v", err)
 	}
@@ -44,7 +43,7 @@ func readKeyAndCertFiles(dir string, t *testing.T) ([]byte, []byte) {
 }
 
 func TestEnsureCertsExplicit(t *testing.T) {
-	dir, err := ioutil.TempDir("", "test_ensure_certs")
+	dir, err := os.MkdirTemp("", "test_ensure_certs")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +126,7 @@ func TestEnsureCertsSelfSigned(t *testing.T) {
 	)
 	t.Cleanup(cancel)
 
-	dir, err := ioutil.TempDir("", "test_ensure_certs")
+	dir, err := os.MkdirTemp("", "test_ensure_certs")
 	if err != nil {
 		t.Fatal(err)
 	}

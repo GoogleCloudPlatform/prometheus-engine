@@ -19,8 +19,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -167,7 +167,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 		return nil, fmt.Errorf("invalid options: %w", err)
 	}
 	// Create temporary directory to store webhook serving cert files.
-	certDir, err := ioutil.TempDir("", "operator-cert")
+	certDir, err := os.MkdirTemp("", "operator-cert")
 	if err != nil {
 		return nil, fmt.Errorf("create temporary certificate dir: %w", err)
 	}
@@ -482,10 +482,10 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 		return nil, errors.New("Flags key-base64 and cert-base64 must both be set.")
 	}
 	// Create cert/key files.
-	if err := ioutil.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
 		return nil, fmt.Errorf("create cert file: %w", err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(dir, "tls.key"), key, 0666); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tls.key"), key, 0666); err != nil {
 		return nil, fmt.Errorf("create key file: %w", err)
 	}
 	return caData, nil
