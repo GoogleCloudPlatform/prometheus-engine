@@ -318,7 +318,10 @@ spec:
     interval: 30s
     metricRelabeling:
     - action: keep
-      regex: kube_(daemonset|deployment|pod|namespace|node|statefulset|persistentvolume|horizontalpodautoscaler)_.+
+      # Curated subset of metrics to reduce costs while populating default set of sample dashboards at
+      # https://github.com/GoogleCloudPlatform/monitoring-dashboard-samples/tree/master/dashboards/kubernetes
+      # Change this regex to fit your needs for which objects you want to monitor    
+      regex: kube_(daemonset|deployment|replicaset|pod|namespace|node|statefulset|persistentvolume|horizontalpodautoscaler|job_created)(_.+)?
       sourceLabels: [__name__]
   targetLabels:
     metadata: [] # explicitly empty so the metric labels are respected
