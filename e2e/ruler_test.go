@@ -44,14 +44,12 @@ func TestRuleEvaluation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("rule evaluator create alertmanager secrets", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		testCreateAlertmanagerSecrets(ctx, t, cert, key)
-	}))
-	t.Run("rule evaluator operatorconfig", tctx.subtest(testRuleEvaluatorOperatorConfig))
 	t.Run("rule evaluator secrets", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
 		testRuleEvaluatorSecrets(ctx, t, cert, key)
 	}))
-	t.Run("rule evaluator config", tctx.subtest(testRuleEvaluatorConfig))
+	t.Run("rule evaluator config", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		testRuleEvaluatorConfig(ctx, t, cert, key)
+	}))
 	t.Run("rule generation", tctx.subtest(testRulesGeneration))
 	t.Run("rule evaluator deploy", tctx.subtest(testRuleEvaluatorDeployment))
 
@@ -61,9 +59,39 @@ func TestRuleEvaluation(t *testing.T) {
 	}
 }
 
-// testRuleEvaluatorOperatorConfig ensures an OperatorConfig can be deployed
+func createRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key []byte) {
+	secrets := []*corev1.Secret{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "alertmanager-authorization",
+				Labels: t.getSubTestLabels(),
+			},
+			Data: map[string][]byte{
+				"token": []byte("auth-bearer-password"),
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "alertmanager-tls",
+				Labels: t.getSubTestLabels(),
+			},
+			Data: map[string][]byte{
+				"cert": cert,
+				"key":  key,
+			},
+		},
+	}
+
+	for _, s := range secrets {
+		if _, err := t.kubeClient.CoreV1().Secrets(t.pubNamespace).Create(ctx, s, metav1.CreateOptions{}); err != nil {
+			t.Fatalf("create alertmanager secret: %s", err)
+		}
+	}
+}
+
+// createRuleEvaluatorOperatorConfig ensures an OperatorConfig can be deployed
 // that contains rule-evaluator configuration.
-func testRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) {
+func createRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) {
 	// Setup TLS secret selectors.
 	certSecret := &corev1.SecretKeySelector{
 		LocalObjectReference: corev1.LocalObjectReference{
@@ -75,11 +103,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) {
 	keySecret := certSecret.DeepCopy()
 	keySecret.Key = "key"
 
-	opCfg := &monitoringv1.OperatorConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   operator.NameOperatorConfig,
-			Labels: t.getSubTestLabels(),
-		},
+	t.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
 		Rules: monitoringv1.RuleEvaluatorSpec{
 			ExternalLabels: map[string]string{
 				"external_key": "external_val",
@@ -114,22 +138,13 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) {
 				},
 			},
 		},
-	}
-	if gcpServiceAccount != "" {
-		opCfg.Rules.Credentials = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{
-				Name: "user-gcp-service-account",
-			},
-			Key: "key.json",
-		}
-	}
-	_, err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("create rules operatorconfig: %s", err)
-	}
+	})
 }
 
 func testRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key []byte) {
+	createRuleEvaluatorOperatorConfig(ctx, t)
+	createRuleEvaluatorSecrets(ctx, t, cert, key)
+
 	// Verify contents but without the GCP SA credentials file to not leak secrets in tests logs.
 	// Whether the contents were copied correctly is implicitly verified by the credentials working.
 	want := map[string][]byte{
@@ -156,7 +171,10 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key
 	}
 }
 
-func testRuleEvaluatorConfig(ctx context.Context, t *OperatorContext) {
+func testRuleEvaluatorConfig(ctx context.Context, t *OperatorContext, cert, key []byte) {
+	createRuleEvaluatorOperatorConfig(ctx, t)
+	createRuleEvaluatorSecrets(ctx, t, cert, key)
+
 	replace := func(s string) string {
 		return strings.NewReplacer(
 			"{namespace}", t.namespace, "{pubNamespace}", t.pubNamespace,

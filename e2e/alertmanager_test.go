@@ -48,6 +48,23 @@ route:
 			operator.AlertmanagerPublicSecretKey: []byte(alertmanagerConfig),
 		},
 	}
+	tctx.createOperatorConfigFrom(context.Background(), monitoringv1.OperatorConfig{
+		Collection: monitoringv1.CollectionSpec{
+			ExternalLabels: map[string]string{
+				"external_key": "external_val",
+			},
+			Filter: monitoringv1.ExportFilters{
+				MatchOneOf: []string{
+					"{job='foo'}",
+					"{__name__=~'up'}",
+				},
+			},
+			KubeletScraping: &monitoringv1.KubeletScraping{
+				Interval: "5s",
+			},
+		},
+	})
+
 	t.Run("deployed", tctx.subtest(testAlertmanagerDeployed(nil)))
 	t.Run("config set", tctx.subtest(testAlertmanagerConfig(secret, operator.AlertmanagerPublicSecretKey)))
 }
@@ -78,77 +95,37 @@ route:
 			"my-secret-key": []byte(alertmanagerConfig),
 		},
 	}
+	tctx.createOperatorConfigFrom(context.Background(), monitoringv1.OperatorConfig{
+		Collection: monitoringv1.CollectionSpec{
+			ExternalLabels: map[string]string{
+				"external_key": "external_val",
+			},
+			Filter: monitoringv1.ExportFilters{
+				MatchOneOf: []string{
+					"{job='foo'}",
+					"{__name__=~'up'}",
+				},
+			},
+			KubeletScraping: &monitoringv1.KubeletScraping{
+				Interval: "5s",
+			},
+		},
+		ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+			ConfigSecret: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "my-secret-name",
+				},
+				Key: "my-secret-key",
+			},
+		},
+	})
 	t.Run("deployed", tctx.subtest(testAlertmanagerDeployed(spec)))
 	t.Run("config set", tctx.subtest(testAlertmanagerConfig(secret, "my-secret-key")))
 }
 
-func testCreateAlertmanagerSecrets(ctx context.Context, t *OperatorContext, cert, key []byte) {
-	secrets := []*corev1.Secret{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   "alertmanager-authorization",
-				Labels: t.getSubTestLabels(),
-			},
-			Data: map[string][]byte{
-				"token": []byte("auth-bearer-password"),
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   "alertmanager-tls",
-				Labels: t.getSubTestLabels(),
-			},
-			Data: map[string][]byte{
-				"cert": cert,
-				"key":  key,
-			},
-		},
-	}
-
-	for _, s := range secrets {
-		if _, err := t.kubeClient.CoreV1().Secrets(t.pubNamespace).Create(ctx, s, metav1.CreateOptions{}); err != nil {
-			t.Fatalf("create alertmanager secret: %s", err)
-		}
-	}
-}
-
 func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(context.Context, *OperatorContext) {
 	return func(ctx context.Context, t *OperatorContext) {
-		opCfg := &monitoringv1.OperatorConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   operator.NameOperatorConfig,
-				Labels: t.getSubTestLabels(),
-			},
-			Collection: monitoringv1.CollectionSpec{
-				ExternalLabels: map[string]string{
-					"external_key": "external_val",
-				},
-				Filter: monitoringv1.ExportFilters{
-					MatchOneOf: []string{
-						"{job='foo'}",
-						"{__name__=~'up'}",
-					},
-				},
-				KubeletScraping: &monitoringv1.KubeletScraping{
-					Interval: "5s",
-				},
-			},
-			ManagedAlertmanager: spec,
-		}
-		if gcpServiceAccount != "" {
-			opCfg.Collection.Credentials = &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "user-gcp-service-account",
-				},
-				Key: "key.json",
-			}
-		}
-		_, err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
-		if err != nil {
-			t.Fatalf("create rules operatorconfig: %s", err)
-		}
-
-		err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
+		err := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
 			ss, err := t.kubeClient.AppsV1().StatefulSets(t.namespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
 				return false, nil

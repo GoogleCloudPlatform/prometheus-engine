@@ -51,6 +51,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
 
@@ -184,13 +185,13 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 	}
 	tctx.kClient = NewLabelWriterClient(c, tctx.getSubTestLabels())
 	t.Cleanup(func() {
-		if err := cleanupResources(ctx, kubeconfig, tctx.kClient, tctx.getSubTestLabelValue()); err != nil {
+		if err := cleanupResources(ctx, kubeconfig, tctx.Client(), tctx.getSubTestLabelValue()); err != nil {
 			t.Fatalf("unable to cleanup resources: %s", err)
 		}
 		cancel()
 	})
 
-	if err := createBaseResources(ctx, tctx.kClient, namespace, pubNamespace); err != nil {
+	if err := createBaseResources(ctx, tctx.Client(), namespace, pubNamespace); err != nil {
 		t.Fatalf("create resources: %s", err)
 	}
 
@@ -215,6 +216,29 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 	}()
 
 	return tctx
+}
+
+// createOperatorConfig creates an OperatorConfig, defaulting fields that aren't provided.
+func (tctx *OperatorContext) createOperatorConfigFrom(ctx context.Context, opCfg monitoringv1.OperatorConfig) {
+	if opCfg.Name == "" {
+		opCfg.Name = operator.NameOperatorConfig
+	}
+	if opCfg.Namespace == "" {
+		opCfg.Namespace = tctx.pubNamespace
+	}
+
+	if gcpServiceAccount != "" {
+		opCfg.Collection.Credentials = &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "user-gcp-service-account",
+			},
+			Key: "key.json",
+		}
+	}
+
+	if err := tctx.Client().Create(ctx, &opCfg); err != nil {
+		tctx.Fatalf("create OperatorConfig: %s", err)
+	}
 }
 
 func (tctx *OperatorContext) getSubTestLabelValue() string {
@@ -391,10 +415,16 @@ func (tctx *OperatorContext) Client() client.Client {
 // subtest derives a new test function from a function accepting a test context.
 func (tctx *OperatorContext) subtest(f func(context.Context, *OperatorContext)) func(*testing.T) {
 	return func(t *testing.T) {
+		ctx := context.TODO()
 		childCtx := *tctx
 		childCtx.T = t
-		childCtx.kClient = NewLabelWriterClient(tctx.kClient.Base(), tctx.getSubTestLabels())
-		f(context.TODO(), &childCtx)
+		childCtx.kClient = NewLabelWriterClient(tctx.kClient.Base(), childCtx.getSubTestLabels())
+		t.Cleanup(func() {
+			if err := cleanupResources(ctx, kubeconfig, childCtx.Client(), childCtx.getSubTestLabelValue()); err != nil {
+				t.Fatalf("unable to cleanup resources: %s", err)
+			}
+		})
+		f(ctx, &childCtx)
 	}
 }
 
