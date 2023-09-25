@@ -38,8 +38,8 @@ func TestWebhookCABundleInjection(t *testing.T) {
 	// Create webhook configs. The operator must populate their caBundles.
 	vwc := &arv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            whConfigName,
-			OwnerReferences: tctx.ownerReferences,
+			Name:   whConfigName,
+			Labels: tctx.getSubTestLabels(),
 		},
 		Webhooks: []arv1.ValidatingWebhook{
 			{
@@ -63,8 +63,8 @@ func TestWebhookCABundleInjection(t *testing.T) {
 	}
 	mwc := &arv1.MutatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            whConfigName,
-			OwnerReferences: tctx.ownerReferences,
+			Name:   whConfigName,
+			Labels: tctx.getSubTestLabels(),
 		},
 		Webhooks: []arv1.MutatingWebhook{
 			{

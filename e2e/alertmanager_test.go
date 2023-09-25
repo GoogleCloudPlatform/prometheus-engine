@@ -40,7 +40,10 @@ route:
   receiver: "foobar"
 `
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: operator.AlertmanagerPublicSecretName},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   operator.AlertmanagerPublicSecretName,
+			Labels: tctx.getSubTestLabels(),
+		},
 		Data: map[string][]byte{
 			operator.AlertmanagerPublicSecretKey: []byte(alertmanagerConfig),
 		},
@@ -67,7 +70,10 @@ route:
 		},
 	}
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-secret-name"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "my-secret-name",
+			Labels: tctx.getSubTestLabels(),
+		},
 		Data: map[string][]byte{
 			"my-secret-key": []byte(alertmanagerConfig),
 		},
@@ -80,7 +86,8 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *OperatorContext, cert
 	secrets := []*corev1.Secret{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "alertmanager-authorization",
+				Name:   "alertmanager-authorization",
+				Labels: t.getSubTestLabels(),
 			},
 			Data: map[string][]byte{
 				"token": []byte("auth-bearer-password"),
@@ -88,7 +95,8 @@ func testCreateAlertmanagerSecrets(ctx context.Context, t *OperatorContext, cert
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "alertmanager-tls",
+				Name:   "alertmanager-tls",
+				Labels: t.getSubTestLabels(),
 			},
 			Data: map[string][]byte{
 				"cert": cert,
@@ -108,7 +116,8 @@ func testAlertmanagerDeployed(spec *monitoringv1.ManagedAlertmanagerSpec) func(c
 	return func(ctx context.Context, t *OperatorContext) {
 		opCfg := &monitoringv1.OperatorConfig{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: operator.NameOperatorConfig,
+				Name:   operator.NameOperatorConfig,
+				Labels: t.getSubTestLabels(),
 			},
 			Collection: monitoringv1.CollectionSpec{
 				ExternalLabels: map[string]string{
