@@ -1306,7 +1306,7 @@ func TestPolling(t *testing.T) {
 	}()
 
 	// First tick.
-	fakeClock.Step(pollDurationMin)
+	fakeClock.Step(minPollDuration)
 	statusTick1 := []v1.ScrapeEndpointStatus{
 		{
 			Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
@@ -1340,7 +1340,7 @@ func TestPolling(t *testing.T) {
 	expectStatus(t, "first wait", statusTick1)
 
 	// Second tick.
-	fakeClock.Step(pollDurationMin)
+	fakeClock.Step(minPollDuration)
 	statusTick2 := []v1.ScrapeEndpointStatus{
 		{
 			Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
@@ -1373,7 +1373,7 @@ func TestPolling(t *testing.T) {
 	// We didn't tick yet so we don't expect a change yet.
 	expectStatus(t, "second wait", statusTick2)
 
-	fakeClock.Step(pollDurationMin)
+	fakeClock.Step(minPollDuration)
 	statusTick3 := []v1.ScrapeEndpointStatus{
 		{
 			Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",

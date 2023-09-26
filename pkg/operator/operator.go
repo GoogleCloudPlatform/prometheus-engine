@@ -1,5 +1,3 @@
-// Copyright 2022 Google LLC
-//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -12,6 +10,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package operator contains the Prometheus operator.
 package operator
 
 import (
@@ -57,26 +56,29 @@ const (
 	// configuration data.
 	DefaultPublicNamespace = "gmp-public"
 
-	// Fixed names used in various resources managed by the operator.
-	NameOperator  = "gmp-operator"
+	// NameOperator is a fixed name used in various resources managed by the operator.
+	NameOperator = "gmp-operator"
+	// componentName is a fixed name used in various resources managed by the operator.
 	componentName = "managed_prometheus"
 
 	// Filename for configuration files.
 	configFilename = "config.yaml"
 
-	// The well-known app name label.
+	// LabelAppName is the  well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
-	// The component name, will be exposed as metric name.
+	// AnnotationMetricName is the component name, will be exposed as metric name.
 	AnnotationMetricName = "components.gke.io/component-name"
 	// ClusterAutoscalerSafeEvictionLabel is the annotation label that determines
 	// whether the cluster autoscaler can safely evict a Pod when the Pod doesn't
 	// satisfy certain eviction criteria.
 	ClusterAutoscalerSafeEvictionLabel = "cluster-autoscaler.kubernetes.io/safe-to-evict"
 
-	// The k8s Application, will be exposed as component name.
-	KubernetesAppName    = "app"
+	// KubernetesAppName is the k8s Application, will be exposed as component name.
+	KubernetesAppName = "app"
+	// RuleEvaluatorAppName is the name of the rule-evaluator application.
 	RuleEvaluatorAppName = "managed-prometheus-rule-evaluator"
-	AlertmanagerAppName  = "managed-prometheus-alertmanager"
+	// AlertmanagerAppName is the name of the alert manager application.
+	AlertmanagerAppName = "managed-prometheus-alertmanager"
 
 	// The level of concurrency to use to fetch all targets.
 	defaultTargetPollConcurrency = 4
@@ -479,7 +481,7 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 		// Use crt as the ca in the the self-sign case.
 		caData = crt
 	} else {
-		return nil, errors.New("Flags key-base64 and cert-base64 must both be set.")
+		return nil, errors.New("flags key-base64 and cert-base64 must both be set")
 	}
 	// Create cert/key files.
 	if err := ioutil.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
