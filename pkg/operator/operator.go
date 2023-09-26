@@ -367,9 +367,6 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) error {
 	defer runtimeutil.HandleCrash()
 
-	if err := o.cleanupOldResources(ctx); err != nil {
-		return fmt.Errorf("cleanup old resources: %w", err)
-	}
 	if err := o.setupAdmissionWebhooks(ctx); err != nil {
 		return fmt.Errorf("init admission resources: %w", err)
 	}
@@ -392,55 +389,6 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 		o.managedNamespacesCache.Start(ctx)
 	}()
 	return o.manager.Start(ctx)
-}
-
-func (o *Operator) cleanupOldResources(ctx context.Context) error {
-	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
-	// in previous versions.
-	validatingWebhookConfig := arv1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
-	}
-	if err := o.client.Delete(ctx, &validatingWebhookConfig); client.IgnoreNotFound(err) != nil {
-		return fmt.Errorf("delete legacy ValidatingWebHookConfiguration: %w", err)
-	}
-
-	// If cleanup annotations are not provided, do not clean up any further.
-	if o.opts.CleanupAnnotKey == "" {
-		return nil
-	}
-
-	// Cleanup resources without the provided annotation.
-	// Check the collector DaemonSet.
-	dsKey := client.ObjectKey{
-		Name:      NameCollector,
-		Namespace: o.opts.OperatorNamespace,
-	}
-	var ds appsv1.DaemonSet
-	if err := o.client.Get(ctx, dsKey, &ds); apierrors.IsNotFound(err) {
-		return fmt.Errorf("get collector DaemonSet: %w", err)
-	}
-	if _, ok := ds.Annotations[o.opts.CleanupAnnotKey]; !ok {
-		if err := o.client.Delete(ctx, &ds); client.IgnoreNotFound(err) != nil {
-			return fmt.Errorf("delete collector DaemonSet: %w", err)
-		}
-	}
-
-	// Check the rule-evaluator Deployment.
-	deployKey := client.ObjectKey{
-		Name:      NameRuleEvaluator,
-		Namespace: o.opts.OperatorNamespace,
-	}
-	var deploy appsv1.Deployment
-	if err := o.client.Get(ctx, deployKey, &deploy); apierrors.IsNotFound(err) {
-		return fmt.Errorf("get rule-evaluator Deployment: %w", err)
-	}
-	if _, ok := deploy.Annotations[o.opts.CleanupAnnotKey]; !ok {
-		if err := o.client.Delete(ctx, &deploy); client.IgnoreNotFound(err) != nil {
-			return fmt.Errorf("delete rule-evaluator Deployment: %w", err)
-		}
-	}
-
-	return nil
 }
 
 // ensureCerts writes the cert/key files to the specified directory.
