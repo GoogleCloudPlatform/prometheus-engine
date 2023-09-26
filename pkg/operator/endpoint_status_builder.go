@@ -55,7 +55,7 @@ type scrapeEndpointBuilder struct {
 }
 
 func (b *scrapeEndpointBuilder) add(target *prometheusv1.TargetsResult) error {
-	b.total += 1
+	b.total++
 	if target != nil {
 		for _, activeTarget := range target.Active {
 			if err := b.addActiveTarget(activeTarget, b.time); err != nil {
@@ -63,7 +63,7 @@ func (b *scrapeEndpointBuilder) add(target *prometheusv1.TargetsResult) error {
 			}
 		}
 	} else {
-		b.failed += 1
+		b.failed++
 	}
 	return nil
 }
@@ -135,7 +135,7 @@ func newScrapeEndpointStatusBuilder(target *prometheusv1.ActiveTarget, time meta
 
 // Adds a sample target, potentially merging with a pre-existing one.
 func (b *scrapeEndpointStatusBuilder) addSampleTarget(target *prometheusv1.ActiveTarget) {
-	b.status.ActiveTargets += 1
+	b.status.ActiveTargets++
 	errorType := target.LastError
 	lastError := &errorType
 	if target.Health == "up" {
@@ -143,7 +143,7 @@ func (b *scrapeEndpointStatusBuilder) addSampleTarget(target *prometheusv1.Activ
 			lastError = nil
 		}
 	} else {
-		b.status.UnhealthyTargets += 1
+		b.status.UnhealthyTargets++
 	}
 
 	sampleGroup, ok := b.groupByError[errorType]
@@ -160,7 +160,7 @@ func (b *scrapeEndpointStatusBuilder) addSampleTarget(target *prometheusv1.Activ
 		}
 		b.groupByError[errorType] = sampleGroup
 	}
-	*sampleGroup.Count += 1
+	*sampleGroup.Count++
 	sampleGroup.SampleTargets = append(sampleGroup.SampleTargets, sampleTarget)
 }
 

@@ -57,6 +57,7 @@ const (
 	NameAlertmanager   = "alertmanager"
 )
 
+// Secret paths
 const (
 	RulesSecretName              = "rules"
 	CollectionSecretName         = "collection"
@@ -615,18 +616,18 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 
 // getSecretOrConfigMapBytes is a helper function to conditionally fetch
 // the secret or configmap selector payloads.
-func getSecretOrConfigMapBytes(ctx context.Context, kClient client.Reader, namespace string, scm *monitoringv1.SecretOrConfigMap) ([]byte, error) {
+func getSecretOrConfigMapBytes(ctx context.Context, c client.Reader, namespace string, scm *monitoringv1.SecretOrConfigMap) ([]byte, error) {
 	var (
 		b   []byte
 		err error
 	)
 	if secret := scm.Secret; secret != nil {
-		b, err = getSecretKeyBytes(ctx, kClient, namespace, secret)
+		b, err = getSecretKeyBytes(ctx, c, namespace, secret)
 		if err != nil {
 			return b, err
 		}
 	} else if cm := scm.ConfigMap; cm != nil {
-		b, err = getConfigMapKeyBytes(ctx, kClient, namespace, cm)
+		b, err = getConfigMapKeyBytes(ctx, c, namespace, cm)
 		if err != nil {
 			return b, err
 		}
@@ -635,7 +636,7 @@ func getSecretOrConfigMapBytes(ctx context.Context, kClient client.Reader, names
 }
 
 // getSecretKeyBytes processes the given NamespacedSecretKeySelector and returns the referenced data.
-func getSecretKeyBytes(ctx context.Context, kClient client.Reader, namespace string, sel *corev1.SecretKeySelector) ([]byte, error) {
+func getSecretKeyBytes(ctx context.Context, c client.Reader, namespace string, sel *corev1.SecretKeySelector) ([]byte, error) {
 	var (
 		secret = &corev1.Secret{}
 		nn     = types.NamespacedName{
@@ -644,7 +645,7 @@ func getSecretKeyBytes(ctx context.Context, kClient client.Reader, namespace str
 		}
 		bytes []byte
 	)
-	err := kClient.Get(ctx, nn, secret)
+	err := c.Get(ctx, nn, secret)
 	if err != nil {
 		return bytes, fmt.Errorf("unable to get secret %q: %w", sel.Name, err)
 	}
@@ -657,7 +658,7 @@ func getSecretKeyBytes(ctx context.Context, kClient client.Reader, namespace str
 }
 
 // getConfigMapKeyBytes processes the given NamespacedConfigMapKeySelector and returns the referenced data.
-func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace string, sel *corev1.ConfigMapKeySelector) ([]byte, error) {
+func getConfigMapKeyBytes(ctx context.Context, c client.Reader, namespace string, sel *corev1.ConfigMapKeySelector) ([]byte, error) {
 	var (
 		cm = &corev1.ConfigMap{}
 		nn = types.NamespacedName{
@@ -666,7 +667,7 @@ func getConfigMapKeyBytes(ctx context.Context, kClient client.Reader, namespace 
 		}
 		b []byte
 	)
-	err := kClient.Get(ctx, nn, cm)
+	err := c.Get(ctx, nn, cm)
 	if err != nil {
 		return b, fmt.Errorf("unable to get secret %q: %w", sel.Name, err)
 	}

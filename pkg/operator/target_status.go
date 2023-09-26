@@ -53,7 +53,7 @@ var (
 	}, []string{})
 
 	// Minimum duration between polls.
-	pollDurationMin = 10 * time.Second
+	minPollDuration = 10 * time.Second
 )
 
 // Responsible for fetching the targets given a pod.
@@ -154,7 +154,7 @@ func shouldPoll(ctx context.Context, cfgNamespacedName types.NamespacedName, kub
 // Reconcile polls the collector pods, fetches and aggregates target status and
 // upserts into each PodMonitoring's Status field.
 func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-	timer := r.clock.NewTimer(pollDurationMin)
+	timer := r.clock.NewTimer(minPollDuration)
 
 	now := time.Now()
 
@@ -403,9 +403,9 @@ func getTarget(ctx context.Context, logger logr.Logger, port int32, pod *corev1.
 	if pod.Status.PodIP == "" {
 		return nil, errors.New("pod does not have IP allocated")
 	}
-	podUrl := fmt.Sprintf("http://%s:%d", pod.Status.PodIP, port)
+	podURL := fmt.Sprintf("http://%s:%d", pod.Status.PodIP, port)
 	client, err := api.NewClient(api.Config{
-		Address: podUrl,
+		Address: podURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Prometheus client: %w", err)
