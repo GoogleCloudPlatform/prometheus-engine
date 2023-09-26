@@ -148,7 +148,7 @@ func targetFetchFromMap(m map[string]*prometheusv1.TargetsResult) getTargetFn {
 }
 
 func TestUpdateTargetStatus(t *testing.T) {
-	scheme, err := getScheme()
+	scheme, err := NewScheme()
 	if err != nil {
 		t.Fatal("Unable to get scheme")
 	}
@@ -1169,7 +1169,7 @@ func TestPolling(t *testing.T) {
 
 	fakeClock := tclock.NewFakeClock(time.Now())
 
-	scheme, err := getScheme()
+	scheme, err := NewScheme()
 	if err != nil {
 		t.Fatal("Unable to get scheme")
 	}
@@ -1401,7 +1401,7 @@ func TestPolling(t *testing.T) {
 }
 
 func TestShouldPoll(t *testing.T) {
-	scheme, err := getScheme()
+	scheme, err := NewScheme()
 	if err != nil {
 		t.Fatal("unable to get scheme")
 	}
@@ -1549,7 +1549,7 @@ func TestFetchTargets(t *testing.T) {
 		t.Fatal("Invalid options:", err)
 	}
 
-	scheme, err := getScheme()
+	scheme, err := NewScheme()
 	if err != nil {
 		t.Fatal("Unable to get scheme")
 	}

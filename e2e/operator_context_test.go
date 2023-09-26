@@ -38,6 +38,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/discovery"
@@ -76,6 +77,17 @@ func init() {
 	ctrl.SetLogger(globalLogger)
 }
 
+func newClient() (client.Client, error) {
+	scheme, err := operator.NewScheme()
+	if err != nil {
+		return nil, fmt.Errorf("operator schema: %w", err)
+	}
+
+	return client.New(kubeconfig, client.Options{
+		Scheme: scheme,
+	})
+}
+
 // TestMain injects custom flags and adds extra signal handling to ensure testing
 // namespaces are cleaned after tests were executed.
 func TestMain(m *testing.M) {
@@ -107,7 +119,12 @@ func TestMain(m *testing.M) {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	<-term
-	if err := cleanupResources(context.Background(), kubeconfig, ""); err != nil {
+	c, err := newClient()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Build Kubernetes client:", err)
+		os.Exit(1)
+	}
+	if err := cleanupResources(context.Background(), kubeconfig, c, ""); err != nil {
 		fmt.Fprintln(os.Stderr, "Cleaning up namespaces failed:", err)
 		os.Exit(1)
 	}
@@ -127,11 +144,17 @@ type OperatorContext struct {
 
 	namespace, pubNamespace string
 
+	kClient        client.Client
 	kubeClient     kubernetes.Interface
 	operatorClient clientset.Interface
 }
 
 func newOperatorContext(t *testing.T) *OperatorContext {
+	c, err := newClient()
+	if err != nil {
+		t.Fatalf("Build Kubernetes client: %s", err)
+	}
+
 	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
 		t.Fatalf("Build Kubernetes clientset: %s", err)
@@ -152,18 +175,19 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 		T:              t,
 		namespace:      namespace,
 		pubNamespace:   pubNamespace,
+		kClient:        c,
 		kubeClient:     kubeClient,
 		operatorClient: operatorClient,
 	}
 	t.Cleanup(func() {
-		if err := cleanupResources(ctx, kubeconfig, tctx.getSubTestLabelValue()); err != nil {
+		if err := cleanupResources(ctx, kubeconfig, c, tctx.getSubTestLabelValue()); err != nil {
 			t.Fatalf("unable to cleanup resources: %s", err)
 		}
 		cancel()
 	})
 
-	if err := tctx.createBaseResources(ctx); err != nil {
-		t.Fatalf("create test namespace: %s", err)
+	if err := createBaseResources(ctx, c, namespace, pubNamespace, tctx.getSubTestLabels()); err != nil {
+		t.Fatalf("create resources: %s", err)
 	}
 
 	op, err := operator.New(globalLogger, kubeconfig, operator.Options{
@@ -201,48 +225,89 @@ func (tctx *OperatorContext) getSubTestLabels() map[string]string {
 // createBaseResources creates resources the operator requires to exist already.
 // These are resources which don't depend on runtime state and can thus be deployed
 // statically, allowing to run the operator without critical write permissions.
-func (tctx *OperatorContext) createBaseResources(ctx context.Context) error {
-	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   tctx.namespace,
-			Labels: tctx.getSubTestLabels(),
-		},
-	}
-	pns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   tctx.pubNamespace,
-			Labels: tctx.getSubTestLabels(),
-		},
-	}
-	// This will also fail is the namespace already exists, thereby detecting if a previous
-	// test run wasn't cleaned up correctly.
-	ns, err := tctx.kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("create namespace %q: %w", ns, err)
-	}
-	_, err = tctx.kubeClient.CoreV1().Namespaces().Create(ctx, pns, metav1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("create namespace %q: %w", pns, err)
+func createBaseResources(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace string, labels map[string]string) error {
+	if err := createNamespaces(ctx, kubeClient, opNamespace, publicNamespace, labels); err != nil {
+		return err
 	}
 
-	svcAccount := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   operator.NameCollector,
-			Labels: tctx.getSubTestLabels(),
-		},
+	if err := createGCPSecretResources(ctx, kubeClient, opNamespace, labels); err != nil {
+		return err
 	}
-	_, err = tctx.kubeClient.CoreV1().ServiceAccounts(tctx.namespace).Create(ctx, svcAccount, metav1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("create collector service account: %w", err)
+	if err := createCollectorResources(ctx, kubeClient, opNamespace, labels); err != nil {
+		return err
+	}
+	if err := createAlertmanagerResources(ctx, kubeClient, opNamespace, labels); err != nil {
+		return err
+	}
+	return nil
+}
+
+func createNamespaces(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace string, labels map[string]string) error {
+	if err := kubeClient.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   opNamespace,
+			Labels: labels,
+		},
+	}); err != nil {
+		return err
+	}
+	if err := kubeClient.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   publicNamespace,
+			Labels: labels,
+		},
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func createGCPSecretResources(ctx context.Context, kubeClient client.Client, namespace string, labels map[string]string) error {
+	if gcpServiceAccount != "" {
+		b, err := os.ReadFile(gcpServiceAccount)
+		if err != nil {
+			return fmt.Errorf("read GCP service account file: %w", err)
+		}
+		if err = kubeClient.Create(ctx, &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "user-gcp-service-account",
+				Namespace: namespace,
+				Labels:    labels,
+			},
+			Data: map[string][]byte{
+				"key.json": b,
+			},
+		}); err != nil {
+			return fmt.Errorf("create GCP service account secret: %w", err)
+		}
+	}
+	return nil
+}
+
+func parseResourceYAML(b []byte) (runtime.Object, error) {
+	// Ignore returned schema. It's redundant since it's already encoded in obj.
+	obj, _, err := scheme.Codecs.UniversalDeserializer().Decode(b, nil, nil)
+	return obj, err
+}
+
+func createCollectorResources(ctx context.Context, kubeClient client.Client, namespace string, labels map[string]string) error {
+	if err := kubeClient.Create(ctx, &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      operator.NameCollector,
+			Labels:    labels,
+			Namespace: namespace,
+		},
+	}); err != nil {
+		return err
 	}
 
 	// The cluster role expected to exist already.
 	const clusterRoleName = operator.DefaultOperatorNamespace + ":" + operator.NameCollector
 
-	roleBinding := &rbacv1.ClusterRoleBinding{
+	if err := kubeClient.Create(ctx, &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   clusterRoleName + ":" + tctx.namespace,
-			Labels: tctx.getSubTestLabels(),
+			Name:   clusterRoleName + ":" + namespace,
+			Labels: labels,
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
@@ -253,78 +318,57 @@ func (tctx *OperatorContext) createBaseResources(ctx context.Context) error {
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Namespace: tctx.namespace,
+				Namespace: namespace,
 				Name:      operator.NameCollector,
 			},
 		},
-	}
-	_, err = tctx.kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, roleBinding, metav1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("create cluster role binding: %w", err)
+	}); err != nil {
+		return err
 	}
 
-	if gcpServiceAccount != "" {
-		b, err := os.ReadFile(gcpServiceAccount)
-		if err != nil {
-			return fmt.Errorf("read GCP service account file: %w", err)
-		}
-		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   "user-gcp-service-account",
-				Labels: tctx.getSubTestLabels(),
-			},
-			Data: map[string][]byte{
-				"key.json": b,
-			},
-		}
-		_, err = tctx.kubeClient.CoreV1().Secrets(tctx.pubNamespace).Create(ctx, secret, metav1.CreateOptions{})
-		if err != nil {
-			return fmt.Errorf("create GCP service account secret: %w", err)
-		}
-	}
-
-	// Load workloads from YAML files and update the namespace to the test namespace.
 	collectorBytes, err := os.ReadFile(collectorManifest)
 	if err != nil {
 		return fmt.Errorf("read collector YAML: %w", err)
 	}
-	obj, _, err := scheme.Codecs.UniversalDeserializer().Decode(collectorBytes, nil, nil)
+	obj, err := parseResourceYAML(collectorBytes)
 	if err != nil {
 		return fmt.Errorf("decode collector: %w", err)
 	}
 	collector := obj.(*appsv1.DaemonSet)
-	collector.Namespace = tctx.namespace
+	collector.Namespace = namespace
 	if collector.Labels == nil {
 		collector.Labels = map[string]string{}
 	}
-	for k, v := range tctx.getSubTestLabels() {
+	for k, v := range labels {
 		collector.Labels[k] = v
 	}
 
-	_, err = tctx.kubeClient.AppsV1().DaemonSets(tctx.namespace).Create(ctx, collector, metav1.CreateOptions{})
-	if err != nil {
+	if err = kubeClient.Create(ctx, collector); err != nil {
 		return fmt.Errorf("create collector DaemonSet: %w", err)
 	}
+	return nil
+}
+
+func createAlertmanagerResources(ctx context.Context, kubeClient client.Client, namespace string, labels map[string]string) error {
 	evaluatorBytes, err := os.ReadFile(ruleEvalManifest)
 	if err != nil {
 		return fmt.Errorf("read rule-evaluator YAML: %w", err)
 	}
 
-	obj, _, err = scheme.Codecs.UniversalDeserializer().Decode(evaluatorBytes, nil, nil)
+	obj, err := parseResourceYAML(evaluatorBytes)
 	if err != nil {
 		return fmt.Errorf("decode evaluator: %w", err)
 	}
 	evaluator := obj.(*appsv1.Deployment)
-	evaluator.Namespace = tctx.namespace
+	evaluator.Namespace = namespace
 	if evaluator.Labels == nil {
 		evaluator.Labels = map[string]string{}
 	}
-	for k, v := range tctx.getSubTestLabels() {
+	for k, v := range labels {
 		evaluator.Labels[k] = v
 	}
 
-	_, err = tctx.kubeClient.AppsV1().Deployments(tctx.namespace).Create(ctx, evaluator, metav1.CreateOptions{})
-	if err != nil {
+	if err := kubeClient.Create(ctx, evaluator); err != nil {
 		return fmt.Errorf("create rule-evaluator Deployment: %w", err)
 	}
 
@@ -332,49 +376,36 @@ func (tctx *OperatorContext) createBaseResources(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("read alertmanager YAML: %w", err)
 	}
-	for _, doc := range strings.Split(string(alertmanagerBytes), "---") {
-		obj, _, err = scheme.Codecs.UniversalDeserializer().Decode([]byte(doc), nil, nil)
+	for i, doc := range strings.Split(string(alertmanagerBytes), "---") {
+		obj, err = parseResourceYAML([]byte(doc))
 		if err != nil {
 			return fmt.Errorf("deserializing alertmanager manifest: %w", err)
 		}
-		switch obj := obj.(type) {
-		case *appsv1.StatefulSet:
-			obj.Namespace = tctx.namespace
-			if obj.Labels == nil {
-				obj.Labels = map[string]string{}
-			}
-			for k, v := range tctx.getSubTestLabels() {
-				obj.Labels[k] = v
-			}
-			if _, err := tctx.kubeClient.AppsV1().StatefulSets(tctx.namespace).Create(ctx, obj, metav1.CreateOptions{}); err != nil {
-				return fmt.Errorf("create alertmanager statefulset: %w", err)
-			}
-		case *corev1.Secret:
-			obj.Namespace = tctx.namespace
-			if obj.Labels == nil {
-				obj.Labels = map[string]string{}
-			}
-			for k, v := range tctx.getSubTestLabels() {
-				obj.Labels[k] = v
-			}
-			if _, err := tctx.kubeClient.CoreV1().Secrets(tctx.namespace).Create(ctx, obj, metav1.CreateOptions{}); err != nil {
-				return fmt.Errorf("create alertmanager secret: %w", err)
-			}
-		case *corev1.Service:
-			obj.Namespace = tctx.namespace
-			if obj.Labels == nil {
-				obj.Labels = map[string]string{}
-			}
-			for k, v := range tctx.getSubTestLabels() {
-				obj.Labels[k] = v
-			}
-			if _, err := tctx.kubeClient.CoreV1().Services(tctx.namespace).Create(ctx, obj, metav1.CreateOptions{}); err != nil {
-				return fmt.Errorf("create alertmanager service: %w", err)
-			}
+		obj, ok := obj.(client.Object)
+		if !ok {
+			return fmt.Errorf("unknown object at index %d", i)
+		}
+
+		obj.SetNamespace(namespace)
+		labels := obj.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		for k, v := range labels {
+			labels[k] = v
+		}
+		obj.SetLabels(labels)
+
+		if err := kubeClient.Create(ctx, obj); err != nil {
+			return fmt.Errorf("create object at index %d: %w", i, err)
 		}
 	}
 
 	return nil
+}
+
+func (tctx *OperatorContext) Client() client.Client {
+	return tctx.kClient
 }
 
 // subtest derives a new test function from a function accepting a test context.
@@ -489,11 +520,7 @@ func cleanupResource(ctx context.Context, kubeClient client.Client, gvk schema.G
 
 // cleanupResources cleans all resources created by tests. If no label value is provided, then all
 // resources with the label are removed.
-func cleanupResources(ctx context.Context, restConfig *rest.Config, labelValue string) error {
-	kubeClient, err := client.New(restConfig, client.Options{})
-	if err != nil {
-		return err
-	}
+func cleanupResources(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, labelValue string) error {
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(restConfig)
 	if err != nil {
 		return err
