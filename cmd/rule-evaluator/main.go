@@ -36,7 +36,6 @@ import (
 	"github.com/oklog/run"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
-	"google.golang.org/grpc"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/client_golang/api"
@@ -82,6 +81,7 @@ func main() {
 	reg.MustRegister(
 		prometheus.NewGoCollector(),
 		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+		grpc_prometheus.DefaultClientMetrics,
 	)
 
 	// The rule-evaluator version is identical to the export library version for now, so
@@ -163,12 +163,9 @@ func main() {
 	ctxRuleManger := context.Background()
 	ctxDiscover, cancelDiscover := context.WithCancel(context.Background())
 
-	grpc_prometheus.EnableClientHandlingTimeHistogram()
-
 	opts := []option.ClientOption{
 		option.WithScopes("https://www.googleapis.com/auth/monitoring.read"),
 		option.WithUserAgent(fmt.Sprintf("rule-evaluator/%s", version)),
-		option.WithGRPCDialOption(grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor)),
 	}
 	if *queryCredentialsFile != "" {
 		opts = append(opts, option.WithCredentialsFile(*queryCredentialsFile))
@@ -178,9 +175,10 @@ func main() {
 		level.Error(logger).Log("msg", "Creating proxy HTTP transport failed", "err", err)
 		os.Exit(1)
 	}
+	roundTripper := makeInstrumentedRoundTripper(transport, reg)
 	client, err := api.NewClient(api.Config{
 		Address:      *targetURL,
-		RoundTripper: transport,
+		RoundTripper: roundTripper,
 	})
 	if err != nil {
 		level.Error(logger).Log("msg", "Error creating client", "err", err)
@@ -647,4 +645,29 @@ func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ..
 
 func (db *queryAccess) Close() error {
 	return nil
+}
+
+// makeInstrumentedRoundTripper instruments the original RoundTripper with middleware to observe the request result.
+// The new RoundTripper counts the number of query requests sent to GCM and measures the latency of each request.
+func makeInstrumentedRoundTripper(transport http.RoundTripper, reg prometheus.Registerer) http.RoundTripper {
+	queryCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "rule_evaluator_query_requests_total",
+			Help: "A counter for query requests sent to GCM.",
+		},
+		[]string{"code", "method"},
+	)
+	queryHistogram := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "rule_evaluator_query_requests_latency_seconds",
+			Help:    "Histogram of response latency of query requests sent to GCM.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"code", "method"},
+	)
+	reg.MustRegister(queryCounter, queryHistogram)
+
+	return promhttp.InstrumentRoundTripperCounter(queryCounter,
+		promhttp.InstrumentRoundTripperDuration(queryHistogram, transport))
+
 }
