@@ -73,7 +73,7 @@ func TestCollectionStatus(t *testing.T) {
 		Message:            "",
 	})
 
-	scheme, err := getScheme()
+	scheme, err := NewScheme()
 	if err != nil {
 		t.Fatal("Unable to get scheme")
 	}

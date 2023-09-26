@@ -153,7 +153,7 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	return nil
 }
 
-func getScheme() (*runtime.Scheme, error) {
+func NewScheme() (*runtime.Scheme, error) {
 	sc := runtime.NewScheme()
 
 	if err := scheme.AddToScheme(sc); err != nil {
@@ -176,7 +176,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 		return nil, fmt.Errorf("create temporary certificate dir: %w", err)
 	}
 
-	sc, err := getScheme()
+	sc, err := NewScheme()
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize Kubernetes scheme: %w", err)
 	}
