@@ -43,7 +43,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -54,7 +53,6 @@ import (
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
 
 const (
@@ -179,8 +177,8 @@ func TestMain(m *testing.M) {
 		return
 	}
 	fmt.Fprintln(os.Stdout, "cleaning up abandoned resources...")
-	if err := cleanupResources(context.Background(), kubeconfig, c, ""); err != nil {
-		fmt.Fprintln(os.Stderr, "Cleaning up namespaces failed:", err)
+	if err := cleanupResources(context.Background(), kubeconfig, c, testLabel); err != nil {
+		fmt.Fprintln(os.Stderr, "cleaning up failed:", err)
 		os.Exit(1)
 	}
 }
@@ -199,24 +197,13 @@ type OperatorContext struct {
 
 	namespace, pubNamespace string
 
-	kClient        DelegatingClient
-	kubeClient     kubernetes.Interface
-	operatorClient clientset.Interface
+	kubeClient TrackingClient
 }
 
 func newOperatorContext(t *testing.T) *OperatorContext {
 	c, err := newClient()
 	if err != nil {
 		t.Fatalf("Build Kubernetes client: %s", err)
-	}
-
-	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
-	if err != nil {
-		t.Fatalf("Build Kubernetes clientset: %s", err)
-	}
-	operatorClient, err := clientset.NewForConfig(kubeconfig)
-	if err != nil {
-		t.Fatalf("Build operator clientset: %s", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -227,16 +214,14 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 	pubNamespace := fmt.Sprintf("%s-pub", namespace)
 
 	tctx := &OperatorContext{
-		T:              t,
-		namespace:      namespace,
-		pubNamespace:   pubNamespace,
-		kubeClient:     kubeClient,
-		operatorClient: operatorClient,
+		T:            t,
+		namespace:    namespace,
+		pubNamespace: pubNamespace,
 	}
-	tctx.kClient = NewLabelWriterClient(c, tctx.getSubTestLabels())
+	tctx.kubeClient = NewTrackingClient(NewLabelWriterClient(c, tctx.getSubTestLabels()))
 	t.Cleanup(func() {
 		if !leakResources {
-			if err := cleanupResourcesInNamespaces(ctx, kubeconfig, tctx.Client(), []string{namespace, pubNamespace}, tctx.getSubTestLabelValue()); err != nil {
+			if err := tctx.kubeClient.Cleanup(ctx); err != nil {
 				t.Fatalf("unable to cleanup resources: %s", err)
 			}
 		}
@@ -487,7 +472,7 @@ func createAlertmanagerResources(ctx context.Context, kubeClient client.Client, 
 }
 
 func (tctx *OperatorContext) Client() client.Client {
-	return tctx.kClient
+	return tctx.kubeClient
 }
 
 // subtest derives a new test function from a function accepting a test context.
@@ -496,13 +481,13 @@ func (tctx *OperatorContext) subtest(f func(context.Context, *OperatorContext)) 
 		ctx := context.TODO()
 		childCtx := *tctx
 		childCtx.T = t
-		childCtx.kClient = NewLabelWriterClient(tctx.kClient.Base(), childCtx.getSubTestLabels())
+		childCtx.kubeClient = NewTrackingClient(tctx.kubeClient.Base())
 		t.Cleanup(func() {
 			if leakResources {
 				return
 			}
 			t.Log("cleaning up resources...")
-			if err := cleanupResourcesInNamespaces(ctx, kubeconfig, childCtx.Client(), []string{tctx.namespace, tctx.pubNamespace}, childCtx.getSubTestLabelValue()); err != nil {
+			if err := childCtx.kubeClient.Cleanup(ctx); err != nil {
 				t.Fatalf("unable to cleanup resources: %s", err)
 			}
 		})
@@ -530,18 +515,6 @@ func getGroupVersionKinds(discoveryClient discovery.DiscoveryInterface) ([]schem
 	return gvks, errors.Join(errs...)
 }
 
-func getNamespaces(ctx context.Context, kubeClient client.Client) ([]string, error) {
-	var namespaces []string
-	var namespaceList corev1.NamespaceList
-	if err := kubeClient.List(ctx, &namespaceList); err != nil {
-		return nil, err
-	}
-	for _, namespace := range namespaceList.Items {
-		namespaces = append(namespaces, namespace.Name)
-	}
-	return namespaces, nil
-}
-
 func isNamespaced(discovery discovery.DiscoveryInterface, gvk schema.GroupVersionKind) (bool, error) {
 	resources, err := discovery.ServerResourcesForGroupVersion(gvk.GroupVersion().String())
 	if err != nil {
@@ -560,29 +533,19 @@ func isNoMatchError(err error, gvk schema.GroupVersionKind) bool {
 	return err.Error() == fmt.Sprintf("no matches for kind %q in version %q", gvk.Kind, gvk.GroupVersion().String())
 }
 
-func labelListOptions(labelName, labelValue, namespace string) (client.ListOptions, error) {
-	listOpts := client.ListOptions{}
-	if labelValue == "" {
-		req, err := labels.NewRequirement(labelName, selection.Exists, []string{})
-		if err != nil {
-			return listOpts, err
-		}
-		listOpts.LabelSelector = labels.NewSelector().Add(*req)
-	} else {
-		req, err := labels.NewRequirement(labelName, selection.Equals, []string{labelValue})
-		if err != nil {
-			return listOpts, err
-		}
-		listOpts.LabelSelector = labels.NewSelector().Add(*req)
+func labelListOptions(labelName string) (client.ListOptions, error) {
+	req, err := labels.NewRequirement(labelName, selection.Exists, []string{})
+	if err != nil {
+		return client.ListOptions{}, err
 	}
-	if namespace != "" {
-		listOpts.Namespace = namespace
+	listOpts := client.ListOptions{
+		LabelSelector: labels.NewSelector().Add(*req),
 	}
 	return listOpts, nil
 }
 
-func cleanupResource(ctx context.Context, kubeClient client.Client, gvk schema.GroupVersionKind, labelValue, namespace string) error {
-	listOpts, err := labelListOptions(testLabel, labelValue, namespace)
+func cleanupResource(ctx context.Context, kubeClient client.Client, gvk schema.GroupVersionKind, labelName string) error {
+	listOpts, err := labelListOptions(labelName)
 	if err != nil {
 		return err
 	}
@@ -613,15 +576,7 @@ func cleanupResource(ctx context.Context, kubeClient client.Client, gvk schema.G
 
 // cleanupResources cleans all resources created by tests. If no label value is provided, then all
 // resources with the label are removed.
-func cleanupResources(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, labelValue string) error {
-	namespaces, err := getNamespaces(ctx, kubeClient)
-	if err != nil {
-		return err
-	}
-	return cleanupResourcesInNamespaces(ctx, restConfig, kubeClient, namespaces, labelValue)
-}
-
-func cleanupResourcesInNamespaces(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, namespaces []string, labelValue string) error {
+func cleanupResources(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, labelName string) error {
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(restConfig)
 	if err != nil {
 		return err
@@ -649,24 +604,15 @@ func cleanupResourcesInNamespaces(ctx context.Context, restConfig *rest.Config, 
 			return err
 		}
 		if namespaced {
-			if labelValue == "" {
-				// Skip because deleting the namespace will delete the resource.
-				continue
-			}
-			for _, namespace := range namespaces {
-				if err := cleanupResource(ctx, kubeClient, gvk, labelValue, namespace); err != nil {
-					errs = append(errs, err)
-				}
-			}
-		} else {
-			if err := cleanupResource(ctx, kubeClient, gvk, labelValue, ""); err != nil {
-				errs = append(errs, err)
-			}
+			continue
+		}
+		if err := cleanupResource(ctx, kubeClient, gvk, labelName); err != nil {
+			errs = append(errs, err)
 		}
 	}
 
 	// DeleteAllOf does not work for namespaces, so we must delete individually.
-	listOpts, err := labelListOptions(testLabel, labelValue, "")
+	listOpts, err := labelListOptions(labelName)
 	if err != nil {
 		return err
 	}

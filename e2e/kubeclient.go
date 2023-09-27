@@ -20,10 +20,16 @@ package e2e
 
 import (
 	"context"
+	"fmt"
+
+	"sync"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -62,64 +68,64 @@ type WriterClient interface {
 }
 
 // delegatingWriteClient delegates all mutating functions to a writer client.
-type delegatingWriteClient struct {
+type delegatingWriteClient[T WriterClient] struct {
 	base   client.Client
-	writer WriterClient
+	writer T
 }
 
-func (c *delegatingWriteClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+func (c *delegatingWriteClient[T]) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	return c.base.Get(ctx, key, obj, opts...)
 }
 
-func (c *delegatingWriteClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+func (c *delegatingWriteClient[T]) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 	return c.base.List(ctx, list, opts...)
 }
 
-func (c *delegatingWriteClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+func (c *delegatingWriteClient[T]) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 	return c.writer.Create(ctx, obj, opts...)
 }
 
-func (c *delegatingWriteClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+func (c *delegatingWriteClient[T]) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
 	return c.writer.Delete(ctx, obj, opts...)
 }
 
-func (c *delegatingWriteClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (c *delegatingWriteClient[T]) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	return c.writer.Update(ctx, obj, opts...)
 }
 
-func (c *delegatingWriteClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (c *delegatingWriteClient[T]) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 	return c.writer.Patch(ctx, obj, patch, opts...)
 }
 
-func (c *delegatingWriteClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
+func (c *delegatingWriteClient[T]) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
 	return c.writer.DeleteAllOf(ctx, obj, opts...)
 }
 
-func (c *delegatingWriteClient) SubResource(subResource string) client.SubResourceClient {
+func (c *delegatingWriteClient[T]) SubResource(subResource string) client.SubResourceClient {
 	return &delegatingWriteSubResourceClient{
 		base:   c.base.SubResource(subResource),
 		writer: c.writer.SubResource(subResource),
 	}
 }
 
-func (c *delegatingWriteClient) Status() client.SubResourceWriter {
+func (c *delegatingWriteClient[T]) Status() client.SubResourceWriter {
 	return c.writer.Status()
 }
 
-func (c *delegatingWriteClient) Scheme() *runtime.Scheme {
+func (c *delegatingWriteClient[T]) Scheme() *runtime.Scheme {
 	return c.base.Scheme()
 }
 
-func (c *delegatingWriteClient) RESTMapper() meta.RESTMapper {
+func (c *delegatingWriteClient[T]) RESTMapper() meta.RESTMapper {
 	return c.base.RESTMapper()
 }
 
-func (c *delegatingWriteClient) Base() client.Client {
+func (c *delegatingWriteClient[T]) Base() client.Client {
 	return c.base
 }
 
 func newDelegatingWriteClient(c client.Client, w WriterClient) DelegatingClient {
-	return &delegatingWriteClient{
+	return &delegatingWriteClient[WriterClient]{
 		base:   c,
 		writer: w,
 	}
@@ -191,4 +197,140 @@ func NewLabelWriterClient(c client.Client, labels map[string]string) DelegatingC
 		base:   c,
 		labels: labels,
 	})
+}
+
+// TrackingClient is a Kubernetes client that tracks objects it created.
+type TrackingClient interface {
+	DelegatingClient
+	// Cleanup deletes all objects created by this client.
+	Cleanup(ctx context.Context) error
+}
+
+type trackingWriterClient struct {
+	base    client.Client
+	mutex   sync.Mutex
+	objects map[schema.GroupVersionKind]map[client.ObjectKey]struct{}
+}
+
+func (c *trackingWriterClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if err := c.base.Create(ctx, obj, opts...); err != nil {
+		return err
+	}
+	gvk, err := apiutil.GVKForObject(obj, c.base.Scheme())
+	if err != nil {
+		return err
+	}
+	key := client.ObjectKeyFromObject(obj)
+	if _, ok := c.objects[gvk]; !ok {
+		c.objects[gvk] = map[client.ObjectKey]struct{}{}
+	}
+	c.objects[gvk][key] = struct{}{}
+	return nil
+}
+
+func (c *trackingWriterClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if err := c.base.Delete(ctx, obj, opts...); err != nil {
+		return err
+	}
+	gvk, err := apiutil.GVKForObject(obj, c.base.Scheme())
+	if err != nil {
+		return err
+	}
+	key := client.ObjectKeyFromObject(obj)
+	if _, ok := c.objects[gvk]; !ok {
+		return fmt.Errorf("object type %s with key %s does not exist", gvk.String(), key)
+	}
+	delete(c.objects[gvk], key)
+	return nil
+}
+
+func (c *trackingWriterClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+	return c.base.Update(ctx, obj, opts...)
+}
+
+func (c *trackingWriterClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+	return c.base.Patch(ctx, obj, patch, opts...)
+}
+
+func (c *trackingWriterClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
+	gvk, err := apiutil.GVKForObject(obj, c.base.Scheme())
+	if err != nil {
+		return err
+	}
+	objList := metav1.PartialObjectMetadataList{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: gvk.GroupVersion().String(),
+			Kind:       gvk.Kind,
+		},
+	}
+	deleteAllOfOptions := client.DeleteAllOfOptions{}
+	for _, opt := range opts {
+		opt.ApplyToDeleteAllOf(&deleteAllOfOptions)
+	}
+	if err := c.base.List(ctx, &objList, &deleteAllOfOptions.ListOptions); err != nil {
+		return err
+	}
+	for _, obj := range objList.Items {
+		if err := c.Delete(ctx, &obj, &deleteAllOfOptions.DeleteOptions); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *trackingWriterClient) SubResource(subResource string) client.SubResourceWriter {
+	return c.base.SubResource(subResource)
+}
+
+func (c *trackingWriterClient) Status() client.SubResourceWriter {
+	return c.base.Status()
+}
+
+func (c *trackingWriterClient) Cleanup(ctx context.Context) error {
+	for gvk, keys := range c.objects {
+		for key := range keys {
+			obj := metav1.PartialObjectMetadata{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: gvk.GroupVersion().String(),
+					Kind:       gvk.Kind,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      key.Name,
+					Namespace: key.Namespace,
+				},
+			}
+			if err := c.base.Delete(ctx, &obj); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+type trackingClient struct {
+	delegatingWriteClient[*trackingWriterClient]
+}
+
+func (c *trackingClient) Base() client.Client {
+	return c.base
+}
+
+func (c *trackingClient) Cleanup(ctx context.Context) error {
+	return c.writer.Cleanup(ctx)
+}
+
+func NewTrackingClient(c client.Client) TrackingClient {
+	return &trackingClient{
+		delegatingWriteClient: delegatingWriteClient[*trackingWriterClient]{
+			base: c,
+			writer: &trackingWriterClient{
+				base:    c,
+				objects: map[schema.GroupVersionKind]map[client.ObjectKey]struct{}{},
+			},
+		},
+	}
 }
