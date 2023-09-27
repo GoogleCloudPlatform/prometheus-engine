@@ -165,10 +165,10 @@ presubmit:   ## Regenerate all resources, build all images and run all tests.
 presubmit: updateversions regen bin test e2e
 
 .PHONY: updateversions
-CURRENT_TAG = v0.7.4-gke.0
-CURRENT_PROM_TAG = v2.41.0-gmp.4-gke.1
-CURRENT_AM_TAG = v0.25.1-gmp.0-gke.1
-LABEL_API_VERSION = 0.7.4
+CURRENT_TAG = v0.8.0-gke.0
+CURRENT_PROM_TAG = v2.41.0-gmp.4-gke.2
+CURRENT_AM_TAG = v0.25.1-gmp.0-gke.2
+LABEL_API_VERSION = 0.8.0
 FILES_TO_UPDATE = $(shell find . -type f -name "*.yaml" ! -name "kube-state-metrics.yaml" ! -name "node-exporter.yaml")
 updateversions: ## Modify all manifests, so it contains the expected versions.
                 ##
