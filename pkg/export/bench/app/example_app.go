@@ -45,19 +45,19 @@ var (
 
 var (
 	availableLabels = map[string][]string{
-		"method": []string{
+		"method": {
 			"POST",
 			"PUT",
 			"GET",
 		},
-		"status": []string{
+		"status": {
 			"200",
 			"300",
 			"400",
 			"404",
 			"500",
 		},
-		"path": []string{
+		"path": {
 			"/",
 			"/index",
 			"/topics",

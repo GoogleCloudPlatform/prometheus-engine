@@ -18,7 +18,7 @@ load broad coverage of potential race conditions, which will be logged.
 
 ## Resource usage
 
-The Prometheus server scrapse itself, which allows gauging the resource usage of the Prometheus
+The Prometheus server scrapes itself, which allows gauging the resource usage of the Prometheus
 binary as well as the overhead relative to a regular Prometheus server.
 
 The example app allows tweaking its flags to expose more or fewer metrics. Lowering the scrape
