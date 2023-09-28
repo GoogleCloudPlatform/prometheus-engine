@@ -31,7 +31,7 @@ rm -rf data1 data2 data3
 
 echo "Starting example metrics application"
 
-go run example_app.go 2>&1 | sed -e "s/^/[example-app] /" &
+go run app/example_app.go 2>&1 | sed -e "s/^/[example-app] /" &
 
 echo "Starting fake GCM endpoint"
 
