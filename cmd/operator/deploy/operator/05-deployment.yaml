@@ -41,6 +41,24 @@ spec:
       serviceAccountName: operator
       automountServiceAccountToken: true
       priorityClassName: gmp-critical
+      volumes:
+      - name: tls
+        projected:
+          sources:
+          - secret:
+              name: webhook-tls
+              optional: true
+              items:
+                - key: tls.crt
+                  path: tls.crt
+                - key: tls.key
+                  path: tls.key
+          - configMap:
+              name: webhook-ca
+              optional: true
+              items:
+                - key: ca.crt
+                  path: tls-ca.crt
       containers:
       - name: operator
         image: gke.gcr.io/prometheus-engine/operator:v0.7.4-gke.0
@@ -63,6 +81,10 @@ spec:
           requests:
             cpu: 1m
             memory: 16M
+        volumeMounts:
+        - name: tls
+          readOnly: true
+          mountPath: "/etc/tls/private"
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
