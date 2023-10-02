@@ -38,6 +38,13 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 )
 
+const (
+	defaultTLSDir       = "/etc/tls/private"
+	defaultCertFile     = defaultTLSDir + "/tls.crt"
+	defaultKeyFile      = defaultTLSDir + "/tls.key"
+	defaultClientCAFile = defaultTLSDir + "/ca.crt"
+)
+
 func unstableFlagHelp(help string) string {
 	return help + " (Setting this flag voids any guarantees of proper behavior of the operator.)"
 }
@@ -68,10 +75,13 @@ func main() {
 		publicNamespace = flag.String("public-namespace", operator.DefaultPublicNamespace,
 			"Namespace in which the operator reads user-provided resources.")
 
-		tlsCert     = flag.String("tls-cert-base64", "", "The base64-encoded TLS certificate.")
-		tlsKey      = flag.String("tls-key-base64", "", "The base64-encoded TLS key.")
-		caCert      = flag.String("ca-cert-base64", "", "The base64-encoded certificate authority.")
-		webhookAddr = flag.String("webhook-addr", ":10250",
+		tlsCert      = flag.String("tls-cert-base64", "", "The base64-encoded TLS certificate.")
+		tlsKey       = flag.String("tls-key-base64", "", "The base64-encoded TLS key.")
+		caCert       = flag.String("ca-cert-base64", "", "The base64-encoded certificate authority.")
+		certFile     = flag.String("cert-file", defaultCertFile, "Path to TLS certificate for webhook server.")
+		keyFile      = flag.String("key-file", defaultKeyFile, "Path to TLS key for webhook server.")
+		clientCAFile = flag.String("client-ca-file", defaultClientCAFile, "Client CA certificate to trust the webhook server.")
+		webhookAddr  = flag.String("webhook-addr", ":10250",
 			"Address to listen to for incoming kube admission webhook connections.")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
 
@@ -110,6 +120,9 @@ func main() {
 		TLSCert:           *tlsCert,
 		TLSKey:            *tlsKey,
 		CACert:            *caCert,
+		KeyFile:           *keyFile,
+		CertFile:          *certFile,
+		ClientCAFile:      *clientCAFile,
 		ListenAddr:        *webhookAddr,
 		CleanupAnnotKey:   *cleanupAnnotKey,
 	})

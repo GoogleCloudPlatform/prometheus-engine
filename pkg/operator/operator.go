@@ -84,6 +84,9 @@ const (
 
 	// The level of concurrency to use to fetch all targets.
 	defaultTargetPollConcurrency = 4
+
+	// certDir is the directory where TLS certificates are stored
+	certDir = "/etc/tls/private"
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.
@@ -112,6 +115,12 @@ type Options struct {
 	// Namespace to which the operator looks for user-specified configuration
 	// data, like Secrets and ConfigMaps.
 	PublicNamespace string
+	// KeyFile specifies the path to the client TLS key for the webhook server
+	KeyFile string
+	// CertFile specifies the path to the client TLS cert for the webhook server
+	CertFile string
+	// ClientCAFile is the path to the CA used by webhook clients to establish trust with the webhook server
+	ClientCAFile string
 	// Certificate of the server in base 64.
 	TLSCert string
 	// Key of the server in base 64.
@@ -170,11 +179,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	if err := opts.defaultAndValidate(logger); err != nil {
 		return nil, fmt.Errorf("invalid options: %w", err)
 	}
-	// Create temporary directory to store webhook serving cert files.
-	certDir, err := os.MkdirTemp("", "operator-cert")
-	if err != nil {
-		return nil, fmt.Errorf("create temporary certificate dir: %w", err)
-	}
 
 	sc, err := NewScheme()
 	if err != nil {
@@ -189,6 +193,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	if err != nil {
 		return nil, fmt.Errorf("invalid port: %w", err)
 	}
+
 	manager, err := ctrl.NewManager(clientConfig, manager.Options{
 		Scheme: sc,
 		Host:   host,
@@ -289,7 +294,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 // custom resources and registers handlers with the webhook server.
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	// Write provided cert files.
-	caBundle, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().CertDir)
+	caBundle, err := o.ensureCerts(ctx, certDir)
 	if err != nil {
 		return err
 	}
@@ -454,6 +459,9 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 		crt, key, caData []byte
 		err              error
 	)
+	if fileExists(o.opts.CertFile) && fileExists(o.opts.KeyFile) && fileExists(o.opts.ClientCAFile) {
+		return os.ReadFile(o.opts.ClientCAFile)
+	}
 	if o.opts.TLSKey != "" && o.opts.TLSCert != "" {
 		crt, err = base64.StdEncoding.DecodeString(o.opts.TLSCert)
 		if err != nil {
@@ -486,6 +494,9 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 		return nil, errors.New("flags key-base64 and cert-base64 must both be set")
 	}
 	// Create cert/key files.
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return nil, fmt.Errorf("create cert directory: %w", err)
+	}
 	if err := os.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
 		return nil, fmt.Errorf("create cert file: %w", err)
 	}
@@ -493,6 +504,13 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 		return nil, fmt.Errorf("create key file: %w", err)
 	}
 	return caData, nil
+}
+
+func fileExists(f string) bool {
+	if _, err := os.Stat(f); err != nil {
+		return false
+	}
+	return true
 }
 
 // namespacedNamePredicate is an event filter predicate that only allows events with
