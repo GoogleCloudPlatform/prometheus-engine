@@ -48,6 +48,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
@@ -75,6 +76,9 @@ var (
 
 func init() {
 	ctrl.SetLogger(globalLogger)
+
+	// Allow tests to run on random webhook ports to allow parallelism.
+	webhook.DefaultPort = 0
 }
 
 func newClient() (client.Client, error) {
@@ -196,7 +200,8 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 		Location:          location,
 		OperatorNamespace: tctx.namespace,
 		PublicNamespace:   tctx.pubNamespace,
-		ListenAddr:        ":10250",
+		// Pick a random available port.
+		ListenAddr: ":0",
 	})
 	if err != nil {
 		t.Fatalf("instantiating operator: %s", err)
