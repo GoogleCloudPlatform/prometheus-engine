@@ -27,11 +27,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	// Blank import required to register GCP auth handlers to talk to GKE clusters.
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -41,6 +44,7 @@ import (
 )
 
 func TestCollector(t *testing.T) {
+	t.Parallel()
 	tctx := newOperatorContext(t)
 
 	// We could simply verify that the full collection chain works once. But validating
@@ -73,10 +77,11 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 	})
 
 	err := wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
-		ds, err := t.kubeClient.AppsV1().DaemonSets(t.namespace).Get(ctx, operator.NameCollector, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		} else if err != nil {
+		var ds appsv1.DaemonSet
+		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameCollector}, &ds); err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
 			t.Log(fmt.Errorf("getting collector DaemonSet failed: %w", err))
 			return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
 		}
@@ -148,10 +153,11 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 func testCollectorSelfPodMonitoring(ctx context.Context, t *OperatorContext) {
 	// The operator should configure the collector to scrape itself and its metrics
 	// should show up in Cloud Monitoring shortly after.
-	podmon := &monitoringv1.PodMonitoring{
+	name := "collector-podmon"
+	pm := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   "collector-podmon",
-			Labels: t.getSubTestLabels(),
+			Name:      name,
+			Namespace: t.namespace,
 		},
 		Spec: monitoringv1.PodMonitoringSpec{
 			Selector: metav1.LabelSelector{
@@ -172,16 +178,14 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *OperatorContext) {
 		},
 	}
 
-	_, err := t.operatorClient.MonitoringV1().PodMonitorings(t.namespace).Create(ctx, podmon, metav1.CreateOptions{})
-	if err != nil {
+	if err := t.Client().Create(ctx, pm); err != nil {
 		t.Fatalf("create collector PodMonitoring: %s", err)
 	}
-	t.Log("Waiting for PodMonitoring collector-podmon to be processed")
+	t.Logf("Waiting for PodMonitoring %q to be processed", name)
 
 	var resVer = ""
-	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-		pm, err := t.operatorClient.MonitoringV1().PodMonitorings(t.namespace).Get(ctx, "collector-podmon", metav1.GetOptions{})
-		if err != nil {
+	err := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
+		if err := t.Client().Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 			return false, fmt.Errorf("getting PodMonitoring failed: %w", err)
 		}
 		// Ensure no status update cycles.
@@ -207,7 +211,7 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *OperatorContext) {
 
 	if !skipGCM {
 		t.Log("Waiting for up metrics for collector targets")
-		validateCollectorUpMetrics(ctx, t, "collector-podmon")
+		validateCollectorUpMetrics(ctx, t, name)
 	}
 }
 
@@ -216,10 +220,10 @@ func testCollectorSelfPodMonitoring(ctx context.Context, t *OperatorContext) {
 func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *OperatorContext) {
 	// The operator should configure the collector to scrape itself and its metrics
 	// should show up in Cloud Monitoring shortly after.
-	podmon := &monitoringv1.ClusterPodMonitoring{
+	name := "collector-cmon"
+	pm := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   "collector-cmon",
-			Labels: t.getSubTestLabels(),
+			Name: name,
 		},
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector: metav1.LabelSelector{
@@ -240,16 +244,14 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *OperatorConte
 		},
 	}
 
-	_, err := t.operatorClient.MonitoringV1().ClusterPodMonitorings().Create(ctx, podmon, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("create collector ClusterPodMonitoring: %s", err)
+	if err := t.Client().Create(ctx, pm); err != nil {
+		t.Fatalf("create ClusterPodMonitoring: %s", err)
 	}
-	t.Log("Waiting for PodMonitoring collector-podmon to be processed")
+	t.Logf("Waiting for ClusterPodMonitoring %q to be processed", name)
 
 	var resVer = ""
-	err = wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-		pm, err := t.operatorClient.MonitoringV1().ClusterPodMonitorings().Get(ctx, "collector-cmon", metav1.GetOptions{})
-		if err != nil {
+	err := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
+		if err := t.Client().Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 			return false, fmt.Errorf("getting ClusterPodMonitoring failed: %w", err)
 		}
 		// Ensure no status update cycles.
@@ -275,7 +277,7 @@ func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *OperatorConte
 
 	if !skipGCM {
 		t.Log("Waiting for up metrics for collector targets")
-		validateCollectorUpMetrics(ctx, t, "collector-cmon")
+		validateCollectorUpMetrics(ctx, t, name)
 	}
 }
 
@@ -304,10 +306,12 @@ func validateCollectorUpMetrics(ctx context.Context, t *OperatorContext, job str
 	}
 	defer metricClient.Close()
 
-	pods, err := t.kubeClient.CoreV1().Pods(t.namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=%s", operator.LabelAppName, operator.NameCollector),
-	})
-	if err != nil {
+	var pods corev1.PodList
+	if err := t.Client().List(ctx, &pods, client.InNamespace(t.namespace), client.MatchingLabelsSelector{
+		Selector: labels.SelectorFromSet(map[string]string{
+			operator.LabelAppName: operator.NameCollector,
+		}),
+	}); err != nil {
 		t.Fatalf("List collector pods: %s", err)
 	}
 
@@ -396,8 +400,8 @@ func testCollectorScrapeKubelet(ctx context.Context, t *OperatorContext) {
 	}
 	defer metricClient.Close()
 
-	nodes, err := t.kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
+	var nodes corev1.NodeList
+	if err := t.Client().List(ctx, &nodes); err != nil {
 		t.Fatalf("List nodes: %s", err)
 	}
 
