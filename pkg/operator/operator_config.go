@@ -519,9 +519,20 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		}
 		// TLS config.
 		if am.TLS != nil {
+			minVersion, err := monitoringv1.TLSVersionFromString(am.TLS.MinVersion)
+			if err != nil {
+				return nil, nil, fmt.Errorf("unable to convert TLS min version: %w", err)
+			}
+			maxVersion, err := monitoringv1.TLSVersionFromString(am.TLS.MaxVersion)
+			if err != nil {
+				return nil, nil, fmt.Errorf("unable to convert TLS min version: %w", err)
+			}
+
 			tlsCfg := promcommonconfig.TLSConfig{
 				InsecureSkipVerify: am.TLS.InsecureSkipVerify,
 				ServerName:         am.TLS.ServerName,
+				MinVersion:         minVersion,
+				MaxVersion:         maxVersion,
 			}
 
 			if am.TLS.CA != nil {
