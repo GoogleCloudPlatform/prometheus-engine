@@ -210,6 +210,14 @@ type TLS struct {
 	ServerName string `json:"serverName,omitempty"`
 	// Disable target certificate validation.
 	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
+	// Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+	// If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+	// See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+	MinVersion string `json:"minVersion,omitempty"`
+	// Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+	// If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+	// See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+	MaxVersion string `json:"maxVersion,omitempty"`
 }
 
 // TLSConfig specifies TLS configuration parameters from Kubernetes resources.
@@ -224,6 +232,14 @@ type TLSConfig struct {
 	ServerName string `json:"serverName,omitempty"`
 	// Disable target certificate validation.
 	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
+	// Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+	// If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+	// See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+	MinVersion string `json:"minVersion,omitempty"`
+	// Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+	// If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+	// See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+	MaxVersion string `json:"maxVersion,omitempty"`
 }
 
 // SecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive.
@@ -717,7 +733,15 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 	}
 
 	if ep.HTTPClientConfig.TLS != nil {
-		httpCfg.TLSConfig = *ep.HTTPClientConfig.TLS.ToPrometheusConfig()
+		tlsConfig, err := ep.HTTPClientConfig.TLS.ToPrometheusConfig()
+		if err != nil {
+			return nil, err
+		}
+		httpCfg.TLSConfig = *tlsConfig
+	}
+
+	if err := httpCfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid Prometheus HTTP client config: %w", err)
 	}
 
 	scrapeCfg := &promconfig.ScrapeConfig{

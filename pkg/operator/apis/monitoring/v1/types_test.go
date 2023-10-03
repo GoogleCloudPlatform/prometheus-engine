@@ -280,6 +280,35 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 			tls: TargetLabels{
 				Metadata: stringSlicePtr(),
 			},
+		}, {
+			desc: "TLS setting invalid",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					HTTPClientConfig: HTTPClientConfig{
+						TLS: &TLS{
+							MinVersion: "TLS09",
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: `unknown TLS version`,
+		}, {
+			desc: "TLS setting valid",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					HTTPClientConfig: HTTPClientConfig{
+						TLS: &TLS{
+							MinVersion: "TLS13",
+						},
+					},
+				},
+			},
+			errContains: `unknown TLS version`,
 		},
 	}
 
