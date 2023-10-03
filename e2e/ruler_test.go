@@ -28,15 +28,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/cert"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestRuleEvaluation(t *testing.T) {
+	t.Parallel()
 	tctx := newOperatorContext(t)
 
 	cert, key, err := cert.GenerateSelfSignedCertKey("test", nil, nil)
@@ -63,8 +66,8 @@ func createRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, k
 	secrets := []*corev1.Secret{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   "alertmanager-authorization",
-				Labels: t.getSubTestLabels(),
+				Name:      "alertmanager-authorization",
+				Namespace: t.pubNamespace,
 			},
 			Data: map[string][]byte{
 				"token": []byte("auth-bearer-password"),
@@ -72,8 +75,8 @@ func createRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, k
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   "alertmanager-tls",
-				Labels: t.getSubTestLabels(),
+				Name:      "alertmanager-tls",
+				Namespace: t.pubNamespace,
 			},
 			Data: map[string][]byte{
 				"cert": cert,
@@ -83,8 +86,8 @@ func createRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, k
 	}
 
 	for _, s := range secrets {
-		if _, err := t.kubeClient.CoreV1().Secrets(t.pubNamespace).Create(ctx, s, metav1.CreateOptions{}); err != nil {
-			t.Fatalf("create alertmanager secret: %s", err)
+		if err := t.Client().Create(ctx, s); err != nil {
+			t.Fatalf("create alertmanager secret %q: %s", s.Name, err)
 		}
 	}
 }
@@ -153,10 +156,11 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key
 		fmt.Sprintf("secret_%s_alertmanager-authorization_token", t.pubNamespace): []byte("auth-bearer-password"),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
-		secret, err := t.kubeClient.CoreV1().Secrets(t.namespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		} else if err != nil {
+		var secret corev1.Secret
+		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.RulesSecretName}, &secret); err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, fmt.Errorf("get secret: %w", err)
 		}
 		delete(secret.Data, fmt.Sprintf("secret_%s_user-gcp-service-account_key.json", t.pubNamespace))
@@ -231,10 +235,11 @@ rule_files:
 `),
 	}
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
-		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		} else if err != nil {
+		var cm corev1.ConfigMap
+		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rule-evaluator"}, &cm); err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, fmt.Errorf("get configmap: %w", err)
 		}
 		if diff := cmp.Diff(want, cm.Data); diff != "" {
@@ -250,10 +255,11 @@ rule_files:
 
 func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
 	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
-		deploy, err := t.kubeClient.AppsV1().Deployments(t.namespace).Get(ctx, "rule-evaluator", metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		} else if err != nil {
+		var deploy appsv1.Deployment
+		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rule-evaluator"}, &deploy); err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, fmt.Errorf("get deployment: %w", err)
 		}
 		// When not using GCM, we check the available replicas rather than ready ones
@@ -319,10 +325,9 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 
 	// Create multiple rules in the cluster and expect their scoped equivalents
 	// to be present in the generated rule file.
-	globalRules := monitoringv1.GlobalRules{
+	if err := t.Client().Create(ctx, &monitoringv1.GlobalRules{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   "global-rules",
-			Labels: t.getSubTestLabels(),
+			Name: "global-rules",
 		},
 		Spec: monitoringv1.RulesSpec{
 			Groups: []monitoringv1.RuleGroup{
@@ -340,15 +345,13 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 				},
 			},
 		},
-	}
-	if _, err := t.operatorClient.MonitoringV1().GlobalRules().Create(ctx, &globalRules, metav1.CreateOptions{}); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 
-	clusterRules := monitoringv1.ClusterRules{
+	if err := t.Client().Create(ctx, &monitoringv1.ClusterRules{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   t.namespace + "-cluster-rules",
-			Labels: t.getSubTestLabels(),
+			Name: t.namespace + "-cluster-rules",
 		},
 		Spec: monitoringv1.RulesSpec{
 			Groups: []monitoringv1.RuleGroup{
@@ -366,15 +369,14 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 				},
 			},
 		},
-	}
-	if _, err := t.operatorClient.MonitoringV1().ClusterRules().Create(ctx, &clusterRules, metav1.CreateOptions{}); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 
-	rules := monitoringv1.Rules{
+	if err := t.Client().Create(ctx, &monitoringv1.Rules{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   "rules",
-			Labels: t.getSubTestLabels(),
+			Name:      "rules",
+			Namespace: t.namespace,
 		},
 		Spec: monitoringv1.RulesSpec{
 			Groups: []monitoringv1.RuleGroup{
@@ -399,8 +401,7 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 				},
 			},
 		},
-	}
-	if _, err := t.operatorClient.MonitoringV1().Rules(t.namespace).Create(ctx, &rules, metav1.CreateOptions{}); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -450,10 +451,11 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 	var diff string
 
 	err := wait.Poll(1*time.Second, time.Minute, func() (bool, error) {
-		cm, err := t.kubeClient.CoreV1().ConfigMaps(t.namespace).Get(ctx, "rules-generated", metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		} else if err != nil {
+		var cm corev1.ConfigMap
+		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rules-generated"}, &cm); err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, fmt.Errorf("get ConfigMap: %w", err)
 		}
 		// The operator observes Rules across all namespaces. For the purpose of this test we drop
