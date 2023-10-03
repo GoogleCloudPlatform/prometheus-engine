@@ -55,11 +55,7 @@ func TestCollector(t *testing.T) {
 // collector is deployed to the cluster.
 func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 	// Create initial OperatorConfig to trigger deployment of resources.
-	opCfg := &monitoringv1.OperatorConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   operator.NameOperatorConfig,
-			Labels: t.getSubTestLabels(),
-		},
+	t.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
 		Collection: monitoringv1.CollectionSpec{
 			ExternalLabels: map[string]string{
 				"external_key": "external_val",
@@ -74,21 +70,9 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 				Interval: "5s",
 			},
 		},
-	}
-	if gcpServiceAccount != "" {
-		opCfg.Collection.Credentials = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{
-				Name: "user-gcp-service-account",
-			},
-			Key: "key.json",
-		}
-	}
-	_, err := t.operatorClient.MonitoringV1().OperatorConfigs(t.pubNamespace).Create(ctx, opCfg, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("create rules operatorconfig: %s", err)
-	}
+	})
 
-	err = wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
+	err := wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
 		ds, err := t.kubeClient.AppsV1().DaemonSets(t.namespace).Get(ctx, operator.NameCollector, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
