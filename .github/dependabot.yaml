@@ -1,7 +1,23 @@
 version: 2
 updates:
 - package-ecosystem: docker
-  directory: /
+  directory: /hack
+  schedule:
+    interval: weekly
+- package-ecosystem: docker
+  directory: /cmd/rule-evaluator
+  schedule:
+    interval: weekly
+- package-ecosystem: docker
+  directory: /cmd/operator
+  schedule:
+    interval: weekly
+- package-ecosystem: docker
+  directory: /cmd/frontend
+  schedule:
+    interval: weekly
+- package-ecosystem: docker
+  directory: /cmd/config-reloader
   schedule:
     interval: weekly
 - package-ecosystem: gomod
