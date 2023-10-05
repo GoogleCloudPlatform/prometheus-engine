@@ -73,7 +73,7 @@ rules:
   - deployments
   apiGroups: ["apps"]
   resourceNames: ["rule-evaluator"]
-  verbs: ["get", "delete", "patch", "update"]
+  verbs: ["get", "patch", "update"]
 - resources:
   - services
   apiGroups: [""]
