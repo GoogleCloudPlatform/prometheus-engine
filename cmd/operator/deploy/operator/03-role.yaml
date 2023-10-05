@@ -64,7 +64,7 @@ rules:
   - daemonsets
   apiGroups: ["apps"]
   resourceNames: ["collector"]
-  verbs: ["get", "list", "watch", "delete", "patch", "update"]
+  verbs: ["get", "list", "watch", "patch", "update"]
 - resources:
   - deployments
   apiGroups: ["apps"]
