@@ -360,6 +360,15 @@ func createCollectorResources(ctx context.Context, kubeClient client.Client, nam
 	}
 	collector := obj.(*appsv1.DaemonSet)
 	collector.Namespace = namespace
+	if skipGCM {
+		for i := range collector.Spec.Template.Spec.Containers {
+			container := &collector.Spec.Template.Spec.Containers[i]
+			if container.Name == "prometheus" {
+				container.Args = append(container.Args, "--export.debug.disable-auth")
+				break
+			}
+		}
+	}
 
 	if err = kubeClient.Create(ctx, collector); err != nil {
 		return fmt.Errorf("create collector DaemonSet: %w", err)
