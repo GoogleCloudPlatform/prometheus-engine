@@ -1,0 +1,6 @@
+kind: Unstructured
+metadata:
+  name: common
+tls:
+  insecureSkipVerify: true
+  minVersion: TLS13

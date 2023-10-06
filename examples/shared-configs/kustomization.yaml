@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- podmonitorings.yaml
+# Step 1: Create a temporary common config (that we delete later).
+- common.yaml
+
+# Transformers let us specify the operation order.
+transformers:
+# Step 2: Specify rules to apply common config.
+- |-
+  apiVersion: builtin
+  kind: ReplacementTransformer
+  metadata:
+    name: rules
+  replacements:
+  - source:
+      # Match the kind and name we created earlier.
+      kind: Unstructured
+      name: common
+      fieldPath: tls
+    targets:
+    # Apply for all PodMonitoring.
+    - select:
+        kind: PodMonitoring
+      fieldPaths:
+      - spec.endpoints.*.tls
+      options:
+        create: true
+    # Apply for all ClusterPodMonitoring
+    - select:
+        kind: ClusterPodMonitoring
+      fieldPaths:
+      - spec.endpoints.*.tls
+      options:
+        create: true
+# Step 3: Cleanup the temporary common config.
+- |-
+  apiVersion: builtin
+  kind: PatchTransformer
+  metadata:
+    name: cleanup
+  patch: |-
+    kind: Unstructured
+    metadata:
+      name: common
+    $patch: delete
