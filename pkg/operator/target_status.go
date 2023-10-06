@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -57,7 +59,7 @@ var (
 )
 
 // Responsible for fetching the targets given a pod.
-type getTargetFn func(ctx context.Context, logger logr.Logger, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error)
+type getTargetFn func(ctx context.Context, logger logr.Logger, httpClient *http.Client, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error)
 
 // targetStatusReconciler to hold cached client state and source channel.
 type targetStatusReconciler struct {
@@ -66,12 +68,13 @@ type targetStatusReconciler struct {
 	getTarget  getTargetFn
 	clock      clock.Clock
 	logger     logr.Logger
+	httpClient *http.Client
 	kubeClient client.Client
 }
 
 // setupTargetStatusPoller sets up a reconciler that polls and populate target
 // statuses whenever it receives an event.
-func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error {
+func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer, httpClient *http.Client) error {
 	if err := registry.Register(targetStatusDuration); err != nil {
 		return err
 	}
@@ -83,6 +86,7 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer) error
 		opts:       op.opts,
 		getTarget:  getTarget,
 		logger:     op.logger,
+		httpClient: httpClient,
 		kubeClient: op.manager.GetClient(),
 		clock:      clock.RealClock{},
 	}
@@ -130,6 +134,9 @@ func shouldPoll(ctx context.Context, cfgNamespacedName types.NamespacedName, kub
 	// Check if target status is enabled.
 	var config monitoringv1.OperatorConfig
 	if err := kubeClient.Get(ctx, cfgNamespacedName, &config); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
 		return false, err
 	}
 	if !config.Features.TargetStatus.Enabled {
@@ -166,7 +173,7 @@ func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcil
 	if should, err := shouldPoll(ctx, cfgNamespacedName, r.kubeClient); err != nil {
 		r.logger.Error(err, "should poll")
 	} else if should {
-		if err := pollAndUpdate(ctx, r.logger, r.opts, r.getTarget, r.kubeClient); err != nil {
+		if err := pollAndUpdate(ctx, r.logger, r.opts, r.httpClient, r.getTarget, r.kubeClient); err != nil {
 			r.logger.Error(err, "poll and update")
 		} else {
 			// Only log metrics if target polling was successful.
@@ -189,8 +196,8 @@ func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcil
 }
 
 // pollAndUpdate fetches and updates the target status in each collector pod.
-func pollAndUpdate(ctx context.Context, logger logr.Logger, opts Options, getTarget getTargetFn, kubeClient client.Client) error {
-	targets, err := fetchTargets(ctx, logger, opts, getTarget, kubeClient)
+func pollAndUpdate(ctx context.Context, logger logr.Logger, opts Options, httpClient *http.Client, getTarget getTargetFn, kubeClient client.Client) error {
+	targets, err := fetchTargets(ctx, logger, opts, httpClient, getTarget, kubeClient)
 	if err != nil {
 		return err
 	}
@@ -200,7 +207,7 @@ func pollAndUpdate(ctx context.Context, logger logr.Logger, opts Options, getTar
 
 // fetchTargets retrieves the Prometheus targets using the given target function
 // for each collector pod.
-func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, getTarget getTargetFn, kubeClient client.Client) ([]*prometheusv1.TargetsResult, error) {
+func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, httpClient *http.Client, getTarget getTargetFn, kubeClient client.Client) ([]*prometheusv1.TargetsResult, error) {
 	namespace := opts.OperatorNamespace
 	var ds appsv1.DaemonSet
 	if err := kubeClient.Get(ctx, client.ObjectKey{
@@ -225,7 +232,7 @@ func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, getTarg
 		}
 	}
 	if port == nil {
-		return nil, errors.New("Unable to detect Prometheus port")
+		return nil, errors.New("unable to detect Prometheus port")
 	}
 
 	pods, err := getPrometheusPods(ctx, kubeClient, opts, selector)
@@ -247,7 +254,7 @@ func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, getTarg
 			defer wg.Done()
 			for prometheusPod := range podDiscoveryCh {
 				// Fetch operation is blocking.
-				target, err := getTarget(ctx, logger, prometheusPod.port, prometheusPod.pod)
+				target, err := getTarget(ctx, logger, httpClient, prometheusPod.port, prometheusPod.pod)
 				if err != nil {
 					logger.Error(err, "failed to fetch target", "pod", prometheusPod.pod.GetName())
 				}
@@ -399,13 +406,14 @@ func getPrometheusPods(ctx context.Context, kubeClient client.Client, opts Optio
 	return podsFiltered, nil
 }
 
-func getTarget(ctx context.Context, logger logr.Logger, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error) {
+func getTarget(ctx context.Context, logger logr.Logger, httpClient *http.Client, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error) {
 	if pod.Status.PodIP == "" {
 		return nil, errors.New("pod does not have IP allocated")
 	}
 	podURL := fmt.Sprintf("http://%s:%d", pod.Status.PodIP, port)
 	client, err := api.NewClient(api.Config{
 		Address: podURL,
+		Client:  httpClient,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Prometheus client: %w", err)

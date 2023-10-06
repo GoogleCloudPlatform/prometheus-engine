@@ -23,6 +23,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -73,6 +74,7 @@ var (
 	location          string
 	skipGCM           bool
 	gcpServiceAccount string
+	portForward       bool
 )
 
 func init() {
@@ -93,6 +95,23 @@ func newClient() (client.Client, error) {
 	})
 }
 
+func setRESTConfigDefaults(restConfig *rest.Config) {
+	// https://github.com/kubernetes/client-go/issues/657
+	// https://github.com/kubernetes/client-go/issues/1159
+	// https://github.com/kubernetes/kubectl/blob/6fb6697c77304b7aaf43a520d30cb17563c69886/pkg/cmd/util/kubectl_match_version.go#L115
+	defaultGroupVersion := &schema.GroupVersion{Group: "", Version: "v1"}
+	if restConfig.GroupVersion == nil {
+		restConfig.GroupVersion = defaultGroupVersion
+	}
+	if restConfig.APIPath == "" {
+		restConfig.APIPath = "/api"
+	}
+	if restConfig.NegotiatedSerializer == nil {
+		restConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	}
+	rest.SetKubernetesDefaults(restConfig)
+}
+
 // TestMain injects custom flags and adds extra signal handling to ensure testing
 // namespaces are cleaned after tests were executed.
 func TestMain(m *testing.M) {
@@ -101,11 +120,13 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&location, "location", "", "The location of the Kubernetes cluster that's tested against.")
 	flag.BoolVar(&skipGCM, "skip-gcm", false, "Skip validating GCM ingested points.")
 	flag.StringVar(&gcpServiceAccount, "gcp-service-account", "", "Path to GCP service account file for usage by deployed containers.")
+	flag.BoolVar(&portForward, "port-forward", true, "Whether to port-forward Kubernetes HTTP requests.")
 
 	flag.Parse()
 
 	var err error
 	kubeconfig, err = ctrl.GetConfig()
+	setRESTConfigDefaults(kubeconfig)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Loading kubeconfig failed:", err)
 		os.Exit(1)
@@ -195,6 +216,15 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 		t.Fatalf("create resources: %s", err)
 	}
 
+	var httpClient *http.Client
+	if portForward {
+		var err error
+		httpClient, err = PortForwardClient(t, kubeconfig, tctx.Client())
+		if err != nil {
+			t.Fatalf("creating HTTP client: %s", err)
+		}
+	}
+
 	op, err := operator.New(globalLogger, kubeconfig, operator.Options{
 		ProjectID:         projectID,
 		Cluster:           cluster,
@@ -202,7 +232,8 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 		OperatorNamespace: tctx.namespace,
 		PublicNamespace:   tctx.pubNamespace,
 		// Pick a random available port.
-		ListenAddr: ":0",
+		ListenAddr:          ":0",
+		CollectorHTTPClient: httpClient,
 	})
 	if err != nil {
 		t.Fatalf("instantiating operator: %s", err)

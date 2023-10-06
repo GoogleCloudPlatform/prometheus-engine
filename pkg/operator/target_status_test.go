@@ -17,6 +17,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,7 +25,6 @@ import (
 	"time"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	v1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
 	"github.com/google/go-cmp/cmp"
@@ -137,7 +137,7 @@ func podMonitoringScrapePoolToClusterPodMonitoringScrapePool(podMonitoringScrape
 }
 
 func targetFetchFromMap(m map[string]*prometheusv1.TargetsResult) getTargetFn {
-	return func(_ context.Context, _ logr.Logger, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error) {
+	return func(_ context.Context, _ logr.Logger, httpClient *http.Client, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error) {
 		key := getPodKey(pod, port)
 		targetsResult, ok := m[key]
 		if !ok {
@@ -197,14 +197,14 @@ func TestUpdateTargetStatus(t *testing.T) {
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
 						ObservedGeneration: 2,
-						Conditions: []v1.MonitoringCondition{{
+						Conditions: []monitoringv1.MonitoringCondition{{
 							Type:               monitoringv1.ConfigurationCreateSuccess,
 							Status:             corev1.ConditionTrue,
 							LastUpdateTime:     metav1.Time{},
@@ -212,15 +212,15 @@ func TestUpdateTargetStatus(t *testing.T) {
 							Reason:             "",
 							Message:            "",
 						}},
-						EndpointStatuses: []v1.ScrapeEndpointStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
 								ActiveTargets:    1,
 								UnhealthyTargets: 0,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health: "up",
 												Labels: map[model.LabelName]model.LabelValue{
@@ -271,21 +271,21 @@ func TestUpdateTargetStatus(t *testing.T) {
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
-						EndpointStatuses: []v1.ScrapeEndpointStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
 								ActiveTargets:    1,
 								UnhealthyTargets: 0,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health: "up",
 												Labels: map[model.LabelName]model.LabelValue{
@@ -304,21 +304,21 @@ func TestUpdateTargetStatus(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-2", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
-						EndpointStatuses: []v1.ScrapeEndpointStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-2/metrics",
 								ActiveTargets:    1,
 								UnhealthyTargets: 0,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health: "up",
 												Labels: map[model.LabelName]model.LabelValue{
@@ -355,8 +355,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
@@ -382,29 +382,29 @@ func TestUpdateTargetStatus(t *testing.T) {
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-2", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
-						EndpointStatuses: []v1.ScrapeEndpointStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-2/metrics",
 								ActiveTargets:    1,
 								UnhealthyTargets: 0,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health: "up",
 												Labels: map[model.LabelName]model.LabelValue{
@@ -423,8 +423,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-3", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
@@ -449,21 +449,21 @@ func TestUpdateTargetStatus(t *testing.T) {
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
-						EndpointStatuses: []v1.ScrapeEndpointStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
 								ActiveTargets:    1,
 								UnhealthyTargets: 0,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "up",
 												LastError: pointer.String("err x"),
@@ -501,21 +501,21 @@ func TestUpdateTargetStatus(t *testing.T) {
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
-						EndpointStatuses: []v1.ScrapeEndpointStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
 								ActiveTargets:    1,
 								UnhealthyTargets: 1,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err x"),
@@ -560,21 +560,21 @@ func TestUpdateTargetStatus(t *testing.T) {
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
-						EndpointStatuses: []v1.ScrapeEndpointStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
 								ActiveTargets:    2,
 								UnhealthyTargets: 1,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err x"),
@@ -587,7 +587,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 										Count: pointer.Int32(1),
 									},
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health: "up",
 												Labels: map[model.LabelName]model.LabelValue{
@@ -648,23 +648,23 @@ func TestUpdateTargetStatus(t *testing.T) {
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics-1"),
 						}, {
 							Port: intstr.FromString("metrics-2"),
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
-						EndpointStatuses: []v1.ScrapeEndpointStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-1/metrics-1",
 								ActiveTargets:    2,
 								UnhealthyTargets: 2,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err x"),
@@ -677,7 +677,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 										Count: pointer.Int32(1),
 									},
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err y"),
@@ -697,9 +697,9 @@ func TestUpdateTargetStatus(t *testing.T) {
 								ActiveTargets:    2,
 								UnhealthyTargets: 2,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err x"),
@@ -785,21 +785,21 @@ func TestUpdateTargetStatus(t *testing.T) {
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
-						EndpointStatuses: []v1.ScrapeEndpointStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
 								ActiveTargets:    6,
 								UnhealthyTargets: 6,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err x"),
@@ -828,7 +828,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 										Count: pointer.Int32(3),
 									},
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err y"),
@@ -841,7 +841,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 										Count: pointer.Int32(1),
 									},
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err z"),
@@ -959,21 +959,21 @@ func TestUpdateTargetStatus(t *testing.T) {
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec: v1.PodMonitoringSpec{
-						Endpoints: []v1.ScrapeEndpoint{{
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
-						EndpointStatuses: []v1.ScrapeEndpointStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
 								ActiveTargets:    10,
 								UnhealthyTargets: 10,
 								LastUpdateTime:   date,
-								SampleGroups: []v1.SampleGroup{
+								SampleGroups: []monitoringv1.SampleGroup{
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err x"),
@@ -1018,7 +1018,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 										Count: pointer.Int32(7),
 									},
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err y"),
@@ -1031,7 +1031,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 										Count: pointer.Int32(1),
 									},
 									{
-										SampleTargets: []v1.SampleTarget{
+										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
 												LastError: pointer.String("err z"),
@@ -1229,8 +1229,8 @@ func TestPolling(t *testing.T) {
 		},
 	).WithObjects(&monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-		Spec: v1.PodMonitoringSpec{
-			Endpoints: []v1.ScrapeEndpoint{{
+		Spec: monitoringv1.PodMonitoringSpec{
+			Endpoints: []monitoringv1.ScrapeEndpoint{{
 				Port: intstr.FromString("metrics"),
 			}},
 		},
@@ -1307,14 +1307,14 @@ func TestPolling(t *testing.T) {
 
 	// First tick.
 	fakeClock.Step(minPollDuration)
-	statusTick1 := []v1.ScrapeEndpointStatus{
+	statusTick1 := []monitoringv1.ScrapeEndpointStatus{
 		{
 			Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
 			ActiveTargets:    1,
 			UnhealthyTargets: 0,
-			SampleGroups: []v1.SampleGroup{
+			SampleGroups: []monitoringv1.SampleGroup{
 				{
-					SampleTargets: []v1.SampleTarget{
+					SampleTargets: []monitoringv1.SampleTarget{
 						{
 							Health: "up",
 							Labels: map[model.LabelName]model.LabelValue{
@@ -1341,14 +1341,14 @@ func TestPolling(t *testing.T) {
 
 	// Second tick.
 	fakeClock.Step(minPollDuration)
-	statusTick2 := []v1.ScrapeEndpointStatus{
+	statusTick2 := []monitoringv1.ScrapeEndpointStatus{
 		{
 			Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
 			ActiveTargets:    1,
 			UnhealthyTargets: 1,
-			SampleGroups: []v1.SampleGroup{
+			SampleGroups: []monitoringv1.SampleGroup{
 				{
-					SampleTargets: []v1.SampleTarget{
+					SampleTargets: []monitoringv1.SampleTarget{
 						{
 							Health: "down",
 							Labels: map[model.LabelName]model.LabelValue{
@@ -1374,14 +1374,14 @@ func TestPolling(t *testing.T) {
 	expectStatus(t, "second wait", statusTick2)
 
 	fakeClock.Step(minPollDuration)
-	statusTick3 := []v1.ScrapeEndpointStatus{
+	statusTick3 := []monitoringv1.ScrapeEndpointStatus{
 		{
 			Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
 			ActiveTargets:    1,
 			UnhealthyTargets: 0,
-			SampleGroups: []v1.SampleGroup{
+			SampleGroups: []monitoringv1.SampleGroup{
 				{
-					SampleTargets: []v1.SampleTarget{
+					SampleTargets: []monitoringv1.SampleTarget{
 						{
 							Health: "up",
 							Labels: map[model.LabelName]model.LabelValue{
@@ -1625,7 +1625,7 @@ func TestFetchTargets(t *testing.T) {
 
 			kubeClient := kubeClientBuilder.Build()
 
-			targets, err := fetchTargets(ctx, logger, opts, targetFetchFromMap(prometheusTargetMap), kubeClient)
+			targets, err := fetchTargets(ctx, logger, opts, nil, targetFetchFromMap(prometheusTargetMap), kubeClient)
 			if err != nil {
 				t.Fatal("Unable to fetch targets", err)
 			}
