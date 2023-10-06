@@ -1,0 +1,43 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: prom-example-a
+spec:
+  selector:
+    matchLabels:
+      app: prom-example-a
+  endpoints:
+  # A TLS object is added here.
+  - port: metrics-a
+    interval: 30s
+  # The TLS object is replaced here.
+  - port: metrics-b
+    interval: 30s
+    tls:
+      # TLS 1.2 (version 0x0303)
+      minVersion: 771
+      insecureSkipVerify: false
+---
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: prom-example-b
+spec:
+  selector:
+    matchLabels:
+      app: prom-example
+  endpoints:
+  - port: metrics-c
+    interval: 30s
+---
+apiVersion: monitoring.googleapis.com/v1
+kind: ClusterPodMonitoring
+metadata:
+  name: cluster-prom-example
+spec:
+  selector:
+    matchLabels:
+      app: prom-example
+  endpoints:
+  - port: metrics-d
+    interval: 30s
