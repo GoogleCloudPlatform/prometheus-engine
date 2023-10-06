@@ -101,8 +101,8 @@ spec:
         args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
-        - --reload-url=http://localhost:9093/-/reload
-        - --ready-url=http://localhost:9093/-/ready
+        - --reload-url=http://127.0.0.1:9093/-/reload
+        - --ready-url=http://127.0.0.1:9093/-/ready
         - --listen-address=:19091
         ports:
         - name: cfg-rel-metrics

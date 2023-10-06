@@ -77,8 +77,8 @@ spec:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
         - --watched-dir=/etc/rules
-        - --reload-url=http://localhost:9092/-/reload
-        - --ready-url=http://localhost:9092/-/ready
+        - --reload-url=http://127.0.0.1:9092/-/reload
+        - --ready-url=http://127.0.0.1:9092/-/ready
         - --listen-address=:9093
         ports:
         - name: cfg-rel-metrics
