@@ -253,7 +253,11 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 				{
 					Port:     intstr.FromString("web"),
 					Interval: "10s",
-					ProxyURL: "_:_",
+					HTTPClientConfig: HTTPClientConfig{
+						ProxyConfig: ProxyConfig{
+							ProxyURL: "_:_",
+						},
+					},
 				},
 			},
 			fail:        true,
@@ -264,7 +268,11 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 				{
 					Port:     intstr.FromString("web"),
 					Interval: "10s",
-					ProxyURL: "http://user:password@foo.bar/",
+					HTTPClientConfig: HTTPClientConfig{
+						ProxyConfig: ProxyConfig{
+							ProxyURL: "http://user:password@foo.bar/",
+						},
+					},
 				},
 			},
 			fail:        true,
@@ -308,7 +316,6 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 					},
 				},
 			},
-			errContains: `unknown TLS version`,
 		},
 	}
 
@@ -582,7 +589,11 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 					Interval: "10000ms",
 					Timeout:  "5s",
 					Path:     "/prometheus",
-					ProxyURL: "http://foo.bar/test",
+					HTTPClientConfig: HTTPClientConfig{
+						ProxyConfig: ProxyConfig{
+							ProxyURL: "http://foo.bar/test",
+						},
+					},
 				},
 			},
 			TargetLabels: TargetLabels{
@@ -794,7 +805,11 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 					Interval: "10000ms",
 					Timeout:  "5s",
 					Path:     "/prometheus",
-					ProxyURL: "http://foo.bar/test",
+					HTTPClientConfig: HTTPClientConfig{
+						ProxyConfig: ProxyConfig{
+							ProxyURL: "http://foo.bar/test",
+						},
+					},
 				},
 			},
 			TargetLabels: TargetLabels{

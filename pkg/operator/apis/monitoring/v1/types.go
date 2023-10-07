@@ -17,7 +17,6 @@ package v1
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -30,7 +29,6 @@ import (
 	"github.com/prometheus/prometheus/model/relabel"
 	yaml "gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -90,7 +88,7 @@ type RuleEvaluatorSpec struct {
 	// to which rule results are written.
 	// Within GKE, this can typically be left empty if the compute default
 	// service account has the required permissions.
-	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
+	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
 // CollectionSpec specifies how the operator configures collection of metric data.
@@ -106,7 +104,7 @@ type CollectionSpec struct {
 	// data is written.
 	// Within GKE, this can typically be left empty if the compute default
 	// service account has the required permissions.
-	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
+	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 	// Configuration to scrape the metric endpoints of the Kubelets.
 	KubeletScraping *KubeletScraping `json:"kubeletScraping,omitempty"`
 	// Compression enables compression of metrics collection data
@@ -167,7 +165,7 @@ type AlertingSpec struct {
 type ManagedAlertmanagerSpec struct {
 	// ConfigSecret refers to the name of a single-key Secret in the public namespace that
 	// holds the managed Alertmanager config file.
-	ConfigSecret *v1.SecretKeySelector `json:"configSecret,omitempty"`
+	ConfigSecret *corev1.SecretKeySelector `json:"configSecret,omitempty"`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object
@@ -201,7 +199,7 @@ type Authorization struct {
 	// error
 	Type string `json:"type,omitempty"`
 	// The secret's key that contains the credentials of the request
-	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
+	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
 // TLS specifies TLS configuration parameters from Kubernetes resources.
@@ -227,7 +225,7 @@ type TLSConfig struct {
 	// Struct containing the client cert file for the targets.
 	Cert *SecretOrConfigMap `json:"cert,omitempty"`
 	// Secret containing the client key file for the targets.
-	KeySecret *v1.SecretKeySelector `json:"keySecret,omitempty"`
+	KeySecret *corev1.SecretKeySelector `json:"keySecret,omitempty"`
 	// Used to verify the hostname for the targets.
 	ServerName string `json:"serverName,omitempty"`
 	// Disable target certificate validation.
@@ -246,9 +244,9 @@ type TLSConfig struct {
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#secretorconfigmap
 type SecretOrConfigMap struct {
 	// Secret containing data to use for the targets.
-	Secret *v1.SecretKeySelector `json:"secret,omitempty"`
+	Secret *corev1.SecretKeySelector `json:"secret,omitempty"`
 	// ConfigMap containing data to use for the targets.
-	ConfigMap *v1.ConfigMapKeySelector `json:"configMap,omitempty"`
+	ConfigMap *corev1.ConfigMapKeySelector `json:"configMap,omitempty"`
 }
 
 // PodMonitoringStatusContainer represents a Kubernetes CRD that monitors pods
@@ -716,28 +714,9 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 		metricRelabelCfgs = append(metricRelabelCfgs, rcfg)
 	}
 
-	httpCfg := config.DefaultHTTPClientConfig
-	if ep.ProxyURL != "" {
-		proxyURL, err := url.Parse(ep.ProxyURL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid proxy URL: %w", err)
-		}
-		// Marshalling the config will redact the password, so we don't support those.
-		// It's not a good idea anyway and we will later support basic auth based on secrets to
-		// cover the general use case.
-		if _, ok := proxyURL.User.Password(); ok {
-			return nil, errors.New("passwords encoded in URLs are not supported")
-		}
-		// Initialize from default as encode/decode does not work correctly with the type definition.
-		httpCfg.ProxyURL.URL = proxyURL
-	}
-
-	if ep.HTTPClientConfig.TLS != nil {
-		tlsConfig, err := ep.HTTPClientConfig.TLS.ToPrometheusConfig()
-		if err != nil {
-			return nil, err
-		}
-		httpCfg.TLSConfig = *tlsConfig
+	httpCfg, err := ep.HTTPClientConfig.ToPrometheusConfig()
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse HTTP client config: %w", err)
 	}
 
 	if err := httpCfg.Validate(); err != nil {
@@ -823,7 +802,7 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 	// for backwards compatibility. In that case we must always add the namespace label.
 	if cm.Spec.TargetLabels.Metadata == nil {
 		metadataLabels = map[string]struct{}{
-			"namespace": struct{}{},
+			"namespace": {},
 		}
 	} else {
 		for _, l := range *cm.Spec.TargetLabels.Metadata {
@@ -1034,8 +1013,6 @@ type ScrapeEndpoint struct {
 	Path string `json:"path,omitempty"`
 	// HTTP GET params to use when scraping.
 	Params map[string][]string `json:"params,omitempty"`
-	// Proxy URL to scrape through. Encoded passwords are not supported.
-	ProxyURL string `json:"proxyUrl,omitempty"`
 	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
 	// +kubebuilder:validation:Pattern="^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$"
 	// +kubebuilder:default="1m"
@@ -1052,10 +1029,18 @@ type ScrapeEndpoint struct {
 	HTTPClientConfig `json:",inline"`
 }
 
+type ProxyConfig struct {
+	// HTTP proxy server to use to connect to the targets. Encoded passwords are not supported.
+	ProxyURL string `json:"proxyUrl,omitempty"`
+	// TODO(TheSpiritXIII): https://prometheus.io/docs/prometheus/latest/configuration/configuration/#oauth2
+}
+
 // HTTPClientConfig stores HTTP-client configurations.
 type HTTPClientConfig struct {
 	// Configures the scrape request's TLS settings.
 	TLS *TLS `json:"tls,omitempty"`
+	// Proxy configuration.
+	ProxyConfig `json:",inline"`
 }
 
 // TargetLabels configures labels for the discovered Prometheus targets.
