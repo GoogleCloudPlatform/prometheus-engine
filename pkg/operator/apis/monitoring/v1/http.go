@@ -3,6 +3,7 @@ package v1
 import (
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/prometheus/common/config"
 )
@@ -36,4 +37,42 @@ func (c *TLS) ToPrometheusConfig() (*config.TLSConfig, error) {
 		MinVersion:         minVersion,
 		MaxVersion:         maxVersion,
 	}, nil
+}
+
+func (c *ProxyConfig) ToPrometheusConfig() (config.URL, error) {
+	proxyURL, err := url.Parse(c.ProxyURL)
+	if err != nil {
+		return config.URL{}, fmt.Errorf("invalid proxy URL: %w", err)
+	}
+	// Marshalling the config will redact the password, so we don't support those.
+	// It's not a good idea anyway and we will later support basic auth based on secrets to
+	// cover the general use case.
+	if _, ok := proxyURL.User.Password(); ok {
+		return config.URL{}, errors.New("passwords encoded in URLs are not supported")
+	}
+	// Initialize from default as encode/decode does not work correctly with the type definition.
+	return config.URL{URL: proxyURL}, nil
+}
+
+func (c *HTTPClientConfig) ToPrometheusConfig() (config.HTTPClientConfig, error) {
+	var errs []error
+	// Copy default config.
+	clientConfig := config.DefaultHTTPClientConfig
+	if c.TLS != nil {
+		tlsConfig, err := c.TLS.ToPrometheusConfig()
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			clientConfig.TLSConfig = *tlsConfig
+		}
+	}
+	if c.ProxyConfig.ProxyURL != "" {
+		proxyConfig, err := c.ProxyConfig.ToPrometheusConfig()
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			clientConfig.ProxyURL = proxyConfig
+		}
+	}
+	return clientConfig, errors.Join(errs...)
 }
