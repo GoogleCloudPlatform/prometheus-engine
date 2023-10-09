@@ -21,12 +21,14 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -134,6 +136,8 @@ type Options struct {
 	// The number of upper bound threads to use for target polling otherwise
 	// use the default.
 	TargetPollConcurrency uint16
+	// The HTTP client to use when targeting collector endpoints.
+	CollectorHTTPClient *http.Client
 }
 
 func (o *Options) defaultAndValidate(logger logr.Logger) error {
@@ -158,6 +162,12 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 
 	if o.TargetPollConcurrency == 0 {
 		o.TargetPollConcurrency = defaultTargetPollConcurrency
+	}
+	if o.CollectorHTTPClient == nil {
+		// Matches the default Prometheus API library HTTP client.
+		o.CollectorHTTPClient = &http.Client{
+			Transport: api.DefaultRoundTripper,
+		}
 	}
 	return nil
 }
@@ -391,7 +401,7 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 	if err := setupOperatorConfigControllers(o); err != nil {
 		return fmt.Errorf("setup rule-evaluator controllers: %w", err)
 	}
-	if err := setupTargetStatusPoller(o, registry); err != nil {
+	if err := setupTargetStatusPoller(o, registry, o.opts.CollectorHTTPClient); err != nil {
 		return fmt.Errorf("setup target status processor: %w", err)
 	}
 
