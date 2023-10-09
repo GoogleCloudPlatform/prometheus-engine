@@ -41,6 +41,14 @@ jobs:
         fetch-depth: 0
     - name: Run unit tests
       run: make test
+  test-export-gcm:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run export GCM tests
+      env:
+        GCM_SECRET: ${{ secrets.GCM_SECRET }}
+      run: make test-export-gcm
   e2e-test:
     runs-on: ubuntu-latest
     steps:

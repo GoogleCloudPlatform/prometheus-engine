@@ -76,6 +76,32 @@ github.com/dennwc/varint
 # github.com/edsrzf/mmap-go v1.1.0
 ## explicit; go 1.17
 github.com/edsrzf/mmap-go
+# github.com/efficientgo/core v1.0.0-rc.0
+## explicit; go 1.17
+github.com/efficientgo/core/backoff
+github.com/efficientgo/core/errcapture
+github.com/efficientgo/core/errors
+github.com/efficientgo/core/merrors
+# github.com/efficientgo/e2e v0.14.0
+## explicit; go 1.18
+github.com/efficientgo/e2e
+github.com/efficientgo/e2e/interactive
+github.com/efficientgo/e2e/monitoring
+github.com/efficientgo/e2e/monitoring/matchers
+github.com/efficientgo/e2e/monitoring/promconfig
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/azure
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/config
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/consul
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/dns
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/ec2
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/file
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/gce
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/kubernetes
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/marathon
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/openstack
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/targetgroup
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/triton
+github.com/efficientgo/e2e/monitoring/promconfig/discovery/zookeeper
 # github.com/emicklei/go-restful/v3 v3.9.0
 ## explicit; go 1.13
 github.com/emicklei/go-restful/v3
