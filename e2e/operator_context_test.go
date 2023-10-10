@@ -155,7 +155,7 @@ func TestMain(m *testing.M) {
 	}
 
 	if cleanup {
-		fmt.Fprintln(os.Stderr, "cleaning resources before tests...", err)
+		fmt.Fprintln(os.Stdout, "cleaning resources before tests...")
 		if err := cleanupResources(context.Background(), kubeconfig, c, ""); err != nil {
 			fmt.Fprintln(os.Stderr, "cleaning up failed:", err)
 			os.Exit(1)
@@ -235,8 +235,10 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 	}
 	tctx.kClient = NewLabelWriterClient(c, tctx.getSubTestLabels())
 	t.Cleanup(func() {
-		if err := cleanupResources(ctx, kubeconfig, tctx.Client(), tctx.getSubTestLabelValue()); err != nil {
-			t.Fatalf("unable to cleanup resources: %s", err)
+		if !leakResources {
+			if err := cleanupResourcesInNamespaces(ctx, kubeconfig, tctx.Client(), []string{namespace, pubNamespace}, tctx.getSubTestLabelValue()); err != nil {
+				t.Fatalf("unable to cleanup resources: %s", err)
+			}
 		}
 		cancel()
 	})
@@ -500,7 +502,7 @@ func (tctx *OperatorContext) subtest(f func(context.Context, *OperatorContext)) 
 				return
 			}
 			t.Log("cleaning up resources...")
-			if err := cleanupResources(ctx, kubeconfig, childCtx.Client(), childCtx.getSubTestLabelValue()); err != nil {
+			if err := cleanupResourcesInNamespaces(ctx, kubeconfig, childCtx.Client(), []string{tctx.namespace, tctx.pubNamespace}, childCtx.getSubTestLabelValue()); err != nil {
 				t.Fatalf("unable to cleanup resources: %s", err)
 			}
 		})
@@ -612,16 +614,19 @@ func cleanupResource(ctx context.Context, kubeClient client.Client, gvk schema.G
 // cleanupResources cleans all resources created by tests. If no label value is provided, then all
 // resources with the label are removed.
 func cleanupResources(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, labelValue string) error {
+	namespaces, err := getNamespaces(ctx, kubeClient)
+	if err != nil {
+		return err
+	}
+	return cleanupResourcesInNamespaces(ctx, restConfig, kubeClient, namespaces, labelValue)
+}
+
+func cleanupResourcesInNamespaces(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, namespaces []string, labelValue string) error {
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(restConfig)
 	if err != nil {
 		return err
 	}
 	gvks, err := getGroupVersionKinds(discoveryClient)
-	if err != nil {
-		return err
-	}
-
-	namespaces, err := getNamespaces(ctx, kubeClient)
 	if err != nil {
 		return err
 	}
@@ -644,6 +649,10 @@ func cleanupResources(ctx context.Context, restConfig *rest.Config, kubeClient c
 			return err
 		}
 		if namespaced {
+			if labelValue == "" {
+				// Skip because deleting the namespace will delete the resource.
+				continue
+			}
 			for _, namespace := range namespaces {
 				if err := cleanupResource(ctx, kubeClient, gvk, labelValue, namespace); err != nil {
 					errs = append(errs, err)
