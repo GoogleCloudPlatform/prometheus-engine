@@ -24,3 +24,12 @@ updates:
   directory: /
   schedule:
     interval: weekly
+  groups:
+    # Group dep updates into one PR as single update already updates co-located deps.
+    # Skip biggest and the most complex deps: Thanos and Prometheus.
+    go-deps:
+      patterns:
+        - "*"
+      exclude-patterns:
+        - "github.com/thanos-io/thanos"
+        - "github.com/prometheus/prometheus"
