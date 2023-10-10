@@ -168,6 +168,10 @@ type ManagedAlertmanagerSpec struct {
 	// ConfigSecret refers to the name of a single-key Secret in the public namespace that
 	// holds the managed Alertmanager config file.
 	ConfigSecret *v1.SecretKeySelector `json:"configSecret,omitempty"`
+	// ExternalURL is the external URL the managed Alertmanager will be
+	// available under. This is used for generating links back to the
+	// Alertmanager itself in fired alerts.
+	ExternalURL string `json:"externalURL,omitempty"`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object

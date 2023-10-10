@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -134,6 +135,22 @@ func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext) {
 		}
 		if diff := cmp.Diff(wantedAnnotations, ss.Spec.Template.Annotations); diff != "" {
 			return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
+		}
+
+		for _, c := range ss.Spec.Template.Spec.Containers {
+			if c.Name != "alertmanager" {
+				continue
+			}
+			// We're mainly interested in the dynamic flags but checking the entire set including
+			// the static ones is ultimately simpler.
+			wantArgs := []string{
+				fmt.Sprintf("--web.external-url=%q", projectID),
+			}
+
+			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
+				return false, fmt.Errorf("unexpected flags (-want, +got): %s", diff)
+			}
+			return true, nil
 		}
 
 		return true, nil
