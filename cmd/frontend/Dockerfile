@@ -1,5 +1,5 @@
 
-FROM golang:1.20-bullseye AS buildbase
+FROM golang:1.21-bullseye AS buildbase
 
 # Compile the UI assets.
 FROM launcher.gcr.io/google/nodejs as assets
