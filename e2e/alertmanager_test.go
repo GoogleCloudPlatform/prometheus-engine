@@ -75,6 +75,7 @@ route:
 				},
 				Key: "my-secret-key",
 			},
+			ExternalURL: "https://alertmanager.mycompany.com/",
 		},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -109,7 +110,7 @@ func testAlertmanager(ctx context.Context, t *OperatorContext, spec *monitoringv
 	})
 	t.Run("deployed", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
-		testAlertmanagerDeployed(ctx, t)
+		testAlertmanagerDeployed(ctx, t, spec)
 	}))
 	t.Run("config set", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
@@ -117,7 +118,7 @@ func testAlertmanager(ctx context.Context, t *OperatorContext, spec *monitoringv
 	}))
 }
 
-func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext) {
+func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, spec *monitoringv1.ManagedAlertmanagerSpec) {
 	err := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
 		var ss appsv1.StatefulSet
 		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameAlertmanager}, &ss); err != nil {
@@ -137,14 +138,19 @@ func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext) {
 			return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
 		}
 
+		// If spec is empty, no need to assert EXTRA_ARGS.
+		if spec == nil {
+			return true, nil
+		}
+		var wantArgs []string
 		for _, c := range ss.Spec.Template.Spec.Containers {
 			if c.Name != "alertmanager" {
 				continue
 			}
 			// We're mainly interested in the dynamic flags but checking the entire set including
 			// the static ones is ultimately simpler.
-			wantArgs := []string{
-				fmt.Sprintf("--web.external-url=%q", projectID),
+			if externalURL := spec.ExternalURL; externalURL != "" {
+				wantArgs = append(wantArgs, fmt.Sprintf("--web.external-url=%q", spec.ExternalURL))
 			}
 
 			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {

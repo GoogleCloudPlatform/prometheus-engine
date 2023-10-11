@@ -295,6 +295,7 @@ ManagedAlertmanagerSpec holds configuration information for the managed Alertman
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | configSecret | ConfigSecret refers to the name of a single-key Secret in the public namespace that holds the managed Alertmanager config file. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
+| externalURL | ExternalURL is the external URL the managed Alertmanager will be available under. This is used for generating links back to the Alertmanager itself in fired alerts. | string | false |
 
 [Back to TOC](#table-of-contents)
 

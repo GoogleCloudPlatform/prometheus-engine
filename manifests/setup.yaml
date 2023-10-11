@@ -986,6 +986,9 @@ spec:
                 required:
                 - key
                 x-kubernetes-map-type: atomic
+              externalURL:
+                type: string
+                description: ExternalURL is the external URL the managed Alertmanager will be available under. This is used for generating links back to the Alertmanager itself in fired alerts.
           rules:
             type: object
             description: Rules specifies how the operator configures and deployes rule-evaluator.
