@@ -87,8 +87,8 @@ const (
 	// The level of concurrency to use to fetch all targets.
 	defaultTargetPollConcurrency = 4
 
-	// certDir is the directory where TLS certificates are stored
-	certDir = "/etc/tls/private"
+	// defaultCertDir is the directory where TLS certificates are stored
+	defaultCertDir = "/etc/tls/private"
 )
 
 // Operator to implement managed collection for Google Prometheus Engine.
@@ -129,6 +129,8 @@ type Options struct {
 	TLSKey string
 	// Certificate authority in base 64.
 	CACert string
+	// CertDir is the directory where TLS certificates are stored
+	CertDir string
 	// Webhook serving address.
 	ListenAddr string
 	// Cleanup resources without this annotation.
@@ -168,6 +170,9 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 		o.CollectorHTTPClient = &http.Client{
 			Transport: api.DefaultRoundTripper,
 		}
+	}
+	if o.CertDir == "" {
+		o.CertDir = defaultCertDir
 	}
 	return nil
 }
@@ -271,7 +276,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 					},
 				}})
 		}),
-		CertDir: certDir,
+		CertDir: opts.CertDir,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create controller manager: %w", err)
@@ -304,7 +309,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 // custom resources and registers handlers with the webhook server.
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	// Write provided cert files.
-	caBundle, err := o.ensureCerts(ctx, certDir)
+	caBundle, err := o.ensureCerts(ctx, o.opts.CertDir)
 	if err != nil {
 		return err
 	}
