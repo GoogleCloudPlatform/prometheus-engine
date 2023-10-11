@@ -124,6 +124,17 @@ func TestMain(m *testing.M) {
 
 	flag.Parse()
 
+	if projectID == "" && cluster == "" && location == "" {
+		clusterMeta, err := ExtractGKEClusterMeta()
+		if err != nil {
+			fmt.Fprintln(os.Stdout, "Unable to load GKE Cluster meta:", err)
+		} else {
+			projectID = clusterMeta.ProjectID
+			cluster = clusterMeta.Cluster
+			location = clusterMeta.Location
+		}
+	}
+
 	var err error
 	kubeconfig, err = ctrl.GetConfig()
 	setRESTConfigDefaults(kubeconfig)
