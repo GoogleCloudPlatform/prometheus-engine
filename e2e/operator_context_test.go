@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -237,16 +236,6 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 		}
 	}
 
-	certDir, err := os.MkdirTemp("", "gmp-e2e-test")
-	if err != nil {
-		t.Fatalf("unable to create cert dir: %s", err)
-	}
-	defer func() {
-		if err := os.Remove(certDir); err != nil {
-			t.Logf("unable to remove cert dir: %s", err)
-		}
-	}()
-
 	op, err := operator.New(globalLogger, kubeconfig, operator.Options{
 		ProjectID:         projectID,
 		Cluster:           cluster,
@@ -256,7 +245,6 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 		// Pick a random available port.
 		ListenAddr:          ":0",
 		CollectorHTTPClient: httpClient,
-		CertDir:             certDir,
 	})
 	if err != nil {
 		t.Fatalf("instantiating operator: %s", err)
