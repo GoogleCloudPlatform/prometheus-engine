@@ -11,15 +11,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !go1.18
-// +build !go1.18
+//go:build linux
+// +build linux
 
-package version
+package procfs
 
-func getRevision() string {
-	return Revision
-}
-
-func getTags() string {
-	return "unknown" // Not available prior to Go 1.18
-}
+var parseCPUInfo = parseCPUInfoLoong

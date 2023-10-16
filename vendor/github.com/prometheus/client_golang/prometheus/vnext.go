@@ -11,15 +11,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !go1.18
-// +build !go1.18
+package prometheus
 
-package version
+type v2 struct{}
 
-func getRevision() string {
-	return Revision
-}
-
-func getTags() string {
-	return "unknown" // Not available prior to Go 1.18
-}
+// V2 is a struct that can be referenced to access experimental API that might
+// be present in v2 of client golang someday. It offers extended functionality
+// of v1 with slightly changed API. It is acceptable to use some pieces from v1
+// and e.g `prometheus.NewGauge` and some from v2 e.g. `prometheus.V2.NewDesc`
+// in the same codebase.
+var V2 = v2{}
