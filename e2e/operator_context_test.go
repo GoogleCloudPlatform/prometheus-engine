@@ -75,6 +75,8 @@ var (
 	skipGCM           bool
 	gcpServiceAccount string
 	portForward       bool
+	leakResources     bool
+	cleanup           bool
 )
 
 func init() {
@@ -121,6 +123,8 @@ func TestMain(m *testing.M) {
 	flag.BoolVar(&skipGCM, "skip-gcm", false, "Skip validating GCM ingested points.")
 	flag.StringVar(&gcpServiceAccount, "gcp-service-account", "", "Path to GCP service account file for usage by deployed containers.")
 	flag.BoolVar(&portForward, "port-forward", true, "Whether to port-forward Kubernetes HTTP requests.")
+	flag.BoolVar(&leakResources, "leak-resources", false, "If set, prevents deleting resources. Useful for debugging.")
+	flag.BoolVar(&cleanup, "cleanup-resources", false, "If set, cleans resources before running tests.")
 
 	flag.Parse()
 
@@ -143,6 +147,19 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	c, err := newClient()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "build Kubernetes client:", err)
+		os.Exit(1)
+	}
+
+	if cleanup {
+		if err := cleanupResources(context.Background(), kubeconfig, c, ""); err != nil {
+			fmt.Fprintln(os.Stderr, "cleaning up failed:", err)
+			os.Exit(1)
+		}
+	}
+
 	go func() {
 		os.Exit(m.Run())
 	}()
@@ -156,11 +173,10 @@ func TestMain(m *testing.M) {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	<-term
-	c, err := newClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Build Kubernetes client:", err)
-		os.Exit(1)
+	if leakResources {
+		return
 	}
+	fmt.Fprintln(os.Stdout, "cleaning up abandoned resources...")
 	if err := cleanupResources(context.Background(), kubeconfig, c, ""); err != nil {
 		fmt.Fprintln(os.Stderr, "Cleaning up namespaces failed:", err)
 		os.Exit(1)
@@ -471,6 +487,10 @@ func (tctx *OperatorContext) subtest(f func(context.Context, *OperatorContext)) 
 		childCtx.T = t
 		childCtx.kClient = NewLabelWriterClient(tctx.kClient.Base(), childCtx.getSubTestLabels())
 		t.Cleanup(func() {
+			if leakResources {
+				return
+			}
+			t.Log("cleaning up resources...")
 			if err := cleanupResources(ctx, kubeconfig, childCtx.Client(), childCtx.getSubTestLabelValue()); err != nil {
 				t.Fatalf("unable to cleanup resources: %s", err)
 			}
