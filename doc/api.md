@@ -137,7 +137,7 @@ ClusterPodMonitoringList is a list of ClusterPodMonitorings.
 
 ## ClusterPodMonitoringSpec
 
-ClusterPodMonitoringSpec contains specification parameters for PodMonitoring.
+ClusterPodMonitoringSpec contains specification parameters for ClusterPodMonitoring.
 
 
 <em>appears in: [ClusterPodMonitoring](#clusterpodmonitoring)</em>

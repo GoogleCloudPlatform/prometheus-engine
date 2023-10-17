@@ -249,12 +249,14 @@ type SecretOrConfigMap struct {
 	ConfigMap *corev1.ConfigMapKeySelector `json:"configMap,omitempty"`
 }
 
-// PodMonitoringStatusContainer represents a Kubernetes CRD that monitors pods
-// and contains a status sub-resource.
-type PodMonitoringStatusContainer interface {
+// PodMonitoringCRD represents a Kubernetes CRD that monitors Pod endpoints.
+type PodMonitoringCRD interface {
 	client.Object
 
-	// Returns this CRD's status sub-resource.
+	// GetEndpoints returns the endpoints scraped by this CRD.
+	GetEndpoints() []ScrapeEndpoint
+
+	// GetStatus returns this CRD's status sub-resource.
 	GetStatus() *PodMonitoringStatus
 }
 
@@ -277,6 +279,10 @@ type PodMonitoring struct {
 
 func (p *PodMonitoring) GetKey() string {
 	return fmt.Sprintf("PodMonitoring/%s/%s", p.Namespace, p.Name)
+}
+
+func (p *PodMonitoring) GetEndpoints() []ScrapeEndpoint {
+	return p.Spec.Endpoints
 }
 
 func (p *PodMonitoring) GetStatus() *PodMonitoringStatus {
@@ -312,6 +318,10 @@ type ClusterPodMonitoring struct {
 
 func (p *ClusterPodMonitoring) GetKey() string {
 	return fmt.Sprintf("ClusterPodMonitoring/%s", p.Name)
+}
+
+func (p *ClusterPodMonitoring) GetEndpoints() []ScrapeEndpoint {
+	return p.Spec.Endpoints
 }
 
 func (p *ClusterPodMonitoring) GetStatus() *PodMonitoringStatus {
@@ -986,7 +996,7 @@ type ScrapeLimits struct {
 	LabelValueLength uint64 `json:"labelValueLength,omitempty"`
 }
 
-// ClusterPodMonitoringSpec contains specification parameters for PodMonitoring.
+// ClusterPodMonitoringSpec contains specification parameters for ClusterPodMonitoring.
 type ClusterPodMonitoringSpec struct {
 	// Label selector that specifies which pods are selected for this monitoring
 	// configuration.

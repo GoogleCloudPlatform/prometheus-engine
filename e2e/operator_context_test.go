@@ -243,7 +243,7 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 		cancel()
 	})
 
-	if err := createBaseResources(ctx, tctx.Client(), namespace, pubNamespace); err != nil {
+	if err := createBaseResources(ctx, tctx.Client(), namespace, pubNamespace, tctx.GetOperatorTestLabelValue()); err != nil {
 		t.Fatalf("create resources: %s", err)
 	}
 
@@ -320,10 +320,14 @@ func (tctx *OperatorContext) getSubTestLabels() map[string]string {
 	}
 }
 
+func (tctx *OperatorContext) GetOperatorTestLabelValue() string {
+	return strings.SplitN(tctx.T.Name(), "/", 2)[0]
+}
+
 // createBaseResources creates resources the operator requires to exist already.
 // These are resources which don't depend on runtime state and can thus be deployed
 // statically, allowing to run the operator without critical write permissions.
-func createBaseResources(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace string) error {
+func createBaseResources(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace, labelValue string) error {
 	if err := createNamespaces(ctx, kubeClient, opNamespace, publicNamespace); err != nil {
 		return err
 	}
@@ -331,7 +335,7 @@ func createBaseResources(ctx context.Context, kubeClient client.Client, opNamesp
 	if err := createGCPSecretResources(ctx, kubeClient, opNamespace); err != nil {
 		return err
 	}
-	if err := createCollectorResources(ctx, kubeClient, opNamespace); err != nil {
+	if err := createCollectorResources(ctx, kubeClient, opNamespace, labelValue); err != nil {
 		return err
 	}
 	if err := createAlertmanagerResources(ctx, kubeClient, opNamespace); err != nil {
@@ -385,7 +389,7 @@ func parseResourceYAML(b []byte) (runtime.Object, error) {
 	return obj, err
 }
 
-func createCollectorResources(ctx context.Context, kubeClient client.Client, namespace string) error {
+func createCollectorResources(ctx context.Context, kubeClient client.Client, namespace, labelValue string) error {
 	if err := kubeClient.Create(ctx, &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      operator.NameCollector,
@@ -429,6 +433,10 @@ func createCollectorResources(ctx context.Context, kubeClient client.Client, nam
 	}
 	collector := obj.(*appsv1.DaemonSet)
 	collector.Namespace = namespace
+	if collector.Spec.Template.Labels == nil {
+		collector.Spec.Template.Labels = map[string]string{}
+	}
+	collector.Spec.Template.Labels[testLabel] = labelValue
 	if skipGCM {
 		for i := range collector.Spec.Template.Spec.Containers {
 			container := &collector.Spec.Template.Spec.Containers[i]
@@ -484,6 +492,10 @@ func createAlertmanagerResources(ctx context.Context, kubeClient client.Client, 
 	}
 
 	return nil
+}
+
+func (tctx *OperatorContext) RestConfig() *rest.Config {
+	return kubeconfig
 }
 
 func (tctx *OperatorContext) Client() client.Client {

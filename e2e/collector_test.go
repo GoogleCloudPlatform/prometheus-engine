@@ -50,9 +50,91 @@ func TestCollector(t *testing.T) {
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
 	t.Run("deployed", tctx.subtest(testCollectorDeployed))
-	t.Run("self-podmonitoring", tctx.subtest(testCollectorSelfPodMonitoring))
-	t.Run("self-clusterpodmonitoring", tctx.subtest(testCollectorSelfClusterPodMonitoring))
-	t.Run("target-status", tctx.subtest(testCollectorTargetStatus))
+
+	t.Run("self-scrape", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Run("self-podmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+			t.Parallel()
+			testCollectorSelf(ctx, t, &monitoringv1.PodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "collector-podmon",
+					Namespace: t.namespace,
+				},
+				Spec: monitoringv1.PodMonitoringSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							operator.LabelAppName: operator.NameCollector,
+							testLabel:             t.GetOperatorTestLabelValue(),
+						},
+					},
+					Endpoints: selfScrapeEndpointConfig(),
+				},
+			})
+		}))
+		t.Run("self-clusterpodmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+			t.Parallel()
+			testCollectorSelf(ctx, t, &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "collector-cmon",
+				},
+				Spec: monitoringv1.ClusterPodMonitoringSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							operator.LabelAppName: operator.NameCollector,
+							testLabel:             t.GetOperatorTestLabelValue(),
+						},
+					},
+					Endpoints: selfScrapeEndpointConfig(),
+				},
+			})
+		}))
+	}))
+
+	t.Run("target-status", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
+			Features: monitoringv1.OperatorFeatures{
+				TargetStatus: monitoringv1.TargetStatusSpec{
+					Enabled: true,
+				},
+			},
+		})
+
+		t.Run("podmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+			t.Parallel()
+			testCollectorTargetStatus(ctx, t, &monitoringv1.PodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "collector-podmon-target-status",
+					Namespace: t.namespace,
+				},
+				Spec: monitoringv1.PodMonitoringSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							operator.LabelAppName: operator.NameCollector,
+							testLabel:             t.GetOperatorTestLabelValue(),
+						},
+					},
+					Endpoints: selfScrapeEndpointConfig(),
+				},
+			})
+		}))
+		t.Run("clusterpodmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+			t.Parallel()
+			testCollectorTargetStatus(ctx, t, &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "collector-cmon-target-status",
+				},
+				Spec: monitoringv1.ClusterPodMonitoringSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							operator.LabelAppName: operator.NameCollector,
+							testLabel:             t.GetOperatorTestLabelValue(),
+						},
+					},
+					Endpoints: selfScrapeEndpointConfig(),
+				},
+			})
+		}))
+	}))
+
 	t.Run("scrape-kubelet", tctx.subtest(testCollectorScrapeKubelet))
 }
 
@@ -162,230 +244,47 @@ func selfScrapeEndpointConfig() []monitoringv1.ScrapeEndpoint {
 	}
 }
 
-func checkStatusConditions(status *monitoringv1.PodMonitoringStatus, expected int) error {
-	if size := len(status.Conditions); size == 0 {
-		return errors.New("empty conditions")
-	} else if size != expected {
-		return fmt.Errorf("expected %d conditions, but got: %d", expected, size)
-	}
-
-	for _, condition := range status.Conditions {
-		if condition.Type != monitoringv1.ConfigurationCreateSuccess {
-			return fmt.Errorf("condition is not successful: %s", condition.Type)
-		}
-	}
-	return nil
-}
-
-func checkStatusEndpoints(status *monitoringv1.PodMonitoringStatus, expected int) error {
-	endpointStatuses := status.EndpointStatuses
-	if size := len(endpointStatuses); size == 0 {
-		return errors.New("empty endpoint status")
-	} else if size != expected {
-		return fmt.Errorf("expected %d endpoint, but got: %d", expected, size)
-	}
-
-	for _, status := range endpointStatuses {
-		var err error
-		if status.UnhealthyTargets != 0 {
-			err = fmt.Errorf("unhealthy targets: %d", status.UnhealthyTargets)
-		} else if status.CollectorsFraction != "1" {
-			err = fmt.Errorf("collectors failed: %s", status.CollectorsFraction)
-		} else if len(status.SampleGroups) == 0 {
-			err = errors.New("missing sample groups")
-		} else if len(status.SampleGroups[0].SampleTargets) == 0 {
-			err = fmt.Errorf("missing sample targets: %d", status.SampleGroups[0].Count)
-		}
-		if err != nil {
-			return fmt.Errorf("unhealthy endpoint status %q: %w", status.Name, err)
-		}
-	}
-	return nil
-}
-
-// testCollectorSelfPodMonitoring sets up pod monitoring of the collector itself
-// and waits for samples to become available in Cloud Monitoring.
-func testCollectorSelfPodMonitoring(ctx context.Context, t *OperatorContext) {
-	// The operator should configure the collector to scrape itself and its metrics
-	// should show up in Cloud Monitoring shortly after.
-	name := "collector-podmon"
-	pm := &monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: t.namespace,
-		},
-		Spec: monitoringv1.PodMonitoringSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					operator.LabelAppName: operator.NameCollector,
-				},
-			},
-			Endpoints: selfScrapeEndpointConfig(),
-		},
-	}
-
+// testCollectorSelf sets up pod monitoring of the collector itself  and waits for samples to become
+// available in Cloud Monitoring.
+func testCollectorSelf(ctx context.Context, t *OperatorContext, pm monitoringv1.PodMonitoringCRD) {
 	if err := t.Client().Create(ctx, pm); err != nil {
-		t.Fatalf("create collector PodMonitoring: %s", err)
+		t.Fatalf("create collector: %s", err)
 	}
-	t.Logf("Waiting for PodMonitoring %q to be processed", name)
+	t.Logf("Waiting for %q to be processed", pm.GetName())
 
-	resVer := ""
-	var err error
-	pollErr := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
-		if err = t.Client().Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
-			return false, fmt.Errorf("getting PodMonitoring failed: %w", err)
-		}
-		// Ensure no status update cycles.
-		// This is not a perfect check as it's possible the get call returns before the operator
-		// would sync again, however it can serve as a valuable guardrail in case sporadic test
-		// failures start happening due to update cycles.
-		if resVer != pm.ResourceVersion {
-			resVer = pm.ResourceVersion
-			err = errors.New("waiting for resource version to stabilize")
-			return false, nil
-		}
-
-		if err = checkStatusConditions(&pm.Status, 1); err != nil {
-			return false, nil
-		}
-		return true, nil
-	})
-	if pollErr != nil {
-		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
-			t.Errorf("unable to validate status: %s", err)
-		} else {
-			t.Error("unable to validate status due to timeout")
-		}
+	if err := WaitForPodMonitoringReady(ctx, t.Client(), pm, false); err != nil {
+		t.Errorf("unable to validate status: %s", err)
 	}
 
 	if !skipGCM {
 		t.Log("Waiting for up metrics for collector targets")
-		validateCollectorUpMetrics(ctx, t, name)
+		validateCollectorUpMetrics(ctx, t, pm.GetName())
 	}
 }
 
-// testCollectorSelfClusterPodMonitoring sets up pod monitoring of the collector itself
-// and waits for samples to become available in Cloud Monitoring.
-func testCollectorSelfClusterPodMonitoring(ctx context.Context, t *OperatorContext) {
-	// The operator should configure the collector to scrape itself and its metrics
-	// should show up in Cloud Monitoring shortly after.
-	name := "collector-cmon"
-	pm := &monitoringv1.ClusterPodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: monitoringv1.ClusterPodMonitoringSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					operator.LabelAppName: operator.NameCollector,
-				},
-			},
-			Endpoints: selfScrapeEndpointConfig(),
-		},
-	}
-
+// testCollectorTargetStatus sets up pod monitoring of the collector itself and checks its target status.
+func testCollectorTargetStatus(ctx context.Context, t *OperatorContext, pm monitoringv1.PodMonitoringCRD) {
 	if err := t.Client().Create(ctx, pm); err != nil {
-		t.Fatalf("create ClusterPodMonitoring: %s", err)
+		t.Fatalf("create collector: %s", err)
 	}
-	t.Logf("Waiting for ClusterPodMonitoring %q to be processed", name)
+	t.Logf("Waiting for %q to be processed", pm.GetName())
 
-	resVer := ""
+	if err := WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+		t.Errorf("unable to validate status: %s", err)
+	}
+
 	var err error
-	pollErr := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
+	if pollErr := wait.Poll(3*time.Second, 2*time.Minute, func() (bool, error) {
 		if err = t.Client().Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
-			return false, fmt.Errorf("getting ClusterPodMonitoring failed: %w", err)
-		}
-		// Ensure no status update cycles.
-		// This is not a perfect check as it's possible the get call returns before the operator
-		// would sync again, however it can serve as a valuable guardrail in case sporadic test
-		// failures start happening due to update cycles.
-		if resVer != pm.ResourceVersion {
-			resVer = pm.ResourceVersion
-			err = errors.New("waiting for resource version to stabilize")
 			return false, nil
 		}
-
-		if err = checkStatusConditions(&pm.Status, 1); err != nil {
-			return false, nil
-		}
-		return true, nil
-	})
-	if pollErr != nil {
-		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
-			t.Errorf("unable to validate status: %s", err)
-		} else {
-			t.Error("unable to validate status due to timeout")
-		}
-	}
-
-	if !skipGCM {
-		t.Log("Waiting for up metrics for collector targets")
-		validateCollectorUpMetrics(ctx, t, name)
-	}
-}
-
-// testCollectorTargetStatus sets up pod monitoring of the collector itself and
-// checks target status.
-func testCollectorTargetStatus(ctx context.Context, t *OperatorContext) {
-	t.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
-		Features: monitoringv1.OperatorFeatures{
-			TargetStatus: monitoringv1.TargetStatusSpec{
-				Enabled: true,
-			},
-		},
-	})
-
-	name := "collector-podmon-target-status"
-	pm := &monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: t.namespace,
-		},
-		Spec: monitoringv1.PodMonitoringSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					operator.LabelAppName: operator.NameCollector,
-				},
-			},
-			Endpoints: selfScrapeEndpointConfig(),
-		},
-	}
-
-	if err := t.Client().Create(ctx, pm); err != nil {
-		t.Fatalf("create collector PodMonitoring: %s", err)
-	}
-	t.Logf("Waiting for PodMonitoring %q to be processed", name)
-
-	resVer := ""
-	var err error
-	pollErr := wait.Poll(time.Second, 4*time.Minute, func() (bool, error) {
-		if err = t.Client().Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
-			return false, fmt.Errorf("getting PodMonitoring failed: %w", err)
-		}
-
-		// Ensure no status update cycles.
-		// This is not a perfect check as it's possible the get call returns before the operator
-		// would sync again, however it can serve as a valuable guardrail in case sporadic test
-		// failures start happening due to update cycles.
-		if resVer != pm.ResourceVersion {
-			resVer = pm.ResourceVersion
-			err = errors.New("waiting for resource version to stabilize")
-			return false, nil
-		}
-
-		if err = checkStatusConditions(&pm.Status, 1); err != nil {
-			return false, nil
-		}
-		if err = checkStatusEndpoints(&pm.Status, len(selfScrapeEndpointConfig())); err != nil {
-			return false, nil
-		}
-		return true, nil
-	})
-	if pollErr != nil {
+		err = IsPodMonitoringSuccess(pm, true)
+		return err == nil, nil
+	}); pollErr != nil {
 		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
 			pollErr = err
 		}
-		t.Errorf("unable to validate status: %s", pollErr)
+		t.Errorf("status does not indicate success: %s", pollErr)
 	}
 }
 
