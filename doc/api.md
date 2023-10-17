@@ -42,6 +42,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [PodMonitoringList](#podmonitoringlist)
 * [PodMonitoringSpec](#podmonitoringspec)
 * [PodMonitoringStatus](#podmonitoringstatus)
+* [ProxyConfig](#proxyconfig)
 * [RelabelingRule](#relabelingrule)
 * [Rule](#rule)
 * [RuleEvaluatorSpec](#ruleevaluatorspec)
@@ -104,7 +105,7 @@ Authorization specifies a subset of the Authorization struct, that is safe for u
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | type | Set the authentication type. Defaults to Bearer, Basic will cause an error | string | false |
-| credentials | The secret's key that contains the credentials of the request | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
+| credentials | The secret's key that contains the credentials of the request | *corev1.SecretKeySelector | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -187,7 +188,7 @@ CollectionSpec specifies how the operator configures collection of metric data.
 | ----- | ----------- | ------ | -------- |
 | externalLabels | ExternalLabels specifies external labels that are attached to all scraped data before being written to Cloud Monitoring. The precedence behavior matches that of Prometheus. | map[string]string | false |
 | filter | Filter limits which metric data is sent to Cloud Monitoring. | [ExportFilters](#exportfilters) | false |
-| credentials | A reference to GCP service account credentials with which Prometheus collectors are run. It needs to have metric write permissions for all project IDs to which data is written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
+| credentials | A reference to GCP service account credentials with which Prometheus collectors are run. It needs to have metric write permissions for all project IDs to which data is written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *corev1.SecretKeySelector | false |
 | kubeletScraping | Configuration to scrape the metric endpoints of the Kubelets. | *[KubeletScraping](#kubeletscraping) | false |
 | compression | Compression enables compression of metrics collection data | CompressionType | false |
 
@@ -255,6 +256,7 @@ HTTPClientConfig stores HTTP-client configurations.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | tls | Configures the scrape request's TLS settings. | *[TLS](#tls) | false |
+| proxyUrl | HTTP proxy server to use to connect to the targets. Encoded passwords are not supported. | string | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -294,7 +296,7 @@ ManagedAlertmanagerSpec holds configuration information for the managed Alertman
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| configSecret | ConfigSecret refers to the name of a single-key Secret in the public namespace that holds the managed Alertmanager config file. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
+| configSecret | ConfigSecret refers to the name of a single-key Secret in the public namespace that holds the managed Alertmanager config file. | *corev1.SecretKeySelector | false |
 | externalURL | ExternalURL is the external URL the managed Alertmanager will be available under. This is used for generating links back to the Alertmanager itself in fired alerts. | string | false |
 
 [Back to TOC](#table-of-contents)
@@ -416,6 +418,19 @@ PodMonitoringStatus holds status information of a PodMonitoring resource.
 
 [Back to TOC](#table-of-contents)
 
+## ProxyConfig
+
+
+
+
+<em>appears in: [HTTPClientConfig](#httpclientconfig)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| proxyUrl | HTTP proxy server to use to connect to the targets. Encoded passwords are not supported. | string | false |
+
+[Back to TOC](#table-of-contents)
+
 ## RelabelingRule
 
 RelabelingRule defines a single Prometheus relabeling rule.
@@ -466,7 +481,7 @@ RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
 | queryProjectID | QueryProjectID is the GCP project ID to evaluate rules against. If left blank, the rule-evaluator will try attempt to infer the Project ID from the environment. | string | false |
 | generatorUrl | The base URL used for the generator URL in the alert notification payload. Should point to an instance of a query frontend that gives access to queryProjectID. | string | false |
 | alerting | Alerting contains how the rule-evaluator configures alerting. | [AlertingSpec](#alertingspec) | false |
-| credentials | A reference to GCP service account credentials with which the rule evaluator container is run. It needs to have metric read permissions against queryProjectId and metric write permissions against all projects to which rule results are written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
+| credentials | A reference to GCP service account credentials with which the rule evaluator container is run. It needs to have metric read permissions against queryProjectId and metric write permissions against all projects to which rule results are written. Within GKE, this can typically be left empty if the compute default service account has the required permissions. | *corev1.SecretKeySelector | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -567,7 +582,6 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 | scheme | Protocol scheme to use to scrape. | string | false |
 | path | HTTP path to scrape metrics from. Defaults to \"/metrics\". | string | false |
 | params | HTTP GET params to use when scraping. | map[string][]string | false |
-| proxyUrl | Proxy URL to scrape through. Encoded passwords are not supported. | string | false |
 | interval | Interval at which to scrape metrics. Must be a valid Prometheus duration. | string | false |
 | timeout | Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval. | string | false |
 | metricRelabeling | Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general. | [][RelabelingRule](#relabelingrule) | false |
@@ -618,8 +632,8 @@ SecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mu
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| secret | Secret containing data to use for the targets. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
-| configMap | ConfigMap containing data to use for the targets. | *v1.ConfigMapKeySelector | false |
+| secret | Secret containing data to use for the targets. | *corev1.SecretKeySelector | false |
+| configMap | ConfigMap containing data to use for the targets. | *corev1.ConfigMapKeySelector | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -650,7 +664,7 @@ TLSConfig specifies TLS configuration parameters from Kubernetes resources.
 | ----- | ----------- | ------ | -------- |
 | ca | Struct containing the CA cert to use for the targets. | *[SecretOrConfigMap](#secretorconfigmap) | false |
 | cert | Struct containing the client cert file for the targets. | *[SecretOrConfigMap](#secretorconfigmap) | false |
-| keySecret | Secret containing the client key file for the targets. | *[v1.SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#secretkeyselector-v1-core) | false |
+| keySecret | Secret containing the client key file for the targets. | *corev1.SecretKeySelector | false |
 | serverName | Used to verify the hostname for the targets. | string | false |
 | insecureSkipVerify | Disable target certificate validation. | bool | false |
 | minVersion | Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config. | string | false |

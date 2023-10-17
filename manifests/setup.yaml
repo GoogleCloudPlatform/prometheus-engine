@@ -138,7 +138,7 @@ spec:
                       description: HTTP path to scrape metrics from. Defaults to "/metrics".
                     proxyUrl:
                       type: string
-                      description: Proxy URL to scrape through. Encoded passwords are not supported.
+                      description: HTTP proxy server to use to connect to the targets. Encoded passwords are not supported.
                     scheme:
                       type: string
                       description: Protocol scheme to use to scrape.
@@ -1553,7 +1553,7 @@ spec:
                       description: HTTP path to scrape metrics from. Defaults to "/metrics".
                     proxyUrl:
                       type: string
-                      description: Proxy URL to scrape through. Encoded passwords are not supported.
+                      description: HTTP proxy server to use to connect to the targets. Encoded passwords are not supported.
                     scheme:
                       type: string
                       description: Protocol scheme to use to scrape.

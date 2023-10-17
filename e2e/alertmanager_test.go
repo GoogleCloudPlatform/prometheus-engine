@@ -125,7 +125,6 @@ func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, spec *mon
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
-			t.Log(fmt.Errorf("getting alertmanager StatefulSet failed: %w", err))
 			return false, fmt.Errorf("getting alertmanager StatefulSet failed: %w", err)
 		}
 
@@ -177,13 +176,11 @@ func testAlertmanagerConfig(ctx context.Context, t *OperatorContext, pub *corev1
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
-			t.Log(fmt.Errorf("getting alertmanager secret failed: %s", err))
 			return false, fmt.Errorf("getting alertmanager secret failed: %w", err)
 		}
 
 		bytes, ok := secret.Data["config.yaml"]
 		if !ok {
-			t.Log(errors.New("getting alertmanager secret data in config.yaml failed"))
 			return false, errors.New("getting alertmanager secret data in config.yaml failed")
 		}
 

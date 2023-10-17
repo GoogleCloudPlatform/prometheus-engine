@@ -31,5 +31,9 @@ updates:
       patterns:
         - "*"
       exclude-patterns:
+        # All of below deps has to be updated carefully as they are large, impacting
+        # our ability to import export pkg into Prometheus forks. They also often break compatibilty.
         - "github.com/thanos-io/thanos"
         - "github.com/prometheus/prometheus"
+        - "k8s.io/*"
+        - "sigs.k8s.io/*"

@@ -48,6 +48,7 @@ import (
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
@@ -66,7 +67,7 @@ const (
 
 var (
 	startTime    = time.Now().UTC()
-	globalLogger = zap.New(zap.Level(zapcore.Level(-1)))
+	globalLogger = zap.New(zap.Level(zapcore.DebugLevel))
 
 	kubeconfig        *rest.Config
 	projectID         string
@@ -75,6 +76,8 @@ var (
 	skipGCM           bool
 	gcpServiceAccount string
 	portForward       bool
+	leakResources     bool
+	cleanup           bool
 )
 
 func init() {
@@ -121,8 +124,21 @@ func TestMain(m *testing.M) {
 	flag.BoolVar(&skipGCM, "skip-gcm", false, "Skip validating GCM ingested points.")
 	flag.StringVar(&gcpServiceAccount, "gcp-service-account", "", "Path to GCP service account file for usage by deployed containers.")
 	flag.BoolVar(&portForward, "port-forward", true, "Whether to port-forward Kubernetes HTTP requests.")
+	flag.BoolVar(&leakResources, "leak-resources", true, "If set, prevents deleting resources. Useful for debugging.")
+	flag.BoolVar(&cleanup, "cleanup-resources", true, "If set, cleans resources before running tests.")
 
 	flag.Parse()
+
+	if projectID == "" && cluster == "" && location == "" {
+		clusterMeta, err := ExtractGKEClusterMeta()
+		if err != nil {
+			fmt.Fprintln(os.Stdout, "Unable to load GKE Cluster meta:", err)
+		} else {
+			projectID = clusterMeta.ProjectID
+			cluster = clusterMeta.Cluster
+			location = clusterMeta.Location
+		}
+	}
 
 	var err error
 	kubeconfig, err = ctrl.GetConfig()
@@ -130,6 +146,20 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Loading kubeconfig failed:", err)
 		os.Exit(1)
+	}
+
+	c, err := newClient()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "build Kubernetes client:", err)
+		os.Exit(1)
+	}
+
+	if cleanup {
+		fmt.Fprintln(os.Stderr, "cleaning resources before tests...", err)
+		if err := cleanupResources(context.Background(), kubeconfig, c, ""); err != nil {
+			fmt.Fprintln(os.Stderr, "cleaning up failed:", err)
+			os.Exit(1)
+		}
 	}
 
 	go func() {
@@ -145,11 +175,10 @@ func TestMain(m *testing.M) {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	<-term
-	c, err := newClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Build Kubernetes client:", err)
-		os.Exit(1)
+	if leakResources {
+		return
 	}
+	fmt.Fprintln(os.Stdout, "cleaning up abandoned resources...")
 	if err := cleanupResources(context.Background(), kubeconfig, c, ""); err != nil {
 		fmt.Fprintln(os.Stderr, "Cleaning up namespaces failed:", err)
 		os.Exit(1)
@@ -267,7 +296,14 @@ func (tctx *OperatorContext) createOperatorConfigFrom(ctx context.Context, opCfg
 		}
 	}
 
-	if err := tctx.Client().Create(ctx, &opCfg); err != nil {
+	// Create a copy which wil represents the current object if it already exists.
+	obj := opCfg.DeepCopy()
+	if _, err := controllerutil.CreateOrUpdate(ctx, tctx.Client(), obj, func() error {
+		// For updates, we need the resource version in the object meta to match. Replace everything else.
+		opCfg.ObjectMeta = obj.ObjectMeta
+		*obj = opCfg
+		return nil
+	}); err != nil {
 		tctx.Fatalf("create OperatorConfig: %s", err)
 	}
 }
@@ -460,6 +496,10 @@ func (tctx *OperatorContext) subtest(f func(context.Context, *OperatorContext)) 
 		childCtx.T = t
 		childCtx.kClient = NewLabelWriterClient(tctx.kClient.Base(), childCtx.getSubTestLabels())
 		t.Cleanup(func() {
+			if leakResources {
+				return
+			}
+			t.Log("cleaning up resources...")
 			if err := cleanupResources(ctx, kubeconfig, childCtx.Client(), childCtx.getSubTestLabelValue()); err != nil {
 				t.Fatalf("unable to cleanup resources: %s", err)
 			}
