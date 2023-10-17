@@ -39,4 +39,5 @@ done
 kubectl --context kind-kind apply -f "${REPO_ROOT}/manifests/rule-evaluator.yaml"
 
 echo ">>> executing gmp e2e tests"
-go test -v "${REPO_ROOT}/e2e" -run "${TEST_RUN:-.}" -args -project-id=test-proj -cluster=test-cluster -location=test-loc -skip-gcm ${TEST_ARGS}
+# We don't cleanup resources because this script recreates the cluster.
+go test -v "${REPO_ROOT}/e2e" -run "${TEST_RUN:-.}" -args -project-id=test-proj -cluster=test-cluster -location=test-loc -skip-gcm=true -cleanup-resources=false ${TEST_ARGS}

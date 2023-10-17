@@ -62,11 +62,11 @@ func TestRuleEvaluation(t *testing.T) {
 	}
 }
 
-func createRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key []byte) {
+func createRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, certSecretName, tokenSecretName string, cert, key []byte) {
 	secrets := []*corev1.Secret{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "alertmanager-authorization",
+				Name:      tokenSecretName,
 				Namespace: t.pubNamespace,
 			},
 			Data: map[string][]byte{
@@ -75,7 +75,7 @@ func createRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, k
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "alertmanager-tls",
+				Name:      certSecretName,
 				Namespace: t.pubNamespace,
 			},
 			Data: map[string][]byte{
@@ -94,11 +94,11 @@ func createRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, k
 
 // createRuleEvaluatorOperatorConfig ensures an OperatorConfig can be deployed
 // that contains rule-evaluator configuration.
-func createRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) {
+func createRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext, certSecretName, tokenSecretName string) {
 	// Setup TLS secret selectors.
 	certSecret := &corev1.SecretKeySelector{
 		LocalObjectReference: corev1.LocalObjectReference{
-			Name: "alertmanager-tls",
+			Name: certSecretName,
 		},
 		Key: "cert",
 	}
@@ -126,7 +126,7 @@ func createRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) 
 							Type: "Bearer",
 							Credentials: &corev1.SecretKeySelector{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: "alertmanager-authorization",
+									Name: tokenSecretName,
 								},
 								Key: "token",
 							},
@@ -145,8 +145,8 @@ func createRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext) 
 }
 
 func testRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key []byte) {
-	createRuleEvaluatorOperatorConfig(ctx, t)
-	createRuleEvaluatorSecrets(ctx, t, cert, key)
+	createRuleEvaluatorOperatorConfig(ctx, t, "alertmanager-tls", "alertmanager-authorization")
+	createRuleEvaluatorSecrets(ctx, t, "alertmanager-tls", "alertmanager-authorization", cert, key)
 
 	// Verify contents but without the GCP SA credentials file to not leak secrets in tests logs.
 	// Whether the contents were copied correctly is implicitly verified by the credentials working.
@@ -176,8 +176,8 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key
 }
 
 func testRuleEvaluatorConfig(ctx context.Context, t *OperatorContext, cert, key []byte) {
-	createRuleEvaluatorOperatorConfig(ctx, t)
-	createRuleEvaluatorSecrets(ctx, t, cert, key)
+	createRuleEvaluatorOperatorConfig(ctx, t, "alertmanager-config-tls", "alertmanager-config-authorization")
+	createRuleEvaluatorSecrets(ctx, t, "alertmanager-config-tls", "alertmanager-config-authorization", cert, key)
 
 	replace := func(s string) string {
 		return strings.NewReplacer(
@@ -201,10 +201,10 @@ alerting:
                 - alertmanager.{namespace}:9093
         - authorization:
             type: Bearer
-            credentials_file: /etc/secrets/secret_{pubNamespace}_alertmanager-authorization_token
+            credentials_file: /etc/secrets/secret_{pubNamespace}_alertmanager-config-authorization_token
           tls_config:
-            cert_file: /etc/secrets/secret_{pubNamespace}_alertmanager-tls_cert
-            key_file: /etc/secrets/secret_{pubNamespace}_alertmanager-tls_key
+            cert_file: /etc/secrets/secret_{pubNamespace}_alertmanager-config-tls_cert
+            key_file: /etc/secrets/secret_{pubNamespace}_alertmanager-config-tls_key
             insecure_skip_verify: false
           follow_redirects: true
           enable_http2: true
