@@ -383,10 +383,9 @@ func testCollectorTargetStatus(ctx context.Context, t *OperatorContext) {
 	})
 	if pollErr != nil {
 		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
-			t.Errorf("unable to validate status: %s", err)
-		} else {
-			t.Error("unable to validate status due to timeout")
+			pollErr = err
 		}
+		t.Errorf("unable to validate status: %s", pollErr)
 	}
 }
 
