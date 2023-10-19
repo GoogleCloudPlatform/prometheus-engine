@@ -16,7 +16,7 @@
 // To make tests simple and fast, the test suite runs the operator internally. The CRDs
 // are expected to be installed out of band (along with the operator deployment itself in
 // a real world setup).
-package e2e
+package kubeutil
 
 import (
 	"context"
@@ -28,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
@@ -104,11 +103,11 @@ func PortForwardClient(t testing.TB, restConfig *rest.Config, kubeClient client.
 					return nil, fmt.Errorf("unable to resolve TCP addr: %w", err)
 				}
 
-				pod, container, err := kubeutil.PodByAddr(ctx, kubeClient, addr)
+				pod, container, err := PodByAddr(ctx, kubeClient, addr)
 				if err != nil {
 					return nil, fmt.Errorf("unable to get pod from IP %s: %w", addr.IP, err)
 				}
-				if err := kubeutil.WaitForPodContainerReady(ctx, t, restConfig, kubeClient, pod, container); err != nil {
+				if err := WaitForPodContainerReady(ctx, t, restConfig, kubeClient, pod, container); err != nil {
 					return nil, fmt.Errorf("failed waiting for pod from IP %s: %w", addr.IP, err)
 				}
 				resourceURL := restClient.

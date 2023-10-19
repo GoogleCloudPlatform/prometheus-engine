@@ -260,6 +260,9 @@ type SecretOrConfigMap struct {
 type PodMonitoringCRD interface {
 	client.Object
 
+	// GetKey returns a unique identifier for this CRD.
+	GetKey() string
+
 	// GetEndpoints returns the endpoints scraped by this CRD.
 	GetEndpoints() []ScrapeEndpoint
 
