@@ -34,6 +34,7 @@ func TestExport_CounterReset(t *testing.T) {
 		scrape(interval).
 			Expect(200, c, prom)
 		// Nothing is expected for GMP due to cannibalization.
+		// See https://cloud.google.com/stackdriver/docs/managed-prometheus/troubleshooting#counter-sums
 		// TODO(bwplotka): Fix with b/259261536.
 
 		c.Add(10)
@@ -41,50 +42,50 @@ func TestExport_CounterReset(t *testing.T) {
 			Expect(10, c, export).
 			Expect(210, c, prom)
 
-		c.Add(50)
+		c.Add(40)
 		scrape(interval).
-			Expect(60, c, export).
-			Expect(260, c, prom)
-
-		// Reset to 0, then add something that still should indicate "decreased counter"
-		// in absolute values, but our current cannibalization logic is wrong here.
-		// It's perhaps unusual that reset happens without scrape target restart
-		// so, it was easy to forget about this case.
-		counter.Reset()
-		c = counter.WithLabelValues("bar")
-		c.Add(250)
-		scrape(interval).
-			// TODO(bwplotka): Very odd, export logic is fine, added b/305901765
-			Expect(310, c, export).
+			Expect(50, c, export).
 			Expect(250, c, prom)
 
-		c.Add(50)
-		scrape(interval).
-			Expect(360, c, export).
-			Expect(300, c, prom)
-
-		// Reset to 0 again, our export does not detect it again.
+		// Reset to 0 (simulating instrumentation resetting metric or restarting target).
 		counter.Reset()
 		c = counter.WithLabelValues("bar")
-		c.Add(100)
 		scrape(interval).
-			// TODO(bwplotka): Very odd, export logic is fine, added b/305901765
-			Expect(460, c, export).
-			Expect(100, c, prom)
+			// NOTE(bwplotka): This and following discrepancies are expected due to
+			// GCM PromQL layer using MQL with delta alignment. What we get as a raw
+			// counter is already reset-normalized (b/305901765) (plus cannibalization).
+			Expect(50, c, export).
+			Expect(0, c, prom)
+
+		c.Add(150)
+		scrape(interval).
+			Expect(200, c, export).
+			Expect(150, c, prom)
+
+		// Reset to 0 with addition.
+		counter.Reset()
+		c = counter.WithLabelValues("bar")
+		c.Add(20)
+		scrape(interval).
+			Expect(220, c, export).
+			Expect(20, c, prom)
 
 		c.Add(50)
 		scrape(interval).
-			Expect(510, c, export).
-			Expect(150, c, prom)
+			Expect(270, c, export).
+			Expect(70, c, prom)
+
+		c.Add(10)
+		scrape(interval).
+			Expect(280, c, export).
+			Expect(80, c, prom)
 
 		// Tricky reset case, unnoticeable reset for Prometheus without created timestamp as well.
 		counter.Reset()
 		c = counter.WithLabelValues("bar")
 		c.Add(600)
 		scrape(interval).
-			// TODO(bwplotka): Even more odd, I would expect wrong 1110 value, not 960,
-			// part of b/305901765
-			Expect(960, c, export). // Also something is off, why 960, not 1110?
+			Expect(800, c, export).
 			Expect(600, c, prom)
 	})
 

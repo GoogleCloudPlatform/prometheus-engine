@@ -36,7 +36,7 @@ func Prometheus(image string) Backend {
 func (p *promBackend) Ref() string { return "prometheus" }
 
 // recordGatherer is a prometheus.Gatherer capable to "play" the recorded metric state
-// with fixed timestamp to the backfill data into Prometheus compatible system.
+// with fixed timestamps to backfill data into Prometheus compatible system.
 type recordGatherer struct {
 	i              int
 	plannedScrapes [][]*dto.MetricFamily
@@ -96,10 +96,6 @@ func (p *promBackend) start(t testing.TB, env e2e.Environment) (v1.API, map[stri
 }
 
 func newPrometheus(env e2e.Environment, name string, image string, scrapeTargetAddress string, flagOverride map[string]string) *e2emon.Prometheus {
-
-	if image == "" {
-		image = "quay.io/prometheus/prometheus:v2.47.2"
-	}
 	ports := map[string]int{"http": 9090}
 
 	f := env.Runnable(name).WithPorts(ports).Future()

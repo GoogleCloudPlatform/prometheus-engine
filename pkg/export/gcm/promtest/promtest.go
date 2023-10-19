@@ -79,10 +79,10 @@ func NewIngestionTest(t testing.TB, backends []Backend) *ingestionTest {
 
 	it := &ingestionTest{
 		t: t,
-		// Use ULID as a unique label per test run.
+
 		// NOTE(bwplotka): Cardinality is obvious, but even for 100 test runs a day with
 		// 100 cases, 10 samples each, that's "only" 10k series / 0.1 million samples a day.
-		testID: ulid.MustNew(ulid.Now(), rand.New(rand.NewSource(time.Now().UnixNano()))).String(),
+		testID: fmt.Sprintf("%v: %v", t.Name(), ulid.MustNew(ulid.Now(), rand.New(rand.NewSource(time.Now().UnixNano()))).String()),
 
 		// 1h in the past as Monarch allows 24h, but Prometheus allows 2h (plus some buffer).
 		// It should give buffer for a fair amount of samples from -1h to now.
@@ -174,7 +174,7 @@ func (ir *ingestionTestExpRecorder) Expect(val float64, metric prometheus.Metric
 	metric.Write(&m)
 	if m.GetSummary() != nil || m.GetHistogram() != nil {
 		// TODO(bwplotka): Implement an alternative.
-		ir.it.t.Fatal("It's not practical to use equalsGCMPromQuery against histograms and summaries.")
+		ir.it.t.Fatal("It's not practical to use Expect against histograms and summaries.")
 	}
 
 	modelMetric := toModelMetric(metric)
@@ -232,7 +232,7 @@ func (it *ingestionTest) FatalOnUnexpectedPromQLResults(b Backend, metric promet
 
 	if m.GetSummary() != nil || m.GetHistogram() != nil {
 		// TODO(bwplotka): Implement alternative.
-		it.t.Fatal("It's not practical to use equalsGCMPromQuery against histograms and summaries.")
+		it.t.Fatal("It's not practical to use FatalOnUnexpectedPromQLResults against histograms and summaries.")
 	}
 
 	bMeta, ok := it.backends[b.Ref()]

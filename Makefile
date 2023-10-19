@@ -131,7 +131,7 @@ endif
 GCM_SECRET?=''
 .PHONY: test-export-gcm
 test-export-gcm:  ## Run export unit tests that will use GCM if GCM_SECRET is present.
-                  ## TODO(bwplotka): Move to cloud build.
+                  ## TODO(b/306337101): Move to cloud build.
 ifneq ($(GCM_SECRET), '')
 	TEST_TAG=false go test -v ./pkg/export/gcm
 else
