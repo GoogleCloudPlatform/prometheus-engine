@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package e2e
+package operatorutil
 
 import (
 	"context"
@@ -118,6 +118,39 @@ func isPodMonitoringScrapeEndpointSuccess(status *monitoringv1.ScrapeEndpointSta
 	return errors.Join(errs...)
 }
 
+func isPodMonitoringScrapeEndpointFailure(status *monitoringv1.ScrapeEndpointStatus, expectedFn func(message string) error) error {
+	var errs []error
+	if status.UnhealthyTargets == 0 {
+		errs = append(errs, errors.New("expected no healthy targets"))
+	}
+	if status.CollectorsFraction == "0" {
+		errs = append(errs, fmt.Errorf("expected collectors fraction to be 0 but found: %s", status.CollectorsFraction))
+	}
+	if len(status.SampleGroups) == 0 {
+		errs = append(errs, errors.New("missing sample groups"))
+	}
+	for i, group := range status.SampleGroups {
+		if len(group.SampleTargets) == 0 {
+			errs = append(errs, fmt.Errorf("missing sample targets for group %d", i))
+		}
+		for _, target := range group.SampleTargets {
+			if target.Health == "up" {
+				errs = append(errs, fmt.Errorf("healthy target %q at group %d", target.Health, i))
+				break
+			}
+			if target.LastError == nil {
+				errs = append(errs, fmt.Errorf("missing error for target at group %d", i))
+				break
+			}
+			if err := expectedFn(*target.LastError); err != nil {
+				errs = append(errs, fmt.Errorf("for error message %q at group %d: got %w", *target.LastError, i, err))
+				break
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func IsPodMonitoringSuccess(pm monitoringv1.PodMonitoringCRD, targetStatusEnabled bool) error {
 	if err := IsPodMonitoringReady(pm, targetStatusEnabled); err != nil {
 		return err
@@ -132,4 +165,24 @@ func IsPodMonitoringSuccess(pm monitoringv1.PodMonitoringCRD, targetStatusEnable
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func IsPodMonitoringScrapeEndpointSuccess(pm monitoringv1.PodMonitoringCRD, name string) error {
+	endpointName := fmt.Sprintf("%s/%s", pm.GetKey(), name)
+	for _, status := range pm.GetStatus().EndpointStatuses {
+		if status.Name == endpointName {
+			return isPodMonitoringScrapeEndpointSuccess(&status)
+		}
+	}
+	return fmt.Errorf("unknown scrape endpoint %q", name)
+}
+
+func IsPodMonitoringScrapeEndpointFailure(pm monitoringv1.PodMonitoringCRD, name string, expectedFn func(message string) error) error {
+	endpointName := fmt.Sprintf("%s/%s", pm.GetKey(), name)
+	for _, status := range pm.GetStatus().EndpointStatuses {
+		if status.Name == endpointName {
+			return isPodMonitoringScrapeEndpointFailure(&status, expectedFn)
+		}
+	}
+	return fmt.Errorf("unknown scrape endpoint %q", name)
 }

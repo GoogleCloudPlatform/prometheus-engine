@@ -198,7 +198,7 @@ type OperatorContext struct {
 
 	namespace, pubNamespace string
 
-	kClient DelegatingClient
+	kClient kubeutil.DelegatingClient
 }
 
 func newOperatorContext(t *testing.T) *OperatorContext {
@@ -219,7 +219,7 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 		namespace:    namespace,
 		pubNamespace: pubNamespace,
 	}
-	tctx.kClient = NewLabelWriterClient(c, tctx.getSubTestLabels())
+	tctx.kClient = kubeutil.NewLabelWriterClient(c, tctx.getSubTestLabels())
 	t.Cleanup(func() {
 		if !leakResources {
 			if err := cleanupResourcesInNamespaces(ctx, kubeconfig, tctx.Client(), []string{namespace, pubNamespace}, tctx.getSubTestLabelValue()); err != nil {
@@ -236,7 +236,7 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 	var httpClient *http.Client
 	if portForward {
 		var err error
-		httpClient, err = PortForwardClient(t, kubeconfig, tctx.Client())
+		httpClient, err = kubeutil.PortForwardClient(t, kubeconfig, tctx.Client())
 		if err != nil {
 			t.Fatalf("creating HTTP client: %s", err)
 		}
@@ -476,7 +476,7 @@ func (tctx *OperatorContext) subtest(f func(context.Context, *OperatorContext)) 
 		ctx := context.TODO()
 		childCtx := *tctx
 		childCtx.T = t
-		childCtx.kClient = NewLabelWriterClient(tctx.kClient.Base(), childCtx.getSubTestLabels())
+		childCtx.kClient = kubeutil.NewLabelWriterClient(tctx.kClient.Base(), childCtx.getSubTestLabels())
 		t.Cleanup(func() {
 			if leakResources {
 				return

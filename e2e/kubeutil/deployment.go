@@ -22,11 +22,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"testing"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -74,4 +78,21 @@ func DeploymentContainer(deployment *appsv1.Deployment, name string) (*corev1.Co
 		}
 	}
 	return nil, fmt.Errorf("unable to find container %q", name)
+}
+
+func DeploymentPods(ctx context.Context, kubeClient client.Client, deployment *appsv1.Deployment) ([]corev1.Pod, error) {
+	return selectorPods(ctx, kubeClient, deployment.Spec.Selector)
+}
+
+func DeploymentDebug(t *testing.T, ctx context.Context, restConfig *rest.Config, kubeClient client.Client, namespace, name string) {
+	deployment := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+	}
+	containerDebug(t, ctx, restConfig, kubeClient, schema.GroupVersionKind{
+		Version: "v1",
+		Kind:    "Deployment",
+	}, &deployment, "deployment")
 }

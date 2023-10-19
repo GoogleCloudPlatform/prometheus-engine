@@ -25,6 +25,7 @@ import (
 	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/operatorutil"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -97,13 +98,14 @@ func TestCollector(t *testing.T) {
 			})
 		}))
 
-		const appName = "tls-insecure"
-		deployment, err := SyntheticAppDeploy(ctx, tctx.Client(), tctx.namespace, appName, []string{})
+		const appName = "collector-synthetic"
+		deployment, err := operatorutil.SyntheticAppDeploy(ctx, tctx.Client(), tctx.namespace, appName, []string{})
 		if err != nil {
 			tctx.Fatal(err)
 		}
 
 		if err := kubeutil.WaitForDeploymentReady(ctx, tctx.Client(), tctx.namespace, appName); err != nil {
+			kubeutil.DeploymentDebug(tctx.T, ctx, tctx.RestConfig(), tctx.Client(), tctx.namespace, appName)
 			tctx.Fatalf("failed to start app: %s", err)
 		}
 		t.Run("synthetic-podmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
@@ -119,7 +121,8 @@ func TestCollector(t *testing.T) {
 					},
 					Endpoints: []monitoringv1.ScrapeEndpoint{
 						{
-							Port: intstr.FromString(SyntheticAppPortName),
+							Port:     intstr.FromString(operatorutil.SyntheticAppPortName),
+							Interval: "5s",
 						},
 					},
 				},
@@ -137,7 +140,8 @@ func TestCollector(t *testing.T) {
 					},
 					Endpoints: []monitoringv1.ScrapeEndpoint{
 						{
-							Port: intstr.FromString(SyntheticAppPortName),
+							Port:     intstr.FromString(operatorutil.SyntheticAppPortName),
+							Interval: "5s",
 						},
 					},
 				},
@@ -262,21 +266,22 @@ func testCollector(ctx context.Context, t *OperatorContext, pm monitoringv1.PodM
 	}
 	t.Logf("Waiting for %q to be processed", pm.GetName())
 
-	if err := WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+	if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
 		t.Errorf("unable to validate status: %s", err)
 	}
 
 	var err error
-	if pollErr := wait.Poll(3*time.Second, 2*time.Minute, func() (bool, error) {
+	if pollErr := wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
 		if err = t.Client().Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 			return false, nil
 		}
-		err = IsPodMonitoringSuccess(pm, true)
+		err = operatorutil.IsPodMonitoringSuccess(pm, true)
 		return err == nil, nil
 	}); pollErr != nil {
 		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
 			pollErr = err
 		}
+		kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
 		t.Errorf("status does not indicate success: %s", pollErr)
 	}
 

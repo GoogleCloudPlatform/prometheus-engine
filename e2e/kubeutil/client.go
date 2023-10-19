@@ -16,7 +16,7 @@
 // To make tests simple and fast, the test suite runs the operator internally. The CRDs
 // are expected to be installed out of band (along with the operator deployment itself in
 // a real world setup).
-package e2e
+package kubeutil
 
 import (
 	"context"

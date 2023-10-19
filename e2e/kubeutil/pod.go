@@ -27,21 +27,13 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-func containerStateString(state *corev1.ContainerState) string {
-	if state.Waiting != nil {
-		return fmt.Sprintf("waiting due to %s", state.Waiting.Reason)
-	}
-	if state.Terminated != nil {
-		return fmt.Sprintf("terminated due to %s", state.Terminated.Reason)
-	}
-	return "running"
-}
 
 func IsPodContainerReady(ctx context.Context, restConfig *rest.Config, pod *corev1.Pod, container string) error {
 	for _, status := range pod.Status.ContainerStatuses {
@@ -137,4 +129,18 @@ func PodByAddr(ctx context.Context, kubeClient client.Client, addr *net.TCPAddr)
 	}
 	key := client.ObjectKeyFromObject(pod)
 	return nil, "", fmt.Errorf("unable to find port %d in pod %s", addr.Port, key)
+}
+
+func selectorPods(ctx context.Context, kubeClient client.Client, selector *metav1.LabelSelector) ([]corev1.Pod, error) {
+	var podList corev1.PodList
+	requirements, err := labels.ParseToRequirements(metav1.FormatLabelSelector(selector))
+	if err != nil {
+		return nil, err
+	}
+	if err := kubeClient.List(ctx, &podList, &client.MatchingLabelsSelector{
+		Selector: labels.NewSelector().Add(requirements...),
+	}); err != nil {
+		return nil, err
+	}
+	return podList.Items, nil
 }
