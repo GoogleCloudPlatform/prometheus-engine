@@ -103,11 +103,11 @@ func PortForwardClient(t *testing.T, restConfig *rest.Config, kubeClient client.
 					return nil, fmt.Errorf("unable to resolve TCP addr: %w", err)
 				}
 
-				pod, err := getPodByIP(ctx, kubeClient, addr.IP)
+				pod, container, err := PodByAddr(ctx, kubeClient, addr)
 				if err != nil {
 					return nil, fmt.Errorf("unable to get pod from IP %s: %w", addr.IP, err)
 				}
-				if err := waitUntilPodReady(ctx, t, restConfig, kubeClient, pod); err != nil {
+				if err := WaitForPodContainerReady(ctx, t, restConfig, kubeClient, pod, container); err != nil {
 					return nil, fmt.Errorf("failed waiting for pod from IP %s: %w", addr.IP, err)
 				}
 				resourceURL := restClient.
