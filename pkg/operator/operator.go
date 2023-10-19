@@ -68,8 +68,11 @@ const (
 	// Filename for configuration files.
 	configFilename = "config.yaml"
 
-	// LabelAppName is the  well-known app name label.
+	// LabelAppName is the well-known app name label.
 	LabelAppName = "app.kubernetes.io/name"
+	// LabelInstanceName is the well-known instance name label.
+	LabelInstanceName = "app.kubernetes.io/instance"
+
 	// AnnotationMetricName is the component name, will be exposed as metric name.
 	AnnotationMetricName = "components.gke.io/component-name"
 	// ClusterAutoscalerSafeEvictionLabel is the annotation label that determines

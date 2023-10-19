@@ -52,6 +52,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
@@ -423,11 +424,7 @@ func createCollectorResources(ctx context.Context, kubeClient client.Client, nam
 		return err
 	}
 
-	collectorBytes, err := os.ReadFile(collectorManifest)
-	if err != nil {
-		return fmt.Errorf("read collector YAML: %w", err)
-	}
-	obj, err := parseResourceYAML(collectorBytes)
+	obj, err := kubeutil.ResourceFromFile(kubeClient.Scheme(), collectorManifest)
 	if err != nil {
 		return fmt.Errorf("decode collector: %w", err)
 	}
@@ -454,12 +451,7 @@ func createCollectorResources(ctx context.Context, kubeClient client.Client, nam
 }
 
 func createAlertmanagerResources(ctx context.Context, kubeClient client.Client, namespace string) error {
-	evaluatorBytes, err := os.ReadFile(ruleEvalManifest)
-	if err != nil {
-		return fmt.Errorf("read rule-evaluator YAML: %w", err)
-	}
-
-	obj, err := parseResourceYAML(evaluatorBytes)
+	obj, err := kubeutil.ResourceFromFile(kubeClient.Scheme(), ruleEvalManifest)
 	if err != nil {
 		return fmt.Errorf("decode evaluator: %w", err)
 	}
@@ -470,20 +462,11 @@ func createAlertmanagerResources(ctx context.Context, kubeClient client.Client, 
 		return fmt.Errorf("create rule-evaluator Deployment: %w", err)
 	}
 
-	alertmanagerBytes, err := os.ReadFile(alertmanagerManifest)
+	objs, err := kubeutil.ResourcesFromFile(kubeClient.Scheme(), alertmanagerManifest)
 	if err != nil {
 		return fmt.Errorf("read alertmanager YAML: %w", err)
 	}
-	for i, doc := range strings.Split(string(alertmanagerBytes), "---") {
-		obj, err = parseResourceYAML([]byte(doc))
-		if err != nil {
-			return fmt.Errorf("deserializing alertmanager manifest: %w", err)
-		}
-		obj, ok := obj.(client.Object)
-		if !ok {
-			return fmt.Errorf("unknown object at index %d", i)
-		}
-
+	for i, obj := range objs {
 		obj.SetNamespace(namespace)
 
 		if err := kubeClient.Create(ctx, obj); err != nil {
