@@ -28,7 +28,7 @@ spec:
       labels:
         app: managed-prometheus-collector
         app.kubernetes.io/name: collector
-        app.kubernetes.io/version: 0.7.4
+        app.kubernetes.io/version: 0.8.0
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -53,7 +53,7 @@ spec:
           privileged: false
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.7.4-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.8.0-gke.4
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -88,7 +88,7 @@ spec:
             - all
           privileged: false
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.41.0-gmp.4-gke.1
+        image: gke.gcr.io/prometheus-engine/prometheus:v2.41.0-gmp.5-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage
