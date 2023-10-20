@@ -16,7 +16,7 @@
 // To make tests simple and fast, the test suite runs the operator internally. The CRDs
 // are expected to be installed out of band (along with the operator deployment itself in
 // a real world setup).
-package e2e
+package kubeutil
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func IsPodContainerReady(ctx context.Context, restConfig *rest.Config, pod *core
 	return fmt.Errorf("no container named %s found in pod %s", container, key)
 }
 
-func WaitForPodContainerReady(ctx context.Context, t *testing.T, restConfig *rest.Config, kubeClient client.Client, pod *corev1.Pod, container string) error {
+func WaitForPodContainerReady(ctx context.Context, t testing.TB, restConfig *rest.Config, kubeClient client.Client, pod *corev1.Pod, container string) error {
 	// Prevent doing an extra API lookup by checking first.
 	var err error
 	if err = IsPodContainerReady(ctx, restConfig, pod, container); err == nil {

@@ -24,6 +24,7 @@ import (
 
 	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -51,10 +52,18 @@ func TestCollector(t *testing.T) {
 	// more fine-grained stages makes debugging a lot easier.
 	t.Run("deployed", tctx.subtest(testCollectorDeployed))
 
-	t.Run("self-scrape", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+	t.Run("scrape", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
+			Features: monitoringv1.OperatorFeatures{
+				TargetStatus: monitoringv1.TargetStatusSpec{
+					Enabled: true,
+				},
+			},
+		})
+
 		t.Run("self-podmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
 			t.Parallel()
-			testCollectorSelf(ctx, t, &monitoringv1.PodMonitoring{
+			testCollector(ctx, t, &monitoringv1.PodMonitoring{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "collector-podmon",
 					Namespace: t.namespace,
@@ -72,7 +81,7 @@ func TestCollector(t *testing.T) {
 		}))
 		t.Run("self-clusterpodmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
 			t.Parallel()
-			testCollectorSelf(ctx, t, &monitoringv1.ClusterPodMonitoring{
+			testCollector(ctx, t, &monitoringv1.ClusterPodMonitoring{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "collector-cmon",
 				},
@@ -87,49 +96,50 @@ func TestCollector(t *testing.T) {
 				},
 			})
 		}))
-	}))
 
-	t.Run("target-status", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
-			Features: monitoringv1.OperatorFeatures{
-				TargetStatus: monitoringv1.TargetStatusSpec{
-					Enabled: true,
-				},
-			},
-		})
+		const appName = "tls-insecure"
+		deployment, err := SyntheticAppDeploy(ctx, tctx.Client(), tctx.namespace, appName, []string{})
+		if err != nil {
+			tctx.Fatal(err)
+		}
 
-		t.Run("podmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		if err := kubeutil.WaitForDeploymentReady(ctx, tctx.Client(), tctx.namespace, appName); err != nil {
+			tctx.Fatalf("failed to start app: %s", err)
+		}
+		t.Run("synthetic-podmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
 			t.Parallel()
-			testCollectorTargetStatus(ctx, t, &monitoringv1.PodMonitoring{
+			testCollector(ctx, t, &monitoringv1.PodMonitoring{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "collector-podmon-target-status",
+					Name:      "synthetic-podmon",
 					Namespace: t.namespace,
 				},
 				Spec: monitoringv1.PodMonitoringSpec{
 					Selector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							operator.LabelAppName: operator.NameCollector,
-							testLabel:             t.GetOperatorTestLabelValue(),
+						MatchLabels: deployment.Spec.Template.Labels,
+					},
+					Endpoints: []monitoringv1.ScrapeEndpoint{
+						{
+							Port: intstr.FromString(SyntheticAppPortName),
 						},
 					},
-					Endpoints: selfScrapeEndpointConfig(),
 				},
 			})
 		}))
-		t.Run("clusterpodmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Run("synthetic-clusterpodmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
 			t.Parallel()
-			testCollectorTargetStatus(ctx, t, &monitoringv1.ClusterPodMonitoring{
+			testCollector(ctx, t, &monitoringv1.ClusterPodMonitoring{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "collector-cmon-target-status",
+					Name: "synthetic-cmon",
 				},
 				Spec: monitoringv1.ClusterPodMonitoringSpec{
 					Selector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							operator.LabelAppName: operator.NameCollector,
-							testLabel:             t.GetOperatorTestLabelValue(),
+						MatchLabels: deployment.Spec.Template.Labels,
+					},
+					Endpoints: []monitoringv1.ScrapeEndpoint{
+						{
+							Port: intstr.FromString(SyntheticAppPortName),
 						},
 					},
-					Endpoints: selfScrapeEndpointConfig(),
 				},
 			})
 		}))
@@ -244,26 +254,8 @@ func selfScrapeEndpointConfig() []monitoringv1.ScrapeEndpoint {
 	}
 }
 
-// testCollectorSelf sets up pod monitoring of the collector itself  and waits for samples to become
-// available in Cloud Monitoring.
-func testCollectorSelf(ctx context.Context, t *OperatorContext, pm monitoringv1.PodMonitoringCRD) {
-	if err := t.Client().Create(ctx, pm); err != nil {
-		t.Fatalf("create collector: %s", err)
-	}
-	t.Logf("Waiting for %q to be processed", pm.GetName())
-
-	if err := WaitForPodMonitoringReady(ctx, t.Client(), pm, false); err != nil {
-		t.Errorf("unable to validate status: %s", err)
-	}
-
-	if !skipGCM {
-		t.Log("Waiting for up metrics for collector targets")
-		validateCollectorUpMetrics(ctx, t, pm.GetName())
-	}
-}
-
-// testCollectorTargetStatus sets up pod monitoring of the collector itself and checks its target status.
-func testCollectorTargetStatus(ctx context.Context, t *OperatorContext, pm monitoringv1.PodMonitoringCRD) {
+// testCollector sets up pod monitoring and waits for samples to become available in GCM.
+func testCollector(ctx context.Context, t *OperatorContext, pm monitoringv1.PodMonitoringCRD) {
 	if err := t.Client().Create(ctx, pm); err != nil {
 		t.Fatalf("create collector: %s", err)
 	}
@@ -285,6 +277,11 @@ func testCollectorTargetStatus(ctx context.Context, t *OperatorContext, pm monit
 			pollErr = err
 		}
 		t.Errorf("status does not indicate success: %s", pollErr)
+	}
+
+	if !skipGCM {
+		t.Log("Waiting for up metrics for collector targets")
+		validateCollectorUpMetrics(ctx, t, pm.GetName())
 	}
 }
 

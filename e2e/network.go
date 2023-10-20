@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
@@ -86,7 +87,7 @@ func writerFromFn(fn func(p []byte) (n int, err error)) io.Writer {
 }
 
 // PortForwardClient returns a client that ports-forward all Kubernetes-local HTTP requests to the host.
-func PortForwardClient(t *testing.T, restConfig *rest.Config, kubeClient client.Client) (*http.Client, error) {
+func PortForwardClient(t testing.TB, restConfig *rest.Config, kubeClient client.Client) (*http.Client, error) {
 	restClient, err := rest.RESTClientFor(restConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create REST client: %w", err)
@@ -103,11 +104,11 @@ func PortForwardClient(t *testing.T, restConfig *rest.Config, kubeClient client.
 					return nil, fmt.Errorf("unable to resolve TCP addr: %w", err)
 				}
 
-				pod, container, err := PodByAddr(ctx, kubeClient, addr)
+				pod, container, err := kubeutil.PodByAddr(ctx, kubeClient, addr)
 				if err != nil {
 					return nil, fmt.Errorf("unable to get pod from IP %s: %w", addr.IP, err)
 				}
-				if err := WaitForPodContainerReady(ctx, t, restConfig, kubeClient, pod, container); err != nil {
+				if err := kubeutil.WaitForPodContainerReady(ctx, t, restConfig, kubeClient, pod, container); err != nil {
 					return nil, fmt.Errorf("failed waiting for pod from IP %s: %w", addr.IP, err)
 				}
 				resourceURL := restClient.
