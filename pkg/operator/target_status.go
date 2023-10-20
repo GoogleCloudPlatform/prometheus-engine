@@ -326,7 +326,7 @@ func buildClusterPodMonitoringFromJob(job []string) (*monitoringv1.ClusterPodMon
 	return pm, nil
 }
 
-func buildPodMonitoring(job string) (monitoringv1.PodMonitoringStatusContainer, error) {
+func buildPodMonitoring(job string) (monitoringv1.PodMonitoringCRD, error) {
 	split := strings.Split(job, "/")
 	if pm, err := buildPodMonitoringFromJob(split); err == nil {
 		return pm, nil
@@ -369,13 +369,13 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 		if strings.HasPrefix(job, "kubelet") {
 			continue
 		}
-		podMonitoringStatusContainer, err := buildPodMonitoring(job)
+		pm, err := buildPodMonitoring(job)
 		if err != nil {
 			return fmt.Errorf("building podmonitoring: %s: %w", job, err)
 		}
-		podMonitoringStatusContainer.GetStatus().EndpointStatuses = endpointStatuses
+		pm.GetStatus().EndpointStatuses = endpointStatuses
 
-		if err := patchPodMonitoringStatus(ctx, kubeClient, podMonitoringStatusContainer, *podMonitoringStatusContainer.GetStatus()); err != nil {
+		if err := patchPodMonitoringStatus(ctx, kubeClient, pm, *pm.GetStatus()); err != nil {
 			// Save and log any error encountered while patching the status.
 			// We don't want to prematurely return if the error was transient
 			// as we should continue patching all statuses before exiting.

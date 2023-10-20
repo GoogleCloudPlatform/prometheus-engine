@@ -52,6 +52,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
@@ -243,7 +244,7 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 		cancel()
 	})
 
-	if err := createBaseResources(ctx, tctx.Client(), namespace, pubNamespace); err != nil {
+	if err := createBaseResources(ctx, tctx.Client(), namespace, pubNamespace, tctx.GetOperatorTestLabelValue()); err != nil {
 		t.Fatalf("create resources: %s", err)
 	}
 
@@ -320,10 +321,14 @@ func (tctx *OperatorContext) getSubTestLabels() map[string]string {
 	}
 }
 
+func (tctx *OperatorContext) GetOperatorTestLabelValue() string {
+	return strings.SplitN(tctx.T.Name(), "/", 2)[0]
+}
+
 // createBaseResources creates resources the operator requires to exist already.
 // These are resources which don't depend on runtime state and can thus be deployed
 // statically, allowing to run the operator without critical write permissions.
-func createBaseResources(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace string) error {
+func createBaseResources(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace, labelValue string) error {
 	if err := createNamespaces(ctx, kubeClient, opNamespace, publicNamespace); err != nil {
 		return err
 	}
@@ -331,7 +336,7 @@ func createBaseResources(ctx context.Context, kubeClient client.Client, opNamesp
 	if err := createGCPSecretResources(ctx, kubeClient, opNamespace); err != nil {
 		return err
 	}
-	if err := createCollectorResources(ctx, kubeClient, opNamespace); err != nil {
+	if err := createCollectorResources(ctx, kubeClient, opNamespace, labelValue); err != nil {
 		return err
 	}
 	if err := createAlertmanagerResources(ctx, kubeClient, opNamespace); err != nil {
@@ -385,7 +390,7 @@ func parseResourceYAML(b []byte) (runtime.Object, error) {
 	return obj, err
 }
 
-func createCollectorResources(ctx context.Context, kubeClient client.Client, namespace string) error {
+func createCollectorResources(ctx context.Context, kubeClient client.Client, namespace, labelValue string) error {
 	if err := kubeClient.Create(ctx, &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      operator.NameCollector,
@@ -419,16 +424,16 @@ func createCollectorResources(ctx context.Context, kubeClient client.Client, nam
 		return err
 	}
 
-	collectorBytes, err := os.ReadFile(collectorManifest)
-	if err != nil {
-		return fmt.Errorf("read collector YAML: %w", err)
-	}
-	obj, err := parseResourceYAML(collectorBytes)
+	obj, err := kubeutil.ResourceFromFile(kubeClient.Scheme(), collectorManifest)
 	if err != nil {
 		return fmt.Errorf("decode collector: %w", err)
 	}
 	collector := obj.(*appsv1.DaemonSet)
 	collector.Namespace = namespace
+	if collector.Spec.Template.Labels == nil {
+		collector.Spec.Template.Labels = map[string]string{}
+	}
+	collector.Spec.Template.Labels[testLabel] = labelValue
 	if skipGCM {
 		for i := range collector.Spec.Template.Spec.Containers {
 			container := &collector.Spec.Template.Spec.Containers[i]
@@ -446,12 +451,7 @@ func createCollectorResources(ctx context.Context, kubeClient client.Client, nam
 }
 
 func createAlertmanagerResources(ctx context.Context, kubeClient client.Client, namespace string) error {
-	evaluatorBytes, err := os.ReadFile(ruleEvalManifest)
-	if err != nil {
-		return fmt.Errorf("read rule-evaluator YAML: %w", err)
-	}
-
-	obj, err := parseResourceYAML(evaluatorBytes)
+	obj, err := kubeutil.ResourceFromFile(kubeClient.Scheme(), ruleEvalManifest)
 	if err != nil {
 		return fmt.Errorf("decode evaluator: %w", err)
 	}
@@ -462,20 +462,11 @@ func createAlertmanagerResources(ctx context.Context, kubeClient client.Client, 
 		return fmt.Errorf("create rule-evaluator Deployment: %w", err)
 	}
 
-	alertmanagerBytes, err := os.ReadFile(alertmanagerManifest)
+	objs, err := kubeutil.ResourcesFromFile(kubeClient.Scheme(), alertmanagerManifest)
 	if err != nil {
 		return fmt.Errorf("read alertmanager YAML: %w", err)
 	}
-	for i, doc := range strings.Split(string(alertmanagerBytes), "---") {
-		obj, err = parseResourceYAML([]byte(doc))
-		if err != nil {
-			return fmt.Errorf("deserializing alertmanager manifest: %w", err)
-		}
-		obj, ok := obj.(client.Object)
-		if !ok {
-			return fmt.Errorf("unknown object at index %d", i)
-		}
-
+	for i, obj := range objs {
 		obj.SetNamespace(namespace)
 
 		if err := kubeClient.Create(ctx, obj); err != nil {
@@ -484,6 +475,10 @@ func createAlertmanagerResources(ctx context.Context, kubeClient client.Client, 
 	}
 
 	return nil
+}
+
+func (tctx *OperatorContext) RestConfig() *rest.Config {
+	return kubeconfig
 }
 
 func (tctx *OperatorContext) Client() client.Client {
