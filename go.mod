@@ -16,14 +16,14 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/oklog/run v1.1.0
 	github.com/oklog/ulid v1.3.1
-	github.com/prometheus/client_golang v1.14.0
-	github.com/prometheus/client_model v0.3.0
-	github.com/prometheus/common v0.41.0
+	github.com/prometheus/client_golang v1.17.0
+	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16
+	github.com/prometheus/common v0.45.0
 	github.com/prometheus/common/assets v0.2.0
 	github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7
 	github.com/thanos-io/thanos v0.25.2
 	go.uber.org/zap v1.24.0
-	golang.org/x/oauth2 v0.10.0
+	golang.org/x/oauth2 v0.12.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.128.0
 	google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98
@@ -83,7 +83,7 @@ require (
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
+	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -94,7 +94,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/alertmanager v0.25.1 // indirect
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect
-	github.com/prometheus/procfs v0.8.0 // indirect
+	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.8.1 // indirect
 	go.mongodb.org/mongo-driver v1.11.0 // indirect
