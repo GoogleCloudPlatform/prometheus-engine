@@ -161,6 +161,9 @@ type ExporterOpts struct {
 	Compression string
 	// Credentials file for authentication with the GCM API.
 	CredentialsFile string
+	// CredentialsFromJSON represents content of credentials file for
+	// authentication with the GCM API. CredentialsFile has priority over this.
+	CredentialsFromJSON []byte
 	// Disable authentication (for debugging purposes).
 	DisableAuth bool
 	// A user agent product string added to the regular user agent.
@@ -283,7 +286,10 @@ func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.Metric
 	}
 	if opts.CredentialsFile != "" {
 		clientOpts = append(clientOpts, option.WithCredentialsFile(opts.CredentialsFile))
+	} else if len(opts.CredentialsFromJSON) > 0 {
+		clientOpts = append(clientOpts, option.WithCredentialsJSON(opts.CredentialsFromJSON))
 	}
+
 	if opts.TokenURL != "" && opts.TokenBody != "" {
 		tokenSource := NewAltTokenSource(opts.TokenURL, opts.TokenBody)
 		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))

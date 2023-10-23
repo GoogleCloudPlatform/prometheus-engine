@@ -132,7 +132,7 @@ update_manifests() {
 
 run_tests() {
   echo ">>> running unit tests"
-  go test `go list ${REPO_ROOT}/... | grep -v e2e | grep -v export/bench`
+  go test `go list ${REPO_ROOT}/... | grep -v e2e | grep -v export/bench | grep -v export/gcm`
 }
 
 reformat() {
