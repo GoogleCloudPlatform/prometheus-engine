@@ -19,6 +19,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 ## Table of Contents
 * [AlertingSpec](#alertingspec)
 * [AlertmanagerEndpoints](#alertmanagerendpoints)
+* [Auth](#auth)
 * [Authorization](#authorization)
 * [BasicAuth](#basicauth)
 * [ClusterPodMonitoring](#clusterpodmonitoring)
@@ -96,6 +97,19 @@ AlertmanagerEndpoints defines a selection of a single Endpoints object containin
 | authorization | Authorization section for this alertmanager endpoint | *[Authorization](#authorization) | false |
 | apiVersion | Version of the Alertmanager API that rule-evaluator uses to send alerts. It can be \"v1\" or \"v2\". | string | false |
 | timeout | Timeout is a per-target Alertmanager timeout when pushing alerts. | string | false |
+
+[Back to TOC](#table-of-contents)
+
+## Auth
+
+Auth sets the `Authorization` header on every scrape request.\n\nCurrently the credentials are not configurable and always empty.
+
+
+<em>appears in: [HTTPClientConfig](#httpclientconfig)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| type | The authentication type. Defaults to Bearer, Basic will cause an error. | string | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -273,6 +287,7 @@ HTTPClientConfig stores HTTP-client configurations.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
+| authorization | The HTTP authorization credentials for the targets. | *[Auth](#auth) | false |
 | basicAuth | The HTTP basic authentication credentials for the targets. | *[BasicAuth](#basicauth) | false |
 | tls | Configures the scrape request's TLS settings. | *[TLS](#tls) | false |
 | proxyUrl | HTTP proxy server to use to connect to the targets. Encoded passwords are not supported. | string | false |
@@ -645,6 +660,7 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 | interval | Interval at which to scrape metrics. Must be a valid Prometheus duration. | string | false |
 | timeout | Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval. | string | false |
 | metricRelabeling | Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general. | [][RelabelingRule](#relabelingrule) | false |
+| authorization | The HTTP authorization credentials for the targets. | *Auth | false |
 | basicAuth | The HTTP basic authentication credentials for the targets. | *BasicAuth | false |
 | tls | Configures the scrape request's TLS settings. | *TLS | false |
 

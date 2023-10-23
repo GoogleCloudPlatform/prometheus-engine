@@ -8,6 +8,12 @@ import (
 	"github.com/prometheus/common/config"
 )
 
+func (c *Auth) ToPrometheusConfig() *config.Authorization {
+	return &config.Authorization{
+		Type: c.Type,
+	}
+}
+
 func (c *BasicAuth) ToPrometheusConfig() *config.BasicAuth {
 	return &config.BasicAuth{
 		Username: c.Username,
@@ -64,6 +70,9 @@ func (c *HTTPClientConfig) ToPrometheusConfig() (config.HTTPClientConfig, error)
 	var errs []error
 	// Copy default config.
 	clientConfig := config.DefaultHTTPClientConfig
+	if c.Authorization != nil {
+		clientConfig.Authorization = c.Authorization.ToPrometheusConfig()
+	}
 	if c.BasicAuth != nil {
 		clientConfig.BasicAuth = c.BasicAuth.ToPrometheusConfig()
 	}

@@ -316,6 +316,39 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 					},
 				},
 			},
+		}, {
+			desc: "Authentication Basic Header",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					HTTPClientConfig: HTTPClientConfig{
+						Authorization: &Auth{
+							Type: "Basic",
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: "authorization type cannot be set to \"basic\", use \"basic_auth\" instead",
+		}, {
+			desc: "Basic Auth and Authorization Header",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					HTTPClientConfig: HTTPClientConfig{
+						Authorization: &Auth{
+							Type: "Bearer",
+						},
+						BasicAuth: &BasicAuth{
+							Username: "xyz",
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: "at most one of basic_auth, oauth2 & authorization must be configured",
 		},
 	}
 
