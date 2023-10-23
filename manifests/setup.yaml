@@ -90,6 +90,13 @@ spec:
                       - type: string
                       description: Name or number of the port to scrape. The container metadata label is only populated if the port is referenced by name because port numbers are not unique across containers.
                       x-kubernetes-int-or-string: true
+                    basicAuth:
+                      type: object
+                      description: The HTTP basic authentication credentials for the targets.
+                      properties:
+                        username:
+                          type: string
+                          description: The username for authentication.
                     interval:
                       type: string
                       default: 1m
@@ -943,6 +950,13 @@ spec:
                       - type: string
                       description: Name or number of the port to scrape. The container metadata label is only populated if the port is referenced by name because port numbers are not unique across containers.
                       x-kubernetes-int-or-string: true
+                    basicAuth:
+                      type: object
+                      description: The HTTP basic authentication credentials for the targets.
+                      properties:
+                        username:
+                          type: string
+                          description: The username for authentication.
                     interval:
                       type: string
                       default: 1m
@@ -1687,6 +1701,13 @@ spec:
                       - type: string
                       description: Name or number of the port to scrape. The container metadata label is only populated if the port is referenced by name because port numbers are not unique across containers.
                       x-kubernetes-int-or-string: true
+                    basicAuth:
+                      type: object
+                      description: The HTTP basic authentication credentials for the targets.
+                      properties:
+                        username:
+                          type: string
+                          description: The username for authentication.
                     interval:
                       type: string
                       default: 1m

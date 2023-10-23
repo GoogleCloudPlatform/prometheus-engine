@@ -8,6 +8,12 @@ import (
 	"github.com/prometheus/common/config"
 )
 
+func (c *BasicAuth) ToPrometheusConfig() *config.BasicAuth {
+	return &config.BasicAuth{
+		Username: c.Username,
+	}
+}
+
 func TLSVersionFromString(s string) (config.TLSVersion, error) {
 	if s == "" {
 		return 0, nil
@@ -58,6 +64,9 @@ func (c *HTTPClientConfig) ToPrometheusConfig() (config.HTTPClientConfig, error)
 	var errs []error
 	// Copy default config.
 	clientConfig := config.DefaultHTTPClientConfig
+	if c.BasicAuth != nil {
+		clientConfig.BasicAuth = c.BasicAuth.ToPrometheusConfig()
+	}
 	if c.TLS != nil {
 		tlsConfig, err := c.TLS.ToPrometheusConfig()
 		if err != nil {

@@ -20,6 +20,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [AlertingSpec](#alertingspec)
 * [AlertmanagerEndpoints](#alertmanagerendpoints)
 * [Authorization](#authorization)
+* [BasicAuth](#basicauth)
 * [ClusterPodMonitoring](#clusterpodmonitoring)
 * [ClusterPodMonitoringList](#clusterpodmonitoringlist)
 * [ClusterPodMonitoringSpec](#clusterpodmonitoringspec)
@@ -109,6 +110,19 @@ Authorization specifies a subset of the Authorization struct, that is safe for u
 | ----- | ----------- | ------ | -------- |
 | type | Set the authentication type. Defaults to Bearer, Basic will cause an error | string | false |
 | credentials | The secret's key that contains the credentials of the request | *corev1.SecretKeySelector | false |
+
+[Back to TOC](#table-of-contents)
+
+## BasicAuth
+
+BasicAuth sets the `Authorization` header on every scrape request with the configured username.\n\nCurrently the password is not configurable and always empty.
+
+
+<em>appears in: [HTTPClientConfig](#httpclientconfig)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| username | The username for authentication. | string | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -259,6 +273,7 @@ HTTPClientConfig stores HTTP-client configurations.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
+| basicAuth | The HTTP basic authentication credentials for the targets. | *[BasicAuth](#basicauth) | false |
 | tls | Configures the scrape request's TLS settings. | *[TLS](#tls) | false |
 | proxyUrl | HTTP proxy server to use to connect to the targets. Encoded passwords are not supported. | string | false |
 
@@ -630,6 +645,7 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 | interval | Interval at which to scrape metrics. Must be a valid Prometheus duration. | string | false |
 | timeout | Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval. | string | false |
 | metricRelabeling | Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general. | [][RelabelingRule](#relabelingrule) | false |
+| basicAuth | The HTTP basic authentication credentials for the targets. | *BasicAuth | false |
 | tls | Configures the scrape request's TLS settings. | *TLS | false |
 
 [Back to TOC](#table-of-contents)
