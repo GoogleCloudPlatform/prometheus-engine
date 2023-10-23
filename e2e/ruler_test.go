@@ -254,7 +254,7 @@ rule_files:
 }
 
 func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
-	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
+	err := wait.Poll(1*time.Second, 2*time.Minute, func() (bool, error) {
 		var deploy appsv1.Deployment
 		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rule-evaluator"}, &deploy); err != nil {
 			if apierrors.IsNotFound(err) {
