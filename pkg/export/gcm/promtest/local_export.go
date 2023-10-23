@@ -31,6 +31,15 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+const (
+	// TODO(bwplotka): Auto generate this based on env (locally run vs CI)
+	// if cardinality problems will occur.
+	gcmCluster   = "pe-github-action"
+	gcmLocation  = "europe-west3-a"
+	gcmUserAgent = "pe-github-action-test"
+	gcmEndpoint  = "monitoring.googleapis.com:443"
+)
+
 type localExportWithGCM struct {
 	gcmSA []byte
 
@@ -68,25 +77,22 @@ func (l *localExportWithGCM) start(t testing.TB, _ e2e.Environment) (v1.API, map
 
 	l.labelsByRef = map[storage.SeriesRef]labels.Labels{}
 
-	cluster := "pe-github-action"
-	location := "europe-west3-a"
-
 	cl, err := api.NewClient(api.Config{
 		Address: fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", creds.ProjectID),
 		Client:  oauth2.NewClient(ctx, creds.TokenSource),
 	})
 	if err != nil {
-		t.Fatalf("create Prometheus client: %s", err)
+		t.Fatalf("create Prometheus client against GCM: %s", err)
 	}
 
 	l.e, err = export.New(log.NewJSONLogger(os.Stderr), prometheus.NewRegistry(), export.ExporterOpts{
-		UserAgentEnv:     "pe-github-action-test",
-		Endpoint:         "monitoring.googleapis.com:443",
+		UserAgentEnv:     gcmUserAgent,
+		Endpoint:         gcmEndpoint,
 		Compression:      "none",
 		MetricTypePrefix: export.MetricTypePrefix,
 
-		Cluster:   cluster,
-		Location:  location,
+		Cluster:   gcmCluster,
+		Location:  gcmLocation,
 		ProjectID: creds.ProjectID,
 
 		CredentialsFromJSON: l.gcmSA,
@@ -95,8 +101,14 @@ func (l *localExportWithGCM) start(t testing.TB, _ e2e.Environment) (v1.API, map
 		t.Fatalf("create exporter: %v", err)
 	}
 
-	// Apply empty config, so resources labels are attached.
-	l.e.ApplyConfig(&config.DefaultConfig)
+	// Apply empty config with single external labels, so that label and
+	// resources labels are attached.
+	// "namespace" label is what separates backends here - reusing monitored service label
+	// for efficiency.
+	c := config.DefaultConfig
+	c.GlobalConfig.ExternalLabels = labels.FromStrings("namespace", "local-exporter")
+
+	l.e.ApplyConfig(&c)
 	l.e.SetLabelsByIDFunc(func(ref storage.SeriesRef) labels.Labels {
 		return l.labelsByRef[ref]
 	})
@@ -107,8 +119,9 @@ func (l *localExportWithGCM) start(t testing.TB, _ e2e.Environment) (v1.API, map
 	t.Cleanup(cancel)
 
 	return v1.NewAPI(cl), map[string]string{
-		"cluster":    cluster,
-		"location":   location,
+		"namespace":  "local-exporter",
+		"cluster":    gcmCluster,
+		"location":   gcmLocation,
 		"project_id": creds.ProjectID,
 	}
 }

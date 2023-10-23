@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -156,12 +157,19 @@ func (it *ingestionTest) RecordScrapes(recordingFunc func(r prometheus.Registere
 	})
 
 	// Once recorded, let's inject those to our backends.
-	// This might take a while.
-	// TODO(bwplotka): Potential for concurrency here.
+	// This might take a while due to 1-2s scrape limit frequency.
+	fmt.Printf("%s Injecting samples to backends\n", it.t.Name())
+	var wg sync.WaitGroup
 	for _, b := range it.backends {
-		fmt.Printf("%s Injecting samples to %v backend\n", it.t.Name(), b.b.Ref())
-		b.b.injectScrapes(it.t, scrapeRecordings, 2*time.Minute)
+		b := b
+		wg.Add(1)
+		go func() {
+			b.b.injectScrapes(it.t, scrapeRecordings, 2*time.Minute)
+			fmt.Printf("%s Injected samples to %v backend\n", it.t.Name(), b.b.Ref())
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 }
 
 type ingestionTestExpRecorder struct {
@@ -247,6 +255,11 @@ func (it *ingestionTest) FatalOnUnexpectedPromQLResults(b Backend, metric promet
 	}
 
 	modelMetric["test"] = model.LabelValue(it.testID)
+	if c, ok := bMeta.extLset["namespace"]; ok {
+		// If backend propagates "namespace", query for it, so we don't see other backends test metrics in the same GCM project.
+		modelMetric["namespace"] = model.LabelValue(c)
+	}
+
 	query := fmt.Sprintf(`%s[10h]`, modelMetric.String())
 
 	fmt.Printf("%s Checking if PromQL instant query for %v matches expected samples for %v backend\n", it.t.Name(), query, b.Ref())
@@ -259,14 +272,14 @@ func (it *ingestionTest) FatalOnUnexpectedPromQLResults(b Backend, metric promet
 	if err := runutil.RetryWithLog(log.NewJSONLogger(os.Stderr), 10*time.Second, ctx.Done(), func() error {
 		value, warns, err := bMeta.api.Query(ctx, query, it.currTime.Add(1*time.Second))
 		if err != nil {
-			return fmt.Errorf("instant query %s for %v %w", query, it.currTime.Add(1*time.Second), err)
+			return fmt.Errorf("%v: instant query %s for %v %w", b.Ref(), query, it.currTime.Add(1*time.Second), err)
 		}
 		if len(warns) > 0 {
-			fmt.Println(it.t.Name(), "Warnings:", warns)
+			fmt.Println(b.Ref(), "Warnings:", warns)
 		}
 
 		if value.Type() != model.ValMatrix {
-			return fmt.Errorf("expected matrix, got %v", value.Type())
+			return fmt.Errorf("%v: expected matrix, got %v", b.Ref(), value.Type())
 		}
 
 		if cmp.Equal(exp, value.(model.Matrix)) {
@@ -278,7 +291,7 @@ func (it *ingestionTest) FatalOnUnexpectedPromQLResults(b Backend, metric promet
 			if sameDiffTimes > 3 {
 				// Likely nothing will change, abort.
 				fmt.Println(it.t.Name(), lastDiff)
-				it.t.Error(errors.New("resulted Matrix is different than expected (see printed diff)"))
+				it.t.Error(fmt.Errorf("%v: resulted Matrix is different than expected (see printed diff)", b.Ref()))
 				return nil
 			}
 			sameDiffTimes++
@@ -287,7 +300,7 @@ func (it *ingestionTest) FatalOnUnexpectedPromQLResults(b Backend, metric promet
 			sameDiffTimes = 0
 		}
 
-		return errors.New("resulted Matrix is different than expected (diff, if any, will be printed at the end)")
+		return fmt.Errorf("%v: resulted Matrix is different than expected (diff, if any, will be printed at the end)", b.Ref())
 	}); err != nil {
 		if lastDiff != "" {
 			fmt.Println(it.t.Name(), lastDiff)

@@ -29,6 +29,9 @@ type promBackend struct {
 	p *e2emon.Prometheus
 }
 
+// Prometheus returns a backend that scrapes test samples
+// with speed of 0.5 sample per second, allows 2h data backfill and local
+// Prometheus API.
 func Prometheus(image string) Backend {
 	return &promBackend{image: image}
 }
@@ -92,6 +95,8 @@ func (p *promBackend) start(t testing.TB, env e2e.Environment) (v1.API, map[stri
 		t.Fatalf("create Prometheus client: %s", err)
 	}
 
+	// No namespace external label as we don't ship to GCM so no need
+	// to uniquely address metrics.
 	return v1.NewAPI(cl), map[string]string{"job": "test"}
 }
 
@@ -102,11 +107,11 @@ func newPrometheus(env e2e.Environment, name string, image string, scrapeTargetA
 	config := fmt.Sprintf(`
 global:
   external_labels:
-    collector: %v
+    namespace: %v
 scrape_configs:
 - job_name: 'test'
-  scrape_interval: 5s
-  scrape_timeout: 5s
+  scrape_interval: 2s
+  scrape_timeout: 2s
   static_configs:
   - targets: [%s]
   metric_relabel_configs:
@@ -166,7 +171,7 @@ func (p *promBackend) injectScrapes(t testing.TB, scrapeRecordings [][]*dto.Metr
 		p.g.mu.Unlock()
 
 		if iter < len(p.g.plannedScrapes) {
-			return fmt.Errorf("backend didn't scrape the target enough number of times, got %v, expected %v", iter, len(p.g.plannedScrapes))
+			return fmt.Errorf("backend %v didn't scrape the target enough number of times, got %v, expected %v", p.Ref(), iter, len(p.g.plannedScrapes))
 		}
 		return nil
 	}); err != nil {
