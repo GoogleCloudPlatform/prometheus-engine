@@ -82,6 +82,11 @@ rules:
   resourceNames: ["collection", "rules", "alertmanager"]
   verbs: ["get", "patch", "update"]
 - resources:
+  - secrets
+  apiGroups: [""]
+  resourceNames: ["webhook-tls"]
+  verbs: ["create"]
+- resources:
   - configmaps
   apiGroups: [""]
   verbs: ["list", "watch", "create"]

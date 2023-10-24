@@ -23,7 +23,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -506,15 +505,19 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 	} else {
 		return nil, errors.New("flags key-base64 and cert-base64 must both be set")
 	}
-	// Create cert/key files.
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return nil, fmt.Errorf("create cert directory: %w", err)
+	// Create cert/key secret.
+	secret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "webhook-tls",
+			Namespace: o.opts.OperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"tls.crt": crt,
+			"tls.key": key,
+		},
 	}
-	if err := os.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
-		return nil, fmt.Errorf("create cert file: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "tls.key"), key, 0666); err != nil {
-		return nil, fmt.Errorf("create key file: %w", err)
+	if err := o.client.Create(ctx, &secret); err != nil {
+		return nil, fmt.Errorf("create tls secret: %w", err)
 	}
 	return caData, nil
 }
