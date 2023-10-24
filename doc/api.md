@@ -297,7 +297,7 @@ ManagedAlertmanagerSpec holds configuration information for the managed Alertman
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | configSecret | ConfigSecret refers to the name of a single-key Secret in the public namespace that holds the managed Alertmanager config file. | *corev1.SecretKeySelector | false |
-| externalURL | ExternalURL is the external URL the managed Alertmanager will be available under. This is used for generating links back to the Alertmanager itself in fired alerts. | string | false |
+| externalURL | ExternalURL is the URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically. | string | false |
 
 [Back to TOC](#table-of-contents)
 

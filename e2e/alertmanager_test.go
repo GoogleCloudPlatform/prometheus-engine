@@ -118,7 +118,7 @@ func testAlertmanager(ctx context.Context, t *OperatorContext, spec *monitoringv
 	}))
 }
 
-func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, spec *monitoringv1.ManagedAlertmanagerSpec) {
+func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, config *monitoringv1.ManagedAlertmanagerSpec) {
 	err := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
 		var ss appsv1.StatefulSet
 		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameAlertmanager}, &ss); err != nil {
@@ -137,10 +137,12 @@ func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, spec *mon
 			return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
 		}
 
-		// If spec is empty, no need to assert EXTRA_ARGS.
-		if spec == nil {
+		// If config spec is empty, no need to assert EXTRA_ARGS.
+		if config == nil {
 			return true, nil
 		}
+
+		// TODO(pintohutch): clean-up wantArgs init logic.
 		var wantArgs []string
 		for _, c := range ss.Spec.Template.Spec.Containers {
 			if c.Name != "alertmanager" {
@@ -148,8 +150,8 @@ func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, spec *mon
 			}
 			// We're mainly interested in the dynamic flags but checking the entire set including
 			// the static ones is ultimately simpler.
-			if externalURL := spec.ExternalURL; externalURL != "" {
-				wantArgs = append(wantArgs, fmt.Sprintf("--web.external-url=%q", spec.ExternalURL))
+			if externalURL := config.ExternalURL; externalURL != "" {
+				wantArgs = append(wantArgs, fmt.Sprintf("--web.external-url=%q", config.ExternalURL))
 			}
 
 			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
