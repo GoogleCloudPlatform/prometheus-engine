@@ -68,7 +68,7 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 		t.Fatalf("failed to start app: %s", err)
 	}
 
-	t.Run("podmonitoring-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
+	t.Run("podmon-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
 
 		pm := &monitoringv1.PodMonitoring{
@@ -98,7 +98,7 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 		}
 	}))
 
-	t.Run("clusterpodmonitoring-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
+	t.Run("clusterpodmon-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
 
 		pm := &monitoringv1.ClusterPodMonitoring{
@@ -136,7 +136,7 @@ func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args
 	defaultEndpoint(&endpointAuth)
 	deployment := setupAuthTestMissingAuth(ctx, t, appName, args, podMonitoringNamePrefix, endpointNoAuth, expectedFn)
 
-	t.Run("podmonitoring-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
+	t.Run("podmon-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
 
 		pm := &monitoringv1.PodMonitoring{
@@ -166,7 +166,7 @@ func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args
 		}
 	}))
 
-	t.Run("clusterpodmonitoring-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
+	t.Run("clusterpodmon-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
 
 		pm := &monitoringv1.ClusterPodMonitoring{
@@ -272,5 +272,28 @@ func TestBasicAuth(t *testing.T) {
 			fmt.Sprintf("--basic-auth-username=%s", appUsername),
 			fmt.Sprintf("--basic-auth-password=%s", appPassword),
 		}, "mon-basic-auth-full", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
+	}))
+}
+
+func TestAuthorization(t *testing.T) {
+	t.Parallel()
+	tctx := newOperatorContext(t)
+	ctx := context.Background()
+
+	tctx.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
+		Features: monitoringv1.OperatorFeatures{
+			TargetStatus: monitoringv1.TargetStatusSpec{
+				Enabled: true,
+			},
+		},
+	})
+
+	t.Run("no-credentials", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Parallel()
+		const appName = "auth-no-credentials"
+		// TODO(TheSpiritXIII): Add authorization with bearer but no credentials.
+		setupAuthTestMissingAuth(ctx, t, appName, []string{
+			"--auth-scheme=Bearer",
+		}, "mon-auth-no-credentials", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
 	}))
 }
