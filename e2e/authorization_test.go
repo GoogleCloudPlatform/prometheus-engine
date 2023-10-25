@@ -290,10 +290,30 @@ func TestAuthorization(t *testing.T) {
 	t.Run("no-credentials", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
 		const appName = "auth-no-credentials"
-		// TODO(TheSpiritXIII): Add authorization with bearer but no credentials.
+		setupAuthTest(ctx, t, appName, []string{
+			"--auth-scheme=Bearer",
+		}, "mon-auth-no-credentials", monitoringv1.ScrapeEndpoint{},
+			monitoringv1.ScrapeEndpoint{
+				HTTPClientConfig: monitoringv1.HTTPClientConfig{
+					Authorization: &monitoringv1.Auth{
+						Type: "Bearer",
+					},
+				},
+			}, isPodMonitoringTargetUnauthorizedError)
+	}))
+
+	t.Run("credentials", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Parallel()
+		const appName = "auth-credentials"
+		const appCredentials = "gmp-token-abc123"
 		setupAuthTestMissingAuth(ctx, t, appName, []string{
 			"--auth-scheme=Bearer",
-		}, "mon-auth-no-credentials", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
+			fmt.Sprintf("--auth-parameters=%s", appCredentials),
+		}, "mon-auth-credentials", monitoringv1.ScrapeEndpoint{
+			HTTPClientConfig: monitoringv1.HTTPClientConfig{
+				Authorization: &monitoringv1.Auth{},
+			},
+		}, isPodMonitoringTargetUnauthorizedError)
 	}))
 }
 
