@@ -604,7 +604,7 @@ spec:
             - all
           privileged: false
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.41.0-gmp.7-gke.0
+        image: gke.gcr.io/prometheus-engine/prometheus:v2.41.0-gmp.9-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage

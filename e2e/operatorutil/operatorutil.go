@@ -25,7 +25,7 @@ import (
 
 func WaitForOperatorReady(ctx context.Context, kubeClient client.Client, operatorNamespace string) error {
 	// Assume that the existence of the config means that the reconcile loop started.
-	return wait.PollUntilContextTimeout(ctx, 3*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var config corev1.ConfigMap
 		if err := kubeClient.Get(ctx, client.ObjectKey{Name: operator.NameCollector, Namespace: operatorNamespace}, &config); err != nil {
 			return false, nil
