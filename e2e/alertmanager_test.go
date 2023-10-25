@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,6 +75,7 @@ route:
 				},
 				Key: "my-secret-key",
 			},
+			ExternalURL: "https://alertmanager.mycompany.com/",
 		},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -108,7 +110,7 @@ func testAlertmanager(ctx context.Context, t *OperatorContext, spec *monitoringv
 	})
 	t.Run("deployed", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
-		testAlertmanagerDeployed(ctx, t)
+		testAlertmanagerDeployed(ctx, t, spec)
 	}))
 	t.Run("config set", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
@@ -116,7 +118,7 @@ func testAlertmanager(ctx context.Context, t *OperatorContext, spec *monitoringv
 	}))
 }
 
-func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext) {
+func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, config *monitoringv1.ManagedAlertmanagerSpec) {
 	err := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
 		var ss appsv1.StatefulSet
 		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameAlertmanager}, &ss); err != nil {
@@ -133,6 +135,29 @@ func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext) {
 		}
 		if diff := cmp.Diff(wantedAnnotations, ss.Spec.Template.Annotations); diff != "" {
 			return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
+		}
+
+		// If config spec is empty, no need to assert EXTRA_ARGS.
+		if config == nil {
+			return true, nil
+		}
+
+		// TODO(pintohutch): clean-up wantArgs init logic.
+		var wantArgs []string
+		for _, c := range ss.Spec.Template.Spec.Containers {
+			if c.Name != "alertmanager" {
+				continue
+			}
+			// We're mainly interested in the dynamic flags but checking the entire set including
+			// the static ones is ultimately simpler.
+			if externalURL := config.ExternalURL; externalURL != "" {
+				wantArgs = append(wantArgs, fmt.Sprintf("--web.external-url=%q", config.ExternalURL))
+			}
+
+			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
+				return false, fmt.Errorf("unexpected flags (-want, +got): %s", diff)
+			}
+			return true, nil
 		}
 
 		return true, nil

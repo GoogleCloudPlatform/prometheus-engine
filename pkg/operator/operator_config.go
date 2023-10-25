@@ -220,8 +220,13 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 		return reconcile.Result{}, fmt.Errorf("ensure rule-evaluator config: %w", err)
 	}
 
+	// Ensure the alertmanager configuration is pulled from the spec.
 	if err := r.ensureAlertmanagerConfigSecret(ctx, config.ManagedAlertmanager); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure alertmanager config secret: %w", err)
+	}
+
+	if err := r.ensureAlertmanagerStatefulSet(ctx, config.ManagedAlertmanager); err != nil {
+		return reconcile.Result{}, fmt.Errorf("ensure alertmanager statefulset: %w", err)
 	}
 
 	// Mirror the fetched secret data to where the rule-evaluator can
@@ -381,6 +386,54 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 	}
 
 	return nil
+}
+
+// ensureAlertmanagerStatefulSet configures the managed Alertmanager instance
+// to reflect the provided spec.
+func (r *operatorConfigReconciler) ensureAlertmanagerStatefulSet(ctx context.Context, spec *monitoringv1.ManagedAlertmanagerSpec) error {
+	if spec == nil {
+		return nil
+	}
+
+	logger, _ := logr.FromContext(ctx)
+
+	var sset appsv1.StatefulSet
+	err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: NameAlertmanager}, &sset)
+	// Some users deliberately not want to run the alertmanager.
+	// Only emit a warning but don't cause retries
+	// as this logic gets re-triggered anyway if the StatefulSet is created later.
+	if apierrors.IsNotFound(err) {
+		logger.Error(err, "Alertmanager StatefulSet does not exist")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	var flags []string
+	if externalURL := spec.ExternalURL; externalURL != "" {
+		flags = append(flags, fmt.Sprintf("--web.external-url=%q", externalURL))
+	}
+
+	// Set EXTRA_ARGS envvar in alertmanager container.
+	for i, c := range sset.Spec.Template.Spec.Containers {
+		if c.Name != "alertmanager" {
+			continue
+		}
+		var repl []corev1.EnvVar
+
+		for _, ev := range c.Env {
+			if ev.Name != "EXTRA_ARGS" {
+				repl = append(repl, ev)
+			}
+		}
+		repl = append(repl, corev1.EnvVar{Name: "EXTRA_ARGS", Value: strings.Join(flags, " ")})
+
+		sset.Spec.Template.Spec.Containers[i].Env = repl
+	}
+
+	// Upsert alertmanager StatefulSet.
+	return r.client.Update(ctx, &sset)
 }
 
 // ensureRuleEvaluatorDeployment reconciles the Deployment for rule-evaluator.

@@ -209,6 +209,7 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 			return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
 		}
 
+		// TODO(pintohutch): clean-up wantArgs init logic.
 		for _, c := range ds.Spec.Template.Spec.Containers {
 			if c.Name != operator.CollectorPrometheusContainerName {
 				continue
