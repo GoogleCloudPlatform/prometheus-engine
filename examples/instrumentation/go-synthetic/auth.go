@@ -233,7 +233,7 @@ func authorizationHandler(handler http.Handler, scheme, parameters string) http.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		expected := scheme + " " + parameters
-		if auth == expected {
+		if strings.TrimSpace(auth) == strings.TrimSpace(expected) {
 			handler.ServeHTTP(w, r)
 			return
 		}
