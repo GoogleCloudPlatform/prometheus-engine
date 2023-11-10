@@ -167,19 +167,13 @@ Adapter, do the following:
 For more information, see the [Prometheus example](https://github.com/GoogleCloudPlatform/k8s-stackdriver/tree/8d1799d8dc0069f573515ea6a241a3b6ed6fb3d2/custom-metrics-stackdriver-adapter/examples/prometheus-to-sd) in the Custom Metrics Stackdriver Adapter repository, or see [Scaling an application](https://cloud.google.com/kubernetes-engine/docs/how-to/scaling-apps).
 
 # prometheus-adapter example instructions
-1. Setup managed-collection on cluster.
+1. Set up Managed Service for Prometheus in your cluster.
 1. Deploy the [frontend](../frontend.yaml).
-1. Install prometheus-adapter on cluster using instructions from
-   the deployment [README](https://github.com/kubernetes-sigs/prometheus-adapter/blob/7bdb7f14b922298df2de392d5450205467b32404/deploy/README.md).
+1. Install [prometheus-adapter](prometheus-adapter.yaml).
 1. Deploy the manifests in this directory, which include:
-    * `prometheus-example-app` deployment and service to emit metrics.
-    * PodMonitoring to scrape `prometheus-example-app`.
-    * HorizonalPodAutoscaler to scale workload.
-    * Overwrite for `adapter-config` ConfigMap to expose `http_requests_per_second` to the custom metrics API.
-1. Edit the `custom-metrics-apiserver` Deployment to change the Prometheus URL arg to:
-    ```
-    - --prometheus-url=http://frontend.default.svc:9090/
-    ```
+    * The [example application](example-app.yaml) deployment and service to emit metrics.
+    * The [`PodMonitoring`](pod-monitoring.yaml) to scrape the example app.
+    * The [`HorizonalPodAutoscaler`](hpa.yaml) to scale workload.
 1. In separate terminal sessions:
     * Generate http load against `prometheus-example-app` service:
     ```
