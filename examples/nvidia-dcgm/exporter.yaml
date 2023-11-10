@@ -63,17 +63,17 @@ metadata:
   name: nvidia-dcgm-exporter
   namespace: gmp-public
   labels:
-    app: nvidia-dcgm-exporter
+    app.kubernetes.io/name: nvidia-dcgm-exporter
 spec:
   selector:
     matchLabels:
-      app: nvidia-dcgm-exporter
+      app.kubernetes.io/name: nvidia-dcgm-exporter
   updateStrategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        app: nvidia-dcgm-exporter
+        app.kubernetes.io/name: nvidia-dcgm-exporter
     spec:
       affinity:
         nodeAffinity:
