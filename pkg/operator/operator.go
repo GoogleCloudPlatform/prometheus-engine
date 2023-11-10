@@ -32,6 +32,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -312,31 +313,12 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 		return err
 	}
 
-	// Keep setting the caBundle in the expected webhook configurations.
-	go func() {
-		// Only inject if we've an explicit CA bundle ourselves. Otherwise the webhook configs
-		// may already have been created with one.
-		if len(caBundle) == 0 {
-			return
-		}
-		// Initial sleep for the client to initialize before our first calls.
-		// Ideally we could explicitly wait for it.
-		time.Sleep(5 * time.Second)
-
-		for {
-			if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil {
-				o.logger.Error(err, "Setting CA bundle for ValidatingWebhookConfiguration failed")
-			}
-			if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
-				o.logger.Error(err, "Setting CA bundle for MutatingWebhookConfiguration failed")
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Minute):
-			}
-		}
-	}()
+	if updateAllowed, err := o.canUpdateWebhooks(ctx); err != nil {
+		return err
+	} else if updateAllowed {
+		// Keep setting the caBundle in the expected webhook configurations.
+		go o.continuouslySetCABundle(ctx, caBundle)
+	}
 
 	s := o.manager.GetWebhookServer()
 
@@ -605,4 +587,64 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
 	}
 	return o.client.Update(ctx, &mwc)
+}
+
+func (o *Operator) canUpdateWebhooks(ctx context.Context) (bool, error) {
+	return o.canI(ctx,
+		authv1.ResourceAttributes{
+			Group:     arv1.GroupName,
+			Resource:  "MutatingWebhookConfiguration",
+			Namespace: o.opts.OperatorNamespace,
+			Verb:      "update",
+		},
+		authv1.ResourceAttributes{
+			Group:     arv1.GroupName,
+			Resource:  "ValidatingWebhookConfiguration",
+			Namespace: o.opts.OperatorNamespace,
+			Verb:      "update",
+		},
+	)
+}
+
+func (o *Operator) canI(ctx context.Context, resources ...authv1.ResourceAttributes) (bool, error) {
+	for _, resource := range resources {
+		req := authv1.SelfSubjectAccessReview{
+			Spec: authv1.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &resource,
+			},
+		}
+		if err := o.client.Create(ctx, &req); err != nil {
+			return false, fmt.Errorf("check permissions to %q %q: %w", resource.Verb, resource.Name, err)
+		}
+		if !req.Status.Allowed {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (o *Operator) continuouslySetCABundle(ctx context.Context, caBundle []byte) {
+	// Only inject if we've an explicit CA bundle ourselves. Otherwise the webhook configs
+	// may already have been created with one.
+	if len(caBundle) == 0 {
+		return
+	}
+	// Initial sleep for the client to initialize before our first calls.
+	// Ideally we could explicitly wait for it.
+	time.Sleep(5 * time.Second)
+
+	for {
+		if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil {
+			o.logger.Error(err, "Setting CA bundle for ValidatingWebhookConfiguration failed")
+		}
+		if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
+			o.logger.Error(err, "Setting CA bundle for MutatingWebhookConfiguration failed")
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Minute):
+		}
+	}
+
 }
