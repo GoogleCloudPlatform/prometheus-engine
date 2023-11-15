@@ -63,34 +63,12 @@ spec:
           requests:
             cpu: 1m
             memory: 16M
-        volumeMounts:
-        - name: tls
-          readOnly: true
-          mountPath: "/etc/tls/private"
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
             - all
           privileged: false
-      volumes:
-      - name: tls
-        projected:
-          sources:
-          - secret:
-              name: webhook-tls
-              items:
-              - key: tls.crt
-                path: tls.crt
-              - key: tls.key
-                path: tls.key
-              optional: true
-          - configMap:
-              name: webhook-ca
-              items:
-              - key: ca.crt
-                path: ca.crt
-              optional: true
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
