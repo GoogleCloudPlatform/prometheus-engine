@@ -172,11 +172,11 @@ For more information, see the [Prometheus example](https://github.com/GoogleClou
 1. Install [prometheus-adapter](prometheus-adapter.yaml).
     * This assumes the frontend service is deployed in the default namespace.
     * This assumes prometheus-adapter should live in the `monitoring` namespace.
-2. Deploy the manifests in this directory, which include:
+1. Deploy the manifests in this directory, which include:
     * The [example application](example-app.yaml) deployment and service to emit metrics.
     * The [`PodMonitoring`](pod-monitoring.yaml) to scrape the example app.
     * The [`HorizonalPodAutoscaler`](hpa.yaml) to scale workload.
-3. In separate terminal sessions:
+1. In separate terminal sessions:
     * Generate http load against `prometheus-example-app` service:
     ```
     kubectl run -i --tty load-generator --rm --image=busybox:1.28 --restart=Never -- /bin/sh -c "while sleep 0.01; do wget -q -O- http://prometheus-example-app; done"
@@ -190,4 +190,4 @@ For more information, see the [Prometheus example](https://github.com/GoogleClou
     kubectl get po -lapp.kubernetes.io/name=prometheus-example-app --watch
     ```
 
-4. Stop http load generation via Ctrl+C and watch workload scale back down.
+1. Stop http load generation via Ctrl+C and watch workload scale back down.
