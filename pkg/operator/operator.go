@@ -1,10 +1,10 @@
-// Copyright 2022 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     https://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,13 +17,13 @@ package operator
 
 import (
 	"context"
-	"encoding/base64"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -40,7 +40,6 @@ import (
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -53,6 +52,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/certupdater"
 )
 
 const (
@@ -98,6 +98,7 @@ type Operator struct {
 	logger  logr.Logger
 	opts    Options
 	client  client.Client
+	getCA   func() (*x509.Certificate, error)
 	manager manager.Manager
 }
 
@@ -120,6 +121,8 @@ type Options struct {
 	TLSKey string
 	// Certificate authority in base 64.
 	CACert string
+	// CertDir is the path to a directory containing TLS certificates for the webhook server
+	CertDir string
 	// Webhook serving address.
 	ListenAddr string
 	// Cleanup resources without this annotation.
@@ -129,6 +132,12 @@ type Options struct {
 	TargetPollConcurrency uint16
 	// The HTTP client to use when targeting collector endpoints.
 	CollectorHTTPClient *http.Client
+}
+
+type getCertificateMethod interface {
+	GetCA() (*x509.Certificate, error)
+	GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error)
+	Start(context.Context) error
 }
 
 func (o *Options) defaultAndValidate(_ logr.Logger) error {
@@ -181,11 +190,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	if err := opts.defaultAndValidate(logger); err != nil {
 		return nil, fmt.Errorf("invalid options: %w", err)
 	}
-	// Create temporary directory to store webhook serving cert files.
-	certDir, err := os.MkdirTemp("", "operator-cert")
-	if err != nil {
-		return nil, fmt.Errorf("create temporary certificate dir: %w", err)
-	}
 
 	sc, err := NewScheme()
 	if err != nil {
@@ -200,14 +204,32 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	if err != nil {
 		return nil, fmt.Errorf("invalid port: %w", err)
 	}
+
+	// Create CertUpdater, which will poll for updates to certificates
+	certUpdater, err := firstAvailableCertUpdater(logger, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := certUpdater.Start(context.Background()); err != nil {
+		return nil, err
+	}
+
+	whs := webhook.NewServer(webhook.Options{
+		Host:    host,
+		Port:    port,
+		CertDir: opts.CertDir,
+		TLSOpts: []func(*tls.Config){
+			func(c *tls.Config) {
+				c.GetCertificate = certUpdater.GetCertificate
+			},
+		},
+	})
+
 	manager, err := ctrl.NewManager(clientConfig, manager.Options{
-		Scheme: sc,
-		WebhookServer: webhook.NewServer(webhook.Options{
-			Host:    host,
-			Port:    port,
-			CertDir: certDir,
-		}),
-		// Don't run a metrics server with the manager. Metrics are being served.
+		Scheme:        sc,
+		WebhookServer: whs,
+		// Don't run a metrics server with the manager. Metrics are being served
 		// explicitly in the main routine.
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
@@ -287,6 +309,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 		logger:  logger,
 		opts:    opts,
 		client:  client,
+		getCA:   certUpdater.GetCA,
 		manager: manager,
 	}
 	return op, nil
@@ -295,16 +318,18 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 // setupAdmissionWebhooks configures validating webhooks for the operator-managed
 // custom resources and registers handlers with the webhook server.
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
-	// Write provided cert files.
-	caBundle, err := o.ensureCerts(o.manager.GetWebhookServer().(*webhook.DefaultServer).Options.CertDir)
+	certUpdater, err := firstAvailableCertUpdater(o.logger, o.opts)
 	if err != nil {
 		return err
 	}
 
-	if len(caBundle) > 0 {
-		// Keep setting the caBundle, if "ensureCerts" gives us those, in the expected webhook configurations.
-		// In case of not enough permissions we will keep trying with error message.
-		go o.continuouslySetCABundle(ctx, caBundle)
+	ca, err := certUpdater.GetCA()
+	if err != nil {
+		return err
+	}
+	if ca != nil {
+		// Keep setting the caBundle on *WebhookConfigs, if it is set.
+		go o.continuouslySetCABundle(ctx, certUpdater)
 	}
 
 	s := o.manager.GetWebhookServer()
@@ -434,54 +459,6 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 	return nil
 }
 
-// ensureCerts writes the cert/key files to the specified directory.
-// If cert/key are not available, generate them.
-func (o *Operator) ensureCerts(dir string) ([]byte, error) {
-	var (
-		crt, key, caData []byte
-		err              error
-	)
-	if o.opts.TLSKey != "" && o.opts.TLSCert != "" {
-		crt, err = base64.StdEncoding.DecodeString(o.opts.TLSCert)
-		if err != nil {
-			return nil, fmt.Errorf("decoding TLS certificate: %w", err)
-		}
-		key, err = base64.StdEncoding.DecodeString(o.opts.TLSKey)
-		if err != nil {
-			return nil, fmt.Errorf("decoding TLS key: %w", err)
-		}
-		if o.opts.CACert != "" {
-			caData, err = base64.StdEncoding.DecodeString(o.opts.CACert)
-			if err != nil {
-				return nil, fmt.Errorf("decoding certificate authority: %w", err)
-			}
-		}
-	} else if o.opts.TLSKey == "" && o.opts.TLSCert == "" && o.opts.CACert == "" {
-		// Generate a self-signed pair if none was explicitly provided. It will be valid
-		// for 1 year.
-		// TODO(freinartz): re-generate at runtime and update the ValidatingWebhookConfiguration
-		// at runtime whenever the files change.
-		fqdn := fmt.Sprintf("%s.%s.svc", NameOperator, o.opts.OperatorNamespace)
-
-		crt, key, err = cert.GenerateSelfSignedCertKey(fqdn, nil, nil)
-		if err != nil {
-			return nil, fmt.Errorf("generate self-signed TLS key pair: %w", err)
-		}
-		// Use crt as the ca in the self-sign case.
-		caData = crt
-	} else {
-		return nil, errors.New("flags key-base64 and cert-base64 must both be set")
-	}
-	// Create cert/key files.
-	if err := os.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
-		return nil, fmt.Errorf("create cert file: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "tls.key"), key, 0666); err != nil {
-		return nil, fmt.Errorf("create key file: %w", err)
-	}
-	return caData, nil
-}
-
 // namespacedNamePredicate is an event filter predicate that only allows events with
 // a single object.
 type namespacedNamePredicate struct {
@@ -563,22 +540,68 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 	return o.client.Update(ctx, &mwc)
 }
 
-func (o *Operator) continuouslySetCABundle(ctx context.Context, caBundle []byte) {
-	// Initial sleep for the client to initialize before our first calls.
-	// Ideally we could explicitly wait for it.
-	time.Sleep(5 * time.Second)
-
+func (o *Operator) continuouslySetCABundle(ctx context.Context, f getCertificateMethod) {
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Minute):
+		}
+
+		ca, err := f.GetCA()
+		if err != nil {
+			o.logger.Error(err, "Could not get CA.")
+			continue
+		}
+		caBundle := pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: ca.Raw,
+		})
+
 		if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil {
 			o.logger.Error(err, "Setting CA bundle for ValidatingWebhookConfiguration failed; retrying in 1m...")
 		}
 		if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
 			o.logger.Error(err, "Setting CA bundle for MutatingWebhookConfiguration failed; retrying in 1m...")
 		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Minute):
-		}
 	}
+}
+
+// firstAvailableCertUpdater returns a CertUpdater corresponding to the first available source of TLS certificates:
+// 1. Default (or overridden) directory on host
+// 2. --tls-key-base64 and --tls-cert-base64 flags passed to the operator
+// 3. Self-signed certificates generated by the operator
+//
+// The webhook server is a key component of the Operator, and the webhook server will not function without TLS certificates, so it will panic if all of these methods fail.
+func firstAvailableCertUpdater(logger logr.Logger, opts Options) (getCertificateMethod, error) {
+	// Certificates prefer to come from a directory the operator accesses
+	certSourceDir, err := certupdater.SourceDir(opts.CertDir)
+	if err == nil {
+		cu, err := certupdater.New(certSourceDir, certupdater.WithPolling(time.Minute), certupdater.WithLogging(logger))
+		if err == nil {
+			if err := cu.Start(context.Background()); err != nil {
+				return nil, err
+			}
+		}
+		return cu, err
+	}
+	logger.Info("TLS certificates could not be sourced from host. Trying next method.", "path", opts.CertDir)
+
+	// [DEPRECATED] Check arguments to operator
+	if certSourceFlags, err := certupdater.SourceBase64(opts.TLSKey, opts.TLSCert, opts.CACert); err == nil {
+		logger.Info("Warning: Flags --tls-key-base64 and --tls-cert-base64 are deprecated and will be removed in a future version")
+		return certupdater.New(certSourceFlags, certupdater.WithLogging(logger))
+	}
+	logger.Info("TLS certificates could not be sourced from arguments to operator. Trying next method.")
+
+	// Generate self-signed certificates
+	fqdn := fmt.Sprintf("%s.%s.svc", NameOperator, opts.OperatorNamespace)
+	if certSourceGenerated, err := certupdater.SourceGenerated(fqdn); err == nil {
+		logger.Info("TLS certificates generated", "fqdn", fqdn)
+		return certupdater.New(certSourceGenerated, certupdater.WithLogging(logger))
+	}
+	logger.Info("TLS certificates could not be generated")
+
+	// All potential sources failed, webhook server will not function
+	return nil, fmt.Errorf("all certificate sources failed")
 }

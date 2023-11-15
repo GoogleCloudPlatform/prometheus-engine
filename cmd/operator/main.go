@@ -38,6 +38,10 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 )
 
+const (
+	defaultTLSDir = "/etc/tls/private"
+)
+
 func main() {
 	var (
 		defaultProjectID string
@@ -67,6 +71,7 @@ func main() {
 		tlsCert     = flag.String("tls-cert-base64", "", "The base64-encoded TLS certificate.")
 		tlsKey      = flag.String("tls-key-base64", "", "The base64-encoded TLS key.")
 		caCert      = flag.String("ca-cert-base64", "", "The base64-encoded certificate authority.")
+		certDir     = flag.String("cert-dir", defaultTLSDir, "The directory which contains TLS certificates for webhook server.")
 		webhookAddr = flag.String("webhook-addr", ":10250",
 			"Address to listen to for incoming kube admission webhook connections.")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
@@ -106,6 +111,7 @@ func main() {
 		TLSCert:           *tlsCert,
 		TLSKey:            *tlsKey,
 		CACert:            *caCert,
+		CertDir:           *certDir,
 		ListenAddr:        *webhookAddr,
 		CleanupAnnotKey:   *cleanupAnnotKey,
 	})
