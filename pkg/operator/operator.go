@@ -48,7 +48,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
@@ -205,11 +207,16 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	}
 	manager, err := ctrl.NewManager(clientConfig, manager.Options{
 		Scheme: sc,
-		Host:   host,
-		Port:   port,
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Host:    host,
+			Port:    port,
+			CertDir: certDir,
+		}),
 		// Don't run a metrics server with the manager. Metrics are being served
 		// explicitly in the main routine.
-		MetricsBindAddress: "0",
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
 		// Manage cluster-wide and namespace resources at the same time.
 		NewCache: cache.NewCacheFunc(func(config *rest.Config, options cache.Options) (cache.Cache, error) {
 			return cache.New(clientConfig, cache.Options{
@@ -270,14 +277,16 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 					},
 				}})
 		}),
-		CertDir: certDir,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create controller manager: %w", err)
 	}
 
-	namespaces := []string{opts.OperatorNamespace, opts.PublicNamespace}
-	managedNamespacesCache, err := cache.MultiNamespacedCacheBuilder(namespaces)(clientConfig, cache.Options{
+	managedNamespacesCache, err := cache.New(clientConfig, cache.Options{
+		DefaultNamespaces: map[string]cache.Config{
+			opts.OperatorNamespace: {},
+			opts.PublicNamespace:   {},
+		},
 		Scheme: sc,
 	})
 	if err != nil {
@@ -303,7 +312,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 // custom resources and registers handlers with the webhook server.
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	// Write provided cert files.
-	caBundle, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().CertDir)
+	caBundle, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().(*webhook.DefaultServer).Options.CertDir)
 	if err != nil {
 		return err
 	}
