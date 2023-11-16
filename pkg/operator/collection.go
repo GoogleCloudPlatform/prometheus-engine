@@ -87,33 +87,33 @@ func setupCollectionControllers(op *Operator) error {
 		).
 		// Any update to a PodMonitoring requires regenerating the config.
 		Watches(
-			&source.Kind{Type: &monitoringv1.PodMonitoring{}},
+			&monitoringv1.PodMonitoring{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
 		// Any update to a ClusterPodMonitoring requires regenerating the config.
 		Watches(
-			&source.Kind{Type: &monitoringv1.ClusterPodMonitoring{}},
+			&monitoringv1.ClusterPodMonitoring{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
 		// The configuration we generate for the collectors.
 		Watches(
-			&source.Kind{Type: &corev1.ConfigMap{}},
+			&corev1.ConfigMap{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterCollector),
 		).
 		// Detect and undo changes to the daemon set.
 		Watches(
-			&source.Kind{Type: &appsv1.DaemonSet{}},
+			&appsv1.DaemonSet{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(
 				objFilterCollector,
 				predicate.GenerationChangedPredicate{},
 			)).
 		// Detect and undo changes to the secret.
-		Watches(
-			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
+		WatchesRawSource(
+			source.Kind(op.managedNamespacesCache, &corev1.Secret{}),
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterSecret)).
 		Complete(newCollectionReconciler(op.manager.GetClient(), op.opts))

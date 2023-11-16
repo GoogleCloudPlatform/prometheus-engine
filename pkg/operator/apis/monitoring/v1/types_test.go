@@ -327,7 +327,7 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 					TargetLabels: c.tls,
 				},
 			}
-			perr := pm.ValidateCreate()
+			_, perr := pm.ValidateCreate()
 			t.Log(perr)
 
 			if perr == nil && c.fail {
@@ -348,7 +348,7 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 					TargetLabels: c.tls,
 				},
 			}
-			cerr := cm.ValidateCreate()
+			_, cerr := cm.ValidateCreate()
 			t.Log(cerr)
 
 			if cerr == nil && c.fail {
@@ -408,7 +408,7 @@ func TestValidatePodMonitoring(t *testing.T) {
 					TargetLabels: c.tls,
 				},
 			}
-			perr := pm.ValidateCreate()
+			_, perr := pm.ValidateCreate()
 			t.Log(perr)
 
 			if perr == nil && c.fail {
@@ -468,7 +468,7 @@ func TestValidateClusterPodMonitoring(t *testing.T) {
 					TargetLabels: c.tls,
 				},
 			}
-			perr := pm.ValidateCreate()
+			_, perr := pm.ValidateCreate()
 			t.Log(perr)
 
 			if perr == nil && c.fail {
@@ -710,9 +710,9 @@ sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
 label_value_length_limit: 4
-proxy_url: http://foo.bar/test
 follow_redirects: true
 enable_http2: true
+proxy_url: http://foo.bar/test
 relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
@@ -927,9 +927,9 @@ sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
 label_value_length_limit: 4
-proxy_url: http://foo.bar/test
 follow_redirects: true
 enable_http2: true
+proxy_url: http://foo.bar/test
 relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace

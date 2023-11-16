@@ -376,7 +376,7 @@ func TestOperatorConfigValidator(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			err := v.ValidateCreate(context.Background(), c.oc)
+			_, err := v.ValidateCreate(context.Background(), c.oc)
 			if err == nil && c.err == "" {
 				return
 			}

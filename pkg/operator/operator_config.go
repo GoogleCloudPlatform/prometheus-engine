@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // Base resource names which may be used for multiple different resource kinds
@@ -148,24 +149,24 @@ func setupOperatorConfigControllers(op *Operator) error {
 			builder.WithPredicates(objFilterOperatorConfig),
 		).
 		Watches(
-			&source.Kind{Type: &appsv1.Deployment{}},
+			&appsv1.Deployment{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(
 				objFilterRuleEvaluator,
 				predicate.GenerationChangedPredicate{},
 			)).
-		Watches(
-			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
+		WatchesRawSource(
+			source.Kind(op.managedNamespacesCache, &corev1.Secret{}),
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.NewPredicateFuncs(secretFilter(op.opts.PublicNamespace))),
 		).
 		// Detect and undo changes to the secret.
-		Watches(
-			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
+		WatchesRawSource(
+			source.Kind(op.managedNamespacesCache, &corev1.Secret{}),
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterRuleEvaluatorSecret)).
-		Watches(
-			source.NewKindWithCache(&corev1.Secret{}, op.managedNamespacesCache),
+		WatchesRawSource(
+			source.Kind(op.managedNamespacesCache, &corev1.Secret{}),
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterAlertManagerSecret)).
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
@@ -828,34 +829,34 @@ type operatorConfigValidator struct {
 	namespace string
 }
 
-func (v *operatorConfigValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
+func (v *operatorConfigValidator) ValidateCreate(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
 	oc := o.(*monitoringv1.OperatorConfig)
 
 	if oc.Namespace != v.namespace || oc.Name != NameOperatorConfig {
-		return fmt.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
+		return nil, fmt.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
 	}
 	if _, err := makeKubeletScrapeConfigs(oc.Collection.KubeletScraping); err != nil {
-		return fmt.Errorf("failed to create kubelet scrape config: %w", err)
+		return nil, fmt.Errorf("failed to create kubelet scrape config: %w", err)
 	}
 
 	if err := validateSecretKeySelector(oc.Collection.Credentials); err != nil {
-		return fmt.Errorf("invalid collection credentials: %w", err)
+		return nil, fmt.Errorf("invalid collection credentials: %w", err)
 	}
 	if oc.ManagedAlertmanager != nil {
 		if err := validateSecretKeySelector(oc.ManagedAlertmanager.ConfigSecret); err != nil {
-			return fmt.Errorf("invalid managed alert manager config secret: %w", err)
+			return nil, fmt.Errorf("invalid managed alert manager config secret: %w", err)
 		}
 	}
 	if err := validateRules(&oc.Rules); err != nil {
-		return fmt.Errorf("invalid rules config: %w", err)
+		return nil, fmt.Errorf("invalid rules config: %w", err)
 	}
-	return nil
+	return nil, nil
 }
 
-func (v *operatorConfigValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) error {
+func (v *operatorConfigValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
 	return v.ValidateCreate(ctx, o)
 }
 
-func (v *operatorConfigValidator) ValidateDelete(ctx context.Context, o runtime.Object) error {
-	return nil
+func (v *operatorConfigValidator) ValidateDelete(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+	return nil, nil
 }

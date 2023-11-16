@@ -108,7 +108,7 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer, httpC
 				return false
 			})),
 		).
-		Watches(&source.Channel{
+		WatchesRawSource(&source.Channel{
 			Source: ch,
 		}, &handler.EnqueueRequestForObject{}).
 		Complete(reconciler)
