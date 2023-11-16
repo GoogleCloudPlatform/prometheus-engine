@@ -23,6 +23,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -123,6 +124,14 @@ func newDelegatingWriteClient(c client.Client, w WriterClient) DelegatingClient 
 		base:   c,
 		writer: w,
 	}
+}
+
+func (c *delegatingWriteClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+	return c.base.GroupVersionKindFor(obj)
+}
+
+func (c *delegatingWriteClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+	return c.base.IsObjectNamespaced(obj)
 }
 
 // labelWriterClient adds common labels to all objects mutated by this client.
