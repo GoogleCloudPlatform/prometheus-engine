@@ -102,7 +102,7 @@ metadata:
   labels:
     app.kubernetes.io/component: metrics-adapter
     app.kubernetes.io/name: prometheus-adapter
-    app.kubernetes.io/version: 0.11.1
+    app.kubernetes.io/version: 0.8.0
   name: prometheus-adapter
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -119,7 +119,7 @@ metadata:
   labels:
     app.kubernetes.io/component: metrics-adapter
     app.kubernetes.io/name: prometheus-adapter
-    app.kubernetes.io/version: 0.11.1
+    app.kubernetes.io/version: 0.8.0
   name: resource-metrics-server-resources
 rules:
 - apiGroups:
@@ -135,7 +135,7 @@ metadata:
   labels:
     app.kubernetes.io/component: metrics-adapter
     app.kubernetes.io/name: prometheus-adapter
-    app.kubernetes.io/version: 0.11.1
+    app.kubernetes.io/version: 0.8.0
   name: prometheus-adapter
 rules:
 - apiGroups:
@@ -178,7 +178,7 @@ metadata:
   labels:
     app.kubernetes.io/component: metrics-adapter
     app.kubernetes.io/name: prometheus-adapter
-    app.kubernetes.io/version: 0.11.1
+    app.kubernetes.io/version: 0.8.0
   name: adapter-config
   namespace: monitoring
 ---
@@ -188,7 +188,7 @@ metadata:
   labels:
     app.kubernetes.io/component: metrics-adapter
     app.kubernetes.io/name: prometheus-adapter
-    app.kubernetes.io/version: 0.11.1
+    app.kubernetes.io/version: 0.8.0
   name: prometheus-adapter
   namespace: monitoring
 spec:
@@ -208,7 +208,7 @@ spec:
       labels:
         app.kubernetes.io/component: metrics-adapter
         app.kubernetes.io/name: prometheus-adapter
-        app.kubernetes.io/version: 0.11.1
+        app.kubernetes.io/version: 0.8.0
     spec:
       automountServiceAccountToken: true
       containers:
@@ -289,7 +289,7 @@ metadata:
   labels:
     app.kubernetes.io/component: metrics-adapter
     app.kubernetes.io/name: prometheus-adapter
-    app.kubernetes.io/version: 0.11.1
+    app.kubernetes.io/version: 0.8.0
   name: prometheus-adapter
   namespace: monitoring
 spec:
@@ -326,7 +326,7 @@ metadata:
   labels:
     app.kubernetes.io/component: metrics-adapter
     app.kubernetes.io/name: prometheus-adapter
-    app.kubernetes.io/version: 0.11.1
+    app.kubernetes.io/version: 0.8.0
   name: resource-metrics-auth-reader
   namespace: kube-system
 roleRef:
@@ -345,7 +345,7 @@ metadata:
   labels:
     app.kubernetes.io/component: metrics-adapter
     app.kubernetes.io/name: prometheus-adapter
-    app.kubernetes.io/version: 0.11.1
+    app.kubernetes.io/version: 0.8.0
   name: prometheus-adapter
   namespace: monitoring
 ---
@@ -355,7 +355,7 @@ metadata:
   labels:
     app.kubernetes.io/component: metrics-adapter
     app.kubernetes.io/name: prometheus-adapter
-    app.kubernetes.io/version: 0.11.1
+    app.kubernetes.io/version: 0.8.0
   name: prometheus-adapter
   namespace: monitoring
 spec:
