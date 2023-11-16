@@ -216,7 +216,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 				Scheme: options.Scheme,
 				// The presence of metadata.namespace has special handling internally causing the
 				// cache's watch-list to only watch that namespace.
-				SelectorsByObject: cache.SelectorsByObject{
+				ByObject: map[client.Object]cache.ByObject{
 					&corev1.Pod{}: {
 						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
 					},
@@ -320,42 +320,42 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	// Validating webhooks.
 	s.Register(
 		validatePath(monitoringv1.PodMonitoringResource()),
-		admission.ValidatingWebhookFor(&monitoringv1.PodMonitoring{}),
+		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.PodMonitoring{}),
 	)
 	s.Register(
 		validatePath(monitoringv1.ClusterPodMonitoringResource()),
-		admission.ValidatingWebhookFor(&monitoringv1.ClusterPodMonitoring{}),
+		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.ClusterPodMonitoring{}),
 	)
 	s.Register(
 		validatePath(monitoringv1.OperatorConfigResource()),
-		admission.WithCustomValidator(&monitoringv1.OperatorConfig{}, &operatorConfigValidator{
+		admission.WithCustomValidator(o.manager.GetScheme(), &monitoringv1.OperatorConfig{}, &operatorConfigValidator{
 			namespace: o.opts.PublicNamespace,
 		}),
 	)
 	s.Register(
 		validatePath(monitoringv1.RulesResource()),
-		admission.WithCustomValidator(&monitoringv1.Rules{}, &rulesValidator{
+		admission.WithCustomValidator(o.manager.GetScheme(), &monitoringv1.Rules{}, &rulesValidator{
 			opts: o.opts,
 		}),
 	)
 	s.Register(
 		validatePath(monitoringv1.ClusterRulesResource()),
-		admission.WithCustomValidator(&monitoringv1.ClusterRules{}, &clusterRulesValidator{
+		admission.WithCustomValidator(o.manager.GetScheme(), &monitoringv1.ClusterRules{}, &clusterRulesValidator{
 			opts: o.opts,
 		}),
 	)
 	s.Register(
 		validatePath(monitoringv1.GlobalRulesResource()),
-		admission.WithCustomValidator(&monitoringv1.GlobalRules{}, &globalRulesValidator{}),
+		admission.WithCustomValidator(o.manager.GetScheme(), &monitoringv1.GlobalRules{}, &globalRulesValidator{}),
 	)
 	// Defaulting webhooks.
 	s.Register(
 		defaultPath(monitoringv1.PodMonitoringResource()),
-		admission.WithCustomDefaulter(&monitoringv1.PodMonitoring{}, &podMonitoringDefaulter{}),
+		admission.WithCustomDefaulter(o.manager.GetScheme(), &monitoringv1.PodMonitoring{}, &podMonitoringDefaulter{}),
 	)
 	s.Register(
 		defaultPath(monitoringv1.ClusterPodMonitoringResource()),
-		admission.WithCustomDefaulter(&monitoringv1.ClusterPodMonitoring{}, &clusterPodMonitoringDefaulter{}),
+		admission.WithCustomDefaulter(o.manager.GetScheme(), &monitoringv1.ClusterPodMonitoring{}, &clusterPodMonitoringDefaulter{}),
 	)
 	return nil
 }
@@ -513,19 +513,19 @@ func (o namespacedNamePredicate) Generic(e event.GenericEvent) bool {
 // enqueueConst always enqueues the same request regardless of the event.
 type enqueueConst reconcile.Request
 
-func (e enqueueConst) Create(_ event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Create(ctx context.Context, _ event.CreateEvent, q workqueue.RateLimitingInterface) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Update(_ event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Update(ctx context.Context, _ event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Delete(_ event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Delete(ctx context.Context, _ event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Generic(_ event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Generic(ctx context.Context, _ event.GenericEvent, q workqueue.RateLimitingInterface) {
 	q.Add(reconcile.Request(e))
 }
 

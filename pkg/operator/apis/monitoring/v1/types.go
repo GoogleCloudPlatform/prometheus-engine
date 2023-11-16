@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 )
@@ -356,24 +357,24 @@ type ClusterPodMonitoringList struct {
 	Items           []ClusterPodMonitoring `json:"items"`
 }
 
-func (cm *ClusterPodMonitoring) ValidateCreate() error {
+func (cm *ClusterPodMonitoring) ValidateCreate() (admission.Warnings, error) {
 	if len(cm.Spec.Endpoints) == 0 {
-		return errors.New("at least one endpoint is required")
+		return nil, errors.New("at least one endpoint is required")
 	}
 	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
 	// example values has no adverse effects.
 	_, err := cm.ScrapeConfigs("test_project", "test_location", "test_cluster")
-	return err
+	return nil, err
 }
 
-func (cm *ClusterPodMonitoring) ValidateUpdate(old runtime.Object) error {
+func (cm *ClusterPodMonitoring) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
 	return cm.ValidateCreate()
 }
 
-func (cm *ClusterPodMonitoring) ValidateDelete() error {
+func (cm *ClusterPodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	// Deletions are always valid.
-	return nil
+	return nil, nil
 }
 
 func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
@@ -387,24 +388,24 @@ func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster strin
 	return res, nil
 }
 
-func (pm *PodMonitoring) ValidateCreate() error {
+func (pm *PodMonitoring) ValidateCreate() (admission.Warnings, error) {
 	if len(pm.Spec.Endpoints) == 0 {
-		return errors.New("at least one endpoint is required")
+		return nil, errors.New("at least one endpoint is required")
 	}
 	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
 	// example values has no adverse effects.
 	_, err := pm.ScrapeConfigs("test_project", "test_location", "test_cluster")
-	return err
+	return nil, err
 }
 
-func (pm *PodMonitoring) ValidateUpdate(old runtime.Object) error {
+func (pm *PodMonitoring) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
 	return pm.ValidateCreate()
 }
 
-func (pm *PodMonitoring) ValidateDelete() error {
+func (pm *PodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	// Deletions are always valid.
-	return nil
+	return nil, nil
 }
 
 // ScrapeConfigs generated Prometheus scrape configs for the PodMonitoring.

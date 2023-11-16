@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
@@ -73,20 +73,20 @@ func setupRulesControllers(op *Operator) error {
 		).
 		// Any update to a Rules object requires re-generating the config.
 		Watches(
-			&source.Kind{Type: &monitoringv1.GlobalRules{}},
+			&monitoringv1.GlobalRules{},
 			enqueueConst(objRequest),
 		).
 		Watches(
-			&source.Kind{Type: &monitoringv1.ClusterRules{}},
+			&monitoringv1.ClusterRules{},
 			enqueueConst(objRequest),
 		).
 		Watches(
-			&source.Kind{Type: &monitoringv1.Rules{}},
+			&monitoringv1.Rules{},
 			enqueueConst(objRequest),
 		).
 		// The configuration we generate for the rule-evaluator.
 		Watches(
-			&source.Kind{Type: &corev1.ConfigMap{}},
+			&corev1.ConfigMap{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterRulesGenerated),
 		).
@@ -268,47 +268,47 @@ type rulesValidator struct {
 	opts Options
 }
 
-func (v *rulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
+func (v *rulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
 	_, err := generateRules(o.(*monitoringv1.Rules), "test_project", "test_location", "test_cluster")
-	return err
+	return nil, err
 }
 
-func (v *rulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) error {
+func (v *rulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
 	return v.ValidateCreate(ctx, o)
 }
 
-func (v *rulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) error {
-	return nil
+func (v *rulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+	return nil, nil
 }
 
 type clusterRulesValidator struct {
 	opts Options
 }
 
-func (v *clusterRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
+func (v *clusterRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
 	_, err := generateClusterRules(o.(*monitoringv1.ClusterRules), "test_project", "test_location", "test_cluster")
-	return err
+	return nil, err
 }
 
-func (v *clusterRulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) error {
+func (v *clusterRulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
 	return v.ValidateCreate(ctx, o)
 }
 
-func (v *clusterRulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) error {
-	return nil
+func (v *clusterRulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+	return nil, nil
 }
 
 type globalRulesValidator struct{}
 
-func (v *globalRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) error {
+func (v *globalRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
 	_, err := generateGlobalRules(o.(*monitoringv1.GlobalRules))
-	return err
+	return nil, err
 }
 
-func (v *globalRulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) error {
+func (v *globalRulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
 	return v.ValidateCreate(ctx, o)
 }
 
-func (v *globalRulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) error {
-	return nil
+func (v *globalRulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+	return nil, nil
 }
