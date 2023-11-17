@@ -54,11 +54,12 @@ update_codegen() {
 
   # Invoke only for deepcopy first as it doesn't accept the pluralization flag
   # of the second invocation.
-  bash "${CODEGEN_PKG}"/code-generator.sh "deepcopy" \
-    github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
-    monitoring:v1 \
-    --go-header-file "${REPO_ROOT}"/hack/boilerplate.go.txt \
-    --output-base "${REPO_ROOT}"
+  source "${CODEGEN_PKG}/kube_codegen.sh"
+  set -x
+  kube::codegen::gen_helpers \
+    --input-pkg-root pkg/operator/apis \
+    --output-base "${REPO_ROOT}" \
+    --boilerplate "${REPO_ROOT}"/hack/boilerplate.go.txt
 
   cp -r "$REPO_ROOT"/github.com/GoogleCloudPlatform/prometheus-engine/* "$REPO_ROOT"
   rm -r "$REPO_ROOT/github.com"
