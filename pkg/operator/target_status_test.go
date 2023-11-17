@@ -39,7 +39,6 @@ import (
 	tclock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -148,11 +147,6 @@ func targetFetchFromMap(m map[string]*prometheusv1.TargetsResult) getTargetFn {
 }
 
 func TestUpdateTargetStatus(t *testing.T) {
-	scheme, err := NewScheme()
-	if err != nil {
-		t.Fatal("Unable to get scheme")
-	}
-
 	var date = metav1.Date(2022, time.January, 4, 0, 0, 0, 0, time.UTC)
 
 	testCases := expand([]updateTargetStatusTestCase{
@@ -1093,7 +1087,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("target-status-conversion-%s", testCase.desc), func(t *testing.T) {
-			clientBuilder := fake.NewClientBuilder().WithScheme(scheme)
+			clientBuilder := newFakeClientBuilder()
 			for _, podMonitoring := range testCase.podMonitorings {
 				copy := podMonitoring.DeepCopy()
 				copy.GetStatus().EndpointStatuses = nil
@@ -1169,11 +1163,6 @@ func TestPolling(t *testing.T) {
 
 	fakeClock := tclock.NewFakeClock(time.Now())
 
-	scheme, err := NewScheme()
-	if err != nil {
-		t.Fatal("Unable to get scheme")
-	}
-
 	port := int32(19090)
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1195,7 +1184,7 @@ func TestPolling(t *testing.T) {
 		},
 	}
 
-	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&appsv1.DaemonSet{
+	kubeClient := newFakeClientBuilder().WithObjects(&appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      NameCollector,
 			Namespace: opts.OperatorNamespace,
@@ -1401,10 +1390,6 @@ func TestPolling(t *testing.T) {
 }
 
 func TestShouldPoll(t *testing.T) {
-	scheme, err := NewScheme()
-	if err != nil {
-		t.Fatal("unable to get scheme")
-	}
 	cases := []struct {
 		desc   string
 		objs   []client.Object
@@ -1521,7 +1506,7 @@ func TestShouldPoll(t *testing.T) {
 			Name:      "config",
 			Namespace: "gmp-public",
 		}
-		kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.objs...).Build()
+		kubeClient := newFakeClientBuilder().WithObjects(tc.objs...).Build()
 		t.Run(tc.desc, func(t *testing.T) {
 			should, err := shouldPoll(ctx, nn, kubeClient)
 			if err != nil && !tc.expErr {
@@ -1549,11 +1534,6 @@ func TestFetchTargets(t *testing.T) {
 		t.Fatal("Invalid options:", err)
 	}
 
-	scheme, err := NewScheme()
-	if err != nil {
-		t.Fatal("Unable to get scheme")
-	}
-
 	concurrencyInt := int(concurrency)
 	// Test 0 where we have no pods to ensure the thread pool does not stall or
 	// panic. Also sanity test that the thread pool can ingest at and over max
@@ -1564,7 +1544,7 @@ func TestFetchTargets(t *testing.T) {
 			port := int32(19090)
 			prometheusTargetMap := make(map[string]*prometheusv1.TargetsResult, podCnt)
 			targetsExpected := make([]*prometheusv1.TargetsResult, 0, podCnt)
-			kubeClientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&appsv1.DaemonSet{
+			kubeClientBuilder := newFakeClientBuilder().WithObjects(&appsv1.DaemonSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      NameCollector,
 					Namespace: opts.OperatorNamespace,

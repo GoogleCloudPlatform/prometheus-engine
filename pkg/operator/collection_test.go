@@ -16,6 +16,8 @@ package operator
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -28,12 +30,32 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+var testScheme *runtime.Scheme
+
+func TestMain(m *testing.M) {
+	var err error
+	testScheme, err = NewScheme()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to get scheme: %s", err)
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
+
+func newFakeClientBuilder() *fake.ClientBuilder {
+	return fake.NewClientBuilder().
+		WithScheme(testScheme).
+		WithStatusSubresource(&monitoringv1.PodMonitoring{}).
+		WithStatusSubresource(&monitoringv1.ClusterPodMonitoring{})
+}
 
 // Tests that the collection does not overwrite the non-managed status fields.
 func TestCollectionStatus(t *testing.T) {
@@ -73,11 +95,6 @@ func TestCollectionStatus(t *testing.T) {
 		Message:            "",
 	})
 
-	scheme, err := NewScheme()
-	if err != nil {
-		t.Fatal("Unable to get scheme")
-	}
-
 	logger := testr.New(t)
 	ctx := logr.NewContext(context.Background(), logger)
 	opts := Options{
@@ -89,9 +106,7 @@ func TestCollectionStatus(t *testing.T) {
 		t.Fatal("Invalid options:", err)
 	}
 
-	kubeClient := fake.
-		NewClientBuilder().
-		WithScheme(scheme).
+	kubeClient := newFakeClientBuilder().
 		WithObjects(&monitoringv1.PodMonitoring{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "prom-example",
