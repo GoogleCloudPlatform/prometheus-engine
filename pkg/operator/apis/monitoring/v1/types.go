@@ -506,6 +506,15 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 		TargetLabel: "job",
 	})
 
+	// Drop any non-running pods if left unspecified or explicitly enabled.
+	if pm.Spec.FilterRunning == nil || *pm.Spec.FilterRunning {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Drop,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_phase"},
+			Regex:        relabel.MustNewRegexp("(Failed|Succeeded)"),
+		})
+	}
+
 	return endpointScrapeConfig(
 		pm.GetKey(),
 		projectID, location, cluster,
@@ -840,6 +849,15 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 		TargetLabel: "job",
 	})
 
+	// Drop any non-running pods if left unspecified or explicitly enabled.
+	if cm.Spec.FilterRunning == nil || *cm.Spec.FilterRunning {
+		relabelCfgs = append(relabelCfgs, &relabel.Config{
+			Action:       relabel.Drop,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_phase"},
+			Regex:        relabel.MustNewRegexp("(Failed|Succeeded)"),
+		})
+	}
+
 	return endpointScrapeConfig(
 		cm.GetKey(),
 		projectID, location, cluster,
@@ -988,6 +1006,10 @@ type PodMonitoringSpec struct {
 	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
+	// FilterRunning will drop any pods that are in the "Failed" or "Succeeded"
+	// pod lifecycle.
+	// See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+	FilterRunning *bool `json:"filterRunning,omitempty"`
 }
 
 // ScrapeLimits limits applied to scraped targets.
@@ -1019,6 +1041,10 @@ type ClusterPodMonitoringSpec struct {
 	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
+	// FilterRunning will drop any pods that are in the "Failed" or "Succeeded"
+	// pod lifecycle.
+	// See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+	FilterRunning *bool `json:"filterRunning,omitempty"`
 }
 
 // ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
