@@ -60,13 +60,6 @@ update_codegen() {
     --go-header-file "${REPO_ROOT}"/hack/boilerplate.go.txt \
     --output-base "${REPO_ROOT}"
 
-  bash "${CODEGEN_PKG}"/code-generator.sh "client,informer,lister" \
-    github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
-    monitoring:v1 \
-    --go-header-file "${REPO_ROOT}"/hack/boilerplate.go.txt \
-    --plural-exceptions "Rules:Rules,ClusterRules:ClusterRules,GlobalRules:GlobalRules" \
-    --output-base "${REPO_ROOT}"
-
   cp -r "$REPO_ROOT"/github.com/GoogleCloudPlatform/prometheus-engine/* "$REPO_ROOT"
   rm -r "$REPO_ROOT/github.com"
 }

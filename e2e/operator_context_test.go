@@ -43,7 +43,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -55,7 +54,6 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	clientset "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
 
 const (
@@ -200,24 +198,13 @@ type OperatorContext struct {
 
 	namespace, pubNamespace string
 
-	kClient        DelegatingClient
-	kubeClient     kubernetes.Interface
-	operatorClient clientset.Interface
+	kClient DelegatingClient
 }
 
 func newOperatorContext(t *testing.T) *OperatorContext {
 	c, err := newClient()
 	if err != nil {
 		t.Fatalf("Build Kubernetes client: %s", err)
-	}
-
-	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
-	if err != nil {
-		t.Fatalf("Build Kubernetes clientset: %s", err)
-	}
-	operatorClient, err := clientset.NewForConfig(kubeconfig)
-	if err != nil {
-		t.Fatalf("Build operator clientset: %s", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -228,11 +215,9 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 	pubNamespace := fmt.Sprintf("%s-pub", namespace)
 
 	tctx := &OperatorContext{
-		T:              t,
-		namespace:      namespace,
-		pubNamespace:   pubNamespace,
-		kubeClient:     kubeClient,
-		operatorClient: operatorClient,
+		T:            t,
+		namespace:    namespace,
+		pubNamespace: pubNamespace,
 	}
 	tctx.kClient = NewLabelWriterClient(c, tctx.getSubTestLabels())
 	t.Cleanup(func() {
