@@ -148,6 +148,7 @@ ClusterPodMonitoringSpec contains specification parameters for ClusterPodMonitor
 | endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
 | targetLabels | Labels to add to the Prometheus target for discovered endpoints. The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>` if the scraped pod is controlled by a DaemonSet. | [TargetLabels](#targetlabels) | false |
 | limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
+| filterRunning | FilterRunning will drop any pods that are in the \"Failed\" or \"Succeeded\" pod lifecycle. See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase This prevents noisy errors when attempting to scrape Suceeded pods from K8s Jobs. Additionally, it can mitigate issues with reusing stale target labels in cases where Pod IPs are reused (e.g. spot containers). See: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145 | *bool | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -400,6 +401,7 @@ PodMonitoringSpec contains specification parameters for PodMonitoring.
 | endpoints | The endpoints to scrape on the selected pods. | [][ScrapeEndpoint](#scrapeendpoint) | true |
 | targetLabels | Labels to add to the Prometheus target for discovered endpoints. The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>` if the scraped pod is controlled by a DaemonSet. | [TargetLabels](#targetlabels) | false |
 | limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
+| filterRunning | FilterRunning will drop any pods that are in the \"Failed\" or \"Succeeded\" pod lifecycle. See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase | *bool | false |
 
 [Back to TOC](#table-of-contents)
 
