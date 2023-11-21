@@ -1330,6 +1330,38 @@ type RulesStatus struct {
 	// TODO: add status information.
 }
 
+// NodeMonitoringSpec contains specification parameters for NodeMonitoring.
+type NodeMonitoringSpec struct {
+	// Label selector that specifies which nodes are selected for this monitoring
+	// configuration. If left empty all nodes are selected.
+	Selector metav1.LabelSelector `json:"selector,omitempty"`
+	// The endpoints to scrape on the selected nodes.
+	Endpoints []ScrapeEndpoint `json:"endpoints"`
+	// Limits to apply at scrape time.
+	Limits *ScrapeLimits `json:"limits,omitempty"`
+}
+
+// NodeMonitoringList is a list of NodeMonitorings.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type NodeMonitoringList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []NodeMonitoring `json:"items"`
+}
+
+// NodeMonitoring defines monitoring for a set of nodes.
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:subresource:status
+// +kubebuilder:storageversion
+type NodeMonitoring struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	// Specification of desired node selection for target discovery by
+	// Prometheus.
+	Spec NodeMonitoringSpec `json:"spec"`
+}
+
 var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 
 // sanitizeLabelName reproduces the label name cleanup Prometheus's service discovery applies.
