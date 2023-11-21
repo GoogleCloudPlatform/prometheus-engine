@@ -35,6 +35,9 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [LabelMapping](#labelmapping)
 * [ManagedAlertmanagerSpec](#managedalertmanagerspec)
 * [MonitoringCondition](#monitoringcondition)
+* [NodeMonitoring](#nodemonitoring)
+* [NodeMonitoringList](#nodemonitoringlist)
+* [NodeMonitoringSpec](#nodemonitoringspec)
 * [OperatorConfig](#operatorconfig)
 * [OperatorConfigList](#operatorconfiglist)
 * [OperatorFeatures](#operatorfeatures)
@@ -319,6 +322,46 @@ MonitoringCondition describes a condition of a PodMonitoring.
 
 [Back to TOC](#table-of-contents)
 
+## NodeMonitoring
+
+NodeMonitoring defines monitoring for a set of nodes.
+
+
+<em>appears in: [NodeMonitoringList](#nodemonitoringlist)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#objectmeta-v1-meta) | false |
+| spec | Specification of desired node selection for target discovery by Prometheus. | [NodeMonitoringSpec](#nodemonitoringspec) | true |
+
+[Back to TOC](#table-of-contents)
+
+## NodeMonitoringList
+
+NodeMonitoringList is a list of NodeMonitorings.
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| metadata |  | [metav1.ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#listmeta-v1-meta) | false |
+| items |  | [][NodeMonitoring](#nodemonitoring) | true |
+
+[Back to TOC](#table-of-contents)
+
+## NodeMonitoringSpec
+
+NodeMonitoringSpec contains specification parameters for NodeMonitoring.
+
+
+<em>appears in: [NodeMonitoring](#nodemonitoring)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| selector | Label selector that specifies which nodes are selected for this monitoring configuration. If left empty all nodes are selected. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#labelselector-v1-meta) | false |
+| endpoints | The endpoints to scrape on the selected nodes. | [][ScrapeEndpoint](#scrapeendpoint) | true |
+| limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
+
+[Back to TOC](#table-of-contents)
+
 ## OperatorConfig
 
 OperatorConfig defines configuration of the gmp-operator.
@@ -574,7 +617,7 @@ RulesSpec contains specification parameters for a Rules resource.
 ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 
 
-<em>appears in: [ClusterPodMonitoringSpec](#clusterpodmonitoringspec), [PodMonitoringSpec](#podmonitoringspec)</em>
+<em>appears in: [ClusterPodMonitoringSpec](#clusterpodmonitoringspec), [NodeMonitoringSpec](#nodemonitoringspec), [PodMonitoringSpec](#podmonitoringspec)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
@@ -612,7 +655,7 @@ ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 ScrapeLimits limits applied to scraped targets.
 
 
-<em>appears in: [ClusterPodMonitoringSpec](#clusterpodmonitoringspec), [PodMonitoringSpec](#podmonitoringspec)</em>
+<em>appears in: [ClusterPodMonitoringSpec](#clusterpodmonitoringspec), [NodeMonitoringSpec](#nodemonitoringspec), [PodMonitoringSpec](#podmonitoringspec)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
