@@ -645,6 +645,9 @@ relabel_configs:
 - target_label: job
   replacement: name1
   action: replace
+- source_labels: [__meta_kubernetes_pod_phase]
+  regex: (Failed|Succeeded)
+  action: drop
 - target_label: project_id
   replacement: test_project
   action: replace
@@ -720,6 +723,9 @@ relabel_configs:
 - target_label: job
   replacement: name1
   action: replace
+- source_labels: [__meta_kubernetes_pod_phase]
+  regex: (Failed|Succeeded)
+  action: drop
 - target_label: project_id
   replacement: test_project
   action: replace
@@ -858,6 +864,9 @@ relabel_configs:
 - target_label: job
   replacement: name1
   action: replace
+- source_labels: [__meta_kubernetes_pod_phase]
+  regex: (Failed|Succeeded)
+  action: drop
 - target_label: project_id
   replacement: test_project
   action: replace
@@ -928,6 +937,9 @@ relabel_configs:
 - target_label: job
   replacement: name1
   action: replace
+- source_labels: [__meta_kubernetes_pod_phase]
+  regex: (Failed|Succeeded)
+  action: drop
 - target_label: project_id
   replacement: test_project
   action: replace

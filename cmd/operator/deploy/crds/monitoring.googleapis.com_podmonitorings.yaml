@@ -161,6 +161,9 @@ spec:
                           description: Used to verify the hostname for the targets.
                   required:
                   - port
+              filterRunning:
+                type: boolean
+                description: 'FilterRunning will drop any pods that are in the "Failed" or "Succeeded" pod lifecycle. See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase'
               limits:
                 type: object
                 description: Limits to apply at scrape time.

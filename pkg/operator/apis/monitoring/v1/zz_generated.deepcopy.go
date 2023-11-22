@@ -174,6 +174,11 @@ func (in *ClusterPodMonitoringSpec) DeepCopyInto(out *ClusterPodMonitoringSpec) 
 		*out = new(ScrapeLimits)
 		**out = **in
 	}
+	if in.FilterRunning != nil {
+		in, out := &in.FilterRunning, &out.FilterRunning
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 
@@ -723,6 +728,11 @@ func (in *PodMonitoringSpec) DeepCopyInto(out *PodMonitoringSpec) {
 	if in.Limits != nil {
 		in, out := &in.Limits, &out.Limits
 		*out = new(ScrapeLimits)
+		**out = **in
+	}
+	if in.FilterRunning != nil {
+		in, out := &in.FilterRunning, &out.FilterRunning
+		*out = new(bool)
 		**out = **in
 	}
 	return
