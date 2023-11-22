@@ -1044,8 +1044,9 @@ type ClusterPodMonitoringSpec struct {
 	// FilterRunning will drop any pods that are in the "Failed" or "Succeeded"
 	// pod lifecycle.
 	// See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-	// This prevents noisy errors when attempting to scrape Suceeded pods from
-	// K8s Jobs. Additionally, it can mitigate issues with reusing stale target
+	// Specifically, this prevents scraping Suceeded pods from K8s jobs, which
+	// could contribute to noisy logs or irrelevent metrics.
+	// Additionally, it can mitigate issues with reusing stale target
 	// labels in cases where Pod IPs are reused (e.g. spot containers).
 	// See: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145
 	FilterRunning *bool `json:"filterRunning,omitempty"`
