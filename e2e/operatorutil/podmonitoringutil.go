@@ -167,22 +167,49 @@ func IsPodMonitoringSuccess(pm monitoringv1.PodMonitoringCRD, targetStatusEnable
 	return errors.Join(errs...)
 }
 
-func IsPodMonitoringScrapeEndpointSuccess(pm monitoringv1.PodMonitoringCRD, name string) error {
-	endpointName := fmt.Sprintf("%s/%s", pm.GetKey(), name)
-	for _, status := range pm.GetStatus().EndpointStatuses {
-		if status.Name == endpointName {
-			return isPodMonitoringScrapeEndpointSuccess(&status)
+func WaitForPodMonitoringSuccess(ctx context.Context, kubeClient client.Client, pm monitoringv1.PodMonitoringCRD) error {
+	var err error
+	if pollErr := wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
+		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
+			return false, nil
 		}
+		err = IsPodMonitoringSuccess(pm, true)
+		return err == nil, nil
+	}); pollErr != nil {
+		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
+			return err
+		}
+		return pollErr
 	}
-	return fmt.Errorf("unknown scrape endpoint %q", name)
+	return nil
 }
 
-func IsPodMonitoringScrapeEndpointFailure(pm monitoringv1.PodMonitoringCRD, name string, expectedFn func(message string) error) error {
-	endpointName := fmt.Sprintf("%s/%s", pm.GetKey(), name)
+func IsPodMonitoringFailure(pm monitoringv1.PodMonitoringCRD, expectedFn func(message string) error) error {
+	if err := IsPodMonitoringReady(pm, expectedFn != nil); err != nil {
+		return err
+	}
+	var errs []error
 	for _, status := range pm.GetStatus().EndpointStatuses {
-		if status.Name == endpointName {
-			return isPodMonitoringScrapeEndpointFailure(&status, expectedFn)
+		if err := isPodMonitoringScrapeEndpointFailure(&status, expectedFn); err != nil {
+			errs = append(errs, fmt.Errorf("unhealthy endpoint status %q: %w", status.Name, err))
 		}
 	}
-	return fmt.Errorf("unknown scrape endpoint %q", name)
+	return errors.Join(errs...)
+}
+
+func WaitForPodMonitoringFailure(ctx context.Context, kubeClient client.Client, pm monitoringv1.PodMonitoringCRD, expectedFn func(message string) error) error {
+	var err error
+	if pollErr := wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
+		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
+			return false, nil
+		}
+		err = IsPodMonitoringFailure(pm, expectedFn)
+		return err == nil, nil
+	}); pollErr != nil {
+		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
+			return err
+		}
+		return pollErr
+	}
+	return nil
 }

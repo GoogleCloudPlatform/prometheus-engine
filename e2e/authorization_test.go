@@ -16,11 +16,11 @@ package e2e
 
 import (
 	"context"
-	"errors"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/operatorutil"
@@ -28,9 +28,225 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func isPodMonitoringTargetCertificateError(message string) error {
+	err := tls.CertificateVerificationError{
+		Err: x509.UnknownAuthorityError{},
+	}
+	expected := err.Error()
+	if !strings.HasSuffix(message, expected) {
+		return fmt.Errorf("expected %q", expected)
+	}
+	return nil
+}
+
+func defaultEndpoint(endpoint *monitoringv1.ScrapeEndpoint) {
+	endpoint.Port = intstr.FromString(operatorutil.SyntheticAppPortName)
+	endpoint.Interval = "5s"
+}
+
+// setupAuthTest sets up tests for PodMonitoring and ClusterPodMonitoring for when
+// authentication configurations are present and when they are not present.
+func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args []string, podMonitoringNamePrefix string, endpointNoAuth, endpointAuth monitoringv1.ScrapeEndpoint) {
+	defaultEndpoint(&endpointAuth)
+	defaultEndpoint(&endpointNoAuth)
+
+	deployment, err := operatorutil.SyntheticAppDeploy(ctx, t.Client(), t.namespace, appName, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := kubeutil.WaitForDeploymentReady(ctx, t.Client(), t.namespace, appName); err != nil {
+		kubeutil.DeploymentDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, appName)
+		t.Fatalf("failed to start app: %s", err)
+	}
+
+	t.Run("podmonitoring-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Parallel()
+
+		pm := &monitoringv1.PodMonitoring{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("pod%s-missing-config", podMonitoringNamePrefix),
+				Namespace: t.namespace,
+			},
+			Spec: monitoringv1.PodMonitoringSpec{
+				Selector: metav1.LabelSelector{
+					MatchLabels: deployment.Spec.Template.Labels,
+				},
+				Endpoints: []monitoringv1.ScrapeEndpoint{endpointNoAuth},
+			},
+		}
+		if err := t.Client().Create(ctx, pm); err != nil {
+			t.Fatalf("create collector PodMonitoring: %s", err)
+		}
+
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+			t.Fatalf("collector not ready: %s", err)
+		}
+
+		if err := operatorutil.WaitForPodMonitoringFailure(ctx, t.Client(), pm, isPodMonitoringTargetCertificateError); err != nil {
+			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+			t.Fatalf("scrape endpoint expected failure: %s", err)
+		}
+	}))
+
+	t.Run("clusterpodmonitoring-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Parallel()
+
+		pm := &monitoringv1.ClusterPodMonitoring{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("c%s-failure", podMonitoringNamePrefix),
+			},
+			Spec: monitoringv1.ClusterPodMonitoringSpec{
+				Selector: metav1.LabelSelector{
+					MatchLabels: deployment.Spec.Template.Labels,
+				},
+				Endpoints: []monitoringv1.ScrapeEndpoint{endpointNoAuth},
+			},
+		}
+		if err := t.Client().Create(ctx, pm); err != nil {
+			t.Fatalf("create collector PodMonitoring: %s", err)
+		}
+
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+			t.Fatalf("collector not ready: %s", err)
+		}
+
+		if err := operatorutil.WaitForPodMonitoringFailure(ctx, t.Client(), pm, isPodMonitoringTargetCertificateError); err != nil {
+			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+			t.Fatalf("scrape endpoint expected failure: %s", err)
+		}
+	}))
+
+	t.Run("podmonitoring-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Parallel()
+
+		pm := &monitoringv1.PodMonitoring{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("pod%s-success", podMonitoringNamePrefix),
+				Namespace: t.namespace,
+			},
+			Spec: monitoringv1.PodMonitoringSpec{
+				Selector: metav1.LabelSelector{
+					MatchLabels: deployment.Spec.Template.Labels,
+				},
+				Endpoints: []monitoringv1.ScrapeEndpoint{endpointAuth},
+			},
+		}
+		if err := t.Client().Create(ctx, pm); err != nil {
+			deployment, err := operatorutil.SyntheticAppDeploy(ctx, t.Client(), t.namespace, appName, args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := kubeutil.WaitForDeploymentReady(ctx, t.Client(), t.namespace, appName); err != nil {
+				kubeutil.DeploymentDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, appName)
+				t.Fatalf("failed to start app: %s", err)
+			}
+
+			t.Run("podmonitoring-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
+				t.Parallel()
+
+				pm := &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      fmt.Sprintf("pod%s-missing-config", podMonitoringNamePrefix),
+						Namespace: t.namespace,
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: deployment.Spec.Template.Labels,
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{endpointNoAuth},
+					},
+				}
+				if err := t.Client().Create(ctx, pm); err != nil {
+					t.Fatalf("create collector PodMonitoring: %s", err)
+				}
+
+				if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+					kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+					t.Fatalf("collector not ready: %s", err)
+				}
+
+				if err := operatorutil.WaitForPodMonitoringFailure(ctx, t.Client(), pm, isPodMonitoringTargetCertificateError); err != nil {
+					kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+					t.Fatalf("scrape endpoint expected failure: %s", err)
+				}
+			}))
+
+			t.Run("clusterpodmonitoring-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
+				t.Parallel()
+
+				pm := &monitoringv1.ClusterPodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: fmt.Sprintf("c%s-failure", podMonitoringNamePrefix),
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: deployment.Spec.Template.Labels,
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{endpointNoAuth},
+					},
+				}
+				if err := t.Client().Create(ctx, pm); err != nil {
+					t.Fatalf("create collector PodMonitoring: %s", err)
+				}
+
+				if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+					kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+					t.Fatalf("collector not ready: %s", err)
+				}
+
+				if err := operatorutil.WaitForPodMonitoringFailure(ctx, t.Client(), pm, isPodMonitoringTargetCertificateError); err != nil {
+					kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+					t.Fatalf("scrape endpoint expected failure: %s", err)
+				}
+			}))
+			t.Fatalf("create collector: %s", err)
+		}
+
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+			t.Errorf("collector not ready: %s", err)
+		}
+
+		if err := operatorutil.WaitForPodMonitoringSuccess(ctx, t.Client(), pm); err != nil {
+			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+			t.Fatalf("scrape endpoint expected success: %s", err)
+		}
+	}))
+
+	t.Run("clusterpodmonitoring-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Parallel()
+
+		pm := &monitoringv1.ClusterPodMonitoring{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("c%s-success", podMonitoringNamePrefix),
+				Namespace: t.namespace,
+			},
+			Spec: monitoringv1.ClusterPodMonitoringSpec{
+				Selector: metav1.LabelSelector{
+					MatchLabels: deployment.Spec.Template.Labels,
+				},
+				Endpoints: []monitoringv1.ScrapeEndpoint{endpointAuth},
+			},
+		}
+		if err := t.Client().Create(ctx, pm); err != nil {
+			t.Fatalf("create collector: %s", err)
+		}
+
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+			t.Errorf("collector not ready: %s", err)
+		}
+
+		if err := operatorutil.WaitForPodMonitoringSuccess(ctx, t.Client(), pm); err != nil {
+			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+			t.Fatalf("scrape endpoint expected success: %s", err)
+		}
+	}))
+}
 
 func TestTLS(t *testing.T) {
 	t.Parallel()
@@ -45,120 +261,18 @@ func TestTLS(t *testing.T) {
 		},
 	})
 
-	c := tctx.Client()
 	const appName = "tls-insecure"
-	deployment, err := operatorutil.SyntheticAppDeploy(ctx, c, tctx.namespace, appName, []string{
+	setupAuthTest(ctx, tctx, appName, []string{
 		"--tls-create-self-signed=true",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := kubeutil.WaitForDeploymentReady(ctx, c, tctx.namespace, appName); err != nil {
-		kubeutil.DeploymentDebug(tctx.T, ctx, tctx.RestConfig(), tctx.Client(), tctx.namespace, appName)
-		t.Fatalf("failed to start app: %s", err)
-	}
-
-	tctx.Run("tls-missing-config", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-
-		pm := &monitoringv1.PodMonitoring{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "collector-tls-missing-config",
-				Namespace: t.namespace,
-			},
-			Spec: monitoringv1.PodMonitoringSpec{
-				Selector: metav1.LabelSelector{
-					MatchLabels: deployment.Spec.Template.Labels,
-				},
-				Endpoints: []monitoringv1.ScrapeEndpoint{
-					{
-						Port:     intstr.FromString(operatorutil.SyntheticAppPortName),
-						Scheme:   "https",
-						Interval: "5s",
-					},
+	}, "mon-tls-insecure",
+		monitoringv1.ScrapeEndpoint{
+			Scheme: "https",
+		}, monitoringv1.ScrapeEndpoint{
+			Scheme: "https",
+			HTTPClientConfig: monitoringv1.HTTPClientConfig{
+				TLS: &monitoringv1.TLS{
+					InsecureSkipVerify: true,
 				},
 			},
-		}
-		if err := t.Client().Create(ctx, pm); err != nil {
-			t.Fatalf("create collector PodMonitoring: %s", err)
-		}
-
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
-			kubeutil.DaemonSetDebug(tctx.T, ctx, tctx.RestConfig(), tctx.Client(), tctx.namespace, operator.NameCollector)
-			t.Fatalf("collector not ready: %s", err)
-		}
-
-		var err error
-		if pollErr := wait.Poll(5*time.Second, 3*time.Minute, func() (bool, error) {
-			if err = t.Client().Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
-				return false, nil
-			}
-
-			const expected = "tls: failed to verify certificate: x509: certificate signed by unknown authority"
-			err = operatorutil.IsPodMonitoringScrapeEndpointFailure(pm, operatorutil.SyntheticAppPortName, func(message string) error {
-				if !strings.HasSuffix(message, expected) {
-					return fmt.Errorf("expected %q", expected)
-				}
-				return nil
-			})
-			return err == nil, nil
-		}); pollErr != nil {
-			if errors.Is(pollErr, wait.ErrWaitTimeout) {
-				pollErr = err
-			}
-			kubeutil.DaemonSetDebug(tctx.T, ctx, tctx.RestConfig(), tctx.Client(), tctx.namespace, operator.NameCollector)
-			t.Fatalf("scrape endpoint expected failure: %s", pollErr)
-		}
-	}))
-
-	tctx.Run("tls-insecure", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-
-		pm := &monitoringv1.PodMonitoring{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "collector-tls-insecure",
-				Namespace: t.namespace,
-			},
-			Spec: monitoringv1.PodMonitoringSpec{
-				Selector: metav1.LabelSelector{
-					MatchLabels: deployment.Spec.Template.Labels,
-				},
-				Endpoints: []monitoringv1.ScrapeEndpoint{
-					{
-						Port:     intstr.FromString(operatorutil.SyntheticAppPortName),
-						Scheme:   "https",
-						Interval: "5s",
-						HTTPClientConfig: monitoringv1.HTTPClientConfig{
-							TLS: &monitoringv1.TLS{
-								InsecureSkipVerify: true,
-							},
-						},
-					},
-				},
-			},
-		}
-		if err := t.Client().Create(ctx, pm); err != nil {
-			t.Fatalf("create collector: %s", err)
-		}
-
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
-			kubeutil.DaemonSetDebug(tctx.T, ctx, tctx.RestConfig(), tctx.Client(), tctx.namespace, operator.NameCollector)
-			t.Errorf("collector not ready: %s", err)
-		}
-
-		var err error
-		if pollErr := wait.Poll(5*time.Second, 3*time.Minute, func() (bool, error) {
-			if err = t.Client().Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
-				return false, nil
-			}
-			err = operatorutil.IsPodMonitoringScrapeEndpointSuccess(pm, operatorutil.SyntheticAppPortName)
-			return err == nil, nil
-		}); pollErr != nil {
-			if errors.Is(pollErr, wait.ErrWaitTimeout) {
-				pollErr = err
-			}
-			kubeutil.DaemonSetDebug(tctx.T, ctx, tctx.RestConfig(), tctx.Client(), tctx.namespace, operator.NameCollector)
-			t.Fatalf("scrape endpoint expected success: %s", pollErr)
-		}
-	}))
+		})
 }

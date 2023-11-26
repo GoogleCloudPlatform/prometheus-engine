@@ -270,19 +270,9 @@ func testCollector(ctx context.Context, t *OperatorContext, pm monitoringv1.PodM
 		t.Errorf("unable to validate status: %s", err)
 	}
 
-	var err error
-	if pollErr := wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
-		if err = t.Client().Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
-			return false, nil
-		}
-		err = operatorutil.IsPodMonitoringSuccess(pm, true)
-		return err == nil, nil
-	}); pollErr != nil {
-		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
-			pollErr = err
-		}
-		kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-		t.Errorf("status does not indicate success: %s", pollErr)
+	if err := operatorutil.WaitForPodMonitoringSuccess(ctx, t.Client(), pm); err != nil {
+		kubeutil.DaemonSetDebug(t, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
+		t.Fatalf("scrape endpoint expected success: %s", err)
 	}
 
 	if !skipGCM {
