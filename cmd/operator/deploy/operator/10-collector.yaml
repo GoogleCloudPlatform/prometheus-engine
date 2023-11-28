@@ -121,7 +121,7 @@ spec:
           limits:
             memory: 2G
           requests:
-            cpu: 8m
+            cpu: 4m
             memory: 32M
         volumeMounts:
         - name: storage
