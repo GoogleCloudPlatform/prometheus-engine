@@ -486,7 +486,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	}
 
 	// Filter targets that belong to selected pods.
-	selectors, err := relabelingsForSelector(pm.Spec.Selector)
+	selectors, err := relabelingsForSelector(pm.Spec.Selector, pm)
 	if err != nil {
 		return nil, err
 	}
@@ -538,7 +538,19 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 
 // relabelingsForSelector generates a sequence of relabeling rules that implement
 // the label selector for the meta labels produced by the Kubernetes service discovery.
-func relabelingsForSelector(selector metav1.LabelSelector) ([]*relabel.Config, error) {
+func relabelingsForSelector(selector metav1.LabelSelector, crd interface{}) ([]*relabel.Config, error) {
+	// Pick the correct labels based on the CRD type.
+	var objectLabelPresent, objectLabel prommodel.LabelName
+	switch crd.(type) {
+	case *PodMonitoring, *ClusterPodMonitoring:
+		objectLabel = "__meta_kubernetes_pod_label_"
+		objectLabelPresent = "__meta_kubernetes_pod_labelpresent_"
+	case *NodeMonitoring:
+		objectLabel = "__meta_kubernetes_node_label_"
+		objectLabelPresent = "__meta_kubernetes_node_labelpresent_"
+	default:
+		return nil, fmt.Errorf("invalid CRD type %T", crd)
+	}
 	// Simple equal matchers. Sort by keys first to ensure that generated configs are reproducible.
 	// (Go map iteration is non-deterministic.)
 	var selectorKeys []string
@@ -556,7 +568,7 @@ func relabelingsForSelector(selector metav1.LabelSelector) ([]*relabel.Config, e
 		}
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Keep,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(k)},
+			SourceLabels: prommodel.LabelNames{objectLabel + sanitizeLabelName(k)},
 			Regex:        re,
 		})
 	}
@@ -570,7 +582,7 @@ func relabelingsForSelector(selector metav1.LabelSelector) ([]*relabel.Config, e
 			}
 			relabelCfgs = append(relabelCfgs, &relabel.Config{
 				Action:       relabel.Keep,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(exp.Key)},
+				SourceLabels: prommodel.LabelNames{objectLabel + sanitizeLabelName(exp.Key)},
 				Regex:        re,
 			})
 		case metav1.LabelSelectorOpNotIn:
@@ -580,19 +592,19 @@ func relabelingsForSelector(selector metav1.LabelSelector) ([]*relabel.Config, e
 			}
 			relabelCfgs = append(relabelCfgs, &relabel.Config{
 				Action:       relabel.Drop,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(exp.Key)},
+				SourceLabels: prommodel.LabelNames{objectLabel + sanitizeLabelName(exp.Key)},
 				Regex:        re,
 			})
 		case metav1.LabelSelectorOpExists:
 			relabelCfgs = append(relabelCfgs, &relabel.Config{
 				Action:       relabel.Keep,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_labelpresent_" + sanitizeLabelName(exp.Key)},
+				SourceLabels: prommodel.LabelNames{objectLabelPresent + sanitizeLabelName(exp.Key)},
 				Regex:        relabel.MustNewRegexp("true"),
 			})
 		case metav1.LabelSelectorOpDoesNotExist:
 			relabelCfgs = append(relabelCfgs, &relabel.Config{
 				Action:       relabel.Drop,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_labelpresent_" + sanitizeLabelName(exp.Key)},
+				SourceLabels: prommodel.LabelNames{objectLabelPresent + sanitizeLabelName(exp.Key)},
 				Regex:        relabel.MustNewRegexp("true"),
 			})
 		}
@@ -832,7 +844,7 @@ func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
 
 func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected pods.
-	relabelCfgs, err := relabelingsForSelector(cm.Spec.Selector)
+	relabelCfgs, err := relabelingsForSelector(cm.Spec.Selector, cm)
 	if err != nil {
 		return nil, err
 	}
@@ -1404,6 +1416,189 @@ type NodeMonitoring struct {
 	// Specification of desired node selection for target discovery by
 	// Prometheus.
 	Spec NodeMonitoringSpec `json:"spec"`
+}
+
+func (n *NodeMonitoring) GetKey() string {
+	return fmt.Sprintf("NodeMonitoring/%s", n.Name)
+}
+
+func (n *NodeMonitoring) GetEndpoints() []ScrapeEndpoint {
+	return n.Spec.Endpoints
+}
+
+func (nm *NodeMonitoring) ValidateCreate() error {
+	if len(nm.Spec.Endpoints) == 0 {
+		return errors.New("at least one endpoint is required")
+	}
+	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
+	// example values has no adverse effects.
+	_, err := nm.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	return err
+}
+
+func (nm *NodeMonitoring) ValidateUpdate(old runtime.Object) error {
+	// Validity does not depend on state changes.
+	return nm.ValidateCreate()
+}
+
+func (nm *NodeMonitoring) ValidateDelete() error {
+	// Deletions are always valid.
+	return nil
+}
+
+func (nm *NodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
+	for i := range nm.Spec.Endpoints {
+		c, err := nm.endpointScrapeConfig(i, projectID, location, cluster)
+		if err != nil {
+			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
+		}
+		res = append(res, c)
+	}
+	return res, nil
+}
+
+func (nm *NodeMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+	// Filter targets that belong to selected nodes.
+	relabelCfgs, err := relabelingsForSelector(nm.Spec.Selector, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	relabelCfgs = append(relabelCfgs,
+		&relabel.Config{
+			Action:      relabel.Replace,
+			Replacement: nm.Name,
+			TargetLabel: "job",
+		},
+		&relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
+			TargetLabel:  "node",
+		},
+		&relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
+			Replacement:  `$1:metrics`,
+			TargetLabel:  "instance",
+		},
+		// Force target labels so they cannot be overwritten by metric labels.
+		&relabel.Config{
+			Action:      relabel.Replace,
+			TargetLabel: "project_id",
+			Replacement: projectID,
+		},
+		&relabel.Config{
+			Action:      relabel.Replace,
+			TargetLabel: "location",
+			Replacement: location,
+		},
+		&relabel.Config{
+			Action:      relabel.Replace,
+			TargetLabel: "cluster",
+			Replacement: cluster,
+		},
+	)
+
+	discoveryCfgs := discovery.Configs{
+		&discoverykube.SDConfig{
+			HTTPClientConfig: config.DefaultHTTPClientConfig,
+			Role:             discoverykube.RoleNode,
+			// Drop all potential targets not the same node as the collector. The $(NODE_NAME) variable
+			// is interpolated by the config reloader sidecar before the config reaches the Prometheus collector.
+			// Doing it through selectors rather than relabeling should substantially reduce the client and
+			// server side load.
+			Selectors: []discoverykube.SelectorConfig{
+				{
+					Role:  discoverykube.RoleNode,
+					Field: fmt.Sprintf("metadata.name=$(%s)", EnvVarNodeName),
+				},
+			},
+		},
+	}
+
+	ep := nm.Spec.Endpoints[index]
+	// TODO(macxamin) Add support for int port. String ports are not supported by the Kubernetes spec: https://pkg.go.dev/k8s.io/api/core/v1#NodeDaemonEndpoints.
+	if ep.Port.StrVal != "" || ep.Port.IntVal != 0 {
+		return nil, errors.New("port not supported")
+	}
+	// TODO(macxamin) Add support for HTTPClientConfig. Add it for the user for now.
+	if ep.HTTPClientConfig.BasicAuth != nil || ep.HTTPClientConfig.ProxyConfig.ProxyURL != "" || ep.HTTPClientConfig.TLS != nil {
+		return nil, errors.New("http_client_config not supported")
+	}
+	httpCfg := config.HTTPClientConfig{
+		Authorization: &config.Authorization{
+			CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+		},
+		TLSConfig: config.TLSConfig{
+			CAFile: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+		},
+	}
+	return extractScrapeParams(nm.GetKey(), ep, httpCfg, relabelCfgs, discoveryCfgs, nm.Spec.Limits)
+}
+
+// extractScrapeParams extracts the scrape parameters of a NodeMonitoring ScrapeEndpoint.
+func extractScrapeParams(id string, ep ScrapeEndpoint, httpCfg config.HTTPClientConfig, relabelCfgs []*relabel.Config, discoveryCfgs discovery.Configs, limits *ScrapeLimits) (*promconfig.ScrapeConfig, error) {
+	interval, err := prommodel.ParseDuration(ep.Interval)
+	if err != nil {
+		return nil, fmt.Errorf("invalid scrape interval: %w", err)
+	}
+	timeout := interval
+	if ep.Timeout != "" {
+		timeout, err = prommodel.ParseDuration(ep.Timeout)
+		if err != nil {
+			return nil, fmt.Errorf("invalid scrape timeout: %w", err)
+		}
+		if timeout > interval {
+			return nil, fmt.Errorf("scrape timeout %v must not be greater than scrape interval %v", timeout, interval)
+		}
+	}
+	metricsPath := "/metrics"
+	if ep.Path != "" {
+		metricsPath = ep.Path
+	}
+
+	var metricRelabelCfgs []*relabel.Config
+	for _, r := range ep.MetricRelabeling {
+		rcfg, err := convertRelabelingRule(r)
+		if err != nil {
+			return nil, err
+		}
+		metricRelabelCfgs = append(metricRelabelCfgs, rcfg)
+	}
+
+	// return interval, timeout, path, metricRelabelCfgs, nil
+	scrapeCfg := &promconfig.ScrapeConfig{
+		// Generate a job name to make it easy to track what generated the scrape configuration.
+		// The actual job label attached to its metrics is overwritten via relabeling.
+		JobName:                 fmt.Sprintf("%s%s", id, metricsPath),
+		ServiceDiscoveryConfigs: discoveryCfgs,
+		MetricsPath:             metricsPath,
+		Scheme:                  ep.Scheme,
+		HTTPClientConfig:        httpCfg,
+		ScrapeInterval:          interval,
+		ScrapeTimeout:           timeout,
+		RelabelConfigs:          relabelCfgs,
+		MetricRelabelConfigs:    metricRelabelCfgs,
+	}
+	if limits != nil {
+		scrapeCfg.SampleLimit = uint(limits.Samples)
+		scrapeCfg.LabelLimit = uint(limits.Labels)
+		scrapeCfg.LabelNameLengthLimit = uint(limits.LabelNameLength)
+		scrapeCfg.LabelValueLengthLimit = uint(limits.LabelValueLength)
+	}
+	// The Prometheus configuration structs do not generally have validation methods and embed their
+	// validation logic in the UnmarshalYAML methods. To keep things reasonable we don't re-validate
+	// everything and simply do a final marshal-unmarshal cycle at the end to run all validation
+	// upstream provides at the end of this method.
+	b, err := yaml.Marshal(scrapeCfg)
+	if err != nil {
+		return nil, fmt.Errorf("scrape config cannot be marshalled: %w", err)
+	}
+	var scrapeCfgCopy promconfig.ScrapeConfig
+	if err := yaml.Unmarshal(b, &scrapeCfgCopy); err != nil {
+		return nil, fmt.Errorf("invalid scrape configuration: %w", err)
+	}
+	return scrapeCfg, nil
 }
 
 var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)

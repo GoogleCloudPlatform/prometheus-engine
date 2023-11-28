@@ -484,6 +484,98 @@ func TestValidateClusterPodMonitoring(t *testing.T) {
 	}
 }
 
+func TestValidateNodeMonitoring(t *testing.T) {
+	cases := []struct {
+		desc        string
+		pm          NodeMonitoringSpec
+		eps         []ScrapeEndpoint
+		fail        bool
+		errContains string
+	}{
+		{
+			desc: "OK metadata labels",
+			eps: []ScrapeEndpoint{
+				{
+					Interval: "10s",
+				},
+			},
+		},
+		{
+			desc: "Scrape interval missing",
+			eps: []ScrapeEndpoint{
+				{},
+			},
+			fail:        true,
+			errContains: "empty duration string",
+		},
+		{
+			desc: "scrape interval malformed",
+			eps: []ScrapeEndpoint{
+				{
+					Interval: "foo",
+				},
+			},
+			fail:        true,
+			errContains: "invalid scrape interval: not a valid duration string",
+		},
+		{
+			desc: "scrape timeout greater than interval",
+			eps: []ScrapeEndpoint{
+				{
+					Interval: "1s",
+					Timeout:  "2s",
+				},
+			},
+			fail:        true,
+			errContains: "scrape timeout 2s must not be greater than scrape interval 1s",
+		},
+		{
+			desc: "port not supported",
+			eps: []ScrapeEndpoint{
+				{
+					Port: intstr.FromString("12"),
+				},
+			},
+			fail:        true,
+			errContains: "port not supported",
+		},
+		{
+			desc: "http config not supported",
+			eps: []ScrapeEndpoint{
+				{
+					HTTPClientConfig: HTTPClientConfig{
+						BasicAuth: &BasicAuth{Username: "fake"},
+					},
+				},
+			},
+			fail:        true,
+			errContains: "http_client_config not supported",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.desc+"", func(t *testing.T) {
+			nm := &NodeMonitoring{
+				Spec: NodeMonitoringSpec{
+					Endpoints: c.eps,
+				},
+			}
+			err := nm.ValidateCreate()
+			t.Log(err)
+
+			if err == nil && c.fail {
+				t.Fatalf("expected failure but passed")
+			}
+			if err != nil && !c.fail {
+				t.Fatalf("unexpected failure: %s", err)
+			}
+			if err != nil && c.fail && !strings.Contains(err.Error(), c.errContains) {
+				t.Fatalf("expected error to contain %q but got %q", c.errContains, err)
+			}
+		})
+	}
+}
+
 func stringSlicePtr(s ...string) *[]string {
 	return &s
 }
@@ -560,6 +652,9 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 			Name:      "name1",
 		},
 		Spec: PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"app.kubernetes.io/name": "prom-example"},
+			},
 			Endpoints: []ScrapeEndpoint{
 				{
 					Port:     intstr.FromString("web"),
@@ -639,6 +734,9 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
   action: keep
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+  regex: prom-example
+  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
@@ -717,6 +815,9 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
   action: keep
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+  regex: prom-example
+  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
@@ -785,6 +886,9 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 			Name: "name1",
 		},
 		Spec: ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"app.kubernetes.io/name": "prom-example"},
+			},
 			Endpoints: []ScrapeEndpoint{
 				{
 					Port:     intstr.FromString("web"),
@@ -858,6 +962,9 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 relabel_configs:
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+  regex: prom-example
+  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
@@ -931,6 +1038,9 @@ follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
 relabel_configs:
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+  regex: prom-example
+  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
@@ -981,6 +1091,185 @@ kubernetes_sd_configs:
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
+`,
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("unexpected scrape config YAML (-want, +got): %s", diff)
+	}
+}
+
+func TestNodeMonitoring_ScrapeConfig(t *testing.T) {
+	// Generate YAML for one complex scrape config and make sure everything
+	// adds up. This primarily verifies that everything is included and marshalling
+	// the generated config to YAML does not produce any bad configurations due to
+	// defaulting as the Prometheus structs are misconfigured in this regard in
+	// several places.
+	pmon := &NodeMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kubelet",
+		},
+		Spec: NodeMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"kubernetes.io/os": "linux"},
+			},
+			Endpoints: []ScrapeEndpoint{
+				{
+					Interval: "10s",
+					Path:     "/cadvisor/metrics",
+					Scheme:   "https",
+					MetricRelabeling: []RelabelingRule{
+						{
+							Action:       "replace",
+							SourceLabels: []string{"mlabel_1", "mlabel_2"},
+							TargetLabel:  "mlabel_3",
+						}, {
+							Action:       "hashmod",
+							SourceLabels: []string{"mlabel_1"},
+							Modulus:      3,
+							TargetLabel:  "__tmp_mod",
+						}, {
+							Action:  "keep",
+							Regex:   "foo_.+",
+							Modulus: 3,
+						},
+					},
+				},
+				{
+					Scheme:   "https",
+					Interval: "10000ms",
+					Timeout:  "5s",
+				},
+			},
+			Limits: &ScrapeLimits{
+				Samples:          1,
+				Labels:           2,
+				LabelNameLength:  3,
+				LabelValueLength: 4,
+			},
+		},
+	}
+	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+
+	for _, sc := range scrapeCfgs {
+		b, err := yaml.Marshal(sc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, string(b))
+	}
+	want := []string{
+		`job_name: NodeMonitoring/kubelet/cadvisor/metrics
+honor_timestamps: false
+scrape_interval: 10s
+scrape_timeout: 10s
+metrics_path: /cadvisor/metrics
+scheme: https
+sample_limit: 1
+label_limit: 2
+label_name_length_limit: 3
+label_value_length_limit: 4
+authorization:
+  credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+tls_config:
+  ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  insecure_skip_verify: false
+follow_redirects: false
+enable_http2: false
+relabel_configs:
+- source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
+  regex: linux
+  action: keep
+- target_label: job
+  replacement: kubelet
+  action: replace
+- source_labels: [__meta_kubernetes_node_name]
+  target_label: node
+  action: replace
+- source_labels: [__meta_kubernetes_node_name]
+  target_label: instance
+  replacement: $1:metrics
+  action: replace
+- target_label: project_id
+  replacement: test_project
+  action: replace
+- target_label: location
+  replacement: test_location
+  action: replace
+- target_label: cluster
+  replacement: test_cluster
+  action: replace
+metric_relabel_configs:
+- source_labels: [mlabel_1, mlabel_2]
+  target_label: mlabel_3
+  action: replace
+- source_labels: [mlabel_1]
+  modulus: 3
+  target_label: __tmp_mod
+  action: hashmod
+- regex: foo_.+
+  modulus: 3
+  action: keep
+kubernetes_sd_configs:
+- role: node
+  kubeconfig_file: ""
+  follow_redirects: true
+  enable_http2: true
+  selectors:
+  - role: node
+    field: metadata.name=$(NODE_NAME)
+`,
+		`job_name: NodeMonitoring/kubelet/metrics
+honor_timestamps: false
+scrape_interval: 10s
+scrape_timeout: 5s
+metrics_path: /metrics
+scheme: https
+sample_limit: 1
+label_limit: 2
+label_name_length_limit: 3
+label_value_length_limit: 4
+authorization:
+  credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+tls_config:
+  ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  insecure_skip_verify: false
+follow_redirects: false
+enable_http2: false
+relabel_configs:
+- source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
+  regex: linux
+  action: keep
+- target_label: job
+  replacement: kubelet
+  action: replace
+- source_labels: [__meta_kubernetes_node_name]
+  target_label: node
+  action: replace
+- source_labels: [__meta_kubernetes_node_name]
+  target_label: instance
+  replacement: $1:metrics
+  action: replace
+- target_label: project_id
+  replacement: test_project
+  action: replace
+- target_label: location
+  replacement: test_location
+  action: replace
+- target_label: cluster
+  replacement: test_cluster
+  action: replace
+kubernetes_sd_configs:
+- role: node
+  kubeconfig_file: ""
+  follow_redirects: true
+  enable_http2: true
+  selectors:
+  - role: node
+    field: metadata.name=$(NODE_NAME)
 `,
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
