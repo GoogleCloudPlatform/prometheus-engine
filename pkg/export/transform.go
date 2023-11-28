@@ -69,15 +69,24 @@ func discardExemplarIncIfExists(series storage.SeriesRef, exemplars map[storage.
 	}
 }
 
+type exemplarOpts struct {
+	autoPopulateProjectID bool
+	exemplarProjectID     string
+}
 type sampleBuilder struct {
 	series *seriesCache
 	dists  map[uint64]*distribution
+	exOpts *exemplarOpts
 }
 
-func newSampleBuilder(c *seriesCache) *sampleBuilder {
+func newSampleBuilder(c *seriesCache, exOpts *exemplarOpts) *sampleBuilder {
+	if exOpts == nil {
+		exOpts = &exemplarOpts{}
+	}
 	return &sampleBuilder{
 		series: c,
 		dists:  make(map[uint64]*distribution, 128),
+		exOpts: exOpts,
 	}
 }
 
@@ -270,7 +279,7 @@ func (d *distribution) Swap(i, j int) {
 	d.values[i], d.values[j] = d.values[j], d.values[i]
 }
 
-func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution, error) {
+func (d *distribution) build(lset labels.Labels, exOpts *exemplarOpts) (*distribution_pb.Distribution, error) {
 	// The exposition format in general requires buckets to be in-order but we observed
 	// some cases in the wild where this was not the case.
 	// Ensure sorting here to gracefully handle those cases sometimes. This cannot handle
@@ -354,7 +363,7 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 			},
 		},
 		BucketCounts: values,
-		Exemplars:    buildExemplars(d.exemplars),
+		Exemplars:    buildExemplars(d.exemplars, exOpts),
 	}
 	return dp, nil
 }
@@ -467,7 +476,7 @@ Loop:
 		if !dist.complete() {
 			continue
 		}
-		dp, err := dist.build(e.lset)
+		dp, err := dist.build(e.lset, b.exOpts)
 		if err != nil {
 			return nil, 0, samples[consumed:], err
 		}
@@ -482,7 +491,7 @@ Loop:
 	return nil, 0, samples[consumed:], nil
 }
 
-func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribution_Exemplar {
+func buildExemplars(exemplars []record.RefExemplar, exOpts *exemplarOpts) []*distribution_pb.Distribution_Exemplar {
 	// The exemplars field of a distribution value field must be in increasing order of value
 	// (https://cloud.google.com/monitoring/api/ref_v3/rpc/google.api#distribution) -- let's sort them.
 	sort.Slice(exemplars, func(i, j int) bool {
@@ -490,7 +499,7 @@ func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribut
 	})
 	var result []*distribution_pb.Distribution_Exemplar
 	for _, pex := range exemplars {
-		attachments := buildExemplarAttachments(pex.Labels)
+		attachments := buildExemplarAttachments(pex.Labels, exOpts)
 		result = append(result, &distribution_pb.Distribution_Exemplar{
 			Value:       pex.V,
 			Timestamp:   getTimestamp(pex.T),
@@ -511,7 +520,7 @@ func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribut
 // This is to maintain comptability with CloudTrace.
 // Note that the project_id needs to be the project_id where the span was written.
 // This may not necessarily be the same project_id where the metric was written.
-func buildExemplarAttachments(lset labels.Labels) []*anypb.Any {
+func buildExemplarAttachments(lset labels.Labels, exOpts *exemplarOpts) []*anypb.Any {
 	var projectID, spanID, traceID string
 	var attachments []*anypb.Any
 	droppedLabels := make(map[string]string)
@@ -525,6 +534,11 @@ func buildExemplarAttachments(lset labels.Labels) []*anypb.Any {
 		} else {
 			droppedLabels[label.Name] = label.Value
 		}
+	}
+	// If the project_id is not in the labelset, and autoPopulateProjectID is true,
+	// autopopulate projectID, but only if spanID and traceID are set.
+	if projectID == "" && spanID != "" && traceID != "" && exOpts.autoPopulateProjectID {
+		projectID = exOpts.exemplarProjectID
 	}
 	if projectID != "" && spanID != "" && traceID != "" {
 		spanCtx, err := anypb.New(&monitoring_pb.SpanContext{

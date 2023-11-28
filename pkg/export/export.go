@@ -179,6 +179,12 @@ type ExporterOpts struct {
 	Location  string
 	Cluster   string
 
+	// If true, automatically populate the project id in an exemplar labelset.
+	PopulateExemplarProjectID bool
+	// Automatically populate exemplar labelset with this project id
+	// if PopulateExemplarProjectID is true.
+	ExemplarProjectID string
+
 	// A list of metric matchers. Only Prometheus time series satisfying at
 	// least one of the matchers are exported.
 	// This option matches the semantics of the Prometheus federation match[]
@@ -468,7 +474,11 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 		samplesDropped.WithLabelValues("no-ha-range").Add(float64(batchSize))
 		return
 	}
-	builder := newSampleBuilder(e.seriesCache)
+	exOpts := &exemplarOpts{
+		autoPopulateProjectID: e.opts.PopulateExemplarProjectID,
+		exemplarProjectID:     e.opts.ExemplarProjectID,
+	}
+	builder := newSampleBuilder(e.seriesCache, exOpts)
 	defer builder.close()
 	exemplarsExported.Add(float64(len(exemplarMap)))
 
