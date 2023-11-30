@@ -155,12 +155,12 @@ func PortForwardClient(t testing.TB, restConfig *rest.Config, kubeClient client.
 					if err := forwarder.ForwardPorts(); err != nil {
 						errCh <- err
 					}
+					close(errCh)
 				}()
 
 				close := func() {
 					// readyCh is closed by the port-forwarder.
 					close(stopCh)
-					close(errCh)
 				}
 
 				select {
