@@ -138,6 +138,16 @@ else
 	@echo "Secret not provided, skipping!"
 endif
 
+GCM_SECRET?=''
+.PHONY: test-script-gcm
+test-script-gcm:  ## Run example/scripts unit tests that will use GCM if GCM_SECRET is present.
+                  ## TODO(b/306337101): Move to cloud build.
+ifneq ($(GCM_SECRET), '')
+	cd examples/scripts && go test -v .
+else
+	@echo "Secret not provided, skipping!"
+endif
+
 .PHONY: e2e
 e2e:         ## Run e2e test suite against fresh kind k8s cluster. By default it
              ## deploys and uses single-node kind cluster (left up after the tests). Setting
