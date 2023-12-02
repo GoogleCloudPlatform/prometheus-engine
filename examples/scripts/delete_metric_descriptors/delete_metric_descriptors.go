@@ -19,18 +19,21 @@ import (
 )
 
 /*
-This script deletes metric descriptors from given projects (-projects flag),
-matching given metric type (descriptor name) regex expression (-metric_type_regex flag).
+This script deletes metric descriptors from the given projects (-projects flag),
+matching the given metric type (descriptor name) regex expression (-metric_type_regex flag).
 
-Metrics to delete will be first printed and there will be interactive option to confirm it
-before the actual removal.
+Metrics to delete will be first printed and then awaiting interactive confirmation,
+before the actual removal. Dry run option also exists.
 
-WARNING: All underlying time series (potentially years of data) will be irreversibly
-removed once confirmed.
+WARNING: All underlying time series behind each descriptor (potentially years
+of data) will be irreversibly removed once confirmed.
 
 Example run:
 
-1. Acquire Application Default Credentials if you haven't yet:
+1. Setup Application Default Credentials (ADC) (https://cloud.google.com/docs/authentication/provide-credentials-adc)
+if you haven't yet:
+	1a. Make sure the account behind the ADC for chosen projects has Monitoring Editor or Monitoring Admin permissions: https://cloud.google.com/monitoring/access-control#monitoring-perms
+  1b. Acquire Application Default Credentials in your environment using gcloud:
 
 gcloud auth application-default login
 
@@ -44,7 +47,7 @@ See go run delete_metric_descriptors.go -help for all options.
 var (
 	cloudMonitoringEndpoint = flag.String("address", "monitoring.googleapis.com:443", "address of monitoring API")
 
-	projectNames    = flag.String("projects", "", "required: comma-separated names of the projects on which to execute the requests. Name format is as defined in https://cloud.google.com/monitoring/api/ref_v3/rpc/google.monitoring.v3#listmetricdescriptorsrequesttarget, e.g. projects/test-project,projects/test-project2")
+	projectNames    = flag.String("projects", "", "required: comma-separated project IDs of the projects on which to execute the requests. Name format is as defined in https://cloud.google.com/monitoring/api/ref_v3/rpc/google.monitoring.v3#listmetricdescriptorsrequesttarget, e.g. projects/test-project,projects/test-project2")
 	metricTypeRegex = flag.String("metric_type_regex", "", "required: RE2 regex expression matching metric.type (anchored), so metric descriptor names to delete. Guarded with the interactive 'y' confirmation. See --dry_run to only print those")
 	dryRun          = flag.Bool("dry_run", false, "whether to dry run or not")
 
@@ -129,7 +132,7 @@ func deleteDescriptors(endpoint string, projects []string, re2 *regexp.Regexp, s
 			deleted++
 			fmt.Printf("%s deleted\n", d)
 			if deleted%1000 == 0 {
-				fmt.Println("Sleeping 1 seconds to avoid quota issues...")
+				fmt.Println("Sleeping 1 second to avoid quota issues...")
 				time.Sleep(1 * time.Second)
 			}
 		}
