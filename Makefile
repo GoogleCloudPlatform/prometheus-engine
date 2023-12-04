@@ -186,10 +186,10 @@ presubmit:   ## Regenerate all resources, build all images and run all tests.
 presubmit: updateversions regen bin test e2e
 
 .PHONY: updateversions
-CURRENT_TAG = v0.8.0-gke.4
-CURRENT_PROM_TAG = v2.41.0-gmp.5-gke.0
-CURRENT_AM_TAG = v0.25.1-gmp.1-gke.0
-LABEL_API_VERSION = 0.8.0
+CURRENT_TAG = v0.9.0-gke.1
+CURRENT_PROM_TAG = v2.41.0-gmp.7-gke.0
+CURRENT_AM_TAG = v0.25.1-gmp.2-gke.0
+LABEL_API_VERSION = 0.9.0
 FILES_TO_UPDATE = $(shell find manifests cmd/operator/deploy -type f -name "*.yaml")
 updateversions: ## Modify all manifests, so it contains the expected versions.
                 ##
