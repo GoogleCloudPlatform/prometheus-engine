@@ -39,7 +39,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/discovery"
@@ -367,12 +366,6 @@ func createGCPSecretResources(ctx context.Context, kubeClient client.Client, nam
 		}
 	}
 	return nil
-}
-
-func parseResourceYAML(b []byte) (runtime.Object, error) {
-	// Ignore returned schema. It's redundant since it's already encoded in obj.
-	obj, _, err := scheme.Codecs.UniversalDeserializer().Decode(b, nil, nil)
-	return obj, err
 }
 
 func createCollectorResources(ctx context.Context, kubeClient client.Client, namespace, labelValue string) error {

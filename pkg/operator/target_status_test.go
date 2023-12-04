@@ -16,6 +16,7 @@ package operator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -1252,7 +1253,7 @@ func TestPolling(t *testing.T) {
 	expectStatus := func(t *testing.T, description string, expected []monitoringv1.ScrapeEndpointStatus) {
 		// Must poll because status is updated via other thread.
 		var err error
-		if pollErr := wait.Poll(100*time.Millisecond, 2*time.Second, func() (bool, error) {
+		if pollErr := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 			var podMonitorings monitoringv1.PodMonitoringList
 			if err := kubeClient.List(ctx, &podMonitorings); err != nil {
 				return false, nil
@@ -1275,7 +1276,10 @@ func TestPolling(t *testing.T) {
 				return false, err
 			}
 		}); pollErr != nil {
-			t.Fatalf("Failed waiting for %s status: %s", description, err)
+			if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
+				pollErr = err
+			}
+			t.Fatalf("Failed waiting for %s status: %s", description, pollErr)
 		}
 	}
 

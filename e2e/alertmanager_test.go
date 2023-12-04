@@ -119,9 +119,10 @@ func testAlertmanager(ctx context.Context, t *OperatorContext, spec *monitoringv
 }
 
 func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, config *monitoringv1.ManagedAlertmanagerSpec) {
-	err := wait.Poll(time.Second, 1*time.Minute, func() (bool, error) {
+	var err error
+	pollErr := wait.PollUntilContextTimeout(ctx, time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var ss appsv1.StatefulSet
-		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameAlertmanager}, &ss); err != nil {
+		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameAlertmanager}, &ss); err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
@@ -142,10 +143,11 @@ func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, config *m
 			return true, nil
 		}
 
+		const containerName = "alertmanager"
 		// TODO(pintohutch): clean-up wantArgs init logic.
 		var wantArgs []string
 		for _, c := range ss.Spec.Template.Spec.Containers {
-			if c.Name != "alertmanager" {
+			if c.Name != containerName {
 				continue
 			}
 			// We're mainly interested in the dynamic flags but checking the entire set including
@@ -155,15 +157,18 @@ func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, config *m
 			}
 
 			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
-				return false, fmt.Errorf("unexpected flags (-want, +got): %s", diff)
+				err = fmt.Errorf("unexpected flags (-want, +got): %s", diff)
 			}
-			return true, nil
+			return err == nil, nil
 		}
 
-		return true, nil
+		return false, fmt.Errorf("no container with name %q found", containerName)
 	})
-	if err != nil {
-		t.Errorf("unable to get alertmanager statefulset: %s", err)
+	if pollErr != nil {
+		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
+			pollErr = err
+		}
+		t.Errorf("unable to get alertmanager statefulset: %s", pollErr)
 	}
 }
 
@@ -172,9 +177,10 @@ func testAlertmanagerConfig(ctx context.Context, t *OperatorContext, pub *corev1
 		t.Fatalf("unable to create alertmanager config secret: %s", err)
 	}
 
-	if err := wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
+	var err error
+	if pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var secret corev1.Secret
-		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.AlertmanagerSecretName}, &secret); err != nil {
+		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.AlertmanagerSecretName}, &secret); err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
@@ -189,10 +195,13 @@ func testAlertmanagerConfig(ctx context.Context, t *OperatorContext, pub *corev1
 		// Grab data from public secret and compare.
 		data := pub.Data[key]
 		if diff := cmp.Diff(data, bytes); diff != "" {
-			return false, fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
+			err = fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 		}
-		return true, nil
-	}); err != nil {
-		t.Errorf("unable to get alertmanager config: %s", err)
+		return err == nil, nil
+	}); pollErr != nil {
+		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
+			pollErr = err
+		}
+		t.Errorf("unable to get alertmanager config: %s", pollErr)
 	}
 }

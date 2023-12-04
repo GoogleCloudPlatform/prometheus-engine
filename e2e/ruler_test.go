@@ -155,9 +155,10 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key
 		fmt.Sprintf("secret_%s_alertmanager-tls_key", t.pubNamespace):             key,
 		fmt.Sprintf("secret_%s_alertmanager-authorization_token", t.pubNamespace): []byte("auth-bearer-password"),
 	}
-	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
+	var err error
+	pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var secret corev1.Secret
-		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.RulesSecretName}, &secret); err != nil {
+		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.RulesSecretName}, &secret); err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
@@ -166,12 +167,15 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key
 		delete(secret.Data, fmt.Sprintf("secret_%s_user-gcp-service-account_key.json", t.pubNamespace))
 
 		if diff := cmp.Diff(want, secret.Data); diff != "" {
-			return false, fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
+			err = fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 		}
-		return true, nil
+		return err == nil, nil
 	})
-	if err != nil {
-		t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
+	if pollErr != nil {
+		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
+			pollErr = err
+		}
+		t.Fatalf("failed waiting for generated rule-evaluator config: %s", pollErr)
 	}
 }
 
@@ -234,29 +238,34 @@ rule_files:
     - /etc/rules/*.yaml
 `),
 	}
-	err := wait.Poll(1*time.Second, 1*time.Minute, func() (bool, error) {
+	var err error
+	pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var cm corev1.ConfigMap
-		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rule-evaluator"}, &cm); err != nil {
+		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rule-evaluator"}, &cm); err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
 			return false, fmt.Errorf("get configmap: %w", err)
 		}
 		if diff := cmp.Diff(want, cm.Data); diff != "" {
-			return false, fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
+			err = fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 		}
-		return true, nil
+		return err == nil, nil
 	})
-	if err != nil {
-		t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
+	if pollErr != nil {
+		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
+			pollErr = err
+		}
+		t.Fatalf("failed waiting for generated rule-evaluator config: %s", pollErr)
 	}
 
 }
 
 func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
-	err := wait.Poll(1*time.Second, 2*time.Minute, func() (bool, error) {
+	var err error
+	pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var deploy appsv1.Deployment
-		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rule-evaluator"}, &deploy); err != nil {
+		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rule-evaluator"}, &deploy); err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
@@ -283,9 +292,10 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
 			return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
 		}
 
+		const containerName = "evaluator"
 		// TODO(pintohutch): clean-up wantArgs init logic.
 		for _, c := range deploy.Spec.Template.Spec.Containers {
-			if c.Name != "evaluator" {
+			if c.Name != containerName {
 				continue
 			}
 			// We're mainly interested in the dynamic flags but checking the entire set including
@@ -305,14 +315,17 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
 			}
 
 			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
-				return false, fmt.Errorf("unexpected flags (-want, +got): %s", diff)
+				err = fmt.Errorf("unexpected flags (-want, +got): %s", diff)
 			}
-			return true, nil
+			return err == nil, nil
 		}
-		return false, errors.New("no container with name evaluator found")
+		return false, fmt.Errorf("no container with name %q found", containerName)
 	})
-	if err != nil {
-		t.Fatalf("failed waiting for generated rule-evaluator deployment: %s", err)
+	if pollErr != nil {
+		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
+			pollErr = err
+		}
+		t.Fatalf("failed waiting for generated rule-evaluator deployment: %s", pollErr)
 	}
 }
 
@@ -451,7 +464,7 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 
 	var diff string
 
-	err := wait.Poll(1*time.Second, time.Minute, func() (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, 1*time.Second, time.Minute, true, func(ctx context.Context) (bool, error) {
 		var cm corev1.ConfigMap
 		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rules-generated"}, &cm); err != nil {
 			if apierrors.IsNotFound(err) {
@@ -496,7 +509,7 @@ func testValidateRuleEvaluationMetrics(ctx context.Context, t *OperatorContext) 
 	}
 	defer metricClient.Close()
 
-	err = wait.Poll(1*time.Second, 3*time.Minute, func() (bool, error) {
+	err = wait.PollUntilContextTimeout(ctx, 1*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 		now := time.Now()
 
 		// Validate the majority of labels being set correctly by filtering along them.
