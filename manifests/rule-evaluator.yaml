@@ -51,7 +51,6 @@ metadata:
   labels:
     app.kubernetes.io/name: rule-evaluator
 spec:
-  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: rule-evaluator
