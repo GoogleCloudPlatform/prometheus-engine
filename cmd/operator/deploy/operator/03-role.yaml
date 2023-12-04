@@ -82,9 +82,8 @@ rules:
 - resources:
   - statefulsets
   apiGroups: ["apps"]
-  resourceNames:
-  - alertmanager
-  verbs: ["patch", "update"]
+  resourceNames: ["alertmanager"]
+  verbs: ["get", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role

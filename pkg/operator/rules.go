@@ -20,7 +20,9 @@ import (
 
 	"github.com/go-logr/logr"
 	yaml "gopkg.in/yaml.v3"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -126,7 +128,85 @@ func (r *rulesReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	if err := r.ensureRuleConfigs(ctx, projectID, location, cluster); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure rule configmaps: %w", err)
 	}
+
+	if err := r.scaleRuleConsumers(ctx); err != nil {
+		return reconcile.Result{}, fmt.Errorf("scale rule consumers: %w", err)
+	}
+
 	return reconcile.Result{}, nil
+}
+
+func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
+	logger, _ := logr.FromContext(ctx)
+
+	var desiredReplicas int32
+
+	var hasAnyRules bool
+	for _, check := range []RuleCheck{r.hasRules, r.hasClusterRules, r.hasGlobalRules} {
+		hasRules, err := check(ctx)
+		if err != nil {
+			return err
+		}
+		if hasRules {
+			hasAnyRules = true
+			break
+		}
+	}
+	if hasAnyRules {
+		desiredReplicas = 1
+	}
+
+	var alertManagerStatefulSet appsv1.StatefulSet
+	if err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "alertmanager"}, &alertManagerStatefulSet); errors.IsNotFound(err) {
+		msg := fmt.Sprintf("Alertmanager StatefulSet not found, cannot scale to %d. In-cluster Alertmanager will not function.", desiredReplicas)
+		logger.Error(err, msg)
+	} else if client.IgnoreNotFound(err) != nil {
+		return err
+
+	} else if *alertManagerStatefulSet.Spec.Replicas != desiredReplicas {
+		*alertManagerStatefulSet.Spec.Replicas = desiredReplicas
+		if err := r.client.Update(ctx, &alertManagerStatefulSet); err != nil {
+			return err
+		}
+	}
+
+	var ruleEvaluatorDeployment appsv1.Deployment
+	if err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "rule-evaluator"}, &ruleEvaluatorDeployment); errors.IsNotFound(err) {
+		msg := fmt.Sprintf("Rule Evaluator Deployment not found, cannot scale to %d. In-cluster Rule Evaluator will not function.", desiredReplicas)
+		logger.Error(err, msg)
+	} else if client.IgnoreNotFound(err) != nil {
+		return err
+	} else if *ruleEvaluatorDeployment.Spec.Replicas != desiredReplicas {
+		*ruleEvaluatorDeployment.Spec.Replicas = desiredReplicas
+		if err := r.client.Update(ctx, &ruleEvaluatorDeployment); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type RuleCheck func(context.Context) (bool, error)
+
+func (r *rulesReconciler) hasRules(ctx context.Context) (bool, error) {
+	var rules monitoringv1.RulesList
+	if err := r.client.List(ctx, &rules); err != nil {
+		return false, err
+	}
+	return len(rules.Items) > 0, nil
+}
+func (r *rulesReconciler) hasClusterRules(ctx context.Context) (bool, error) {
+	var rules monitoringv1.ClusterRulesList
+	if err := r.client.List(ctx, &rules); err != nil {
+		return false, err
+	}
+	return len(rules.Items) > 0, nil
+}
+func (r *rulesReconciler) hasGlobalRules(ctx context.Context) (bool, error) {
+	var rules monitoringv1.GlobalRulesList
+	if err := r.client.List(ctx, &rules); err != nil {
+		return false, err
+	}
+	return len(rules.Items) > 0, nil
 }
 
 func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string) error {
