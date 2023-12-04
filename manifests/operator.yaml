@@ -875,7 +875,6 @@ metadata:
   name: alertmanager
   namespace: gmp-system
 spec:
-  replicas: 1
   selector:
     matchLabels:
       app: managed-prometheus-alertmanager
