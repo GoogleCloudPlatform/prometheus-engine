@@ -44,7 +44,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
@@ -112,8 +111,8 @@ func setupCollectionControllers(op *Operator) error {
 				predicate.GenerationChangedPredicate{},
 			)).
 		// Detect and undo changes to the secret.
-		WatchesRawSource(
-			source.Kind(op.managedNamespacesCache, &corev1.Secret{}),
+		Watches(
+			&corev1.Secret{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterSecret)).
 		Complete(newCollectionReconciler(op.manager.GetClient(), op.opts))

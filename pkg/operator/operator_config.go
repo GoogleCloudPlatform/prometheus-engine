@@ -45,7 +45,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -155,18 +154,18 @@ func setupOperatorConfigControllers(op *Operator) error {
 				objFilterRuleEvaluator,
 				predicate.GenerationChangedPredicate{},
 			)).
-		WatchesRawSource(
-			source.Kind(op.managedNamespacesCache, &corev1.Secret{}),
+		Watches(
+			&corev1.Secret{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.NewPredicateFuncs(secretFilter(op.opts.PublicNamespace))),
 		).
 		// Detect and undo changes to the secret.
-		WatchesRawSource(
-			source.Kind(op.managedNamespacesCache, &corev1.Secret{}),
+		Watches(
+			&corev1.Secret{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterRuleEvaluatorSecret)).
-		WatchesRawSource(
-			source.Kind(op.managedNamespacesCache, &corev1.Secret{}),
+		Watches(
+			&corev1.Secret{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterAlertManagerSecret)).
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
