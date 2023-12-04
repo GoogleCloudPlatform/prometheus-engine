@@ -79,6 +79,12 @@ rules:
   apiGroups: [""]
   resourceNames: ["alertmanager"]
   verbs: ["get", "list", "watch"]
+- resources:
+  - statefulsets
+  apiGroups: ["apps"]
+  resourceNames:
+  - alertmanager
+  verbs: ["patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -134,3 +140,7 @@ rules:
   - rules/status
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "patch", "update"]
+- resources:
+  - statefulsets
+  apiGroups: ["apps"]
+  verbs: ["get", "list", "watch"]
