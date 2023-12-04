@@ -58,11 +58,11 @@ func IsDeploymentReady(ctx context.Context, kubeClient client.Client, namespace,
 
 func WaitForDeploymentReady(ctx context.Context, kubeClient client.Client, namespace, name string) error {
 	var err error
-	if waitErr := wait.Poll(3*time.Second, 1*time.Minute, func() (bool, error) {
+	if waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 		err := IsDeploymentReady(ctx, kubeClient, namespace, name)
 		return err == nil, nil
 	}); waitErr != nil {
-		if errors.Is(waitErr, wait.ErrWaitTimeout) {
+		if errors.Is(waitErr, context.DeadlineExceeded) {
 			return err
 		}
 		return waitErr

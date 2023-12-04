@@ -29,7 +29,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -108,7 +107,7 @@ func TestCollectionStatus(t *testing.T) {
 
 	kubeClient := newFakeClientBuilder().
 		WithObjects(&monitoringv1.PodMonitoring{
-			ObjectMeta: v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      "prom-example",
 				Namespace: "gmp-test",
 			},
@@ -121,7 +120,7 @@ func TestCollectionStatus(t *testing.T) {
 			Status: statusIn,
 		}).
 		WithObjects(&monitoringv1.OperatorConfig{
-			ObjectMeta: v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      NameOperatorConfig,
 				Namespace: opts.PublicNamespace,
 			},
@@ -161,13 +160,12 @@ func TestCollectionStatus(t *testing.T) {
 		for i := range status.Conditions {
 			// Normalize times because we cannot predict this.
 			condition := &status.Conditions[i]
-			condition.LastUpdateTime = v1.Time{}
-			condition.LastTransitionTime = v1.Time{}
+			condition.LastUpdateTime = metav1.Time{}
+			condition.LastTransitionTime = metav1.Time{}
 		}
 		if diff := cmp.Diff(status, statusOut); diff != "" {
 			t.Fatalf("invalid PodMonitoringStatus: %s", diff)
 		}
-		break
 	default:
 		t.Fatalf("invalid PodMonitorings found: %d", amount)
 	}

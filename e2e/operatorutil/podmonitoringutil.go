@@ -62,7 +62,7 @@ func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, pm
 
 	var err error
 	var resVer string
-	pollErr := wait.Poll(3*time.Second, timeout, func() (bool, error) {
+	pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 			return false, fmt.Errorf("getting PodMonitoring failed: %w", err)
 		}
@@ -83,7 +83,7 @@ func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, pm
 		return true, nil
 	})
 	if pollErr != nil {
-		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
+		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
 			return err
 		}
 		return pollErr
@@ -108,7 +108,11 @@ func isPodMonitoringScrapeEndpointSuccess(status *monitoringv1.ScrapeEndpointSta
 			} else {
 				for _, target := range group.SampleTargets {
 					if target.Health != "up" {
-						errs = append(errs, fmt.Errorf("unhealthy target %q at group %d", target.Health, i))
+						lastErr := "no error reported"
+						if target.LastError != nil {
+							lastErr = *target.LastError
+						}
+						errs = append(errs, fmt.Errorf("unhealthy target %q at group %d: %s", target.Health, i, lastErr))
 						break
 					}
 				}
@@ -169,14 +173,14 @@ func IsPodMonitoringSuccess(pm monitoringv1.PodMonitoringCRD, targetStatusEnable
 
 func WaitForPodMonitoringSuccess(ctx context.Context, kubeClient client.Client, pm monitoringv1.PodMonitoringCRD) error {
 	var err error
-	if pollErr := wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
+	if pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 			return false, nil
 		}
 		err = IsPodMonitoringSuccess(pm, true)
 		return err == nil, nil
 	}); pollErr != nil {
-		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
+		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
 			return err
 		}
 		return pollErr
@@ -199,14 +203,14 @@ func IsPodMonitoringFailure(pm monitoringv1.PodMonitoringCRD, expectedFn func(me
 
 func WaitForPodMonitoringFailure(ctx context.Context, kubeClient client.Client, pm monitoringv1.PodMonitoringCRD, expectedFn func(message string) error) error {
 	var err error
-	if pollErr := wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
+	if pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 			return false, nil
 		}
 		err = IsPodMonitoringFailure(pm, expectedFn)
 		return err == nil, nil
 	}); pollErr != nil {
-		if errors.Is(pollErr, wait.ErrWaitTimeout) && err != nil {
+		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
 			return err
 		}
 		return pollErr
