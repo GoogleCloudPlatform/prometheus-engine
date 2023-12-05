@@ -54,7 +54,7 @@ var (
 	serviceAccountEnvVar = flag.String("sa-envvar", "", "optional environment variable containing Google Service Account JSON, without it application-default flow will be used.")
 )
 
-func deleteDescriptors(endpoint string, projects []string, re2 *regexp.Regexp, saEnvVar string, dryRun bool) error {
+func deleteDescriptors(endpoint string, projects []string, re *regexp.Regexp, saEnvVar string, dryRun bool) error {
 	ctx := context.Background()
 
 	// Recommended way is to use auth from your environment. Use `gcloud auth application-default login` to set it up.
@@ -88,7 +88,7 @@ func deleteDescriptors(endpoint string, projects []string, re2 *regexp.Regexp, s
 				return fmt.Errorf("ListMetricDescriptors iteration: %w", err)
 			}
 			checked++
-			if !re2.MatchString(resp.Type) {
+			if !re.MatchString(resp.Type) {
 				continue
 			}
 			descsToDelete[p] = append(descsToDelete[p], resp.Type)
