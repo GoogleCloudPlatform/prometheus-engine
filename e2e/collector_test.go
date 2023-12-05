@@ -99,13 +99,13 @@ func TestCollector(t *testing.T) {
 		}))
 
 		const appName = "collector-synthetic"
-		deployment, err := operatorutil.SyntheticAppDeploy(ctx, tctx.Client(), tctx.namespace, appName, []string{})
+		deployment, err := operatorutil.SyntheticAppDeploy(ctx, tctx.Client(), tctx.userNamespace, appName, []string{})
 		if err != nil {
 			tctx.Fatal(err)
 		}
 
-		if err := kubeutil.WaitForDeploymentReady(ctx, tctx.Client(), tctx.namespace, appName); err != nil {
-			kubeutil.DeploymentDebug(tctx.T, ctx, tctx.RestConfig(), tctx.Client(), tctx.namespace, appName)
+		if err := kubeutil.WaitForDeploymentReady(ctx, tctx.Client(), tctx.userNamespace, appName); err != nil {
+			kubeutil.DeploymentDebug(tctx.T, ctx, tctx.RestConfig(), tctx.Client(), tctx.userNamespace, appName)
 			tctx.Fatalf("failed to start app: %s", err)
 		}
 		t.Run("synthetic-podmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
@@ -113,7 +113,7 @@ func TestCollector(t *testing.T) {
 			testCollector(ctx, t, &monitoringv1.PodMonitoring{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "synthetic-podmon",
-					Namespace: t.namespace,
+					Namespace: t.userNamespace,
 				},
 				Spec: monitoringv1.PodMonitoringSpec{
 					Selector: metav1.LabelSelector{

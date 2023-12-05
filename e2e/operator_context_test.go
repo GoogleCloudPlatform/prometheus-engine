@@ -198,7 +198,7 @@ func TestMain(m *testing.M) {
 type OperatorContext struct {
 	*testing.T
 
-	namespace, pubNamespace string
+	namespace, pubNamespace, userNamespace string
 
 	kClient kubeutil.DelegatingClient
 }
@@ -215,23 +215,25 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 	// (less likely) or metrics observed in GCP being from a previous run (more likely).
 	namespace := fmt.Sprintf("gmp-test-%s-%s", strings.ToLower(t.Name()), startTime.Format("20060102-150405"))
 	pubNamespace := fmt.Sprintf("%s-pub", namespace)
+	userNamespace := fmt.Sprintf("%s-user", namespace)
 
 	tctx := &OperatorContext{
-		T:            t,
-		namespace:    namespace,
-		pubNamespace: pubNamespace,
+		T:             t,
+		namespace:     namespace,
+		pubNamespace:  pubNamespace,
+		userNamespace: userNamespace,
 	}
 	tctx.kClient = kubeutil.NewLabelWriterClient(c, tctx.getSubTestLabels())
 	t.Cleanup(func() {
 		if !leakResources {
-			if err := cleanupResourcesInNamespaces(ctx, kubeconfig, tctx.Client(), []string{namespace, pubNamespace}, tctx.getSubTestLabelValue()); err != nil {
+			if err := cleanupResourcesInNamespaces(ctx, kubeconfig, tctx.Client(), []string{namespace, pubNamespace, userNamespace}, tctx.getSubTestLabelValue()); err != nil {
 				t.Fatalf("unable to cleanup resources: %s", err)
 			}
 		}
 		cancel()
 	})
 
-	if err := createBaseResources(ctx, tctx.Client(), namespace, pubNamespace, tctx.GetOperatorTestLabelValue()); err != nil {
+	if err := createBaseResources(ctx, tctx.Client(), namespace, pubNamespace, userNamespace, tctx.GetOperatorTestLabelValue()); err != nil {
 		t.Fatalf("create resources: %s", err)
 	}
 
@@ -315,8 +317,8 @@ func (tctx *OperatorContext) GetOperatorTestLabelValue() string {
 // createBaseResources creates resources the operator requires to exist already.
 // These are resources which don't depend on runtime state and can thus be deployed
 // statically, allowing to run the operator without critical write permissions.
-func createBaseResources(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace, labelValue string) error {
-	if err := createNamespaces(ctx, kubeClient, opNamespace, publicNamespace); err != nil {
+func createBaseResources(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace, userNamespace, labelValue string) error {
+	if err := createNamespaces(ctx, kubeClient, opNamespace, publicNamespace, userNamespace); err != nil {
 		return err
 	}
 
@@ -332,7 +334,7 @@ func createBaseResources(ctx context.Context, kubeClient client.Client, opNamesp
 	return nil
 }
 
-func createNamespaces(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace string) error {
+func createNamespaces(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace, userNamespace string) error {
 	if err := kubeClient.Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: opNamespace,
@@ -347,7 +349,11 @@ func createNamespaces(ctx context.Context, kubeClient client.Client, opNamespace
 	}); err != nil {
 		return err
 	}
-	return nil
+	return kubeClient.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: userNamespace,
+		},
+	})
 }
 
 func createGCPSecretResources(ctx context.Context, kubeClient client.Client, namespace string) error {
