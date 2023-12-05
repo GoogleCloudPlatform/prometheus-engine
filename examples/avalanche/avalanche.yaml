@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: avalanche
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: avalanche
+  namespace: avalanche
+  labels:
+    app.kubernetes.io/name: avalanche
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: avalanche
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: avalanche
+    spec:
+      containers:
+      - name: avalanche
+        image: quay.io/prometheuscommunity/avalanche:main
+        # Setup for
+        args:
+        - "--metric-count=1000" # 1K metrics per target.
+        - "--series-count=10" # 10 series per metric, so 10k series in total per target. Excessive for normal target, but easier to get to desired write QPS.
+        - "--value-interval=300" # Changes values every 5m, but it does not matter.
+        - "--series-interval=31536000" # Change 1y (so technically never).
+        - "--metric-interval=31536000" # Change __name__ value every 1y (so technically never).
+        # Kept default.
+        - "--label-count=10" #  Number of labels per-metric.
+        - "--metricname-length=5" # Modify length of metric names.
+        - "--labelname-length=5" # Modify length of label names.
+        - "--port=9001"
+        ports:
+        - containerPort: 9001
+          name: metrics
+        resources:
+          limits:
+            cpu: 25m
+            memory: 150Mi
+          requests:
+            cpu: 5m
+            memory: 50Mi

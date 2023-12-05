@@ -255,7 +255,7 @@ spec:
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/operator:v0.8.1-gke.6 # Reverting to older operator to fix.
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
@@ -633,12 +633,14 @@ spec:
         env:
         - name: GOGC
           value: "25"
+        # Solid requests & limits.
+        # Load test nodes are 8 CPU and 64 GB
         resources:
           limits:
-            memory: 2G
+            cpu: 7
           requests:
-            cpu: 8m
-            memory: 32M
+            cpu: 2
+            memory: 10G
         volumeMounts:
         - name: storage
           mountPath: /prometheus/data
