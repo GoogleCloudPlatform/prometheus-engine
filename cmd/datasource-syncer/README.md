@@ -1,4 +1,4 @@
-# Data source Syncer
+# Data Source Syncer
 
 This CLI tool acts as a cron job which remotely syncs data to a given Grafana Prometheus data source. This ensures that the Grafana data source has the following set correctly:
 
@@ -44,7 +44,7 @@ cat datasource-syncer.yaml \
 
 To query across multiple projects, you must [create a metrics scope](https://cloud.google.com/stackdriver/docs/managed-prometheus/query#scoping-intro) and authorize the local project's default compute service account to have monitoring.read access to the scoping project. If your local project is your scoping project, then this permission is granted by default and cross-project querying should work with no further configuration.
 
-### Development 
+### Development
 ```bash
 go run main.go \
   --credentials-file=$CREDENTIALS \
