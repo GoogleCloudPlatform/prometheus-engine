@@ -1,6 +1,6 @@
-# Datasource Syncer
+# Data source Syncer
 
-This CLI tool acts as a cron job which remotely syncs data to a given Grafana Prometheus datasource. This ensures that the Grafana datasource has the following set correctly:
+This CLI tool acts as a cron job which remotely syncs data to a given Grafana Prometheus data source. This ensures that the Grafana data source has the following set correctly:
 
 * The Prometheus server URL
 * GET HTTP method
@@ -15,9 +15,9 @@ By regularly refreshing the oAuth2 access token, you can configure Grafana to di
 
 1. Figure out the URL of your Grafana instance. e.g. `https://your.grafana.net` for a Grafana Cloud instance or `http://localhost:3000` for a local instance.
 
-2. [Make sure you have configured your Grafana Prometheus data source.](https://cloud.google.com/stackdriver/docs/managed-prometheus/query#grafana-datasource) The data source UID is found in the URL when configuring or exploring a data source. The data source UID is the last part of the URL, when configuring a data source, e.g. `https://your.grafana.net/connections/datasources/edit/<datasource_uid>`.
+2. Choose any pre-existing Grafana Prometheus data source that you would like to use for Managed Service for Prometheus, or create a new Grafana Prometheus data source and save it. Once that's done, find the data source UID. The data source UID is found in the URL when configuring or exploring a data source. The data source UID is the last part of the URL, when configuring a data source, e.g. `https://your.grafana.net/connections/datasources/edit/<datasource_uid>`.
 
-3. [Set up a Grafana service account](https://grafana.com/docs/grafana/latest/administration/service-accounts/#create-a-service-account-in-grafana) and generate a token.
+3. [Set up a Grafana service account](https://grafana.com/docs/grafana/latest/administration/service-accounts/#create-a-service-account-in-grafana) and generate a token. Set the expiration date to never.
 
 ### Kubernetes CronJob
 

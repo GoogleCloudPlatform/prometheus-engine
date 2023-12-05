@@ -28,7 +28,10 @@ var (
 	grafanaEndpoint = flag.String("grafana-api-endpoint", "", "grafana-api-endpoint is the endpoint of the Grafana instance that contains the data sources to update.")
 
 	projectID = flag.String("project-id", "",
-		"Project ID of the Google Cloud Monitoring workspace project to query.")
+		"Project ID of the Google Cloud Monitoring scoping project to query. Queries sent to this project will union results from all projects within the scope.")
+
+	gcmEndpointOverride = flag.String("gcm-endpoint-override", "",
+		"gcm-endpoint-override is the URL where queries should be sent to from Grafana. This should be left blank in almost all circumstances.")
 )
 
 func main() {
@@ -157,9 +160,11 @@ func buildUpdateDataSourceRequest(dataSource grafana.DataSource, token string) (
 	if dataSource.Type != "prometheus" {
 		return nil, fmt.Errorf("datasource type is not prometheus")
 	}
-
-	dataSource.URL = fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus/", *projectID)
-
+	if *gcmEndpointOverride != "" {
+		dataSource.URL = *gcmEndpointOverride
+	} else {
+		dataSource.URL = fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus/", *projectID)
+	}
 	jsonData := dataSource.JSONData
 	// Miscellaneous changes to make Grafana more compatible with GMP.
 	jsonData["httpMethod"] = http.MethodGet
