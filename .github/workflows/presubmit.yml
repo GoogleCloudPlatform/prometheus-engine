@@ -48,6 +48,14 @@ jobs:
       env:
         GCM_SECRET: ${{ secrets.GCM_SECRET }}
       run: make test-export-gcm
+  test-script-gcm:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run script GCM tests
+      env:
+        GCM_SECRET: ${{ secrets.GCM_SECRET }}
+      run: make test-script-gcm
   e2e-test:
     runs-on: ubuntu-latest
     steps:
