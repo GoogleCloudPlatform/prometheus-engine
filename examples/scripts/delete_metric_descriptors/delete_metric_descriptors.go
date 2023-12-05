@@ -69,7 +69,7 @@ func deleteDescriptors(endpoint string, projects []string, re2 *regexp.Regexp, s
 		return []option.ClientOption{option.WithEndpoint(endpoint)}
 	}()...)
 	if err != nil {
-		log.Fatalf("failed to build client for %s", endpoint)
+		return fmt.Errorf("failed to build client for %s: %w", endpoint, err)
 	}
 	defer client.Close()
 
