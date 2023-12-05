@@ -59,12 +59,12 @@ func defaultEndpoint(endpoint *monitoringv1.ScrapeEndpoint) {
 func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName string, args []string, podMonitoringNamePrefix string, endpointNoAuth monitoringv1.ScrapeEndpoint, expectedFn func(string) error) *appsv1.Deployment {
 	defaultEndpoint(&endpointNoAuth)
 
-	deployment, err := operatorutil.SyntheticAppDeploy(ctx, t.Client(), t.namespace, appName, args)
+	deployment, err := operatorutil.SyntheticAppDeploy(ctx, t.Client(), t.userNamespace, appName, args)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := kubeutil.WaitForDeploymentReady(ctx, t.Client(), t.namespace, appName); err != nil {
-		kubeutil.DeploymentDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, appName)
+	if err := kubeutil.WaitForDeploymentReady(ctx, t.Client(), t.userNamespace, appName); err != nil {
+		kubeutil.DeploymentDebug(t.T, ctx, t.RestConfig(), t.Client(), t.userNamespace, appName)
 		t.Fatalf("failed to start app: %s", err)
 	}
 
@@ -74,7 +74,7 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 		pm := &monitoringv1.PodMonitoring{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("pod%s-missing-config", podMonitoringNamePrefix),
-				Namespace: t.namespace,
+				Namespace: t.userNamespace,
 			},
 			Spec: monitoringv1.PodMonitoringSpec{
 				Selector: metav1.LabelSelector{
@@ -103,7 +103,7 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 
 		pm := &monitoringv1.ClusterPodMonitoring{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("c%s-failure", podMonitoringNamePrefix),
+				Name: fmt.Sprintf("%s-c%s-failure", t.namespace, podMonitoringNamePrefix),
 			},
 			Spec: monitoringv1.ClusterPodMonitoringSpec{
 				Selector: metav1.LabelSelector{
@@ -142,7 +142,7 @@ func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args
 		pm := &monitoringv1.PodMonitoring{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("pod%s-success", podMonitoringNamePrefix),
-				Namespace: t.namespace,
+				Namespace: t.userNamespace,
 			},
 			Spec: monitoringv1.PodMonitoringSpec{
 				Selector: metav1.LabelSelector{
@@ -171,8 +171,7 @@ func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args
 
 		pm := &monitoringv1.ClusterPodMonitoring{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("c%s-success", podMonitoringNamePrefix),
-				Namespace: t.namespace,
+				Name: fmt.Sprintf("c%s-success", podMonitoringNamePrefix),
 			},
 			Spec: monitoringv1.ClusterPodMonitoringSpec{
 				Selector: metav1.LabelSelector{

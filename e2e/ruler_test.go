@@ -116,7 +116,7 @@ func createRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext, 
 				Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
 					{
 						Name:       "test-am",
-						Namespace:  t.namespace,
+						Namespace:  t.userNamespace,
 						Port:       intstr.IntOrString{IntVal: 19093},
 						Timeout:    "30s",
 						APIVersion: "v2",
@@ -185,7 +185,9 @@ func testRuleEvaluatorConfig(ctx context.Context, t *OperatorContext, cert, key 
 
 	replace := func(s string) string {
 		return strings.NewReplacer(
-			"{namespace}", t.namespace, "{pubNamespace}", t.pubNamespace,
+			"{namespace}", t.namespace,
+			"{pubNamespace}", t.pubNamespace,
+			"{userNamespace}", t.userNamespace,
 		).Replace(s)
 	}
 
@@ -233,7 +235,7 @@ alerting:
               namespaces:
                 own_namespace: false
                 names:
-                    - {namespace}
+                    - {userNamespace}
 rule_files:
     - /etc/rules/*.yaml
 `),
@@ -241,7 +243,7 @@ rule_files:
 	var err error
 	pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var cm corev1.ConfigMap
-		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rule-evaluator"}, &cm); err != nil {
+		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameRuleEvaluator}, &cm); err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
@@ -265,7 +267,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
 	var err error
 	pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var deploy appsv1.Deployment
-		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rule-evaluator"}, &deploy); err != nil {
+		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameRuleEvaluator}, &deploy); err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
@@ -335,6 +337,7 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 		"{cluster}", cluster,
 		"{location}", location,
 		"{namespace}", t.namespace,
+		"{userNamespace}", t.userNamespace,
 	).Replace
 
 	// Create multiple rules in the cluster and expect their scoped equivalents
@@ -390,7 +393,7 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 	if err := t.Client().Create(ctx, &monitoringv1.Rules{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "rules",
-			Namespace: t.namespace,
+			Namespace: t.userNamespace,
 		},
 		Spec: monitoringv1.RulesSpec{
 			Groups: []monitoringv1.RuleGroup{
@@ -439,16 +442,16 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
             location: {location}
             project_id: {project_id}
 `),
-		replace("rules__{namespace}__rules.yaml"): replace(`groups:
+		replace("rules__{userNamespace}__rules.yaml"): replace(`groups:
     - name: group-1
       rules:
         - alert: Bar
-          expr: avg(down{cluster="{cluster}",location="{location}",namespace="{namespace}",project_id="{project_id}"}) > 1
+          expr: avg(down{cluster="{cluster}",location="{location}",namespace="{userNamespace}",project_id="{project_id}"}) > 1
           labels:
             cluster: {cluster}
             flavor: test
             location: {location}
-            namespace: {namespace}
+            namespace: {userNamespace}
             project_id: {project_id}
           annotations:
             description: bar avg down
@@ -457,7 +460,7 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
           labels:
             cluster: {cluster}
             location: {location}
-            namespace: {namespace}
+            namespace: {userNamespace}
             project_id: {project_id}
 `),
 	}
