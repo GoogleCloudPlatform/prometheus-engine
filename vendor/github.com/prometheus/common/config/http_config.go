@@ -378,9 +378,6 @@ func (c *HTTPClientConfig) Validate() error {
 		if len(c.OAuth2.ClientID) == 0 {
 			return fmt.Errorf("oauth2 client_id must be configured")
 		}
-		if len(c.OAuth2.ClientSecret) == 0 && len(c.OAuth2.ClientSecretFile) == 0 {
-			return fmt.Errorf("either oauth2 client_secret or client_secret_file must be configured")
-		}
 		if len(c.OAuth2.TokenURL) == 0 {
 			return fmt.Errorf("oauth2 token_url must be configured")
 		}
@@ -546,10 +543,10 @@ func NewRoundTripperFromConfig(cfg HTTPClientConfig, name string, optFuncs ...HT
 
 		// If a authorization_credentials is provided, create a round tripper that will set the
 		// Authorization header correctly on each request.
-		if cfg.Authorization != nil && len(cfg.Authorization.Credentials) > 0 {
-			rt = NewAuthorizationCredentialsRoundTripper(cfg.Authorization.Type, cfg.Authorization.Credentials, rt)
-		} else if cfg.Authorization != nil && len(cfg.Authorization.CredentialsFile) > 0 {
+		if cfg.Authorization != nil && len(cfg.Authorization.CredentialsFile) > 0 {
 			rt = NewAuthorizationCredentialsFileRoundTripper(cfg.Authorization.Type, cfg.Authorization.CredentialsFile, rt)
+		} else if cfg.Authorization != nil {
+			rt = NewAuthorizationCredentialsRoundTripper(cfg.Authorization.Type, cfg.Authorization.Credentials, rt)
 		}
 		// Backwards compatibility, be nice with importers who would not have
 		// called Validate().
@@ -729,13 +726,12 @@ func (rt *oauth2RoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		rt.mtx.RLock()
 		changed = secret != rt.secret
 		rt.mtx.RUnlock()
+	} else {
+		// Either an inline secret or nothing (use an empty string) was provided.
+		secret = string(rt.config.ClientSecret)
 	}
 
 	if changed || rt.rt == nil {
-		if rt.config.ClientSecret != "" {
-			secret = string(rt.config.ClientSecret)
-		}
-
 		config := &clientcredentials.Config{
 			ClientID:       rt.config.ClientID,
 			ClientSecret:   secret,

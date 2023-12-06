@@ -100,6 +100,48 @@ func (c *TLS) ToPrometheusConfig() (*config.TLSConfig, error) {
 	}, nil
 }
 
+// OAuth2 is the OAuth2 client configuration.
+//
+// Currently the client secret is not configurable and always empty.
+type OAuth2 struct {
+	// Public identifier for the client.
+	ClientID string `json:"clientID"`
+	// Scopes for the token request.
+	Scopes []string `json:"scopes,omitempty"`
+	// The URL to fetch the token from.
+	TokenURL string `json:"tokenURL"`
+	// Optional parameters to append to the token URL.
+	EndpointParams map[string]string `json:"endpointParams,omitempty"`
+	// Configures the token request's TLS settings.
+	TLS         *TLS `json:"tlsConfig,omitempty"`
+	ProxyConfig `json:",inline"`
+	// TODO: Add ClientSecret: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/450
+}
+
+func (c *OAuth2) ToPrometheusConfig() (*config.OAuth2, error) {
+	oauth2 := &config.OAuth2{
+		ClientID:       c.ClientID,
+		Scopes:         c.Scopes,
+		TokenURL:       c.TokenURL,
+		EndpointParams: c.EndpointParams,
+	}
+	if c.TLS != nil {
+		tlsConfig, err := c.TLS.ToPrometheusConfig()
+		if err != nil {
+			return nil, fmt.Errorf("OAuth2 TLS: %w", err)
+		}
+		oauth2.TLSConfig = *tlsConfig
+	}
+	if c.ProxyConfig.ProxyURL != "" {
+		proxyConfig, err := c.ProxyConfig.ToPrometheusConfig()
+		if err != nil {
+			return nil, fmt.Errorf("OAuth2 proxy config: %w", err)
+		}
+		oauth2.ProxyURL = proxyConfig
+	}
+	return oauth2, nil
+}
+
 type ProxyConfig struct {
 	// HTTP proxy server to use to connect to the targets. Encoded passwords are not supported.
 	ProxyURL string `json:"proxyUrl,omitempty"`
@@ -129,6 +171,8 @@ type HTTPClientConfig struct {
 	BasicAuth *BasicAuth `json:"basicAuth,omitempty"`
 	// Configures the scrape request's TLS settings.
 	TLS *TLS `json:"tls,omitempty"`
+	// The OAuth2 client credentials used to fetch a token for the targets.
+	OAuth2 *OAuth2 `json:"oauth2,omitempty"`
 	// Proxy configuration.
 	ProxyConfig `json:",inline"`
 }
@@ -149,6 +193,14 @@ func (c *HTTPClientConfig) ToPrometheusConfig() (config.HTTPClientConfig, error)
 			errs = append(errs, err)
 		} else {
 			clientConfig.TLSConfig = *tlsConfig
+		}
+	}
+	if c.OAuth2 != nil {
+		oauth2, err := c.OAuth2.ToPrometheusConfig()
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			clientConfig.OAuth2 = oauth2
 		}
 	}
 	if c.ProxyConfig.ProxyURL != "" {
