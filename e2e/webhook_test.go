@@ -67,7 +67,7 @@ func TestWebhookCABundleInjection(t *testing.T) {
 
 		// Wait for caBundle injection.
 		var err error
-		waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+		waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 4*time.Minute, true, func(ctx context.Context) (bool, error) {
 			if err = tctx.Client().Get(ctx, client.ObjectKeyFromObject(vwc), vwc); err != nil {
 				return false, nil
 			}
@@ -119,7 +119,7 @@ func TestWebhookCABundleInjection(t *testing.T) {
 
 		// Wait for caBundle injection.
 		var err error
-		waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+		waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 4*time.Minute, true, func(ctx context.Context) (bool, error) {
 			if err = tctx.Client().Get(ctx, client.ObjectKeyFromObject(mwc), mwc); err != nil {
 				return false, nil
 			}

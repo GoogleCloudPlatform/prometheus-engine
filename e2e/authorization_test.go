@@ -296,3 +296,29 @@ func TestAuthorization(t *testing.T) {
 		}, "mon-auth-no-credentials", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
 	}))
 }
+
+func TestOAuth2(t *testing.T) {
+	t.Parallel()
+	tctx := newOperatorContext(t)
+	ctx := context.Background()
+
+	tctx.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
+		Features: monitoringv1.OperatorFeatures{
+			TargetStatus: monitoringv1.TargetStatusSpec{
+				Enabled: true,
+			},
+		},
+	})
+
+	t.Run("no-client-secret", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Parallel()
+		const appName = "oauth2-no-client-secret"
+		const clientID = "gmp-user-client-id-no-client-secret"
+		const clientScope = "read"
+
+		setupAuthTestMissingAuth(ctx, t, appName, []string{
+			fmt.Sprintf("--oauth2-client-id=%s", clientID),
+			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
+		}, "mon-authorization-no-credentials", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
+	}))
+}
