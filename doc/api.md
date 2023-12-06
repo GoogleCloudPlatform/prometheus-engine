@@ -56,6 +56,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.OperatorConfig">OperatorConfig</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.OperatorFeatures">OperatorFeatures</a>
@@ -890,6 +892,19 @@ TLS
 </tr>
 <tr>
 <td>
+<code>oauth2</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.OAuth2">
+OAuth2
+</a>
+</em>
+</td>
+<td>
+<p>The OAuth2 client credentials used to fetch a token for the targets.</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>ProxyConfig</code><br/>
 <em>
 <a href="#monitoring.googleapis.com/v1.ProxyConfig">
@@ -1322,6 +1337,99 @@ ScrapeLimits
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.OAuth2">
+<span id="OAuth2">OAuth2
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>)
+</p>
+<div>
+<p>OAuth2 is the OAuth2 client configuration.</p>
+<p>Currently the client secret is not configurable and always empty.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>clientID</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Public identifier for the client.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>scopes</code><br/>
+<em>
+[]string
+</em>
+</td>
+<td>
+<p>Scopes for the token request.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>tokenURL</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>The URL to fetch the token from.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>endpointParams</code><br/>
+<em>
+map[string]string
+</em>
+</td>
+<td>
+<p>Optional parameters to append to the token URL.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>tlsConfig</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.TLS">
+TLS
+</a>
+</em>
+</td>
+<td>
+<p>Configures the token request&rsquo;s TLS settings.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>ProxyConfig</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ProxyConfig">
+ProxyConfig
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>ProxyConfig</code> are embedded into this type.)
+</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.OperatorConfig">
 <span id="OperatorConfig">OperatorConfig
 </span>
@@ -1659,7 +1767,7 @@ MonitoringStatus
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>, <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>)
 </p>
 <div>
 </div>
@@ -2658,7 +2766,7 @@ Kubernetes core/v1.ConfigMapKeySelector
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>, <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>)
 </p>
 <div>
 <p>TLS specifies TLS configuration parameters from Kubernetes resources.</p>

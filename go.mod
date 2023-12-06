@@ -165,6 +165,10 @@ exclude (
 	k8s.io/client-go v12.0.0+incompatible
 )
 
-// Go modules keeps resetting the required v0.35.0 to a random unversioned commit.
-// So this is required for unknown reasons.
-replace github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.43.0
+replace (
+	// Patch authorization-related changes.
+	github.com/prometheus/common => github.com/TheSpiritXIII/prometheus-common v0.45.0-gmp.0
+	// Go modules keeps resetting the required v0.35.0 to a random unversioned commit.
+	// So this is required for unknown reasons.
+	github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.43.0
+)

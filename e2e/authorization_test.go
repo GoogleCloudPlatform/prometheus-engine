@@ -27,6 +27,7 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -135,6 +136,25 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args []string, podMonitoringNamePrefix string, endpointNoAuth, endpointAuth monitoringv1.ScrapeEndpoint, expectedFn func(string) error) {
 	defaultEndpoint(&endpointAuth)
 	deployment := setupAuthTestMissingAuth(ctx, t, appName, args, podMonitoringNamePrefix, endpointNoAuth, expectedFn)
+
+	service := corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      appName,
+			Namespace: t.userNamespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: deployment.Spec.Template.Labels,
+			Ports: []corev1.ServicePort{
+				{
+					Port:       8080,
+					TargetPort: intstr.FromString(operatorutil.SyntheticAppPortName),
+				},
+			},
+		},
+	}
+	if err := t.Client().Create(ctx, &service); err != nil {
+		t.Fatalf("create service: %s", err)
+	}
 
 	t.Run("podmon-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
@@ -336,8 +356,30 @@ func TestOAuth2(t *testing.T) {
 		const clientID = "gmp-user-client-id-no-client-secret"
 		const clientScope = "read"
 
+		setupAuthTest(ctx, t, appName, []string{
+			fmt.Sprintf("--oauth2-client-id=%s", clientID),
+			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
+		}, "mon-authorization-no-credentials", monitoringv1.ScrapeEndpoint{}, monitoringv1.ScrapeEndpoint{
+			HTTPClientConfig: monitoringv1.HTTPClientConfig{
+				OAuth2: &monitoringv1.OAuth2{
+					ClientID: clientID,
+					Scopes:   []string{clientScope},
+					TokenURL: fmt.Sprintf("%s.%s.svc.cluster.local:8080", appName, t.userNamespace),
+				},
+			},
+		}, isPodMonitoringTargetUnauthorizedError)
+	}))
+
+	t.Run("client-secret", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Parallel()
+		const appName = "oauth2-no-client-secret"
+		const clientID = "gmp-user-client-id-client-secret"
+		const clientSecret = "secret-client-secret"
+		const clientScope = "read"
+
 		setupAuthTestMissingAuth(ctx, t, appName, []string{
 			fmt.Sprintf("--oauth2-client-id=%s", clientID),
+			fmt.Sprintf("--oauth2-client-secret=%s", clientSecret),
 			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
 		}, "mon-authorization-no-credentials", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
 	}))

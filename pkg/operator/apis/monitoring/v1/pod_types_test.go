@@ -349,6 +349,42 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 			},
 			fail:        true,
 			errContains: "at most one of basic_auth, oauth2 & authorization must be configured",
+		}, {
+			desc: "Authorization Header and OAuth 2",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					HTTPClientConfig: HTTPClientConfig{
+						Authorization: &Auth{
+							Type: "Bearer",
+						},
+						OAuth2: &OAuth2{
+							ClientID: "xyz",
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: "at most one of basic_auth, oauth2 & authorization must be configured",
+		}, {
+			desc: "Basic Auth and OAuth 2",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					HTTPClientConfig: HTTPClientConfig{
+						BasicAuth: &BasicAuth{
+							Username: "xyz",
+						},
+						OAuth2: &OAuth2{
+							ClientID: "xyz",
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: "at most one of basic_auth, oauth2 & authorization must be configured",
 		},
 	}
 
