@@ -20,7 +20,7 @@ func (n noopBackend) start(t testing.TB, env e2e.Environment) (api v1.API, extra
 }
 
 func (n noopBackend) injectScrapes(t testing.TB, scrapeRecordings [][]*dto.MetricFamily, timeout time.Duration) {
-	return
+	// Noop.
 }
 
 // NoopBackend creates noop backend, useful when you want to skip one backend for

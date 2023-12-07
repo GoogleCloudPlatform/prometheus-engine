@@ -96,13 +96,20 @@ func (l *localExportWithGCM) start(t testing.TB, _ e2e.Environment) (v1.API, map
 	}
 
 	// Apply empty config, so resources labels are attached.
-	l.e.ApplyConfig(&config.DefaultConfig)
+	if err := l.e.ApplyConfig(&config.DefaultConfig); err != nil {
+		t.Fatalf("apply config: %s", err)
+	}
 	l.e.SetLabelsByIDFunc(func(ref storage.SeriesRef) labels.Labels {
 		return l.labelsByRef[ref]
 	})
 
 	cancelableCtx, cancel := context.WithCancel(ctx)
-	go l.e.Run(cancelableCtx)
+	go func() {
+		if err := l.e.Run(cancelableCtx); err != nil {
+			// Cannot use "fatal" in goroutines, so we must use a regular error.
+			t.Errorf("exporter run: %v", err)
+		}
+	}()
 	// TODO(bwplotka): Consider listening for KILL signal too.
 	t.Cleanup(cancel)
 

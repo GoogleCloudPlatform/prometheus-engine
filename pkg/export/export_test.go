@@ -36,6 +36,7 @@ import (
 	"google.golang.org/api/option"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	empty_pb "google.golang.org/protobuf/types/known/emptypb"
 )
@@ -342,7 +343,11 @@ func TestExporter_drainBacklog(t *testing.T) {
 	)
 	monitoring_pb.RegisterMetricServiceServer(srv, metricServer)
 
-	go srv.Serve(listener)
+	go func() {
+		if err := srv.Serve(listener); err != nil {
+			t.Errorf("gRPC server failed: %s", err)
+		}
+	}()
 	defer srv.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -353,7 +358,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 	}
 	metricClient, err := monitoring.NewMetricClient(ctx,
 		option.WithoutAuthentication(),
-		option.WithGRPCDialOption(grpc.WithInsecure()),
+		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		option.WithGRPCDialOption(grpc.WithContextDialer(bufDialer)),
 	)
 	if err != nil {
@@ -377,7 +382,11 @@ func TestExporter_drainBacklog(t *testing.T) {
 		}, nil)
 	}
 
-	go e.Run(ctx)
+	go func() {
+		if err := e.Run(ctx); err != nil {
+			t.Errorf("exporter run failed: %s", err)
+		}
+	}()
 	// As our samples are all for the same series, each batch can only contain a single sample.
 	// The exporter waits for the batch delay duration before sending it.
 	// We sleep for an appropriate multiple of it to allow it to drain the shard.
