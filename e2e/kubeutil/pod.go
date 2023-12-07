@@ -37,11 +37,13 @@ import (
 
 func IsPodContainerReady(ctx context.Context, restConfig *rest.Config, pod *corev1.Pod, container string) error {
 	for _, status := range pod.Status.ContainerStatuses {
-		if status.Name == container && !status.Ready {
-			key := client.ObjectKeyFromObject(pod)
-			return fmt.Errorf("pod %s container %s not ready: %s", key, status.Name, containerStateString(&status.State))
+		if status.Name == container {
+			if !status.Ready {
+				key := client.ObjectKeyFromObject(pod)
+				return fmt.Errorf("pod %s container %s not ready: %s", key, status.Name, containerStateString(&status.State))
+			}
+			return nil
 		}
-		return nil
 	}
 	key := client.ObjectKeyFromObject(pod)
 	return fmt.Errorf("no container named %s found in pod %s", container, key)
