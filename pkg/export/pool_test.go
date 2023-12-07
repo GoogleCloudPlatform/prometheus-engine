@@ -17,9 +17,9 @@ package export
 import (
 	"testing"
 
+	monitoring_pb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	metric_pb "google.golang.org/genproto/googleapis/api/metric"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
-	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 )
 
 func TestPool(t *testing.T) {
