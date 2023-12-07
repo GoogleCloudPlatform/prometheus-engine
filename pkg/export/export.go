@@ -29,6 +29,7 @@ import (
 	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
+	monitoring_pb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	gax "github.com/googleapis/gax-go/v2"
@@ -41,7 +42,6 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"google.golang.org/api/option"
-	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 )

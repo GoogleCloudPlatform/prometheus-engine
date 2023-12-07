@@ -19,8 +19,8 @@ import (
 	"hash/fnv"
 	"sync"
 
+	monitoring_pb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/prometheus/client_golang/prometheus"
-	monitoring_pb "google.golang.org/genproto/googleapis/monitoring/v3"
 )
 
 var (

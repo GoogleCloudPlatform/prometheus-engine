@@ -569,7 +569,6 @@ google.golang.org/appengine/socket
 google.golang.org/appengine/urlfetch
 # google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98
 ## explicit; go 1.19
-google.golang.org/genproto/googleapis/monitoring/v3
 google.golang.org/genproto/googleapis/type/calendarperiod
 google.golang.org/genproto/internal
 # google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98
