@@ -96,7 +96,7 @@ func newClient() (client.Client, error) {
 	})
 }
 
-func setRESTConfigDefaults(restConfig *rest.Config) {
+func setRESTConfigDefaults(restConfig *rest.Config) error {
 	// https://github.com/kubernetes/client-go/issues/657
 	// https://github.com/kubernetes/client-go/issues/1159
 	// https://github.com/kubernetes/kubectl/blob/6fb6697c77304b7aaf43a520d30cb17563c69886/pkg/cmd/util/kubectl_match_version.go#L115
@@ -110,7 +110,7 @@ func setRESTConfigDefaults(restConfig *rest.Config) {
 	if restConfig.NegotiatedSerializer == nil {
 		restConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 	}
-	rest.SetKubernetesDefaults(restConfig)
+	return rest.SetKubernetesDefaults(restConfig)
 }
 
 // TestMain injects custom flags and adds extra signal handling to ensure testing
@@ -140,9 +140,12 @@ func TestMain(m *testing.M) {
 
 	var err error
 	kubeconfig, err = ctrl.GetConfig()
-	setRESTConfigDefaults(kubeconfig)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Loading kubeconfig failed:", err)
+		os.Exit(1)
+	}
+	if err := setRESTConfigDefaults(kubeconfig); err != nil {
+		fmt.Fprintln(os.Stderr, "Setting REST config defaults failed:", err)
 		os.Exit(1)
 	}
 
