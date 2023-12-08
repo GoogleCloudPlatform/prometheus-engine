@@ -173,9 +173,10 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 		},
 	})
 
-	err := wait.Poll(3*time.Second, 3*time.Minute, func() (bool, error) {
+	var err error
+	pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var ds appsv1.DaemonSet
-		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameCollector}, &ds); err != nil {
+		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameCollector}, &ds); err != nil {
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
@@ -210,7 +211,7 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 			"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
 		}
 		if diff := cmp.Diff(wantedAnnotations, ds.Spec.Template.Annotations); diff != "" {
-			return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
+			err = fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
 		}
 
 		// TODO(pintohutch): clean-up wantArgs init logic.
@@ -234,15 +235,17 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 
 			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
 				t.Log(fmt.Errorf("unexpected flags (-want, +got): %s", diff))
-				return false, fmt.Errorf("unexpected flags (-want, +got): %s", diff)
+				err = fmt.Errorf("unexpected flags (-want, +got): %s", diff)
 			}
-			return true, nil
+			return err == nil, nil
 		}
-		t.Log(errors.New("no container with name prometheus found"))
-		return false, errors.New("no container with name prometheus found")
+		return false, fmt.Errorf("no container with name %q found", operator.CollectorPrometheusContainerName)
 	})
-	if err != nil {
-		t.Fatalf("Waiting for DaemonSet deployment failed: %s", err)
+	if pollErr != nil {
+		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
+			pollErr = err
+		}
+		t.Fatalf("Waiting for DaemonSet deployment failed: %s", pollErr)
 	}
 }
 
@@ -328,7 +331,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *OperatorContext, job str
 		for _, port := range []string{operator.CollectorPrometheusContainerPortName, operator.CollectorConfigReloaderContainerPortName} {
 			t.Logf("Poll up metric for pod %q and port %q", pod.Name, port)
 
-			err = wait.PollImmediateUntil(3*time.Second, func() (bool, error) {
+			err = wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
 				now := time.Now()
 
 				// Validate the majority of labels being set correctly by filtering along them.
@@ -369,7 +372,7 @@ func validateCollectorUpMetrics(ctx context.Context, t *OperatorContext, job str
 					return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
 				}
 				return true, nil
-			}, ctx.Done())
+			})
 			if err != nil {
 				t.Fatalf("Waiting for collector metrics to appear in Cloud Monitoring failed: %s", err)
 			}
@@ -414,7 +417,7 @@ func testCollectorScrapeKubelet(ctx context.Context, t *OperatorContext) {
 		for _, port := range []string{"metrics", "cadvisor"} {
 			t.Logf("Poll up metric for kubelet on node %q and port %q", node.Name, port)
 
-			err = wait.PollImmediateUntil(3*time.Second, func() (bool, error) {
+			err = wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
 				now := time.Now()
 
 				// Validate the majority of labels being set correctly by filtering along them.
@@ -455,7 +458,7 @@ func testCollectorScrapeKubelet(ctx context.Context, t *OperatorContext) {
 					return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
 				}
 				return true, nil
-			}, ctx.Done())
+			})
 			if err != nil {
 				t.Fatalf("Waiting for collector metrics to appear in Cloud Monitoring failed: %s", err)
 			}
