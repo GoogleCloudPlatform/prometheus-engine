@@ -36,14 +36,14 @@ spec:
         app.kubernetes.io/component: operator
         app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/part-of: gmp
-        app.kubernetes.io/version: 0.8.0
+        app.kubernetes.io/version: 0.8.2
     spec:
       serviceAccountName: operator
       automountServiceAccountToken: true
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.8.0-gke.4
+        image: gke.gcr.io/prometheus-engine/operator:v0.8.1-gke.6
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
