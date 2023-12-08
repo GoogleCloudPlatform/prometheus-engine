@@ -29,7 +29,7 @@ spec:
       labels:
         app: managed-prometheus-rule-evaluator
         app.kubernetes.io/name: rule-evaluator
-        app.kubernetes.io/version: 0.8.0
+        app.kubernetes.io/version: 0.8.2
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -54,7 +54,7 @@ spec:
           privileged: false
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.8.0-gke.4
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.8.1-gke.6
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -91,7 +91,7 @@ spec:
             - all
           privileged: false
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.8.0-gke.4
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.8.1-gke.6
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --web.listen-address=:19092

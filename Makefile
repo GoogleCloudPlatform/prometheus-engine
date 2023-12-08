@@ -165,10 +165,11 @@ presubmit:   ## Regenerate all resources, build all images and run all tests.
 presubmit: updateversions regen bin test e2e
 
 .PHONY: updateversions
-CURRENT_TAG = v0.8.0-gke.4
-CURRENT_PROM_TAG = v2.41.0-gmp.5-gke.0
-CURRENT_AM_TAG = v0.25.1-gmp.1-gke.0
-LABEL_API_VERSION = 0.8.0
+CURRENT_TAG = v0.8.2
+CURRENT_GMP_TAG = v0.8.1-gke.6
+CURRENT_PROM_TAG = v2.41.0-gmp.7-gke.0
+CURRENT_AM_TAG = v0.25.1-gmp.2-gke.0
+LABEL_API_VERSION = 0.8.2
 FILES_TO_UPDATE = $(shell find . -type f -name "*.yaml" ! -name "kube-state-metrics.yaml" ! -name "node-exporter.yaml")
 updateversions: ## Modify all manifests, so it contains the expected versions.
                 ##
@@ -177,14 +178,11 @@ updateversions: ## Modify all manifests, so it contains the expected versions.
                 ## consistency.
                 ##
 updateversions: $(SED)
-	@echo ">> Updating prometheus-engine images in manifests to $(CURRENT_TAG)"
-	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/(.*):.*#image: gke.gcr.io/prometheus-engine/\1:$(CURRENT_TAG)#g' $(FILES_TO_UPDATE) # This will match all, but Prom and AM will be fixed below.
+	@echo ">> Updating prometheus-engine images in manifests to $(CURRENT_GMP_TAG)"
+	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/(.*):.*#image: gke.gcr.io/prometheus-engine/\1:$(CURRENT_GMP_TAG)#g' $(FILES_TO_UPDATE) # This will match all, but Prom and AM will be fixed below.
 	@echo ">> Updating prometheus images in manifests to $(CURRENT_PROM_TAG)"
 	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/prometheus:.*#image: gke.gcr.io/prometheus-engine/prometheus:$(CURRENT_PROM_TAG)#g' $(FILES_TO_UPDATE)
 	@echo ">> Updating alertmanager images in manifests to $(CURRENT_AM_TAG)"
 	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/alertmanager:.*#image: gke.gcr.io/prometheus-engine/alertmanager:$(CURRENT_AM_TAG)#g' $(FILES_TO_UPDATE)
 	@echo ">> Updating app.kubernetes.io/version to $(LABEL_API_VERSION)"
 	@$(SED) -i -r 's#app.kubernetes.io/version: .*#app.kubernetes.io/version: $(LABEL_API_VERSION)#g' $(FILES_TO_UPDATE)
-	@echo ">> Updating constant in export.go to $(LABEL_API_VERSION)"
-	@$(SED) -i -r 's#	Version    = .*#	Version    = "$(LABEL_API_VERSION)"#g' pkg/export/export.go
-
