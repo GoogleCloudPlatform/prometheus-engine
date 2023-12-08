@@ -29,6 +29,10 @@ const (
 	keyAlgorithmEd25519 = "ed25519"
 )
 
+var (
+	headerAuthorization = http.CanonicalHeaderKey("Authorization")
+)
+
 // isFlagSet returns true if the flag was explicitly set in the command line by the user.
 func isFlagSet(name string) bool {
 	found := false
@@ -230,10 +234,19 @@ func (c *basicAuthConfig) handle(handler http.Handler) http.Handler {
 }
 
 func authorizationHandler(handler http.Handler, scheme, parameters string) http.Handler {
+	expectedScheme := strings.TrimSpace(scheme)
+	expectedParameters := strings.TrimSpace(parameters)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		expected := scheme + " " + parameters
-		if strings.TrimSpace(auth) == strings.TrimSpace(expected) {
+		auth := strings.TrimSpace(r.Header.Get(headerAuthorization))
+		// Split after trimming spaces to ensure we get the scheme correctly.
+		authParts := strings.SplitN(auth, " ", 2)
+		foundScheme := authParts[0]
+		foundParameters := ""
+		if len(authParts) == 2 {
+			// Parameters could be leading with any number of spaces so we need an additional trim.
+			foundParameters = strings.TrimSpace(authParts[1])
+		}
+		if expectedScheme == foundScheme && expectedParameters == foundParameters {
 			handler.ServeHTTP(w, r)
 			return
 		}
