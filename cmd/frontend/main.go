@@ -37,6 +37,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
@@ -74,8 +75,8 @@ func main() {
 
 	metrics := prometheus.NewRegistry()
 	metrics.MustRegister(
-		prometheus.NewGoCollector(),
-		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
 
 	if *projectID == "" {
@@ -147,8 +148,11 @@ func main() {
 			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
 			return server.ListenAndServe()
 		}, func(err error) {
-			ctx, _ = context.WithTimeout(ctx, time.Minute)
-			server.Shutdown(ctx)
+			ctx, timeoutCancel := context.WithTimeout(ctx, time.Minute)
+			if err := server.Shutdown(ctx); err != nil {
+				level.Error(logger).Log("msg", "unable to shut down server", "err", err)
+			}
+			timeoutCancel()
 			cancel()
 		})
 	}
@@ -192,7 +196,11 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 		// /api/v1/series currently not accepting match[] params on POST.
 		if req.URL.Path == "/api/v1/series" {
 			method = "GET"
-			req.ParseForm()
+			if err := req.ParseForm(); err != nil {
+				level.Warn(logger).Log("msg", "parse form failed", "err", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 			u.RawQuery = req.Form.Encode()
 		} else {
 			u.RawQuery = req.URL.RawQuery

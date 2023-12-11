@@ -48,8 +48,6 @@ type ingestionTest struct {
 
 	testID string
 
-	env e2e.Environment
-
 	backends               map[string]backend
 	expectationsPerBackend map[string]model.Matrix
 
@@ -171,13 +169,20 @@ type ingestionTestExpRecorder struct {
 
 func (ir *ingestionTestExpRecorder) Expect(val float64, metric prometheus.Metric, b Backend) ExpectationsRecorder {
 	m := dto.Metric{}
-	metric.Write(&m)
+	if err := metric.Write(&m); err != nil {
+		ir.it.t.Fatalf("write metric: %s", err)
+	}
+
 	if m.GetSummary() != nil || m.GetHistogram() != nil {
 		// TODO(bwplotka): Implement an alternative.
 		ir.it.t.Fatal("It's not practical to use Expect against histograms and summaries.")
 	}
 
-	modelMetric := toModelMetric(metric)
+	modelMetric, err := toModelMetric(metric)
+	if err != nil {
+		ir.it.t.Fatal(err)
+	}
+
 	for _, ss := range ir.it.expectationsPerBackend[b.Ref()] {
 		if ss.Metric.Equal(modelMetric) {
 			ss.Values = append(ss.Values, model.SamplePair{
@@ -228,7 +233,9 @@ func (it *ingestionTest) FatalOnUnexpectedPromQLResults(b Backend, metric promet
 	it.t.Helper()
 
 	m := dto.Metric{}
-	metric.Write(&m)
+	if err := metric.Write(&m); err != nil {
+		it.t.Fatalf("write metric: %s", err)
+	}
 
 	if m.GetSummary() != nil || m.GetHistogram() != nil {
 		// TODO(bwplotka): Implement alternative.
@@ -240,7 +247,10 @@ func (it *ingestionTest) FatalOnUnexpectedPromQLResults(b Backend, metric promet
 		it.t.Fatalf("%s backend not seen before? Did you pass it in NewIngestionTest?", b.Ref())
 	}
 
-	modelMetric := toModelMetric(metric)
+	modelMetric, err := toModelMetric(metric)
+	if err != nil {
+		it.t.Fatal(err)
+	}
 	exp := it.preparedExpectedMatrix(it.expectationsPerBackend[b.Ref()], modelMetric, bMeta.extLset)
 	if exp == nil {
 		it.t.Fatalf("expected metric %v, not found in expected Matrix. Did you use scrape(...).expect(...) method?", modelMetric.String())
@@ -296,11 +306,13 @@ func (it *ingestionTest) FatalOnUnexpectedPromQLResults(b Backend, metric promet
 	}
 }
 
-func toModelMetric(metric prometheus.Metric) model.Metric {
-	m := dto.Metric{}
-	metric.Write(&m)
-
+func toModelMetric(metric prometheus.Metric) (model.Metric, error) {
 	ret := model.Metric{}
+	m := dto.Metric{}
+	if err := metric.Write(&m); err != nil {
+		return ret, fmt.Errorf("write metric: %s", err)
+	}
+
 	for _, p := range m.Label {
 		ret[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
 	}
@@ -312,5 +324,5 @@ func toModelMetric(metric prometheus.Metric) model.Metric {
 	i := strings.Index(name, "\"")
 
 	ret[model.MetricNameLabel] = model.LabelValue(name[:i])
-	return ret
+	return ret, nil
 }

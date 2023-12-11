@@ -39,10 +39,12 @@ func TestScope(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("Unexpected input errors: %s", errs)
 	}
-	err := Scope(groups, map[string]string{
+	if err := Scope(groups, map[string]string{
 		"l1": "v1",
 		"l2": "v2",
-	})
+	}); err != nil {
+		t.Fatalf("Unable to set scope: %s", err)
+	}
 	want := `groups:
     - name: test
       rules:

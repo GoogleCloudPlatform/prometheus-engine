@@ -109,7 +109,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 3},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{0.6},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 0.6},
 						},
 					}},
 				},
@@ -136,7 +136,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{math.Inf(1)},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: math.Inf(1)},
 						},
 					}},
 				},
@@ -178,7 +178,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 3},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{0.6},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 0.6},
 						},
 					}},
 				},
@@ -205,7 +205,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{100},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 100},
 						},
 					}},
 				},
@@ -233,7 +233,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{99.4},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 99.4},
 						},
 					}},
 				},
@@ -279,7 +279,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 3},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{2.5},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 2.5},
 						},
 					}},
 				},
@@ -307,7 +307,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{3.5},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 3.5},
 						},
 					}},
 				},
@@ -337,7 +337,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 5},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{7},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 7},
 						},
 					}},
 				},
@@ -389,7 +389,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{3.5},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 3.5},
 						},
 					}},
 				},
@@ -419,7 +419,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 5},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{7},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 7},
 						},
 					}},
 				},
@@ -448,7 +448,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 5},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{7},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 7},
 						},
 					}},
 				},
@@ -516,7 +516,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 2},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{2},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 2},
 						},
 					}},
 				},
@@ -545,7 +545,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 3},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{20},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 20},
 						},
 					}},
 				},
@@ -573,7 +573,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{1},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 1},
 						},
 					}},
 				},
@@ -600,7 +600,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{4},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 4},
 						},
 					}},
 				},
@@ -652,7 +652,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 2},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{2},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 2},
 						},
 					}},
 				},
@@ -682,7 +682,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{1},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 1},
 						},
 					}},
 				},
@@ -709,7 +709,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 4},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{4},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 4},
 						},
 					}},
 				},
@@ -891,7 +891,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 1},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{3},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 3},
 						},
 					}},
 				},
@@ -1145,7 +1145,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 1},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{1},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 1},
 						},
 					}},
 				}, {
@@ -1171,7 +1171,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 2},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{2},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 2},
 						},
 					}},
 				},
@@ -1198,7 +1198,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime: &timestamp_pb.Timestamp{Seconds: 1},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{1},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 1},
 						},
 					}},
 				},
@@ -1469,7 +1469,7 @@ func TestSampleBuilder(t *testing.T) {
 							EndTime:   &timestamp_pb.Timestamp{Seconds: 3},
 						},
 						Value: &monitoring_pb.TypedValue{
-							Value: &monitoring_pb.TypedValue_DoubleValue{2.5},
+							Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: 2.5},
 						},
 					}},
 				},

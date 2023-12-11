@@ -125,7 +125,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 				EndTime: getTimestamp(sample.T),
 			},
 			Value: &monitoring_pb.TypedValue{
-				Value: &monitoring_pb.TypedValue_DoubleValue{sample.V},
+				Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: sample.V},
 			},
 		}}
 		result = append(result, hashedSeries{hash: g.hash, proto: &ts})
@@ -155,7 +155,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 			}
 			if v != nil {
 				value = &monitoring_pb.TypedValue{
-					Value: &monitoring_pb.TypedValue_DistributionValue{v},
+					Value: &monitoring_pb.TypedValue_DistributionValue{DistributionValue: v},
 				}
 			}
 		} else {
@@ -164,7 +164,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 			resetTimestamp, v, ok = b.series.getResetAdjusted(storage.SeriesRef(sample.Ref), sample.T, sample.V)
 			if ok {
 				value = &monitoring_pb.TypedValue{
-					Value: &monitoring_pb.TypedValue_DoubleValue{v},
+					Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: v},
 				}
 				discardExemplarIncIfExists(storage.SeriesRef(sample.Ref), exemplars, "counters-unsupported")
 			}

@@ -400,12 +400,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
-			cond = &monitoringv1.MonitoringCondition{
-				Type:    monitoringv1.ConfigurationCreateSuccess,
-				Status:  corev1.ConditionFalse,
-				Reason:  "ScrapeConfigError",
-				Message: msg,
-			}
 			logger.Error(err, msg, "namespace", pmon.Namespace, "name", pmon.Name)
 			continue
 		}
@@ -439,12 +433,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
-			cond = &monitoringv1.MonitoringCondition{
-				Type:    monitoringv1.ConfigurationCreateSuccess,
-				Status:  corev1.ConditionFalse,
-				Reason:  "ScrapeConfigError",
-				Message: msg,
-			}
 			logger.Error(err, msg, "namespace", cmon.Namespace, "name", cmon.Name)
 			continue
 		}
