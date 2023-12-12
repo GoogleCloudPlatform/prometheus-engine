@@ -563,12 +563,14 @@ func (o *Operator) canUpdateWebhooks(ctx context.Context) (bool, error) {
 			Group:     arv1.GroupName,
 			Resource:  "MutatingWebhookConfiguration",
 			Namespace: o.opts.OperatorNamespace,
+			Name:      o.webhookConfigName(),
 			Verb:      "update",
 		},
 		authv1.ResourceAttributes{
 			Group:     arv1.GroupName,
 			Resource:  "ValidatingWebhookConfiguration",
 			Namespace: o.opts.OperatorNamespace,
+			Name:      o.webhookConfigName(),
 			Verb:      "update",
 		},
 	)
