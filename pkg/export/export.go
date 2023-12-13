@@ -536,6 +536,9 @@ const (
 // Testing returns true if running within a unit test.
 // TODO(TheSpiritXIII): Replace with https://github.com/golang/go/issues/52600
 func Testing() bool {
+	flag.VisitAll(func(f *flag.Flag) {
+		fmt.Println(f.Name)
+	})
 	return flag.Lookup("test.v") != nil
 }
 
