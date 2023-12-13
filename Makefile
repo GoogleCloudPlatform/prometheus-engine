@@ -128,21 +128,21 @@ else
 	rm -rf vendor.tmp
 endif
 
-GCM_SECRET?=''
+GCM_SECRET?=
 .PHONY: test-export-gcm
 test-export-gcm:  ## Run export unit tests that will use GCM if GCM_SECRET is present.
                   ## TODO(b/306337101): Move to cloud build.
-ifneq ($(GCM_SECRET), '')
+ifneq ($(GCM_SECRET),)
 	TEST_TAG=false go test -v ./pkg/export/gcm
 else
 	@echo "Secret not provided, skipping!"
 endif
 
-GCM_SECRET?=''
+GCM_SECRET?=
 .PHONY: test-script-gcm
 test-script-gcm:  ## Run example/scripts unit tests that will use GCM if GCM_SECRET is present.
                   ## TODO(b/306337101): Move to cloud build.
-ifneq ($(GCM_SECRET), '')
+ifneq ($(GCM_SECRET),)
 	cd examples/scripts && go test -v .
 else
 	@echo "Secret not provided, skipping!"
