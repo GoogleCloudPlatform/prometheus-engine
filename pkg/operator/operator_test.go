@@ -19,7 +19,6 @@ import (
 	"os"
 	"path"
 	"testing"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -97,7 +96,7 @@ func TestEnsureCertsExplicit(t *testing.T) {
 			op := Operator{
 				opts: tc.opts,
 			}
-			caBundle, err := op.ensureCerts(context.Background(), dir)
+			caBundle, err := op.ensureCerts(dir)
 			if (err == nil && tc.expectErr) || (err != nil && !tc.expectErr) {
 				t.Fatalf("want err: %v; got %v", tc.expectErr, err)
 			}
@@ -120,12 +119,6 @@ func TestEnsureCertsExplicit(t *testing.T) {
 }
 
 func TestEnsureCertsSelfSigned(t *testing.T) {
-	var (
-		timeout     = 3 * time.Second
-		ctx, cancel = context.WithTimeout(context.Background(), timeout)
-	)
-	t.Cleanup(cancel)
-
 	dir, err := os.MkdirTemp("", "test_ensure_certs")
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +139,7 @@ func TestEnsureCertsSelfSigned(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			op := Operator{opts: tc.opts}
 
-			caBundle, err := op.ensureCerts(ctx, dir)
+			caBundle, err := op.ensureCerts(dir)
 			if (err == nil && tc.expectErr) || (err != nil && !tc.expectErr) {
 				t.Fatalf("want err: %v; got %v", tc.expectErr, err)
 			}
