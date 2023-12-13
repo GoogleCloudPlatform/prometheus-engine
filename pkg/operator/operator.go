@@ -32,7 +32,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -303,15 +302,14 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 // custom resources and registers handlers with the webhook server.
 func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	// Write provided cert files.
-	caBundle, err := o.ensureCerts(ctx, o.manager.GetWebhookServer().CertDir)
+	caBundle, err := o.ensureCerts(o.manager.GetWebhookServer().CertDir)
 	if err != nil {
 		return err
 	}
 
-	if updateAllowed, err := o.canUpdateWebhooks(ctx); err != nil {
-		return err
-	} else if updateAllowed {
-		// Keep setting the caBundle in the expected webhook configurations.
+	if len(caBundle) > 0 {
+		// Keep setting the caBundle, if "ensureCerts" gives us those, in the expected webhook configurations.
+		// In case of not enough permissions we will keep trying with error message.
 		go o.continuouslySetCABundle(ctx, caBundle)
 	}
 
@@ -443,8 +441,8 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 }
 
 // ensureCerts writes the cert/key files to the specified directory.
-// If cert/key are not avalilable, generate them.
-func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) {
+// If cert/key are not available, generate them.
+func (o *Operator) ensureCerts(dir string) ([]byte, error) {
 	var (
 		crt, key, caData []byte
 		err              error
@@ -475,7 +473,7 @@ func (o *Operator) ensureCerts(ctx context.Context, dir string) ([]byte, error) 
 		if err != nil {
 			return nil, fmt.Errorf("generate self-signed TLS key pair: %w", err)
 		}
-		// Use crt as the ca in the the self-sign case.
+		// Use crt as the ca in the self-sign case.
 		caData = crt
 	} else {
 		return nil, errors.New("flags key-base64 and cert-base64 must both be set")
@@ -571,56 +569,17 @@ func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []by
 	return o.client.Update(ctx, &mwc)
 }
 
-func (o *Operator) canUpdateWebhooks(ctx context.Context) (bool, error) {
-	return o.canI(ctx,
-		authv1.ResourceAttributes{
-			Group:     arv1.GroupName,
-			Resource:  "MutatingWebhookConfiguration",
-			Namespace: o.opts.OperatorNamespace,
-			Verb:      "update",
-		},
-		authv1.ResourceAttributes{
-			Group:     arv1.GroupName,
-			Resource:  "ValidatingWebhookConfiguration",
-			Namespace: o.opts.OperatorNamespace,
-			Verb:      "update",
-		},
-	)
-}
-
-func (o *Operator) canI(ctx context.Context, resources ...authv1.ResourceAttributes) (bool, error) {
-	for _, resource := range resources {
-		req := authv1.SelfSubjectAccessReview{
-			Spec: authv1.SelfSubjectAccessReviewSpec{
-				ResourceAttributes: &resource,
-			},
-		}
-		if err := o.client.Create(ctx, &req); err != nil {
-			return false, fmt.Errorf("check permissions to %q %q: %w", resource.Verb, resource.Name, err)
-		}
-		if !req.Status.Allowed {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
 func (o *Operator) continuouslySetCABundle(ctx context.Context, caBundle []byte) {
-	// Only inject if we've an explicit CA bundle ourselves. Otherwise the webhook configs
-	// may already have been created with one.
-	if len(caBundle) == 0 {
-		return
-	}
 	// Initial sleep for the client to initialize before our first calls.
 	// Ideally we could explicitly wait for it.
 	time.Sleep(5 * time.Second)
 
 	for {
 		if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil {
-			o.logger.Error(err, "Setting CA bundle for ValidatingWebhookConfiguration failed")
+			o.logger.Error(err, "Setting CA bundle for ValidatingWebhookConfiguration failed; retrying in 1m...")
 		}
 		if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
-			o.logger.Error(err, "Setting CA bundle for MutatingWebhookConfiguration failed")
+			o.logger.Error(err, "Setting CA bundle for MutatingWebhookConfiguration failed; retrying in 1m...")
 		}
 		select {
 		case <-ctx.Done():
