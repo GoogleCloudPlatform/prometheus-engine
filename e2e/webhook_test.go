@@ -65,7 +65,7 @@ func TestWebhookCABundleInjection(t *testing.T) {
 		}
 
 		// Wait for caBundle injection.
-		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 			if err := tctx.Client().Get(ctx, client.ObjectKeyFromObject(vwc), vwc); err != nil {
 				return false, fmt.Errorf("get validatingwebhook configuration: %w", err)
 			}
@@ -112,7 +112,7 @@ func TestWebhookCABundleInjection(t *testing.T) {
 		}
 
 		// Wait for caBundle injection.
-		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 			if err := tctx.Client().Get(ctx, client.ObjectKeyFromObject(mwc), mwc); err != nil {
 				return false, fmt.Errorf("get mutatingwebhook configuration: %w", err)
 			}

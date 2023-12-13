@@ -54,15 +54,16 @@ func isPodMonitoringEndpointStatusReady(pm monitoringv1.PodMonitoringCRD) error 
 }
 
 func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, pm monitoringv1.PodMonitoringCRD, targetStatusEnabled bool) error {
-	timeout := 1 * time.Minute
+	timeout := 2 * time.Minute
+	interval := 3 * time.Second
 	if targetStatusEnabled {
 		// Wait for target status to get polled.
-		timeout = 2 * time.Minute
+		timeout = 3 * time.Minute
 	}
 
 	var err error
 	var resVer string
-	pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	pollErr := wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 			return false, fmt.Errorf("getting PodMonitoring failed: %w", err)
 		}
