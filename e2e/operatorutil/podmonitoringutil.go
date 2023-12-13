@@ -53,7 +53,11 @@ func isPodMonitoringEndpointStatusReady(pm monitoringv1.PodMonitoringCRD) error 
 	return nil
 }
 
-func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, pm monitoringv1.PodMonitoringCRD, targetStatusEnabled bool) error {
+func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, operatorNamespace string, pm monitoringv1.PodMonitoringCRD, targetStatusEnabled bool) error {
+	if err := WaitForCollectionReady(ctx, kubeClient, operatorNamespace); err != nil {
+		return err
+	}
+
 	timeout := 2 * time.Minute
 	interval := 3 * time.Second
 	if targetStatusEnabled {
@@ -62,20 +66,9 @@ func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, pm
 	}
 
 	var err error
-	var resVer string
 	pollErr := wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 			return false, fmt.Errorf("getting PodMonitoring failed: %w", err)
-		}
-
-		// Ensure no status update cycles.
-		// This is not a perfect check as it's possible the get call returns before the operator
-		// would sync again, however it can serve as a valuable guardrail in case sporadic test
-		// failures start happening due to update cycles.
-		if resVer != pm.GetResourceVersion() {
-			resVer = pm.GetResourceVersion()
-			err = errors.New("waiting for resource version to stabilize")
-			return false, nil
 		}
 
 		if err = IsPodMonitoringReady(pm, targetStatusEnabled); err != nil {

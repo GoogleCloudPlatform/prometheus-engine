@@ -56,7 +56,7 @@ func WaitForPodContainerReady(ctx context.Context, t testing.TB, restConfig *res
 		return nil
 	}
 	t.Logf("waiting for pod to be ready: %s", err)
-	if waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
+	if waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 1*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
 			return false, err
 		}

@@ -269,7 +269,7 @@ func testCollector(ctx context.Context, t *OperatorContext, pm monitoringv1.PodM
 	}
 	t.Logf("Waiting for %q to be processed", pm.GetName())
 
-	if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+	if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
 		t.Errorf("unable to validate status: %s", err)
 	}
 
