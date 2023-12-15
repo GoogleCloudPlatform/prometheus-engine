@@ -1,6 +1,10 @@
 FROM golang:1.20-bullseye AS buildbase
 WORKDIR /app
-COPY . ./
+COPY go.mod go.mod
+COPY go.sum go.sum
+COPY cmd cmd
+COPY pkg pkg
+COPY vendor vendor
 
 FROM buildbase as appbase
 RUN CGO_ENABLED=0 go build -mod=vendor -o rule-evaluator cmd/rule-evaluator/*.go

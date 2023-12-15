@@ -3,9 +3,23 @@ GOINSTR += $(notdir $(patsubst %/,%,$(dir $(shell find examples/instrumentation 
 
 CLOUDSDK_CONFIG?=${HOME}/.config/gcloud
 PROJECT_ID?=$(shell gcloud config get-value core/project)
-GMP_CLUSTER?=gmp-test-cluster
+PROJECT_ID:=$(if $(PROJECT_ID),$(PROJECT_ID),gmp-project)
 GMP_LOCATION?=us-central1-c
+GMP_CLUSTER?=gmp-test-cluster
+TEST_ARGS=-project-id=$(PROJECT_ID) -location=$(GMP_LOCATION) -cluster=$(GMP_CLUSTER)
+
 API_DIR=pkg/operator/apis
+LOCAL_CREDENTIALS=/tmp/gcm-editor.json
+# If credentials are provided, ensure we mount them during e2e test.
+ifneq ($(GOOGLE_APPLICATION_CREDENTIALS),)
+E2E_DOCKER_ARGS := -v $(GOOGLE_APPLICATION_CREDENTIALS):$(LOCAL_CREDENTIALS)
+endif
+
+ifeq ($(KIND_PERSIST), 1)
+E2E_DOCKER_ARGS += --env KIND_PERSIST=1
+endif
+REGISTRY_NAME=kind-registry
+REGISTRY_PORT=5001
 
 # For now assume the docker daemon is mounted through a unix socket.
 # TODO(pintohutch): will this work if using a remote docker over tcp?
@@ -15,12 +29,15 @@ DOCKER_VOLUME:=$(DOCKER_HOST:unix://%=%)
 IMAGE_REGISTRY?=gcr.io/$(PROJECT_ID)/prometheus-engine
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
+# If an individual test is not specified, run them all.
+TEST_RUN?=$(shell go test ./e2e/... -list=. | grep -E 'Test*')
+
 # TODO(TheSpiritXIII): Temporary env variables part of `export.go` unit tests.
 export TEST_TAG=true
 
 # Support gsed on OSX (installed via brew), falling back to sed. On Linux
 # systems gsed won't be installed, so will use sed as expected.
-SED ?= $(shell which gsed 2>/dev/null || which sed)
+SED?=$(shell which gsed 2>/dev/null || which sed)
 
 # TODO(pintohutch): this is a bit hacky, but can be useful when testing.
 # Ultimately this should be replaced with go templating.
@@ -29,12 +46,21 @@ define update_manifests
 endef
 
 define docker_build
-	DOCKER_BUILDKIT=1 docker build $(1)
+	DOCKER_BUILDKIT=1 docker build --label "part-of=gmp" $(1)
 endef
 
 define docker_tag_push
 	docker tag $(1) $(2)
 	docker push $(2)
+endef
+
+define ensure_registry
+	@echo ">> ensuring docker registry"
+	if [ "$(shell docker inspect -f '{{.State.Running}}' "$(REGISTRY_NAME)" 2>/dev/null || true)" != 'true' ]; then \
+		docker run \
+		-d --restart=always -p "127.0.0.1:$(REGISTRY_PORT):5000" --network bridge --name "$(REGISTRY_NAME)" \
+		registry:2; \
+	fi
 endef
 
 .PHONY: help
@@ -45,7 +71,7 @@ help:        ## Show this help.
 .PHONY: clean
 clean:       ## Clean build time resources, primarily, unused docker images.
              ##
-	for i in `docker images | grep -E '^gmp/|.*/prometheus-engine/.*' | awk '{print $$3}' | uniq`; do docker image rm -f $$i; done
+	docker rmi -f $(shell docker images -f "label=part-of=gmp" -q)
 
 .PHONY: lint
 lint:        ## Lint code.
@@ -138,19 +164,41 @@ e2e:         ## Run e2e test suite against fresh kind k8s cluster. By default it
              # environment variable. Use $GMP_CLUSTER, $GMP_LOCATION to specify
              ## timeseries labels.
              ##
+e2e: config-reloader operator rule-evaluator
 ifeq ($(NO_DOCKER), 1)
 	@echo ">> running e2e against your cluster"
 	kubectl apply -f manifests/setup.yaml
 	kubectl apply -f cmd/operator/deploy/operator/01-priority-class.yaml
 	kubectl apply -f cmd/operator/deploy/operator/03-role.yaml
-	go test -v "./e2e/..." -run "$(or $(TEST_RUN), .)" -args -project-id="$(PROJECT_ID)" -cluster="$(GMP_CLUSTER)" -location="$(GMP_LOCATION)" $(TEST_ARGS)
+	go test -v "./e2e/..." \
+	-run "$(or $(TEST_RUN), .)" \
+	-args \
+	-project-id="$(PROJECT_ID)" \
+	-cluster="$(GMP_CLUSTER)" \
+	-location="$(GMP_LOCATION)"
 else
+	$(call ensure_registry)
 	@echo ">> building kindtest image"
 	$(call docker_build, -f hack/Dockerfile --target kindtest -t gmp/kindtest .)
-	@echo ">> running container"
+	@echo ">> running kind tests"
 # We lose some isolation by sharing the host network with the kind containers.
 # However, we avoid a gcloud-shell "Dockerception" and save on build times.
-	docker run --env TEST_RUN="$(TEST_RUN)" --env TEST_ARGS="$(TEST_ARGS)" --network host --rm -v $(DOCKER_VOLUME):/var/run/docker.sock gmp/kindtest ./hack/kind-test.sh
+# Run kind tests in parallel. Hardcode 4 max simultaneously for now.
+	echo $(TEST_RUN) | tr ' ' '\n' | xargs -I {} -P4 \
+		docker run \
+		--env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" \
+		--env PROJECT_ID="$(PROJECT_ID)" \
+		--env GMP_LOCATION="$(GMP_LOCATION)" \
+		--env KIND_CLUSTER="{}" \
+		--env TEST_RUN="{}" \
+		--env BINARIES="$^" \
+		--env REGISTRY_NAME=$(REGISTRY_NAME) \
+		--env REGISTRY_PORT=$(REGISTRY_PORT) \
+		--network host \
+		--rm \
+		-v $(DOCKER_VOLUME):/var/run/docker.sock \
+		$(E2E_DOCKER_ARGS) \
+		gmp/kindtest ./hack/kind-test.sh -- $(TEST_RUN)
 endif
 
 .PHONY: presubmit
@@ -186,3 +234,6 @@ updateversions: $(SED)
 	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/alertmanager:.*#image: gke.gcr.io/prometheus-engine/alertmanager:$(CURRENT_AM_TAG)#g' $(FILES_TO_UPDATE)
 	@echo ">> Updating app.kubernetes.io/version to $(LABEL_API_VERSION)"
 	@$(SED) -i -r 's#app.kubernetes.io/version: .*#app.kubernetes.io/version: $(LABEL_API_VERSION)#g' $(FILES_TO_UPDATE)
+
+foo:
+	echo $(PROJECT_ID)

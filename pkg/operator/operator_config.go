@@ -66,7 +66,7 @@ const (
 	AlertmanagerPublicSecretKey  = "alertmanager.yaml"
 	rulesDir                     = "/etc/rules"
 	secretsDir                   = "/etc/secrets"
-	alertmanagerConfigKey        = "config.yaml"
+	AlertmanagerConfigKey        = "config.yaml"
 )
 
 // Collector Kubernetes Deployment extraction/detection.
@@ -76,7 +76,7 @@ const (
 	CollectorConfigReloaderContainerPortName = "cfg-rel-metrics"
 )
 
-var alertmanagerNoOpConfig = `
+var AlertmanagerNoOpConfig = `
 receivers:
   - name: "noop"
 route:
@@ -342,7 +342,7 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 			Annotations: componentAnnotations(),
 			Labels:      alertmanagerLabels(),
 		},
-		Data: map[string][]byte{alertmanagerConfigKey: []byte(alertmanagerNoOpConfig)},
+		Data: map[string][]byte{AlertmanagerConfigKey: []byte(AlertmanagerNoOpConfig)},
 	}
 
 	// Set defaults on public namespace secret.
@@ -369,7 +369,7 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 		// so that the managed AM pod doesn't crash loop.
 		logger.Info(fmt.Sprintf("alertmanager config secret not found in namespace %s: %s", pubNamespace, err.Error()))
 	} else {
-		secret.Data[alertmanagerConfigKey] = b
+		secret.Data[AlertmanagerConfigKey] = b
 	}
 
 	if err := r.client.Update(ctx, secret); apierrors.IsNotFound(err) {
