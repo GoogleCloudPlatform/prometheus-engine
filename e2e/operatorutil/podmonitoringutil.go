@@ -68,7 +68,7 @@ func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, op
 	var err error
 	pollErr := wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
-			return false, fmt.Errorf("getting PodMonitoring failed: %w", err)
+			return false, nil
 		}
 
 		if err = IsPodMonitoringReady(pm, targetStatusEnabled); err != nil {

@@ -180,7 +180,6 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
-			t.Log(fmt.Errorf("getting collector DaemonSet failed: %w", err))
 			return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
 		}
 		// At first creation the DaemonSet may appear with 0 desired replicas. This should
