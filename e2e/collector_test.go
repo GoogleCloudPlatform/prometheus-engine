@@ -24,319 +24,426 @@ import (
 
 	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
-	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
-	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/operatorutil"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	// Blank import required to register GCP auth handlers to talk to GKE clusters.
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
-	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
 
-func TestCollector(t *testing.T) {
-	t.Parallel()
-	tctx := newOperatorContext(t)
+func TestCollectorPodMonitoring(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
-	t.Run("deployed", tctx.subtest(testCollectorDeployed))
-
-	t.Run("scrape", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
-			Features: monitoringv1.OperatorFeatures{
-				TargetStatus: monitoringv1.TargetStatusSpec{
-					Enabled: true,
+	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("collector-configured", testCollectorConfigured(ctx, t, kubeClient, opClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
+	// Self-scrape podmonitoring.
+	pm := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "collector-podmon",
+			Namespace: operator.DefaultOperatorNamespace,
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					operator.LabelAppName: operator.NameCollector,
 				},
 			},
-		})
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString(operator.CollectorPrometheusContainerPortName),
+					Interval: "5s",
+				},
+				{
+					Port:     intstr.FromString(operator.CollectorConfigReloaderContainerPortName),
+					Interval: "5s",
+				},
+			},
+		},
+	}
+	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, t, opClient, pm))
+	if !skipGCM {
+		t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, t, kubeClient, "collector-podmon"))
+	}
+}
 
-		t.Run("self-podmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-			t.Parallel()
-			testCollector(ctx, t, &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "collector-podmon",
-					Namespace: t.namespace,
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Selector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							operator.LabelAppName: operator.NameCollector,
-							testLabel:             t.GetOperatorTestLabelValue(),
-						},
-					},
-					Endpoints: selfScrapeEndpointConfig(),
-				},
-			})
-		}))
-		t.Run("self-clusterpodmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-			t.Parallel()
-			testCollector(ctx, t, &monitoringv1.ClusterPodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "collector-cmon",
-				},
-				Spec: monitoringv1.ClusterPodMonitoringSpec{
-					Selector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							operator.LabelAppName: operator.NameCollector,
-							testLabel:             t.GetOperatorTestLabelValue(),
-						},
-					},
-					Endpoints: selfScrapeEndpointConfig(),
-				},
-			})
-		}))
+func TestCollectorClusterPodMonitoring(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
 
-		const appName = "collector-synthetic"
-		deployment, err := operatorutil.SyntheticAppDeploy(ctx, tctx.Client(), tctx.userNamespace, appName, []string{})
-		if err != nil {
-			tctx.Fatal(err)
-		}
+	// We could simply verify that the full collection chain works once. But validating
+	// more fine-grained stages makes debugging a lot easier.
+	t.Run("collector-running", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("collector-configured", testCollectorConfigured(ctx, t, kubeClient, opClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
+	// Self-scrape clusterpodmonitoring.
+	cpm := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "collector-cmon",
+		},
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					operator.LabelAppName: operator.NameCollector,
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString(operator.CollectorPrometheusContainerPortName),
+					Interval: "5s",
+				},
+				{
+					Port:     intstr.FromString(operator.CollectorConfigReloaderContainerPortName),
+					Interval: "5s",
+				},
+			},
+		},
+	}
+	t.Run("self-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, t, opClient, cpm))
+	if !skipGCM {
+		t.Run("self-clusterpodmonitoring-gcm", testValidateCollectorUpMetrics(ctx, t, kubeClient, "collector-cmon"))
+	}
+}
 
-		if err := kubeutil.WaitForDeploymentReady(ctx, tctx.Client(), tctx.userNamespace, appName); err != nil {
-			kubeutil.DeploymentDebug(tctx.T, ctx, tctx.RestConfig(), tctx.Client(), tctx.userNamespace, appName)
-			tctx.Fatalf("failed to start app: %s", err)
-		}
-		t.Run("synthetic-podmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-			t.Parallel()
-			testCollector(ctx, t, &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "synthetic-podmon",
-					Namespace: t.userNamespace,
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Selector: metav1.LabelSelector{
-						MatchLabels: deployment.Spec.Template.Labels,
-					},
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Port:     intstr.FromString(operatorutil.SyntheticAppPortName),
-							Interval: "5s",
-						},
-					},
-				},
-			})
-		}))
-		t.Run("synthetic-clusterpodmonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-			t.Parallel()
-			testCollector(ctx, t, &monitoringv1.ClusterPodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "synthetic-cmon",
-				},
-				Spec: monitoringv1.ClusterPodMonitoringSpec{
-					Selector: metav1.LabelSelector{
-						MatchLabels: deployment.Spec.Template.Labels,
-					},
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Port:     intstr.FromString(operatorutil.SyntheticAppPortName),
-							Interval: "5s",
-						},
-					},
-				},
-			})
-		}))
-	}))
+func TestCollectorKubeletScraping(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
 
-	t.Run("scrape-kubelet", tctx.subtest(testCollectorScrapeKubelet))
+	// We could simply verify that the full collection chain works once. But validating
+	// more fine-grained stages makes debugging a lot easier.
+	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("collector-configured", testCollectorConfigured(ctx, t, kubeClient, opClient))
+	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, t, opClient))
+	if !skipGCM {
+		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, t, kubeClient))
+	}
 }
 
 // testCollectorDeployed does a high-level verification on whether the
 // collector is deployed to the cluster.
-func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
-	// Create initial OperatorConfig to trigger deployment of resources.
-	t.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
-		Collection: monitoringv1.CollectionSpec{
-			ExternalLabels: map[string]string{
-				"external_key": "external_val",
-			},
-			Filter: monitoringv1.ExportFilters{
-				MatchOneOf: []string{
-					"{job='foo'}",
-					"{__name__=~'up'}",
-				},
-			},
-			KubeletScraping: &monitoringv1.KubeletScraping{
-				Interval: "5s",
-			},
-		},
-	})
+func testCollectorDeployed(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("checking collector is running")
 
-	var err error
-	pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
-		var ds appsv1.DaemonSet
-		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameCollector}, &ds); err != nil {
+		// Keep checking the state of the collectors until they're running.
+		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			ds, err := kubeClient.AppsV1().DaemonSets(operator.DefaultOperatorNamespace).Get(ctx, operator.NameCollector, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
 				return false, nil
+			} else if err != nil {
+				return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
 			}
-			return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
-		}
-		// At first creation the DaemonSet may appear with 0 desired replicas. This should
-		// change shortly after.
-		if ds.Status.DesiredNumberScheduled == 0 {
-			return false, nil
-		}
+			// At first creation the DaemonSet may appear with 0 desired replicas. This should
+			// change shortly after.
+			if ds.Status.DesiredNumberScheduled == 0 {
+				return false, nil
+			}
 
-		// TODO(pintohutch): run all tests without skipGCM by providing boilerplate
-		// credentials for use in local testing and CI.
-		//
-		// This is necessary for any e2e tests that don't have access to GCP
-		// credentials. We were getting away with this by running on networks
-		// with access to the GCE metadata server IP to supply them:
-		// https://github.com/googleapis/google-cloud-go/blob/56d81f123b5b4491aaf294042340c35ffcb224a7/compute/metadata/metadata.go#L39
-		// However, running without this access (e.g. on Github Actions) causes
-		// a failure from:
-		// https://cs.opensource.google/go/x/oauth2/+/master:google/default.go;l=155;drc=9780585627b5122c8cc9c6a378ac9861507e7551
-		if !skipGCM {
+			// Ensure all collectors are ready.
 			if ds.Status.NumberReady != ds.Status.DesiredNumberScheduled {
 				return false, nil
 			}
-		}
 
-		// Assert we have the expected annotations.
-		wantedAnnotations := map[string]string{
-			"components.gke.io/component-name":               "managed_prometheus",
-			"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
-		}
-		if diff := cmp.Diff(wantedAnnotations, ds.Spec.Template.Annotations); diff != "" {
-			err = fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
-		}
-
-		// TODO(pintohutch): clean-up wantArgs init logic.
-		for _, c := range ds.Spec.Template.Spec.Containers {
-			if c.Name != operator.CollectorPrometheusContainerName {
-				continue
+			// Assert we have the expected annotations.
+			wantedAnnotations := map[string]string{
+				"components.gke.io/component-name":               "managed_prometheus",
+				"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
 			}
-
-			// We're mainly interested in the dynamic flags but checking the entire set including
-			// the static ones is ultimately simpler.
-			wantArgs := []string{
-				fmt.Sprintf("--export.label.project-id=%q", projectID),
-				fmt.Sprintf("--export.label.location=%q", location),
-				fmt.Sprintf("--export.label.cluster=%q", cluster),
-				`--export.match="{job='foo'}"`,
-				`--export.match="{__name__=~'up'}"`,
+			if diff := cmp.Diff(wantedAnnotations, ds.Spec.Template.Annotations); diff != "" {
+				return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
 			}
-			if gcpServiceAccount != "" {
-				wantArgs = append(wantArgs, fmt.Sprintf(`--export.credentials-file="/etc/secrets/secret_%s_user-gcp-service-account_key.json"`, t.pubNamespace))
-			}
-
-			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
-				t.Log(fmt.Errorf("unexpected flags (-want, +got): %s", diff))
-				err = fmt.Errorf("unexpected flags (-want, +got): %s", diff)
-			}
-			return err == nil, nil
+			return true, nil
+		})
+		if err != nil {
+			t.Fatalf("waiting for collector DaemonSet failed: %s", err)
 		}
-		return false, fmt.Errorf("no container with name %q found", operator.CollectorPrometheusContainerName)
-	})
-	if pollErr != nil {
-		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
-			pollErr = err
-		}
-		t.Fatalf("Waiting for DaemonSet deployment failed: %s", pollErr)
 	}
 }
 
-func selfScrapeEndpointConfig() []monitoringv1.ScrapeEndpoint {
-	return []monitoringv1.ScrapeEndpoint{
-		{
-			Port:     intstr.FromString(operator.CollectorPrometheusContainerPortName),
+func testCollectorConfigured(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("checking collector is configured")
+
+		// Add some export filters.
+		projectFilter := fmt.Sprintf("{project_id='%s'}", projectID)
+		locationFilter := fmt.Sprintf("{location=~'%s$'}", location)
+		// TODO(pintohutch): remove once we've fixed: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/728.
+		kubeletFilter := "{job='kubelet'}"
+
+		config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
+		if err != nil {
+			t.Fatalf("get operatorconfig: %s", err)
+		}
+		config.Collection.Filter = monitoringv1.ExportFilters{
+			MatchOneOf: []string{projectFilter, locationFilter, kubeletFilter},
+		}
+
+		// TODO(pintohutch): add external_labels.
+		// Update OperatorConfig.
+		_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
+		if err != nil {
+			t.Fatalf("update operatorconfig: %s", err)
+		}
+
+		// Keep checking the state of the collectors until they're running.
+		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			ds, err := kubeClient.AppsV1().DaemonSets(operator.DefaultOperatorNamespace).Get(ctx, operator.NameCollector, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			} else if err != nil {
+				return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
+			}
+
+			// Ensure prometheus container has expected args.
+			for _, c := range ds.Spec.Template.Spec.Containers {
+				if c.Name != operator.CollectorPrometheusContainerName {
+					continue
+				}
+
+				// We're mainly interested in the dynamic flags but checking the entire set including
+				// the static ones is ultimately simpler.
+				wantArgs := []string{
+					fmt.Sprintf("--export.label.project-id=%q", projectID),
+					fmt.Sprintf("--export.label.location=%q", location),
+					fmt.Sprintf("--export.label.cluster=%q", cluster),
+					fmt.Sprintf("--export.match=%q", projectFilter),
+					fmt.Sprintf("--export.match=%q", locationFilter),
+					fmt.Sprintf("--export.match=%q", kubeletFilter)}
+				gotArgs := getEnvVar(c.Env, "EXTRA_ARGS")
+				for _, arg := range wantArgs {
+					if !strings.Contains(gotArgs, arg) {
+						return false, fmt.Errorf("expected arg %q not found in EXTRA_ARGS: %q", arg, gotArgs)
+					}
+				}
+
+				return true, nil
+			}
+			return false, errors.New("no container with name prometheus found")
+		})
+		if err != nil {
+			t.Fatalf("waiting for collector configuration failed: %s", err)
+		}
+	}
+}
+
+type statusFn func(*monitoringv1.ScrapeEndpointStatus) error
+
+// testEnsurePodMonitoringReady sets up a PodMonitoring and ensures its status
+// is successfully scraping targets.
+func testEnsurePodMonitoringReady(ctx context.Context, t *testing.T, opClient versioned.Interface, pm *monitoringv1.PodMonitoring) func(*testing.T) {
+	return testEnsurePodMonitoringStatus(ctx, t, opClient, pm, isPodMonitoringScrapeEndpointSuccess)
+}
+
+// testEnsurePodMonitoringStatus sets up a PodMonitoring and runs validations against
+// its status with the provided function.
+func testEnsurePodMonitoringStatus(ctx context.Context, t *testing.T, opClient versioned.Interface, pm *monitoringv1.PodMonitoring, validate statusFn) func(*testing.T) {
+	// The operator should configure the collector to scrape itself and its metrics
+	// should show up in Cloud Monitoring shortly after.
+	return func(t *testing.T) {
+		t.Log("ensuring PodMonitoring is created and ready")
+
+		_, err := opClient.MonitoringV1().PodMonitorings(pm.Namespace).Create(ctx, pm, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatalf("create collector PodMonitoring: %s", err)
+		}
+
+		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			pm, err := opClient.MonitoringV1().PodMonitorings(pm.Namespace).Get(ctx, pm.Name, metav1.GetOptions{})
+			if err != nil {
+				return false, fmt.Errorf("getting PodMonitoring failed: %w", err)
+			}
+			// Ensure no status update cycles.
+			// This is not a perfect check as it's possible the get call returns before the operator
+			// would sync again, however it can serve as a valuable guardrail in case sporadic test
+			// failures start happening due to update cycles.
+			if size := len(pm.Status.Conditions); size > 1 {
+				return false, fmt.Errorf("status conditions should be of length 1, but got: %d", size)
+			}
+			// Ensure podmonitoring status shows created configuration.
+			if pm.Status.Conditions[0].Type != monitoringv1.ConfigurationCreateSuccess {
+				t.Log("status != configuration success")
+				return false, nil
+			}
+
+			// Check status reflects discovered endpoints.
+			if len(pm.Status.EndpointStatuses) < 1 {
+				t.Logf("no endpoint statuses yet")
+				return false, nil
+			}
+
+			// Check target status.
+			for _, status := range pm.Status.EndpointStatuses {
+				err = validate(&status)
+				if err != nil {
+					t.Logf("endpoint status is not valid: %s", err)
+					return false, nil
+				}
+			}
+			t.Log("status validated!")
+			return true, nil
+		})
+		if err != nil {
+			t.Errorf("unable to validate PodMonitoring status: %s", err)
+		}
+	}
+}
+
+// testEnsureClusterPodMonitoringReady sets up a ClusterPodMonitoring and
+// ensures its status is successfully scraping targets.
+func testEnsureClusterPodMonitoringReady(ctx context.Context, t *testing.T, opClient versioned.Interface, cpm *monitoringv1.ClusterPodMonitoring) func(*testing.T) {
+	return testEnsureClusterPodMonitoringStatus(ctx, t, opClient, cpm, isPodMonitoringScrapeEndpointSuccess)
+}
+
+// testEnsureClusterPodMonitoringStatus sets up a ClusterPodMonitoring and runs
+// validations against its status with the provided function.
+func testEnsureClusterPodMonitoringStatus(ctx context.Context, t *testing.T, opClient versioned.Interface, cpm *monitoringv1.ClusterPodMonitoring, validate statusFn) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("ensuring ClusterPodMonitoring is created and ready")
+
+		// The operator should configure the collector to scrape itself and its metrics
+		// should show up in Cloud Monitoring shortly after.
+		_, err := opClient.MonitoringV1().ClusterPodMonitorings().Create(ctx, cpm, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatalf("create collector ClusterPodMonitoring: %s", err)
+		}
+
+		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			cpm, err := opClient.MonitoringV1().ClusterPodMonitorings().Get(ctx, cpm.Name, metav1.GetOptions{})
+			if err != nil {
+				return false, fmt.Errorf("getting ClusterPodMonitoring failed: %w", err)
+			}
+			// Ensure no status update cycles.
+			// This is not a perfect check as it's possible the get call returns before the operator
+			// would sync again, however it can serve as a valuable guardrail in case sporadic test
+			// failures start happening due to update cycles.
+			if size := len(cpm.Status.Conditions); size > 1 {
+				return false, fmt.Errorf("status conditions should be of length 1, but got: %d", size)
+			}
+
+			// Ensure podmonitoring status shows created configuration.
+			if cpm.Status.Conditions[0].Type != monitoringv1.ConfigurationCreateSuccess {
+				t.Log("status != configuration success")
+				return false, nil
+			}
+
+			// Check status reflects discovered endpoints.
+			if len(cpm.Status.EndpointStatuses) < 1 {
+				t.Logf("no endpoint statuses yet")
+				return false, nil
+			}
+
+			// Check target status.
+			for _, status := range cpm.Status.EndpointStatuses {
+				err = validate(&status)
+				if err != nil {
+					t.Logf("endpoint status is not ready: %s", err)
+					return false, nil
+				}
+			}
+			t.Log("status validated!")
+			return true, nil
+		})
+		if err != nil {
+			t.Errorf("unable to validate ClusterPodMonitoring status: %s", err)
+		}
+	}
+}
+
+func testEnableTargetStatus(ctx context.Context, t *testing.T, opClient versioned.Interface) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("enabling target status reporting")
+
+		config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
+		if err != nil {
+			t.Errorf("get operatorconfig: %s", err)
+		}
+		// Enable target status reporting.
+		config.Features.TargetStatus = monitoringv1.TargetStatusSpec{
+			Enabled: true,
+		}
+		_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
+		if err != nil {
+			t.Errorf("updating operatorconfig: %s", err)
+		}
+	}
+}
+
+func testEnableKubeletScraping(ctx context.Context, t *testing.T, opClient versioned.Interface) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("enabling kubelet scraping")
+
+		config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
+		if err != nil {
+			t.Errorf("get operatorconfig: %s", err)
+		}
+		// Enable kubelet scraping.
+		config.Collection.KubeletScraping = &monitoringv1.KubeletScraping{
 			Interval: "5s",
-		},
-		{
-			Port:     intstr.FromString(operator.CollectorConfigReloaderContainerPortName),
-			Interval: "5s",
-		},
+		}
+		_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
+		if err != nil {
+			t.Errorf("updating operatorconfig: %s", err)
+		}
 	}
 }
 
-// testCollector sets up pod monitoring and waits for samples to become available in GCM.
-func testCollector(ctx context.Context, t *OperatorContext, pm monitoringv1.PodMonitoringCRD) {
-	if err := t.Client().Create(ctx, pm); err != nil {
-		t.Fatalf("create collector: %s", err)
-	}
-	t.Logf("Waiting for %q to be processed", pm.GetName())
-
-	if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
-		t.Errorf("unable to validate status: %s", err)
-	}
-
-	if err := operatorutil.WaitForPodMonitoringSuccess(ctx, t.Client(), pm); err != nil {
-		kubeutil.DaemonSetDebug(t, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-		t.Fatalf("scrape endpoint expected success: %s", err)
-	}
-
-	if !skipGCM {
-		t.Log("Waiting for up metrics for collector targets")
-		validateCollectorUpMetrics(ctx, t, pm.GetName())
-	}
-}
-
-// validateCollectorUpMetrics checks whether the scrape-time up metrics for all collector
+// testValidateCollectorUpMetrics checks whether the scrape-time up metrics for all collector
 // pods can be queried from GCM.
-func validateCollectorUpMetrics(ctx context.Context, t *OperatorContext, job string) {
-	// The project, location, and cluster name in which we look for the metric data must
-	// be provided by the user. Check this only in this test so tests that don't need these
-	// flags can still be run without them.
-	// They can be configured on the operator but our current test setup (targeting GKE)
-	// relies on the operator inferring them from the environment.
-	if projectID == "" {
-		t.Fatalf("no project specified (--project-id flag)")
-	}
-	if location == "" {
-		t.Fatalf("no location specified (--location flag)")
-	}
-	if cluster == "" {
-		t.Fatalf("no cluster name specified (--cluster flag)")
-	}
+func testValidateCollectorUpMetrics(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, job string) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("checking for metrics in Cloud Monitoring")
 
-	// Wait for metric data to show up in Cloud Monitoring.
-	metricClient, err := gcm.NewMetricClient(ctx)
-	if err != nil {
-		t.Fatalf("Create GCM metric client: %s", err)
-	}
-	defer metricClient.Close()
+		// Wait for metric data to show up in Cloud Monitoring.
+		metricClient, err := gcm.NewMetricClient(ctx)
+		if err != nil {
+			t.Fatalf("create metric client: %s", err)
+		}
+		defer metricClient.Close()
 
-	var pods corev1.PodList
-	if err := t.Client().List(ctx, &pods, client.InNamespace(t.namespace), client.MatchingLabelsSelector{
-		Selector: labels.SelectorFromSet(map[string]string{
-			operator.LabelAppName: operator.NameCollector,
-		}),
-	}); err != nil {
-		t.Fatalf("List collector pods: %s", err)
-	}
+		pods, err := kubeClient.CoreV1().Pods(operator.DefaultOperatorNamespace).List(ctx, metav1.ListOptions{
+			LabelSelector: fmt.Sprintf("%s=%s", operator.LabelAppName, operator.NameCollector),
+		})
+		if err != nil {
+			t.Fatalf("list collector pods: %s", err)
+		}
 
-	// See whether the `up` metric is written for each pod/port combination. It is set to 1 by
-	// Prometheus on successful scraping of the target. Thereby we validate service discovery
-	// configuration, config reload handling, as well as data export are correct.
-	//
-	// Make a single query for each pod/port combo as this is simpler than untangling the result
-	// of a single query.
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
+		// See whether the `up` metric is written for each pod/port combination. It is set to 1 by
+		// Prometheus on successful scraping of the target. Thereby we validate service discovery
+		// configuration, config reload handling, as well as data export are correct.
+		//
+		// Make a single query for each pod/port combo as this is simpler than untangling the result
+		// of a single query.
+		for _, pod := range pods.Items {
+			for _, port := range []string{operator.CollectorPrometheusContainerPortName, operator.CollectorConfigReloaderContainerPortName} {
+				t.Logf("poll 'up' metric for pod %q and port %q", pod.Name, port)
 
-	for _, pod := range pods.Items {
-		for _, port := range []string{operator.CollectorPrometheusContainerPortName, operator.CollectorConfigReloaderContainerPortName} {
-			t.Logf("Poll up metric for pod %q and port %q", pod.Name, port)
+				err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+					now := time.Now()
 
-			err = wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
-				now := time.Now()
-
-				// Validate the majority of labels being set correctly by filtering along them.
-				iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
-					Name: fmt.Sprintf("projects/%s", projectID),
-					Filter: fmt.Sprintf(`
+					// Validate the majority of labels being set correctly by filtering along them.
+					iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
+						Name: fmt.Sprintf("projects/%s", projectID),
+						Filter: fmt.Sprintf(`
 				resource.type = "prometheus_target" AND
 				resource.labels.project_id = "%s" AND
 				resource.label.location = "%s" AND
@@ -344,85 +451,67 @@ func validateCollectorUpMetrics(ctx context.Context, t *OperatorContext, job str
 				resource.labels.namespace = "%s" AND
 				resource.labels.job = "%s" AND
 				resource.labels.instance = "%s:%s" AND
-				metric.type = "prometheus.googleapis.com/up/gauge" AND
-				metric.labels.external_key = "external_val"
-				`,
-						projectID, location, cluster, t.namespace, job, pod.Spec.NodeName, port,
-					),
-					Interval: &gcmpb.TimeInterval{
-						EndTime:   timestamppb.New(now),
-						StartTime: timestamppb.New(now.Add(-10 * time.Second)),
-					},
+				metric.type = "prometheus.googleapis.com/up/gauge"
+				`, projectID, location, cluster, operator.DefaultOperatorNamespace, job, pod.Spec.NodeName, port),
+						Interval: &gcmpb.TimeInterval{
+							EndTime:   timestamppb.New(now),
+							StartTime: timestamppb.New(now.Add(-10 * time.Second)),
+						},
+					})
+					series, err := iter.Next()
+					if err == iterator.Done {
+						t.Log("no data in GCM, retrying...")
+						return false, nil
+					} else if err != nil {
+						return false, fmt.Errorf("querying metrics failed: %w", err)
+					}
+					if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
+						t.Logf("'up' still %v, retrying...", v)
+						return false, nil
+					}
+					// We expect exactly one result.
+					series, err = iter.Next()
+					if err != iterator.Done {
+						return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
+					}
+					return true, nil
 				})
-				series, err := iter.Next()
-				if err == iterator.Done {
-					t.Logf("No data, retrying...")
-					return false, nil
-				} else if err != nil {
-					return false, fmt.Errorf("querying metrics failed: %w", err)
+				if err != nil {
+					t.Fatalf("waiting for collector metrics to appear in GCM failed: %s", err)
 				}
-				if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
-					t.Logf("Up still %v, retrying...", v)
-					return false, nil
-				}
-				// We expect exactly one result.
-				series, err = iter.Next()
-				if err != iterator.Done {
-					return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
-				}
-				return true, nil
-			})
-			if err != nil {
-				t.Fatalf("Waiting for collector metrics to appear in Cloud Monitoring failed: %s", err)
 			}
 		}
 	}
 }
 
 // testCollectorScrapeKubelet verifies that kubelet metric endpoints are successfully scraped.
-func testCollectorScrapeKubelet(ctx context.Context, t *OperatorContext) {
-	if skipGCM {
-		t.Log("Not validating scraping of kubelets when --skip-gcm is set")
-		return
-	}
-	if projectID == "" {
-		t.Fatalf("no project specified (--project-id flag)")
-	}
-	if location == "" {
-		t.Fatalf("no location specified (--location flag)")
-	}
-	if cluster == "" {
-		t.Fatalf("no cluster name specified (--cluster flag)")
-	}
+func testCollectorScrapeKubelet(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("checking for metrics in Cloud Monitoring")
 
-	// Wait for metric data to show up in Cloud Monitoring.
-	metricClient, err := gcm.NewMetricClient(ctx)
-	if err != nil {
-		t.Fatalf("Create GCM metric client: %s", err)
-	}
-	defer metricClient.Close()
+		// Wait for metric data to show up in Cloud Monitoring.
+		metricClient, err := gcm.NewMetricClient(ctx)
+		if err != nil {
+			t.Fatalf("create GCM metric client: %s", err)
+		}
+		defer metricClient.Close()
 
-	var nodes corev1.NodeList
-	if err := t.Client().List(ctx, &nodes); err != nil {
-		t.Fatalf("List nodes: %s", err)
-	}
+		nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			t.Fatalf("list nodes: %s", err)
+		}
 
-	// See whether the `up` metric for both kubelet endpoints is 1 for each node on which
-	// a collector pod is running.
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
+		for _, node := range nodes.Items {
+			for _, port := range []string{"metrics", "cadvisor"} {
+				t.Logf("poll 'up' metric for kubelet on node %q and port %q", node.Name, port)
 
-	for _, node := range nodes.Items {
-		for _, port := range []string{"metrics", "cadvisor"} {
-			t.Logf("Poll up metric for kubelet on node %q and port %q", node.Name, port)
+				err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+					now := time.Now()
 
-			err = wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
-				now := time.Now()
-
-				// Validate the majority of labels being set correctly by filtering along them.
-				iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
-					Name: fmt.Sprintf("projects/%s", projectID),
-					Filter: fmt.Sprintf(`
+					// Validate the majority of labels being set correctly by filtering along them.
+					iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
+						Name: fmt.Sprintf("projects/%s", projectID),
+						Filter: fmt.Sprintf(`
 				resource.type = "prometheus_target" AND
 				resource.labels.project_id = "%s" AND
 				resource.label.location = "%s" AND
@@ -431,38 +520,65 @@ func testCollectorScrapeKubelet(ctx context.Context, t *OperatorContext) {
 				resource.labels.instance = "%s:%s" AND
 				metric.type = "prometheus.googleapis.com/up/gauge" AND
 				metric.labels.node = "%s"
-				metric.labels.external_key = "external_val"
 				`,
-						projectID, location, cluster, node.Name, port, node.Name,
-					),
-					Interval: &gcmpb.TimeInterval{
-						EndTime:   timestamppb.New(now),
-						StartTime: timestamppb.New(now.Add(-10 * time.Second)),
-					},
+							projectID, location, cluster, node.Name, port, node.Name,
+						),
+						Interval: &gcmpb.TimeInterval{
+							EndTime:   timestamppb.New(now),
+							StartTime: timestamppb.New(now.Add(-10 * time.Second)),
+						},
+					})
+					series, err := iter.Next()
+					if err == iterator.Done {
+						t.Logf("no data in GCM, retrying...")
+						return false, nil
+					} else if err != nil {
+						return false, fmt.Errorf("querying metrics failed: %w", err)
+					}
+					if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
+						t.Logf("'up' still %v, retrying...", v)
+						return false, nil
+					}
+					// We expect exactly one result.
+					series, err = iter.Next()
+					if err != iterator.Done {
+						return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
+					}
+					return true, nil
 				})
-				series, err := iter.Next()
-				if err == iterator.Done {
-					t.Logf("No data, retrying...")
-					return false, nil
-				} else if err != nil {
-					return false, fmt.Errorf("querying metrics failed: %w", err)
+				if err != nil {
+					t.Fatalf("waiting for collector metrics to appear in GCM failed: %s", err)
 				}
-				if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
-					t.Logf("Up still %v, retrying...", v)
-					return false, nil
-				}
-				// We expect exactly one result.
-				series, err = iter.Next()
-				if err != iterator.Done {
-					return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
-				}
-				return true, nil
-			})
-			if err != nil {
-				t.Fatalf("Waiting for collector metrics to appear in Cloud Monitoring failed: %s", err)
 			}
 		}
 	}
+}
+
+func isPodMonitoringScrapeEndpointSuccess(status *monitoringv1.ScrapeEndpointStatus) error {
+	if status.UnhealthyTargets != 0 {
+		return fmt.Errorf("unhealthy targets: %d", status.UnhealthyTargets)
+	}
+	if status.CollectorsFraction != "1" {
+		return fmt.Errorf("collectors failed: %s", status.CollectorsFraction)
+	}
+	if len(status.SampleGroups) == 0 {
+		return errors.New("missing sample groups")
+	}
+	for i, group := range status.SampleGroups {
+		if len(group.SampleTargets) == 0 {
+			return fmt.Errorf("missing sample targets for group %d", i)
+		}
+		for _, target := range group.SampleTargets {
+			if target.Health != "up" {
+				lastErr := "no error reported"
+				if target.LastError != nil {
+					lastErr = *target.LastError
+				}
+				return fmt.Errorf("unhealthy target %q at group %d: %s", target.Health, i, lastErr)
+			}
+		}
+	}
+	return nil
 }
 
 func getEnvVar(evs []corev1.EnvVar, key string) string {

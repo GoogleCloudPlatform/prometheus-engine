@@ -519,7 +519,8 @@ func makeKubeletScrapeConfigs(cfg *monitoringv1.KubeletScraping) ([]*promconfig.
 			CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
 		},
 		TLSConfig: config.TLSConfig{
-			CAFile: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+			CAFile:             "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+			InsecureSkipVerify: true,
 		},
 	}
 	interval, err := prommodel.ParseDuration(cfg.Interval)

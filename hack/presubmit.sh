@@ -34,6 +34,16 @@ warn() {
 
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 
+create_kind_registry() {
+  reg_name='kind-registry'
+  reg_port='5001'
+  if [ "$(docker inspect -f '{{.State.Running}}' "${reg_name}" 2>/dev/null || true)" != 'true' ]; then
+    docker run \
+      -d --restart=always -p "127.0.0.1:${reg_port}:5000" --network bridge --name "${reg_name}" \
+      registry:2
+  fi
+}
+
 codegen_diff() {
   git fetch https://github.com/GoogleCloudPlatform/prometheus-engine
   git merge-base --is-ancestor FETCH_HEAD HEAD || warn "Current commit is not a descendent of main branch. Consider rebasing."
@@ -59,6 +69,13 @@ update_codegen() {
     --input-pkg-root pkg/operator/apis \
     --output-base "${REPO_ROOT}" \
     --boilerplate "${REPO_ROOT}"/hack/boilerplate.go.txt
+
+  bash "${CODEGEN_PKG}"/code-generator.sh "client,informer,lister" \
+    github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
+    monitoring:v1 \
+    --go-header-file "${REPO_ROOT}"/hack/boilerplate.go.txt \
+    --plural-exceptions "Rules:Rules,ClusterRules:ClusterRules,GlobalRules:GlobalRules" \
+    --output-base "${REPO_ROOT}"
 
   cp -r "$REPO_ROOT"/github.com/GoogleCloudPlatform/prometheus-engine/* "$REPO_ROOT"
   rm -r "$REPO_ROOT/github.com"

@@ -61,6 +61,4 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Run e2e
-      run: make e2e
-      env:
-        GO_ARGS: "-timeout=15m -parallel=2"
+      run: KIND_PARALLEL=2 LOCAL_E2E=1 make e2e
