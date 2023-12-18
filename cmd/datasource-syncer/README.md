@@ -30,7 +30,7 @@ GRAFANA_API_TOKEN=YOUR_GRAFANA_SERVICE_ACCOUNT_TOKEN
 GRAFANA_API_ENDPOINT=YOUR_GRAFANA_INSTANCE_URL
 PROJECT_ID=PROJECT_ID_TO_QUERY_GCM
  # Optional Credentials file. Can be left empty if default credentials have sufficient permission.
-CREDENTIALS=OPTIONAL_GOOGLE_CLOUD_SERVICE_ACCOUNT_WITH_GOOGLE_CLOUD_MONITORING_READ_ACCESS
+GOOGLE_APPLICATION_CREDENTIALS=OPTIONAL_GOOGLE_CLOUD_SERVICE_ACCOUNT_WITH_GOOGLE_CLOUD_MONITORING_READ_ACCESS
 ```
 
 Running the following Cron job will refresh the data source on initialization and every 30 minutes:
@@ -44,10 +44,15 @@ cat datasource-syncer.yaml \
 
 To query across multiple projects, you must [create a metrics scope](https://cloud.google.com/stackdriver/docs/managed-prometheus/query#scoping-intro) and authorize the local project's default compute service account to have monitoring.read access to the scoping project. If your local project is your scoping project, then this permission is granted by default and cross-project querying should work with no further configuration.
 
+### Workload Identity Setup
+If you're using WLI you need to grant the service account these two permissions:  `Monitoring Viewer` and `Service
+Account Token Creator`.
+
+
 ### Development
 ```bash
 go run main.go \
-  --credentials-file=$CREDENTIALS \
+  --query.credentials-file=$GOOGLE_APPLICATION_CREDENTIALS \
   --datasource-uids=$DATASOURCE_UIDS \
   --grafana-api-token=$GRAFANA_API_TOKEN \
   --grafana-api-endpoint=$GRAFANA_API_ENDPOINT \
