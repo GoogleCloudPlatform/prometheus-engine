@@ -14,7 +14,45 @@
 
 package v1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/prometheus/common/config"
+	prommodel "github.com/prometheus/common/model"
+	promconfig "github.com/prometheus/prometheus/config"
+	"github.com/prometheus/prometheus/discovery"
+	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
+	"github.com/prometheus/prometheus/model/relabel"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+)
+
+// ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape.
+// It contains all the fields used in ScrapeEndpoint except for port string and HTTPClientConfig.
+type ScrapeNodeEndpoint struct {
+	// Number of the port to scrape.
+	Port int `json:"port"`
+	// Protocol scheme to use to scrape.
+	Scheme string `json:"scheme,omitempty"`
+	// HTTP path to scrape metrics from. Defaults to "/metrics".
+	Path string `json:"path,omitempty"`
+	// HTTP GET params to use when scraping.
+	Params map[string][]string `json:"params,omitempty"`
+	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
+	// +kubebuilder:validation:Pattern="^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$"
+	// +kubebuilder:default="1m"
+	Interval string `json:"interval,omitempty"`
+	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
+	// Must not be larger then the scrape interval.
+	Timeout string `json:"timeout,omitempty"`
+	// Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
+	// override protected target labels (project_id, location, cluster, namespace, job,
+	// instance, or __address__) are not permitted. The labelmap action is not permitted
+	// in general.
+	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
+}
 
 // NodeMonitoringSpec contains specification parameters for NodeMonitoring.
 type NodeMonitoringSpec struct {
@@ -22,7 +60,7 @@ type NodeMonitoringSpec struct {
 	// configuration. If left empty all nodes are selected.
 	Selector metav1.LabelSelector `json:"selector,omitempty"`
 	// The endpoints to scrape on the selected nodes.
-	Endpoints []ScrapeEndpoint `json:"endpoints"`
+	Endpoints []ScrapeNodeEndpoint `json:"endpoints"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
 }
@@ -46,4 +84,125 @@ type NodeMonitoring struct {
 	// Specification of desired node selection for target discovery by
 	// Prometheus.
 	Spec NodeMonitoringSpec `json:"spec"`
+}
+
+func (n *NodeMonitoring) GetKey() string {
+	return fmt.Sprintf("NodeMonitoring/%s", n.Name)
+}
+
+func (n *NodeMonitoring) GetEndpoints() []ScrapeNodeEndpoint {
+	return n.Spec.Endpoints
+}
+
+func (nm *NodeMonitoring) ValidateCreate() (admission.Warnings, error) {
+	if len(nm.Spec.Endpoints) == 0 {
+		return nil, errors.New("at least one endpoint is required")
+	}
+	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
+	// example values has no adverse effects.
+	_, err := nm.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	return nil, err
+}
+
+func (nm *NodeMonitoring) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+	// Validity does not depend on state changes.
+	return nm.ValidateCreate()
+}
+
+func (nm *NodeMonitoring) ValidateDelete() (admission.Warnings, error) {
+	// Deletions are always valid.
+	return nil, nil
+}
+
+func (nm *NodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
+	for i := range nm.Spec.Endpoints {
+		c, err := nm.endpointScrapeConfig(i, projectID, location, cluster)
+		if err != nil {
+			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
+		}
+		res = append(res, c)
+	}
+	return res, nil
+}
+
+func (nm *NodeMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+	// Filter targets that belong to selected nodes.
+	relabelCfgs, err := relabelingsForSelector(nm.Spec.Selector, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	relabelCfgs = append(relabelCfgs,
+		&relabel.Config{
+			Action:      relabel.Replace,
+			Replacement: nm.Name,
+			TargetLabel: "job",
+		},
+		&relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
+			TargetLabel:  "node",
+		},
+		&relabel.Config{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
+			Replacement:  `$1:metrics`,
+			TargetLabel:  "instance",
+		},
+		// Force target labels so they cannot be overwritten by metric labels.
+		&relabel.Config{
+			Action:      relabel.Replace,
+			TargetLabel: "project_id",
+			Replacement: projectID,
+		},
+		&relabel.Config{
+			Action:      relabel.Replace,
+			TargetLabel: "location",
+			Replacement: location,
+		},
+		&relabel.Config{
+			Action:      relabel.Replace,
+			TargetLabel: "cluster",
+			Replacement: cluster,
+		},
+	)
+
+	discoveryCfgs := discovery.Configs{
+		&discoverykube.SDConfig{
+			HTTPClientConfig: config.DefaultHTTPClientConfig,
+			Role:             discoverykube.RoleNode,
+			// Drop all potential targets not the same node as the collector. The $(NODE_NAME) variable
+			// is interpolated by the config reloader sidecar before the config reaches the Prometheus collector.
+			// Doing it through selectors rather than relabeling should substantially reduce the client and
+			// server side load.
+			Selectors: []discoverykube.SelectorConfig{
+				{
+					Role:  discoverykube.RoleNode,
+					Field: fmt.Sprintf("metadata.name=$(%s)", EnvVarNodeName),
+				},
+			},
+		},
+	}
+
+	httpCfg := config.HTTPClientConfig{
+		Authorization: &config.Authorization{
+			CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+		},
+		TLSConfig: config.TLSConfig{
+			CAFile: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+		},
+	}
+
+	ep := nm.Spec.Endpoints[index]
+	metricsPath := "/metrics"
+	if ep.Path != "" {
+		metricsPath = ep.Path
+	}
+	return buildPrometheusScrapConfig(fmt.Sprintf("%s%s", nm.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, nm.Spec.Limits,
+		ScrapeEndpoint{Interval: ep.Interval,
+			Timeout:          ep.Timeout,
+			Path:             metricsPath,
+			MetricRelabeling: ep.MetricRelabeling,
+			Scheme:           ep.Scheme,
+			Params:           ep.Params})
 }

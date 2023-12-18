@@ -17,8 +17,6 @@ package v1
 import (
 	"errors"
 	"fmt"
-	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
@@ -28,7 +26,6 @@ import (
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/model/relabel"
-	yaml "gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -201,10 +198,6 @@ func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res
 	return res, nil
 }
 
-// Environment variable for the current node that needs to be interpolated in generated
-// scrape configurations for a PodMonitoring resource.
-const EnvVarNodeName = "NODE_NAME"
-
 func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
 	relabelCfgs := []*relabel.Config{
 		// Filter targets by namespace of the PodMonitoring configuration.
@@ -216,7 +209,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	}
 
 	// Filter targets that belong to selected pods.
-	selectors, err := relabelingsForSelector(pm.Spec.Selector)
+	selectors, err := relabelingsForSelector(pm.Spec.Selector, pm)
 	if err != nil {
 		return nil, err
 	}
@@ -264,71 +257,6 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 		pm.Spec.TargetLabels.FromPod,
 		pm.Spec.Limits,
 	)
-}
-
-// relabelingsForSelector generates a sequence of relabeling rules that implement
-// the label selector for the meta labels produced by the Kubernetes service discovery.
-func relabelingsForSelector(selector metav1.LabelSelector) ([]*relabel.Config, error) {
-	// Simple equal matchers. Sort by keys first to ensure that generated configs are reproducible.
-	// (Go map iteration is non-deterministic.)
-	var selectorKeys []string
-	for k := range selector.MatchLabels {
-		selectorKeys = append(selectorKeys, k)
-	}
-	sort.Strings(selectorKeys)
-
-	var relabelCfgs []*relabel.Config
-
-	for _, k := range selectorKeys {
-		re, err := relabel.NewRegexp(selector.MatchLabels[k])
-		if err != nil {
-			return nil, err
-		}
-		relabelCfgs = append(relabelCfgs, &relabel.Config{
-			Action:       relabel.Keep,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(k)},
-			Regex:        re,
-		})
-	}
-	// Expression matchers are mapped to relabeling rules with the same behavior.
-	for _, exp := range selector.MatchExpressions {
-		switch exp.Operator {
-		case metav1.LabelSelectorOpIn:
-			re, err := relabel.NewRegexp(strings.Join(exp.Values, "|"))
-			if err != nil {
-				return nil, err
-			}
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Keep,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(exp.Key)},
-				Regex:        re,
-			})
-		case metav1.LabelSelectorOpNotIn:
-			re, err := relabel.NewRegexp(strings.Join(exp.Values, "|"))
-			if err != nil {
-				return nil, err
-			}
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Drop,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_label_" + sanitizeLabelName(exp.Key)},
-				Regex:        re,
-			})
-		case metav1.LabelSelectorOpExists:
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Keep,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_labelpresent_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp("true"),
-			})
-		case metav1.LabelSelectorOpDoesNotExist:
-			relabelCfgs = append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Drop,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_labelpresent_" + sanitizeLabelName(exp.Key)},
-				Regex:        relabel.MustNewRegexp("true"),
-			})
-		}
-	}
-
-	return relabelCfgs, nil
 }
 
 func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndpoint, relabelCfgs []*relabel.Config, podLabels []LabelMapping, limits *ScrapeLimits) (*promconfig.ScrapeConfig, error) {
@@ -455,35 +383,6 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 		relabelCfgs = append(relabelCfgs, pCfgs...)
 	}
 
-	interval, err := prommodel.ParseDuration(ep.Interval)
-	if err != nil {
-		return nil, fmt.Errorf("invalid scrape interval: %w", err)
-	}
-	timeout := interval
-	if ep.Timeout != "" {
-		timeout, err = prommodel.ParseDuration(ep.Timeout)
-		if err != nil {
-			return nil, fmt.Errorf("invalid scrape timeout: %w", err)
-		}
-		if timeout > interval {
-			return nil, fmt.Errorf("scrape timeout %v must not be greater than scrape interval %v", timeout, interval)
-		}
-	}
-
-	metricsPath := "/metrics"
-	if ep.Path != "" {
-		metricsPath = ep.Path
-	}
-
-	var metricRelabelCfgs []*relabel.Config
-	for _, r := range ep.MetricRelabeling {
-		rcfg, err := convertRelabelingRule(r)
-		if err != nil {
-			return nil, err
-		}
-		metricRelabelCfgs = append(metricRelabelCfgs, rcfg)
-	}
-
 	httpCfg, err := ep.HTTPClientConfig.ToPrometheusConfig()
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse HTTP client config: %w", err)
@@ -492,40 +391,7 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 	if err := httpCfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid Prometheus HTTP client config: %w", err)
 	}
-
-	scrapeCfg := &promconfig.ScrapeConfig{
-		// Generate a job name to make it easy to track what generated the scrape configuration.
-		// The actual job label attached to its metrics is overwritten via relabeling.
-		JobName:                 fmt.Sprintf("%s/%s", id, &ep.Port),
-		ServiceDiscoveryConfigs: discoveryCfgs,
-		MetricsPath:             metricsPath,
-		Scheme:                  ep.Scheme,
-		Params:                  ep.Params,
-		HTTPClientConfig:        httpCfg,
-		ScrapeInterval:          interval,
-		ScrapeTimeout:           timeout,
-		RelabelConfigs:          relabelCfgs,
-		MetricRelabelConfigs:    metricRelabelCfgs,
-	}
-	if limits != nil {
-		scrapeCfg.SampleLimit = uint(limits.Samples)
-		scrapeCfg.LabelLimit = uint(limits.Labels)
-		scrapeCfg.LabelNameLengthLimit = uint(limits.LabelNameLength)
-		scrapeCfg.LabelValueLengthLimit = uint(limits.LabelValueLength)
-	}
-	// The Prometheus configuration structs do not generally have validation methods and embed their
-	// validation logic in the UnmarshalYAML methods. To keep things reasonable we don't re-validate
-	// everything and simply do a final marshal-unmarshal cycle at the end to run all validation
-	// upstream provides at the end of this method.
-	b, err := yaml.Marshal(scrapeCfg)
-	if err != nil {
-		return nil, fmt.Errorf("scrape config cannot be marshalled: %w", err)
-	}
-	var scrapeCfgCopy promconfig.ScrapeConfig
-	if err := yaml.Unmarshal(b, &scrapeCfgCopy); err != nil {
-		return nil, fmt.Errorf("invalid scrape configuration: %w", err)
-	}
-	return scrapeCfg, nil
+	return buildPrometheusScrapConfig(fmt.Sprintf("%s/%s", id, &ep.Port), discoveryCfgs, httpCfg, relabelCfgs, limits, ep)
 }
 
 func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
@@ -562,7 +428,7 @@ func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
 
 func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected pods.
-	relabelCfgs, err := relabelingsForSelector(cm.Spec.Selector)
+	relabelCfgs, err := relabelingsForSelector(cm.Spec.Selector, cm)
 	if err != nil {
 		return nil, err
 	}
@@ -911,11 +777,4 @@ type PodMonitoringStatus struct {
 	MonitoringStatus `json:",inline"`
 	// Represents the latest available observations of target state for each ScrapeEndpoint.
 	EndpointStatuses []ScrapeEndpointStatus `json:"endpointStatuses,omitempty"`
-}
-
-var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
-
-// sanitizeLabelName reproduces the label name cleanup Prometheus's service discovery applies.
-func sanitizeLabelName(name string) prommodel.LabelName {
-	return prommodel.LabelName(invalidLabelCharRE.ReplaceAllString(name, "_"))
 }

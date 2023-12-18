@@ -949,9 +949,10 @@ spec:
                 description: The endpoints to scrape on the selected nodes.
                 items:
                   type: object
-                  description: ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
+                  description: ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape. It contains all the fields used in ScrapeEndpoint except for port string and HTTPClientConfig.
                   properties:
                     port:
+<<<<<<< HEAD
                       anyOf:
                       - type: integer
                       - type: string
@@ -971,6 +972,10 @@ spec:
                         username:
                           type: string
                           description: The username for authentication.
+=======
+                      type: integer
+                      description: Number of the port to scrape.
+>>>>>>> 2aa134571 (feat: [kubelet/cAdvisor metrics package] add NodeMonitoring ScrapeConfig logic (#684))
                     interval:
                       type: string
                       default: 1m
@@ -1017,14 +1022,12 @@ spec:
                     path:
                       type: string
                       description: HTTP path to scrape metrics from. Defaults to "/metrics".
-                    proxyUrl:
-                      type: string
-                      description: HTTP proxy server to use to connect to the targets. Encoded passwords are not supported.
                     scheme:
                       type: string
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
+<<<<<<< HEAD
                       description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger than the scrape interval.
                     tls:
                       type: object
@@ -1042,6 +1045,9 @@ spec:
                         serverName:
                           type: string
                           description: Used to verify the hostname for the targets.
+=======
+                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+>>>>>>> 2aa134571 (feat: [kubelet/cAdvisor metrics package] add NodeMonitoring ScrapeConfig logic (#684))
                   required:
                   - port
               limits:
