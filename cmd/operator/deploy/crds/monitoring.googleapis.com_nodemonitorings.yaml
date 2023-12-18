@@ -80,7 +80,7 @@ spec:
                 description: The endpoints to scrape on the selected nodes.
                 items:
                   type: object
-                  description: ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
+                  description: ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape. It contains all the fields used in ScrapeEndpoint except for port string and HTTPClientConfig.
                   properties:
                     port:
                       anyOf:
@@ -148,9 +148,6 @@ spec:
                     path:
                       type: string
                       description: HTTP path to scrape metrics from. Defaults to "/metrics".
-                    proxyUrl:
-                      type: string
-                      description: HTTP proxy server to use to connect to the targets. Encoded passwords are not supported.
                     scheme:
                       type: string
                       description: Protocol scheme to use to scrape.

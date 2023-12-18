@@ -517,6 +517,86 @@ func TestValidateClusterPodMonitoring(t *testing.T) {
 	}
 }
 
+func TestValidateNodeMonitoring(t *testing.T) {
+	cases := []struct {
+		desc        string
+		pm          NodeMonitoringSpec
+		eps         []ScrapeNodeEndpoint
+		fail        bool
+		errContains string
+	}{
+		{
+			desc: "OK metadata labels",
+			eps: []ScrapeNodeEndpoint{
+				{
+					Interval: "10s",
+				},
+			},
+		},
+		{
+			desc: "Scrape interval missing",
+			eps: []ScrapeNodeEndpoint{
+				{},
+			},
+			fail:        true,
+			errContains: "empty duration string",
+		},
+		{
+			desc: "scrape interval malformed",
+			eps: []ScrapeNodeEndpoint{
+				{
+					Interval: "foo",
+				},
+			},
+			fail:        true,
+			errContains: "invalid scrape interval: not a valid duration string",
+		},
+		{
+			desc: "scrape timeout greater than interval",
+			eps: []ScrapeNodeEndpoint{
+				{
+					Interval: "1s",
+					Timeout:  "2s",
+				},
+			},
+			fail:        true,
+			errContains: "scrape timeout 2s must not be greater than scrape interval 1s",
+		},
+		{
+			desc: "port not supported",
+			eps: []ScrapeNodeEndpoint{
+				{
+					Port: 12,
+				},
+			},
+			fail:        true,
+			errContains: "port not supported",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.desc+"", func(t *testing.T) {
+			nm := &NodeMonitoring{
+				Spec: NodeMonitoringSpec{
+					Endpoints: c.eps,
+				},
+			}
+			_, err := nm.ValidateCreate()
+			t.Log(err)
+
+			if err == nil && c.fail {
+				t.Fatalf("expected failure but passed")
+			}
+			if err != nil && !c.fail {
+				t.Fatalf("unexpected failure: %s", err)
+			}
+			if err != nil && c.fail && !strings.Contains(err.Error(), c.errContains) {
+				t.Fatalf("expected error to contain %q but got %q", c.errContains, err)
+			}
+		})
+	}
+}
+
 func stringSlicePtr(s ...string) *[]string {
 	return &s
 }
@@ -593,6 +673,9 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 			Name:      "name1",
 		},
 		Spec: PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"app.kubernetes.io/name": "prom-example"},
+			},
 			Endpoints: []ScrapeEndpoint{
 				{
 					Port:     intstr.FromString("web"),
@@ -672,6 +755,9 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
   action: keep
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+  regex: prom-example
+  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
@@ -750,6 +836,9 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
   action: keep
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+  regex: prom-example
+  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
@@ -818,6 +907,9 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 			Name: "name1",
 		},
 		Spec: ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"app.kubernetes.io/name": "prom-example"},
+			},
 			Endpoints: []ScrapeEndpoint{
 				{
 					Port:     intstr.FromString("web"),
@@ -891,6 +983,9 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 relabel_configs:
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+  regex: prom-example
+  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
@@ -964,6 +1059,9 @@ follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
 relabel_configs:
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+  regex: prom-example
+  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
