@@ -34,24 +34,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// IsDeploymentReady returns nil if the Deployment obtained from the given namespace and name
-// has all expected replicas ready, otherwise returns an error why the Deployment is not ready.
-func IsDeploymentReady(ctx context.Context, kubeClient client.Client, namespace, name string) error {
-	wrapErrFunc := func(err error) error {
-		return fmt.Errorf("deployment %s/%s not ready: %w", namespace, name, err)
-	}
-	var deployment appsv1.Deployment
-	if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &deployment); err != nil {
-		return wrapErrFunc(fmt.Errorf("not found: %w", err))
-	}
-
+func isDeploymentReady(deployment *appsv1.Deployment) error {
 	// Set to default replicas value.
 	expected := int32(1)
 	if deployment.Spec.Replicas != nil {
 		expected = *deployment.Spec.Replicas
 	}
 	if deployment.Status.ReadyReplicas != expected {
-		return wrapErrFunc(errors.New("replicas unavailable"))
+		return errors.New("replicas unavailable")
 	}
 	return nil
 }
@@ -59,13 +49,19 @@ func IsDeploymentReady(ctx context.Context, kubeClient client.Client, namespace,
 func WaitForDeploymentReady(ctx context.Context, kubeClient client.Client, namespace, name string) error {
 	var err error
 	if waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
-		err := IsDeploymentReady(ctx, kubeClient, namespace, name)
-		return err == nil, nil
-	}); waitErr != nil {
-		if errors.Is(waitErr, context.DeadlineExceeded) {
-			return err
+		var deployment appsv1.Deployment
+		if err = kubeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &deployment); err != nil {
+			return false, nil
 		}
-		return waitErr
+		if err = isDeploymentReady(&deployment); err != nil {
+			return false, nil
+		}
+		return true, nil
+	}); waitErr != nil {
+		if errors.Is(waitErr, context.DeadlineExceeded) && err != nil {
+			waitErr = err
+		}
+		return fmt.Errorf("deployment %s/%s not ready: %w", namespace, name, waitErr)
 	}
 	return nil
 }

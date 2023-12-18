@@ -180,7 +180,6 @@ func testCollectorDeployed(ctx context.Context, t *OperatorContext) {
 			if apierrors.IsNotFound(err) {
 				return false, nil
 			}
-			t.Log(fmt.Errorf("getting collector DaemonSet failed: %w", err))
 			return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
 		}
 		// At first creation the DaemonSet may appear with 0 desired replicas. This should
@@ -269,7 +268,7 @@ func testCollector(ctx context.Context, t *OperatorContext, pm monitoringv1.PodM
 	}
 	t.Logf("Waiting for %q to be processed", pm.GetName())
 
-	if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+	if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
 		t.Errorf("unable to validate status: %s", err)
 	}
 

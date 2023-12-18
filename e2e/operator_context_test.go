@@ -37,6 +37,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -524,49 +525,42 @@ func getNamespaces(ctx context.Context, kubeClient client.Client) ([]string, err
 	return namespaces, nil
 }
 
-func isNamespaced(discovery discovery.DiscoveryInterface, gvk schema.GroupVersionKind) (bool, error) {
-	resources, err := discovery.ServerResourcesForGroupVersion(gvk.GroupVersion().String())
-	if err != nil {
-		return false, err
+func isNamespaced(kubeClient client.Client, gvk schema.GroupVersionKind) (bool, error) {
+	apiVersion, kind := gvk.ToAPIVersionAndKind()
+	obj := metav1.PartialObjectMetadata{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: apiVersion,
+			Kind:       kind,
+		},
 	}
-	for _, resource := range resources.APIResources {
-		if resource.Kind == gvk.Kind {
-			return resource.Namespaced, nil
-		}
-	}
-	return false, fmt.Errorf("resource not discovered %s", gvk.String())
+	return kubeClient.IsObjectNamespaced(&obj)
 }
 
-// isNoMatchError returns true if the error indicates that the type does not exist.
-func isNoMatchError(err error, gvk schema.GroupVersionKind) bool {
-	return err.Error() == fmt.Sprintf("no matches for kind %q in version %q", gvk.Kind, gvk.GroupVersion().String())
-}
-
-func labelListOptions(labelName, labelValue, namespace string) (client.ListOptions, error) {
-	listOpts := client.ListOptions{}
+func labelSelector(labelName, labelValue string) (labels.Selector, error) {
 	if labelValue == "" {
 		req, err := labels.NewRequirement(labelName, selection.Exists, []string{})
 		if err != nil {
-			return listOpts, err
+			return nil, err
 		}
-		listOpts.LabelSelector = labels.NewSelector().Add(*req)
-	} else {
-		req, err := labels.NewRequirement(labelName, selection.Equals, []string{labelValue})
-		if err != nil {
-			return listOpts, err
-		}
-		listOpts.LabelSelector = labels.NewSelector().Add(*req)
+		return labels.NewSelector().Add(*req), nil
 	}
-	if namespace != "" {
-		listOpts.Namespace = namespace
+	req, err := labels.NewRequirement(labelName, selection.Equals, []string{labelValue})
+	if err != nil {
+		return nil, err
 	}
-	return listOpts, nil
+	return labels.NewSelector().Add(*req), nil
 }
 
 func cleanupResource(ctx context.Context, kubeClient client.Client, gvk schema.GroupVersionKind, labelValue, namespace string) error {
-	listOpts, err := labelListOptions(testLabel, labelValue, namespace)
+	labelSelector, err := labelSelector(testLabel, labelValue)
 	if err != nil {
 		return err
+	}
+	listOpts := client.ListOptions{
+		LabelSelector: labelSelector,
+	}
+	if namespace != "" {
+		listOpts.Namespace = namespace
 	}
 
 	apiVersion, kind := gvk.ToAPIVersionAndKind()
@@ -584,8 +578,8 @@ func cleanupResource(ctx context.Context, kubeClient client.Client, gvk schema.G
 			// We are not allowed to touch Kubernetes-managed objects.
 			return nil
 		}
-		if isNoMatchError(err, gvk) {
-			// This is a meta-resource used in client-go and doesn't exist.
+		// Ignore meta-resource types.
+		if errors.Is(err, &meta.NoKindMatchError{GroupKind: gvk.GroupKind()}) {
 			return nil
 		}
 		return fmt.Errorf("unable to delete %s: %w", gvk.String(), err)
@@ -593,8 +587,8 @@ func cleanupResource(ctx context.Context, kubeClient client.Client, gvk schema.G
 	return nil
 }
 
-// cleanupResources cleans all resources created by tests. If no label value is provided, then all
-// resources with the label are removed.
+// cleanupResources cleans all resources created by tests. If no label value is provided,
+// then all resources with the label are removed.
 func cleanupResources(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, labelValue string) error {
 	namespaces, err := getNamespaces(ctx, kubeClient)
 	if err != nil {
@@ -625,10 +619,18 @@ func cleanupResourcesInNamespaces(ctx context.Context, restConfig *rest.Config, 
 		if namespaceGVK == gvk {
 			continue
 		}
+		// We don't care about resources that we can't even manage.
+		if !kubeClient.Scheme().IsGroupRegistered(gvk.Group) {
+			continue
+		}
 
-		namespaced, err := isNamespaced(discoveryClient, gvk)
+		namespaced, err := isNamespaced(kubeClient, gvk)
 		if err != nil {
-			return err
+			// Ignore meta-resource types.
+			if errors.Is(err, &meta.NoKindMatchError{GroupKind: gvk.GroupKind()}) {
+				continue
+			}
+			errs = append(errs, err)
 		}
 		if namespaced {
 			if labelValue == "" {
@@ -648,12 +650,14 @@ func cleanupResourcesInNamespaces(ctx context.Context, restConfig *rest.Config, 
 	}
 
 	// DeleteAllOf does not work for namespaces, so we must delete individually.
-	listOpts, err := labelListOptions(testLabel, labelValue, "")
+	labelSelector, err := labelSelector(testLabel, labelValue)
 	if err != nil {
 		return err
 	}
 	namespaceList := corev1.NamespaceList{}
-	if err := kubeClient.List(ctx, &namespaceList, &listOpts); err != nil {
+	if err := kubeClient.List(ctx, &namespaceList, &client.ListOptions{
+		LabelSelector: labelSelector,
+	}); err != nil {
 		return err
 	}
 	for _, namespace := range namespaceList.Items {

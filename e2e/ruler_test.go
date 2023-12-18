@@ -156,7 +156,7 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, cert, key
 		fmt.Sprintf("secret_%s_alertmanager-authorization_token", t.pubNamespace): []byte("auth-bearer-password"),
 	}
 	var err error
-	pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
+	pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var secret corev1.Secret
 		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.RulesSecretName}, &secret); err != nil {
 			if apierrors.IsNotFound(err) {
@@ -241,7 +241,7 @@ rule_files:
 `),
 	}
 	var err error
-	pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
+	pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var cm corev1.ConfigMap
 		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameRuleEvaluator}, &cm); err != nil {
 			if apierrors.IsNotFound(err) {
@@ -265,7 +265,7 @@ rule_files:
 
 func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
 	var err error
-	pollErr := wait.PollUntilContextTimeout(ctx, 1*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
+	pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var deploy appsv1.Deployment
 		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameRuleEvaluator}, &deploy); err != nil {
 			if apierrors.IsNotFound(err) {
@@ -467,7 +467,7 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 
 	var diff string
 
-	err := wait.PollUntilContextTimeout(ctx, 1*time.Second, time.Minute, true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, 3*time.Second, time.Minute, true, func(ctx context.Context) (bool, error) {
 		var cm corev1.ConfigMap
 		if err := t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: "rules-generated"}, &cm); err != nil {
 			if apierrors.IsNotFound(err) {
@@ -512,7 +512,7 @@ func testValidateRuleEvaluationMetrics(ctx context.Context, t *OperatorContext) 
 	}
 	defer metricClient.Close()
 
-	err = wait.PollUntilContextTimeout(ctx, 1*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+	err = wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 		now := time.Now()
 
 		// Validate the majority of labels being set correctly by filtering along them.

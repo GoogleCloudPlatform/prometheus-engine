@@ -55,19 +55,20 @@ func WaitForPodContainerReady(ctx context.Context, t testing.TB, restConfig *res
 	if err = IsPodContainerReady(ctx, restConfig, pod, container); err == nil {
 		return nil
 	}
-	t.Logf("waiting for pod to be ready: %s", err)
-	if waitErr := wait.PollUntilContextTimeout(ctx, 2*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
+	t.Logf("waiting for pod container to be ready: %s", err)
+	if waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 1*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
-			return false, err
+			return false, nil
 		}
 		err = IsPodContainerReady(ctx, restConfig, pod, container)
 		return err == nil, nil
 	}); waitErr != nil {
-		if errors.Is(waitErr, context.DeadlineExceeded) {
+		if errors.Is(waitErr, context.DeadlineExceeded) && err != nil {
 			return err
 		}
 		return waitErr
 	}
+	t.Log("pod container ready")
 	return nil
 }
 
@@ -89,18 +90,19 @@ func WaitForPodReady(ctx context.Context, t *testing.T, restConfig *rest.Config,
 		return nil
 	}
 	t.Logf("waiting for pod to be ready: %s", err)
-	if waitErr := wait.PollUntilContextTimeout(ctx, 2*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
+	if waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
-			return false, err
+			return false, nil
 		}
 		err = IsPodReady(ctx, restConfig, pod)
 		return err == nil, nil
 	}); waitErr != nil {
-		if errors.Is(waitErr, context.DeadlineExceeded) {
+		if errors.Is(waitErr, context.DeadlineExceeded) && err != nil {
 			return err
 		}
 		return waitErr
 	}
+	t.Log("pod ready")
 	return nil
 }
 

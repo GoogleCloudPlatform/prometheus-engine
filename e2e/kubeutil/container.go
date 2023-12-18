@@ -105,7 +105,8 @@ func containerDebug(t testing.TB, ctx context.Context, restConfig *rest.Config, 
 
 	// Worse case, let's just show the first one.
 	t.Log("found no crash-looping pods -- showing logs of first pod")
-	for _, pod := range pods {
+	if len(pods) > 0 {
+		pod := pods[0]
 		for _, status := range pod.Status.ContainerStatuses {
 			showPodLogs(&pod, status.Name)
 		}

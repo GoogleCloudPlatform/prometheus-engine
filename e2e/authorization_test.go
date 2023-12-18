@@ -87,9 +87,9 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 			t.Fatalf("create collector PodMonitoring: %s", err)
 		}
 
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
 			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-			t.Fatalf("collector not ready: %s", err)
+			t.Fatalf("PodMonitoring not ready: %s", err)
 		}
 
 		if err := operatorutil.WaitForPodMonitoringFailure(ctx, t.Client(), pm, expectedFn); err != nil {
@@ -116,7 +116,7 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 			t.Fatalf("create collector PodMonitoring: %s", err)
 		}
 
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
 			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
 			t.Fatalf("collector not ready: %s", err)
 		}
@@ -155,7 +155,7 @@ func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args
 			t.Fatalf("create collector: %s", err)
 		}
 
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
 			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
 			t.Errorf("collector not ready: %s", err)
 		}
@@ -184,7 +184,7 @@ func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args
 			t.Fatalf("create collector: %s", err)
 		}
 
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
 			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
 			t.Errorf("collector not ready: %s", err)
 		}

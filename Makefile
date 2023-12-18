@@ -164,14 +164,14 @@ ifeq ($(NO_DOCKER), 1)
 	kubectl apply -f cmd/operator/deploy/operator/00-namespace.yaml
 	kubectl apply -f cmd/operator/deploy/operator/01-priority-class.yaml
 	kubectl apply -f cmd/operator/deploy/operator/03-role.yaml
-	go test -v "./e2e/..." -run "$(or $(TEST_RUN), .)" -args -project-id="$(PROJECT_ID)" -cluster="$(GMP_CLUSTER)" -location="$(GMP_LOCATION)" $(TEST_ARGS)
+	go test -v $(GO_ARGS) "./e2e/..." -run "$(or $(TEST_RUN), .)" -args -project-id="$(PROJECT_ID)" -cluster="$(GMP_CLUSTER)" -location="$(GMP_LOCATION)" $(TEST_ARGS)
 else
 	@echo ">> building kindtest image"
 	$(call docker_build, -f hack/Dockerfile --target kindtest -t gmp/kindtest .)
 	@echo ">> running container"
 # We lose some isolation by sharing the host network with the kind containers.
 # However, we avoid a gcloud-shell "Dockerception" and save on build times.
-	docker run --env TEST_RUN="$(TEST_RUN)" --env TEST_ARGS="$(TEST_ARGS)" --network host --rm -v $(DOCKER_VOLUME):/var/run/docker.sock gmp/kindtest ./hack/kind-test.sh
+	docker run --env TEST_RUN="$(TEST_RUN)" --env TEST_ARGS="$(TEST_ARGS)" --env GO_ARGS="$(GO_ARGS)" --network host --rm -v $(DOCKER_VOLUME):/var/run/docker.sock gmp/kindtest ./hack/kind-test.sh
 endif
 
 .PHONY: presubmit

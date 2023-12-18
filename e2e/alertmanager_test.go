@@ -120,7 +120,7 @@ func testAlertmanager(ctx context.Context, t *OperatorContext, spec *monitoringv
 
 func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, config *monitoringv1.ManagedAlertmanagerSpec) {
 	var err error
-	pollErr := wait.PollUntilContextTimeout(ctx, time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+	pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
 		var ss appsv1.StatefulSet
 		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameAlertmanager}, &ss); err != nil {
 			if apierrors.IsNotFound(err) {
