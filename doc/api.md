@@ -59,6 +59,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [ScrapeEndpoint](#scrapeendpoint)
 * [ScrapeEndpointStatus](#scrapeendpointstatus)
 * [ScrapeLimits](#scrapelimits)
+* [ScrapeNodeEndpoint](#scrapenodeendpoint)
 * [SecretOrConfigMap](#secretorconfigmap)
 * [TLS](#tls)
 * [TLSConfig](#tlsconfig)
@@ -373,7 +374,7 @@ NodeMonitoringSpec contains specification parameters for NodeMonitoring.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | selector | Label selector that specifies which nodes are selected for this monitoring configuration. If left empty all nodes are selected. | [metav1.LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#labelselector-v1-meta) | false |
-| endpoints | The endpoints to scrape on the selected nodes. | [][ScrapeEndpoint](#scrapeendpoint) | true |
+| endpoints | The endpoints to scrape on the selected nodes. | [][ScrapeNodeEndpoint](#scrapenodeendpoint) | true |
 | limits | Limits to apply at scrape time. | *[ScrapeLimits](#scrapelimits) | false |
 
 [Back to TOC](#table-of-contents)
@@ -496,7 +497,7 @@ PodMonitoringStatus holds status information of a PodMonitoring resource.
 RelabelingRule defines a single Prometheus relabeling rule.
 
 
-<em>appears in: [ScrapeEndpoint](#scrapeendpoint)</em>
+<em>appears in: [ScrapeEndpoint](#scrapeendpoint), [ScrapeNodeEndpoint](#scrapenodeendpoint)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
@@ -634,7 +635,7 @@ RulesSpec contains specification parameters for a Rules resource.
 ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 
 
-<em>appears in: [ClusterPodMonitoringSpec](#clusterpodmonitoringspec), [NodeMonitoringSpec](#nodemonitoringspec), [PodMonitoringSpec](#podmonitoringspec)</em>
+<em>appears in: [ClusterPodMonitoringSpec](#clusterpodmonitoringspec), [PodMonitoringSpec](#podmonitoringspec)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
@@ -681,6 +682,25 @@ ScrapeLimits limits applied to scraped targets.
 | labels | Maximum number of labels accepted for a single sample. Uses Prometheus default if left unspecified. | uint64 | false |
 | labelNameLength | Maximum label name length. Uses Prometheus default if left unspecified. | uint64 | false |
 | labelValueLength | Maximum label value length. Uses Prometheus default if left unspecified. | uint64 | false |
+
+[Back to TOC](#table-of-contents)
+
+## ScrapeNodeEndpoint
+
+ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape. It contains all the fields used in ScrapeEndpoint except for port string and HTTPClientConfig.
+
+
+<em>appears in: [NodeMonitoringSpec](#nodemonitoringspec)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| port | Number of the port to scrape. | int | true |
+| scheme | Protocol scheme to use to scrape. | string | false |
+| path | HTTP path to scrape metrics from. Defaults to \"/metrics\". | string | false |
+| params | HTTP GET params to use when scraping. | map[string][]string | false |
+| interval | Interval at which to scrape metrics. Must be a valid Prometheus duration. | string | false |
+| timeout | Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval. | string | false |
+| metricRelabeling | Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general. | [][RelabelingRule](#relabelingrule) | false |
 
 [Back to TOC](#table-of-contents)
 
