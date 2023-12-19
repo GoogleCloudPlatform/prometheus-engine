@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	credentialsFile = flag.String("credentials-file", "",
+	credentialsFile = flag.String("query.credentials-file", "",
 		"JSON-encoded credentials (service account or refresh token). Can be left empty if default credentials have sufficient permission.")
 
 	datasourceUIDList = flag.String("datasource-uids", "", "datasource-uids is a comma separated list of data source UIDs to update.")
@@ -165,8 +165,17 @@ func buildUpdateDataSourceRequest(dataSource grafana.DataSource, token string) (
 	} else {
 		dataSource.URL = fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus/", *projectID)
 	}
+
+	// Miscellaneous updates to make Grafana more compatible with GMP.
 	jsonData := dataSource.JSONData
-	// Miscellaneous changes to make Grafana more compatible with GMP.
+	if jsonData["queryTimeout"] == nil {
+		jsonData["queryTimeout"] = "2m"
+	}
+
+	if jsonData["timeout"] == nil {
+		jsonData["timeout"] = "120"
+	}
+
 	jsonData["httpMethod"] = http.MethodGet
 	if jsonData["prometheusType"] == nil {
 		jsonData["prometheusType"] = "Prometheus"

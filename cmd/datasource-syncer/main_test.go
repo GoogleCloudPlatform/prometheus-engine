@@ -32,6 +32,8 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 					"httpMethod":        "GET",
 					"prometheusType":    "Prometheus",
 					"prometheusVersion": "2.40.0",
+					"queryTimeout":      "2m",
+					"timeout":           "120",
 				},
 				SecureJSONData: map[string]interface{}{
 					"httpHeaderValue1": "Bearer 12345",
@@ -58,6 +60,8 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 					"httpMethod":        "GET",
 					"prometheusType":    "Prometheus",
 					"prometheusVersion": "2.40.0",
+					"queryTimeout":      "2m",
+					"timeout":           "120",
 				},
 				SecureJSONData: map[string]interface{}{
 					"httpHeaderValue3": "Bearer 12345",
@@ -88,6 +92,8 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 					"httpMethod":        "GET",
 					"prometheusType":    "Prometheus",
 					"prometheusVersion": "2.40.0",
+					"queryTimeout":      "2m",
+					"timeout":           "120",
 				},
 				SecureJSONData: map[string]interface{}{
 					"httpHeaderValue2": "Bearer 12345",
@@ -95,7 +101,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "prometheus server url override",
+			name: "prometheus server url override is reset and prometheus version upgraded to latest supported version",
 			input: grafana.DataSource{
 				Type: "prometheus",
 				URL:  "http://localhost:9090",
@@ -118,6 +124,8 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 					"httpMethod":        "GET",
 					"prometheusType":    "Prometheus",
 					"prometheusVersion": "2.40.0",
+					"queryTimeout":      "2m",
+					"timeout":           "120",
 				},
 				SecureJSONData: map[string]interface{}{
 					"httpHeaderValue3": "Bearer 12345",
@@ -125,13 +133,15 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "prometheus version 2.40+ is supported",
+			name: "prometheus version 2.40+ and editing data source fields is supported",
 			input: grafana.DataSource{
 				Type: "prometheus",
 				URL:  "http://localhost:9090",
 				JSONData: map[string]interface{}{
 					"prometheusType":    "Prometheus",
 					"prometheusVersion": "2.42.0",
+					"queryTimeout":      "3m",
+					"timeout":           "160",
 				},
 			},
 			want: grafana.DataSource{
@@ -142,6 +152,8 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 					"httpMethod":        "GET",
 					"prometheusType":    "Prometheus",
 					"prometheusVersion": "2.42.0",
+					"queryTimeout":      "3m",
+					"timeout":           "160",
 				},
 				SecureJSONData: map[string]interface{}{
 					"httpHeaderValue1": "Bearer 12345",
