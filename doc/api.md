@@ -694,7 +694,7 @@ ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape. 
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| port | Number of the port to scrape. | int | true |
+| port | Number of the port to scrape. | int | false |
 | scheme | Protocol scheme to use to scrape. | string | false |
 | path | HTTP path to scrape metrics from. Defaults to \"/metrics\". | string | false |
 | params | HTTP GET params to use when scraping. | map[string][]string | false |

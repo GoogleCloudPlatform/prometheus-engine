@@ -137,8 +137,6 @@ spec:
                     timeout:
                       type: string
                       description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
-                  required:
-                  - port
               limits:
                 type: object
                 description: Limits to apply at scrape time.

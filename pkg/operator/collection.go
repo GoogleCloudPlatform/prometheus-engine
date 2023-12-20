@@ -96,6 +96,12 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
+		// Any update to a NodeMonitoring requires regenerating the config.
+		Watches(
+			&monitoringv1.NodeMonitoring{},
+			enqueueConst(objRequest),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		// The configuration we generate for the collectors.
 		Watches(
 			&corev1.ConfigMap{},
@@ -380,6 +386,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	var (
 		podMons        monitoringv1.PodMonitoringList
 		clusterPodMons monitoringv1.ClusterPodMonitoringList
+		NodeMons       monitoringv1.NodeMonitoringList
 		cond           *monitoringv1.MonitoringCondition
 	)
 	if err := r.client.List(ctx, &podMons); err != nil {
@@ -460,6 +467,41 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		if change {
 			r.statusUpdates = append(r.statusUpdates, &cmon)
 		}
+	}
+
+	if err := r.client.List(ctx, &NodeMons); err != nil {
+		return nil, fmt.Errorf("failed to list NodeMonitorings: %w", err)
+	}
+	// The following job names are reserved by GMP for NodeMonitoring. They will not be generated if kubeletScraping is enabled.
+	var (
+		reservedCAdvisorJobName = "gmp-cadvisor-metrics"
+		reservedKubeletJobName  = "gmp-kubelet-metrics"
+	)
+	// Mark status updates in batch with single timestamp.
+	for _, nm := range NodeMons.Items {
+		if spec.KubeletScraping != nil && (nm.Name == reservedKubeletJobName || nm.Name == reservedCAdvisorJobName) {
+			logger.Info("NodeMonitoring job %s not applied because KubeletScraping is enabled.", nm.Name)
+			continue
+		}
+		// Reassign so we can safely get a pointer.
+		nm := nm
+		cond = &monitoringv1.MonitoringCondition{
+			Type:   monitoringv1.ConfigurationCreateSuccess,
+			Status: corev1.ConditionTrue,
+		}
+		cfgs, err := nm.ScrapeConfigs(projectID, location, cluster)
+		if err != nil {
+			msg := "generating scrape config failed for NodeMonitoring endpoint"
+			cond = &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Reason:  "ScrapeConfigError",
+				Message: msg,
+			}
+			logger.Error(err, msg, "namespace", nm.Namespace, "name", nm.Name)
+			continue
+		}
+		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 	}
 
 	// Sort to ensure reproducible configs.
