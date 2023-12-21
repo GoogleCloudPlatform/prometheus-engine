@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/operatorutil"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -62,6 +63,10 @@ func TestWebhookCABundleInjection(t *testing.T) {
 			},
 		}
 		if err := tctx.Client().Create(ctx, vwc); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := operatorutil.WaitForOperatorReady(ctx, t.Client(), t.namespace); err != nil {
 			t.Fatal(err)
 		}
 
@@ -114,6 +119,10 @@ func TestWebhookCABundleInjection(t *testing.T) {
 			},
 		}
 		if err := tctx.Client().Create(ctx, mwc); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := operatorutil.WaitForOperatorReady(ctx, t.Client(), t.namespace); err != nil {
 			t.Fatal(err)
 		}
 
