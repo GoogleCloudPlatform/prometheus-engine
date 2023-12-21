@@ -51,6 +51,14 @@ func isPodMonitoringTargetUnauthorizedError(message string) error {
 	return nil
 }
 
+func isPodMonitoringTargetInvalidOAuthCredentialsError(message string) error {
+	const expected = "oauth2: \"invalid_client\" \"incorrect client credentials\""
+	if !strings.HasSuffix(message, expected) {
+		return fmt.Errorf("expected suffix %q", expected)
+	}
+	return nil
+}
+
 func defaultEndpoint(endpoint *monitoringv1.ScrapeEndpoint) {
 	endpoint.Port = intstr.FromString(operatorutil.SyntheticAppPortName)
 	endpoint.Interval = "5s"
@@ -64,9 +72,31 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 	if err != nil {
 		t.Fatal(err)
 	}
+	service := corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      appName,
+			Namespace: t.userNamespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: deployment.Spec.Template.Labels,
+			Ports: []corev1.ServicePort{
+				{
+					Port:       8080,
+					TargetPort: intstr.FromString(operatorutil.SyntheticAppPortName),
+				},
+			},
+		},
+	}
+	if err := t.Client().Create(ctx, &service); err != nil {
+		t.Fatalf("create service: %s", err)
+	}
+
 	if err := kubeutil.WaitForDeploymentReady(ctx, t.Client(), t.userNamespace, appName); err != nil {
 		kubeutil.DeploymentDebug(t.T, ctx, t.RestConfig(), t.Client(), t.userNamespace, appName)
 		t.Fatalf("failed to start app: %s", err)
+	}
+	if _, err := kubeutil.WaitForServiceReady(ctx, t.Client(), t.userNamespace, appName); err != nil {
+		t.Fatalf("service %s/%s not ready: %s", t.userNamespace, appName, err)
 	}
 
 	t.Run("podmon-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
@@ -136,25 +166,6 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args []string, podMonitoringNamePrefix string, endpointNoAuth, endpointAuth monitoringv1.ScrapeEndpoint, expectedFn func(string) error) {
 	defaultEndpoint(&endpointAuth)
 	deployment := setupAuthTestMissingAuth(ctx, t, appName, args, podMonitoringNamePrefix, endpointNoAuth, expectedFn)
-
-	service := corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      appName,
-			Namespace: t.userNamespace,
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: deployment.Spec.Template.Labels,
-			Ports: []corev1.ServicePort{
-				{
-					Port:       8080,
-					TargetPort: intstr.FromString(operatorutil.SyntheticAppPortName),
-				},
-			},
-		},
-	}
-	if err := t.Client().Create(ctx, &service); err != nil {
-		t.Fatalf("create service: %s", err)
-	}
 
 	t.Run("podmon-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
@@ -355,16 +366,18 @@ func TestOAuth2(t *testing.T) {
 		const appName = "oauth2-no-client-secret"
 		const clientID = "gmp-user-client-id-no-client-secret"
 		const clientScope = "read"
+		const accessToken = "abc123"
 
 		setupAuthTest(ctx, t, appName, []string{
 			fmt.Sprintf("--oauth2-client-id=%s", clientID),
 			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
-		}, "mon-authorization-no-credentials", monitoringv1.ScrapeEndpoint{}, monitoringv1.ScrapeEndpoint{
+			fmt.Sprintf("--oauth2-access-token=%s", accessToken),
+		}, "mon-oauth2-no-client-secret", monitoringv1.ScrapeEndpoint{}, monitoringv1.ScrapeEndpoint{
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				OAuth2: &monitoringv1.OAuth2{
 					ClientID: clientID,
 					Scopes:   []string{clientScope},
-					TokenURL: fmt.Sprintf("%s.%s.svc.cluster.local:8080", appName, t.userNamespace),
+					TokenURL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080/token", appName, t.userNamespace),
 				},
 			},
 		}, isPodMonitoringTargetUnauthorizedError)
@@ -372,15 +385,25 @@ func TestOAuth2(t *testing.T) {
 
 	t.Run("client-secret", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
-		const appName = "oauth2-no-client-secret"
+		const appName = "oauth2-client-secret"
 		const clientID = "gmp-user-client-id-client-secret"
 		const clientSecret = "secret-client-secret"
 		const clientScope = "read"
+		const accessToken = "321xyz"
 
 		setupAuthTestMissingAuth(ctx, t, appName, []string{
 			fmt.Sprintf("--oauth2-client-id=%s", clientID),
 			fmt.Sprintf("--oauth2-client-secret=%s", clientSecret),
 			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
-		}, "mon-authorization-no-credentials", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
+			fmt.Sprintf("--oauth2-access-token=%s", accessToken),
+		}, "mon-oauth2-client-secret", monitoringv1.ScrapeEndpoint{
+			HTTPClientConfig: monitoringv1.HTTPClientConfig{
+				OAuth2: &monitoringv1.OAuth2{
+					ClientID: clientID,
+					Scopes:   []string{clientScope},
+					TokenURL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080/token", appName, t.userNamespace),
+				},
+			},
+		}, isPodMonitoringTargetInvalidOAuthCredentialsError)
 	}))
 }
