@@ -117,6 +117,7 @@ func setRESTConfigDefaults(restConfig *rest.Config) error {
 // TestMain injects custom flags and adds extra signal handling to ensure testing
 // namespaces are cleaned after tests were executed.
 func TestMain(m *testing.M) {
+	cleanupOnly := false
 	flag.StringVar(&projectID, "project-id", "", "The GCP project to write metrics to.")
 	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
 	flag.StringVar(&location, "location", "", "The location of the Kubernetes cluster that's tested against.")
@@ -125,6 +126,7 @@ func TestMain(m *testing.M) {
 	flag.BoolVar(&portForward, "port-forward", true, "Whether to port-forward Kubernetes HTTP requests.")
 	flag.BoolVar(&leakResources, "leak-resources", true, "If set, prevents deleting resources. Useful for debugging.")
 	flag.BoolVar(&cleanup, "cleanup-resources", true, "If set, cleans resources before running tests.")
+	flag.BoolVar(&cleanupOnly, "cleanup-resources-only", cleanupOnly, "If set, cleans resources and then exits.")
 
 	flag.Parse()
 
@@ -156,11 +158,15 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	if cleanup {
+	if cleanup || cleanupOnly {
 		fmt.Fprintln(os.Stdout, "cleaning resources before tests...")
 		if err := cleanupResources(context.Background(), kubeconfig, c, ""); err != nil {
 			fmt.Fprintln(os.Stderr, "cleaning up failed:", err)
 			os.Exit(1)
+		}
+		if cleanupOnly {
+			fmt.Fprintln(os.Stderr, "cleaning up finished")
+			os.Exit(0)
 		}
 	}
 
