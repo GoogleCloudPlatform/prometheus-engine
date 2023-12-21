@@ -29,7 +29,7 @@ spec:
       containers:
       - name: go-synthetic
         # TODO(bwplotka): Move to go-synthetic image once released.
-        image: gke.gcr.io/prometheus-engine/example-app:v0.9.0-gke.1
+        image: us-central1-docker.pkg.dev/gpe-test-1/dhrabovcak/example-app@sha256:e57d6743394a39dbf0ce111a287a829dbcd1ee6632294132f28ab6f01f12d78d
         args:
         - "--listen-address=:8080"
         - "--cpu-burn-ops=75"
