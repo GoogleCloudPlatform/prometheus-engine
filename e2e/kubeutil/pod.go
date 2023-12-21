@@ -30,7 +30,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -50,26 +49,9 @@ func IsPodContainerReady(ctx context.Context, restConfig *rest.Config, pod *core
 }
 
 func WaitForPodContainerReady(ctx context.Context, t testing.TB, restConfig *rest.Config, kubeClient client.Client, pod *corev1.Pod, container string) error {
-	// Prevent doing an extra API lookup by checking first.
-	var err error
-	if err = IsPodContainerReady(ctx, restConfig, pod, container); err == nil {
-		return nil
-	}
-	t.Logf("waiting for pod container to be ready: %s", err)
-	if waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 1*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
-			return false, nil
-		}
-		err = IsPodContainerReady(ctx, restConfig, pod, container)
-		return err == nil, nil
-	}); waitErr != nil {
-		if errors.Is(waitErr, context.DeadlineExceeded) && err != nil {
-			return err
-		}
-		return waitErr
-	}
-	t.Log("pod container ready")
-	return nil
+	return waitForResourceReady(ctx, kubeClient, pod, 1*time.Minute, func(pod *corev1.Pod) error {
+		return IsPodContainerReady(ctx, restConfig, pod, container)
+	})
 }
 
 func IsPodReady(ctx context.Context, restConfig *rest.Config, pod *corev1.Pod) error {
@@ -84,26 +66,9 @@ func IsPodReady(ctx context.Context, restConfig *rest.Config, pod *corev1.Pod) e
 }
 
 func WaitForPodReady(ctx context.Context, t *testing.T, restConfig *rest.Config, kubeClient client.Client, pod *corev1.Pod) error {
-	// Prevent doing an extra API lookup by checking first.
-	var err error
-	if err = IsPodReady(ctx, restConfig, pod); err == nil {
-		return nil
-	}
-	t.Logf("waiting for pod to be ready: %s", err)
-	if waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 30*time.Second, true, func(ctx context.Context) (done bool, err error) {
-		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
-			return false, nil
-		}
-		err = IsPodReady(ctx, restConfig, pod)
-		return err == nil, nil
-	}); waitErr != nil {
-		if errors.Is(waitErr, context.DeadlineExceeded) && err != nil {
-			return err
-		}
-		return waitErr
-	}
-	t.Log("pod ready")
-	return nil
+	return waitForResourceReady(ctx, kubeClient, pod, 30*time.Second, func(pod *corev1.Pod) error {
+		return IsPodReady(ctx, restConfig, pod)
+	})
 }
 
 func PodByIP(ctx context.Context, kubeClient client.Client, ip net.IP) (*corev1.Pod, error) {
