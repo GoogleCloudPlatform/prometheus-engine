@@ -529,16 +529,6 @@ func TestValidateNodeMonitoring(t *testing.T) {
 			fail:        true,
 			errContains: "scrape timeout 2s must not be greater than scrape interval 1s",
 		},
-		{
-			desc: "port not supported",
-			eps: []ScrapeNodeEndpoint{
-				{
-					Port: 12,
-				},
-			},
-			fail:        true,
-			errContains: "port not supported",
-		},
 	}
 
 	for _, c := range cases {
