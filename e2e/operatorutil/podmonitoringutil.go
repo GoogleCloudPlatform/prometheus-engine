@@ -61,8 +61,8 @@ func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, op
 	timeout := 2 * time.Minute
 	interval := 3 * time.Second
 	if targetStatusEnabled {
-		// Wait for target status to get polled.
-		timeout = 3 * time.Minute
+		// Wait for target status to get polled and populated.
+		timeout = 4 * time.Minute
 	}
 
 	var err error

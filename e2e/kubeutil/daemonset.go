@@ -29,7 +29,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -48,23 +47,13 @@ func isDaemonSetReady(daemonSet *appsv1.DaemonSet) error {
 }
 
 func WaitForDaemonSetReady(ctx context.Context, kubeClient client.Client, namespace, name string) error {
-	var err error
-	if waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 4*time.Minute, true, func(ctx context.Context) (bool, error) {
-		var daemonSet appsv1.DaemonSet
-		if err = kubeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &daemonSet); err != nil {
-			return false, nil
-		}
-		if err = isDaemonSetReady(&daemonSet); err != nil {
-			return false, nil
-		}
-		return true, nil
-	}); waitErr != nil {
-		if errors.Is(waitErr, context.DeadlineExceeded) && err != nil {
-			waitErr = err
-		}
-		return fmt.Errorf("daemonSet %s/%s not ready: %w", namespace, name, waitErr)
+	daemonSet := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
 	}
-	return nil
+	return waitForResourceReady(ctx, kubeClient, daemonSet, 4*time.Minute, isDaemonSetReady)
 }
 
 func DaemonSetPods(ctx context.Context, kubeClient client.Client, daemonSet *appsv1.DaemonSet) ([]corev1.Pod, error) {

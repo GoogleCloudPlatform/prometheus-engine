@@ -29,7 +29,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -47,23 +46,13 @@ func isDeploymentReady(deployment *appsv1.Deployment) error {
 }
 
 func WaitForDeploymentReady(ctx context.Context, kubeClient client.Client, namespace, name string) error {
-	var err error
-	if waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
-		var deployment appsv1.Deployment
-		if err = kubeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &deployment); err != nil {
-			return false, nil
-		}
-		if err = isDeploymentReady(&deployment); err != nil {
-			return false, nil
-		}
-		return true, nil
-	}); waitErr != nil {
-		if errors.Is(waitErr, context.DeadlineExceeded) && err != nil {
-			waitErr = err
-		}
-		return fmt.Errorf("deployment %s/%s not ready: %w", namespace, name, waitErr)
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
 	}
-	return nil
+	return waitForResourceReady(ctx, kubeClient, deployment, 2*time.Minute, isDeploymentReady)
 }
 
 func DeploymentContainer(deployment *appsv1.Deployment, name string) (*corev1.Container, error) {
