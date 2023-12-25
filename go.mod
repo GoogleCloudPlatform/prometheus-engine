@@ -4,11 +4,11 @@ go 1.21
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
-	cloud.google.com/go/monitoring v1.16.3
+	cloud.google.com/go/monitoring v1.17.0
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/efficientgo/e2e v0.14.0
 	github.com/go-kit/log v0.2.1
-	github.com/go-logr/logr v1.3.0
+	github.com/go-logr/logr v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.6.0
@@ -30,8 +30,8 @@ require (
 	golang.org/x/time v0.5.0
 	google.golang.org/api v0.154.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20231120223509-83a465c0220f
-	google.golang.org/grpc v1.60.0
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/grpc v1.60.1
+	google.golang.org/protobuf v1.32.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.29.0
