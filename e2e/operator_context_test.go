@@ -23,7 +23,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -31,11 +30,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap/zapcore"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,15 +48,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/deployutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
 
 const (
-	collectorManifest    = "../cmd/operator/deploy/operator/10-collector.yaml"
-	ruleEvalManifest     = "../cmd/operator/deploy/operator/11-rule-evaluator.yaml"
-	alertmanagerManifest = "../cmd/operator/deploy/operator/12-alertmanager.yaml"
+	collectorManifest = "../cmd/operator/deploy/operator/10-collector.yaml"
 
 	testLabel = "monitoring.googleapis.com/prometheus-test"
 )
@@ -77,6 +73,7 @@ var (
 	portForward       bool
 	leakResources     bool
 	cleanup           bool
+	deployOperator    bool
 )
 
 func init() {
@@ -90,6 +87,9 @@ func newClient() (client.Client, error) {
 	scheme, err := operator.NewScheme()
 	if err != nil {
 		return nil, fmt.Errorf("operator schema: %w", err)
+	}
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
+		return nil, err
 	}
 
 	return client.New(kubeconfig, client.Options{
@@ -127,6 +127,7 @@ func TestMain(m *testing.M) {
 	flag.BoolVar(&leakResources, "leak-resources", true, "If set, prevents deleting resources. Useful for debugging.")
 	flag.BoolVar(&cleanup, "cleanup-resources", true, "If set, cleans resources before running tests.")
 	flag.BoolVar(&cleanupOnly, "cleanup-resources-only", cleanupOnly, "If set, cleans resources and then exits.")
+	flag.BoolVar(&deployOperator, "deploy-operator", false, "If set, deploys the operator image in the manifest.")
 
 	flag.Parse()
 
@@ -168,6 +169,12 @@ func TestMain(m *testing.M) {
 			fmt.Fprintln(os.Stderr, "cleaning up finished")
 			os.Exit(0)
 		}
+	}
+
+	ctx := context.Background()
+	if err := deployutil.DeployGlobalResources(ctx, c); err != nil {
+		fmt.Fprintln(os.Stderr, "create global resources:", err)
+		os.Exit(1)
 	}
 
 	go func() {
@@ -240,39 +247,9 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 		cancel()
 	})
 
-	if err := createBaseResources(ctx, tctx.Client(), namespace, pubNamespace, userNamespace, tctx.GetOperatorTestLabelValue()); err != nil {
+	if err := createBaseResources(tctx, ctx, tctx.Client(), namespace, pubNamespace, userNamespace, tctx.GetOperatorTestLabelValue()); err != nil {
 		t.Fatalf("create resources: %s", err)
 	}
-
-	var httpClient *http.Client
-	if portForward {
-		var err error
-		httpClient, err = kubeutil.PortForwardClient(t, kubeconfig, tctx.Client())
-		if err != nil {
-			t.Fatalf("creating HTTP client: %s", err)
-		}
-	}
-
-	op, err := operator.New(globalLogger, kubeconfig, operator.Options{
-		ProjectID:         projectID,
-		Cluster:           cluster,
-		Location:          location,
-		OperatorNamespace: tctx.namespace,
-		PublicNamespace:   tctx.pubNamespace,
-		// Pick a random available port.
-		ListenAddr:          ":0",
-		CollectorHTTPClient: httpClient,
-	})
-	if err != nil {
-		t.Fatalf("instantiating operator: %s", err)
-	}
-
-	go func() {
-		if err := op.Run(ctx, prometheus.NewRegistry()); err != nil {
-			// Since we aren't in the main test goroutine we cannot fail with Fatal here.
-			t.Errorf("running operator: %s", err)
-		}
-	}()
 
 	return tctx
 }
@@ -321,46 +298,37 @@ func (tctx *OperatorContext) GetOperatorTestLabelValue() string {
 	return strings.SplitN(tctx.T.Name(), "/", 2)[0]
 }
 
+type commonDeployOption interface {
+	deployutil.DeployOption
+	deployutil.DeployLocalOption
+}
+
 // createBaseResources creates resources the operator requires to exist already.
 // These are resources which don't depend on runtime state and can thus be deployed
 // statically, allowing to run the operator without critical write permissions.
-func createBaseResources(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace, userNamespace, labelValue string) error {
-	if err := createNamespaces(ctx, kubeClient, opNamespace, publicNamespace, userNamespace); err != nil {
-		return err
-	}
-
+func createBaseResources(t testing.TB, ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace, userNamespace, labelValue string) error {
 	if err := createGCPSecretResources(ctx, kubeClient, opNamespace); err != nil {
 		return err
 	}
-	if err := createCollectorResources(ctx, kubeClient, opNamespace, labelValue); err != nil {
-		return err
+	commonDeployOpts := []commonDeployOption{
+		deployutil.WithOperatorNamespace(opNamespace),
+		deployutil.WithPublicNamespace(publicNamespace),
+		deployutil.WithUserNamespace(userNamespace),
+		deployutil.WithLabels(testLabel, labelValue),
+		deployutil.WithMeta(projectID, cluster, location),
 	}
-	if err := createAlertmanagerResources(ctx, kubeClient, opNamespace); err != nil {
-		return err
+	if !deployOperator {
+		var deployLocalOpts []deployutil.DeployLocalOption = make([]deployutil.DeployLocalOption, len(commonDeployOpts))
+		for i, d := range commonDeployOpts {
+			deployLocalOpts[i] = d
+		}
+		return deployutil.DeployLocalOperator(t, ctx, kubeconfig, kubeClient, append(deployLocalOpts, deployutil.WithPortForward(portForward))...)
 	}
-	return nil
-}
-
-func createNamespaces(ctx context.Context, kubeClient client.Client, opNamespace, publicNamespace, userNamespace string) error {
-	if err := kubeClient.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: opNamespace,
-		},
-	}); err != nil {
-		return err
+	var deployOpts []deployutil.DeployOption = make([]deployutil.DeployOption, len(commonDeployOpts))
+	for i, d := range commonDeployOpts {
+		deployOpts[i] = d
 	}
-	if err := kubeClient.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: publicNamespace,
-		},
-	}); err != nil {
-		return err
-	}
-	return kubeClient.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: userNamespace,
-		},
-	})
+	return deployutil.DeployOperator(t, ctx, kubeconfig, kubeClient, deployOpts...)
 }
 
 func createGCPSecretResources(ctx context.Context, kubeClient client.Client, namespace string) error {
@@ -381,93 +349,6 @@ func createGCPSecretResources(ctx context.Context, kubeClient client.Client, nam
 			return fmt.Errorf("create GCP service account secret: %w", err)
 		}
 	}
-	return nil
-}
-
-func createCollectorResources(ctx context.Context, kubeClient client.Client, namespace, labelValue string) error {
-	if err := kubeClient.Create(ctx, &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      operator.NameCollector,
-			Namespace: namespace,
-		},
-	}); err != nil {
-		return err
-	}
-
-	// The cluster role expected to exist already.
-	const clusterRoleName = operator.DefaultOperatorNamespace + ":" + operator.NameCollector
-
-	if err := kubeClient.Create(ctx, &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: clusterRoleName + ":" + namespace,
-		},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "ClusterRole",
-			// The ClusterRole is expected to exist in the cluster already.
-			Name: clusterRoleName,
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Namespace: namespace,
-				Name:      operator.NameCollector,
-			},
-		},
-	}); err != nil {
-		return err
-	}
-
-	obj, err := kubeutil.ResourceFromFile(kubeClient.Scheme(), collectorManifest)
-	if err != nil {
-		return fmt.Errorf("decode collector: %w", err)
-	}
-	collector := obj.(*appsv1.DaemonSet)
-	collector.Namespace = namespace
-	if collector.Spec.Template.Labels == nil {
-		collector.Spec.Template.Labels = map[string]string{}
-	}
-	collector.Spec.Template.Labels[testLabel] = labelValue
-	if skipGCM {
-		for i := range collector.Spec.Template.Spec.Containers {
-			container := &collector.Spec.Template.Spec.Containers[i]
-			if container.Name == "prometheus" {
-				container.Args = append(container.Args, "--export.debug.disable-auth")
-				break
-			}
-		}
-	}
-
-	if err = kubeClient.Create(ctx, collector); err != nil {
-		return fmt.Errorf("create collector DaemonSet: %w", err)
-	}
-	return nil
-}
-
-func createAlertmanagerResources(ctx context.Context, kubeClient client.Client, namespace string) error {
-	obj, err := kubeutil.ResourceFromFile(kubeClient.Scheme(), ruleEvalManifest)
-	if err != nil {
-		return fmt.Errorf("decode evaluator: %w", err)
-	}
-	evaluator := obj.(*appsv1.Deployment)
-	evaluator.Namespace = namespace
-
-	if err := kubeClient.Create(ctx, evaluator); err != nil {
-		return fmt.Errorf("create rule-evaluator Deployment: %w", err)
-	}
-
-	objs, err := kubeutil.ResourcesFromFile(kubeClient.Scheme(), alertmanagerManifest)
-	if err != nil {
-		return fmt.Errorf("read alertmanager YAML: %w", err)
-	}
-	for i, obj := range objs {
-		obj.SetNamespace(namespace)
-
-		if err := kubeClient.Create(ctx, obj); err != nil {
-			return fmt.Errorf("create object at index %d: %w", i, err)
-		}
-	}
-
 	return nil
 }
 

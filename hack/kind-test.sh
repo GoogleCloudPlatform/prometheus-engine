@@ -26,18 +26,6 @@ kind delete cluster
 # export 'kind kind' kubernetes context referenced later.
 kind create cluster
 
-# Need to ensure namespace is deployed first explicitly.
-echo ">>> deploying static resources"
-kubectl --context kind-kind apply -f "${REPO_ROOT}/manifests/setup.yaml"
-
-# TODO(pintohutch): find a way to incorporate webhooks back into our kind tests.
-# This is a workaround for now.
-for m in `ls -d ${REPO_ROOT}/cmd/operator/deploy/operator/* | grep -v webhook`
-do
-  kubectl --context kind-kind apply -f "${m}"
-done
-kubectl --context kind-kind apply -f "${REPO_ROOT}/manifests/rule-evaluator.yaml"
-
 echo ">>> executing gmp e2e tests"
 # We don't cleanup resources because this script recreates the cluster.
 # shellcheck disable=SC2086

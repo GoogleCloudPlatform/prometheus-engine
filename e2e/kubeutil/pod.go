@@ -48,13 +48,13 @@ func IsPodContainerReady(ctx context.Context, restConfig *rest.Config, pod *core
 	return fmt.Errorf("no container named %s found in pod %s", container, key)
 }
 
-func WaitForPodContainerReady(ctx context.Context, t testing.TB, restConfig *rest.Config, kubeClient client.Client, pod *corev1.Pod, container string) error {
+func WaitForPodContainerReady(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, pod *corev1.Pod, container string) error {
 	return waitForResourceReady(ctx, kubeClient, pod, 1*time.Minute, func(pod *corev1.Pod) error {
 		return IsPodContainerReady(ctx, restConfig, pod, container)
 	})
 }
 
-func IsPodReady(ctx context.Context, restConfig *rest.Config, pod *corev1.Pod) error {
+func IsPodReady(ctx context.Context, pod *corev1.Pod) error {
 	var errs []error
 	for _, status := range pod.Status.ContainerStatuses {
 		if !status.Ready {
@@ -65,9 +65,9 @@ func IsPodReady(ctx context.Context, restConfig *rest.Config, pod *corev1.Pod) e
 	return errors.Join(errs...)
 }
 
-func WaitForPodReady(ctx context.Context, t *testing.T, restConfig *rest.Config, kubeClient client.Client, pod *corev1.Pod) error {
+func WaitForPodReady(ctx context.Context, t *testing.T, kubeClient client.Client, pod *corev1.Pod) error {
 	return waitForResourceReady(ctx, kubeClient, pod, 30*time.Second, func(pod *corev1.Pod) error {
-		return IsPodReady(ctx, restConfig, pod)
+		return IsPodReady(ctx, pod)
 	})
 }
 
