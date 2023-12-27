@@ -15,7 +15,7 @@
 apiVersion: monitoring.googleapis.com/v1
 kind: NodeMonitoring
 metadata:
-  name: kubelet-metrics
+  name: gmp-kubelet-metrics
 spec:
   endpoints:
   - path: /metrics

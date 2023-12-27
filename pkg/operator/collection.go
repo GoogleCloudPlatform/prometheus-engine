@@ -472,15 +472,16 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	if err := r.client.List(ctx, &NodeMons); err != nil {
 		return nil, fmt.Errorf("failed to list NodeMonitorings: %w", err)
 	}
-	// The following job names are reserved by GMP for NodeMonitoring. They will not be generated if kubeletScraping is enabled.
+	// The following job names are reserved by GMP for NodeMonitoring in the
+	// gmp-system namespace. They will not be generated if kubeletScraping is enabled.
 	var (
-		reservedCAdvisorJobName = "gmp-cadvisor-metrics"
+		reservedCAdvisorJobName = "gmp-kubelet-cadvisor"
 		reservedKubeletJobName  = "gmp-kubelet-metrics"
 	)
 	// Mark status updates in batch with single timestamp.
 	for _, nm := range NodeMons.Items {
-		if spec.KubeletScraping != nil && (nm.Name == reservedKubeletJobName || nm.Name == reservedCAdvisorJobName) {
-			logger.Info("NodeMonitoring job %s not applied because KubeletScraping is enabled.", nm.Name)
+		if spec.KubeletScraping != nil && nm.Namespace == DefaultOperatorNamespace && (nm.Name == reservedKubeletJobName || nm.Name == reservedCAdvisorJobName) {
+			logger.Info("NodeMonitoring job %s was not applied because OperatorConfig.collector.kubeletScraping is enabled. kubeletScraping already includes the metrics in this job.", nm.Name)
 			continue
 		}
 		// Reassign so we can safely get a pointer.

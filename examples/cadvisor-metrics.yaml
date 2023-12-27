@@ -15,7 +15,7 @@
 apiVersion: monitoring.googleapis.com/v1
 kind: NodeMonitoring
 metadata:
-  name: kubelet-cadvisor
+  name: gmp-kubelet-cadvisor
 spec:
   endpoints:
   - path: /metrics/cadvisor
