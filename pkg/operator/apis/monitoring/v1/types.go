@@ -1328,7 +1328,7 @@ type RulesStatus struct {
 // It contains all the fields used in ScrapeEndpoint except for port string and HTTPClientConfig.
 type ScrapeNodeEndpoint struct {
 	// Number of the port to scrape.
-	Port int `json:"port"`
+	Port int `json:"port,omitempty"`
 	// Protocol scheme to use to scrape.
 	Scheme string `json:"scheme,omitempty"`
 	// HTTP path to scrape metrics from. Defaults to "/metrics".
