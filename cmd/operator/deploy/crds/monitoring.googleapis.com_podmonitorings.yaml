@@ -88,13 +88,6 @@ spec:
                       - type: string
                       description: Name or number of the port to scrape. The container metadata label is only populated if the port is referenced by name because port numbers are not unique across containers.
                       x-kubernetes-int-or-string: true
-                    authorization:
-                      type: object
-                      description: The HTTP authorization credentials for the targets.
-                      properties:
-                        type:
-                          type: string
-                          description: The authentication type. Defaults to Bearer, Basic will cause an error.
                     basicAuth:
                       type: object
                       description: The HTTP basic authentication credentials for the targets.
@@ -156,7 +149,7 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger than the scrape interval.
+                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
                     tls:
                       type: object
                       description: Configures the scrape request's TLS settings.
@@ -216,7 +209,7 @@ spec:
                       properties:
                         from:
                           type: string
-                          description: Kubernetes resource label to remap.
+                          description: Kubenetes resource label to remap.
                         to:
                           type: string
                           description: Remapped Prometheus target label. Defaults to the same name as `From`.
@@ -234,7 +227,7 @@ spec:
                 description: Represents the latest available observations of a podmonitor's current state.
                 items:
                   type: object
-                  description: MonitoringCondition describes the condition of a PodMonitoring.
+                  description: MonitoringCondition describes a condition of a PodMonitoring.
                   properties:
                     type:
                       type: string

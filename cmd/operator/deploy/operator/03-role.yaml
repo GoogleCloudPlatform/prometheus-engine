@@ -128,6 +128,7 @@ rules:
   - clusterpodmonitorings
   - clusterrules
   - globalrules
+  - nodemonitorings
   - podmonitorings
   - rules
   apiGroups: ["monitoring.googleapis.com"]
