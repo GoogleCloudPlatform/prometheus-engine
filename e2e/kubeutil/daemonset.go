@@ -20,7 +20,10 @@ package kubeutil
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +32,29 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func isDaemonSetReady(daemonSet *appsv1.DaemonSet) error {
+	ready := daemonSet.Status.NumberReady
+	if ready == 0 {
+		return errors.New("no pods ready")
+	}
+
+	unavailable := daemonSet.Status.NumberUnavailable
+	if unavailable != 0 {
+		return fmt.Errorf("%d pods unavailable", unavailable)
+	}
+	return nil
+}
+
+func WaitForDaemonSetReady(ctx context.Context, kubeClient client.Client, namespace, name string) error {
+	daemonSet := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	return waitForResourceReady(ctx, kubeClient, daemonSet, 4*time.Minute, isDaemonSetReady)
+}
 
 func DaemonSetPods(ctx context.Context, kubeClient client.Client, daemonSet *appsv1.DaemonSet) ([]corev1.Pod, error) {
 	return selectorPods(ctx, kubeClient, daemonSet.Spec.Selector)

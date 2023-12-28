@@ -87,9 +87,9 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 			t.Fatalf("create collector PodMonitoring: %s", err)
 		}
 
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
 			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-			t.Fatalf("collector not ready: %s", err)
+			t.Fatalf("PodMonitoring not ready: %s", err)
 		}
 
 		if err := operatorutil.WaitForPodMonitoringFailure(ctx, t.Client(), pm, expectedFn); err != nil {
@@ -116,7 +116,7 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 			t.Fatalf("create collector PodMonitoring: %s", err)
 		}
 
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
 			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
 			t.Fatalf("collector not ready: %s", err)
 		}
@@ -155,7 +155,7 @@ func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args
 			t.Fatalf("create collector: %s", err)
 		}
 
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
 			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
 			t.Errorf("collector not ready: %s", err)
 		}
@@ -184,7 +184,7 @@ func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args
 			t.Fatalf("create collector: %s", err)
 		}
 
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), pm, true); err != nil {
+		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
 			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
 			t.Errorf("collector not ready: %s", err)
 		}
@@ -294,5 +294,31 @@ func TestAuthorization(t *testing.T) {
 		setupAuthTestMissingAuth(ctx, t, appName, []string{
 			"--auth-scheme=Bearer",
 		}, "mon-auth-no-credentials", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
+	}))
+}
+
+func TestOAuth2(t *testing.T) {
+	t.Parallel()
+	tctx := newOperatorContext(t)
+	ctx := context.Background()
+
+	tctx.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
+		Features: monitoringv1.OperatorFeatures{
+			TargetStatus: monitoringv1.TargetStatusSpec{
+				Enabled: true,
+			},
+		},
+	})
+
+	t.Run("no-client-secret", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Parallel()
+		const appName = "oauth2-no-client-secret"
+		const clientID = "gmp-user-client-id-no-client-secret"
+		const clientScope = "read"
+
+		setupAuthTestMissingAuth(ctx, t, appName, []string{
+			fmt.Sprintf("--oauth2-client-id=%s", clientID),
+			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
+		}, "mon-authorization-no-credentials", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
 	}))
 }

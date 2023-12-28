@@ -15,10 +15,12 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/operatorutil"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -64,23 +66,32 @@ func TestWebhookCABundleInjection(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		if err := operatorutil.WaitForOperatorReady(ctx, t.Client(), t.namespace); err != nil {
+			t.Fatal(err)
+		}
+
 		// Wait for caBundle injection.
-		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
-			if err := tctx.Client().Get(ctx, client.ObjectKeyFromObject(vwc), vwc); err != nil {
-				return false, fmt.Errorf("get validatingwebhook configuration: %w", err)
+		var err error
+		waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 4*time.Minute, true, func(ctx context.Context) (bool, error) {
+			if err = tctx.Client().Get(ctx, client.ObjectKeyFromObject(vwc), vwc); err != nil {
+				return false, nil
 			}
 			if len(vwc.Webhooks) != 2 {
 				return false, fmt.Errorf("expected 2 webhooks but got %d", len(vwc.Webhooks))
 			}
-			for _, wh := range vwc.Webhooks {
+			for i, wh := range vwc.Webhooks {
 				if len(wh.ClientConfig.CABundle) == 0 {
+					err = fmt.Errorf("webhook %d has no CA bundle", i)
 					return false, nil
 				}
 			}
 			return true, nil
 		})
-		if err != nil {
-			t.Fatalf("waiting for ValidatingWebhook CA bundle failed: %s", err)
+		if waitErr != nil {
+			if errors.Is(waitErr, context.DeadlineExceeded) && err != nil {
+				waitErr = err
+			}
+			t.Fatalf("waiting for ValidatingWebhook CA bundle failed: %s", waitErr)
 		}
 	}))
 
@@ -111,23 +122,32 @@ func TestWebhookCABundleInjection(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		if err := operatorutil.WaitForOperatorReady(ctx, t.Client(), t.namespace); err != nil {
+			t.Fatal(err)
+		}
+
 		// Wait for caBundle injection.
-		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
-			if err := tctx.Client().Get(ctx, client.ObjectKeyFromObject(mwc), mwc); err != nil {
-				return false, fmt.Errorf("get mutatingwebhook configuration: %w", err)
+		var err error
+		waitErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 4*time.Minute, true, func(ctx context.Context) (bool, error) {
+			if err = tctx.Client().Get(ctx, client.ObjectKeyFromObject(mwc), mwc); err != nil {
+				return false, nil
 			}
 			if len(mwc.Webhooks) != 2 {
 				return false, fmt.Errorf("expected 2 webhooks but got %d", len(mwc.Webhooks))
 			}
-			for _, wh := range mwc.Webhooks {
+			for i, wh := range mwc.Webhooks {
 				if len(wh.ClientConfig.CABundle) == 0 {
+					err = fmt.Errorf("webhook %d has no CA bundle", i)
 					return false, nil
 				}
 			}
 			return true, nil
 		})
-		if err != nil {
-			t.Fatalf("waiting for MutatingWebhook CA bundle failed: %s", err)
+		if waitErr != nil {
+			if errors.Is(waitErr, context.DeadlineExceeded) && err != nil {
+				waitErr = err
+			}
+			t.Fatalf("waiting for MutatingWebhook CA bundle failed: %s", waitErr)
 		}
 	}))
 }
