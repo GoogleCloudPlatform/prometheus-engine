@@ -82,9 +82,6 @@ spec:
                   type: object
                   description: ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape. It contains all the fields used in ScrapeEndpoint except for port string and HTTPClientConfig.
                   properties:
-                    port:
-                      type: integer
-                      description: Number of the port to scrape.
                     interval:
                       type: string
                       default: 1m

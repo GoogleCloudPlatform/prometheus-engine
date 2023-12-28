@@ -1327,8 +1327,6 @@ type RulesStatus struct {
 // ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape.
 // It contains all the fields used in ScrapeEndpoint except for port string and HTTPClientConfig.
 type ScrapeNodeEndpoint struct {
-	// Number of the port to scrape.
-	Port int `json:"port,omitempty"`
 	// Protocol scheme to use to scrape.
 	Scheme string `json:"scheme,omitempty"`
 	// HTTP path to scrape metrics from. Defaults to "/metrics".
@@ -1479,11 +1477,6 @@ func (nm *NodeMonitoring) endpointScrapeConfig(index int, projectID, location, c
 		},
 	}
 
-	ep := nm.Spec.Endpoints[index]
-	// TODO(macxamin) Add support for int port. String ports are not supported by the Kubernetes spec: https://pkg.go.dev/k8s.io/api/core/v1#NodeDaemonEndpoints.
-	if ep.Port != 0 {
-		return nil, errors.New("port not supported")
-	}
 	httpCfg := config.HTTPClientConfig{
 		Authorization: &config.Authorization{
 			CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
@@ -1492,10 +1485,13 @@ func (nm *NodeMonitoring) endpointScrapeConfig(index int, projectID, location, c
 			CAFile: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
 		},
 	}
+
+	ep := nm.Spec.Endpoints[index]
 	metricsPath := "/metrics"
 	if ep.Path != "" {
 		metricsPath = ep.Path
 	}
+
 	return buildPrometheusScrapConfig(fmt.Sprintf("%s%s", nm.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, nm.Spec.Limits,
 		ScrapeEndpoint{Interval: ep.Interval,
 			Timeout:          ep.Timeout,
