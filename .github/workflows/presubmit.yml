@@ -61,4 +61,4 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Run e2e
-      run: KIND_PARALLEL=2 LOCAL_E2E=1 make e2e
+      run: KIND_PARALLEL=3 LOCAL_E2E=1 make e2e
