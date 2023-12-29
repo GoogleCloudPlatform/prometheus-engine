@@ -273,7 +273,7 @@ alerting:
               namespaces:
                 own_namespace: false
                 names:
-                    - monitoring
+                    - monitoring1
 rule_files:
     - /etc/rules/*.yaml
 `),
