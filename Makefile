@@ -181,7 +181,7 @@ e2e:         ## Run e2e test suite against fresh kind k8s clusters.
              ## Setting GOOGLE_APPLICATION_CREDENTIALS to the path of a
              ## service account key JSON file will attempt to write and read
              ## back metric data for full e2e validation.
-e2e: config-reloader operator rule-evaluator
+e2e: config-reloader operator rule-evaluator go-synthetic
 	$(call ensure_registry)
 # We lose some isolation by sharing the host network with the kind containers.
 # However, we avoid a gcloud-shell "Dockerception" and save on build times.
@@ -230,7 +230,7 @@ presubmit:   ## Regenerate all resources, build all images and run all tests.
              ## Use `CHECK=1` to fail the command if repo state is not clean
              ## after presubmit (might require committing the changes).
              ##
-presubmit: updateversions regen bin test e2e
+presubmit: updateversions regen bin test
 
 .PHONY: updateversions
 CURRENT_TAG = v0.9.0-gke.1
