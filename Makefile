@@ -255,7 +255,3 @@ updateversions: $(SED)
 	@$(SED) -i -r 's#app.kubernetes.io/version: .*#app.kubernetes.io/version: $(LABEL_API_VERSION)#g' $(FILES_TO_UPDATE)
 	@echo ">> Updating constant in export.go to $(LABEL_API_VERSION)"
 	@$(SED) -i -r 's#	Version    = .*#	Version    = "$(LABEL_API_VERSION)"#g' pkg/export/export.go
-
-foo:
-	echo $(TEST_RUN) | tr ' ' '\n' | xargs -I {} -P4 \
-	echo "{}"
