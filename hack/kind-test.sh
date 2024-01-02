@@ -154,7 +154,7 @@ update_manifests() {
 
 # Set up local image registry and tag and push images to it.
 # Finally update the install manifests to reference those images.
-ensure_registry
+#ensure_registry
 docker_tag_push $BINARIES
 update_manifests $BINARIES
 

@@ -73,4 +73,4 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Run e2e
-      run: TEST_RUN=${{matrix.testrun}} LOCAL_E2E=1 make e2e
+      run: TEST_RUN=${{matrix.testrun}} make e2e

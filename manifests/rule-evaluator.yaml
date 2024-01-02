@@ -71,7 +71,7 @@ spec:
           mountPath: /prometheus/config_out
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: localhost:5001/config-reloader:gmp-20240201_2026
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -105,7 +105,7 @@ spec:
             - all
           privileged: false
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
+        image: localhost:5001/rule-evaluator:gmp-20240201_2026
         args:
         - "--config.file=/prometheus/config_out/config.yaml"
         - "--web.listen-address=:9092"

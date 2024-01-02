@@ -255,7 +255,7 @@ spec:
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.9.0-gke.1
+        image: localhost:5001/operator:gmp-20240201_2026
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
@@ -569,7 +569,7 @@ spec:
           privileged: false
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: localhost:5001/config-reloader:gmp-20240201_2026
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -743,7 +743,7 @@ spec:
           privileged: false
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: localhost:5001/config-reloader:gmp-20240201_2026
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -780,7 +780,7 @@ spec:
             - all
           privileged: false
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
+        image: localhost:5001/rule-evaluator:gmp-20240201_2026
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --web.listen-address=:19092
@@ -950,7 +950,7 @@ spec:
             - all
           privileged: false
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: localhost:5001/config-reloader:gmp-20240201_2026
         args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
