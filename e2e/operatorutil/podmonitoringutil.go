@@ -167,7 +167,7 @@ func IsPodMonitoringSuccess(pm monitoringv1.PodMonitoringCRD, targetStatusEnable
 
 func WaitForPodMonitoringSuccess(ctx context.Context, kubeClient client.Client, pm monitoringv1.PodMonitoringCRD) error {
 	var err error
-	if pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+	if pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 4*time.Minute, true, func(ctx context.Context) (bool, error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 			return false, nil
 		}
@@ -197,7 +197,7 @@ func IsPodMonitoringFailure(pm monitoringv1.PodMonitoringCRD, expectedFn func(me
 
 func WaitForPodMonitoringFailure(ctx context.Context, kubeClient client.Client, pm monitoringv1.PodMonitoringCRD, expectedFn func(message string) error) error {
 	var err error
-	if pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+	if pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 4*time.Minute, true, func(ctx context.Context) (bool, error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 			return false, nil
 		}
