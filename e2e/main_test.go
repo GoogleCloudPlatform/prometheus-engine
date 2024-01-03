@@ -43,7 +43,6 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
 	flag.BoolVar(&skipGCM, "skip-gcm", false, "Skip validating GCM ingested points.")
 	flag.DurationVar(&pollDuration, "duration", 3*time.Second, "How often to poll and retry for resources.")
-	flag.StringVar(&kubeCtx, "kubectx", "", "Kubernetes context to use.")
 
 	flag.Parse()
 
@@ -51,7 +50,7 @@ func TestMain(m *testing.M) {
 }
 
 func newKubeClients() (kubernetes.Interface, versioned.Interface, error) {
-	kubeconfig, err := config.GetConfigWithContext(kubeCtx)
+	kubeconfig, err := config.GetConfig()
 	if err != nil {
 		return nil, nil, err
 	}

@@ -26,9 +26,7 @@ TAG_NAME=$(date "+gmp-%Y%d%m_%H%M")
 TEST_ARGS=""
 # Convert kind cluster name to required regex if necessary.
 KIND_CLUSTER=`echo ${GO_TEST} | sed -r 's/([A-Z])/-\L\1/g' | sed 's/^-//'`
-KUBE_CONTEXT=kind-${KIND_CLUSTER}
-KUBECONFIG=/tmp/${KIND_CLUSTER}-config
-KUBECTL="kubectl --context kind-${KIND_CLUSTER} --kubeconfig=${KUBECONFIG}"
+KUBECTL="kubectl --context kind-${KIND_CLUSTER}"
 # Ensure a unique label on any test data sent to GCM.
 GMP_CLUSTER=$TAG_NAME
 if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
@@ -36,7 +34,6 @@ if [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
 else
   echo ">>> no credentials specified. running without GCM validation"
   TEST_ARGS="${TEST_ARGS} -skip-gcm"
-  GOOGLE_APPLICATION_CREDENTIALS="/tmp/credentials-${KIND_CLUSTER}.json"
   # Create mock credentials.
   # Source: https://github.com/google/oauth2l/blob/v1.3.0/integration/fixtures/fake-service-account.json
   # This is necessary for any e2e tests that don't have access to GCP
@@ -58,7 +55,7 @@ else
 }
 EOL
 fi
-TEST_ARGS="${TEST_ARGS} -project-id=${PROJECT_ID} -location=${GMP_LOCATION} -cluster=${GMP_CLUSTER} -kubectx=${KUBE_CONTEXT} --kubeconfig=${KUBECONFIG}"
+TEST_ARGS="${TEST_ARGS} -project-id=${PROJECT_ID} -location=${GMP_LOCATION} -cluster=${GMP_CLUSTER}"
 
 patch_operator_flags() {
   $KUBECTL patch deployment gmp-operator --namespace gmp-system --type json \
@@ -91,7 +88,7 @@ ensure_registry() {
 
 create_kind_cluster() {
   echo ">>> creating kind cluster"
-  cat <<EOF | kind create cluster --kubeconfig ${KUBECONFIG} --name ${KIND_CLUSTER} --config=-
+  cat <<EOF | kind create cluster --name ${KIND_CLUSTER} --config=-
   kind: Cluster
   apiVersion: kind.x-k8s.io/v1alpha4
   containerdConfigPatches:
@@ -159,7 +156,7 @@ docker_tag_push $BINARIES
 update_manifests $BINARIES
 
 # Set up kind cluster and connect it to the local registry.
-kind delete cluster --name ${KIND_CLUSTER} --kubeconfig ${KUBECONFIG}
+kind delete cluster --name ${KIND_CLUSTER}
 create_kind_cluster
 add_registry_to_nodes
 connect_registry
