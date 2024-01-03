@@ -210,6 +210,15 @@ type Authorization struct {
 	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
+// Auth sets the `Authorization` header on every scrape request.
+//
+// Currently the credentials are not configurable and always empty.
+type Auth struct {
+	// The authentication type. Defaults to Bearer, Basic will cause an error.
+	Type string `json:"type,omitempty"`
+	// TODO: Add credentials: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/450
+}
+
 // BasicAuth sets the `Authorization` header on every scrape request with the
 // configured username.
 //
@@ -1099,6 +1108,8 @@ type ProxyConfig struct {
 
 // HTTPClientConfig stores HTTP-client configurations.
 type HTTPClientConfig struct {
+	// The HTTP authorization credentials for the targets.
+	Authorization *Auth `json:"authorization,omitempty"`
 	// The HTTP basic authentication credentials for the targets.
 	BasicAuth *BasicAuth `json:"basicAuth,omitempty"`
 	// Configures the scrape request's TLS settings.

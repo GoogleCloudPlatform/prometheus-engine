@@ -90,6 +90,13 @@ spec:
                       - type: string
                       description: Name or number of the port to scrape. The container metadata label is only populated if the port is referenced by name because port numbers are not unique across containers.
                       x-kubernetes-int-or-string: true
+                    authorization:
+                      type: object
+                      description: The HTTP authorization credentials for the targets.
+                      properties:
+                        type:
+                          type: string
+                          description: The authentication type. Defaults to Bearer, Basic will cause an error.
                     basicAuth:
                       type: object
                       description: The HTTP basic authentication credentials for the targets.
@@ -950,6 +957,13 @@ spec:
                       - type: string
                       description: Name or number of the port to scrape. The container metadata label is only populated if the port is referenced by name because port numbers are not unique across containers.
                       x-kubernetes-int-or-string: true
+                    authorization:
+                      type: object
+                      description: The HTTP authorization credentials for the targets.
+                      properties:
+                        type:
+                          type: string
+                          description: The authentication type. Defaults to Bearer, Basic will cause an error.
                     basicAuth:
                       type: object
                       description: The HTTP basic authentication credentials for the targets.
@@ -1701,6 +1715,13 @@ spec:
                       - type: string
                       description: Name or number of the port to scrape. The container metadata label is only populated if the port is referenced by name because port numbers are not unique across containers.
                       x-kubernetes-int-or-string: true
+                    authorization:
+                      type: object
+                      description: The HTTP authorization credentials for the targets.
+                      properties:
+                        type:
+                          type: string
+                          description: The authentication type. Defaults to Bearer, Basic will cause an error.
                     basicAuth:
                       type: object
                       description: The HTTP basic authentication credentials for the targets.

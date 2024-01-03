@@ -322,27 +322,32 @@ func (c *oauth2Config) validate() error {
 	return nil
 }
 
-func oauthTokenErrorResponse(errorCode string) []byte {
-	return []byte(fmt.Sprintf("{\n\terror: %q,\n}\n", errorCode))
+func oauthTokenErrorResponse(code, description string) []byte {
+	return []byte(fmt.Sprintf("{\n\t\"error\": %q,\n\t\"error_description\": %q\n}\n", code, description))
 }
 
 func (c *oauth2Config) tokenHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		grantType := r.URL.Query().Get("grant_type")
-		clientID := r.URL.Query().Get("client_id")
-		clientSecret := r.URL.Query().Get("client_secret")
-		scopes := r.URL.Query().Get("scope")
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write(oauthTokenErrorResponse("server_error", "unable to parse form contents"))
+		}
+
+		grantType := r.Form.Get("grant_type")
+		clientID := r.Form.Get("client_id")
+		clientSecret := r.Form.Get("client_secret")
+		scopes := r.Form.Get("scope")
 		if grantType != "client_credentials" {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write(oauthTokenErrorResponse("unsupported_grant_type"))
+			w.Write(oauthTokenErrorResponse("unsupported_grant_type", fmt.Sprintf("received %q", grantType)))
 			return
 		}
 
 		if clientID != c.clientID || clientSecret != c.clientSecret {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write(oauthTokenErrorResponse("invalid_client"))
+			w.Write(oauthTokenErrorResponse("invalid_client", "incorrect client credentials"))
 			return
 		}
 
@@ -353,12 +358,12 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 			sort.Strings(requestedScopes)
 			if !cmp.Equal(requestedScopes, requiredScopes) {
 				w.WriteHeader(http.StatusUnauthorized)
-				w.Write(oauthTokenErrorResponse("invalid_scope"))
+				w.Write(oauthTokenErrorResponse("invalid_scope", fmt.Sprintf("expected %q, received %q", c.scopes, scopes)))
 				return
 			}
 		}
 
-		response := fmt.Sprintf("{\n\taccess_token: %q,\n\ttoken_type: %q\n}\n", c.accessToken, "bearer")
+		response := fmt.Sprintf("{\n\t\"access_token\": %q,\n\t\"token_type\": %q\n}\n", c.accessToken, "bearer")
 		w.Write([]byte(response))
 	})
 }
