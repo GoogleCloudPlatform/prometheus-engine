@@ -77,15 +77,6 @@ add_gcm_secret() {
   done
 }
 
-ensure_registry() {
-  echo ">>> ensuring docker registry"
-  if [ "$(docker inspect -f '{{.State.Running}}' "${REGISTRY_NAME}" 2>/dev/null || true)" != 'true' ]; then
-    docker run \
-      -d --restart=always -p "127.0.0.1:${REGISTRY_PORT}:5000" --network bridge --name "${REGISTRY_NAME}" \
-      registry:2
-  fi
-}
-
 create_kind_cluster() {
   echo ">>> creating kind cluster"
   cat <<EOF | kind create cluster --name ${KIND_CLUSTER} --config=-
@@ -151,7 +142,6 @@ update_manifests() {
 
 # Set up local image registry and tag and push images to it.
 # Finally update the install manifests to reference those images.
-#ensure_registry
 docker_tag_push $BINARIES
 update_manifests $BINARIES
 
