@@ -281,6 +281,20 @@ type PodMonitoringCRD interface {
 	GetStatus() *PodMonitoringStatus
 }
 
+// NodeMonitoringCRD represents a Kubernetes CRD that monitors Node endpoints.
+type NodeMonitoringCRD interface {
+	client.Object
+
+	// GetKey returns a unique identifier for this CRD.
+	GetKey() string
+
+	// GetEndpoints returns the endpoints scraped by this CRD.
+	GetEndpoints() []ScrapeNodeEndpoint
+
+	// GetStatus returns this CRD's status sub-resource.
+	GetStatus() *MonitoringStatus
+}
+
 // PodMonitoring defines monitoring for a set of pods, scoped to pods
 // within the PodMonitoring's namespace.
 // +genclient
@@ -420,10 +434,9 @@ func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res
 	return res, nil
 }
 
-// SetPodMonitoringCondition merges the provided PodMonitoring resource to the
-// along with the provided condition iff the resource generation has changed or there
-// is a status condition state transition.
-func (status *PodMonitoringStatus) SetPodMonitoringCondition(gen int64, now metav1.Time, cond *MonitoringCondition) (bool, error) {
+// SetMonitoringCondition merges the provided CRD resource to the
+// if the resource generation has changed or there is a status condition state transition.
+func (status *MonitoringStatus) SetMonitoringCondition(gen int64, now metav1.Time, cond *MonitoringCondition) (bool, error) {
 	var (
 		specChanged              = status.ObservedGeneration != gen
 		statusTransition, update bool
@@ -1144,13 +1157,18 @@ type SampleTarget struct {
 
 // PodMonitoringStatus holds status information of a PodMonitoring resource.
 type PodMonitoringStatus struct {
+	MonitoringStatus `json:",inline"`
+	// Represents the latest available observations of target state for each ScrapeEndpoint.
+	EndpointStatuses []ScrapeEndpointStatus `json:"endpointStatuses,omitempty"`
+}
+
+// PodMonitoringStatus holds status information of a PodMonitoring resource.
+type MonitoringStatus struct {
 	// The generation observed by the controller.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Represents the latest available observations of a podmonitor's current state.
 	Conditions []MonitoringCondition `json:"conditions,omitempty"`
-	// Represents the latest available observations of target state for each ScrapeEndpoint.
-	EndpointStatuses []ScrapeEndpointStatus `json:"endpointStatuses,omitempty"`
 }
 
 // MonitoringConditionType is the type of MonitoringCondition.
@@ -1377,6 +1395,9 @@ type NodeMonitoring struct {
 	// Specification of desired node selection for target discovery by
 	// Prometheus.
 	Spec NodeMonitoringSpec `json:"spec"`
+	// Most recently observed status of the resource.
+	// +optional
+	Status MonitoringStatus `json:"status"`
 }
 
 func (n *NodeMonitoring) GetKey() string {

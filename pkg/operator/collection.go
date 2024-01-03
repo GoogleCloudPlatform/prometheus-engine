@@ -418,7 +418,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		change, err := pmon.Status.SetPodMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
+		change, err := pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
@@ -457,11 +457,11 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		change, err := cmon.Status.SetPodMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
+		change, err := cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
-			logger.Error(err, "setting podmonitoring status state")
+			logger.Error(err, "setting clusterpodmonitoring status state")
 		}
 
 		if change {
@@ -503,6 +503,42 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			continue
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
+
+		change, err := nm.Status.SetMonitoringCondition(nm.GetGeneration(), metav1.Now(), cond)
+		if err != nil {
+			// Log an error but let operator continue to avoid getting stuck
+			// on a potential bad resource.
+			logger.Error(err, "setting nodemonitoring status state")
+		}
+
+		if change {
+			// convert ScrapeNodeEndpoint to ScrapeEndpoint.
+			var scrapeEndpoints []monitoringv1.ScrapeEndpoint
+			for _, endpoint := range nm.Spec.Endpoints {
+				scrapeEndpoints = append(scrapeEndpoints,
+					monitoringv1.ScrapeEndpoint{
+						Scheme:           endpoint.Scheme,
+						Path:             endpoint.Path,
+						Params:           endpoint.Params,
+						Interval:         endpoint.Interval,
+						Timeout:          endpoint.Timeout,
+						MetricRelabeling: endpoint.MetricRelabeling},
+				)
+			}
+			nodeMonConv := monitoringv1.PodMonitoring{
+				ObjectMeta: nm.ObjectMeta,
+				TypeMeta:   nm.TypeMeta,
+				Spec: monitoringv1.PodMonitoringSpec{
+					Selector:  nm.Spec.Selector,
+					Endpoints: scrapeEndpoints,
+					Limits:    nm.Spec.Limits,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					MonitoringStatus: nm.Status,
+				},
+			}
+			r.statusUpdates = append(r.statusUpdates, &nodeMonConv)
+		}
 	}
 
 	// Sort to ensure reproducible configs.

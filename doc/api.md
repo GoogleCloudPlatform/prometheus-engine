@@ -36,6 +36,7 @@ This Document documents the types introduced by the GMP CRDs to be consumed by u
 * [LabelMapping](#labelmapping)
 * [ManagedAlertmanagerSpec](#managedalertmanagerspec)
 * [MonitoringCondition](#monitoringcondition)
+* [MonitoringStatus](#monitoringstatus)
 * [NodeMonitoring](#nodemonitoring)
 * [NodeMonitoringList](#nodemonitoringlist)
 * [NodeMonitoringSpec](#nodemonitoringspec)
@@ -326,7 +327,7 @@ ManagedAlertmanagerSpec holds configuration information for the managed Alertman
 MonitoringCondition describes a condition of a PodMonitoring.
 
 
-<em>appears in: [PodMonitoringStatus](#podmonitoringstatus)</em>
+<em>appears in: [MonitoringStatus](#monitoringstatus)</em>
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
@@ -336,6 +337,20 @@ MonitoringCondition describes a condition of a PodMonitoring.
 | lastTransitionTime | Last time the condition transitioned from one status to another. | metav1.Time | false |
 | reason | The reason for the condition's last transition. | string | false |
 | message | A human-readable message indicating details about the transition. | string | false |
+
+[Back to TOC](#table-of-contents)
+
+## MonitoringStatus
+
+PodMonitoringStatus holds status information of a PodMonitoring resource.
+
+
+<em>appears in: [NodeMonitoring](#nodemonitoring), [PodMonitoringStatus](#podmonitoringstatus)</em>
+
+| Field | Description | Scheme | Required |
+| ----- | ----------- | ------ | -------- |
+| observedGeneration | The generation observed by the controller. | int64 | true |
+| conditions | Represents the latest available observations of a podmonitor's current state. | [][MonitoringCondition](#monitoringcondition) | false |
 
 [Back to TOC](#table-of-contents)
 
@@ -350,6 +365,7 @@ NodeMonitoring defines monitoring for a set of nodes.
 | ----- | ----------- | ------ | -------- |
 | metadata |  | [metav1.ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#objectmeta-v1-meta) | false |
 | spec | Specification of desired node selection for target discovery by Prometheus. | [NodeMonitoringSpec](#nodemonitoringspec) | true |
+| status | Most recently observed status of the resource. | [MonitoringStatus](#monitoringstatus) | true |
 
 [Back to TOC](#table-of-contents)
 
@@ -474,7 +490,7 @@ PodMonitoringStatus holds status information of a PodMonitoring resource.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | observedGeneration | The generation observed by the controller. | int64 | true |
-| conditions | Represents the latest available observations of a podmonitor's current state. | [][MonitoringCondition](#monitoringcondition) | false |
+| conditions | Represents the latest available observations of a podmonitor's current state. | []MonitoringCondition | false |
 | endpointStatuses | Represents the latest available observations of target state for each ScrapeEndpoint. | [][ScrapeEndpointStatus](#scrapeendpointstatus) | false |
 
 [Back to TOC](#table-of-contents)
