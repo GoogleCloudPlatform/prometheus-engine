@@ -228,6 +228,9 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 					&monitoringv1.ClusterPodMonitoring{}: {
 						Field: fields.Everything(),
 					},
+					&monitoringv1.Probe{}: {
+						Field: fields.Everything(),
+					},
 					&monitoringv1.GlobalRules{}: {
 						Field: fields.Everything(),
 					},

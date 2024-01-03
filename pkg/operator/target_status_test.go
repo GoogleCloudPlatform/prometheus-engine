@@ -198,15 +198,17 @@ func TestUpdateTargetStatus(t *testing.T) {
 						}},
 					},
 					Status: monitoringv1.PodMonitoringStatus{
-						ObservedGeneration: 2,
-						Conditions: []monitoringv1.MonitoringCondition{{
-							Type:               monitoringv1.ConfigurationCreateSuccess,
-							Status:             corev1.ConditionTrue,
-							LastUpdateTime:     metav1.Time{},
-							LastTransitionTime: metav1.Time{},
-							Reason:             "",
-							Message:            "",
-						}},
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 2,
+							Conditions: []monitoringv1.MonitoringCondition{{
+								Type:               monitoringv1.ConfigurationCreateSuccess,
+								Status:             corev1.ConditionTrue,
+								LastUpdateTime:     metav1.Time{},
+								LastTransitionTime: metav1.Time{},
+								Reason:             "",
+								Message:            "",
+							}},
+						},
 						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 							{
 								Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",

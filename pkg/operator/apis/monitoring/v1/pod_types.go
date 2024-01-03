@@ -193,57 +193,6 @@ func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res
 	return res, nil
 }
 
-// SetPodMonitoringCondition merges the provided PodMonitoring resource to the
-// along with the provided condition iff the resource generation has changed or there
-// is a status condition state transition.
-func (status *PodMonitoringStatus) SetPodMonitoringCondition(gen int64, now metav1.Time, cond *MonitoringCondition) (bool, error) {
-	var (
-		specChanged              = status.ObservedGeneration != gen
-		statusTransition, update bool
-		conds                    = make(map[MonitoringConditionType]*MonitoringCondition)
-	)
-
-	if cond.Type == "" || cond.Status == "" {
-		return update, errInvalidCond
-	}
-
-	// Set up defaults.
-	for _, mc := range NewDefaultConditions(now) {
-		conds[mc.Type] = &mc
-	}
-	// Overwrite with any previous state.
-	for _, mc := range status.Conditions {
-		conds[mc.Type] = &mc
-	}
-
-	// Set some timestamp defaults if unspecified.
-	cond.LastUpdateTime = now
-
-	// Check if the condition results in a transition of status state.
-	if old := conds[cond.Type]; old.Status == cond.Status {
-		cond.LastTransitionTime = old.LastTransitionTime
-	} else {
-		cond.LastTransitionTime = cond.LastUpdateTime
-		statusTransition = true
-	}
-
-	// Set condition.
-	conds[cond.Type] = cond
-
-	// Only update status if the spec has changed (indicated by Generation field) or
-	// if this update transitions status state.
-	if specChanged || statusTransition {
-		update = true
-		status.ObservedGeneration = gen
-		status.Conditions = status.Conditions[:0]
-		for _, c := range conds {
-			status.Conditions = append(status.Conditions, *c)
-		}
-	}
-
-	return update, nil
-}
-
 // Environment variable for the current node that needs to be interpolated in generated
 // scrape configurations for a PodMonitoring resource.
 const EnvVarNodeName = "NODE_NAME"
@@ -556,19 +505,26 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 		scrapeCfg.LabelNameLengthLimit = uint(limits.LabelNameLength)
 		scrapeCfg.LabelValueLengthLimit = uint(limits.LabelValueLength)
 	}
+	if err := validateScrapeConfig(scrapeCfg); err != nil {
+		return nil, err
+	}
+	return scrapeCfg, nil
+}
+
+func validateScrapeConfig(scrapeCfg *promconfig.ScrapeConfig) error {
 	// The Prometheus configuration structs do not generally have validation methods and embed their
 	// validation logic in the UnmarshalYAML methods. To keep things reasonable we don't re-validate
 	// everything and simply do a final marshal-unmarshal cycle at the end to run all validation
 	// upstream provides at the end of this method.
 	b, err := yaml.Marshal(scrapeCfg)
 	if err != nil {
-		return nil, fmt.Errorf("scrape config cannot be marshalled: %w", err)
+		return fmt.Errorf("scrape config cannot be marshalled: %w", err)
 	}
 	var scrapeCfgCopy promconfig.ScrapeConfig
 	if err := yaml.Unmarshal(b, &scrapeCfgCopy); err != nil {
-		return nil, fmt.Errorf("invalid scrape configuration: %w", err)
+		return fmt.Errorf("invalid scrape configuration: %w", err)
 	}
-	return scrapeCfg, nil
+	return nil
 }
 
 func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
@@ -951,11 +907,7 @@ type SampleTarget struct {
 
 // PodMonitoringStatus holds status information of a PodMonitoring resource.
 type PodMonitoringStatus struct {
-	// The generation observed by the controller.
-	// +optional
-	ObservedGeneration int64 `json:"observedGeneration"`
-	// Represents the latest available observations of a podmonitor's current state.
-	Conditions []MonitoringCondition `json:"conditions,omitempty"`
+	MonitoringStatus `json:",inline"`
 	// Represents the latest available observations of target state for each ScrapeEndpoint.
 	EndpointStatuses []ScrapeEndpointStatus `json:"endpointStatuses,omitempty"`
 }

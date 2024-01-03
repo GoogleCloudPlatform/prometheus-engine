@@ -411,7 +411,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		change, err := pmon.Status.SetPodMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
+		change, err := pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
@@ -450,7 +450,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		change, err := cmon.Status.SetPodMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
+		change, err := cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.

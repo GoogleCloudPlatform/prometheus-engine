@@ -1031,19 +1031,19 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 		cond       *MonitoringCondition
 		generation int64
 		now        metav1.Time
-		curr, want *PodMonitoringStatus
+		curr, want *MonitoringStatus
 		change     bool
 	}{
 		{
 			doc:  "no previous status",
-			curr: &PodMonitoringStatus{},
+			curr: &MonitoringStatus{},
 			cond: &MonitoringCondition{
 				Type:   ConfigurationCreateSuccess,
 				Status: corev1.ConditionTrue,
 			},
 			generation: 1,
 			now:        now,
-			want: &PodMonitoringStatus{
+			want: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1058,7 +1058,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 		},
 		{
 			doc: "matching previous status - prevent cycle",
-			curr: &PodMonitoringStatus{
+			curr: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1075,7 +1075,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 			},
 			generation: 1,
 			now:        now,
-			want: &PodMonitoringStatus{
+			want: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1090,7 +1090,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 		},
 		{
 			doc: "success to success transition due to spec change",
-			curr: &PodMonitoringStatus{
+			curr: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1107,7 +1107,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 			},
 			generation: 2,
 			now:        now,
-			want: &PodMonitoringStatus{
+			want: &MonitoringStatus{
 				ObservedGeneration: 2,
 				Conditions: []MonitoringCondition{
 					{
@@ -1122,7 +1122,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 		},
 		{
 			doc: "failure to success transition due to spec fix",
-			curr: &PodMonitoringStatus{
+			curr: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1139,7 +1139,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 			},
 			generation: 2,
 			now:        now,
-			want: &PodMonitoringStatus{
+			want: &MonitoringStatus{
 				ObservedGeneration: 2,
 				Conditions: []MonitoringCondition{
 					{
@@ -1154,7 +1154,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 		},
 		{
 			doc: "success to failure transition due to status update",
-			curr: &PodMonitoringStatus{
+			curr: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1171,7 +1171,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 			},
 			generation: 1,
 			now:        now,
-			want: &PodMonitoringStatus{
+			want: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1188,7 +1188,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.doc, func(t *testing.T) {
 			got := c.curr
-			change, err := got.SetPodMonitoringCondition(c.generation, c.now, c.cond)
+			change, err := got.SetMonitoringCondition(c.generation, c.now, c.cond)
 			if err != nil {
 				t.Fatalf("set podmonitoring condition: %s", err)
 			}
