@@ -132,6 +132,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&GlobalRulesList{},
 		&OperatorConfig{},
 		&OperatorConfigList{},
+		&Probe{},
+		&ProbeList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

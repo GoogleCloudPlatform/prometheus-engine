@@ -2163,6 +2163,253 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  name: probes.monitoring.googleapis.com
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.12.0
+spec:
+  group: monitoring.googleapis.com
+  names:
+    kind: Probe
+    listKind: ProbeList
+    plural: probes
+    singular: probe
+  scope: Cluster
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        type: object
+        description: Probe defines monitoring for black-box probes.
+        properties:
+          apiVersion:
+            type: string
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          kind:
+            type: string
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          metadata:
+            type: object
+          spec:
+            type: object
+            description: Specification of desired black-box probing.
+            properties:
+              limits:
+                type: object
+                description: Limits to apply at scrape time.
+                properties:
+                  labels:
+                    type: integer
+                    description: Maximum number of labels accepted for a single sample. Uses Prometheus default if left unspecified.
+                    format: int64
+                  labelNameLength:
+                    type: integer
+                    description: Maximum label name length. Uses Prometheus default if left unspecified.
+                    format: int64
+                  labelValueLength:
+                    type: integer
+                    description: Maximum label value length. Uses Prometheus default if left unspecified.
+                    format: int64
+                  samples:
+                    type: integer
+                    description: Maximum number of samples accepted within a single scrape. Uses Prometheus default if left unspecified.
+                    format: int64
+              targets:
+                type: array
+                description: The targets to probe.
+                items:
+                  type: object
+                  description: ProbeTarget specifies targets to probe. Analogous to ScrapeEndpoint.
+                  properties:
+                    authorization:
+                      type: object
+                      description: The HTTP authorization credentials for the targets.
+                      properties:
+                        type:
+                          type: string
+                          description: The authentication type. Defaults to Bearer, Basic will cause an error.
+                    basicAuth:
+                      type: object
+                      description: The HTTP basic authentication credentials for the targets.
+                      properties:
+                        username:
+                          type: string
+                          description: The username for authentication.
+                    interval:
+                      type: string
+                      default: 1m
+                      description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
+                      pattern: ^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$
+                    metricRelabeling:
+                      type: array
+                      description: Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general.
+                      items:
+                        type: object
+                        description: RelabelingRule defines a single Prometheus relabeling rule.
+                        properties:
+                          action:
+                            type: string
+                            description: Action to perform based on regex matching. Defaults to 'replace'.
+                          modulus:
+                            type: integer
+                            description: Modulus to take of the hash of the source label values.
+                            format: int64
+                          regex:
+                            type: string
+                            description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
+                          replacement:
+                            type: string
+                            description: Replacement value against which a regex replace is performed if the regular expression matches. Regex capture groups are available. Defaults to '$1'.
+                          separator:
+                            type: string
+                            description: Separator placed between concatenated source label values. Defaults to ';'.
+                          sourceLabels:
+                            type: array
+                            description: The source labels select values from existing labels. Their content is concatenated using the configured separator and matched against the configured regular expression for the replace, keep, and drop actions.
+                            items:
+                              type: string
+                          targetLabel:
+                            type: string
+                            description: Label to which the resulting value is written in a replace action. It is mandatory for replace actions. Regex capture groups are available.
+                    module:
+                      type: string
+                      description: The probe module to use. See https://github.com/prometheus/blackbox_exporter/blob/master/blackbox.yml for a list of all possible probe modules.
+                    proxyUrl:
+                      type: string
+                      description: HTTP proxy server to use to connect to the targets. Encoded passwords are not supported.
+                    staticTargets:
+                      type: array
+                      description: The list of targets to probe. Each target must be represented as a hostname or IP followed by an optional port number.
+                      items:
+                        type: string
+                    timeout:
+                      type: string
+                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                    tls:
+                      type: object
+                      description: Configures the scrape request's TLS settings.
+                      properties:
+                        insecureSkipVerify:
+                          type: boolean
+                          description: Disable target certificate validation.
+                        maxVersion:
+                          type: string
+                          description: 'Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                        minVersion:
+                          type: string
+                          description: 'Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                        serverName:
+                          type: string
+                          description: Used to verify the hostname for the targets.
+                  required:
+                  - module
+                  - staticTargets
+            required:
+            - targets
+          status:
+            type: object
+            description: Most recently observed status of the resource.
+            properties:
+              conditions:
+                type: array
+                description: Represents the latest available observations of a podmonitor's current state.
+                items:
+                  type: object
+                  description: MonitoringCondition describes the condition of a PodMonitoring.
+                  properties:
+                    type:
+                      type: string
+                      description: MonitoringConditionType is the type of MonitoringCondition.
+                    status:
+                      type: string
+                      description: Status of the condition, one of True, False, Unknown.
+                    lastTransitionTime:
+                      type: string
+                      description: Last time the condition transitioned from one status to another.
+                      format: date-time
+                    lastUpdateTime:
+                      type: string
+                      description: The last time this condition was updated.
+                      format: date-time
+                    message:
+                      type: string
+                      description: A human-readable message indicating details about the transition.
+                    reason:
+                      type: string
+                      description: The reason for the condition's last transition.
+                  required:
+                  - status
+                  - type
+              endpointStatuses:
+                type: array
+                description: Represents the latest available observations of target state for each ProbeTarget.
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: The name of the ScrapeEndpoint.
+                    activeTargets:
+                      type: integer
+                      description: Total number of active targets.
+                      format: int64
+                    collectorsFraction:
+                      type: string
+                      description: Fraction of collectors included in status, bounded [0,1]. Ideally, this should always be 1. Anything less can be considered a problem and should be investigated.
+                    lastUpdateTime:
+                      type: string
+                      description: Last time this status was updated.
+                      format: date-time
+                    sampleGroups:
+                      type: array
+                      description: A fixed sample of targets grouped by error type.
+                      items:
+                        type: object
+                        properties:
+                          count:
+                            type: integer
+                            description: Total count of similar errors.
+                            format: int32
+                          sampleTargets:
+                            type: array
+                            description: Targets emitting the error message.
+                            items:
+                              type: object
+                              properties:
+                                labels:
+                                  type: object
+                                  additionalProperties:
+                                    type: string
+                                    description: A LabelValue is an associated value for a LabelName.
+                                  description: The label set, keys and values, of the target.
+                                health:
+                                  type: string
+                                  description: Health status.
+                                lastError:
+                                  type: string
+                                  description: Error message.
+                                lastScrapeDurationSeconds:
+                                  type: string
+                                  description: Scrape duration in seconds.
+                    unhealthyTargets:
+                      type: integer
+                      description: Total number of active, unhealthy targets.
+                      format: int64
+                  required:
+                  - name
+              observedGeneration:
+                type: integer
+                description: The generation observed by the controller.
+                format: int64
+        required:
+        - spec
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
   name: rules.monitoring.googleapis.com
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0

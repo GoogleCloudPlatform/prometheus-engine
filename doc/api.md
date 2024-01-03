@@ -68,6 +68,14 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.Probe">Probe</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.ProbeSpec">ProbeSpec</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.ProbeStatus">ProbeStatus</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.ProbeTarget">ProbeTarget</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.ProxyConfig">ProxyConfig</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.RelabelingRule">RelabelingRule</a>
@@ -836,7 +844,7 @@ RulesStatus
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ProbeTarget">ProbeTarget</a>, <a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>)
 </p>
 <div>
 <p>HTTPClientConfig stores HTTP-client configurations.</p>
@@ -1163,7 +1171,7 @@ monitoring resource was created successfully.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>, <a href="#monitoring.googleapis.com/v1.ProbeStatus">ProbeStatus</a>)
 </p>
 <div>
 <p>MonitoringStatus holds status information of a monitoring resource.</p>
@@ -1654,6 +1662,257 @@ MonitoringStatus
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.Probe">
+<span id="Probe">Probe
+</span>
+</h3>
+<div>
+<p>Probe defines monitoring for black-box probes.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>metadata</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#objectmeta-v1-meta">
+Kubernetes meta/v1.ObjectMeta
+</a>
+</em>
+</td>
+<td>
+Refer to the Kubernetes API documentation for the fields of the
+<code>metadata</code> field.
+</td>
+</tr>
+<tr>
+<td>
+<code>spec</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ProbeSpec">
+ProbeSpec
+</a>
+</em>
+</td>
+<td>
+<p>Specification of desired black-box probing.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>status</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ProbeStatus">
+ProbeStatus
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Most recently observed status of the resource.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ProbeSpec">
+<span id="ProbeSpec">ProbeSpec
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.Probe">Probe</a>)
+</p>
+<div>
+<p>ProbeSpec contains specification parameters for Probe. Analogous to PodMonitoringSpec.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>targets</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ProbeTarget">
+[]ProbeTarget
+</a>
+</em>
+</td>
+<td>
+<p>The targets to probe.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>limits</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ScrapeLimits">
+ScrapeLimits
+</a>
+</em>
+</td>
+<td>
+<p>Limits to apply at scrape time.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ProbeStatus">
+<span id="ProbeStatus">ProbeStatus
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.Probe">Probe</a>)
+</p>
+<div>
+<p>ProbeStatus holds status information of a Probe resource.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>MonitoringStatus</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
+MonitoringStatus
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>MonitoringStatus</code> are embedded into this type.)
+</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>endpointStatuses</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ScrapeEndpointStatus">
+[]ScrapeEndpointStatus
+</a>
+</em>
+</td>
+<td>
+<p>Represents the latest available observations of target state for each ProbeTarget.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ProbeTarget">
+<span id="ProbeTarget">ProbeTarget
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ProbeSpec">ProbeSpec</a>)
+</p>
+<div>
+<p>ProbeTarget specifies targets to probe. Analogous to ScrapeEndpoint.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>module</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>The probe module to use. See
+<a href="https://github.com/prometheus/blackbox_exporter/blob/master/blackbox.yml">https://github.com/prometheus/blackbox_exporter/blob/master/blackbox.yml</a> for a list of all
+possible probe modules.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>staticTargets</code><br/>
+<em>
+[]string
+</em>
+</td>
+<td>
+<p>The list of targets to probe. Each target must be represented as a hostname or IP followed by an optional port number.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>interval</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Interval at which to scrape metrics. Must be a valid Prometheus duration.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>timeout</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Timeout for metrics scrapes. Must be a valid Prometheus duration.
+Must not be larger then the scrape interval.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>metricRelabeling</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.RelabelingRule">
+[]RelabelingRule
+</a>
+</em>
+</td>
+<td>
+<p>Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
+override protected target labels (project_id, location, cluster, namespace, job,
+instance, or <strong>address</strong>) are not permitted. The labelmap action is not permitted
+in general.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>HTTPClientConfig</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.HTTPClientConfig">
+HTTPClientConfig
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>HTTPClientConfig</code> are embedded into this type.)
+</p>
+<p>Prometheus HTTP client configuration.</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.ProxyConfig">
 <span id="ProxyConfig">ProxyConfig
 </span>
@@ -1689,7 +1948,7 @@ string
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>, <a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ProbeTarget">ProbeTarget</a>, <a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>, <a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>)
 </p>
 <div>
 <p>RelabelingRule defines a single Prometheus relabeling rule.</p>
@@ -2359,7 +2618,7 @@ HTTPClientConfig
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>, <a href="#monitoring.googleapis.com/v1.ProbeStatus">ProbeStatus</a>)
 </p>
 <div>
 </div>
@@ -2450,7 +2709,7 @@ be considered a problem and should be investigated.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringSpec">PodMonitoringSpec</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringSpec">PodMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.ProbeSpec">ProbeSpec</a>)
 </p>
 <div>
 <p>ScrapeLimits limits applied to scraped targets.</p>
