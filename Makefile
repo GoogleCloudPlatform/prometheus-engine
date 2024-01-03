@@ -189,17 +189,6 @@ e2e: config-reloader operator rule-evaluator go-synthetic
 # Run tests in parallel.
 # Limit for now, due to known issues when scaling up many kind nodes:
 # https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
-ifeq ($(LOCAL_E2E), 1)
-	echo $(TEST_RUN) | tr ' ' '\n' | xargs -I {} -P$(KIND_PARALLEL) \
-		sh -c 'GOOGLE_APPLICATION_CREDENTIALS=$(GOOGLE_APPLICATION_CREDENTIALS) \
-		PROJECT_ID=$(PROJECT_ID) \
-		GMP_LOCATION=$(GMP_LOCATION) \
-		BINARIES="$^" \
-		REGISTRY_NAME=$(REGISTRY_NAME) \
-		REGISTRY_PORT=$(REGISTRY_PORT) \
-		./hack/kind-test.sh {}' \
-	@echo ">> all e2e test processes returned"
-else
 	@echo ">> building kindtest image"
 	$(call docker_build, -f hack/Dockerfile --target kindtest -t gmp/kindtest .)
 	@echo ">> running kind tests"
@@ -219,7 +208,6 @@ else
 		-v $(DOCKER_VOLUME):/var/run/docker.sock \
 		$(E2E_DOCKER_ARGS) \
 		gmp/kindtest ./hack/kind-test.sh {}
-endif
 
 .PHONY: presubmit
 presubmit:   ## Regenerate all resources, build all images and run all tests.
