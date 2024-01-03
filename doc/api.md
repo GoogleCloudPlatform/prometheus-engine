@@ -304,6 +304,7 @@ KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | interval | The interval at which the metric endpoints are scraped. | string | true |
+| tlsInsecureSkipVerify | TLSInsecureSkipVerify disables verifying the target cert. This can be useful for clusters provisioned with kubeadm. | bool | false |
 
 [Back to TOC](#table-of-contents)
 
