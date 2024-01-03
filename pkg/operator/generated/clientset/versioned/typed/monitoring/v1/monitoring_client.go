@@ -29,6 +29,7 @@ type MonitoringV1Interface interface {
 	ClusterPodMonitoringsGetter
 	ClusterRulesGetter
 	GlobalRulesGetter
+	NodeMonitoringsGetter
 	OperatorConfigsGetter
 	PodMonitoringsGetter
 	RulesGetter
@@ -49,6 +50,10 @@ func (c *MonitoringV1Client) ClusterRules() ClusterRulesInterface {
 
 func (c *MonitoringV1Client) GlobalRules() GlobalRulesInterface {
 	return newGlobalRules(c)
+}
+
+func (c *MonitoringV1Client) NodeMonitorings(namespace string) NodeMonitoringInterface {
+	return newNodeMonitorings(c, namespace)
 }
 
 func (c *MonitoringV1Client) OperatorConfigs(namespace string) OperatorConfigInterface {

@@ -51,16 +51,17 @@ update_codegen() {
   rm -rf "$REPO_ROOT/pkg/operator/generated"
 
   CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${REPO_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
+  chmod +x "${CODEGEN_PKG}/generate-internal-groups.sh"
 
+  # Invoke only for deepcopy first as it doesn't accept the pluralization flag
+  # of the second invocation.
+  bash "${CODEGEN_PKG}"/generate-groups.sh "deepcopy" \
+    github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
+    monitoring:v1 \
+    --go-header-file "${REPO_ROOT}"/hack/boilerplate.go.txt \
+    --output-base "${REPO_ROOT}"
 
-  # shellcheck source=../vendor/k8s.io/code-generator/kube_codegen.sh
-  source "${CODEGEN_PKG}/kube_codegen.sh"
-  kube::codegen::gen_helpers \
-    --input-pkg-root pkg/operator/apis \
-    --output-base "${REPO_ROOT}" \
-    --boilerplate "${REPO_ROOT}"/hack/boilerplate.go.txt
-
-  bash "${CODEGEN_PKG}"/code-generator.sh "client,informer,lister" \
+  bash "${CODEGEN_PKG}"/generate-groups.sh "client,informer,lister" \
     github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
     monitoring:v1 \
     --go-header-file "${REPO_ROOT}"/hack/boilerplate.go.txt \

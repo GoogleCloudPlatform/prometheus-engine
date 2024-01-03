@@ -19,10 +19,9 @@ package fake
 import (
 	"context"
 
-	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -33,24 +32,24 @@ type FakeClusterRules struct {
 	Fake *FakeMonitoringV1
 }
 
-var clusterrulesResource = schema.GroupVersionResource{Group: "monitoring.googleapis.com", Version: "v1", Resource: "clusterrules"}
+var clusterrulesResource = v1.SchemeGroupVersion.WithResource("clusterrules")
 
-var clusterrulesKind = schema.GroupVersionKind{Group: "monitoring.googleapis.com", Version: "v1", Kind: "ClusterRules"}
+var clusterrulesKind = v1.SchemeGroupVersion.WithKind("ClusterRules")
 
 // Get takes name of the clusterRules, and returns the corresponding clusterRules object, and an error if there is any.
-func (c *FakeClusterRules) Get(ctx context.Context, name string, options v1.GetOptions) (result *monitoringv1.ClusterRules, err error) {
+func (c *FakeClusterRules) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.ClusterRules, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(clusterrulesResource, name), &monitoringv1.ClusterRules{})
+		Invokes(testing.NewRootGetAction(clusterrulesResource, name), &v1.ClusterRules{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.ClusterRules), err
+	return obj.(*v1.ClusterRules), err
 }
 
 // List takes label and field selectors, and returns the list of ClusterRules that match those selectors.
-func (c *FakeClusterRules) List(ctx context.Context, opts v1.ListOptions) (result *monitoringv1.ClusterRulesList, err error) {
+func (c *FakeClusterRules) List(ctx context.Context, opts metav1.ListOptions) (result *v1.ClusterRulesList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(clusterrulesResource, clusterrulesKind, opts), &monitoringv1.ClusterRulesList{})
+		Invokes(testing.NewRootListAction(clusterrulesResource, clusterrulesKind, opts), &v1.ClusterRulesList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -59,8 +58,8 @@ func (c *FakeClusterRules) List(ctx context.Context, opts v1.ListOptions) (resul
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &monitoringv1.ClusterRulesList{ListMeta: obj.(*monitoringv1.ClusterRulesList).ListMeta}
-	for _, item := range obj.(*monitoringv1.ClusterRulesList).Items {
+	list := &v1.ClusterRulesList{ListMeta: obj.(*v1.ClusterRulesList).ListMeta}
+	for _, item := range obj.(*v1.ClusterRulesList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -69,63 +68,63 @@ func (c *FakeClusterRules) List(ctx context.Context, opts v1.ListOptions) (resul
 }
 
 // Watch returns a watch.Interface that watches the requested clusterRules.
-func (c *FakeClusterRules) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeClusterRules) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewRootWatchAction(clusterrulesResource, opts))
 }
 
 // Create takes the representation of a clusterRules and creates it.  Returns the server's representation of the clusterRules, and an error, if there is any.
-func (c *FakeClusterRules) Create(ctx context.Context, clusterRules *monitoringv1.ClusterRules, opts v1.CreateOptions) (result *monitoringv1.ClusterRules, err error) {
+func (c *FakeClusterRules) Create(ctx context.Context, clusterRules *v1.ClusterRules, opts metav1.CreateOptions) (result *v1.ClusterRules, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(clusterrulesResource, clusterRules), &monitoringv1.ClusterRules{})
+		Invokes(testing.NewRootCreateAction(clusterrulesResource, clusterRules), &v1.ClusterRules{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.ClusterRules), err
+	return obj.(*v1.ClusterRules), err
 }
 
 // Update takes the representation of a clusterRules and updates it. Returns the server's representation of the clusterRules, and an error, if there is any.
-func (c *FakeClusterRules) Update(ctx context.Context, clusterRules *monitoringv1.ClusterRules, opts v1.UpdateOptions) (result *monitoringv1.ClusterRules, err error) {
+func (c *FakeClusterRules) Update(ctx context.Context, clusterRules *v1.ClusterRules, opts metav1.UpdateOptions) (result *v1.ClusterRules, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(clusterrulesResource, clusterRules), &monitoringv1.ClusterRules{})
+		Invokes(testing.NewRootUpdateAction(clusterrulesResource, clusterRules), &v1.ClusterRules{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.ClusterRules), err
+	return obj.(*v1.ClusterRules), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterRules) UpdateStatus(ctx context.Context, clusterRules *monitoringv1.ClusterRules, opts v1.UpdateOptions) (*monitoringv1.ClusterRules, error) {
+func (c *FakeClusterRules) UpdateStatus(ctx context.Context, clusterRules *v1.ClusterRules, opts metav1.UpdateOptions) (*v1.ClusterRules, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(clusterrulesResource, "status", clusterRules), &monitoringv1.ClusterRules{})
+		Invokes(testing.NewRootUpdateSubresourceAction(clusterrulesResource, "status", clusterRules), &v1.ClusterRules{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.ClusterRules), err
+	return obj.(*v1.ClusterRules), err
 }
 
 // Delete takes name of the clusterRules and deletes it. Returns an error if one occurs.
-func (c *FakeClusterRules) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+func (c *FakeClusterRules) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(clusterrulesResource, name, opts), &monitoringv1.ClusterRules{})
+		Invokes(testing.NewRootDeleteActionWithOptions(clusterrulesResource, name, opts), &v1.ClusterRules{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeClusterRules) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+func (c *FakeClusterRules) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	action := testing.NewRootDeleteCollectionAction(clusterrulesResource, listOpts)
 
-	_, err := c.Fake.Invokes(action, &monitoringv1.ClusterRulesList{})
+	_, err := c.Fake.Invokes(action, &v1.ClusterRulesList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched clusterRules.
-func (c *FakeClusterRules) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *monitoringv1.ClusterRules, err error) {
+func (c *FakeClusterRules) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.ClusterRules, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(clusterrulesResource, name, pt, data, subresources...), &monitoringv1.ClusterRules{})
+		Invokes(testing.NewRootPatchSubresourceAction(clusterrulesResource, name, pt, data, subresources...), &v1.ClusterRules{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.ClusterRules), err
+	return obj.(*v1.ClusterRules), err
 }

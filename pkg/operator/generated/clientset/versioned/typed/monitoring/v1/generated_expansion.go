@@ -22,6 +22,8 @@ type ClusterRulesExpansion interface{}
 
 type GlobalRulesExpansion interface{}
 
+type NodeMonitoringExpansion interface{}
+
 type OperatorConfigExpansion interface{}
 
 type PodMonitoringExpansion interface{}

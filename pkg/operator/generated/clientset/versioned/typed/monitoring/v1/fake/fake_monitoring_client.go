@@ -38,6 +38,10 @@ func (c *FakeMonitoringV1) GlobalRules() v1.GlobalRulesInterface {
 	return &FakeGlobalRules{c}
 }
 
+func (c *FakeMonitoringV1) NodeMonitorings(namespace string) v1.NodeMonitoringInterface {
+	return &FakeNodeMonitorings{c, namespace}
+}
+
 func (c *FakeMonitoringV1) OperatorConfigs(namespace string) v1.OperatorConfigInterface {
 	return &FakeOperatorConfigs{c, namespace}
 }

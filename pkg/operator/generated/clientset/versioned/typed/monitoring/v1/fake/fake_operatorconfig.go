@@ -19,10 +19,9 @@ package fake
 import (
 	"context"
 
-	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -34,25 +33,25 @@ type FakeOperatorConfigs struct {
 	ns   string
 }
 
-var operatorconfigsResource = schema.GroupVersionResource{Group: "monitoring.googleapis.com", Version: "v1", Resource: "operatorconfigs"}
+var operatorconfigsResource = v1.SchemeGroupVersion.WithResource("operatorconfigs")
 
-var operatorconfigsKind = schema.GroupVersionKind{Group: "monitoring.googleapis.com", Version: "v1", Kind: "OperatorConfig"}
+var operatorconfigsKind = v1.SchemeGroupVersion.WithKind("OperatorConfig")
 
 // Get takes name of the operatorConfig, and returns the corresponding operatorConfig object, and an error if there is any.
-func (c *FakeOperatorConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *monitoringv1.OperatorConfig, err error) {
+func (c *FakeOperatorConfigs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.OperatorConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(operatorconfigsResource, c.ns, name), &monitoringv1.OperatorConfig{})
+		Invokes(testing.NewGetAction(operatorconfigsResource, c.ns, name), &v1.OperatorConfig{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.OperatorConfig), err
+	return obj.(*v1.OperatorConfig), err
 }
 
 // List takes label and field selectors, and returns the list of OperatorConfigs that match those selectors.
-func (c *FakeOperatorConfigs) List(ctx context.Context, opts v1.ListOptions) (result *monitoringv1.OperatorConfigList, err error) {
+func (c *FakeOperatorConfigs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.OperatorConfigList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(operatorconfigsResource, operatorconfigsKind, c.ns, opts), &monitoringv1.OperatorConfigList{})
+		Invokes(testing.NewListAction(operatorconfigsResource, operatorconfigsKind, c.ns, opts), &v1.OperatorConfigList{})
 
 	if obj == nil {
 		return nil, err
@@ -62,8 +61,8 @@ func (c *FakeOperatorConfigs) List(ctx context.Context, opts v1.ListOptions) (re
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &monitoringv1.OperatorConfigList{ListMeta: obj.(*monitoringv1.OperatorConfigList).ListMeta}
-	for _, item := range obj.(*monitoringv1.OperatorConfigList).Items {
+	list := &v1.OperatorConfigList{ListMeta: obj.(*v1.OperatorConfigList).ListMeta}
+	for _, item := range obj.(*v1.OperatorConfigList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -72,57 +71,57 @@ func (c *FakeOperatorConfigs) List(ctx context.Context, opts v1.ListOptions) (re
 }
 
 // Watch returns a watch.Interface that watches the requested operatorConfigs.
-func (c *FakeOperatorConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeOperatorConfigs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(operatorconfigsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a operatorConfig and creates it.  Returns the server's representation of the operatorConfig, and an error, if there is any.
-func (c *FakeOperatorConfigs) Create(ctx context.Context, operatorConfig *monitoringv1.OperatorConfig, opts v1.CreateOptions) (result *monitoringv1.OperatorConfig, err error) {
+func (c *FakeOperatorConfigs) Create(ctx context.Context, operatorConfig *v1.OperatorConfig, opts metav1.CreateOptions) (result *v1.OperatorConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(operatorconfigsResource, c.ns, operatorConfig), &monitoringv1.OperatorConfig{})
+		Invokes(testing.NewCreateAction(operatorconfigsResource, c.ns, operatorConfig), &v1.OperatorConfig{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.OperatorConfig), err
+	return obj.(*v1.OperatorConfig), err
 }
 
 // Update takes the representation of a operatorConfig and updates it. Returns the server's representation of the operatorConfig, and an error, if there is any.
-func (c *FakeOperatorConfigs) Update(ctx context.Context, operatorConfig *monitoringv1.OperatorConfig, opts v1.UpdateOptions) (result *monitoringv1.OperatorConfig, err error) {
+func (c *FakeOperatorConfigs) Update(ctx context.Context, operatorConfig *v1.OperatorConfig, opts metav1.UpdateOptions) (result *v1.OperatorConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(operatorconfigsResource, c.ns, operatorConfig), &monitoringv1.OperatorConfig{})
+		Invokes(testing.NewUpdateAction(operatorconfigsResource, c.ns, operatorConfig), &v1.OperatorConfig{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.OperatorConfig), err
+	return obj.(*v1.OperatorConfig), err
 }
 
 // Delete takes name of the operatorConfig and deletes it. Returns an error if one occurs.
-func (c *FakeOperatorConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+func (c *FakeOperatorConfigs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(operatorconfigsResource, c.ns, name, opts), &monitoringv1.OperatorConfig{})
+		Invokes(testing.NewDeleteActionWithOptions(operatorconfigsResource, c.ns, name, opts), &v1.OperatorConfig{})
 
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeOperatorConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+func (c *FakeOperatorConfigs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(operatorconfigsResource, c.ns, listOpts)
 
-	_, err := c.Fake.Invokes(action, &monitoringv1.OperatorConfigList{})
+	_, err := c.Fake.Invokes(action, &v1.OperatorConfigList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched operatorConfig.
-func (c *FakeOperatorConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *monitoringv1.OperatorConfig, err error) {
+func (c *FakeOperatorConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.OperatorConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(operatorconfigsResource, c.ns, name, pt, data, subresources...), &monitoringv1.OperatorConfig{})
+		Invokes(testing.NewPatchSubresourceAction(operatorconfigsResource, c.ns, name, pt, data, subresources...), &v1.OperatorConfig{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.OperatorConfig), err
+	return obj.(*v1.OperatorConfig), err
 }

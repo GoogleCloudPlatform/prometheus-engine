@@ -28,6 +28,14 @@ type ClusterRulesListerExpansion interface{}
 // GlobalRulesLister.
 type GlobalRulesListerExpansion interface{}
 
+// NodeMonitoringListerExpansion allows custom methods to be added to
+// NodeMonitoringLister.
+type NodeMonitoringListerExpansion interface{}
+
+// NodeMonitoringNamespaceListerExpansion allows custom methods to be added to
+// NodeMonitoringNamespaceLister.
+type NodeMonitoringNamespaceListerExpansion interface{}
+
 // OperatorConfigListerExpansion allows custom methods to be added to
 // OperatorConfigLister.
 type OperatorConfigListerExpansion interface{}

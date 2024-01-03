@@ -19,10 +19,9 @@ package fake
 import (
 	"context"
 
-	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -34,25 +33,25 @@ type FakeRules struct {
 	ns   string
 }
 
-var rulesResource = schema.GroupVersionResource{Group: "monitoring.googleapis.com", Version: "v1", Resource: "rules"}
+var rulesResource = v1.SchemeGroupVersion.WithResource("rules")
 
-var rulesKind = schema.GroupVersionKind{Group: "monitoring.googleapis.com", Version: "v1", Kind: "Rules"}
+var rulesKind = v1.SchemeGroupVersion.WithKind("Rules")
 
 // Get takes name of the rules, and returns the corresponding rules object, and an error if there is any.
-func (c *FakeRules) Get(ctx context.Context, name string, options v1.GetOptions) (result *monitoringv1.Rules, err error) {
+func (c *FakeRules) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Rules, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(rulesResource, c.ns, name), &monitoringv1.Rules{})
+		Invokes(testing.NewGetAction(rulesResource, c.ns, name), &v1.Rules{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.Rules), err
+	return obj.(*v1.Rules), err
 }
 
 // List takes label and field selectors, and returns the list of Rules that match those selectors.
-func (c *FakeRules) List(ctx context.Context, opts v1.ListOptions) (result *monitoringv1.RulesList, err error) {
+func (c *FakeRules) List(ctx context.Context, opts metav1.ListOptions) (result *v1.RulesList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(rulesResource, rulesKind, c.ns, opts), &monitoringv1.RulesList{})
+		Invokes(testing.NewListAction(rulesResource, rulesKind, c.ns, opts), &v1.RulesList{})
 
 	if obj == nil {
 		return nil, err
@@ -62,8 +61,8 @@ func (c *FakeRules) List(ctx context.Context, opts v1.ListOptions) (result *moni
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &monitoringv1.RulesList{ListMeta: obj.(*monitoringv1.RulesList).ListMeta}
-	for _, item := range obj.(*monitoringv1.RulesList).Items {
+	list := &v1.RulesList{ListMeta: obj.(*v1.RulesList).ListMeta}
+	for _, item := range obj.(*v1.RulesList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -72,69 +71,69 @@ func (c *FakeRules) List(ctx context.Context, opts v1.ListOptions) (result *moni
 }
 
 // Watch returns a watch.Interface that watches the requested rules.
-func (c *FakeRules) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeRules) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(rulesResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a rules and creates it.  Returns the server's representation of the rules, and an error, if there is any.
-func (c *FakeRules) Create(ctx context.Context, rules *monitoringv1.Rules, opts v1.CreateOptions) (result *monitoringv1.Rules, err error) {
+func (c *FakeRules) Create(ctx context.Context, rules *v1.Rules, opts metav1.CreateOptions) (result *v1.Rules, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(rulesResource, c.ns, rules), &monitoringv1.Rules{})
+		Invokes(testing.NewCreateAction(rulesResource, c.ns, rules), &v1.Rules{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.Rules), err
+	return obj.(*v1.Rules), err
 }
 
 // Update takes the representation of a rules and updates it. Returns the server's representation of the rules, and an error, if there is any.
-func (c *FakeRules) Update(ctx context.Context, rules *monitoringv1.Rules, opts v1.UpdateOptions) (result *monitoringv1.Rules, err error) {
+func (c *FakeRules) Update(ctx context.Context, rules *v1.Rules, opts metav1.UpdateOptions) (result *v1.Rules, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(rulesResource, c.ns, rules), &monitoringv1.Rules{})
+		Invokes(testing.NewUpdateAction(rulesResource, c.ns, rules), &v1.Rules{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.Rules), err
+	return obj.(*v1.Rules), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeRules) UpdateStatus(ctx context.Context, rules *monitoringv1.Rules, opts v1.UpdateOptions) (*monitoringv1.Rules, error) {
+func (c *FakeRules) UpdateStatus(ctx context.Context, rules *v1.Rules, opts metav1.UpdateOptions) (*v1.Rules, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(rulesResource, "status", c.ns, rules), &monitoringv1.Rules{})
+		Invokes(testing.NewUpdateSubresourceAction(rulesResource, "status", c.ns, rules), &v1.Rules{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.Rules), err
+	return obj.(*v1.Rules), err
 }
 
 // Delete takes name of the rules and deletes it. Returns an error if one occurs.
-func (c *FakeRules) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+func (c *FakeRules) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(rulesResource, c.ns, name, opts), &monitoringv1.Rules{})
+		Invokes(testing.NewDeleteActionWithOptions(rulesResource, c.ns, name, opts), &v1.Rules{})
 
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeRules) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+func (c *FakeRules) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(rulesResource, c.ns, listOpts)
 
-	_, err := c.Fake.Invokes(action, &monitoringv1.RulesList{})
+	_, err := c.Fake.Invokes(action, &v1.RulesList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched rules.
-func (c *FakeRules) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *monitoringv1.Rules, err error) {
+func (c *FakeRules) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Rules, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(rulesResource, c.ns, name, pt, data, subresources...), &monitoringv1.Rules{})
+		Invokes(testing.NewPatchSubresourceAction(rulesResource, c.ns, name, pt, data, subresources...), &v1.Rules{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*monitoringv1.Rules), err
+	return obj.(*v1.Rules), err
 }
