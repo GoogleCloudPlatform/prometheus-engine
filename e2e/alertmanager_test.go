@@ -20,55 +20,111 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 	"github.com/google/go-cmp/cmp"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/client-go/kubernetes"
 )
 
-func TestAlertmanagerDefault(t *testing.T) {
-	t.Parallel()
-	tctx := newOperatorContext(t)
+func TestAlertmanager(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
 
-	alertmanagerConfig := `
-receivers:
-  - name: "foobar"
-route:
-  receiver: "foobar"
-`
-	testAlertmanager(context.Background(), tctx, nil,
-		&corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      operator.AlertmanagerPublicSecretName,
-				Namespace: tctx.pubNamespace,
-			},
-			Data: map[string][]byte{
-				operator.AlertmanagerPublicSecretKey: []byte(alertmanagerConfig),
-			},
-		},
-		operator.AlertmanagerPublicSecretKey,
-	)
+	t.Run("alertmanager-deployed", testAlertmanagerDeployed(ctx, t, kubeClient))
+	t.Run("alertmanager-configured", testAlertmanagerConfigured(ctx, t, kubeClient, opClient))
 }
 
-func TestAlertmanagerCustom(t *testing.T) {
-	t.Parallel()
-	tctx := newOperatorContext(t)
+func testAlertmanagerDeployed(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("checking alertmanager is running")
 
-	alertmanagerConfig := `
+		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			ss, err := kubeClient.AppsV1().StatefulSets(operator.DefaultOperatorNamespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			} else if err != nil {
+				return false, fmt.Errorf("getting alertmanager StatefulSet failed: %w", err)
+			}
+
+			// Ensure alertmanager pod is ready.
+			if ss.Status.ReadyReplicas != 1 {
+				return false, nil
+			}
+
+			// Assert we have the expected annotations.
+			wantedAnnotations := map[string]string{
+				"components.gke.io/component-name":               "managed_prometheus",
+				"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
+			}
+			if diff := cmp.Diff(wantedAnnotations, ss.Spec.Template.Annotations); diff != "" {
+				return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
+			}
+
+			// Ensure default no-op alertmanager secret has been created by operator.
+			secret, err := kubeClient.CoreV1().Secrets(operator.DefaultOperatorNamespace).Get(ctx, operator.AlertmanagerSecretName, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			} else if err != nil {
+				return false, fmt.Errorf("getting alertmanager StatefulSet failed: %w", err)
+			}
+
+			bytes, ok := secret.Data[operator.AlertmanagerConfigKey]
+			if !ok {
+				return false, errors.New("getting alertmanager secret data failed")
+			}
+
+			if diff := cmp.Diff([]byte(operator.AlertmanagerNoOpConfig), bytes); diff != "" {
+				return false, fmt.Errorf("unexpected secret payload (-want, +got): %s", diff)
+			}
+
+			return true, nil
+		})
+		if err != nil {
+			t.Fatalf("waiting for alertmanager Statefulset failed: %s", err)
+		}
+	}
+}
+
+func testAlertmanagerConfigured(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("checking alertmanager is configured")
+
+		// Provision custom Alertmanager secret.
+		alertmanagerConfig := `
 receivers:
   - name: "foobar"
 route:
   receiver: "foobar"
 `
-	testAlertmanager(context.Background(), tctx,
-		&monitoringv1.ManagedAlertmanagerSpec{
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "my-secret-name",
+			},
+			Data: map[string][]byte{
+				"my-secret-key": []byte(alertmanagerConfig),
+			},
+		}
+
+		_, err := kubeClient.CoreV1().Secrets(operator.DefaultPublicNamespace).Create(ctx, secret, metav1.CreateOptions{})
+		if err != nil {
+			t.Fatalf("create alertmanager custom secret: %s", err)
+		}
+
+		config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
+		if err != nil {
+			t.Fatalf("get operatorconfig: %s", err)
+		}
+		// Update OperatorConfig alertmanager spec with secret info.
+		config.ManagedAlertmanager = &monitoringv1.ManagedAlertmanagerSpec{
 			ConfigSecret: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: "my-secret-name",
@@ -76,132 +132,60 @@ route:
 				Key: "my-secret-key",
 			},
 			ExternalURL: "https://alertmanager.mycompany.com/",
-		},
-		&corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-secret-name",
-				Namespace: tctx.pubNamespace,
-			},
-			Data: map[string][]byte{
-				"my-secret-key": []byte(alertmanagerConfig),
-			},
-		},
-		"my-secret-key",
-	)
-}
+		}
 
-func testAlertmanager(ctx context.Context, t *OperatorContext, spec *monitoringv1.ManagedAlertmanagerSpec, secret *corev1.Secret, key string) {
-	t.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
-		Collection: monitoringv1.CollectionSpec{
-			ExternalLabels: map[string]string{
-				"external_key": "external_val",
-			},
-			Filter: monitoringv1.ExportFilters{
-				MatchOneOf: []string{
-					"{job='foo'}",
-					"{__name__=~'up'}",
-				},
-			},
-			KubeletScraping: &monitoringv1.KubeletScraping{
-				Interval: "5s",
-			},
-		},
-		ManagedAlertmanager: spec,
-	})
-	t.Run("deployed", t.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-		testAlertmanagerDeployed(ctx, t, spec)
-	}))
-	t.Run("config set", t.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-		testAlertmanagerConfig(ctx, t, secret, key)
-	}))
-}
+		// Update OperatorConfig.
+		_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
+		if err != nil {
+			t.Fatalf("update operatorconfig: %s", err)
+		}
 
-func testAlertmanagerDeployed(ctx context.Context, t *OperatorContext, config *monitoringv1.ManagedAlertmanagerSpec) {
-	var err error
-	pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
-		var ss appsv1.StatefulSet
-		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.NameAlertmanager}, &ss); err != nil {
+		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			secret, err := kubeClient.CoreV1().Secrets(operator.DefaultOperatorNamespace).Get(ctx, operator.AlertmanagerSecretName, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
 				return false, nil
+			} else if err != nil {
+				return false, fmt.Errorf("getting alertmanager secret failed: %w", err)
 			}
-			return false, fmt.Errorf("getting alertmanager StatefulSet failed: %w", err)
-		}
-
-		// Assert we have the expected annotations.
-		wantedAnnotations := map[string]string{
-			"components.gke.io/component-name":               "managed_prometheus",
-			"cluster-autoscaler.kubernetes.io/safe-to-evict": "true",
-		}
-		if diff := cmp.Diff(wantedAnnotations, ss.Spec.Template.Annotations); diff != "" {
-			return false, fmt.Errorf("unexpected annotations (-want, +got): %s", diff)
-		}
-
-		// If config spec is empty, no need to assert EXTRA_ARGS.
-		if config == nil {
-			return true, nil
-		}
-
-		const containerName = "alertmanager"
-		// TODO(pintohutch): clean-up wantArgs init logic.
-		var wantArgs []string
-		for _, c := range ss.Spec.Template.Spec.Containers {
-			if c.Name != containerName {
-				continue
-			}
-			// We're mainly interested in the dynamic flags but checking the entire set including
-			// the static ones is ultimately simpler.
-			if externalURL := config.ExternalURL; externalURL != "" {
-				wantArgs = append(wantArgs, fmt.Sprintf("--web.external-url=%q", config.ExternalURL))
+			bytes, ok := secret.Data[operator.AlertmanagerConfigKey]
+			if !ok {
+				return false, errors.New("getting alertmanager secret data failed")
 			}
 
-			if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
-				err = fmt.Errorf("unexpected flags (-want, +got): %s", diff)
+			// Grab data from public secret and compare.
+			if diff := cmp.Diff([]byte(alertmanagerConfig), bytes); diff != "" {
+				return false, fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 			}
-			return err == nil, nil
-		}
 
-		return false, fmt.Errorf("no container with name %q found", containerName)
-	})
-	if pollErr != nil {
-		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
-			pollErr = err
-		}
-		t.Errorf("unable to get alertmanager statefulset: %s", pollErr)
-	}
-}
-
-func testAlertmanagerConfig(ctx context.Context, t *OperatorContext, pub *corev1.Secret, key string) {
-	if err := t.Client().Create(ctx, pub); err != nil {
-		t.Fatalf("unable to create alertmanager config secret: %s", err)
-	}
-
-	var err error
-	if pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
-		var secret corev1.Secret
-		if err = t.Client().Get(ctx, client.ObjectKey{Namespace: t.namespace, Name: operator.AlertmanagerSecretName}, &secret); err != nil {
+			// Check externalURL was set on statefulset.
+			ss, err := kubeClient.AppsV1().StatefulSets(operator.DefaultOperatorNamespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
 				return false, nil
+			} else if err != nil {
+				return false, fmt.Errorf("getting alertmanager StatefulSet failed: %w", err)
 			}
-			return false, fmt.Errorf("getting alertmanager secret failed: %w", err)
-		}
 
-		bytes, ok := secret.Data["config.yaml"]
-		if !ok {
-			return false, errors.New("getting alertmanager secret data in config.yaml failed")
-		}
+			// Ensure alertmanager container has expected args.
+			for _, c := range ss.Spec.Template.Spec.Containers {
+				if c.Name != operator.AlertmanagerContainerName {
+					continue
+				}
+				// We're mainly interested in the dynamic flags but checking the entire set including
+				// the static ones is ultimately simpler.
+				wantArgs := []string{
+					fmt.Sprintf("--web.external-url=%q", "https://alertmanager.mycompany.com/"),
+				}
 
-		// Grab data from public secret and compare.
-		data := pub.Data[key]
-		if diff := cmp.Diff(data, bytes); diff != "" {
-			err = fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
+				if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
+					return false, fmt.Errorf("unexpected flags (-want, +got): %s", diff)
+				}
+				return err == nil, nil
+			}
+
+			return false, errors.New("no alertmanager container found")
+		})
+		if err != nil {
+			t.Fatalf("waiting for alertmanager Statefulset failed: %s", err)
 		}
-		return err == nil, nil
-	}); pollErr != nil {
-		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
-			pollErr = err
-		}
-		t.Errorf("unable to get alertmanager config: %s", pollErr)
 	}
 }

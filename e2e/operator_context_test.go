@@ -69,10 +69,6 @@ var (
 	globalLogger = zap.New(zap.Level(zapcore.DebugLevel))
 
 	kubeconfig        *rest.Config
-	projectID         string
-	cluster           string
-	location          string
-	skipGCM           bool
 	gcpServiceAccount string
 	portForward       bool
 	leakResources     bool
@@ -116,7 +112,7 @@ func setRESTConfigDefaults(restConfig *rest.Config) error {
 
 // TestMain injects custom flags and adds extra signal handling to ensure testing
 // namespaces are cleaned after tests were executed.
-func TestMain(m *testing.M) {
+func OldTestMain(m *testing.M) {
 	cleanupOnly := false
 	flag.StringVar(&projectID, "project-id", "", "The GCP project to write metrics to.")
 	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
@@ -170,9 +166,11 @@ func TestMain(m *testing.M) {
 		}
 	}
 
+	/**
 	go func() {
 		os.Exit(m.Run())
 	}()
+	**/
 
 	// If the process gets terminated by the user, the Go test package
 	// doesn't ensure that test cleanup functions are run.
