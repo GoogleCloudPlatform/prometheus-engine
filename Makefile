@@ -5,9 +5,8 @@ GOINSTR += $(notdir $(patsubst %/,%,$(dir $(shell find examples/instrumentation 
 
 CLOUDSDK_CONFIG?=${HOME}/.config/gcloud
 PROJECT_ID?=$(shell gcloud config get-value core/project)
-PROJECT_ID?=gmp-project
+PROJECT_ID:=$(if $(PROJECT_ID),$(PROJECT_ID),gmp-project)
 GMP_LOCATION?=us-central1-c
-# TODO(pintohutch): try to auto-detect cluster name from kube context (e.g. for GKE clusters).
 GMP_CLUSTER?=gmp-test-cluster
 TEST_ARGS=-project-id=$(PROJECT_ID) -location=$(GMP_LOCATION) -cluster=$(GMP_CLUSTER)
 
@@ -187,7 +186,7 @@ endif
 # This was the previous behavior of running `NO_DOCKER=1 make e2e`. But maybe
 # it deserves a dedicated make target.
 .PHONY: e2e
-e2e:         ## Run e2e test suite against fresh kind K8s clusters.
+e2e:         ## Run e2e test suite against fresh kind k8s clusters.
              ## By default it does not validate metrics written to GCM.
              ## Setting GOOGLE_APPLICATION_CREDENTIALS to the path of a
              ## service account key JSON file will attempt to write and read
