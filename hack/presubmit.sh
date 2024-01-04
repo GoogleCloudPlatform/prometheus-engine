@@ -100,8 +100,11 @@ update_crdgen() {
 update_docgen() {
   echo ">>> generating API documentation"
   mkdir -p doc
-  po-docgen api ./pkg/operator/apis/monitoring/v1/types.go > doc/api.md
-  sed -i 's/Prometheus Operator/GMP CRDs/g' doc/api.md
+  gen-crd-api-reference-docs \
+    -config "./hack/gen-crd/config.json" \
+    -template-dir "./hack/gen-crd" \
+    -api-dir "./pkg/operator/apis/monitoring/v1" \
+    -out-file "./doc/api.md"
 }
 
 sort_manifests() {
