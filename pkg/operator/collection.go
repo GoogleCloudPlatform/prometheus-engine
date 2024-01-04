@@ -102,6 +102,12 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
+		// Any update to a Probe requires regenerating the config.
+		Watches(
+			&monitoringv1.Probe{},
+			enqueueConst(objRequest),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		// The configuration we generate for the collectors.
 		Watches(
 			&corev1.ConfigMap{},
@@ -387,6 +393,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		podMons        monitoringv1.PodMonitoringList
 		clusterPodMons monitoringv1.ClusterPodMonitoringList
 		NodeMons       monitoringv1.NodeMonitoringList
+		probes         monitoringv1.ProbeList
 	)
 	if err := r.client.List(ctx, &podMons); err != nil {
 		return nil, fmt.Errorf("failed to list PodMonitorings: %w", err)
@@ -489,6 +496,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		// Reassign so we can safely get a pointer.
 		nm := nm
+
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
@@ -508,7 +516,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			continue
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
-
 		change, err := nm.Status.SetMonitoringCondition(nm.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
@@ -518,6 +525,44 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 		if change {
 			r.statusUpdates = append(r.statusUpdates, &nm)
+		}
+	}
+
+	if err := r.client.List(ctx, &probes); err != nil {
+		return nil, fmt.Errorf("failed to list Probes: %w", err)
+	}
+
+	// Mark status updates in batch with single timestamp.
+	for _, probe := range probes.Items {
+		// Reassign so we can safely get a pointer.
+		p := probe
+
+		cond := &monitoringv1.MonitoringCondition{
+			Type:   monitoringv1.ConfigurationCreateSuccess,
+			Status: corev1.ConditionTrue,
+		}
+		cfgs, err := p.ScrapeConfigs(r.opts.OperatorNamespace, projectID, location, cluster)
+		if err != nil {
+			msg := "generating scrape config failed for Probe"
+			cond = &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Reason:  "ScrapeConfigError",
+				Message: msg,
+			}
+			logger.Error(err, msg, "name", p.Name)
+			continue
+		}
+		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
+		change, err := p.Status.SetMonitoringCondition(p.GetGeneration(), metav1.Now(), cond)
+		if err != nil {
+			// Log an error but let operator continue to avoid getting stuck
+			// on a potential bad resource.
+			logger.Error(err, "setting probes status state")
+		}
+
+		if change {
+			r.statusUpdates = append(r.statusUpdates, &p)
 		}
 	}
 
