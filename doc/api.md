@@ -950,6 +950,18 @@ string
 <p>The interval at which the metric endpoints are scraped.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>tlsInsecureSkipVerify</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>TLSInsecureSkipVerify disables verifying the target cert.
+This can be useful for clusters provisioned with kubeadm.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="monitoring.googleapis.com/v1.LabelMapping">

@@ -38,6 +38,7 @@ type NodeMonitoringsGetter interface {
 type NodeMonitoringInterface interface {
 	Create(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.CreateOptions) (*v1.NodeMonitoring, error)
 	Update(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.UpdateOptions) (*v1.NodeMonitoring, error)
+	UpdateStatus(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.UpdateOptions) (*v1.NodeMonitoring, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
 	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.NodeMonitoring, error)
@@ -126,6 +127,22 @@ func (c *nodeMonitorings) Update(ctx context.Context, nodeMonitoring *v1.NodeMon
 		Namespace(c.ns).
 		Resource("nodemonitorings").
 		Name(nodeMonitoring.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(nodeMonitoring).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *nodeMonitorings) UpdateStatus(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.UpdateOptions) (result *v1.NodeMonitoring, err error) {
+	result = &v1.NodeMonitoring{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("nodemonitorings").
+		Name(nodeMonitoring.Name).
+		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(nodeMonitoring).
 		Do(ctx).

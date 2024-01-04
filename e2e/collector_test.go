@@ -154,7 +154,7 @@ func TestCollectorKubeletScraping(t *testing.T) {
 			},
 		},
 	}
-	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, t, opClient, nm))
+	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, t, opClient))
 	if !skipGCM {
 		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, t, kubeClient))
 	}
@@ -409,13 +409,24 @@ func testEnableTargetStatus(ctx context.Context, t *testing.T, opClient versione
 	}
 }
 
-func testEnableKubeletScraping(ctx context.Context, t *testing.T, opClient versioned.Interface, nm *monitoringv1.NodeMonitoring) func(*testing.T) {
+func testEnableKubeletScraping(ctx context.Context, t *testing.T, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("enabling kubelet scraping")
 
-		_, err := opClient.MonitoringV1().NodeMonitorings(operator.DefaultOperatorNamespace).Create(ctx, nm, metav1.CreateOptions{})
+		config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
 		if err != nil {
-			t.Errorf("create nodemonitoring: %s", err)
+			t.Errorf("get operatorconfig: %s", err)
+		}
+		// Enable kubelet scraping.
+		// TODO(pintohutch): use NodeMonitoring instead once TLSInsecureSkipVerify is added there.
+		// Since kubelet scraping wont work in kind clusters without this option.
+		config.Collection.KubeletScraping = &monitoringv1.KubeletScraping{
+			Interval:              "5s",
+			TLSInsecureSkipVerify: true,
+		}
+		_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
+		if err != nil {
+			t.Errorf("updating operatorconfig: %s", err)
 		}
 	}
 }

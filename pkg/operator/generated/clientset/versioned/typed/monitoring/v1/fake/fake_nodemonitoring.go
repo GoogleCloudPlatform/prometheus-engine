@@ -99,6 +99,18 @@ func (c *FakeNodeMonitorings) Update(ctx context.Context, nodeMonitoring *v1.Nod
 	return obj.(*v1.NodeMonitoring), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeNodeMonitorings) UpdateStatus(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.UpdateOptions) (*v1.NodeMonitoring, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(nodemonitoringsResource, "status", c.ns, nodeMonitoring), &v1.NodeMonitoring{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1.NodeMonitoring), err
+}
+
 // Delete takes name of the nodeMonitoring and deletes it. Returns an error if one occurs.
 func (c *FakeNodeMonitorings) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
