@@ -1093,12 +1093,12 @@ func TestUpdateTargetStatus(t *testing.T) {
 			clientBuilder := newFakeClientBuilder()
 			for _, podMonitoring := range testCase.podMonitorings {
 				copy := podMonitoring.DeepCopy()
-				copy.GetStatus().EndpointStatuses = nil
+				copy.GetPodStatus().EndpointStatuses = nil
 				clientBuilder.WithObjects(copy)
 			}
 			for _, clusterPodMonitoring := range testCase.clusterPodMonitorings {
 				copy := clusterPodMonitoring.DeepCopy()
-				copy.GetStatus().EndpointStatuses = nil
+				copy.GetPodStatus().EndpointStatuses = nil
 				clientBuilder.WithObjects(copy)
 			}
 

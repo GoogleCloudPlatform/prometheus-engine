@@ -373,9 +373,9 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 		if err != nil {
 			return fmt.Errorf("building podmonitoring: %s: %w", job, err)
 		}
-		pm.GetStatus().EndpointStatuses = endpointStatuses
+		pm.GetPodStatus().EndpointStatuses = endpointStatuses
 
-		if err := patchPodMonitoringStatus(ctx, kubeClient, pm, *pm.GetStatus()); err != nil {
+		if err := patchPodMonitoringStatus(ctx, kubeClient, pm, *pm.GetPodStatus()); err != nil {
 			// Save and log any error encountered while patching the status.
 			// We don't want to prematurely return if the error was transient
 			// as we should continue patching all statuses before exiting.

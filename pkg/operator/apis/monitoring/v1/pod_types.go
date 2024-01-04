@@ -50,8 +50,8 @@ type PodMonitoringCRD interface {
 	// GetEndpoints returns the endpoints scraped by this CRD.
 	GetEndpoints() []ScrapeEndpoint
 
-	// GetStatus returns this CRD's status sub-resource.
-	GetStatus() *PodMonitoringStatus
+	// GetPodStatus returns this CRD's status sub-resource.
+	GetPodStatus() *PodMonitoringStatus
 }
 
 // PodMonitoring defines monitoring for a set of pods, scoped to pods
@@ -79,7 +79,11 @@ func (p *PodMonitoring) GetEndpoints() []ScrapeEndpoint {
 	return p.Spec.Endpoints
 }
 
-func (p *PodMonitoring) GetStatus() *PodMonitoringStatus {
+func (p *PodMonitoring) GetStatus() *MonitoringStatus {
+	return &p.Status.MonitoringStatus
+}
+
+func (p *PodMonitoring) GetPodStatus() *PodMonitoringStatus {
 	return &p.Status
 }
 
@@ -118,7 +122,11 @@ func (p *ClusterPodMonitoring) GetEndpoints() []ScrapeEndpoint {
 	return p.Spec.Endpoints
 }
 
-func (p *ClusterPodMonitoring) GetStatus() *PodMonitoringStatus {
+func (p *ClusterPodMonitoring) GetStatus() *MonitoringStatus {
+	return &p.Status.MonitoringStatus
+}
+
+func (p *ClusterPodMonitoring) GetPodStatus() *PodMonitoringStatus {
 	return &p.Status
 }
 

@@ -96,6 +96,12 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
+		// Any update to a PodMonitoring requires regenerating the config.
+		Watches(
+			&monitoringv1.Probe{},
+			enqueueConst(objRequest),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		// The configuration we generate for the collectors.
 		Watches(
 			&corev1.ConfigMap{},
@@ -125,7 +131,7 @@ func setupCollectionControllers(op *Operator) error {
 type collectionReconciler struct {
 	client        client.Client
 	opts          Options
-	statusUpdates []monitoringv1.PodMonitoringCRD
+	statusUpdates []monitoringv1.MonitoringCRD
 }
 
 func newCollectionReconciler(c client.Client, opts Options) *collectionReconciler {
@@ -135,7 +141,7 @@ func newCollectionReconciler(c client.Client, opts Options) *collectionReconcile
 	}
 }
 
-func patchCollectionStatus(ctx context.Context, kubeClient client.Client, obj client.Object, status *monitoringv1.PodMonitoringStatus) error {
+func patchCollectionStatus(ctx context.Context, kubeClient client.Client, obj client.Object, status *monitoringv1.MonitoringStatus) error {
 	// TODO(TheSpiritXIII): In the future, change this to server side apply as opposed to patch.
 	patchStatus := map[string]interface{}{
 		"conditions":         status.Conditions,
@@ -380,7 +386,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	var (
 		podMons        monitoringv1.PodMonitoringList
 		clusterPodMons monitoringv1.ClusterPodMonitoringList
-		cond           *monitoringv1.MonitoringCondition
+		probes         monitoringv1.ProbeList
 	)
 	if err := r.client.List(ctx, &podMons); err != nil {
 		return nil, fmt.Errorf("failed to list PodMonitorings: %w", err)
@@ -393,7 +399,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		// Reassign so we can safely get a pointer.
 		pmon := pm
 
-		cond = &monitoringv1.MonitoringCondition{
+		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
@@ -432,7 +438,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		// Reassign so we can safely get a pointer.
 		cmon := cm
 
-		cond = &monitoringv1.MonitoringCondition{
+		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
@@ -454,11 +460,50 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
-			logger.Error(err, "setting podmonitoring status state")
+			logger.Error(err, "setting clusterpodmonitoring status state")
 		}
 
 		if change {
 			r.statusUpdates = append(r.statusUpdates, &cmon)
+		}
+	}
+
+	if err := r.client.List(ctx, &probes); err != nil {
+		return nil, fmt.Errorf("failed to list Probes: %w", err)
+	}
+
+	// Mark status updates in batch with single timestamp.
+	for _, probe := range probes.Items {
+		// Reassign so we can safely get a pointer.
+		p := probe
+
+		cond := &monitoringv1.MonitoringCondition{
+			Type:   monitoringv1.ConfigurationCreateSuccess,
+			Status: corev1.ConditionTrue,
+		}
+		cfgs, err := p.ScrapeConfigs(projectID, location, cluster)
+		if err != nil {
+			msg := "generating scrape config failed for PodMonitoring endpoint"
+			cond = &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Reason:  "ScrapeConfigError",
+				Message: msg,
+			}
+			logger.Error(err, msg, "namespace", p.Namespace, "name", p.Name)
+			continue
+		}
+		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
+
+		change, err := p.Status.SetMonitoringCondition(p.GetGeneration(), metav1.Now(), cond)
+		if err != nil {
+			// Log an error but let operator continue to avoid getting stuck
+			// on a potential bad resource.
+			logger.Error(err, "setting probes status state")
+		}
+
+		if change {
+			r.statusUpdates = append(r.statusUpdates, &p)
 		}
 	}
 
