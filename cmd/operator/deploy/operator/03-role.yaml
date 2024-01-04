@@ -129,6 +129,7 @@ rules:
   - clusterrules
   - globalrules
   - podmonitorings
+  - probes
   - rules
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "list", "watch"]
@@ -137,6 +138,7 @@ rules:
   - clusterrules/status
   - globalrules/status
   - podmonitorings/status
+  - probes/status
   - rules/status
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "patch", "update"]
