@@ -17,8 +17,8 @@ package operatorutil
 import (
 	"context"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/utils/kubeutil"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
