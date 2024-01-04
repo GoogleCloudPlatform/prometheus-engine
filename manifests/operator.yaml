@@ -155,6 +155,7 @@ rules:
   - globalrules
   - nodemonitorings
   - podmonitorings
+  - probes
   - rules
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "list", "watch"]
@@ -163,6 +164,7 @@ rules:
   - clusterrules/status
   - globalrules/status
   - podmonitorings/status
+  - probes/status
   - rules/status
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "patch", "update"]
@@ -411,6 +413,28 @@ webhooks:
     - CREATE
     - UPDATE
   sideEffects: None
+- name: validate.probes.gmp-operator.gmp-system.monitoring.googleapis.com
+  admissionReviewVersions:
+  - v1
+  clientConfig:
+    # caBundle populated by operator.
+    service:
+      name: gmp-operator
+      namespace: gmp-system
+      port: 443
+      path: /validate/monitoring.googleapis.com/v1/probes
+  failurePolicy: Fail
+  rules:
+  - resources:
+    - probes
+    apiGroups:
+    - monitoring.googleapis.com
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+  sideEffects: None
 - name: validate.rules.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
@@ -541,6 +565,28 @@ webhooks:
   rules:
   - resources:
     - clusterpodmonitorings
+    apiGroups:
+    - monitoring.googleapis.com
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+  sideEffects: None
+- name: default.probes.gmp-operator.gmp-system.monitoring.googleapis.com
+  admissionReviewVersions:
+  - v1
+  clientConfig:
+    # caBundle populated by operator.
+    service:
+      name: gmp-operator
+      namespace: gmp-system
+      port: 443
+      path: /default/monitoring.googleapis.com/v1/probes
+  failurePolicy: Fail
+  rules:
+  - resources:
+    - probes
     apiGroups:
     - monitoring.googleapis.com
     apiVersions:

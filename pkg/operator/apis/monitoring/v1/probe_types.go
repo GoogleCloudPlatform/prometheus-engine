@@ -15,7 +15,11 @@
 package v1
 
 import (
+	"errors"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // Probe defines monitoring for black-box probes.
@@ -33,6 +37,22 @@ type Probe struct {
 	// Most recently observed status of the resource.
 	// +optional
 	Status ProbeStatus `json:"status"`
+}
+
+func (p *Probe) ValidateCreate() (admission.Warnings, error) {
+	if len(p.Spec.Targets) == 0 {
+		return nil, errors.New("at least one target is required")
+	}
+	return nil, nil
+}
+
+func (p *Probe) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+	return p.ValidateCreate()
+}
+
+func (p *Probe) ValidateDelete() (admission.Warnings, error) {
+	// Deletions are always valid.
+	return nil, nil
 }
 
 // ProbeList is a list of Probe.

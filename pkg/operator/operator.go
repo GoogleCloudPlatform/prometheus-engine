@@ -326,6 +326,10 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.NodeMonitoring{}),
 	)
 	s.Register(
+		validatePath(monitoringv1.ProbeResource()),
+		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.Probe{}),
+	)
+	s.Register(
 		validatePath(monitoringv1.OperatorConfigResource()),
 		admission.WithCustomValidator(o.manager.GetScheme(), &monitoringv1.OperatorConfig{}, &operatorConfigValidator{
 			namespace: o.opts.PublicNamespace,
