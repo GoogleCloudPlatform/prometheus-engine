@@ -8,8 +8,7 @@ spec:
     spec:
       containers:
       - name: datasource-syncer-init
-        # TODO(macxamin): Update this image to official image.
-        image: gcr.io/gpe-test-1/prometheus-engine/datasource-syncer@sha256:31a42b82e573eccace151bfa3348861c64c5721e923522a717f6e8d75fe6e9e0
+        image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.9.1-gke.0
         args:
         - "--datasource-uids=$DATASOURCE_UIDS"
         - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
@@ -30,8 +29,7 @@ spec:
         spec:
           containers:
           - name: datasource-syncer
-            # TODO(macxamin): Update this image to official image.
-            image: gcr.io/gpe-test-1/prometheus-engine/datasource-syncer@sha256:31a42b82e573eccace151bfa3348861c64c5721e923522a717f6e8d75fe6e9e0
+            image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.9.1-gke.0
             args:
             - "--datasource-uids=$DATASOURCE_UIDS"
             - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
