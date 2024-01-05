@@ -26,8 +26,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func IsPodMonitoringReady(pm monitoringv1.PodMonitoringCRD, targetStatusEnabled bool) error {
-	for _, condition := range pm.GetPodStatus().Conditions {
+func IsPodMonitoringReady(pm PodMonitoringCRDWithScrapeEndpoints, targetStatusEnabled bool) error {
+	for _, condition := range pm.GetStatus().Conditions {
 		if condition.Type == monitoringv1.ConfigurationCreateSuccess {
 			if condition.Status != corev1.ConditionTrue {
 				return fmt.Errorf("configuration was not created successfully: %s", condition.Status)
@@ -42,8 +42,15 @@ func IsPodMonitoringReady(pm monitoringv1.PodMonitoringCRD, targetStatusEnabled 
 	return isPodMonitoringEndpointStatusReady(pm)
 }
 
-func isPodMonitoringEndpointStatusReady(pm monitoringv1.PodMonitoringCRD) error {
-	endpointStatuses := pm.GetPodStatus().EndpointStatuses
+type PodMonitoringCRDWithScrapeEndpoints interface {
+	monitoringv1.PodMonitoringCRD
+
+	// GetEndpoints returns the endpoints scraped by this CRD.
+	GetEndpoints() []monitoringv1.ScrapeEndpoint
+}
+
+func isPodMonitoringEndpointStatusReady(pm PodMonitoringCRDWithScrapeEndpoints) error {
+	endpointStatuses := pm.GetEndpointStatus()
 	expectedEndpoints := len(pm.GetEndpoints())
 	if size := len(endpointStatuses); size == 0 {
 		return errors.New("empty endpoint status")
@@ -53,7 +60,7 @@ func isPodMonitoringEndpointStatusReady(pm monitoringv1.PodMonitoringCRD) error 
 	return nil
 }
 
-func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, operatorNamespace string, pm monitoringv1.PodMonitoringCRD, targetStatusEnabled bool) error {
+func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, operatorNamespace string, pm PodMonitoringCRDWithScrapeEndpoints, targetStatusEnabled bool) error {
 	if err := WaitForCollectionReady(ctx, kubeClient, operatorNamespace); err != nil {
 		return err
 	}
@@ -149,7 +156,7 @@ func isPodMonitoringScrapeEndpointFailure(status *monitoringv1.ScrapeEndpointSta
 	return errors.Join(errs...)
 }
 
-func IsPodMonitoringSuccess(pm monitoringv1.PodMonitoringCRD, targetStatusEnabled bool) error {
+func IsPodMonitoringSuccess(pm PodMonitoringCRDWithScrapeEndpoints, targetStatusEnabled bool) error {
 	if err := IsPodMonitoringReady(pm, targetStatusEnabled); err != nil {
 		return err
 	}
@@ -157,7 +164,7 @@ func IsPodMonitoringSuccess(pm monitoringv1.PodMonitoringCRD, targetStatusEnable
 		return nil
 	}
 	var errs []error
-	for _, status := range pm.GetPodStatus().EndpointStatuses {
+	for _, status := range pm.GetEndpointStatus() {
 		if err := isPodMonitoringScrapeEndpointSuccess(&status); err != nil {
 			errs = append(errs, fmt.Errorf("unhealthy endpoint status %q: %w", status.Name, err))
 		}
@@ -165,7 +172,7 @@ func IsPodMonitoringSuccess(pm monitoringv1.PodMonitoringCRD, targetStatusEnable
 	return errors.Join(errs...)
 }
 
-func WaitForPodMonitoringSuccess(ctx context.Context, kubeClient client.Client, pm monitoringv1.PodMonitoringCRD) error {
+func WaitForPodMonitoringSuccess(ctx context.Context, kubeClient client.Client, pm PodMonitoringCRDWithScrapeEndpoints) error {
 	var err error
 	if pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
@@ -182,12 +189,12 @@ func WaitForPodMonitoringSuccess(ctx context.Context, kubeClient client.Client, 
 	return nil
 }
 
-func IsPodMonitoringFailure(pm monitoringv1.PodMonitoringCRD, expectedFn func(message string) error) error {
+func IsPodMonitoringFailure(pm PodMonitoringCRDWithScrapeEndpoints, expectedFn func(message string) error) error {
 	if err := IsPodMonitoringReady(pm, expectedFn != nil); err != nil {
 		return err
 	}
 	var errs []error
-	for _, status := range pm.GetPodStatus().EndpointStatuses {
+	for _, status := range pm.GetEndpointStatus() {
 		if err := isPodMonitoringScrapeEndpointFailure(&status, expectedFn); err != nil {
 			errs = append(errs, fmt.Errorf("unhealthy endpoint status %q: %w", status.Name, err))
 		}
@@ -195,7 +202,7 @@ func IsPodMonitoringFailure(pm monitoringv1.PodMonitoringCRD, expectedFn func(me
 	return errors.Join(errs...)
 }
 
-func WaitForPodMonitoringFailure(ctx context.Context, kubeClient client.Client, pm monitoringv1.PodMonitoringCRD, expectedFn func(message string) error) error {
+func WaitForPodMonitoringFailure(ctx context.Context, kubeClient client.Client, pm PodMonitoringCRDWithScrapeEndpoints, expectedFn func(message string) error) error {
 	var err error
 	if pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {

@@ -27,6 +27,13 @@ type MonitoringCRD interface {
 	GetStatus() *MonitoringStatus
 }
 
+type MonitoringCRDWithEndpointStatus interface {
+	MonitoringCRD
+
+	GetEndpointStatus() []ScrapeEndpointStatus
+	SetEndpointStatus(status []ScrapeEndpointStatus)
+}
+
 // MonitoringConditionType is the type of MonitoringCondition.
 type MonitoringConditionType string
 

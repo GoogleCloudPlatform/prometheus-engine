@@ -44,6 +44,10 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ManagedAlertmanagerSpec">ManagedAlertmanagerSpec</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.MonitoringCRD">MonitoringCRD</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.MonitoringCRDWithEndpointStatus">MonitoringCRDWithEndpointStatus</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.MonitoringCondition">MonitoringCondition</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.MonitoringConditionType">MonitoringConditionType</a>
@@ -1036,12 +1040,24 @@ If omitted, relevant URL components will be derived automatically.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.MonitoringCRD">
+<span id="MonitoringCRD">MonitoringCRD
+</span>
+</h3>
+<div>
+</div>
+<h3 id="monitoring.googleapis.com/v1.MonitoringCRDWithEndpointStatus">
+<span id="MonitoringCRDWithEndpointStatus">MonitoringCRDWithEndpointStatus
+</span>
+</h3>
+<div>
+</div>
 <h3 id="monitoring.googleapis.com/v1.MonitoringCondition">
 <span id="MonitoringCondition">MonitoringCondition
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.MonitoringStatus">MonitoringStatus</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>, <a href="#monitoring.googleapis.com/v1.ProbeStatus">ProbeStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.MonitoringStatus">MonitoringStatus</a>)
 </p>
 <div>
 <p>MonitoringCondition describes a condition of a PodMonitoring.</p>
@@ -1160,6 +1176,9 @@ monitoring resource was created successfully.</p>
 <span id="MonitoringStatus">MonitoringStatus
 </span>
 </h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>, <a href="#monitoring.googleapis.com/v1.ProbeStatus">ProbeStatus</a>)
+</p>
 <div>
 <p>MonitoringStatus holds status information of a monitoring resource.</p>
 </div>
@@ -1607,27 +1626,17 @@ See: <a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#
 <tbody>
 <tr>
 <td>
-<code>observedGeneration</code><br/>
+<code>MonitoringStatus</code><br/>
 <em>
-int64
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>The generation observed by the controller.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>conditions</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.MonitoringCondition">
-[]MonitoringCondition
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
+MonitoringStatus
 </a>
 </em>
 </td>
 <td>
-<p>Represents the latest available observations of a podmonitor&rsquo;s current state.</p>
+<p>
+(Members of <code>MonitoringStatus</code> are embedded into this type.)
+</p>
 </td>
 </tr>
 <tr>
@@ -1769,27 +1778,17 @@ ScrapeLimits
 <tbody>
 <tr>
 <td>
-<code>observedGeneration</code><br/>
+<code>MonitoringStatus</code><br/>
 <em>
-int64
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>The generation observed by the controller.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>conditions</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.MonitoringCondition">
-[]MonitoringCondition
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
+MonitoringStatus
 </a>
 </em>
 </td>
 <td>
-<p>Represents the latest available observations of a Probe&rsquo;s current state.</p>
+<p>
+(Members of <code>MonitoringStatus</code> are embedded into this type.)
+</p>
 </td>
 </tr>
 <tr>

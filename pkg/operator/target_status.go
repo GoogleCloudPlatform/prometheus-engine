@@ -152,7 +152,12 @@ func shouldPoll(ctx context.Context, cfgNamespacedName types.NamespacedName, kub
 		if err := kubeClient.List(ctx, &clusterPodMonitoringList); err != nil {
 			return false, err
 		} else if len(clusterPodMonitoringList.Items) == 0 {
-			return false, nil
+			var probeList monitoringv1.ProbeList
+			if err := kubeClient.List(ctx, &probeList); err != nil {
+				return false, err
+			} else if len(probeList.Items) == 0 {
+				return false, nil
+			}
 		}
 	}
 	return true, nil
@@ -326,7 +331,25 @@ func buildClusterPodMonitoringFromJob(job []string) (*monitoringv1.ClusterPodMon
 	return pm, nil
 }
 
-func buildPodMonitoring(job string) (monitoringv1.PodMonitoringCRD, error) {
+func buildProbeFromJob(job []string) (*monitoringv1.Probe, error) {
+	if len(job) != 3 {
+		return nil, errors.New("invalid job type")
+	}
+	kind := job[0]
+	if kind != "Probe" {
+		return nil, errors.New("invalid object kind")
+	}
+	pm := &monitoringv1.Probe{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: job[1],
+		},
+		Spec:   monitoringv1.ProbeSpec{},
+		Status: monitoringv1.ProbeStatus{},
+	}
+	return pm, nil
+}
+
+func buildPodMonitoring(job string) (monitoringv1.MonitoringCRDWithEndpointStatus, error) {
 	split := strings.Split(job, "/")
 	if pm, err := buildPodMonitoringFromJob(split); err == nil {
 		return pm, nil
@@ -334,12 +357,15 @@ func buildPodMonitoring(job string) (monitoringv1.PodMonitoringCRD, error) {
 	if pm, err := buildClusterPodMonitoringFromJob(split); err == nil {
 		return pm, nil
 	}
+	if p, err := buildProbeFromJob(split); err == nil {
+		return p, nil
+	}
 	return nil, fmt.Errorf("unable to parse job: %s", job)
 }
 
-func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, object client.Object, status monitoringv1.PodMonitoringStatus) error {
+func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, object client.Object, status []monitoringv1.ScrapeEndpointStatus) error {
 	patchStatus := map[string]interface{}{
-		"endpointStatuses": status.EndpointStatuses,
+		"endpointStatuses": status,
 	}
 	patchObject := map[string]interface{}{"status": patchStatus}
 
@@ -371,16 +397,16 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 		}
 		pm, err := buildPodMonitoring(job)
 		if err != nil {
-			return fmt.Errorf("building podmonitoring: %s: %w", job, err)
+			return fmt.Errorf("building target: %s: %w", job, err)
 		}
-		pm.GetPodStatus().EndpointStatuses = endpointStatuses
+		pm.SetEndpointStatus(endpointStatuses)
 
-		if err := patchPodMonitoringStatus(ctx, kubeClient, pm, *pm.GetPodStatus()); err != nil {
+		if err := patchPodMonitoringStatus(ctx, kubeClient, pm, pm.GetEndpointStatus()); err != nil {
 			// Save and log any error encountered while patching the status.
 			// We don't want to prematurely return if the error was transient
 			// as we should continue patching all statuses before exiting.
 			patchErr = err
-			logger.Error(err, "patching podmonitoring status", "job", job)
+			logger.Error(err, "patching target status", "job", job)
 		}
 	}
 

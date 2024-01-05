@@ -18,6 +18,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/operatorutil"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,9 +27,21 @@ import (
 func TestProbe(t *testing.T) {
 	t.Parallel()
 	tctx := newOperatorContext(t)
+	ctx := context.Background()
+
+	if err := operatorutil.DeployBlackboxExporter(ctx, tctx.Client(), tctx.namespace, testLabel, tctx.GetOperatorTestLabelValue()); err != nil {
+		t.Fatal(err)
+	}
+
+	tctx.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
+		Features: monitoringv1.OperatorFeatures{
+			TargetStatus: monitoringv1.TargetStatusSpec{
+				Enabled: true,
+			},
+		},
+	})
 
 	c := tctx.Client()
-	ctx := context.Background()
 	probe := monitoringv1.Probe{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "example",
@@ -45,6 +58,10 @@ func TestProbe(t *testing.T) {
 		},
 	}
 	if err := c.Create(ctx, &probe); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := kubeutil.WaitForDeploymentReady(ctx, c, tctx.namespace, "blackbox-exporter"); err != nil {
 		t.Fatal(err)
 	}
 	if err := operatorutil.WaitForProbeReady(ctx, c, tctx.namespace, &probe); err != nil {

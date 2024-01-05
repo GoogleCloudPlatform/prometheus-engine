@@ -32,7 +32,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -42,16 +41,10 @@ var (
 
 // PodMonitoringCRD represents a Kubernetes CRD that monitors Pod endpoints.
 type PodMonitoringCRD interface {
-	client.Object
+	MonitoringCRDWithEndpointStatus
 
 	// GetKey returns a unique identifier for this CRD.
 	GetKey() string
-
-	// GetEndpoints returns the endpoints scraped by this CRD.
-	GetEndpoints() []ScrapeEndpoint
-
-	// GetPodStatus returns this CRD's status sub-resource.
-	GetPodStatus() *PodMonitoringStatus
 }
 
 // PodMonitoring defines monitoring for a set of pods, scoped to pods
@@ -83,8 +76,12 @@ func (p *PodMonitoring) GetStatus() *MonitoringStatus {
 	return &p.Status.MonitoringStatus
 }
 
-func (p *PodMonitoring) GetPodStatus() *PodMonitoringStatus {
-	return &p.Status
+func (p *PodMonitoring) GetEndpointStatus() []ScrapeEndpointStatus {
+	return p.Status.EndpointStatuses
+}
+
+func (p *PodMonitoring) SetEndpointStatus(endpointStatuses []ScrapeEndpointStatus) {
+	p.Status.EndpointStatuses = endpointStatuses
 }
 
 // PodMonitoringList is a list of PodMonitorings.
@@ -126,8 +123,12 @@ func (p *ClusterPodMonitoring) GetStatus() *MonitoringStatus {
 	return &p.Status.MonitoringStatus
 }
 
-func (p *ClusterPodMonitoring) GetPodStatus() *PodMonitoringStatus {
-	return &p.Status
+func (p *ClusterPodMonitoring) GetEndpointStatus() []ScrapeEndpointStatus {
+	return p.Status.EndpointStatuses
+}
+
+func (p *ClusterPodMonitoring) SetEndpointStatus(endpointStatuses []ScrapeEndpointStatus) {
+	p.Status.EndpointStatuses = endpointStatuses
 }
 
 // ClusterPodMonitoringList is a list of ClusterPodMonitorings.

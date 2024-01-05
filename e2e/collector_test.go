@@ -262,7 +262,7 @@ func selfScrapeEndpointConfig() []monitoringv1.ScrapeEndpoint {
 }
 
 // testCollector sets up pod monitoring and waits for samples to become available in GCM.
-func testCollector(ctx context.Context, t *OperatorContext, pm monitoringv1.PodMonitoringCRD) {
+func testCollector(ctx context.Context, t *OperatorContext, pm operatorutil.PodMonitoringCRDWithScrapeEndpoints) {
 	if err := t.Client().Create(ctx, pm); err != nil {
 		t.Fatalf("create collector: %s", err)
 	}

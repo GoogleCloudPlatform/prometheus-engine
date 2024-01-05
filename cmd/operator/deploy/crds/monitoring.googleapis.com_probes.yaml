@@ -162,7 +162,7 @@ spec:
             properties:
               conditions:
                 type: array
-                description: Represents the latest available observations of a Probe's current state.
+                description: Represents the latest available observations of a podmonitor's current state.
                 items:
                   type: object
                   description: MonitoringCondition describes a condition of a PodMonitoring.

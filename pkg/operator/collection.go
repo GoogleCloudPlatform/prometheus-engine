@@ -96,7 +96,7 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
-		// Any update to a PodMonitoring requires regenerating the config.
+		// Any update to a Probe requires regenerating the config.
 		Watches(
 			&monitoringv1.Probe{},
 			enqueueConst(objRequest),
@@ -481,16 +481,16 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := p.ScrapeConfigs(projectID, location, cluster)
+		cfgs, err := p.ScrapeConfigs(r.opts.OperatorNamespace, projectID, location, cluster)
 		if err != nil {
-			msg := "generating scrape config failed for PodMonitoring endpoint"
+			msg := "generating scrape config failed for Probe"
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
 				Reason:  "ScrapeConfigError",
 				Message: msg,
 			}
-			logger.Error(err, msg, "namespace", p.Namespace, "name", p.Name)
+			logger.Error(err, msg, "name", p.Name)
 			continue
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
