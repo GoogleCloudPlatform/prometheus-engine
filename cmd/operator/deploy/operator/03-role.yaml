@@ -75,6 +75,11 @@ rules:
   resourceNames: ["rule-evaluator"]
   verbs: ["get", "patch", "update"]
 - resources:
+  - deployments
+  apiGroups: ["apps"]
+  resourceNames: ["blackbox-exporter"]
+  verbs: ["get", "update"]
+- resources:
   - services
   apiGroups: [""]
   resourceNames: ["alertmanager"]

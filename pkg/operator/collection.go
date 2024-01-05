@@ -35,6 +35,7 @@ import (
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -187,6 +188,10 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, fmt.Errorf("ensure collector daemon set: %w", err)
 	}
 
+	if err := r.scaleBlackboxExporter(ctx); err != nil {
+		return reconcile.Result{}, fmt.Errorf("scale blackbox exporter: %w", err)
+	}
+
 	if err := r.ensureCollectorConfig(ctx, &config.Collection, config.Features.Config.Compression); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector config: %w", err)
 	}
@@ -201,6 +206,40 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	r.statusUpdates = r.statusUpdates[:0]
 
 	return reconcile.Result{}, nil
+}
+
+func (r *collectionReconciler) scaleBlackboxExporter(ctx context.Context) error {
+	logger, _ := logr.FromContext(ctx)
+
+	var desiredReplicas int32
+	if hasProbes, err := r.hasProbes(ctx); err != nil {
+		return err
+	} else if hasProbes {
+		desiredReplicas = 1
+	}
+
+	var blackboxExporterDeployment appsv1.Deployment
+	switch err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "blackbox-exporter"}, &blackboxExporterDeployment); {
+	case errors.IsNotFound(err):
+		msg := fmt.Sprintf("Blackbox Exporter Deployment not found, cannot scale to %d. Probe monitoring will not function.", desiredReplicas)
+		logger.Error(err, msg)
+	case err != nil:
+		return err
+	case *blackboxExporterDeployment.Spec.Replicas != desiredReplicas:
+		*&blackboxExporterDeployment.Spec.Replicas = &desiredReplicas
+		if err := r.client.Update(ctx, &blackboxExporterDeployment); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *collectionReconciler) hasProbes(ctx context.Context) (bool, error) {
+	var probes monitoringv1.ProbeList
+	if err := r.client.List(ctx, &probes); err != nil {
+		return false, err
+	}
+	return len(probes.Items) > 0, nil
 }
 
 func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec *monitoringv1.CollectionSpec) error {
