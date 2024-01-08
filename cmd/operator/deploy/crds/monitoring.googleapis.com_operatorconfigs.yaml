@@ -77,7 +77,7 @@ spec:
                 properties:
                   matchOneOf:
                     type: array
-                    description: 'A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. Example: `["{job!=''foobar''}", "{__name__!~''container_foo.*|container_bar.*''}"]`'
+                    description: 'A list of Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. Example: `["{job!=''foobar''}", "{__name__!~''container_foo.*|container_bar.*''}"]`'
                     items:
                       type: string
               kubeletScraping:
@@ -139,7 +139,7 @@ spec:
                 description: ExternalURL is the URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.
           rules:
             type: object
-            description: Rules specifies how the operator configures and deployes rule-evaluator.
+            description: Rules specifies how the operator configures and deploys rule-evaluator.
             properties:
               alerting:
                 type: object

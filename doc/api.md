@@ -44,9 +44,13 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ManagedAlertmanagerSpec">ManagedAlertmanagerSpec</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.MonitoringCRD">MonitoringCRD</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.MonitoringCondition">MonitoringCondition</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.MonitoringConditionType">MonitoringConditionType</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">MonitoringStatus</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>
 </li><li>
@@ -513,8 +517,8 @@ bool
 <p>FilterRunning will drop any pods that are in the &ldquo;Failed&rdquo; or &ldquo;Succeeded&rdquo;
 pod lifecycle.
 See: <a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase">https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase</a>
-Specifically, this prevents scraping Suceeded pods from K8s jobs, which
-could contribute to noisy logs or irrelevent metrics.
+Specifically, this prevents scraping Succeeded pods from K8s jobs, which
+could contribute to noisy logs or irrelevant metrics.
 Additionally, it can mitigate issues with reusing stale target
 labels in cases where Pod IPs are reused (e.g. spot containers).
 See: <a href="https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145">https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145</a></p>
@@ -756,7 +760,7 @@ and/or PodMonitoring.</p>
 </em>
 </td>
 <td>
-<p>A list Prometheus time series matchers. Every time series must match at least one
+<p>A list of Prometheus time series matchers. Every time series must match at least one
 of the matchers to be exported. This field can be used equivalently to the match[]
 parameter of the Prometheus federation endpoint to selectively export data.
 Example: <code>[&quot;{job!='foobar'}&quot;, &quot;{__name__!~'container_foo.*|container_bar.*'}&quot;]</code></p>
@@ -958,7 +962,7 @@ string
 </em>
 </td>
 <td>
-<p>Kubenetes resource label to remap.</p>
+<p>Kubernetes resource label to remap.</p>
 </td>
 </tr>
 <tr>
@@ -1026,15 +1030,21 @@ If omitted, relevant URL components will be derived automatically.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.MonitoringCRD">
+<span id="MonitoringCRD">MonitoringCRD
+</span>
+</h3>
+<div>
+</div>
 <h3 id="monitoring.googleapis.com/v1.MonitoringCondition">
 <span id="MonitoringCondition">MonitoringCondition
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.MonitoringStatus">MonitoringStatus</a>)
 </p>
 <div>
-<p>MonitoringCondition describes a condition of a PodMonitoring.</p>
+<p>MonitoringCondition describes the condition of a PodMonitoring.</p>
 </div>
 <table>
 <thead>
@@ -1145,6 +1155,51 @@ string
 monitoring resource was created successfully.</p>
 </td>
 </tr></tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.MonitoringStatus">
+<span id="MonitoringStatus">MonitoringStatus
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
+</p>
+<div>
+<p>MonitoringStatus holds status information of a monitoring resource.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>observedGeneration</code><br/>
+<em>
+int64
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>The generation observed by the controller.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>conditions</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.MonitoringCondition">
+[]MonitoringCondition
+</a>
+</em>
+</td>
+<td>
+<p>Represents the latest available observations of a podmonitor&rsquo;s current state.</p>
+</td>
+</tr>
+</tbody>
 </table>
 <h3 id="monitoring.googleapis.com/v1.NodeMonitoring">
 <span id="NodeMonitoring">NodeMonitoring
@@ -1290,7 +1345,7 @@ RuleEvaluatorSpec
 </em>
 </td>
 <td>
-<p>Rules specifies how the operator configures and deployes rule-evaluator.</p>
+<p>Rules specifies how the operator configures and deploys rule-evaluator.</p>
 </td>
 </tr>
 <tr>
@@ -1555,27 +1610,17 @@ See: <a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#
 <tbody>
 <tr>
 <td>
-<code>observedGeneration</code><br/>
+<code>MonitoringStatus</code><br/>
 <em>
-int64
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>The generation observed by the controller.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>conditions</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.MonitoringCondition">
-[]MonitoringCondition
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
+MonitoringStatus
 </a>
 </em>
 </td>
 <td>
-<p>Represents the latest available observations of a podmonitor&rsquo;s current state.</p>
+<p>
+(Members of <code>MonitoringStatus</code> are embedded into this type.)
+</p>
 </td>
 </tr>
 <tr>
@@ -2256,7 +2301,7 @@ string
 </td>
 <td>
 <p>Timeout for metrics scrapes. Must be a valid Prometheus duration.
-Must not be larger then the scrape interval.</p>
+Must not be larger than the scrape interval.</p>
 </td>
 </tr>
 <tr>

@@ -27,7 +27,7 @@ import (
 type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// Rules specifies how the operator configures and deployes rule-evaluator.
+	// Rules specifies how the operator configures and deploys rule-evaluator.
 	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
 	// Collection specifies how the operator configures collection.
 	Collection CollectionSpec `json:"collection,omitempty"`
@@ -126,7 +126,7 @@ type KubeletScraping struct {
 
 // ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
 type ExportFilters struct {
-	// A list Prometheus time series matchers. Every time series must match at least one
+	// A list of Prometheus time series matchers. Every time series must match at least one
 	// of the matchers to be exported. This field can be used equivalently to the match[]
 	// parameter of the Prometheus federation endpoint to selectively export data.
 	// Example: `["{job!='foobar'}", "{__name__!~'container_foo.*|container_bar.*'}"]`

@@ -17,7 +17,16 @@ package v1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+type MonitoringCRD interface {
+	client.Object
+
+	// GetMonitoringStatus returns this CRD's status sub-resource, which must be
+	// available at the top-level.
+	GetMonitoringStatus() *MonitoringStatus
+}
 
 // MonitoringConditionType is the type of MonitoringCondition.
 type MonitoringConditionType string
@@ -28,7 +37,7 @@ const (
 	ConfigurationCreateSuccess MonitoringConditionType = "ConfigurationCreateSuccess"
 )
 
-// MonitoringCondition describes a condition of a PodMonitoring.
+// MonitoringCondition describes the condition of a PodMonitoring.
 type MonitoringCondition struct {
 	Type MonitoringConditionType `json:"type"`
 	// Status of the condition, one of True, False, Unknown.
@@ -47,8 +56,7 @@ type MonitoringCondition struct {
 	Message string `json:"message,omitempty"`
 }
 
-// NewDefaultConditions returns a list of default conditions for at the given
-// time for a `PodMonitoringStatus` if never explicitly set.
+// NewDefaultConditions returns a list of default conditions.
 func NewDefaultConditions(now metav1.Time) []MonitoringCondition {
 	return []MonitoringCondition{
 		{
@@ -58,4 +66,63 @@ func NewDefaultConditions(now metav1.Time) []MonitoringCondition {
 			LastTransitionTime: now,
 		},
 	}
+}
+
+// MonitoringStatus holds status information of a monitoring resource.
+type MonitoringStatus struct {
+	// The generation observed by the controller.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration"`
+	// Represents the latest available observations of a podmonitor's current state.
+	Conditions []MonitoringCondition `json:"conditions,omitempty"`
+}
+
+// SetMonitoringCondition merges the provided condition if the resource generation changed or there is
+// a status condition state transition.
+func (status *MonitoringStatus) SetMonitoringCondition(gen int64, now metav1.Time, cond *MonitoringCondition) (bool, error) {
+	var (
+		specChanged              = status.ObservedGeneration != gen
+		statusTransition, update bool
+		conds                    = make(map[MonitoringConditionType]*MonitoringCondition)
+	)
+
+	if cond.Type == "" || cond.Status == "" {
+		return update, errInvalidCond
+	}
+
+	// Set up defaults.
+	for _, mc := range NewDefaultConditions(now) {
+		conds[mc.Type] = &mc
+	}
+	// Overwrite with any previous state.
+	for _, mc := range status.Conditions {
+		conds[mc.Type] = &mc
+	}
+
+	// Set some timestamp defaults if unspecified.
+	cond.LastUpdateTime = now
+
+	// Check if the condition results in a transition of status state.
+	if old := conds[cond.Type]; old.Status == cond.Status {
+		cond.LastTransitionTime = old.LastTransitionTime
+	} else {
+		cond.LastTransitionTime = cond.LastUpdateTime
+		statusTransition = true
+	}
+
+	// Set condition.
+	conds[cond.Type] = cond
+
+	// Only update status if the spec has changed (indicated by Generation field) or
+	// if this update transitions status state.
+	if specChanged || statusTransition {
+		update = true
+		status.ObservedGeneration = gen
+		status.Conditions = status.Conditions[:0]
+		for _, c := range conds {
+			status.Conditions = append(status.Conditions, *c)
+		}
+	}
+
+	return update, nil
 }

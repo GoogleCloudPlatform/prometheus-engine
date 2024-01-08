@@ -156,7 +156,7 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger than the scrape interval.
                     tls:
                       type: object
                       description: Configures the scrape request's TLS settings.
@@ -177,7 +177,7 @@ spec:
                   - port
               filterRunning:
                 type: boolean
-                description: 'FilterRunning will drop any pods that are in the "Failed" or "Succeeded" pod lifecycle. See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase Specifically, this prevents scraping Suceeded pods from K8s jobs, which could contribute to noisy logs or irrelevent metrics. Additionally, it can mitigate issues with reusing stale target labels in cases where Pod IPs are reused (e.g. spot containers). See: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145'
+                description: 'FilterRunning will drop any pods that are in the "Failed" or "Succeeded" pod lifecycle. See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase Specifically, this prevents scraping Succeeded pods from K8s jobs, which could contribute to noisy logs or irrelevant metrics. Additionally, it can mitigate issues with reusing stale target labels in cases where Pod IPs are reused (e.g. spot containers). See: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145'
               limits:
                 type: object
                 description: Limits to apply at scrape time.
@@ -216,7 +216,7 @@ spec:
                       properties:
                         from:
                           type: string
-                          description: Kubenetes resource label to remap.
+                          description: Kubernetes resource label to remap.
                         to:
                           type: string
                           description: Remapped Prometheus target label. Defaults to the same name as `From`.
@@ -234,7 +234,7 @@ spec:
                 description: Represents the latest available observations of a podmonitor's current state.
                 items:
                   type: object
-                  description: MonitoringCondition describes a condition of a PodMonitoring.
+                  description: MonitoringCondition describes the condition of a PodMonitoring.
                   properties:
                     type:
                       type: string

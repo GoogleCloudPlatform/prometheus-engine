@@ -32,7 +32,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -42,7 +41,7 @@ var (
 
 // PodMonitoringCRD represents a Kubernetes CRD that monitors Pod endpoints.
 type PodMonitoringCRD interface {
-	client.Object
+	MonitoringCRD
 
 	// GetKey returns a unique identifier for this CRD.
 	GetKey() string
@@ -50,8 +49,9 @@ type PodMonitoringCRD interface {
 	// GetEndpoints returns the endpoints scraped by this CRD.
 	GetEndpoints() []ScrapeEndpoint
 
-	// GetStatus returns this CRD's status sub-resource.
-	GetStatus() *PodMonitoringStatus
+	// GetPodMonitoringStatus returns this CRD's status sub-resource, which must
+	// be available at the top-level.
+	GetPodMonitoringStatus() *PodMonitoringStatus
 }
 
 // PodMonitoring defines monitoring for a set of pods, scoped to pods
@@ -79,8 +79,12 @@ func (p *PodMonitoring) GetEndpoints() []ScrapeEndpoint {
 	return p.Spec.Endpoints
 }
 
-func (p *PodMonitoring) GetStatus() *PodMonitoringStatus {
+func (p *PodMonitoring) GetPodMonitoringStatus() *PodMonitoringStatus {
 	return &p.Status
+}
+
+func (p *PodMonitoring) GetMonitoringStatus() *MonitoringStatus {
+	return &p.Status.MonitoringStatus
 }
 
 // PodMonitoringList is a list of PodMonitorings.
@@ -118,8 +122,12 @@ func (p *ClusterPodMonitoring) GetEndpoints() []ScrapeEndpoint {
 	return p.Spec.Endpoints
 }
 
-func (p *ClusterPodMonitoring) GetStatus() *PodMonitoringStatus {
+func (p *ClusterPodMonitoring) GetPodMonitoringStatus() *PodMonitoringStatus {
 	return &p.Status
+}
+
+func (p *ClusterPodMonitoring) GetMonitoringStatus() *MonitoringStatus {
+	return &p.Status.MonitoringStatus
 }
 
 // ClusterPodMonitoringList is a list of ClusterPodMonitorings.
@@ -191,57 +199,6 @@ func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res
 		res = append(res, c)
 	}
 	return res, nil
-}
-
-// SetPodMonitoringCondition merges the provided PodMonitoring resource to the
-// along with the provided condition iff the resource generation has changed or there
-// is a status condition state transition.
-func (status *PodMonitoringStatus) SetPodMonitoringCondition(gen int64, now metav1.Time, cond *MonitoringCondition) (bool, error) {
-	var (
-		specChanged              = status.ObservedGeneration != gen
-		statusTransition, update bool
-		conds                    = make(map[MonitoringConditionType]*MonitoringCondition)
-	)
-
-	if cond.Type == "" || cond.Status == "" {
-		return update, errInvalidCond
-	}
-
-	// Set up defaults.
-	for _, mc := range NewDefaultConditions(now) {
-		conds[mc.Type] = &mc
-	}
-	// Overwrite with any previous state.
-	for _, mc := range status.Conditions {
-		conds[mc.Type] = &mc
-	}
-
-	// Set some timestamp defaults if unspecified.
-	cond.LastUpdateTime = now
-
-	// Check if the condition results in a transition of status state.
-	if old := conds[cond.Type]; old.Status == cond.Status {
-		cond.LastTransitionTime = old.LastTransitionTime
-	} else {
-		cond.LastTransitionTime = cond.LastUpdateTime
-		statusTransition = true
-	}
-
-	// Set condition.
-	conds[cond.Type] = cond
-
-	// Only update status if the spec has changed (indicated by Generation field) or
-	// if this update transitions status state.
-	if specChanged || statusTransition {
-		update = true
-		status.ObservedGeneration = gen
-		status.Conditions = status.Conditions[:0]
-		for _, c := range conds {
-			status.Conditions = append(status.Conditions, *c)
-		}
-	}
-
-	return update, nil
 }
 
 // Environment variable for the current node that needs to be interpolated in generated
@@ -828,8 +785,8 @@ type ClusterPodMonitoringSpec struct {
 	// FilterRunning will drop any pods that are in the "Failed" or "Succeeded"
 	// pod lifecycle.
 	// See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-	// Specifically, this prevents scraping Suceeded pods from K8s jobs, which
-	// could contribute to noisy logs or irrelevent metrics.
+	// Specifically, this prevents scraping Succeeded pods from K8s jobs, which
+	// could contribute to noisy logs or irrelevant metrics.
 	// Additionally, it can mitigate issues with reusing stale target
 	// labels in cases where Pod IPs are reused (e.g. spot containers).
 	// See: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145
@@ -853,7 +810,7 @@ type ScrapeEndpoint struct {
 	// +kubebuilder:default="1m"
 	Interval string `json:"interval,omitempty"`
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
-	// Must not be larger then the scrape interval.
+	// Must not be larger than the scrape interval.
 	Timeout string `json:"timeout,omitempty"`
 	// Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
 	// override protected target labels (project_id, location, cluster, namespace, job,
@@ -884,7 +841,7 @@ type TargetLabels struct {
 // LabelMapping specifies how to transfer a label from a Kubernetes resource
 // onto a Prometheus target.
 type LabelMapping struct {
-	// Kubenetes resource label to remap.
+	// Kubernetes resource label to remap.
 	From string `json:"from"`
 	// Remapped Prometheus target label.
 	// Defaults to the same name as `From`.
@@ -951,11 +908,7 @@ type SampleTarget struct {
 
 // PodMonitoringStatus holds status information of a PodMonitoring resource.
 type PodMonitoringStatus struct {
-	// The generation observed by the controller.
-	// +optional
-	ObservedGeneration int64 `json:"observedGeneration"`
-	// Represents the latest available observations of a podmonitor's current state.
-	Conditions []MonitoringCondition `json:"conditions,omitempty"`
+	MonitoringStatus `json:",inline"`
 	// Represents the latest available observations of target state for each ScrapeEndpoint.
 	EndpointStatuses []ScrapeEndpointStatus `json:"endpointStatuses,omitempty"`
 }
