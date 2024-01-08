@@ -158,7 +158,7 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger than the scrape interval.
                     tls:
                       type: object
                       description: Configures the scrape request's TLS settings.
@@ -179,7 +179,7 @@ spec:
                   - port
               filterRunning:
                 type: boolean
-                description: 'FilterRunning will drop any pods that are in the "Failed" or "Succeeded" pod lifecycle. See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase Specifically, this prevents scraping Suceeded pods from K8s jobs, which could contribute to noisy logs or irrelevent metrics. Additionally, it can mitigate issues with reusing stale target labels in cases where Pod IPs are reused (e.g. spot containers). See: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145'
+                description: 'FilterRunning will drop any pods that are in the "Failed" or "Succeeded" pod lifecycle. See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase Specifically, this prevents scraping Succeeded pods from K8s jobs, which could contribute to noisy logs or irrelevant metrics. Additionally, it can mitigate issues with reusing stale target labels in cases where Pod IPs are reused (e.g. spot containers). See: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145'
               limits:
                 type: object
                 description: Limits to apply at scrape time.
@@ -218,7 +218,7 @@ spec:
                       properties:
                         from:
                           type: string
-                          description: Kubenetes resource label to remap.
+                          description: Kubernetes resource label to remap.
                         to:
                           type: string
                           description: Remapped Prometheus target label. Defaults to the same name as `From`.
@@ -236,7 +236,7 @@ spec:
                 description: Represents the latest available observations of a podmonitor's current state.
                 items:
                   type: object
-                  description: MonitoringCondition describes a condition of a PodMonitoring.
+                  description: MonitoringCondition describes the condition of a PodMonitoring.
                   properties:
                     type:
                       type: string
@@ -1025,7 +1025,7 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger than the scrape interval.
                     tls:
                       type: object
                       description: Configures the scrape request's TLS settings.
@@ -1139,7 +1139,7 @@ spec:
                 properties:
                   matchOneOf:
                     type: array
-                    description: 'A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. Example: `["{job!=''foobar''}", "{__name__!~''container_foo.*|container_bar.*''}"]`'
+                    description: 'A list of Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. Example: `["{job!=''foobar''}", "{__name__!~''container_foo.*|container_bar.*''}"]`'
                     items:
                       type: string
               kubeletScraping:
@@ -1201,7 +1201,7 @@ spec:
                 description: ExternalURL is the URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.
           rules:
             type: object
-            description: Rules specifies how the operator configures and deployes rule-evaluator.
+            description: Rules specifies how the operator configures and deploys rule-evaluator.
             properties:
               alerting:
                 type: object
@@ -1783,7 +1783,7 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger than the scrape interval.
                     tls:
                       type: object
                       description: Configures the scrape request's TLS settings.
@@ -1843,7 +1843,7 @@ spec:
                       properties:
                         from:
                           type: string
-                          description: Kubenetes resource label to remap.
+                          description: Kubernetes resource label to remap.
                         to:
                           type: string
                           description: Remapped Prometheus target label. Defaults to the same name as `From`.
@@ -1861,7 +1861,7 @@ spec:
                 description: Represents the latest available observations of a podmonitor's current state.
                 items:
                   type: object
-                  description: MonitoringCondition describes a condition of a PodMonitoring.
+                  description: MonitoringCondition describes the condition of a PodMonitoring.
                   properties:
                     type:
                       type: string

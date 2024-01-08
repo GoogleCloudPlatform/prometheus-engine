@@ -125,7 +125,7 @@ func setupCollectionControllers(op *Operator) error {
 type collectionReconciler struct {
 	client        client.Client
 	opts          Options
-	statusUpdates []monitoringv1.PodMonitoringCRD
+	statusUpdates []monitoringv1.MonitoringCRD
 }
 
 func newCollectionReconciler(c client.Client, opts Options) *collectionReconciler {
@@ -135,7 +135,7 @@ func newCollectionReconciler(c client.Client, opts Options) *collectionReconcile
 	}
 }
 
-func patchCollectionStatus(ctx context.Context, kubeClient client.Client, obj client.Object, status *monitoringv1.PodMonitoringStatus) error {
+func patchMonitoringStatus(ctx context.Context, kubeClient client.Client, obj client.Object, status *monitoringv1.MonitoringStatus) error {
 	// TODO(TheSpiritXIII): In the future, change this to server side apply as opposed to patch.
 	patchStatus := map[string]interface{}{
 		"conditions":         status.Conditions,
@@ -181,7 +181,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 	// Reconcile any status updates.
 	for _, obj := range r.statusUpdates {
-		if err := patchCollectionStatus(ctx, r.client, obj, obj.GetStatus()); err != nil {
+		if err := patchMonitoringStatus(ctx, r.client, obj, obj.GetMonitoringStatus()); err != nil {
 			logger.Error(err, "update status", "obj", obj)
 		}
 	}
@@ -380,7 +380,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	var (
 		podMons        monitoringv1.PodMonitoringList
 		clusterPodMons monitoringv1.ClusterPodMonitoringList
-		cond           *monitoringv1.MonitoringCondition
 	)
 	if err := r.client.List(ctx, &podMons); err != nil {
 		return nil, fmt.Errorf("failed to list PodMonitorings: %w", err)
@@ -393,7 +392,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		// Reassign so we can safely get a pointer.
 		pmon := pm
 
-		cond = &monitoringv1.MonitoringCondition{
+		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
@@ -411,11 +410,11 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		change, err := pmon.Status.SetPodMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
+		change, err := pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
-			logger.Error(err, "setting podmonitoring status state")
+			logger.Error(err, "setting podmonitoring status state", "namespace", pmon.Namespace, "name", pmon.Name)
 		}
 
 		if change {
@@ -432,13 +431,13 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		// Reassign so we can safely get a pointer.
 		cmon := cm
 
-		cond = &monitoringv1.MonitoringCondition{
+		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
 		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
-			msg := "generating scrape config failed for PodMonitoring endpoint"
+			msg := "generating scrape config failed for ClusterPodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
@@ -450,11 +449,11 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		change, err := cmon.Status.SetPodMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
+		change, err := cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
-			logger.Error(err, "setting podmonitoring status state")
+			logger.Error(err, "setting clusterpodmonitoring status state", "namespace", cmon.Namespace, "name", cmon.Name)
 		}
 
 		if change {

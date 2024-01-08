@@ -156,7 +156,7 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger than the scrape interval.
                     tls:
                       type: object
                       description: Configures the scrape request's TLS settings.
