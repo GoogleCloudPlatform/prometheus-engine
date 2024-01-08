@@ -151,7 +151,12 @@ func shouldPoll(ctx context.Context, cfgNamespacedName types.NamespacedName, kub
 		if err := kubeClient.List(ctx, &clusterPodMonitoringList); err != nil {
 			return false, err
 		} else if len(clusterPodMonitoringList.Items) == 0 {
-			return false, nil
+			var probeList monitoringv1.ProbeList
+			if err := kubeClient.List(ctx, &probeList); err != nil {
+				return false, err
+			} else if len(probeList.Items) == 0 {
+				return false, nil
+			}
 		}
 	}
 	return true, nil
@@ -288,9 +293,9 @@ func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, httpCli
 	return results, nil
 }
 
-func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, object client.Object, status *monitoringv1.PodMonitoringStatus) error {
+func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, object client.Object, status []monitoringv1.ScrapeEndpointStatus) error {
 	patchStatus := map[string]interface{}{
-		"endpointStatuses": status.EndpointStatuses,
+		"endpointStatuses": status,
 	}
 	patchObject := map[string]interface{}{"status": patchStatus}
 
@@ -324,9 +329,9 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 			// Skip hard-coded jobs which we do not patch.
 			continue
 		}
-		pm.GetPodMonitoringStatus().EndpointStatuses = endpointStatuses
+		pm.SetEndpointStatuses(endpointStatuses)
 
-		if err := patchPodMonitoringStatus(ctx, kubeClient, pm, pm.GetPodMonitoringStatus()); err != nil {
+		if err := patchPodMonitoringStatus(ctx, kubeClient, pm, pm.GetEndpointStatuses()); err != nil {
 			// Save and log any error encountered while patching the status.
 			// We don't want to prematurely return if the error was transient
 			// as we should continue patching all statuses before exiting.

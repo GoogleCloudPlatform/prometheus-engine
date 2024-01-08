@@ -36,7 +36,7 @@ func IsPodMonitoringReady(pm monitoringv1.PodMonitoringCRD, targetStatusEnabled 
 }
 
 func isPodMonitoringEndpointStatusReady(pm monitoringv1.PodMonitoringCRD) error {
-	endpointStatuses := pm.GetPodMonitoringStatus().EndpointStatuses
+	endpointStatuses := pm.GetEndpointStatuses()
 	expectedEndpoints := len(pm.GetEndpoints())
 	if size := len(endpointStatuses); size == 0 {
 		return errors.New("empty endpoint status")
@@ -124,7 +124,7 @@ func IsPodMonitoringSuccess(pm monitoringv1.PodMonitoringCRD, targetStatusEnable
 		return nil
 	}
 	var errs []error
-	for _, status := range pm.GetPodMonitoringStatus().EndpointStatuses {
+	for _, status := range pm.GetEndpointStatuses() {
 		if err := isPodMonitoringScrapeEndpointSuccess(&status); err != nil {
 			errs = append(errs, fmt.Errorf("unhealthy endpoint status %q: %w", status.Name, err))
 		}
@@ -154,7 +154,7 @@ func IsPodMonitoringFailure(pm monitoringv1.PodMonitoringCRD, expectedFn func(me
 		return err
 	}
 	var errs []error
-	for _, status := range pm.GetPodMonitoringStatus().EndpointStatuses {
+	for _, status := range pm.GetEndpointStatuses() {
 		if err := isPodMonitoringScrapeEndpointFailure(&status, expectedFn); err != nil {
 			errs = append(errs, fmt.Errorf("unhealthy endpoint status %q: %w", status.Name, err))
 		}

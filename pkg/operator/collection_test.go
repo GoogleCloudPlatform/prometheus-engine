@@ -53,7 +53,8 @@ func newFakeClientBuilder() *fake.ClientBuilder {
 	return fake.NewClientBuilder().
 		WithScheme(testScheme).
 		WithStatusSubresource(&monitoringv1.PodMonitoring{}).
-		WithStatusSubresource(&monitoringv1.ClusterPodMonitoring{})
+		WithStatusSubresource(&monitoringv1.ClusterPodMonitoring{}).
+		WithStatusSubresource(&monitoringv1.Probe{})
 }
 
 // Tests that the collection does not overwrite the non-managed status fields.

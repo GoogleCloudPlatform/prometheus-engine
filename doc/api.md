@@ -46,6 +46,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.MonitoringCRD">MonitoringCRD</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.MonitoringCRDWithEndpointStatus">MonitoringCRDWithEndpointStatus</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.MonitoringCondition">MonitoringCondition</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.MonitoringConditionType">MonitoringConditionType</a>
@@ -1042,6 +1044,12 @@ If omitted, relevant URL components will be derived automatically.</p>
 </table>
 <h3 id="monitoring.googleapis.com/v1.MonitoringCRD">
 <span id="MonitoringCRD">MonitoringCRD
+</span>
+</h3>
+<div>
+</div>
+<h3 id="monitoring.googleapis.com/v1.MonitoringCRDWithEndpointStatus">
+<span id="MonitoringCRDWithEndpointStatus">MonitoringCRDWithEndpointStatus
 </span>
 </h3>
 <div>

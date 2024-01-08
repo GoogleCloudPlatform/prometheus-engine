@@ -49,6 +49,7 @@ type updateTargetStatusTestCase struct {
 	targets               []*prometheusv1.TargetsResult
 	podMonitorings        []monitoringv1.PodMonitoring
 	clusterPodMonitorings []monitoringv1.ClusterPodMonitoring
+	probes                []monitoringv1.Probe
 	expErr                func(err error) bool
 }
 
@@ -66,6 +67,73 @@ func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase
 			})
 			continue
 		}
+
+		probeTargets := make([]*prometheusv1.TargetsResult, 0, len(tc.targets))
+		probes := make([]monitoringv1.Probe, 0, len(tc.podMonitorings))
+		for _, target := range tc.targets {
+			if target == nil {
+				probeTargets = append(probeTargets, nil)
+				continue
+			}
+			activeTargets := make([]prometheusv1.ActiveTarget, 0, len(target.Active))
+			for _, active := range target.Active {
+				activeCopy := active
+				scrapePool, err := parseScrapePool(active.ScrapePool)
+				if err != nil {
+					panic(err)
+				}
+
+				idx := -1
+				for _, pm := range tc.podMonitorings {
+					for i, endpoint := range pm.Spec.Endpoints {
+						if endpoint.Port.String() == scrapePool.group {
+							idx = i
+							break
+						}
+					}
+				}
+				if idx == -1 {
+					panic(fmt.Sprintf("could not find endpoint %q", scrapePool.group))
+				}
+
+				activeCopy.ScrapePool = podMonitoringScrapePoolToProbeScrapePool(active.ScrapePool, "http_2xx", idx)
+				activeTargets = append(activeTargets, activeCopy)
+			}
+			targetClusterPodMonitoring := &prometheusv1.TargetsResult{
+				Active: activeTargets,
+			}
+			probeTargets = append(probeTargets, targetClusterPodMonitoring)
+		}
+		for _, pm := range tc.podMonitorings {
+			copy := pm.DeepCopy()
+			p := monitoringv1.Probe{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: copy.Name,
+				},
+				Spec: monitoringv1.ProbeSpec{
+					Limits: copy.Spec.Limits,
+				},
+				Status: monitoringv1.ProbeStatus{
+					MonitoringStatus: *copy.GetMonitoringStatus(),
+					EndpointStatuses: copy.Status.EndpointStatuses,
+				},
+			}
+			for idx, status := range p.Status.EndpointStatuses {
+				p.Status.EndpointStatuses[idx].Name = podMonitoringScrapePoolToProbeScrapePool(status.Name, "http_2xx", idx)
+			}
+			if len(copy.Spec.Endpoints) > 0 {
+
+				target := monitoringv1.ProbeTarget{
+					Module: "http_2xx",
+				}
+				for _, endpoint := range copy.Spec.Endpoints {
+					target.StaticTargets = append(target.StaticTargets, endpoint.Port.StrVal)
+				}
+				p.Spec.Targets = []monitoringv1.ProbeTarget{target}
+			}
+			probes = append(probes, p)
+		}
+
 		clusterTargets := make([]*prometheusv1.TargetsResult, 0, len(tc.targets))
 		clusterPodMonitorings := make([]monitoringv1.ClusterPodMonitoring, 0, len(tc.podMonitorings))
 		for _, target := range tc.targets {
@@ -103,37 +171,64 @@ func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase
 			}
 			clusterPodMonitorings = append(clusterPodMonitorings, cpm)
 		}
-		dataPodMonitorings := updateTargetStatusTestCase{
+
+		dataFinal = append(dataFinal, updateTargetStatusTestCase{
 			desc:           tc.desc + "-pod-monitoring",
 			targets:        tc.targets,
 			podMonitorings: tc.podMonitorings,
 			expErr:         tc.expErr,
-		}
-		dataFinal = append(dataFinal, dataPodMonitorings)
-		dataClusterPodMonitorings := updateTargetStatusTestCase{
+		}, updateTargetStatusTestCase{
 			desc:                  tc.desc + "-cluster-pod-monitoring",
 			targets:               clusterTargets,
 			clusterPodMonitorings: clusterPodMonitorings,
 			expErr:                tc.expErr,
-		}
-		prometheusTargetsBoth := append(tc.targets, clusterTargets...)
-		dataBoth := updateTargetStatusTestCase{
-			desc:                  tc.desc + "-both",
-			targets:               prometheusTargetsBoth,
+		}, updateTargetStatusTestCase{
+			desc:                  tc.desc + "-pod-and-cluster-pod-monitoring",
+			targets:               append(tc.targets, clusterTargets...),
 			podMonitorings:        tc.podMonitorings,
 			clusterPodMonitorings: clusterPodMonitorings,
 			expErr:                tc.expErr,
-		}
-		dataFinal = append(dataFinal, dataClusterPodMonitorings)
-		dataFinal = append(dataFinal, dataBoth)
+		}, updateTargetStatusTestCase{
+			desc:    tc.desc + "-probe",
+			targets: probeTargets,
+			probes:  probes,
+			expErr:  tc.expErr,
+		}, updateTargetStatusTestCase{
+			desc:           tc.desc + "-pod-monitoring-and-probe",
+			targets:        append(tc.targets, probeTargets...),
+			podMonitorings: tc.podMonitorings,
+			probes:         probes,
+			expErr:         tc.expErr,
+		}, updateTargetStatusTestCase{
+			desc:                  tc.desc + "-cluster-pod-monitoring-and-probe",
+			targets:               append(clusterTargets, probeTargets...),
+			clusterPodMonitorings: clusterPodMonitorings,
+			probes:                probes,
+			expErr:                tc.expErr,
+		}, updateTargetStatusTestCase{
+			desc:                  tc.desc + "-pod-and-cluster-pod-monitoring-and-probe",
+			targets:               append(append(tc.targets, clusterTargets...), probeTargets...),
+			podMonitorings:        tc.podMonitorings,
+			clusterPodMonitorings: clusterPodMonitorings,
+			probes:                probes,
+			expErr:                tc.expErr,
+		})
 	}
 	return dataFinal
 }
 
+// podMonitoringScrapePoolToClusterPodMonitoringScrapePool strips the namespace from the
+// PodMonitoring scrape pool.
 func podMonitoringScrapePoolToClusterPodMonitoringScrapePool(podMonitoringScrapePool string) string {
-	scrapePool := podMonitoringScrapePool[len("PodMonitoring/"):]
-	scrapePool = scrapePool[strings.Index(scrapePool, "/")+1:]
-	return "ClusterPodMonitoring/" + scrapePool
+	split := strings.SplitN(podMonitoringScrapePool, "/", 3)
+	return "ClusterPodMonitoring/" + split[2]
+}
+
+// podMonitoringScrapePoolToProbeScrapePool strips the namespace and endpoint from the PodMonitoring
+// scrape pool.
+func podMonitoringScrapePoolToProbeScrapePool(podMonitoringScrapePool string, module string, index int) string {
+	split := strings.SplitN(podMonitoringScrapePool, "/", 4)
+	return fmt.Sprintf("Probe/%s/%s/%d", split[2], module, index)
 }
 
 func targetFetchFromMap(m map[string]*prometheusv1.TargetsResult) getTargetFn {
@@ -1214,14 +1309,19 @@ func TestUpdateTargetStatus(t *testing.T) {
 		t.Run(fmt.Sprintf("target-status-conversion-%s", testCase.desc), func(t *testing.T) {
 			clientBuilder := newFakeClientBuilder()
 			for _, podMonitoring := range testCase.podMonitorings {
-				pmCopy := podMonitoring.DeepCopy()
-				pmCopy.GetPodMonitoringStatus().EndpointStatuses = nil
-				clientBuilder.WithObjects(pmCopy)
+				copy := podMonitoring.DeepCopy()
+				copy.SetEndpointStatuses(nil)
+				clientBuilder.WithObjects(copy)
 			}
 			for _, clusterPodMonitoring := range testCase.clusterPodMonitorings {
-				pmCopy := clusterPodMonitoring.DeepCopy()
-				pmCopy.GetPodMonitoringStatus().EndpointStatuses = nil
-				clientBuilder.WithObjects(pmCopy)
+				copy := clusterPodMonitoring.DeepCopy()
+				copy.SetEndpointStatuses(nil)
+				clientBuilder.WithObjects(copy)
+			}
+			for _, probe := range testCase.probes {
+				copy := probe.DeepCopy()
+				copy.SetEndpointStatuses(nil)
+				clientBuilder.WithObjects(copy)
 			}
 
 			kubeClient := clientBuilder.Build()
@@ -1255,6 +1355,19 @@ func TestUpdateTargetStatus(t *testing.T) {
 				normalizeEndpointStatuses(after.Status.EndpointStatuses, date)
 				if !cmp.Equal(clusterPodMonitoring.Status, after.Status) {
 					t.Errorf("ClusterPodMonitoring does not match: %s\n%s", clusterPodMonitoring.GetKey(), cmp.Diff(clusterPodMonitoring.Status, after.Status))
+				}
+			}
+
+			for _, probe := range testCase.probes {
+				var after monitoringv1.Probe
+				if err := kubeClient.Get(context.Background(), types.NamespacedName{
+					Name: probe.GetName(),
+				}, &after); err != nil {
+					t.Fatal("Unable to find Probe:", probe.GetKey(), err)
+				}
+				normalizeEndpointStatuses(after.Status.EndpointStatuses, date)
+				if !cmp.Equal(probe.Status, after.Status) {
+					t.Errorf("Probe does not match: %s\n%s", probe.GetKey(), cmp.Diff(probe.Status, after.Status))
 				}
 			}
 		})

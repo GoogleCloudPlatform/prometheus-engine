@@ -49,8 +49,16 @@ type Probe struct {
 	Status ProbeStatus `json:"status"`
 }
 
-func (p *Probe) GetStatus() *MonitoringStatus {
+func (p *Probe) GetMonitoringStatus() *MonitoringStatus {
 	return &p.Status.MonitoringStatus
+}
+
+func (p *Probe) GetEndpointStatuses() []ScrapeEndpointStatus {
+	return p.Status.EndpointStatuses
+}
+
+func (p *Probe) SetEndpointStatuses(endpointStatus []ScrapeEndpointStatus) {
+	p.Status.EndpointStatuses = endpointStatus
 }
 
 func (p *Probe) GetKey() string {
