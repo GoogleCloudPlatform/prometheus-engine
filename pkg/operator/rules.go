@@ -123,13 +123,13 @@ func (r *rulesReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 
 	var projectID, location, cluster = resolveLabels(r.opts, config.Rules.ExternalLabels)
 
-	if err := r.ensureRuleConfigs(ctx, projectID, location, cluster); err != nil {
+	if err := r.ensureRuleConfigs(ctx, projectID, location, cluster, config.Features.Config.Compression); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure rule configmaps: %w", err)
 	}
 	return reconcile.Result{}, nil
 }
 
-func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string) error {
+func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string, compression monitoringv1.CompressionType) error {
 	logger, _ := logr.FromContext(ctx)
 
 	// Re-generate the configmap that's loaded by the rule-evaluator.
@@ -141,7 +141,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 				LabelAppName: NameRuleEvaluator,
 			},
 		},
-		// Ensure there's always at least an empty dummy file as the evaluator
+		// Ensure there's always at least an empty, uncompressed dummy file as the evaluator
 		// expects at least one match.
 		Data: map[string]string{
 			"empty.yaml": "",
@@ -168,7 +168,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			logger.Error(err, "converting rules failed", "rules_namespace", rs.Namespace, "rules_name", rs.Name)
 		}
 		filename := fmt.Sprintf("rules__%s__%s.yaml", rs.Namespace, rs.Name)
-		cm.Data[filename] = result
+		setConfigMapData(cm, compression, filename, result)
 	}
 
 	var clusterRulesList monitoringv1.ClusterRulesList
@@ -182,7 +182,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			logger.Error(err, "converting rules failed", "clusterrules_name", rs.Name)
 		}
 		filename := fmt.Sprintf("clusterrules__%s.yaml", rs.Name)
-		cm.Data[filename] = string(result)
+		setConfigMapData(cm, compression, filename, result)
 	}
 
 	var globalRulesList monitoringv1.GlobalRulesList
@@ -196,7 +196,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			logger.Error(err, "converting rules failed", "globalrules_name", rs.Name)
 		}
 		filename := fmt.Sprintf("globalrules__%s.yaml", rs.Name)
-		cm.Data[filename] = string(result)
+		setConfigMapData(cm, compression, filename, result)
 	}
 
 	// Create or update generated rule ConfigMap.

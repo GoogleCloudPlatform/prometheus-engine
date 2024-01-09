@@ -203,7 +203,7 @@ ConfigSpec holds configurations for the Prometheus configuration.
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| compression | Compression enables compression of the config data propagated by the operator to collectors. It is recommended to use the gzip option when using a large number of ClusterPodMonitoring and/or PodMonitoring. | CompressionType | false |
+| compression | Compression enables compression of the config data propagated by the operator to collectors and the rule-evaluator. It is recommended to use the gzip option when using a large number of ClusterPodMonitoring, PodMonitoring, GlobalRules, ClusterRules, and/or Rules. | CompressionType | false |
 
 [Back to TOC](#table-of-contents)
 
