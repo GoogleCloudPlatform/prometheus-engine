@@ -852,9 +852,9 @@ CompressionType
 </em>
 </td>
 <td>
-<p>Compression enables compression of the config data propagated by the operator to collectors.
-It is recommended to use the gzip option when using a large number of ClusterPodMonitoring
-and/or PodMonitoring.</p>
+<p>Compression enables compression of the config data propagated by the operator to collectors
+and the rule-evaluator. It is recommended to use the gzip option when using a large number of
+ClusterPodMonitoring, PodMonitoring, GlobalRules, ClusterRules, and/or Rules.</p>
 </td>
 </tr>
 </tbody>

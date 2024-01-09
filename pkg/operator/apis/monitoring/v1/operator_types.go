@@ -110,9 +110,9 @@ type OperatorFeatures struct {
 
 // ConfigSpec holds configurations for the Prometheus configuration.
 type ConfigSpec struct {
-	// Compression enables compression of the config data propagated by the operator to collectors.
-	// It is recommended to use the gzip option when using a large number of ClusterPodMonitoring
-	// and/or PodMonitoring.
+	// Compression enables compression of the config data propagated by the operator to collectors
+	// and the rule-evaluator. It is recommended to use the gzip option when using a large number of
+	// ClusterPodMonitoring, PodMonitoring, GlobalRules, ClusterRules, and/or Rules.
 	Compression CompressionType `json:"compression,omitempty"`
 }
 

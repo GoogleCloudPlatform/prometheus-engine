@@ -320,6 +320,31 @@ func gzipData(data []byte) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+func setConfigMapData(cm *corev1.ConfigMap, c monitoringv1.CompressionType, key string, data string) error {
+	// Thanos config-reloader detects gzip compression automatically, so no sync with
+	// config-reloaders is needed when switching between these.
+	switch c {
+	case monitoringv1.CompressionGzip:
+		compressed, err := gzipData([]byte(data))
+		if err != nil {
+			return fmt.Errorf("gzip Prometheus config: %w", err)
+		}
+
+		if cm.BinaryData == nil {
+			cm.BinaryData = map[string][]byte{}
+		}
+		cm.BinaryData[key] = compressed
+	case "", monitoringv1.CompressionNone:
+		if cm.Data == nil {
+			cm.Data = map[string]string{}
+		}
+		cm.Data[key] = data
+	default:
+		return fmt.Errorf("unknown compression type: %q", c)
+	}
+	return nil
+}
+
 // ensureCollectorConfig generates the collector config and creates or updates it.
 func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, compression monitoringv1.CompressionType, exports []monitoringv1.ExportSpec) error {
 	cfg, err := r.makeCollectorConfig(ctx, spec, exports)
@@ -337,26 +362,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 			Name:      NameCollector,
 		},
 	}
-
-	// Thanos config-reloader detects gzip compression automatically, so no sync with
-	// config-reloaders is needed when switching between these.
-	switch compression {
-	case monitoringv1.CompressionGzip:
-		compressedCfg, err := gzipData(cfgEncoded)
-		if err != nil {
-			return fmt.Errorf("gzip Prometheus config: %w", err)
-		}
-
-		cm.BinaryData = map[string][]byte{
-			configFilename: compressedCfg,
-		}
-	case "", monitoringv1.CompressionNone:
-		cm.Data = map[string]string{
-			configFilename: string(cfgEncoded),
-		}
-	default:
-		return fmt.Errorf("unknown compression type: %q", compression)
-	}
+	setConfigMapData(cm, compression, configFilename, string(cfgEncoded))
 
 	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, cm); err != nil {
