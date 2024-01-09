@@ -2,8 +2,6 @@ module github.com/GoogleCloudPlatform/prometheus-engine
 
 go 1.21
 
-toolchain go1.21.4
-
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
 	cloud.google.com/go/monitoring v1.16.1
