@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: datasource-syncer-init
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      containers:
+      - name: datasource-syncer-init
+        image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.9.1-gke.0
+        args:
+        - "--datasource-uids=$DATASOURCE_UIDS"
+        - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
+        - "--grafana-api-token=$GRAFANA_API_TOKEN"
+        - "--project-id=$PROJECT_ID"
+      restartPolicy: Never
+---
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: datasource-syncer
+spec:
+  schedule: "*/30 * * * *" # Run once every 30 minutes, must run at least once an hour.
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: datasource-syncer
+            image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.9.1-gke.0
+            args:
+            - "--datasource-uids=$DATASOURCE_UIDS"
+            - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
+            - "--grafana-api-token=$GRAFANA_API_TOKEN"
+            - "--project-id=$PROJECT_ID"
+          restartPolicy: Never
