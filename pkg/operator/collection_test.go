@@ -15,7 +15,10 @@
 package operator
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -155,5 +158,54 @@ func TestCollectionStatus(t *testing.T) {
 		break
 	default:
 		t.Fatalf("invalid PodMonitorings found: %d", amount)
+	}
+}
+
+func TestSetConfigMapData(t *testing.T) {
+	const data = "§psdmopnwepg30t-3ivp msdlc\n\r`1-k`23dvpdmfpdfgfn-p"
+
+	c := &corev1.ConfigMap{}
+	{
+		// Set & check uncompressed.
+		if err := setConfigMapData(c, monitoringv1.CompressionNone, "abc.yaml", data); err != nil {
+			t.Fatal(err)
+		}
+		if len(c.Data) != 1 {
+			t.Fatalf("expected one element in configMap Data, got: %s", c.Data)
+		}
+		if c.BinaryData != nil {
+			t.Fatalf("expected nil configMap BinaryData, got: %s", c.BinaryData)
+		}
+		if diff := cmp.Diff(data, c.Data["abc.yaml"]); diff != "" {
+			t.Fatalf("unexpected uncompressed data: %s", diff)
+		}
+	}
+	{
+		// Set & check compressed.
+		if err := setConfigMapData(c, monitoringv1.CompressionGzip, "abc2.yaml", data); err != nil {
+			t.Fatal(err)
+		}
+		if len(c.Data) != 1 {
+			t.Fatalf("expected one element in configMap Data, got: %s", c.Data)
+		}
+		if len(c.BinaryData) != 1 {
+			t.Fatalf("expected nil configMap BinaryData, got: %s", c.BinaryData)
+		}
+		// Make sure previous data still exists.
+		if diff := cmp.Diff(data, c.Data["abc.yaml"]); diff != "" {
+			t.Fatalf("unexpected uncompressed data: %s", diff)
+		}
+
+		r, err := gzip.NewReader(bytes.NewReader(c.BinaryData["abc2.yaml"]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		uncompressed, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(data, string(uncompressed)); diff != "" {
+			t.Fatalf("unexpected uncompressed data: %s", diff)
+		}
 	}
 }
