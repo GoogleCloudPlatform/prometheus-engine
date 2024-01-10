@@ -362,7 +362,9 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 			Name:      NameCollector,
 		},
 	}
-	setConfigMapData(cm, compression, configFilename, string(cfgEncoded))
+	if err := setConfigMapData(cm, compression, configFilename, string(cfgEncoded)); err != nil {
+		return err
+	}
 
 	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, cm); err != nil {
