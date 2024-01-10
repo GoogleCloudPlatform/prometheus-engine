@@ -21,9 +21,10 @@ github.com/alecthomas/units
 # github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 ## explicit; go 1.13
 github.com/asaskevich/govalidator
-# github.com/aws/aws-sdk-go v1.44.217
+# github.com/aws/aws-sdk-go v1.44.327
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws
+github.com/aws/aws-sdk-go/aws/auth/bearer
 github.com/aws/aws-sdk-go/aws/awserr
 github.com/aws/aws-sdk-go/aws/awsutil
 github.com/aws/aws-sdk-go/aws/client
@@ -61,6 +62,7 @@ github.com/aws/aws-sdk-go/private/protocol/restjson
 github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
 github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
+github.com/aws/aws-sdk-go/service/ssooidc
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
 # github.com/beorn7/perks v1.0.1
@@ -69,7 +71,7 @@ github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash/v2 v2.2.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/davecgh/go-spew v1.1.1
+# github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 ## explicit
 github.com/davecgh/go-spew/spew
 # github.com/dennwc/varint v1.0.0
@@ -78,15 +80,16 @@ github.com/dennwc/varint
 # github.com/edsrzf/mmap-go v1.1.0
 ## explicit; go 1.17
 github.com/edsrzf/mmap-go
-# github.com/efficientgo/core v1.0.0-rc.0
+# github.com/efficientgo/core v1.0.0-rc.2
 ## explicit; go 1.17
 github.com/efficientgo/core/backoff
 github.com/efficientgo/core/errcapture
 github.com/efficientgo/core/errors
 github.com/efficientgo/core/merrors
-# github.com/efficientgo/e2e v0.14.0
+# github.com/efficientgo/e2e v0.14.1-0.20230710114240-c316eb95ae5b
 ## explicit; go 1.18
 github.com/efficientgo/e2e
+github.com/efficientgo/e2e/host
 github.com/efficientgo/e2e/interactive
 github.com/efficientgo/e2e/monitoring
 github.com/efficientgo/e2e/monitoring/matchers
@@ -148,11 +151,11 @@ github.com/go-openapi/analysis/internal/flatten/operations
 github.com/go-openapi/analysis/internal/flatten/replace
 github.com/go-openapi/analysis/internal/flatten/schutils
 github.com/go-openapi/analysis/internal/flatten/sortref
-# github.com/go-openapi/errors v0.20.3
+# github.com/go-openapi/errors v0.20.4
 ## explicit; go 1.14
 github.com/go-openapi/errors
-# github.com/go-openapi/jsonpointer v0.19.6
-## explicit; go 1.13
+# github.com/go-openapi/jsonpointer v0.20.0
+## explicit; go 1.18
 github.com/go-openapi/jsonpointer
 # github.com/go-openapi/jsonreference v0.20.2
 ## explicit; go 1.13
@@ -161,13 +164,13 @@ github.com/go-openapi/jsonreference/internal
 # github.com/go-openapi/loads v0.21.2
 ## explicit; go 1.13
 github.com/go-openapi/loads
-# github.com/go-openapi/spec v0.20.8
+# github.com/go-openapi/spec v0.20.9
 ## explicit; go 1.13
 github.com/go-openapi/spec
-# github.com/go-openapi/strfmt v0.21.3
-## explicit; go 1.13
+# github.com/go-openapi/strfmt v0.21.7
+## explicit; go 1.19
 github.com/go-openapi/strfmt
-# github.com/go-openapi/swag v0.22.3
+# github.com/go-openapi/swag v0.22.4
 ## explicit; go 1.18
 github.com/go-openapi/swag
 # github.com/go-openapi/validate v0.22.1
@@ -282,6 +285,9 @@ github.com/jpillora/backoff
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
+# github.com/klauspost/cpuid/v2 v2.2.5
+## explicit; go 1.15
+github.com/klauspost/cpuid/v2
 # github.com/mailru/easyjson v0.7.7
 ## explicit; go 1.12
 github.com/mailru/easyjson/buffer
@@ -290,6 +296,9 @@ github.com/mailru/easyjson/jwriter
 # github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0
 ## explicit; go 1.19
 github.com/matttproud/golang_protobuf_extensions/v2/pbutil
+# github.com/minio/sha256-simd v1.0.1
+## explicit; go 1.17
+github.com/minio/sha256-simd
 # github.com/mitchellh/mapstructure v1.5.0
 ## explicit; go 1.14
 github.com/mitchellh/mapstructure
@@ -321,10 +330,10 @@ github.com/oklog/ulid
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
-# github.com/pmezard/go-difflib v1.0.0
+# github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 ## explicit
 github.com/pmezard/go-difflib/difflib
-# github.com/prometheus/alertmanager v0.25.1
+# github.com/prometheus/alertmanager v0.26.0
 ## explicit; go 1.18
 github.com/prometheus/alertmanager/api/v2/models
 # github.com/prometheus/client_golang v1.18.0
@@ -412,15 +421,15 @@ github.com/spf13/pflag
 ## explicit; go 1.20
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# github.com/thanos-io/thanos v0.25.2
-## explicit; go 1.17
+# github.com/thanos-io/thanos v0.33.0
+## explicit; go 1.21
 github.com/thanos-io/thanos/pkg/errutil
 github.com/thanos-io/thanos/pkg/reloader
 github.com/thanos-io/thanos/pkg/runutil
 # github.com/xhit/go-str2duration/v2 v2.1.0
 ## explicit; go 1.13
 github.com/xhit/go-str2duration/v2
-# go.mongodb.org/mongo-driver v1.11.2
+# go.mongodb.org/mongo-driver v1.12.0
 ## explicit; go 1.13
 go.mongodb.org/mongo-driver/bson
 go.mongodb.org/mongo-driver/bson/bsoncodec
@@ -476,7 +485,7 @@ go.opentelemetry.io/otel/metric/embedded
 ## explicit; go 1.20
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
-# go.uber.org/atomic v1.10.0
+# go.uber.org/atomic v1.11.0
 ## explicit; go 1.18
 go.uber.org/atomic
 # go.uber.org/goleak v1.2.1
@@ -506,8 +515,8 @@ golang.org/x/crypto/cryptobyte/asn1
 golang.org/x/crypto/hkdf
 golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
-# golang.org/x/exp v0.0.0-20230307190834-24139beb5833
-## explicit; go 1.18
+# golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
+## explicit; go 1.20
 golang.org/x/exp/constraints
 golang.org/x/exp/maps
 golang.org/x/exp/slices

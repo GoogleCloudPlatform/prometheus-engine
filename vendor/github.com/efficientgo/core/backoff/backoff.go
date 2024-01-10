@@ -3,6 +3,8 @@
 
 // Initially copied from Cortex project.
 
+// Package backoff implements backoff timers which increases wait time on every retry, incredibly useful
+// in distributed system timeout functionalities.
 package backoff
 
 import (

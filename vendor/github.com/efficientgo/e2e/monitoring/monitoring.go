@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/efficientgo/e2e/host"
+
 	"github.com/efficientgo/core/errcapture"
 	"github.com/efficientgo/core/errors"
 	"github.com/efficientgo/e2e"
@@ -259,8 +261,16 @@ func Start(env e2e.Environment, opts ...Option) (_ *Service, err error) {
 		h.ServeHTTP(w, req)
 	}))
 
-	// Listen on all addresses, since we need to connect to it from docker container.
-	list, err := net.Listen("tcp", "0.0.0.0:0")
+	// Listen on all tcp4 addresses, since we need to connect to it from Docker container.
+	// For unknown reasons, when using WSL 2, if the network type is "tcp" it will
+	// end up only binding to the IPv6 in the WSL host, which later cannot be acessed
+	// via IPv4 to confirm Prometheus can scrape the local endpoint.
+	// Explicitly asking for an IPv4 listener works.
+	networkType := "tcp"
+	if host.OSPlatform() == "WSL2" {
+		networkType = "tcp4"
+	}
+	list, err := net.Listen(networkType, "0.0.0.0:0")
 	if err != nil {
 		return nil, err
 	}
@@ -282,6 +292,9 @@ func Start(env e2e.Environment, opts ...Option) (_ *Service, err error) {
 	env.AddListener(l)
 
 	if opt.useCadvisor {
+		if host.OSPlatform() == "WSL2" {
+			return nil, errors.New("cadvisor is not supported in WSL 2 environments")
+		}
 		c := newCadvisor(env, "cadvisor")
 		if err := e2e.StartAndWaitReady(c); err != nil {
 			return nil, errors.Wrap(err, "starting cadvisor and waiting until ready")
@@ -348,4 +361,28 @@ func newCadvisor(env e2e.Environment, name string, cgroupPrefixes ...string) *In
 		UserNs:     "host",
 		Privileged: true,
 	}), "http")
+}
+
+const nginxImage = "docker.io/nginx:1.21.1-alpine"
+
+// NewStaticMetricsServer creates a new nginx server that serves the content of metrics as /metrics endpoint.
+// This is useful for testing different metrics scrapers.
+func NewStaticMetricsServer(e e2e.Environment, name string, metrics []byte) *InstrumentedRunnable {
+	f := e.Runnable(name).WithPorts(map[string]int{"http": 80}).Future()
+	if err := os.MkdirAll(f.Dir(), 0750); err != nil {
+		return &InstrumentedRunnable{Runnable: e2e.NewFailedRunnable(name, errors.Wrap(err, "create static metrics dir"))}
+	}
+	metricsFilePath := filepath.Join(f.Dir(), "metrics.txt")
+	if err := os.WriteFile(metricsFilePath, metrics, 0644); err != nil {
+		return &InstrumentedRunnable{Runnable: e2e.NewFailedRunnable(name, errors.Wrap(err, "creating static metrics file"))}
+	}
+	probe := e2e.NewHTTPReadinessProbe("http", "/metrics", 200, 200)
+	return AsInstrumented(
+		f.Init(e2e.StartOptions{
+			Image:     nginxImage,
+			Volumes:   []string{metricsFilePath + ":/usr/share/nginx/html/metrics:ro"},
+			Readiness: probe,
+		}),
+		"http",
+	)
 }
