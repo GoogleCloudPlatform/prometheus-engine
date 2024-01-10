@@ -69,7 +69,7 @@ func (p *Probe) ValidateCreate() (admission.Warnings, error) {
 	if len(p.Spec.Targets) == 0 {
 		return nil, errors.New("at least one target is required")
 	}
-	if _, err := p.scrapeConfigs([]*relabel.Config{}); err != nil {
+	if _, err := p.scrapeConfigs("", []*relabel.Config{}); err != nil {
 		return nil, err
 	}
 	return nil, nil
@@ -85,7 +85,7 @@ func (p *Probe) ValidateDelete() (admission.Warnings, error) {
 }
 
 func (cm *Probe) ScrapeConfigs(namespace, projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
-	return cm.scrapeConfigs([]*relabel.Config{
+	return cm.scrapeConfigs(namespace, []*relabel.Config{
 		{
 			Action:      relabel.Replace,
 			TargetLabel: "project_id",
@@ -104,7 +104,7 @@ func (cm *Probe) ScrapeConfigs(namespace, projectID, location, cluster string) (
 	})
 }
 
-func (cm *Probe) scrapeConfigs(relabelCfgs []*relabel.Config) (res []*promconfig.ScrapeConfig, err error) {
+func (cm *Probe) scrapeConfigs(namespace string, relabelCfgs []*relabel.Config) (res []*promconfig.ScrapeConfig, err error) {
 	relabelCfgs = append(relabelCfgs,
 		&relabel.Config{
 			Action:      relabel.Replace,
@@ -115,7 +115,7 @@ func (cm *Probe) scrapeConfigs(relabelCfgs []*relabel.Config) (res []*promconfig
 	for i := range cm.Spec.Targets {
 		c, err := targetScrapeConfig(
 			cm.GetKey(),
-			"",
+			namespace,
 			cm.Spec.Targets[i],
 			relabelCfgs,
 			cm.Spec.Limits,
