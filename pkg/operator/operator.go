@@ -271,7 +271,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 					&appsv1.Deployment{}: {
 						Field: fields.SelectorFromSet(fields.Set{
 							"metadata.namespace": opts.OperatorNamespace,
-							"metadata.name":      NameRuleEvaluator,
 						}),
 					},
 				}})
