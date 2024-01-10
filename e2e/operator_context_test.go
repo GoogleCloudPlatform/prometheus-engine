@@ -199,6 +199,9 @@ type OperatorContext struct {
 	namespace, pubNamespace string
 
 	kClient kubeutil.DelegatingClient
+
+	// NOTE(bwplotka): Only used by rule tests so far.
+	features monitoringv1.OperatorFeatures
 }
 
 func newOperatorContext(t *testing.T) *OperatorContext {
@@ -211,7 +214,7 @@ func newOperatorContext(t *testing.T) *OperatorContext {
 	// Create a namespace per test and run. This is to ensure that repeated runs of
 	// tests don't falsify results. Either by old test resources not being cleaned up
 	// (less likely) or metrics observed in GCP being from a previous run (more likely).
-	namespace := fmt.Sprintf("gmp-test-%s-%s", strings.ToLower(t.Name()), startTime.Format("20060102-150405"))
+	namespace := fmt.Sprintf("gmp-test-%s-%s", strings.ToLower(strings.Replace(t.Name(), "/", "-", -1)), startTime.Format("20060102-150405"))
 	pubNamespace := fmt.Sprintf("%s-pub", namespace)
 
 	tctx := &OperatorContext{

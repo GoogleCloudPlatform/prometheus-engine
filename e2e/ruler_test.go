@@ -14,9 +14,12 @@
 package e2e
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -39,8 +42,18 @@ import (
 )
 
 func TestRuleEvaluation(t *testing.T) {
+	t.Run("uncompr", func(t *testing.T) {
+		testRuleEvaluation(t, monitoringv1.CompressionNone)
+	})
+	t.Run("gzip", func(t *testing.T) {
+		testRuleEvaluation(t, monitoringv1.CompressionGzip)
+	})
+}
+
+func testRuleEvaluation(t *testing.T, compression monitoringv1.CompressionType) {
 	t.Parallel()
 	tctx := newOperatorContext(t)
+	tctx.features = monitoringv1.OperatorFeatures{Config: monitoringv1.ConfigSpec{Compression: compression}}
 
 	cert, key, err := cert.GenerateSelfSignedCertKey("test", nil, nil)
 	if err != nil {
@@ -55,6 +68,8 @@ func TestRuleEvaluation(t *testing.T) {
 	}))
 	t.Run("rule generation", tctx.subtest(testRulesGeneration))
 	t.Run("rule evaluator deploy", tctx.subtest(testRuleEvaluatorDeployment))
+
+	// TODO(bwplotka): Test if rules are actually loaded properly to rule-evaluator https://github.com/GoogleCloudPlatform/prometheus-engine/issues/765
 
 	if !skipGCM {
 		t.Log("Waiting rule results to become readable")
@@ -94,7 +109,11 @@ func createRuleEvaluatorSecrets(ctx context.Context, t *OperatorContext, certSec
 
 // createRuleEvaluatorOperatorConfig ensures an OperatorConfig can be deployed
 // that contains rule-evaluator configuration.
-func createRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext, certSecretName, tokenSecretName string) {
+func createRuleEvaluatorOperatorConfig(
+	ctx context.Context,
+	t *OperatorContext,
+	certSecretName, tokenSecretName string,
+) {
 	// Setup TLS secret selectors.
 	certSecret := &corev1.SecretKeySelector{
 		LocalObjectReference: corev1.LocalObjectReference{
@@ -107,6 +126,7 @@ func createRuleEvaluatorOperatorConfig(ctx context.Context, t *OperatorContext, 
 	keySecret.Key = "key"
 
 	t.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
+		Features: t.features,
 		Rules: monitoringv1.RuleEvaluatorSpec{
 			ExternalLabels: map[string]string{
 				"external_key": "external_val",
@@ -245,12 +265,12 @@ rule_files:
 		if diff := cmp.Diff(want, cm.Data); diff != "" {
 			return false, fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 		}
+
 		return true, nil
 	})
 	if err != nil {
 		t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
 	}
-
 }
 
 func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
@@ -262,6 +282,7 @@ func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
 			}
 			return false, fmt.Errorf("get deployment: %w", err)
 		}
+
 		// When not using GCM, we check the available replicas rather than ready ones
 		// as the rule-evaluator's readyness probe does check for connectivity to GCM.
 		if skipGCM {
@@ -328,7 +349,7 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 	// to be present in the generated rule file.
 	if err := t.Client().Create(ctx, &monitoringv1.GlobalRules{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "global-rules",
+			Name: t.namespace + "-global-rules",
 		},
 		Spec: monitoringv1.RulesSpec{
 			Groups: []monitoringv1.RuleGroup{
@@ -407,7 +428,7 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 	}
 
 	want := map[string]string{
-		replace("globalrules__global-rules.yaml"): replace(`groups:
+		replace("globalrules__{namespace}-global-rules.yaml"): replace(`groups:
     - name: group-1
       rules:
         - record: bar
@@ -459,14 +480,32 @@ func testRulesGeneration(ctx context.Context, t *OperatorContext) {
 			}
 			return false, fmt.Errorf("get ConfigMap: %w", err)
 		}
-		// The operator observes Rules across all namespaces. For the purpose of this test we drop
-		// all outputs from the result that aren't in the expected set.
-		for name := range cm.Data {
-			if _, ok := want[name]; !ok {
-				delete(cm.Data, name)
+		data := cm.Data
+		if t.features.Config.Compression == monitoringv1.CompressionGzip {
+			// When compression is enabled, we expect the config map with recording rules to
+			// be compressed with gzip. Uncompressed all files for validation purposes.
+			data = map[string]string{}
+			for fn, comprData := range cm.BinaryData {
+				r, err := gzip.NewReader(bytes.NewReader(comprData))
+				if err != nil {
+					t.Fatal(err)
+				}
+				uncompressed, err := io.ReadAll(r)
+				if err != nil {
+					t.Fatal(err)
+				}
+				data[fn] = string(uncompressed)
 			}
 		}
-		diff = cmp.Diff(want, cm.Data)
+
+		// The operator observes Rules across all namespaces. For the purpose of this test we drop
+		// all outputs from the result that aren't in the expected set.
+		for name := range data {
+			if _, ok := want[name]; !ok {
+				delete(data, name)
+			}
+		}
+		diff = cmp.Diff(want, data)
 		return diff == "", nil
 	})
 	if err != nil {
@@ -521,7 +560,8 @@ func testValidateRuleEvaluationMetrics(ctx context.Context, t *OperatorContext) 
 		if err == iterator.Done {
 			t.Logf("No data, retrying...")
 			return false, nil
-		} else if err != nil {
+		}
+		if err != nil {
 			return false, fmt.Errorf("querying metrics failed: %w", err)
 		}
 		if len(series.Points) == 0 {
