@@ -63,6 +63,7 @@ func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase
 			dataFinal = append(dataFinal, updateTargetStatusTestCase{
 				desc:    tc.desc,
 				targets: tc.targets,
+				probes:  tc.probes,
 				expErr:  tc.expErr,
 			})
 			continue
@@ -818,6 +819,153 @@ func TestUpdateTargetStatus(t *testing.T) {
 											},
 										},
 										Count: ptr.To(int32(2)),
+									},
+								},
+								CollectorsFraction: "1",
+							},
+						},
+					},
+				}},
+		},
+
+		// Multiple targets with multiple endpoints for different probe modules.
+		{
+			desc: "multiple-probe-modules",
+			targets: []*prometheusv1.TargetsResult{
+				{
+					Active: []prometheusv1.ActiveTarget{{
+						Health:     "down",
+						LastError:  "err x",
+						ScrapePool: "Probe/prom-example-1/http-2xx/1",
+						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+							"instance": "d",
+						}),
+						LastScrapeDuration: 3.6,
+					}, {
+						Health:     "up",
+						LastError:  "err y",
+						ScrapePool: "Probe/prom-example-1/http-2xx/0",
+						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+							"instance": "b",
+						}),
+						LastScrapeDuration: 7.0,
+					}, {
+						Health:     "down",
+						LastError:  "err x",
+						ScrapePool: "Probe/prom-example-1/grpc/0",
+						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+							"instance": "a",
+						}),
+						LastScrapeDuration: 5.3,
+					}, {
+						Health:     "down",
+						LastError:  "err x",
+						ScrapePool: "Probe/prom-example-1/grpc/1",
+						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+							"instance": "c",
+						}),
+						LastScrapeDuration: 1.2,
+					}},
+				},
+			},
+			probes: []monitoringv1.Probe{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1"},
+					Spec: monitoringv1.ProbeSpec{
+						Targets: []monitoringv1.ProbeTarget{{
+							Module:        "http-2xx",
+							StaticTargets: []string{"b", "d"},
+						}, {
+							Module:        "http-2xx",
+							StaticTargets: []string{"a", "c"},
+						}},
+					},
+					Status: monitoringv1.ProbeStatus{
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
+							{
+								Name:             "Probe/prom-example-1/grpc/0",
+								ActiveTargets:    1,
+								UnhealthyTargets: 1,
+								LastUpdateTime:   date,
+								SampleGroups: []monitoringv1.SampleGroup{
+									{
+										SampleTargets: []monitoringv1.SampleTarget{
+											{
+												Health:    "down",
+												LastError: pointer.String("err x"),
+												Labels: map[model.LabelName]model.LabelValue{
+													"instance": "a",
+												},
+												LastScrapeDurationSeconds: "5.3",
+											},
+										},
+										Count: pointer.Int32(1),
+									},
+								},
+								CollectorsFraction: "1",
+							},
+							{
+								Name:             "Probe/prom-example-1/grpc/1",
+								ActiveTargets:    1,
+								UnhealthyTargets: 1,
+								LastUpdateTime:   date,
+								SampleGroups: []monitoringv1.SampleGroup{
+									{
+										SampleTargets: []monitoringv1.SampleTarget{
+											{
+												Health:    "down",
+												LastError: pointer.String("err x"),
+												Labels: map[model.LabelName]model.LabelValue{
+													"instance": "c",
+												},
+												LastScrapeDurationSeconds: "1.2",
+											},
+										},
+										Count: pointer.Int32(1),
+									},
+								},
+								CollectorsFraction: "1",
+							},
+							{
+								Name:             "Probe/prom-example-1/http-2xx/0",
+								ActiveTargets:    1,
+								UnhealthyTargets: 0,
+								LastUpdateTime:   date,
+								SampleGroups: []monitoringv1.SampleGroup{
+									{
+										SampleTargets: []monitoringv1.SampleTarget{
+											{
+												Health:    "up",
+												LastError: pointer.String("err y"),
+												Labels: map[model.LabelName]model.LabelValue{
+													"instance": "b",
+												},
+												LastScrapeDurationSeconds: "7",
+											},
+										},
+										Count: pointer.Int32(1),
+									},
+								},
+								CollectorsFraction: "1",
+							},
+							{
+								Name:             "Probe/prom-example-1/http-2xx/1",
+								ActiveTargets:    1,
+								UnhealthyTargets: 1,
+								LastUpdateTime:   date,
+								SampleGroups: []monitoringv1.SampleGroup{
+									{
+										SampleTargets: []monitoringv1.SampleTarget{
+											{
+												Health:    "down",
+												LastError: pointer.String("err x"),
+												Labels: map[model.LabelName]model.LabelValue{
+													"instance": "d",
+												},
+												LastScrapeDurationSeconds: "3.6",
+											},
+										},
+										Count: pointer.Int32(1),
 									},
 								},
 								CollectorsFraction: "1",
