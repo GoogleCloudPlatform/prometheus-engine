@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"net/http"
@@ -32,6 +34,11 @@ var (
 
 	gcmEndpointOverride = flag.String("gcm-endpoint-override", "",
 		"gcm-endpoint-override is the URL where queries should be sent to from Grafana. This should be left blank in almost all circumstances.")
+
+	certFile           = flag.String("tls-cert", "", "Path to the server TLS certificate.")
+	keyFile            = flag.String("tls-key", "", "Path to the server TLS key.")
+	caFile             = flag.String("ca-cert", "", "Path to the server certificate authority")
+	InsecureSkipVerify = flag.Bool("insecure-skip-verify", false, "Skip TLS certificate verification")
 )
 
 func main() {
@@ -60,7 +67,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	grafanaClient, err := grafana.New(*grafanaEndpoint, grafana.Config{APIKey: *grafanaAPIToken})
+	client, err := getTLSClient(logger, *certFile, *keyFile, *caFile, *InsecureSkipVerify)
+	if err != nil {
+		level.Error(logger).Log("msg", "couldn't create client", "err", err)
+		os.Exit(1)
+	}
+
+	grafanaClient, err := grafana.New(*grafanaEndpoint, grafana.Config{
+		APIKey: *grafanaAPIToken,
+		Client: client,
+	})
 	if err != nil {
 		level.Error(logger).Log("msg", "couldn't create grafana client", "err", err)
 		os.Exit(1)
@@ -221,4 +237,44 @@ func buildUpdateDataSourceRequest(dataSource grafana.DataSource, token string) (
 	// Add token to SecureJSONData e.g. httpHeaderValue1: Bearer 123.
 	dataSource.SecureJSONData[authHeaderValue] = fmt.Sprintf("Bearer %s", token)
 	return &dataSource, nil
+}
+
+func getTLSClient(logger log.Logger, certFile, keyFile, caFile string, insecureSkipVerify bool) (*http.Client, error) {
+	if (certFile != "" || keyFile != "") && (certFile == "" || keyFile == "") {
+		return nil, fmt.Errorf("--tls-cert and tls-key must both be set or unset")
+	}
+
+	if certFile == "" && keyFile == "" && caFile == "" && !insecureSkipVerify {
+		return http.DefaultClient, nil
+	}
+
+	var client *http.Client
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: insecureSkipVerify,
+	}
+
+	if certFile != "" && keyFile != "" {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("unable to load server cert and key: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	if caFile != "" {
+		caCert, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read ca cert: %w", err)
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		tlsConfig.RootCAs = caCertPool
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	client = &http.Client{Transport: transport}
+	return client, nil
 }
