@@ -274,10 +274,7 @@ func TestHasRules(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			r := rulesReconciler{
-				client: tc.client,
-			}
-			got, err := r.hasRules(context.Background())
+			got, err := hasRules(context.Background(), tc.client)
 			if got != tc.want {
 				t.Errorf("want: %t, got: %t", tc.want, got)
 			}

@@ -142,8 +142,8 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 	var desiredReplicas int32
 
 	var hasAnyRules bool
-	for _, check := range []RuleCheck{r.hasRules, r.hasClusterRules, r.hasGlobalRules} {
-		hasRules, err := check(ctx)
+	for _, check := range []ruleCheck{hasRules, hasClusterRules, hasGlobalRules} {
+		hasRules, err := check(ctx, r.client)
 		if err != nil {
 			return err
 		}
@@ -160,7 +160,7 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 	if err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "alertmanager"}, &alertManagerStatefulSet); errors.IsNotFound(err) {
 		msg := fmt.Sprintf("Alertmanager StatefulSet not found, cannot scale to %d. In-cluster Alertmanager will not function.", desiredReplicas)
 		logger.Error(err, msg)
-	} else if client.IgnoreNotFound(err) != nil {
+	} else if err != nil {
 		return err
 
 	} else if *alertManagerStatefulSet.Spec.Replicas != desiredReplicas {
@@ -174,7 +174,7 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 	if err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "rule-evaluator"}, &ruleEvaluatorDeployment); errors.IsNotFound(err) {
 		msg := fmt.Sprintf("Rule Evaluator Deployment not found, cannot scale to %d. In-cluster Rule Evaluator will not function.", desiredReplicas)
 		logger.Error(err, msg)
-	} else if client.IgnoreNotFound(err) != nil {
+	} else if err != nil {
 		return err
 	} else if *ruleEvaluatorDeployment.Spec.Replicas != desiredReplicas {
 		*ruleEvaluatorDeployment.Spec.Replicas = desiredReplicas
@@ -185,25 +185,25 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 	return nil
 }
 
-type RuleCheck func(context.Context) (bool, error)
+type ruleCheck func(context.Context, client.Client) (bool, error)
 
-func (r *rulesReconciler) hasRules(ctx context.Context) (bool, error) {
+func hasRules(ctx context.Context, c client.Client) (bool, error) {
 	var rules monitoringv1.RulesList
-	if err := r.client.List(ctx, &rules); err != nil {
+	if err := c.List(ctx, &rules); err != nil {
 		return false, err
 	}
 	return len(rules.Items) > 0, nil
 }
-func (r *rulesReconciler) hasClusterRules(ctx context.Context) (bool, error) {
+func hasClusterRules(ctx context.Context, c client.Client) (bool, error) {
 	var rules monitoringv1.ClusterRulesList
-	if err := r.client.List(ctx, &rules); err != nil {
+	if err := c.List(ctx, &rules); err != nil {
 		return false, err
 	}
 	return len(rules.Items) > 0, nil
 }
-func (r *rulesReconciler) hasGlobalRules(ctx context.Context) (bool, error) {
+func hasGlobalRules(ctx context.Context, c client.Client) (bool, error) {
 	var rules monitoringv1.GlobalRulesList
-	if err := r.client.List(ctx, &rules); err != nil {
+	if err := c.List(ctx, &rules); err != nil {
 		return false, err
 	}
 	return len(rules.Items) > 0, nil
