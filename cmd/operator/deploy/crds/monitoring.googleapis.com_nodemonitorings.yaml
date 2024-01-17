@@ -80,7 +80,7 @@ spec:
                 description: The endpoints to scrape on the selected nodes.
                 items:
                   type: object
-                  description: ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape. It contains all the fields used in ScrapeEndpoint except for port string and HTTPClientConfig.
+                  description: ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape. It contains all the fields used in the ScrapeEndpoint except for port and HTTPClientConfig.
                   properties:
                     port:
                       anyOf:
@@ -194,6 +194,44 @@ spec:
                     format: int64
             required:
             - endpoints
+          status:
+            type: object
+            description: Most recently observed status of the resource.
+            properties:
+              conditions:
+                type: array
+                description: Represents the latest available observations of a podmonitor's current state.
+                items:
+                  type: object
+                  description: MonitoringCondition describes the condition of a PodMonitoring.
+                  properties:
+                    type:
+                      type: string
+                      description: MonitoringConditionType is the type of MonitoringCondition.
+                    status:
+                      type: string
+                      description: Status of the condition, one of True, False, Unknown.
+                    lastTransitionTime:
+                      type: string
+                      description: Last time the condition transitioned from one status to another.
+                      format: date-time
+                    lastUpdateTime:
+                      type: string
+                      description: The last time this condition was updated.
+                      format: date-time
+                    message:
+                      type: string
+                      description: A human-readable message indicating details about the transition.
+                    reason:
+                      type: string
+                      description: The reason for the condition's last transition.
+                  required:
+                  - status
+                  - type
+              observedGeneration:
+                type: integer
+                description: The generation observed by the controller.
+                format: int64
         required:
         - spec
     served: true

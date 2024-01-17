@@ -94,6 +94,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ScrapeLimits">ScrapeLimits</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.SecretOrConfigMap">SecretOrConfigMap</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.TLS">TLS</a>
@@ -1161,7 +1163,7 @@ monitoring resource was created successfully.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
 </p>
 <div>
 <p>MonitoringStatus holds status information of a monitoring resource.</p>
@@ -1244,6 +1246,20 @@ NodeMonitoringSpec
 Prometheus.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>status</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
+MonitoringStatus
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Most recently observed status of the resource.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="monitoring.googleapis.com/v1.NodeMonitoringSpec">
@@ -1282,8 +1298,8 @@ configuration. If left empty all nodes are selected.</p>
 <td>
 <code>endpoints</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">
-[]ScrapeEndpoint
+<a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">
+[]ScrapeNodeEndpoint
 </a>
 </em>
 </td>
@@ -1673,7 +1689,7 @@ string
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>, <a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>)
 </p>
 <div>
 <p>RelabelingRule defines a single Prometheus relabeling rule.</p>
@@ -2222,7 +2238,7 @@ string
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringSpec">PodMonitoringSpec</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringSpec">PodMonitoringSpec</a>)
 </p>
 <div>
 <p>ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.</p>
@@ -2493,6 +2509,99 @@ uint64
 <td>
 <p>Maximum label value length.
 Uses Prometheus default if left unspecified.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ScrapeNodeEndpoint">
+<span id="ScrapeNodeEndpoint">ScrapeNodeEndpoint
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>)
+</p>
+<div>
+<p>ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape.
+It contains all the fields used in the ScrapeEndpoint except for port and HTTPClientConfig.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>scheme</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Protocol scheme to use to scrape.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>path</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>HTTP path to scrape metrics from. Defaults to &ldquo;/metrics&rdquo;.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>params</code><br/>
+<em>
+map[string][]string
+</em>
+</td>
+<td>
+<p>HTTP GET params to use when scraping.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>interval</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Interval at which to scrape metrics. Must be a valid Prometheus duration.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>timeout</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Timeout for metrics scrapes. Must be a valid Prometheus duration.
+Must not be larger then the scrape interval.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>metricRelabeling</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.RelabelingRule">
+[]RelabelingRule
+</a>
+</em>
+</td>
+<td>
+<p>Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
+override protected target labels (project_id, location, cluster, namespace, job,
+instance, or <strong>address</strong>) are not permitted. The labelmap action is not permitted
+in general.</p>
 </td>
 </tr>
 </tbody>

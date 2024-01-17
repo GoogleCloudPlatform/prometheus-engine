@@ -386,6 +386,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	var (
 		podMons        monitoringv1.PodMonitoringList
 		clusterPodMons monitoringv1.ClusterPodMonitoringList
+		NodeMons       monitoringv1.NodeMonitoringList
 	)
 	if err := r.client.List(ctx, &podMons); err != nil {
 		return nil, fmt.Errorf("failed to list PodMonitorings: %w", err)
@@ -484,7 +485,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		// Reassign so we can safely get a pointer.
 		nm := nm
-		cond = &monitoringv1.MonitoringCondition{
+		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
@@ -501,6 +502,17 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			continue
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
+
+		change, err := nm.Status.SetMonitoringCondition(nm.GetGeneration(), metav1.Now(), cond)
+		if err != nil {
+			// Log an error but let operator continue to avoid getting stuck
+			// on a potential bad resource.
+			logger.Error(err, "setting nodemonitoring status state", "namespace", nm.Namespace, "name", nm.Name)
+		}
+
+		if change {
+			r.statusUpdates = append(r.statusUpdates, &nm)
+		}
 	}
 
 	// Sort to ensure reproducible configs.
