@@ -30,10 +30,8 @@ import (
 )
 
 // ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape.
-// It contains all the fields used in ScrapeEndpoint except for port string and HTTPClientConfig.
+// It contains all the fields used in the ScrapeEndpoint except for port and HTTPClientConfig.
 type ScrapeNodeEndpoint struct {
-	// Number of the port to scrape.
-	Port int `json:"port"`
 	// Protocol scheme to use to scrape.
 	Scheme string `json:"scheme,omitempty"`
 	// HTTP path to scrape metrics from. Defaults to "/metrics".
@@ -84,6 +82,9 @@ type NodeMonitoring struct {
 	// Specification of desired node selection for target discovery by
 	// Prometheus.
 	Spec NodeMonitoringSpec `json:"spec"`
+	// Most recently observed status of the resource.
+	// +optional
+	Status MonitoringStatus `json:"status,omitempty"`
 }
 
 func (n *NodeMonitoring) GetKey() string {
@@ -92,6 +93,10 @@ func (n *NodeMonitoring) GetKey() string {
 
 func (n *NodeMonitoring) GetEndpoints() []ScrapeNodeEndpoint {
 	return n.Spec.Endpoints
+}
+
+func (p *NodeMonitoring) GetMonitoringStatus() *MonitoringStatus {
+	return &p.Status
 }
 
 func (nm *NodeMonitoring) ValidateCreate() (admission.Warnings, error) {

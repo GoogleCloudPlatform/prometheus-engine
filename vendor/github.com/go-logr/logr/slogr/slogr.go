@@ -38,3 +38,24 @@ import (
 // Deprecated: use [logr.FromSlogHandler] instead.
 func NewLogr(handler slog.Handler) logr.Logger {
 	return logr.FromSlogHandler(handler)
+}
+
+// NewSlogHandler returns a slog.Handler which writes to the same sink as the logr.Logger.
+//
+// Deprecated: use [logr.ToSlogHandler] instead.
+func NewSlogHandler(logger logr.Logger) slog.Handler {
+	return logr.ToSlogHandler(logger)
+}
+
+// ToSlogHandler returns a slog.Handler which writes to the same sink as the logr.Logger.
+//
+// Deprecated: use [logr.ToSlogHandler] instead.
+func ToSlogHandler(logger logr.Logger) slog.Handler {
+	return logr.ToSlogHandler(logger)
+}
+
+// SlogSink is an optional interface that a LogSink can implement to support
+// logging through the slog.Logger or slog.Handler APIs better.
+//
+// Deprecated: use [logr.SlogSink] instead.
+type SlogSink = logr.SlogSink

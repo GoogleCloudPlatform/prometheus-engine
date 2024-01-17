@@ -1163,7 +1163,7 @@ monitoring resource was created successfully.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
 </p>
 <div>
 <p>MonitoringStatus holds status information of a monitoring resource.</p>
@@ -1244,6 +1244,20 @@ NodeMonitoringSpec
 <td>
 <p>Specification of desired node selection for target discovery by
 Prometheus.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>status</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
+MonitoringStatus
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Most recently observed status of the resource.</p>
 </td>
 </tr>
 </tbody>
@@ -2508,7 +2522,7 @@ Uses Prometheus default if left unspecified.</p>
 </p>
 <div>
 <p>ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape.
-It contains all the fields used in ScrapeEndpoint except for port string and HTTPClientConfig.</p>
+It contains all the fields used in the ScrapeEndpoint except for port and HTTPClientConfig.</p>
 </div>
 <table>
 <thead>
@@ -2518,17 +2532,6 @@ It contains all the fields used in ScrapeEndpoint except for port string and HTT
 </tr>
 </thead>
 <tbody>
-<tr>
-<td>
-<code>port</code><br/>
-<em>
-int
-</em>
-</td>
-<td>
-<p>Number of the port to scrape.</p>
-</td>
-</tr>
 <tr>
 <td>
 <code>scheme</code><br/>
