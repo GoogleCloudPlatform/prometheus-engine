@@ -187,7 +187,9 @@ presubmit: updateversions regen bin test e2e
 
 .PHONY: updateversions
 CURRENT_TAG = v0.9.0-gke.1
-CURRENT_PROM_TAG = v2.41.0-gmp.7-gke.0
+#TODO(macxamin) Sync CURRENT_DATASOURCE_SYNCER_TAG with CURRENT_TAG
+CURRENT_DATASOURCE_SYNCER_TAG = v0.9.1-gke.0
+CURRENT_PROM_TAG = v2.41.0-gmp.9-gke.0
 CURRENT_AM_TAG = v0.25.1-gmp.2-gke.0
 LABEL_API_VERSION = 0.9.0
 FILES_TO_UPDATE = $(shell find manifests cmd/operator/deploy -type f -name "*.yaml")
@@ -208,4 +210,5 @@ updateversions: $(SED)
 	@$(SED) -i -r 's#app.kubernetes.io/version: .*#app.kubernetes.io/version: $(LABEL_API_VERSION)#g' $(FILES_TO_UPDATE)
 	@echo ">> Updating constant in export.go to $(LABEL_API_VERSION)"
 	@$(SED) -i -r 's#	Version    = .*#	Version    = "$(LABEL_API_VERSION)"#g' pkg/export/export.go
-
+	@echo ">> Updating datasource-syncer version to $(CURRENT_DATASOURCE_SYNCER_TAG)"
+	@$(SED) -i -r 's#image: gcr.io/gke-release/prometheus-engine/datasource-syncer:.*#image: gcr.io/gke-release/prometheus-engine/datasource-syncer:$(CURRENT_DATASOURCE_SYNCER_TAG)#g' cmd/datasource-syncer/datasource-syncer.yaml

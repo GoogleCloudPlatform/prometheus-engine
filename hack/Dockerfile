@@ -3,10 +3,11 @@
 FROM golang:1.21-bullseye as deps
 WORKDIR /workspace
 # Have to clone and install this as the go.mod uses replace directives.
-RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
-  && cd prometheus-operator \
-  && go install ./cmd/po-docgen
+# RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
+#   && cd prometheus-operator \
+#   && go install ./cmd/po-docgen
 RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.12.0
+RUN go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
 
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
@@ -51,15 +52,28 @@ COPY --from=hermetic /workspace/vendor vendor.tmp
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
 FROM golang:1.21-bullseye as buildbase
-FROM google/cloud-sdk:slim as kindtest
+FROM docker:24.0-cli as docker
+FROM debian:stable-slim as kindtest
 
 WORKDIR /build
 
 # Install go.
 COPY --from=buildbase /usr/local/go /usr/local
 
-# Install kubectl.
-RUN apt-get install kubectl
+# Install docker cli.
+COPY --from=docker /usr/local/bin/docker /usr/local/bin
+
+# Install curl.
+RUN apt update
+RUN apt install -y curl
+
+# Install kubectl, jq.
+RUN curl -Lo ./kubectl https://dl.k8s.io/release/v1.27.0/bin/linux/amd64/kubectl
+RUN install -o root -g root -m 07555 kubectl /usr/local/bin/kubectl \
+  && rm kubectl
+RUN curl -Lo ./jq https://github.com/jqlang/jq/releases/download/jq-1.7/jq-linux-amd64
+RUN install -o root -g root -m 07555 jq /usr/local/bin/jq \
+  && rm jq
 
 # Install kind.
 RUN curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
@@ -67,4 +81,12 @@ RUN install -o root -g root -m 0755 kind /usr/local/bin/kind \
   && rm kind
 
 # Get resources into image.
-COPY . .
+COPY examples examples
+COPY cmd cmd
+COPY manifests manifests
+COPY vendor vendor
+COPY pkg pkg
+COPY e2e e2e
+COPY hack hack
+COPY go.mod go.mod
+COPY go.sum go.sum

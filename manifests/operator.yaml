@@ -256,7 +256,7 @@ spec:
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.9.0-gke.1
+        image: gcr.io/gpe-test-1/prometheus-engine/operator:gmp-20241701_0701
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
@@ -627,7 +627,7 @@ spec:
             - all
           privileged: false
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.41.0-gmp.7-gke.0
+        image: gke.gcr.io/prometheus-engine/prometheus:v2.41.0-gmp.9-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage

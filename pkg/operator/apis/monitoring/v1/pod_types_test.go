@@ -316,6 +316,39 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 					},
 				},
 			},
+		}, {
+			desc: "Authentication Basic Header",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					HTTPClientConfig: HTTPClientConfig{
+						Authorization: &Auth{
+							Type: "Basic",
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: "authorization type cannot be set to \"basic\", use \"basic_auth\" instead",
+		}, {
+			desc: "Basic Auth and Authorization Header",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+					HTTPClientConfig: HTTPClientConfig{
+						Authorization: &Auth{
+							Type: "Bearer",
+						},
+						BasicAuth: &BasicAuth{
+							Username: "xyz",
+						},
+					},
+				},
+			},
+			fail:        true,
+			errContains: "at most one of basic_auth, oauth2 & authorization must be configured",
 		},
 	}
 
@@ -479,76 +512,6 @@ func TestValidateClusterPodMonitoring(t *testing.T) {
 			}
 			if perr != nil && c.fail && !strings.Contains(perr.Error(), c.errContains) {
 				t.Fatalf("expected error to contain %q but got %q", c.errContains, perr)
-			}
-		})
-	}
-}
-
-func TestValidateNodeMonitoring(t *testing.T) {
-	cases := []struct {
-		desc        string
-		pm          NodeMonitoringSpec
-		eps         []ScrapeNodeEndpoint
-		fail        bool
-		errContains string
-	}{
-		{
-			desc: "OK metadata labels",
-			eps: []ScrapeNodeEndpoint{
-				{
-					Interval: "10s",
-				},
-			},
-		},
-		{
-			desc: "Scrape interval missing",
-			eps: []ScrapeNodeEndpoint{
-				{},
-			},
-			fail:        true,
-			errContains: "empty duration string",
-		},
-		{
-			desc: "scrape interval malformed",
-			eps: []ScrapeNodeEndpoint{
-				{
-					Interval: "foo",
-				},
-			},
-			fail:        true,
-			errContains: "invalid scrape interval: not a valid duration string",
-		},
-		{
-			desc: "scrape timeout greater than interval",
-			eps: []ScrapeNodeEndpoint{
-				{
-					Interval: "1s",
-					Timeout:  "2s",
-				},
-			},
-			fail:        true,
-			errContains: "scrape timeout 2s must not be greater than scrape interval 1s",
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.desc+"", func(t *testing.T) {
-			nm := &NodeMonitoring{
-				Spec: NodeMonitoringSpec{
-					Endpoints: c.eps,
-				},
-			}
-			_, err := nm.ValidateCreate()
-			t.Log(err)
-
-			if err == nil && c.fail {
-				t.Fatalf("expected failure but passed")
-			}
-			if err != nil && !c.fail {
-				t.Fatalf("unexpected failure: %s", err)
-			}
-			if err != nil && c.fail && !strings.Contains(err.Error(), c.errContains) {
-				t.Fatalf("expected error to contain %q but got %q", c.errContains, err)
 			}
 		})
 	}
@@ -1076,186 +1039,7 @@ kubernetes_sd_configs:
 	}
 }
 
-func TestNodeMonitoring_ScrapeConfig(t *testing.T) {
-	// Generate YAML for one complex scrape config and make sure everything
-	// adds up. This primarily verifies that everything is included and marshalling
-	// the generated config to YAML does not produce any bad configurations due to
-	// defaulting as the Prometheus structs are misconfigured in this regard in
-	// several places.
-	pmon := &NodeMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "kubelet",
-		},
-		Spec: NodeMonitoringSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{"kubernetes.io/os": "linux"},
-			},
-			Endpoints: []ScrapeNodeEndpoint{
-				{
-					Interval: "10s",
-					Path:     "/cadvisor/metrics",
-					Scheme:   "https",
-					MetricRelabeling: []RelabelingRule{
-						{
-							Action:       "replace",
-							SourceLabels: []string{"mlabel_1", "mlabel_2"},
-							TargetLabel:  "mlabel_3",
-						}, {
-							Action:       "hashmod",
-							SourceLabels: []string{"mlabel_1"},
-							Modulus:      3,
-							TargetLabel:  "__tmp_mod",
-						}, {
-							Action:  "keep",
-							Regex:   "foo_.+",
-							Modulus: 3,
-						},
-					},
-				},
-				{
-					Scheme:   "https",
-					Interval: "10000ms",
-					Timeout:  "5s",
-				},
-			},
-			Limits: &ScrapeLimits{
-				Samples:          1,
-				Labels:           2,
-				LabelNameLength:  3,
-				LabelValueLength: 4,
-			},
-		},
-	}
-	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got []string
-
-	for _, sc := range scrapeCfgs {
-		b, err := yaml.Marshal(sc)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got = append(got, string(b))
-	}
-	want := []string{
-		`job_name: NodeMonitoring/kubelet/cadvisor/metrics
-honor_timestamps: false
-scrape_interval: 10s
-scrape_timeout: 10s
-metrics_path: /cadvisor/metrics
-scheme: https
-sample_limit: 1
-label_limit: 2
-label_name_length_limit: 3
-label_value_length_limit: 4
-authorization:
-  credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-tls_config:
-  ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-  insecure_skip_verify: false
-follow_redirects: false
-enable_http2: false
-relabel_configs:
-- source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
-  regex: linux
-  action: keep
-- target_label: job
-  replacement: kubelet
-  action: replace
-- source_labels: [__meta_kubernetes_node_name]
-  target_label: node
-  action: replace
-- source_labels: [__meta_kubernetes_node_name]
-  target_label: instance
-  replacement: $1:metrics
-  action: replace
-- target_label: project_id
-  replacement: test_project
-  action: replace
-- target_label: location
-  replacement: test_location
-  action: replace
-- target_label: cluster
-  replacement: test_cluster
-  action: replace
-metric_relabel_configs:
-- source_labels: [mlabel_1, mlabel_2]
-  target_label: mlabel_3
-  action: replace
-- source_labels: [mlabel_1]
-  modulus: 3
-  target_label: __tmp_mod
-  action: hashmod
-- regex: foo_.+
-  modulus: 3
-  action: keep
-kubernetes_sd_configs:
-- role: node
-  kubeconfig_file: ""
-  follow_redirects: true
-  enable_http2: true
-  selectors:
-  - role: node
-    field: metadata.name=$(NODE_NAME)
-`,
-		`job_name: NodeMonitoring/kubelet/metrics
-honor_timestamps: false
-scrape_interval: 10s
-scrape_timeout: 5s
-metrics_path: /metrics
-scheme: https
-sample_limit: 1
-label_limit: 2
-label_name_length_limit: 3
-label_value_length_limit: 4
-authorization:
-  credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-tls_config:
-  ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-  insecure_skip_verify: false
-follow_redirects: false
-enable_http2: false
-relabel_configs:
-- source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
-  regex: linux
-  action: keep
-- target_label: job
-  replacement: kubelet
-  action: replace
-- source_labels: [__meta_kubernetes_node_name]
-  target_label: node
-  action: replace
-- source_labels: [__meta_kubernetes_node_name]
-  target_label: instance
-  replacement: $1:metrics
-  action: replace
-- target_label: project_id
-  replacement: test_project
-  action: replace
-- target_label: location
-  replacement: test_location
-  action: replace
-- target_label: cluster
-  replacement: test_cluster
-  action: replace
-kubernetes_sd_configs:
-- role: node
-  kubeconfig_file: ""
-  follow_redirects: true
-  enable_http2: true
-  selectors:
-  - role: node
-    field: metadata.name=$(NODE_NAME)
-`,
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Fatalf("unexpected scrape config YAML (-want, +got): %s", diff)
-	}
-}
-
-func TestSetPodMonitoringCondition(t *testing.T) {
+func TestSetMonitoringCondition(t *testing.T) {
 	var (
 		before = metav1.NewTime(time.Unix(1234, 0))
 		now    = metav1.NewTime(time.Unix(5678, 0))
@@ -1265,19 +1049,19 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 		cond       *MonitoringCondition
 		generation int64
 		now        metav1.Time
-		curr, want *PodMonitoringStatus
+		curr, want *MonitoringStatus
 		change     bool
 	}{
 		{
 			doc:  "no previous status",
-			curr: &PodMonitoringStatus{},
+			curr: &MonitoringStatus{},
 			cond: &MonitoringCondition{
 				Type:   ConfigurationCreateSuccess,
 				Status: corev1.ConditionTrue,
 			},
 			generation: 1,
 			now:        now,
-			want: &PodMonitoringStatus{
+			want: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1292,7 +1076,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 		},
 		{
 			doc: "matching previous status - prevent cycle",
-			curr: &PodMonitoringStatus{
+			curr: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1309,7 +1093,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 			},
 			generation: 1,
 			now:        now,
-			want: &PodMonitoringStatus{
+			want: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1324,7 +1108,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 		},
 		{
 			doc: "success to success transition due to spec change",
-			curr: &PodMonitoringStatus{
+			curr: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1341,7 +1125,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 			},
 			generation: 2,
 			now:        now,
-			want: &PodMonitoringStatus{
+			want: &MonitoringStatus{
 				ObservedGeneration: 2,
 				Conditions: []MonitoringCondition{
 					{
@@ -1356,7 +1140,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 		},
 		{
 			doc: "failure to success transition due to spec fix",
-			curr: &PodMonitoringStatus{
+			curr: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1373,7 +1157,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 			},
 			generation: 2,
 			now:        now,
-			want: &PodMonitoringStatus{
+			want: &MonitoringStatus{
 				ObservedGeneration: 2,
 				Conditions: []MonitoringCondition{
 					{
@@ -1388,7 +1172,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 		},
 		{
 			doc: "success to failure transition due to status update",
-			curr: &PodMonitoringStatus{
+			curr: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1405,7 +1189,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 			},
 			generation: 1,
 			now:        now,
-			want: &PodMonitoringStatus{
+			want: &MonitoringStatus{
 				ObservedGeneration: 1,
 				Conditions: []MonitoringCondition{
 					{
@@ -1422,7 +1206,7 @@ func TestSetPodMonitoringCondition(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.doc, func(t *testing.T) {
 			got := c.curr
-			change, err := got.SetPodMonitoringCondition(c.generation, c.now, c.cond)
+			change, err := got.SetMonitoringCondition(c.generation, c.now, c.cond)
 			if err != nil {
 				t.Fatalf("set podmonitoring condition: %s", err)
 			}

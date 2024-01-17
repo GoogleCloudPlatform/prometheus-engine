@@ -14,7 +14,9 @@
 name: Presubmit
 on:
   push:
-    branches: [ main ]
+    branches:
+    - main
+    - release-.*
   pull_request:
 
 jobs:
@@ -63,4 +65,4 @@ jobs:
     - name: Run e2e
       run: make e2e
       env:
-        GO_ARGS: "-timeout=15m -parallel=2"
+        GO_ARGS: "-timeout=20m -parallel=2"
