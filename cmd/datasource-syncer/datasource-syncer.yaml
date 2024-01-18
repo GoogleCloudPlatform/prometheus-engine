@@ -5,6 +5,9 @@ metadata:
 spec:
   ttlSecondsAfterFinished: 60
   template:
+    metadata:
+      labels:
+        app: datasource-syncer-init
     spec:
       containers:
       - name: datasource-syncer-init
@@ -26,6 +29,9 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          labels:
+            app: datasource-syncer
         spec:
           containers:
           - name: datasource-syncer
