@@ -186,7 +186,7 @@ relabel_configs:
   action: replace
 - source_labels: [__meta_kubernetes_node_name]
   target_label: instance
-  replacement: $1:metrics
+  replacement: $1:cadvisor/metrics
   action: replace
 - target_label: project_id
   replacement: test_project

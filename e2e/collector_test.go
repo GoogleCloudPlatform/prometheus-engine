@@ -149,6 +149,30 @@ func TestCollector(t *testing.T) {
 		}))
 	}))
 
+	t.Run("nodemonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
+		t.Parallel()
+		testNodeMonitoring(ctx, t, &monitoringv1.NodeMonitoring{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "collector-nodemon",
+				Namespace: t.namespace,
+			},
+			Spec: monitoringv1.NodeMonitoringSpec{
+				Endpoints: []monitoringv1.ScrapeNodeEndpoint{
+					{
+						Scheme:   "https",
+						Interval: "5s",
+						Path:     "/metrics",
+					},
+					{
+						Scheme:   "https",
+						Interval: "5s",
+						Path:     "/metrics/cadvisor",
+					},
+				},
+			},
+		})
+	}))
+
 	t.Run("scrape-kubelet", tctx.subtest(testCollectorScrapeKubelet))
 }
 
@@ -258,6 +282,24 @@ func selfScrapeEndpointConfig() []monitoringv1.ScrapeEndpoint {
 			Port:     intstr.FromString(operator.CollectorConfigReloaderContainerPortName),
 			Interval: "5s",
 		},
+	}
+}
+
+// testNodeMonitoring sets up node monitoring and waits for samples to become available in GCM.
+func testNodeMonitoring(ctx context.Context, t *OperatorContext, nm monitoringv1.MonitoringCRD) {
+	var err error
+	if err = t.Client().Create(ctx, nm); err != nil {
+		t.Fatalf("create NodeMonitoring error: %s", err)
+	}
+	t.Logf("Waiting for %q to be processed", nm.GetName())
+
+	if err := operatorutil.WaitForNodeMonitoringReady(ctx, t.Client(), t.namespace, nm); err != nil {
+		t.Errorf("unable to validate status: %s", err)
+	}
+
+	if !skipGCM {
+		t.Log("Waiting for up metrics for collector targets")
+		ValidateKubeletMetrics(ctx, t, nm.GetName(), []string{"metrics", "metrics/cadvisor"})
 	}
 }
 
@@ -381,6 +423,11 @@ func validateCollectorUpMetrics(ctx context.Context, t *OperatorContext, job str
 
 // testCollectorScrapeKubelet verifies that kubelet metric endpoints are successfully scraped.
 func testCollectorScrapeKubelet(ctx context.Context, t *OperatorContext) {
+	ValidateKubeletMetrics(ctx, t, "kubelet", []string{"metrics", "cadvisor"})
+}
+
+// ValidateKubeletMetrics validates that the node endpoints are successfully scraped.
+func ValidateKubeletMetrics(ctx context.Context, t *OperatorContext, job string, paths []string) {
 	if skipGCM {
 		t.Log("Not validating scraping of kubelets when --skip-gcm is set")
 		return
@@ -407,14 +454,14 @@ func testCollectorScrapeKubelet(ctx context.Context, t *OperatorContext) {
 		t.Fatalf("List nodes: %s", err)
 	}
 
-	// See whether the `up` metric for both kubelet endpoints is 1 for each node on which
+	// See whether the `up` metric for each path is 1 for each node on which
 	// a collector pod is running.
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
 	for _, node := range nodes.Items {
-		for _, port := range []string{"metrics", "cadvisor"} {
-			t.Logf("Poll up metric for kubelet on node %q and port %q", node.Name, port)
+		for _, path := range paths {
+			t.Logf("Poll up metric for kubelet on node %q, port %q and job %q", node.Name, path, job)
 
 			err = wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
 				now := time.Now()
@@ -427,13 +474,13 @@ func testCollectorScrapeKubelet(ctx context.Context, t *OperatorContext) {
 				resource.labels.project_id = "%s" AND
 				resource.label.location = "%s" AND
 				resource.labels.cluster = "%s" AND
-				resource.labels.job = "kubelet" AND
+				resource.labels.job = %s AND
 				resource.labels.instance = "%s:%s" AND
 				metric.type = "prometheus.googleapis.com/up/gauge" AND
 				metric.labels.node = "%s"
 				metric.labels.external_key = "external_val"
 				`,
-						projectID, location, cluster, node.Name, port, node.Name,
+						projectID, location, cluster, job, node.Name, path, node.Name,
 					),
 					Interval: &gcmpb.TimeInterval{
 						EndTime:   timestamppb.New(now),
