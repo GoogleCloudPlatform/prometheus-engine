@@ -17,6 +17,7 @@ package v1
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
@@ -120,8 +121,8 @@ func (nm *NodeMonitoring) ValidateDelete() (admission.Warnings, error) {
 }
 
 func (nm *NodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
-	for i := range nm.Spec.Endpoints {
-		c, err := nm.endpointScrapeConfig(i, projectID, location, cluster)
+	for i, ep := range nm.Spec.Endpoints {
+		c, err := nm.endpointScrapeConfig(&ep, projectID, location, cluster)
 		if err != nil {
 			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
@@ -130,11 +131,16 @@ func (nm *NodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (re
 	return res, nil
 }
 
-func (nm *NodeMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+func (nm *NodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected nodes.
 	relabelCfgs, err := relabelingsForSelector(nm.Spec.Selector, nm)
 	if err != nil {
 		return nil, err
+	}
+
+	metricsPath := "/metrics"
+	if ep.Path != "" {
+		metricsPath = ep.Path
 	}
 
 	relabelCfgs = append(relabelCfgs,
@@ -151,7 +157,7 @@ func (nm *NodeMonitoring) endpointScrapeConfig(index int, projectID, location, c
 		&relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
-			Replacement:  `$1:metrics`,
+			Replacement:  fmt.Sprintf(`$1:%s`, strings.TrimPrefix(metricsPath, "/")),
 			TargetLabel:  "instance",
 		},
 		// Force target labels so they cannot be overwritten by metric labels.
@@ -198,11 +204,6 @@ func (nm *NodeMonitoring) endpointScrapeConfig(index int, projectID, location, c
 		},
 	}
 
-	ep := nm.Spec.Endpoints[index]
-	metricsPath := "/metrics"
-	if ep.Path != "" {
-		metricsPath = ep.Path
-	}
 	return buildPrometheusScrapConfig(fmt.Sprintf("%s%s", nm.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, nm.Spec.Limits,
 		ScrapeEndpoint{Interval: ep.Interval,
 			Timeout:          ep.Timeout,

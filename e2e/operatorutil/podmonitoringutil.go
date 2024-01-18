@@ -21,20 +21,14 @@ import (
 	"time"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func IsPodMonitoringReady(pm monitoringv1.PodMonitoringCRD, targetStatusEnabled bool) error {
-	for _, condition := range pm.GetMonitoringStatus().Conditions {
-		if condition.Type == monitoringv1.ConfigurationCreateSuccess {
-			if condition.Status != corev1.ConditionTrue {
-				return fmt.Errorf("configuration was not created successfully: %s", condition.Status)
-			}
-		} else {
-			return fmt.Errorf("unknown condition type: %s", condition.Type)
-		}
+	err := isCRDMonitoringReady(pm)
+	if err != nil {
+		return err
 	}
 	if !targetStatusEnabled {
 		return nil
@@ -54,35 +48,9 @@ func isPodMonitoringEndpointStatusReady(pm monitoringv1.PodMonitoringCRD) error 
 }
 
 func WaitForPodMonitoringReady(ctx context.Context, kubeClient client.Client, operatorNamespace string, pm monitoringv1.PodMonitoringCRD, targetStatusEnabled bool) error {
-	if err := WaitForCollectionReady(ctx, kubeClient, operatorNamespace); err != nil {
-		return err
-	}
-
-	timeout := 2 * time.Minute
-	interval := 3 * time.Second
-	if targetStatusEnabled {
-		// Wait for target status to get polled and populated.
-		timeout = 4 * time.Minute
-	}
-
-	var err error
-	pollErr := wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
-		if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
-			return false, nil
-		}
-
-		if err = IsPodMonitoringReady(pm, targetStatusEnabled); err != nil {
-			return false, nil
-		}
-		return true, nil
+	return waitForCRDMonitoringReady(ctx, kubeClient, operatorNamespace, pm, targetStatusEnabled, func() error {
+		return IsPodMonitoringReady(pm, true)
 	})
-	if pollErr != nil {
-		if errors.Is(pollErr, context.DeadlineExceeded) && err != nil {
-			return err
-		}
-		return pollErr
-	}
-	return nil
 }
 
 func isPodMonitoringScrapeEndpointSuccess(status *monitoringv1.ScrapeEndpointStatus) error {
