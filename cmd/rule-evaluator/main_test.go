@@ -37,17 +37,17 @@ func expandSeriesSet(s storage.SeriesSet) promql.Matrix {
 	for s.Next() {
 		storageSeries := s.At()
 		it := storageSeries.Iterator(nil)
-		pts := []promql.Point{}
+		pts := []promql.FPoint{}
 		for it.Next() != chunkenc.ValNone {
-			t, v := it.At()
-			pts = append(pts, promql.Point{
+			t, f := it.At()
+			pts = append(pts, promql.FPoint{
 				T: t,
-				V: v,
+				F: f,
 			})
 		}
 		m = append(m, promql.Series{
 			Metric: storageSeries.Labels(),
-			Points: pts,
+			Floats: pts,
 		})
 	}
 	return m
@@ -97,13 +97,13 @@ func TestSelect(t *testing.T) {
 					}
 					return promql.Matrix{{
 						Metric: labels.FromStrings(model.MetricNameLabel, "testLabel"),
-						Points: []promql.Point{{T: 600613, V: 1.0}}}}, nil, nil
+						Floats: []promql.FPoint{{T: 600613, F: 1.0}}}}, nil, nil
 				},
 			},
 			want: &listSeriesSet{
 				m: promql.Matrix{{
 					Metric: labels.FromStrings(model.MetricNameLabel, "testLabel"),
-					Points: []promql.Point{{T: 600613, V: 1.0}}}},
+					Floats: []promql.FPoint{{T: 600613, F: 1.0}}}},
 			},
 		},
 		// Error cases

@@ -497,16 +497,16 @@ func convertModelToPromQLValue(val model.Value) (parser.Value, error) {
 	case model.Matrix:
 		m := make(promql.Matrix, len(results))
 		for i, result := range results {
-			pts := make([]promql.Point, len(result.Values))
+			pts := make([]promql.FPoint, len(result.Values))
 			for j, samplePair := range result.Values {
-				pts[j] = promql.Point{
+				pts[j] = promql.FPoint{
 					T: int64(samplePair.Timestamp),
-					V: float64(samplePair.Value),
+					F: float64(samplePair.Value),
 				}
 			}
 			m[i] = promql.Series{
 				Metric: convertMetricToLabel(result.Metric),
-				Points: pts,
+				Floats: pts,
 			}
 		}
 		return m, nil
@@ -515,10 +515,8 @@ func convertModelToPromQLValue(val model.Value) (parser.Value, error) {
 		v := make(promql.Vector, len(results))
 		for i, result := range results {
 			v[i] = promql.Sample{
-				Point: promql.Point{
-					T: int64(result.Timestamp),
-					V: float64(result.Value),
-				},
+				T:      int64(result.Timestamp),
+				F:      float64(result.Value),
 				Metric: convertMetricToLabel(result.Metric),
 			}
 		}
