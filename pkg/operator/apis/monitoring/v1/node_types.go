@@ -85,6 +85,8 @@ type NodeMonitoring struct {
 	Spec NodeMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
 	// +optional
+	Status MonitoringStatus `json:"status,omitempty"`
+}
 
 func (n *NodeMonitoring) GetKey() string {
 	return fmt.Sprintf("NodeMonitoring/%s", n.Name)

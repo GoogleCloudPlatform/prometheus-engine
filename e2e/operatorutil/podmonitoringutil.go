@@ -26,8 +26,7 @@ import (
 )
 
 func IsPodMonitoringReady(pm monitoringv1.PodMonitoringCRD, targetStatusEnabled bool) error {
-	err := isCRDMonitoringReady(pm)
-	if err != nil {
+	if err := isCRDMonitoringReady(pm); err != nil {
 		return err
 	}
 	if !targetStatusEnabled {

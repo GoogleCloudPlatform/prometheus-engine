@@ -593,9 +593,6 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 			Name:      "name1",
 		},
 		Spec: PodMonitoringSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{"app.kubernetes.io/name": "prom-example"},
-			},
 			Endpoints: []ScrapeEndpoint{
 				{
 					Port:     intstr.FromString("web"),
@@ -675,9 +672,6 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
   action: keep
-- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
-  regex: prom-example
-  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
@@ -756,9 +750,6 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
   action: keep
-- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
-  regex: prom-example
-  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
@@ -827,9 +818,6 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 			Name: "name1",
 		},
 		Spec: ClusterPodMonitoringSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{"app.kubernetes.io/name": "prom-example"},
-			},
 			Endpoints: []ScrapeEndpoint{
 				{
 					Port:     intstr.FromString("web"),
@@ -903,9 +891,6 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 relabel_configs:
-- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
-  regex: prom-example
-  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
@@ -979,9 +964,6 @@ follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
 relabel_configs:
-- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
-  regex: prom-example
-  action: keep
 - source_labels: [__meta_kubernetes_namespace]
   target_label: namespace
   action: replace
