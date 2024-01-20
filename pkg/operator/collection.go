@@ -40,6 +40,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,6 +49,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets"
 )
 
 func setupCollectionControllers(op *Operator) error {
@@ -376,7 +378,14 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	return nil
 }
 
-func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*promconfig.Config, error) {
+type prometheusConfig struct {
+	promconfig.Config `yaml:",inline"`
+
+	// Secret management. Matches our fork's configuration.
+	SecretConfigs []secrets.SecretConfig `yaml:"kubernetes_secrets,omitempty"`
+}
+
+func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*prometheusConfig, error) {
 	logger, _ := logr.FromContext(ctx)
 
 	cfg := &promconfig.Config{
@@ -406,6 +415,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return nil, fmt.Errorf("failed to list PodMonitorings: %w", err)
 	}
 
+	set := sets.New[secrets.SecretConfig]()
 	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
 
 	// Mark status updates in batch with single timestamp.
@@ -432,6 +442,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			continue
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
+
+		set = set.Insert(pmon.SecretConfigs()...)
 
 		change, err := pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
@@ -474,6 +486,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
+		set = set.Insert(cmon.SecretConfigs()...)
+
 		change, err := cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
@@ -485,6 +499,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			r.statusUpdates = append(r.statusUpdates, &cmon)
 		}
 	}
+	secretConfigs := set.UnsortedList()
 
 	if err := r.client.List(ctx, &clusterNodeMons); err != nil {
 		return nil, fmt.Errorf("failed to list ClusterNodeMonitorings: %w", err)
@@ -540,7 +555,10 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return cfg.ScrapeConfigs[i].JobName < cfg.ScrapeConfigs[j].JobName
 	})
 
-	return cfg, nil
+	return &prometheusConfig{
+		Config:        *cfg,
+		SecretConfigs: secretConfigs,
+	}, nil
 }
 
 type podMonitoringDefaulter struct{}

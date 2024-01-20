@@ -30,6 +30,10 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterRules">ClusterRules</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">ClusterSecretKeySelector</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">ClusterSecretSelector</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.CollectionSpec">CollectionSpec</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.CompressionType">CompressionType</a>
@@ -100,7 +104,11 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.SecretKeySelector">SecretKeySelector</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.SecretOrConfigMap">SecretOrConfigMap</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.SecretSelector">SecretSelector</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.TLS">TLS</a>
 </li><li>
@@ -298,6 +306,18 @@ string
 <p>The authentication type. Defaults to Bearer, Basic will cause an error.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>credentials</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
+ClusterSecretSelector
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="monitoring.googleapis.com/v1.Authorization">
@@ -375,6 +395,19 @@ string
 </td>
 <td>
 <p>The username for authentication.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>password</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
+ClusterSecretSelector
+</a>
+</em>
+</td>
+<td>
+<p>The password for authentication.</p>
 </td>
 </tr>
 </tbody>
@@ -709,6 +742,84 @@ RulesStatus
 <td>
 <em>(Optional)</em>
 <p>Most recently observed status of the resource.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ClusterSecretKeySelector">
+<span id="ClusterSecretKeySelector">ClusterSecretKeySelector
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">ClusterSecretSelector</a>)
+</p>
+<div>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>SecretKeySelector</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.SecretKeySelector">
+SecretKeySelector
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>SecretKeySelector</code> are embedded into this type.)
+</p>
+<p>The secret name and key to retrieve (inlined).</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>namespace</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>The namespace to retrieve the secret from.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ClusterSecretSelector">
+<span id="ClusterSecretSelector">ClusterSecretSelector
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.Auth">Auth</a>, <a href="#monitoring.googleapis.com/v1.BasicAuth">BasicAuth</a>, <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>, <a href="#monitoring.googleapis.com/v1.TLS">TLS</a>)
+</p>
+<div>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>secret</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
+ClusterSecretKeySelector
+</a>
+</em>
+</td>
+<td>
+<p>The secret and key to use.</p>
 </td>
 </tr>
 </tbody>
@@ -1409,6 +1520,19 @@ string
 </td>
 <td>
 <p>Public identifier for the client.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>clientSecret</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
+ClusterSecretSelector
+</a>
+</em>
+</td>
+<td>
+<p>TODO</p>
 </td>
 </tr>
 <tr>
@@ -2774,6 +2898,47 @@ in general.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.SecretKeySelector">
+<span id="SecretKeySelector">SecretKeySelector
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">ClusterSecretKeySelector</a>, <a href="#monitoring.googleapis.com/v1.SecretSelector">SecretSelector</a>)
+</p>
+<div>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>The name of the secret to select from.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>key</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>The key of the secret to select from. Must be a valid secret key.</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.SecretOrConfigMap">
 <span id="SecretOrConfigMap">SecretOrConfigMap
 </span>
@@ -2821,6 +2986,35 @@ Kubernetes core/v1.ConfigMapKeySelector
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.SecretSelector">
+<span id="SecretSelector">SecretSelector
+</span>
+</h3>
+<div>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>secret</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.SecretKeySelector">
+SecretKeySelector
+</a>
+</em>
+</td>
+<td>
+<p>The local secret and key to use.</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.TLS">
 <span id="TLS">TLS
 </span>
@@ -2839,6 +3033,45 @@ Kubernetes core/v1.ConfigMapKeySelector
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+<code>ca</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
+ClusterSecretSelector
+</a>
+</em>
+</td>
+<td>
+<p>TODO</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>cert</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
+ClusterSecretSelector
+</a>
+</em>
+</td>
+<td>
+<p>TODO</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>keySecret</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
+ClusterSecretSelector
+</a>
+</em>
+</td>
+<td>
+<p>TODO</p>
+</td>
+</tr>
 <tr>
 <td>
 <code>serverName</code><br/>
