@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -26,10 +27,11 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/operatorutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func isPodMonitoringTargetCertificateError(message string) error {
@@ -64,8 +66,10 @@ func defaultEndpoint(endpoint *monitoringv1.ScrapeEndpoint) {
 	endpoint.Interval = "5s"
 }
 
-// TODO(TheSpiritXIII): This helper is temporary until we add secret management.
-func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName string, args []string, podMonitoringNamePrefix string, endpointNoAuth monitoringv1.ScrapeEndpoint, expectedFn func(string) error) *appsv1.Deployment {
+// setupAuthTest sets up tests for PodMonitoring and ClusterPodMonitoring for when
+// authentication configurations are present and when they are not present.
+func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args []string, podMonitoringNamePrefix string, endpointNoAuth, endpointAuth monitoringv1.ScrapeEndpoint, expectedFn func(string) error) {
+	defaultEndpoint(&endpointAuth)
 	defaultEndpoint(&endpointNoAuth)
 
 	deployment, err := operatorutil.SyntheticAppDeploy(ctx, t.Client(), t.userNamespace, appName, args)
@@ -158,15 +162,6 @@ func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName s
 		}
 	}))
 
-	return deployment
-}
-
-// setupAuthTest sets up tests for PodMonitoring and ClusterPodMonitoring for when
-// authentication configurations are present and when they are not present.
-func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args []string, podMonitoringNamePrefix string, endpointNoAuth, endpointAuth monitoringv1.ScrapeEndpoint, expectedFn func(string) error) {
-	defaultEndpoint(&endpointAuth)
-	deployment := setupAuthTestMissingAuth(ctx, t, appName, args, podMonitoringNamePrefix, endpointNoAuth, expectedFn)
-
 	t.Run("podmon-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
 		t.Parallel()
 
@@ -211,6 +206,11 @@ func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args
 				Endpoints: []monitoringv1.ScrapeEndpoint{endpointAuth},
 			},
 		}
+		results, err := json.Marshal(endpointAuth)
+		if err != nil {
+			t.Logf("Error: %s", err)
+		}
+		t.Logf("ClusterPodMonitoring: %s\n", string(results))
 		if err := t.Client().Create(ctx, pm); err != nil {
 			t.Fatalf("create collector: %s", err)
 		}
@@ -288,9 +288,29 @@ func TestBasicAuth(t *testing.T) {
 		t.Parallel()
 		const appName = "basic-auth-no-username"
 		const appPassword = "secret-no-username"
-		setupAuthTestMissingAuth(ctx, t, appName, []string{
+		const secretKey = "k1"
+
+		if err := addSecret(ctx, t.Client(), t.namespace, t.userNamespace, appName, secretKey, []byte(appPassword)); err != nil {
+			t.Fatalf("unable to add secret: %s", err)
+		}
+
+		setupAuthTest(ctx, t, appName, []string{
 			fmt.Sprintf("--basic-auth-password=%s", appPassword),
-		}, "mon-basic-auth-no-username", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
+		}, "mon-basic-auth-no-username", monitoringv1.ScrapeEndpoint{}, monitoringv1.ScrapeEndpoint{
+			HTTPClientConfig: monitoringv1.HTTPClientConfig{
+				BasicAuth: &monitoringv1.BasicAuth{
+					Password: monitoringv1.ClusterSecretSelector{
+						Secret: &monitoringv1.ClusterSecretKeySelector{
+							SecretKeySelector: monitoringv1.SecretKeySelector{
+								Name: appName,
+								Key:  secretKey,
+							},
+							Namespace: t.userNamespace,
+						},
+					},
+				},
+			},
+		}, isPodMonitoringTargetUnauthorizedError)
 	}))
 
 	t.Run("full", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
@@ -298,10 +318,37 @@ func TestBasicAuth(t *testing.T) {
 		const appName = "basic-auth-full"
 		const appUsername = "gmp-user-basic-auth-full"
 		const appPassword = "secret-full"
-		setupAuthTestMissingAuth(ctx, t, appName, []string{
+		const secretKey = "k1"
+
+		if err := addSecret(ctx, t.Client(), t.namespace, t.userNamespace, appName, secretKey, []byte(appPassword)); err != nil {
+			t.Fatalf("unable to add secret: %s", err)
+		}
+
+		setupAuthTest(ctx, t, appName, []string{
 			fmt.Sprintf("--basic-auth-username=%s", appUsername),
 			fmt.Sprintf("--basic-auth-password=%s", appPassword),
-		}, "mon-basic-auth-full", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
+		}, "mon-basic-auth-full", monitoringv1.ScrapeEndpoint{
+			HTTPClientConfig: monitoringv1.HTTPClientConfig{
+				BasicAuth: &monitoringv1.BasicAuth{
+					Username: appUsername,
+				},
+			},
+		}, monitoringv1.ScrapeEndpoint{
+			HTTPClientConfig: monitoringv1.HTTPClientConfig{
+				BasicAuth: &monitoringv1.BasicAuth{
+					Username: appUsername,
+					Password: monitoringv1.ClusterSecretSelector{
+						Secret: &monitoringv1.ClusterSecretKeySelector{
+							SecretKeySelector: monitoringv1.SecretKeySelector{
+								Name: appName,
+								Key:  secretKey,
+							},
+							Namespace: t.userNamespace,
+						},
+					},
+				},
+			},
+		}, isPodMonitoringTargetUnauthorizedError)
 	}))
 }
 
@@ -337,12 +384,32 @@ func TestAuthorization(t *testing.T) {
 		t.Parallel()
 		const appName = "auth-credentials"
 		const appCredentials = "gmp-token-abc123"
-		setupAuthTestMissingAuth(ctx, t, appName, []string{
+		const secretKey = "k1"
+
+		if err := addSecret(ctx, t.Client(), t.namespace, t.userNamespace, appName, secretKey, []byte(appCredentials)); err != nil {
+			t.Fatalf("unable to add secret: %s", err)
+		}
+
+		setupAuthTest(ctx, t, appName, []string{
 			"--auth-scheme=Bearer",
 			fmt.Sprintf("--auth-parameters=%s", appCredentials),
 		}, "mon-auth-credentials", monitoringv1.ScrapeEndpoint{
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				Authorization: &monitoringv1.Auth{},
+			},
+		}, monitoringv1.ScrapeEndpoint{
+			HTTPClientConfig: monitoringv1.HTTPClientConfig{
+				Authorization: &monitoringv1.Auth{
+					Credentials: monitoringv1.ClusterSecretSelector{
+						Secret: &monitoringv1.ClusterSecretKeySelector{
+							SecretKeySelector: monitoringv1.SecretKeySelector{
+								Name: appName,
+								Key:  secretKey,
+							},
+							Namespace: t.userNamespace,
+						},
+					},
+				},
 			},
 		}, isPodMonitoringTargetUnauthorizedError)
 	}))
@@ -390,8 +457,13 @@ func TestOAuth2(t *testing.T) {
 		const clientSecret = "secret-client-secret"
 		const clientScope = "read"
 		const accessToken = "321xyz"
+		const secretKey = "k1"
 
-		setupAuthTestMissingAuth(ctx, t, appName, []string{
+		if err := addSecret(ctx, t.Client(), t.namespace, t.userNamespace, appName, secretKey, []byte(clientSecret)); err != nil {
+			t.Fatalf("unable to add secret: %s", err)
+		}
+
+		setupAuthTest(ctx, t, appName, []string{
 			fmt.Sprintf("--oauth2-client-id=%s", clientID),
 			fmt.Sprintf("--oauth2-client-secret=%s", clientSecret),
 			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
@@ -404,6 +476,76 @@ func TestOAuth2(t *testing.T) {
 					TokenURL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080/token", appName, t.userNamespace),
 				},
 			},
+		}, monitoringv1.ScrapeEndpoint{
+			HTTPClientConfig: monitoringv1.HTTPClientConfig{
+				OAuth2: &monitoringv1.OAuth2{
+					ClientID: clientID,
+					ClientSecret: monitoringv1.ClusterSecretSelector{
+						Secret: &monitoringv1.ClusterSecretKeySelector{
+							SecretKeySelector: monitoringv1.SecretKeySelector{
+								Name: appName,
+								Key:  secretKey,
+							},
+							Namespace: t.userNamespace,
+						},
+					},
+					Scopes:   []string{clientScope},
+					TokenURL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080/token", appName, t.userNamespace),
+				},
+			},
 		}, isPodMonitoringTargetInvalidOAuthCredentialsError)
 	}))
+}
+
+func addSecret(ctx context.Context, client client.Client, operatorNamespace, namespace, name, key string, data []byte) error {
+	secret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			key: data,
+		},
+	}
+	if err := client.Create(ctx, &secret); err != nil {
+		return fmt.Errorf("unable to create secret: %w", err)
+	}
+	role := rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:         []string{"get", "list", "watch"},
+				APIGroups:     []string{""},
+				Resources:     []string{"secrets"},
+				ResourceNames: []string{name},
+			},
+		},
+	}
+	if err := client.Create(ctx, &role); err != nil {
+		return fmt.Errorf("unable to create secret role: %w", err)
+	}
+	roleBinding := rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		RoleRef: rbacv1.RoleRef{
+			Kind: "Role",
+			Name: name,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      operator.NameCollector,
+				Namespace: operatorNamespace,
+			},
+		},
+	}
+	if err := client.Create(ctx, &roleBinding); err != nil {
+		return fmt.Errorf("unable to create secret role binding: %w", err)
+	}
+	return nil
 }

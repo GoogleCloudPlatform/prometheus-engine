@@ -60,6 +60,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/go-kit/kit v0.12.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.2.4 // indirect
@@ -112,7 +113,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.21.0 // indirect
 	go.opentelemetry.io/otel/trace v1.21.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/goleak v1.2.1 // indirect
+	go.uber.org/goleak v1.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/exp v0.0.0-20230307190834-24139beb5833 // indirect
@@ -170,5 +171,5 @@ replace (
 	github.com/prometheus/common => github.com/TheSpiritXIII/prometheus-common v0.45.0-gmp.1
 	// Go modules keeps resetting the required v0.35.0 to a random unversioned commit.
 	// So this is required for unknown reasons.
-	github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.43.0
+	github.com/prometheus/prometheus => github.com/GoogleCloudPlatform/prometheus v0.0.0-20231218193110-5f01b37f9462
 )

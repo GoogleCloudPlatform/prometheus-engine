@@ -120,6 +120,9 @@ github.com/felixge/httpsnoop
 # github.com/fsnotify/fsnotify v1.6.0
 ## explicit; go 1.16
 github.com/fsnotify/fsnotify
+# github.com/go-kit/kit v0.12.0
+## explicit; go 1.17
+github.com/go-kit/kit/log
 # github.com/go-kit/log v0.2.1
 ## explicit; go 1.17
 github.com/go-kit/log
@@ -361,8 +364,8 @@ github.com/prometheus/common/sigv4
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7 => github.com/prometheus/prometheus v0.43.0
-## explicit; go 1.18
+# github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7 => github.com/GoogleCloudPlatform/prometheus v0.0.0-20231218193110-5f01b37f9462
+## explicit; go 1.20
 github.com/prometheus/prometheus/config
 github.com/prometheus/prometheus/discovery
 github.com/prometheus/prometheus/discovery/kubernetes
@@ -381,6 +384,8 @@ github.com/prometheus/prometheus/prompb/io/prometheus/client
 github.com/prometheus/prometheus/promql
 github.com/prometheus/prometheus/promql/parser
 github.com/prometheus/prometheus/rules
+github.com/prometheus/prometheus/secrets
+github.com/prometheus/prometheus/secrets/kubernetes
 github.com/prometheus/prometheus/storage
 github.com/prometheus/prometheus/template
 github.com/prometheus/prometheus/tsdb
@@ -479,8 +484,8 @@ go.opentelemetry.io/otel/trace/embedded
 # go.uber.org/atomic v1.10.0
 ## explicit; go 1.18
 go.uber.org/atomic
-# go.uber.org/goleak v1.2.1
-## explicit; go 1.18
+# go.uber.org/goleak v1.3.0
+## explicit; go 1.20
 go.uber.org/goleak
 go.uber.org/goleak/internal/stack
 # go.uber.org/multierr v1.11.0
@@ -1156,4 +1161,4 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 # github.com/prometheus/common => github.com/TheSpiritXIII/prometheus-common v0.45.0-gmp.1
-# github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.43.0
+# github.com/prometheus/prometheus => github.com/GoogleCloudPlatform/prometheus v0.0.0-20231218193110-5f01b37f9462

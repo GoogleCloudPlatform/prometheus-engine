@@ -95,13 +95,56 @@ spec:
                         type:
                           type: string
                           description: The authentication type. Defaults to Bearer, Basic will cause an error.
+                        credentials:
+                          type: object
+                          properties:
+                            secret:
+                              type: object
+                              description: The secret and key to use.
+                              properties:
+                                name:
+                                  type: string
+                                  description: The name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: The namespace to retrieve the secret from.
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
+                              - namespace
                     basicAuth:
                       type: object
                       description: The HTTP basic authentication credentials for the targets.
                       properties:
+                        password:
+                          type: object
+                          description: The password for authentication.
+                          properties:
+                            secret:
+                              type: object
+                              description: The secret and key to use.
+                              properties:
+                                name:
+                                  type: string
+                                  description: The name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: The namespace to retrieve the secret from.
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
+                              - namespace
                         username:
                           type: string
                           description: The username for authentication.
+                      required:
+                      - password
                     interval:
                       type: string
                       default: 1m
@@ -145,6 +188,27 @@ spec:
                         clientID:
                           type: string
                           description: Public identifier for the client.
+                        clientSecret:
+                          type: object
+                          description: TODO
+                          properties:
+                            secret:
+                              type: object
+                              description: The secret and key to use.
+                              properties:
+                                name:
+                                  type: string
+                                  description: The name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: The namespace to retrieve the secret from.
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
+                              - namespace
                         endpointParams:
                           type: object
                           additionalProperties:
@@ -162,9 +226,72 @@ spec:
                           type: object
                           description: Configures the token request's TLS settings.
                           properties:
+                            ca:
+                              type: object
+                              description: TODO
+                              properties:
+                                secret:
+                                  type: object
+                                  description: The secret and key to use.
+                                  properties:
+                                    name:
+                                      type: string
+                                      description: The name of the secret to select from.
+                                    namespace:
+                                      type: string
+                                      description: The namespace to retrieve the secret from.
+                                    key:
+                                      type: string
+                                      description: The key of the secret to select from. Must be a valid secret key.
+                                  required:
+                                  - key
+                                  - name
+                                  - namespace
+                            cert:
+                              type: object
+                              description: TODO
+                              properties:
+                                secret:
+                                  type: object
+                                  description: The secret and key to use.
+                                  properties:
+                                    name:
+                                      type: string
+                                      description: The name of the secret to select from.
+                                    namespace:
+                                      type: string
+                                      description: The namespace to retrieve the secret from.
+                                    key:
+                                      type: string
+                                      description: The key of the secret to select from. Must be a valid secret key.
+                                  required:
+                                  - key
+                                  - name
+                                  - namespace
                             insecureSkipVerify:
                               type: boolean
                               description: Disable target certificate validation.
+                            keySecret:
+                              type: object
+                              description: TODO
+                              properties:
+                                secret:
+                                  type: object
+                                  description: The secret and key to use.
+                                  properties:
+                                    name:
+                                      type: string
+                                      description: The name of the secret to select from.
+                                    namespace:
+                                      type: string
+                                      description: The namespace to retrieve the secret from.
+                                    key:
+                                      type: string
+                                      description: The key of the secret to select from. Must be a valid secret key.
+                                  required:
+                                  - key
+                                  - name
+                                  - namespace
                             maxVersion:
                               type: string
                               description: 'Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
@@ -174,11 +301,16 @@ spec:
                             serverName:
                               type: string
                               description: Used to verify the hostname for the targets.
+                          required:
+                          - ca
+                          - cert
+                          - keySecret
                         tokenURL:
                           type: string
                           description: The URL to fetch the token from.
                       required:
                       - clientID
+                      - clientSecret
                       - tokenURL
                     params:
                       type: object
@@ -203,9 +335,72 @@ spec:
                       type: object
                       description: Configures the scrape request's TLS settings.
                       properties:
+                        ca:
+                          type: object
+                          description: TODO
+                          properties:
+                            secret:
+                              type: object
+                              description: The secret and key to use.
+                              properties:
+                                name:
+                                  type: string
+                                  description: The name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: The namespace to retrieve the secret from.
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
+                              - namespace
+                        cert:
+                          type: object
+                          description: TODO
+                          properties:
+                            secret:
+                              type: object
+                              description: The secret and key to use.
+                              properties:
+                                name:
+                                  type: string
+                                  description: The name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: The namespace to retrieve the secret from.
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
+                              - namespace
                         insecureSkipVerify:
                           type: boolean
                           description: Disable target certificate validation.
+                        keySecret:
+                          type: object
+                          description: TODO
+                          properties:
+                            secret:
+                              type: object
+                              description: The secret and key to use.
+                              properties:
+                                name:
+                                  type: string
+                                  description: The name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: The namespace to retrieve the secret from.
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
+                              - namespace
                         maxVersion:
                           type: string
                           description: 'Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
@@ -215,6 +410,10 @@ spec:
                         serverName:
                           type: string
                           description: Used to verify the hostname for the targets.
+                      required:
+                      - ca
+                      - cert
+                      - keySecret
                   required:
                   - port
               filterRunning:

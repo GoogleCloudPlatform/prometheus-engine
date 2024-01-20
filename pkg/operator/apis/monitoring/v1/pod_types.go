@@ -26,9 +26,12 @@ import (
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/model/relabel"
+	"github.com/prometheus/prometheus/secrets"
+	"github.com/prometheus/prometheus/secrets/kubernetes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -166,6 +169,14 @@ func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster strin
 	return res, nil
 }
 
+func (cm *ClusterPodMonitoring) SecretConfigs() []secrets.SecretConfig[kubernetes.SecretConfig] {
+	set := sets.New[secrets.SecretConfig[kubernetes.SecretConfig]]()
+	for _, endpoint := range cm.Spec.Endpoints {
+		set = set.Insert(endpoint.HTTPClientConfig.GetSecretConfigs()...)
+	}
+	return set.UnsortedList()
+}
+
 func (pm *PodMonitoring) ValidateCreate() (admission.Warnings, error) {
 	if len(pm.Spec.Endpoints) == 0 {
 		return nil, errors.New("at least one endpoint is required")
@@ -186,7 +197,7 @@ func (pm *PodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
 
-// ScrapeConfigs generated Prometheus scrape configs for the PodMonitoring.
+// ScrapeConfigs generates Prometheus scrape configs for the PodMonitoring.
 func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
 	for i := range pm.Spec.Endpoints {
 		c, err := pm.endpointScrapeConfig(i, projectID, location, cluster)
@@ -196,6 +207,15 @@ func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res
 		res = append(res, c)
 	}
 	return res, nil
+}
+
+// ScrapeConfigs generates Prometheus secret configs for the PodMonitoring.
+func (pm *PodMonitoring) SecretConfigs() []secrets.SecretConfig[kubernetes.SecretConfig] {
+	set := sets.New[secrets.SecretConfig[kubernetes.SecretConfig]]()
+	for _, endpoint := range pm.Spec.Endpoints {
+		set = set.Insert(endpoint.HTTPClientConfig.GetSecretConfigs()...)
+	}
+	return set.UnsortedList()
 }
 
 func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
@@ -250,7 +270,7 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	}
 
 	return endpointScrapeConfig(
-		pm.GetKey(),
+		pm,
 		projectID, location, cluster,
 		pm.Spec.Endpoints[index],
 		relabelCfgs,
@@ -259,7 +279,8 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	)
 }
 
-func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndpoint, relabelCfgs []*relabel.Config, podLabels []LabelMapping, limits *ScrapeLimits) (*promconfig.ScrapeConfig, error) {
+func endpointScrapeConfig(pm PodMonitoringCRD, projectID, location, cluster string, ep ScrapeEndpoint, relabelCfgs []*relabel.Config, podLabels []LabelMapping, limits *ScrapeLimits) (*promconfig.ScrapeConfig, error) {
+	id := pm.GetKey()
 	// Configure how Prometheus talks to the Kubernetes API server to discover targets.
 	// This configuration is the same for all scrape jobs (esp. selectors).
 	// This ensures that Prometheus can reuse the underlying client and caches, which reduces
@@ -383,7 +404,7 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 		relabelCfgs = append(relabelCfgs, pCfgs...)
 	}
 
-	httpCfg, err := ep.HTTPClientConfig.ToPrometheusConfig()
+	httpCfg, err := ep.HTTPClientConfig.ToPrometheusConfig(pm)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse HTTP client config: %w", err)
 	}
@@ -466,7 +487,7 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 	}
 
 	return endpointScrapeConfig(
-		cm.GetKey(),
+		cm,
 		projectID, location, cluster,
 		cm.Spec.Endpoints[index],
 		relabelCfgs,

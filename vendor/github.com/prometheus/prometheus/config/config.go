@@ -34,6 +34,7 @@ import (
 	"github.com/prometheus/prometheus/discovery"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/relabel"
+	"github.com/prometheus/prometheus/secrets/kubernetes"
 )
 
 var (
@@ -223,6 +224,10 @@ type Config struct {
 	ScrapeConfigs     []*ScrapeConfig `yaml:"scrape_configs,omitempty"`
 	StorageConfig     StorageConfig   `yaml:"storage,omitempty"`
 	TracingConfig     TracingConfig   `yaml:"tracing,omitempty"`
+
+	// Secret management:
+	kubernetes.ClientConfig  `yaml:"kubernetes_sp_config,omitempty"`
+	kubernetes.SecretConfigs `yaml:"secrets,omitempty"`
 
 	RemoteWriteConfigs []*RemoteWriteConfig `yaml:"remote_write,omitempty"`
 	RemoteReadConfigs  []*RemoteReadConfig  `yaml:"remote_read,omitempty"`
