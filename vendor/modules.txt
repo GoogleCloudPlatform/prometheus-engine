@@ -287,9 +287,6 @@ github.com/json-iterator/go
 github.com/mailru/easyjson/buffer
 github.com/mailru/easyjson/jlexer
 github.com/mailru/easyjson/jwriter
-# github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0
-## explicit; go 1.19
-github.com/matttproud/golang_protobuf_extensions/v2/pbutil
 # github.com/mitchellh/mapstructure v1.5.0
 ## explicit; go 1.14
 github.com/mitchellh/mapstructure
@@ -342,7 +339,7 @@ github.com/prometheus/client_golang/prometheus/testutil/promlint/validations
 # github.com/prometheus/client_model v0.5.0
 ## explicit; go 1.19
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.45.0
+# github.com/prometheus/common v0.46.0
 ## explicit; go 1.20
 github.com/prometheus/common/config
 github.com/prometheus/common/expfmt
@@ -542,7 +539,7 @@ golang.org/x/oauth2/google/internal/stsexchange
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sync v0.5.0
+# golang.org/x/sync v0.6.0
 ## explicit; go 1.18
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
@@ -582,7 +579,7 @@ golang.org/x/tools/internal/typeparams
 # gomodules.xyz/jsonpatch/v2 v2.4.0
 ## explicit; go 1.20
 gomodules.xyz/jsonpatch/v2
-# google.golang.org/api v0.155.0
+# google.golang.org/api v0.157.0
 ## explicit; go 1.19
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
@@ -608,11 +605,11 @@ google.golang.org/appengine/internal/modules
 google.golang.org/appengine/internal/remote_api
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/urlfetch
-# google.golang.org/genproto v0.0.0-20231211222908-989df2bf70f3
+# google.golang.org/genproto v0.0.0-20240102182953-50ed04b92917
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/type/calendarperiod
 google.golang.org/genproto/internal
-# google.golang.org/genproto/googleapis/api v0.0.0-20231211222908-989df2bf70f3
+# google.golang.org/genproto/googleapis/api v0.0.0-20240102182953-50ed04b92917
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
@@ -620,7 +617,7 @@ google.golang.org/genproto/googleapis/api/distribution
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20231212172506-995d672761c0
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20240116215550-a9fa1716bcac
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
@@ -695,6 +692,7 @@ google.golang.org/grpc/tap
 google.golang.org/grpc/test/bufconn
 # google.golang.org/protobuf v1.32.0
 ## explicit; go 1.17
+google.golang.org/protobuf/encoding/protodelim
 google.golang.org/protobuf/encoding/protojson
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
