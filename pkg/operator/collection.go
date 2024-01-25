@@ -32,8 +32,6 @@ import (
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/relabel"
-	"github.com/prometheus/prometheus/secrets"
-	"github.com/prometheus/prometheus/secrets/kubernetes"
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -41,7 +39,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -395,7 +392,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return nil, fmt.Errorf("failed to list PodMonitorings: %w", err)
 	}
 
-	set := sets.New[secrets.SecretConfig[kubernetes.SecretConfig]]()
+	usedSecrets := monitoringv1.PrometheusSecretConfigs{}
 	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
 
 	// Mark status updates in batch with single timestamp.
@@ -407,7 +404,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster)
+		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster, usedSecrets)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{
@@ -420,8 +417,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			continue
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
-
-		set = set.Insert(pmon.SecretConfigs()...)
 
 		change, err := pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
@@ -448,7 +443,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster)
+		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster, usedSecrets)
 		if err != nil {
 			msg := "generating scrape config failed for ClusterPodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{
@@ -462,8 +457,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		set = set.Insert(cmon.SecretConfigs()...)
-
 		change, err := cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
@@ -475,7 +468,10 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			r.statusUpdates = append(r.statusUpdates, &cmon)
 		}
 	}
-	cfg.SecretConfigs = set.UnsortedList()
+
+	// TODO(bwplotka): Warn about missing RBAC?
+	//
+	cfg.SecretConfigs = usedSecrets.SecretConfigs()
 
 	if err := r.client.List(ctx, &NodeMons); err != nil {
 		return nil, fmt.Errorf("failed to list NodeMonitorings: %w", err)

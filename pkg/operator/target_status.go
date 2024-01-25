@@ -369,6 +369,11 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 		if strings.HasPrefix(job, "kubelet") {
 			continue
 		}
+		// TODO(bwplotka): Add support for NodeMonitoring targets.
+		if strings.HasPrefix(job, "NodeMonitoring") {
+			continue
+		}
+
 		pm, err := buildPodMonitoring(job)
 		if err != nil {
 			return fmt.Errorf("building podmonitoring: %s: %w", job, err)

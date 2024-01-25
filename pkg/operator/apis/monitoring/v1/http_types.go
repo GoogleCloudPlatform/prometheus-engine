@@ -24,145 +24,119 @@ import (
 	"github.com/prometheus/prometheus/secrets/kubernetes"
 )
 
-type SecretSelector struct {
-	// The local secret and key to use.
-	Secret *SecretKeySelector `json:"secret,omitempty"`
-}
-
-func (s *SecretSelector) GetSecretKey(pm PodMonitoringCRD) string {
-	if s.Secret == nil {
-		return ""
-	}
-	return s.Secret.GetLocalSecretKey(pm.GetNamespace())
-}
-
-func (s *SecretSelector) GetSecret(pm PodMonitoringCRD) *secrets.SecretConfig[kubernetes.SecretConfig] {
-	if s.Secret == nil {
-		return nil
-	}
-	secret := s.Secret.GetLocalSecret(pm.GetNamespace())
-	return &secret
-}
-
-type SecretKeySelector struct {
-	// The name of the secret to select from.
+// ClusterSecretKeySelector represents selector for Kubernetes secret.
+// It's similar to k8s.io/api/core/v1.SecretKeySelector, but
+// allows cross namespace selections.
+type ClusterSecretKeySelector struct {
+	// Name of the secret to select from.
 	Name string `json:"name"`
 
 	// The key of the secret to select from. Must be a valid secret key.
 	Key string `json:"key"`
-}
 
-func (s *SecretKeySelector) GetLocalSecretKey(namespace string) string {
-	return fmt.Sprintf("%s/%s/%s", namespace, s.Name, s.Key)
-}
-
-func (s *SecretKeySelector) GetLocalSecret(namespace string) secrets.SecretConfig[kubernetes.SecretConfig] {
-	return secrets.SecretConfig[kubernetes.SecretConfig]{
-		Name: s.GetLocalSecretKey(namespace),
-		Config: kubernetes.SecretConfig{
-			Namespace: namespace,
-			Name:      s.Name,
-			Key:       s.Key,
-		},
-	}
-}
-
-type ClusterSecretSelector struct {
-	// The secret and key to use.
-	Secret *ClusterSecretKeySelector `json:"secret,omitempty"`
-}
-
-func (s *ClusterSecretSelector) GetSecretKey(pm PodMonitoringCRD) string {
-	return s.GetClusterSecretKey()
-}
-
-func (s *ClusterSecretSelector) GetSecret(pm PodMonitoringCRD) *secrets.SecretConfig[kubernetes.SecretConfig] {
-	return s.GetClusterSecret()
-}
-
-func (s *ClusterSecretSelector) GetClusterSecretKey() string {
-	if s.Secret == nil {
-		return ""
-	}
-	return s.Secret.GetClusterSecretKey()
-}
-
-func (s *ClusterSecretSelector) GetClusterSecret() *secrets.SecretConfig[kubernetes.SecretConfig] {
-	if s.Secret == nil {
-		return nil
-	}
-	secret := s.Secret.GetClusterSecret()
-	return &secret
-}
-
-type ClusterSecretKeySelector struct {
-	// The secret name and key to retrieve (inlined).
-	SecretKeySelector `json:",inline"`
-
-	// The namespace to retrieve the secret from.
+	// Namespace of the secret to select from.
+	// If empty the parent resource namespace will be chosen.
+	// NOTE: For PodMonitoring, this field should be empty or specify
+	// the same namespace as the PodMonitoring namespace.
+	// +optional
 	Namespace string `json:"namespace"`
 }
 
-func (s *ClusterSecretKeySelector) GetClusterSecretKey() string {
-	return s.SecretKeySelector.GetLocalSecretKey(s.Namespace)
-}
+// PrometheusSecretConfigs allows quick gathering of SecretConfigs for Prometheus configuration.
+// NOTE(bwplotka): This could be removed depending on how upstream Prometheus would like us to reference the secrets.
+type PrometheusSecretConfigs map[string]kubernetes.SecretConfig
 
-func (s *ClusterSecretKeySelector) GetClusterSecret() secrets.SecretConfig[kubernetes.SecretConfig] {
-	return s.SecretKeySelector.GetLocalSecret(s.Namespace)
-}
-
-// Auth sets the `Authorization` header on every scrape request.
-//
-// Currently the credentials are not configurable and always empty.
-type Auth struct {
-	// The authentication type. Defaults to Bearer, Basic will cause an error.
-	Type        string                `json:"type,omitempty"`
-	Credentials ClusterSecretSelector `json:"credentials,omitempty"`
-}
-
-func (c *Auth) ToPrometheusConfig(pm PodMonitoringCRD) *config.Authorization {
-	auth := &config.Authorization{
-		Type:           c.Type,
-		CredentialsRef: c.Credentials.GetSecretKey(pm),
+// Set inserts kubernetes.SecretConfig for given reference (in form of <namespace>/<name>/<key>).
+// Insertion will be deduplication if needed.
+func (p PrometheusSecretConfigs) Set(ref string, c kubernetes.SecretConfig) {
+	if p == nil {
+		return
 	}
-	return auth
+	if _, ok := p[ref]; ok {
+		return
+	}
+	p[ref] = c
 }
 
-func (c *Auth) GetSecretConfig() *secrets.SecretConfig[kubernetes.SecretConfig] {
-	return c.Credentials.GetClusterSecret()
+// SecretConfigs returns unordered list of secrets.SecretConfig[kubernetes.SecretConfig].
+func (p PrometheusSecretConfigs) SecretConfigs() (ret []secrets.SecretConfig[kubernetes.SecretConfig]) {
+	ret = make([]secrets.SecretConfig[kubernetes.SecretConfig], 0, len(p))
+	for ref, c := range p {
+		ret = append(ret, secrets.SecretConfig[kubernetes.SecretConfig]{
+			Name:   ref,
+			Config: c,
+		})
+	}
+	return ret
 }
 
-// BasicAuth sets the `Authorization` header on every scrape request with the
-// configured username.
-//
-// Currently the password is not configurable and always empty.
+// toPrometheusSecretRef returns Prometheus reference to Kubernetes secret (or empty string if not set).
+// It also adds secret to list of secrets by argument reference, if exists.
+// It returns error if namespace tenancy security restriction is violated for PodMonitoring.
+func (s *ClusterSecretKeySelector) toPrometheusSecretRef(m PodMonitoringCRD, pool PrometheusSecretConfigs) (string, error) {
+	if s == nil {
+		return "", nil
+	}
+
+	ns := s.Namespace
+	if ns == "" {
+		ns = m.GetNamespace()
+	} else if m.IsNamespaceScoped() && ns != m.GetNamespace() {
+		return "", fmt.Errorf("PodMonitoring secret selector can't select secret from the different namespace than PodMonitoring namespace %q, got: %q; Consider using ClusterPodMonitoring or copy secret to PodMonitoring namespace", m.GetNamespace(), ns)
+	}
+
+	ref := fmt.Sprintf("%s/%s/%s", ns, s.Name, s.Key)
+	pool.Set(ref, kubernetes.SecretConfig{
+		Namespace: ns,
+		Name:      s.Name,
+		Key:       s.Key,
+	})
+	return ref, nil
+}
+
+// Auth sets the `Authorization` header on every HTTP request.
+type Auth struct {
+	// The authentication type. Defaults to Bearer.
+	// Basic will cause an error, as the BasicAuth object should be used instead.
+	Type string `json:"type,omitempty"`
+	// CredentialsSecret references the Kubernetes secret's key with the credentials
+	// (token) for the auth header to send along the request.
+	// Optional, as in previous resource versions we allowed no credentials.
+	// +optional
+	CredentialsSecret *ClusterSecretKeySelector `json:"credentialsSecret,omitempty"`
+}
+
+func (c *Auth) ToPrometheusConfig(m PodMonitoringCRD, pool PrometheusSecretConfigs) (_ *config.Authorization, err error) {
+	auth := &config.Authorization{
+		Type: c.Type,
+	}
+
+	auth.CredentialsRef, err = c.CredentialsSecret.toPrometheusSecretRef(m, pool)
+	return auth, err
+}
+
+// BasicAuth sets the `Authorization` header on every HTTP request with the
+// configured username and optional password.
 type BasicAuth struct {
 	// The username for authentication.
 	Username string `json:"username,omitempty"`
-	// The password for authentication.
-	Password ClusterSecretSelector `json:"password"`
+	// PasswordSecret references the Kubernetes secret's key with the password to use.
+	// Optional, as in previous resource versions we allowed no credentials.
+	// +optional
+	PasswordSecret *ClusterSecretKeySelector `json:"passwordSecret"`
 }
 
-func (c *BasicAuth) ToPrometheusConfig(pm PodMonitoringCRD) *config.BasicAuth {
+func (c *BasicAuth) ToPrometheusConfig(m PodMonitoringCRD, pool PrometheusSecretConfigs) (_ *config.BasicAuth, err error) {
 	basicAuth := &config.BasicAuth{
-		Username:    c.Username,
-		PasswordRef: c.Password.GetSecretKey(pm),
+		Username: c.Username,
 	}
-	return basicAuth
+
+	basicAuth.PasswordRef, err = c.PasswordSecret.toPrometheusSecretRef(m, pool)
+	return basicAuth, err
 }
 
-func (c *BasicAuth) GetSecretConfig() *secrets.SecretConfig[kubernetes.SecretConfig] {
-	return c.Password.GetClusterSecret()
-}
-
-// TLS specifies TLS configuration parameters from Kubernetes resources.
+// TLS specifies TLS configuration used for HTTP requests.
 type TLS struct {
-	// TODO
-	CA ClusterSecretSelector `json:"ca"`
-	// TODO
-	Cert ClusterSecretSelector `json:"cert"`
-	// TODO
-	KeySecret ClusterSecretSelector `json:"keySecret"`
 	// Used to verify the hostname for the targets.
 	ServerName string `json:"serverName,omitempty"`
 	// Disable target certificate validation.
@@ -175,6 +149,22 @@ type TLS struct {
 	// If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
 	// See MinVersion in https://pkg.go.dev/crypto/tls#Config.
 	MaxVersion string `json:"maxVersion,omitempty"`
+
+	// CASecret references the Kubernetes secret's key with the CA certificate to
+	// validate API server certificate with.
+	// Optional, as in previous resource versions we allowed no credentials.
+	// +optional
+	CASecret *ClusterSecretKeySelector `json:"caSecret,omitempty"`
+	// CertSecret references the Kubernetes secret's key with the certificate (public
+	// key) for client cert authentication to the server.
+	// Optional, as in previous resource versions we allowed no credentials.
+	// +optional
+	CertSecret *ClusterSecretKeySelector `json:"certSecret,omitempty"`
+	// KeySecret references the Kubernetes secret's key with the private key
+	// for client cert authentication to the server.
+	// Optional, as in previous resource versions we allowed no credentials.
+	// +optional
+	KeySecret *ClusterSecretKeySelector `json:"keySecret,omitempty"`
 }
 
 func TLSVersionFromString(s string) (config.TLSVersion, error) {
@@ -187,53 +177,45 @@ func TLSVersionFromString(s string) (config.TLSVersion, error) {
 	return 0, fmt.Errorf("unknown TLS version: %s", s)
 }
 
-func (c *TLS) ToPrometheusConfig(pm PodMonitoringCRD) (*config.TLSConfig, error) {
-	var errs []error
-	minVersion, err := TLSVersionFromString(c.MinVersion)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("unable to convert TLS min version: %w", err))
-	}
-	maxVersion, err := TLSVersionFromString(c.MaxVersion)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("unable to convert TLS min version: %w", err))
-	}
-	if err := errors.Join(errs...); err != nil {
-		return nil, err
-	}
+func (c *TLS) ToPrometheusConfig(m PodMonitoringCRD, pool PrometheusSecretConfigs) (_ *config.TLSConfig, err error) {
 	tls := &config.TLSConfig{
-		CARef:              c.CA.GetSecretKey(pm),
-		CertRef:            c.Cert.GetSecretKey(pm),
-		KeyRef:             c.KeySecret.GetSecretKey(pm),
 		InsecureSkipVerify: c.InsecureSkipVerify,
 		ServerName:         c.ServerName,
-		MinVersion:         minVersion,
-		MaxVersion:         maxVersion,
 	}
-	return tls, nil
-}
 
-func (c *TLS) GetSecretConfig() []secrets.SecretConfig[kubernetes.SecretConfig] {
-	var secrets []secrets.SecretConfig[kubernetes.SecretConfig]
-	if secret := c.CA.GetClusterSecret(); secret != nil {
-		secrets = append(secrets, *secret)
+	var errs []error
+	tls.MinVersion, err = TLSVersionFromString(c.MinVersion)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("unable to convert TLS min version: %w", err))
 	}
-	if secret := c.Cert.GetClusterSecret(); secret != nil {
-		secrets = append(secrets, *secret)
+	tls.MaxVersion, err = TLSVersionFromString(c.MaxVersion)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("unable to convert TLS max version: %w", err))
 	}
-	if secret := c.KeySecret.GetClusterSecret(); secret != nil {
-		secrets = append(secrets, *secret)
+	tls.CARef, err = c.CASecret.toPrometheusSecretRef(m, pool)
+	if err != nil {
+		errs = append(errs, err)
 	}
-	return secrets
+	tls.CertRef, err = c.CertSecret.toPrometheusSecretRef(m, pool)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	tls.KeyRef, err = c.KeySecret.toPrometheusSecretRef(m, pool)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	return tls, errors.Join(errs...)
 }
 
 // OAuth2 is the OAuth2 client configuration.
-//
-// Currently the client secret is not configurable and always empty.
 type OAuth2 struct {
 	// Public identifier for the client.
 	ClientID string `json:"clientID"`
-	// TODO
-	ClientSecret ClusterSecretSelector `json:"clientSecret"`
+	// ClientSecret references the Kubernetes secret's key with the client secret
+	// token for Oauth2 flow.
+	// Optional, as in previous resource versions we allowed no credentials.
+	// +optional
+	ClientSecret *ClusterSecretKeySelector `json:"clientSecret,omitempty"`
 	// Scopes for the token request.
 	Scopes []string `json:"scopes,omitempty"`
 	// The URL to fetch the token from.
@@ -243,49 +225,44 @@ type OAuth2 struct {
 	// Configures the token request's TLS settings.
 	TLS         *TLS `json:"tlsConfig,omitempty"`
 	ProxyConfig `json:",inline"`
-	// TODO: Add ClientSecret: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/450
 }
 
-func (c *OAuth2) ToPrometheusConfig(pm PodMonitoringCRD) (*config.OAuth2, error) {
+func (c *OAuth2) ToPrometheusConfig(m PodMonitoringCRD, pool PrometheusSecretConfigs) (_ *config.OAuth2, err error) {
 	oauth2 := &config.OAuth2{
-		ClientID:        c.ClientID,
-		ClientSecretRef: c.ClientSecret.GetSecretKey(pm),
-		Scopes:          c.Scopes,
-		TokenURL:        c.TokenURL,
-		EndpointParams:  c.EndpointParams,
+		ClientID:       c.ClientID,
+		Scopes:         c.Scopes,
+		TokenURL:       c.TokenURL,
+		EndpointParams: c.EndpointParams,
+	}
+	var errs []error
+	oauth2.ClientSecretRef, err = c.ClientSecret.toPrometheusSecretRef(m, pool)
+	if err != nil {
+		errs = append(errs, err)
 	}
 	if c.TLS != nil {
-		tlsConfig, err := c.TLS.ToPrometheusConfig(pm)
+		tlsConfig, err := c.TLS.ToPrometheusConfig(m, pool)
 		if err != nil {
-			return nil, fmt.Errorf("OAuth2 TLS: %w", err)
+			errs = append(errs, fmt.Errorf("OAuth2 TLS: %w", err))
+		} else {
+			oauth2.TLSConfig = *tlsConfig
 		}
-		oauth2.TLSConfig = *tlsConfig
 	}
 	if c.ProxyConfig.ProxyURL != "" {
 		proxyConfig, err := c.ProxyConfig.ToPrometheusConfig()
 		if err != nil {
-			return nil, fmt.Errorf("OAuth2 proxy config: %w", err)
+			errs = append(errs, fmt.Errorf("OAuth2 proxy config: %w", err))
+		} else {
+			oauth2.ProxyURL = proxyConfig
 		}
-		oauth2.ProxyURL = proxyConfig
 	}
-	return oauth2, nil
-}
-
-func (c *OAuth2) GetSecretConfig() []secrets.SecretConfig[kubernetes.SecretConfig] {
-	var secrets []secrets.SecretConfig[kubernetes.SecretConfig]
-	if secret := c.ClientSecret.GetClusterSecret(); secret != nil {
-		secrets = append(secrets, *secret)
-	}
-	if c.TLS != nil {
-		secrets = append(secrets, c.TLS.GetSecretConfig()...)
-	}
-	return secrets
+	return oauth2, errors.Join(errs...)
 }
 
 type ProxyConfig struct {
 	// HTTP proxy server to use to connect to the targets. Encoded passwords are not supported.
 	ProxyURL string `json:"proxyUrl,omitempty"`
-	// TODO(TheSpiritXIII): https://prometheus.io/docs/prometheus/latest/configuration/configuration/#oauth2
+
+	// TODO(TheSpiritXIII): Consider adding further fields for Proxy configuration, similar to https://prometheus.io/docs/prometheus/latest/configuration/configuration/#oauth2
 }
 
 func (c *ProxyConfig) ToPrometheusConfig() (config.URL, error) {
@@ -294,7 +271,7 @@ func (c *ProxyConfig) ToPrometheusConfig() (config.URL, error) {
 		return config.URL{}, fmt.Errorf("invalid proxy URL: %w", err)
 	}
 	// Marshalling the config will redact the password, so we don't support those.
-	// It's not a good idea anyway and we will later support basic auth based on secrets to
+	// It's not a good idea anyway, and we could add later support basic auth based on secrets to
 	// cover the general use case.
 	if _, ok := proxyURL.User.Password(); ok {
 		return config.URL{}, errors.New("passwords encoded in URLs are not supported")
@@ -317,18 +294,25 @@ type HTTPClientConfig struct {
 	ProxyConfig `json:",inline"`
 }
 
-func (c *HTTPClientConfig) ToPrometheusConfig(pm PodMonitoringCRD) (config.HTTPClientConfig, error) {
-	var errs []error
+func (c *HTTPClientConfig) ToPrometheusConfig(m PodMonitoringCRD, pool PrometheusSecretConfigs) (_ config.HTTPClientConfig, err error) {
 	// Copy default config.
 	clientConfig := config.DefaultHTTPClientConfig
+
+	var errs []error
 	if c.Authorization != nil {
-		clientConfig.Authorization = c.Authorization.ToPrometheusConfig(pm)
+		clientConfig.Authorization, err = c.Authorization.ToPrometheusConfig(m, pool)
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 	if c.BasicAuth != nil {
-		clientConfig.BasicAuth = c.BasicAuth.ToPrometheusConfig(pm)
+		clientConfig.BasicAuth, err = c.BasicAuth.ToPrometheusConfig(m, pool)
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 	if c.TLS != nil {
-		tlsConfig, err := c.TLS.ToPrometheusConfig(pm)
+		tlsConfig, err := c.TLS.ToPrometheusConfig(m, pool)
 		if err != nil {
 			errs = append(errs, err)
 		} else {
@@ -336,7 +320,7 @@ func (c *HTTPClientConfig) ToPrometheusConfig(pm PodMonitoringCRD) (config.HTTPC
 		}
 	}
 	if c.OAuth2 != nil {
-		oauth2, err := c.OAuth2.ToPrometheusConfig(pm)
+		oauth2, err := c.OAuth2.ToPrometheusConfig(m, pool)
 		if err != nil {
 			errs = append(errs, err)
 		} else {
@@ -352,25 +336,4 @@ func (c *HTTPClientConfig) ToPrometheusConfig(pm PodMonitoringCRD) (config.HTTPC
 		}
 	}
 	return clientConfig, errors.Join(errs...)
-}
-
-func (c *HTTPClientConfig) GetSecretConfigs() []secrets.SecretConfig[kubernetes.SecretConfig] {
-	var secrets []secrets.SecretConfig[kubernetes.SecretConfig]
-	if c.Authorization != nil {
-		if secret := c.Authorization.GetSecretConfig(); secret != nil {
-			secrets = append(secrets, *secret)
-		}
-	}
-	if c.BasicAuth != nil {
-		if secret := c.BasicAuth.GetSecretConfig(); secret != nil {
-			secrets = append(secrets, *secret)
-		}
-	}
-	if c.TLS != nil {
-		secrets = append(secrets, c.TLS.GetSecretConfig()...)
-	}
-	if c.OAuth2 != nil {
-		secrets = append(secrets, c.OAuth2.GetSecretConfig()...)
-	}
-	return secrets
 }

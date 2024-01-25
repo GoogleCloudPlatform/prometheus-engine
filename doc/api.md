@@ -28,8 +28,6 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">ClusterSecretKeySelector</a>
 </li><li>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">ClusterSecretSelector</a>
-</li><li>
 <a href="#monitoring.googleapis.com/v1.CollectionSpec">CollectionSpec</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.CompressionType">CompressionType</a>
@@ -74,6 +72,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.PrometheusSecretConfigs">PrometheusSecretConfigs</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.ProxyConfig">ProxyConfig</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.RelabelingRule">RelabelingRule</a>
@@ -102,11 +102,7 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>
 </li><li>
-<a href="#monitoring.googleapis.com/v1.SecretKeySelector">SecretKeySelector</a>
-</li><li>
 <a href="#monitoring.googleapis.com/v1.SecretOrConfigMap">SecretOrConfigMap</a>
-</li><li>
-<a href="#monitoring.googleapis.com/v1.SecretSelector">SecretSelector</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.TLS">TLS</a>
 </li><li>
@@ -282,8 +278,7 @@ string
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>)
 </p>
 <div>
-<p>Auth sets the <code>Authorization</code> header on every scrape request.</p>
-<p>Currently the credentials are not configurable and always empty.</p>
+<p>Auth sets the <code>Authorization</code> header on every HTTP request.</p>
 </div>
 <table>
 <thead>
@@ -301,19 +296,24 @@ string
 </em>
 </td>
 <td>
-<p>The authentication type. Defaults to Bearer, Basic will cause an error.</p>
+<p>The authentication type. Defaults to Bearer.
+Basic will cause an error, as the BasicAuth object should be used instead.</p>
 </td>
 </tr>
 <tr>
 <td>
-<code>credentials</code><br/>
+<code>credentialsSecret</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
-ClusterSecretSelector
+<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
+ClusterSecretKeySelector
 </a>
 </em>
 </td>
 <td>
+<em>(Optional)</em>
+<p>CredentialsSecret references the Kubernetes secret&rsquo;s key with the credentials
+(token) for the auth header to send along the request.
+Optional, as in previous resource versions we allowed no credentials.</p>
 </td>
 </tr>
 </tbody>
@@ -372,9 +372,8 @@ Kubernetes core/v1.SecretKeySelector
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>)
 </p>
 <div>
-<p>BasicAuth sets the <code>Authorization</code> header on every scrape request with the
-configured username.</p>
-<p>Currently the password is not configurable and always empty.</p>
+<p>BasicAuth sets the <code>Authorization</code> header on every HTTP request with the
+configured username and optional password.</p>
 </div>
 <table>
 <thead>
@@ -397,15 +396,17 @@ string
 </tr>
 <tr>
 <td>
-<code>password</code><br/>
+<code>passwordSecret</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
-ClusterSecretSelector
+<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
+ClusterSecretKeySelector
 </a>
 </em>
 </td>
 <td>
-<p>The password for authentication.</p>
+<em>(Optional)</em>
+<p>PasswordSecret references the Kubernetes secret&rsquo;s key with the password to use.
+Optional, as in previous resource versions we allowed no credentials.</p>
 </td>
 </tr>
 </tbody>
@@ -630,9 +631,12 @@ RulesStatus
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">ClusterSecretSelector</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.Auth">Auth</a>, <a href="#monitoring.googleapis.com/v1.BasicAuth">BasicAuth</a>, <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>, <a href="#monitoring.googleapis.com/v1.TLS">TLS</a>)
 </p>
 <div>
+<p>ClusterSecretKeySelector represents selector for Kubernetes secret.
+It&rsquo;s similar to k8s.io/api/core/v1.SecretKeySelector, but
+allows cross namespace selections.</p>
 </div>
 <table>
 <thead>
@@ -644,18 +648,24 @@ RulesStatus
 <tbody>
 <tr>
 <td>
-<code>SecretKeySelector</code><br/>
+<code>name</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.SecretKeySelector">
-SecretKeySelector
-</a>
+string
 </em>
 </td>
 <td>
-<p>
-(Members of <code>SecretKeySelector</code> are embedded into this type.)
-</p>
-<p>The secret name and key to retrieve (inlined).</p>
+<p>Name of the secret to select from.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>key</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>The key of the secret to select from. Must be a valid secret key.</p>
 </td>
 </tr>
 <tr>
@@ -666,39 +676,11 @@ string
 </em>
 </td>
 <td>
-<p>The namespace to retrieve the secret from.</p>
-</td>
-</tr>
-</tbody>
-</table>
-<h3 id="monitoring.googleapis.com/v1.ClusterSecretSelector">
-<span id="ClusterSecretSelector">ClusterSecretSelector
-</span>
-</h3>
-<p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.Auth">Auth</a>, <a href="#monitoring.googleapis.com/v1.BasicAuth">BasicAuth</a>, <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>, <a href="#monitoring.googleapis.com/v1.TLS">TLS</a>)
-</p>
-<div>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>secret</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
-ClusterSecretKeySelector
-</a>
-</em>
-</td>
-<td>
-<p>The secret and key to use.</p>
+<em>(Optional)</em>
+<p>Namespace of the secret to select from.
+If empty the parent resource namespace will be chosen.
+NOTE: For PodMonitoring, this field should be empty or specify
+the same namespace as the PodMonitoring namespace.</p>
 </td>
 </tr>
 </tbody>
@@ -1457,7 +1439,6 @@ ScrapeLimits
 </p>
 <div>
 <p>OAuth2 is the OAuth2 client configuration.</p>
-<p>Currently the client secret is not configurable and always empty.</p>
 </div>
 <table>
 <thead>
@@ -1482,13 +1463,16 @@ string
 <td>
 <code>clientSecret</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
-ClusterSecretSelector
+<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
+ClusterSecretKeySelector
 </a>
 </em>
 </td>
 <td>
-<p>TODO</p>
+<em>(Optional)</em>
+<p>ClientSecret references the Kubernetes secret&rsquo;s key with the client secret
+token for Oauth2 flow.
+Optional, as in previous resource versions we allowed no credentials.</p>
 </td>
 </tr>
 <tr>
@@ -1886,6 +1870,14 @@ MonitoringStatus
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.PrometheusSecretConfigs">
+<span id="PrometheusSecretConfigs">PrometheusSecretConfigs
+(<code>map[string]github.com/prometheus/prometheus/secrets/kubernetes.SecretConfig</code> alias)</span>
+</h3>
+<div>
+<p>PrometheusSecretConfigs allows quick gathering of SecretConfigs for Prometheus configuration.
+NOTE(bwplotka): This could be removed depending on how upstream Prometheus would like us to reference the secrets.</p>
+</div>
 <h3 id="monitoring.googleapis.com/v1.ProxyConfig">
 <span id="ProxyConfig">ProxyConfig
 </span>
@@ -2838,47 +2830,6 @@ in general.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="monitoring.googleapis.com/v1.SecretKeySelector">
-<span id="SecretKeySelector">SecretKeySelector
-</span>
-</h3>
-<p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">ClusterSecretKeySelector</a>, <a href="#monitoring.googleapis.com/v1.SecretSelector">SecretSelector</a>)
-</p>
-<div>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>name</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<p>The name of the secret to select from.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>key</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<p>The key of the secret to select from. Must be a valid secret key.</p>
-</td>
-</tr>
-</tbody>
-</table>
 <h3 id="monitoring.googleapis.com/v1.SecretOrConfigMap">
 <span id="SecretOrConfigMap">SecretOrConfigMap
 </span>
@@ -2926,35 +2877,6 @@ Kubernetes core/v1.ConfigMapKeySelector
 </tr>
 </tbody>
 </table>
-<h3 id="monitoring.googleapis.com/v1.SecretSelector">
-<span id="SecretSelector">SecretSelector
-</span>
-</h3>
-<div>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>secret</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.SecretKeySelector">
-SecretKeySelector
-</a>
-</em>
-</td>
-<td>
-<p>The local secret and key to use.</p>
-</td>
-</tr>
-</tbody>
-</table>
 <h3 id="monitoring.googleapis.com/v1.TLS">
 <span id="TLS">TLS
 </span>
@@ -2963,7 +2885,7 @@ SecretKeySelector
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>, <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>)
 </p>
 <div>
-<p>TLS specifies TLS configuration parameters from Kubernetes resources.</p>
+<p>TLS specifies TLS configuration used for HTTP requests.</p>
 </div>
 <table>
 <thead>
@@ -2973,45 +2895,6 @@ SecretKeySelector
 </tr>
 </thead>
 <tbody>
-<tr>
-<td>
-<code>ca</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
-ClusterSecretSelector
-</a>
-</em>
-</td>
-<td>
-<p>TODO</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>cert</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
-ClusterSecretSelector
-</a>
-</em>
-</td>
-<td>
-<p>TODO</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>keySecret</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretSelector">
-ClusterSecretSelector
-</a>
-</em>
-</td>
-<td>
-<p>TODO</p>
-</td>
-</tr>
 <tr>
 <td>
 <code>serverName</code><br/>
@@ -3058,6 +2941,54 @@ string
 <p>Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
 If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
 See MinVersion in <a href="https://pkg.go.dev/crypto/tls#Config">https://pkg.go.dev/crypto/tls#Config</a>.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>caSecret</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
+ClusterSecretKeySelector
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>CASecret references the Kubernetes secret&rsquo;s key with the CA certificate to
+validate API server certificate with.
+Optional, as in previous resource versions we allowed no credentials.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>certSecret</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
+ClusterSecretKeySelector
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>CertSecret references the Kubernetes secret&rsquo;s key with the certificate (public
+key) for client cert authentication to the server.
+Optional, as in previous resource versions we allowed no credentials.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>keySecret</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
+ClusterSecretKeySelector
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>KeySecret references the Kubernetes secret&rsquo;s key with the private key
+for client cert authentication to the server.
+Optional, as in previous resource versions we allowed no credentials.</p>
 </td>
 </tr>
 </tbody>

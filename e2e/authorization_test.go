@@ -299,14 +299,10 @@ func TestBasicAuth(t *testing.T) {
 		}, "mon-basic-auth-no-username", monitoringv1.ScrapeEndpoint{}, monitoringv1.ScrapeEndpoint{
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				BasicAuth: &monitoringv1.BasicAuth{
-					Password: monitoringv1.ClusterSecretSelector{
-						Secret: &monitoringv1.ClusterSecretKeySelector{
-							SecretKeySelector: monitoringv1.SecretKeySelector{
-								Name: appName,
-								Key:  secretKey,
-							},
-							Namespace: t.userNamespace,
-						},
+					PasswordSecret: &monitoringv1.ClusterSecretKeySelector{
+						Name:      appName,
+						Key:       secretKey,
+						Namespace: t.userNamespace,
 					},
 				},
 			},
@@ -337,14 +333,10 @@ func TestBasicAuth(t *testing.T) {
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				BasicAuth: &monitoringv1.BasicAuth{
 					Username: appUsername,
-					Password: monitoringv1.ClusterSecretSelector{
-						Secret: &monitoringv1.ClusterSecretKeySelector{
-							SecretKeySelector: monitoringv1.SecretKeySelector{
-								Name: appName,
-								Key:  secretKey,
-							},
-							Namespace: t.userNamespace,
-						},
+					PasswordSecret: &monitoringv1.ClusterSecretKeySelector{
+						Name:      appName,
+						Key:       secretKey,
+						Namespace: t.userNamespace,
 					},
 				},
 			},
@@ -400,14 +392,10 @@ func TestAuthorization(t *testing.T) {
 		}, monitoringv1.ScrapeEndpoint{
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				Authorization: &monitoringv1.Auth{
-					Credentials: monitoringv1.ClusterSecretSelector{
-						Secret: &monitoringv1.ClusterSecretKeySelector{
-							SecretKeySelector: monitoringv1.SecretKeySelector{
-								Name: appName,
-								Key:  secretKey,
-							},
-							Namespace: t.userNamespace,
-						},
+					CredentialsSecret: &monitoringv1.ClusterSecretKeySelector{
+						Name:      appName,
+						Key:       secretKey,
+						Namespace: t.userNamespace,
 					},
 				},
 			},
@@ -480,14 +468,10 @@ func TestOAuth2(t *testing.T) {
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				OAuth2: &monitoringv1.OAuth2{
 					ClientID: clientID,
-					ClientSecret: monitoringv1.ClusterSecretSelector{
-						Secret: &monitoringv1.ClusterSecretKeySelector{
-							SecretKeySelector: monitoringv1.SecretKeySelector{
-								Name: appName,
-								Key:  secretKey,
-							},
-							Namespace: t.userNamespace,
-						},
+					ClientSecret: &monitoringv1.ClusterSecretKeySelector{
+						Name:      appName,
+						Key:       secretKey,
+						Namespace: t.userNamespace,
 					},
 					Scopes:   []string{clientScope},
 					TokenURL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080/token", appName, t.userNamespace),

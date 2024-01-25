@@ -26,12 +26,9 @@ import (
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/model/relabel"
-	"github.com/prometheus/prometheus/secrets"
-	"github.com/prometheus/prometheus/secrets/kubernetes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -42,6 +39,10 @@ var (
 // PodMonitoringCRD represents a Kubernetes CRD that monitors Pod endpoints.
 type PodMonitoringCRD interface {
 	MonitoringCRD
+
+	// IsNamespaceScoped returns true for PodMonitoring and false for ClusterPodMonitoring.
+	// This is used for namespace tenancy isolation (e.g. for secrets).
+	IsNamespaceScoped() bool
 
 	// GetKey returns a unique identifier for this CRD.
 	GetKey() string
@@ -69,6 +70,10 @@ type PodMonitoring struct {
 	// Most recently observed status of the resource.
 	// +optional
 	Status PodMonitoringStatus `json:"status"`
+}
+
+func (p *PodMonitoring) IsNamespaceScoped() bool {
+	return true
 }
 
 func (p *PodMonitoring) GetKey() string {
@@ -114,6 +119,10 @@ type ClusterPodMonitoring struct {
 	Status PodMonitoringStatus `json:"status"`
 }
 
+func (p *ClusterPodMonitoring) IsNamespaceScoped() bool {
+	return false
+}
+
 func (p *ClusterPodMonitoring) GetKey() string {
 	return fmt.Sprintf("ClusterPodMonitoring/%s", p.Name)
 }
@@ -144,7 +153,7 @@ func (cm *ClusterPodMonitoring) ValidateCreate() (admission.Warnings, error) {
 	}
 	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
 	// example values has no adverse effects.
-	_, err := cm.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	_, err := cm.ScrapeConfigs("test_project", "test_location", "test_cluster", nil)
 	return nil, err
 }
 
@@ -158,9 +167,9 @@ func (cm *ClusterPodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
 
-func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
+func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
 	for i := range cm.Spec.Endpoints {
-		c, err := cm.endpointScrapeConfig(i, projectID, location, cluster)
+		c, err := cm.endpointScrapeConfig(i, projectID, location, cluster, pool)
 		if err != nil {
 			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
@@ -169,21 +178,13 @@ func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster strin
 	return res, nil
 }
 
-func (cm *ClusterPodMonitoring) SecretConfigs() []secrets.SecretConfig[kubernetes.SecretConfig] {
-	set := sets.New[secrets.SecretConfig[kubernetes.SecretConfig]]()
-	for _, endpoint := range cm.Spec.Endpoints {
-		set = set.Insert(endpoint.HTTPClientConfig.GetSecretConfigs()...)
-	}
-	return set.UnsortedList()
-}
-
 func (pm *PodMonitoring) ValidateCreate() (admission.Warnings, error) {
 	if len(pm.Spec.Endpoints) == 0 {
 		return nil, errors.New("at least one endpoint is required")
 	}
 	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
 	// example values has no adverse effects.
-	_, err := pm.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	_, err := pm.ScrapeConfigs("test_project", "test_location", "test_cluster", nil)
 	return nil, err
 }
 
@@ -198,9 +199,9 @@ func (pm *PodMonitoring) ValidateDelete() (admission.Warnings, error) {
 }
 
 // ScrapeConfigs generates Prometheus scrape configs for the PodMonitoring.
-func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
+func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
 	for i := range pm.Spec.Endpoints {
-		c, err := pm.endpointScrapeConfig(i, projectID, location, cluster)
+		c, err := pm.endpointScrapeConfig(i, projectID, location, cluster, pool)
 		if err != nil {
 			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
@@ -209,16 +210,7 @@ func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res
 	return res, nil
 }
 
-// ScrapeConfigs generates Prometheus secret configs for the PodMonitoring.
-func (pm *PodMonitoring) SecretConfigs() []secrets.SecretConfig[kubernetes.SecretConfig] {
-	set := sets.New[secrets.SecretConfig[kubernetes.SecretConfig]]()
-	for _, endpoint := range pm.Spec.Endpoints {
-		set = set.Insert(endpoint.HTTPClientConfig.GetSecretConfigs()...)
-	}
-	return set.UnsortedList()
-}
-
-func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string, pool PrometheusSecretConfigs) (*promconfig.ScrapeConfig, error) {
 	relabelCfgs := []*relabel.Config{
 		// Filter targets by namespace of the PodMonitoring configuration.
 		{
@@ -276,11 +268,20 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 		relabelCfgs,
 		pm.Spec.TargetLabels.FromPod,
 		pm.Spec.Limits,
+		pool,
 	)
 }
 
-func endpointScrapeConfig(pm PodMonitoringCRD, projectID, location, cluster string, ep ScrapeEndpoint, relabelCfgs []*relabel.Config, podLabels []LabelMapping, limits *ScrapeLimits) (*promconfig.ScrapeConfig, error) {
-	id := pm.GetKey()
+func endpointScrapeConfig(
+	m PodMonitoringCRD,
+	projectID, location, cluster string,
+	ep ScrapeEndpoint,
+	relabelCfgs []*relabel.Config,
+	podLabels []LabelMapping,
+	limits *ScrapeLimits,
+	pool PrometheusSecretConfigs,
+) (*promconfig.ScrapeConfig, error) {
+	id := m.GetKey()
 	// Configure how Prometheus talks to the Kubernetes API server to discover targets.
 	// This configuration is the same for all scrape jobs (esp. selectors).
 	// This ensures that Prometheus can reuse the underlying client and caches, which reduces
@@ -303,7 +304,7 @@ func endpointScrapeConfig(pm PodMonitoringCRD, projectID, location, cluster stri
 	}
 
 	relabelCfgs = append(relabelCfgs,
-		// Force target labels so they cannot be overwritten by metric labels.
+		// Force target labels, so they cannot be overwritten by metric labels.
 		&relabel.Config{
 			Action:      relabel.Replace,
 			TargetLabel: "project_id",
@@ -371,11 +372,11 @@ func endpointScrapeConfig(pm PodMonitoringCRD, projectID, location, cluster stri
 		// targets for all incoming target candidates for that pod and producing identical output
 		// targets for each.
 		// This requires leaving the container label empty (or at a singleton value) even if it is
-		// requested as an output label via .targetLabels.metadata. This algins with the Pod specification,
-		// which requires port names in a Pod to be unique but not port numbers. Thus the container is
+		// requested as an output label via .targetLabels.metadata. This aligns with the Pod specification,
+		// which requires port names in a Pod to be unique but not port numbers. Thus, the container is
 		// potentially ambigious for numerical ports in any case.
 
-		// First, drop the container label even it it was added before.
+		// First, drop the container label even it  was added before.
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action: relabel.LabelDrop,
 			Regex:  relabel.MustNewRegexp("container"),
@@ -404,15 +405,19 @@ func endpointScrapeConfig(pm PodMonitoringCRD, projectID, location, cluster stri
 		relabelCfgs = append(relabelCfgs, pCfgs...)
 	}
 
-	httpCfg, err := ep.HTTPClientConfig.ToPrometheusConfig(pm)
+	httpCfg, err := ep.HTTPClientConfig.ToPrometheusConfig(m, pool)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse HTTP client config: %w", err)
+		return nil, fmt.Errorf("unable to parse or invalid HTTP client config: %w", err)
 	}
-
 	if err := httpCfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid Prometheus HTTP client config: %w", err)
 	}
-	return buildPrometheusScrapConfig(fmt.Sprintf("%s/%s", id, &ep.Port), discoveryCfgs, httpCfg, relabelCfgs, limits, ep)
+
+	cfg, err := buildPrometheusScrapeConfig(fmt.Sprintf("%s/%s", id, &ep.Port), discoveryCfgs, httpCfg, relabelCfgs, limits, ep)
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
@@ -447,7 +452,7 @@ func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
 	return res
 }
 
-func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string, pool PrometheusSecretConfigs) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected pods.
 	relabelCfgs, err := relabelingsForSelector(cm.Spec.Selector, cm)
 	if err != nil {
@@ -493,6 +498,7 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 		relabelCfgs,
 		cm.Spec.TargetLabels.FromPod,
 		cm.Spec.Limits,
+		pool,
 	)
 }
 
