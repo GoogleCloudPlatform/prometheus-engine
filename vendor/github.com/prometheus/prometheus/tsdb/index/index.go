@@ -175,18 +175,15 @@ func NewTOCFromByteSlice(bs ByteSlice) (*TOC, error) {
 		return nil, errors.Wrap(encoding.ErrInvalidChecksum, "read TOC")
 	}
 
-	if err := d.Err(); err != nil {
-		return nil, err
-	}
-
-	return &TOC{
+	toc := &TOC{
 		Symbols:           d.Be64(),
 		Series:            d.Be64(),
 		LabelIndices:      d.Be64(),
 		LabelIndicesTable: d.Be64(),
 		Postings:          d.Be64(),
 		PostingsTable:     d.Be64(),
-	}, nil
+	}
+	return toc, d.Err()
 }
 
 // NewWriter returns a new Writer to the given filename. It serializes data in format version 2.
@@ -536,7 +533,7 @@ func (w *Writer) finishSymbols() error {
 	// Write out the length and symbol count.
 	w.buf1.Reset()
 	w.buf1.PutBE32int(int(symbolTableSize))
-	w.buf1.PutBE32int(int(w.numSymbols))
+	w.buf1.PutBE32int(w.numSymbols)
 	if err := w.writeAt(w.buf1.Get(), w.toc.Symbols); err != nil {
 		return err
 	}

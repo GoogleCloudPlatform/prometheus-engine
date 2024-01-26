@@ -354,7 +354,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 	// Remove the __name__ label as it becomes the metric type in the GCM time series.
 	metricLabelsBuilder := labels.NewBuilder(metricLabels)
 	metricLabelsBuilder.Del(labels.MetricName)
-	metricLabels = metricLabelsBuilder.Labels(metricLabels)
+	metricLabels = metricLabelsBuilder.Labels()
 
 	// Drop series with too many labels.
 	// TODO: remove once field limit is lifted in the GCM API.
@@ -386,7 +386,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 	if metadata.Type == textparse.MetricTypeHistogram {
 		metricLabelsBuilder := labels.NewBuilder(metricLabels)
 		metricLabelsBuilder.Del(labels.BucketLabel)
-		metricLabels = metricLabelsBuilder.Labels(metricLabels)
+		metricLabels = metricLabelsBuilder.Labels()
 	}
 
 	newSeries := func(mtype string, kind metric_pb.MetricDescriptor_MetricKind, vtype metric_pb.MetricDescriptor_ValueType) hashedSeries {
@@ -499,7 +499,7 @@ func extractResource(externalLabels, lset labels.Labels) (*monitoredres_pb.Monit
 			builder.Set(l.Name, l.Value)
 		}
 	})
-	lset = builder.Labels(labels.EmptyLabels())
+	lset = builder.Labels()
 
 	// Ensure project_id and location are set but leave validating of the values to the API.
 	if lset.Get(KeyProjectID) == "" {
@@ -530,7 +530,7 @@ func extractResource(externalLabels, lset labels.Labels) (*monitoredres_pb.Monit
 	builder.Del(KeyJob)
 	builder.Del(KeyInstance)
 
-	return mres, builder.Labels(labels.EmptyLabels()), nil
+	return mres, builder.Labels(), nil
 }
 
 func splitMetricSuffix(name string) (prefix string, suffix metricSuffix, ok bool) {

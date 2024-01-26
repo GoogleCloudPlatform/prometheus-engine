@@ -134,7 +134,7 @@ func (l *localExportWithGCM) injectScrapes(t testing.TB, scrapeRecordings [][]*d
 				t.Fatal(err)
 			}
 		}
-		tp, err := textparse.New(b.Bytes(), string(expfmt.FmtProtoDelim))
+		tp, err := textparse.New(b.Bytes(), string(expfmt.FmtProtoDelim), true)
 		if err != nil {
 			t.Fatal(err)
 		}
