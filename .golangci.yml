@@ -1,5 +1,4 @@
 linters:
   disable:
     - errcheck
-    - ineffassign
     - govet
