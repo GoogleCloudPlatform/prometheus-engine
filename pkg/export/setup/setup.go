@@ -45,7 +45,7 @@ const (
 	UAEnvGCE         = "gce"
 	UAEnvUnspecified = "unspecified"
 
-	// User agent modes
+	// User agent modes.
 	UAModeGKE         = "gke"
 	UAModeKubectl     = "kubectl"
 	UAModeUnspecified = "unspecified"

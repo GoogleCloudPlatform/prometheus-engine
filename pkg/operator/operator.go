@@ -163,7 +163,7 @@ func (o *Options) defaultAndValidate(_ logr.Logger) error {
 	return nil
 }
 
-// NewScheme creates a new Kubernetes runtime.Scheme for the GMP Operator
+// NewScheme creates a new Kubernetes runtime.Scheme for the GMP Operator.
 func NewScheme() (*runtime.Scheme, error) {
 	sc := runtime.NewScheme()
 
@@ -207,7 +207,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 			Port:    port,
 			CertDir: certDir,
 		}),
-		// Don't run a metrics server with the manager. Metrics are being served
+		// Don't run a metrics server with the manager. Metrics are being served.
 		// explicitly in the main routine.
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
@@ -386,7 +386,7 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 }
 
 func (o *Operator) cleanupOldResources(ctx context.Context) error {
-	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator
+	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator.
 	// in previous versions.
 	validatingWebhookConfig := arv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},

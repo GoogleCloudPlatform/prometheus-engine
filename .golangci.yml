@@ -1,4 +1,5 @@
 linters:
   enable:
+  - godot
   - gofmt
   - loggercheck

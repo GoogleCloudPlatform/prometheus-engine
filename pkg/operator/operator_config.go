@@ -56,7 +56,7 @@ const (
 	NameAlertmanager   = "alertmanager"
 )
 
-// Secret paths
+// Secret paths.
 const (
 	RulesSecretName              = "rules"
 	CollectionSecretName         = "collection"
@@ -329,7 +329,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Contex
 	return nil
 }
 
-// ensureAlertmanagerConfigSecret copies the managed Alertmanager config secret from gmp-public
+// ensureAlertmanagerConfigSecret copies the managed Alertmanager config secret from gmp-public.
 func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Context, spec *monitoringv1.ManagedAlertmanagerSpec) error {
 	logger, _ := logr.FromContext(ctx)
 	pubNamespace := r.opts.PublicNamespace
