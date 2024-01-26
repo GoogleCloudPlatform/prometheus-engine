@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -289,54 +288,6 @@ func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, httpCli
 	return results, nil
 }
 
-func buildPodMonitoringFromJob(job []string) (*monitoringv1.PodMonitoring, error) {
-	if len(job) != 3 {
-		return nil, errors.New("invalid job type")
-	}
-	kind := job[0]
-	if kind != "PodMonitoring" {
-		return nil, errors.New("invalid object kind")
-	}
-	pm := &monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      job[2],
-			Namespace: job[1],
-		},
-		Spec:   monitoringv1.PodMonitoringSpec{},
-		Status: monitoringv1.PodMonitoringStatus{},
-	}
-	return pm, nil
-}
-
-func buildClusterPodMonitoringFromJob(job []string) (*monitoringv1.ClusterPodMonitoring, error) {
-	if len(job) != 2 {
-		return nil, errors.New("invalid job type")
-	}
-	kind := job[0]
-	if kind != "ClusterPodMonitoring" {
-		return nil, errors.New("invalid object kind")
-	}
-	pm := &monitoringv1.ClusterPodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: job[1],
-		},
-		Spec:   monitoringv1.ClusterPodMonitoringSpec{},
-		Status: monitoringv1.PodMonitoringStatus{},
-	}
-	return pm, nil
-}
-
-func buildPodMonitoring(job string) (monitoringv1.PodMonitoringCRD, error) {
-	split := strings.Split(job, "/")
-	if pm, err := buildPodMonitoringFromJob(split); err == nil {
-		return pm, nil
-	}
-	if pm, err := buildClusterPodMonitoringFromJob(split); err == nil {
-		return pm, nil
-	}
-	return nil, fmt.Errorf("unable to parse job: %s", job)
-}
-
 func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, object client.Object, status *monitoringv1.PodMonitoringStatus) error {
 	patchStatus := map[string]interface{}{
 		"endpointStatuses": status.EndpointStatuses,
@@ -362,16 +313,16 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 		return err
 	}
 
-	var patchErr error
+	var errs []error
 	for job, endpointStatuses := range endpointMap {
-		// Kubelet scraping is configured through hard-coding and not through
-		// a PodMonitoring. As there's no status to update, we skip.
-		if strings.HasPrefix(job, "kubelet") {
+		pm, err := getObjectByScrapeJobKey(job)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("building target: %s: %w", job, err))
 			continue
 		}
-		pm, err := buildPodMonitoring(job)
-		if err != nil {
-			return fmt.Errorf("building podmonitoring: %s: %w", job, err)
+		if pm == nil {
+			// Skip hard-coded jobs which we do not patch.
+			continue
 		}
 		pm.GetPodMonitoringStatus().EndpointStatuses = endpointStatuses
 
@@ -379,12 +330,12 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 			// Save and log any error encountered while patching the status.
 			// We don't want to prematurely return if the error was transient
 			// as we should continue patching all statuses before exiting.
-			patchErr = err
-			logger.Error(err, "patching podmonitoring status", "job", job)
+			errs = append(errs, err)
+			logger.Error(err, "patching status", "job", job, "gvk", pm.GetObjectKind().GroupVersionKind())
 		}
 	}
 
-	return patchErr
+	return errors.Join(errs...)
 }
 
 func getPrometheusPods(ctx context.Context, kubeClient client.Client, opts Options, selector labels.Selector) ([]*corev1.Pod, error) {
