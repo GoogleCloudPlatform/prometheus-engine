@@ -741,9 +741,8 @@ func getConfigMapKeyBytes(ctx context.Context, c client.Reader, namespace string
 		return []byte(s), nil
 	} else if b, ok := cm.BinaryData[sel.Key]; ok {
 		return b, nil
-	} else {
-		return b, fmt.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
 	}
+	return b, fmt.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
 }
 
 // pathForSelector cretes the filepath for the provided NamespacedSecretOrConfigMap.
@@ -828,7 +827,7 @@ type operatorConfigValidator struct {
 	namespace string
 }
 
-func (v *operatorConfigValidator) ValidateCreate(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+func (v *operatorConfigValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
 	oc := o.(*monitoringv1.OperatorConfig)
 
 	if oc.Namespace != v.namespace || oc.Name != NameOperatorConfig {
@@ -856,6 +855,6 @@ func (v *operatorConfigValidator) ValidateUpdate(ctx context.Context, _, o runti
 	return v.ValidateCreate(ctx, o)
 }
 
-func (v *operatorConfigValidator) ValidateDelete(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+func (v *operatorConfigValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }

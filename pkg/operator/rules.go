@@ -348,7 +348,7 @@ type rulesValidator struct {
 	opts Options
 }
 
-func (v *rulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+func (v *rulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
 	_, err := generateRules(o.(*monitoringv1.Rules), "test_project", "test_location", "test_cluster")
 	return nil, err
 }
@@ -357,7 +357,7 @@ func (v *rulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object
 	return v.ValidateCreate(ctx, o)
 }
 
-func (v *rulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+func (v *rulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
 
@@ -365,7 +365,7 @@ type clusterRulesValidator struct {
 	opts Options
 }
 
-func (v *clusterRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+func (v *clusterRulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
 	_, err := generateClusterRules(o.(*monitoringv1.ClusterRules), "test_project", "test_location", "test_cluster")
 	return nil, err
 }
@@ -374,13 +374,13 @@ func (v *clusterRulesValidator) ValidateUpdate(ctx context.Context, _, o runtime
 	return v.ValidateCreate(ctx, o)
 }
 
-func (v *clusterRulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+func (v *clusterRulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
 
 type globalRulesValidator struct{}
 
-func (v *globalRulesValidator) ValidateCreate(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+func (v *globalRulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
 	_, err := generateGlobalRules(o.(*monitoringv1.GlobalRules))
 	return nil, err
 }
@@ -389,6 +389,6 @@ func (v *globalRulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.
 	return v.ValidateCreate(ctx, o)
 }
 
-func (v *globalRulesValidator) ValidateDelete(ctx context.Context, o runtime.Object) (admission.Warnings, error) {
+func (v *globalRulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
