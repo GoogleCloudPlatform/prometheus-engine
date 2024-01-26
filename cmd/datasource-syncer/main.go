@@ -189,7 +189,7 @@ func buildUpdateDataSourceRequest(dataSource grafana.DataSource, token string) (
 	var (
 		minPrometheusVersion     = "2.40.0"
 		authorizationHeaderLabel = "Authorization"
-		// httpHeader* are the prefixes that is used to store the name and value of of a custom headers.
+		// httpHeader* are the prefixes that are used to store the names and values of custom headers.
 		// check https://github.com/grafana/grafana/blob/148e1c1588e9f075b14b72eb87d5463ea5bbb253/pkg/services/datasources/models.go#L34C1-L34C1 for more info.
 		httpHeaderName  = "httpHeaderName"
 		httpHeaderValue = "httpHeaderValue"
