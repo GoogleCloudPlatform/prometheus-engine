@@ -38,7 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	tclock "k8s.io/utils/clock/testing"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -226,7 +226,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 												LastScrapeDurationSeconds: "1.2",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 								},
 								CollectorsFraction: "1",
@@ -291,7 +291,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 												LastScrapeDurationSeconds: "1.2",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 								},
 								CollectorsFraction: "0.4",
@@ -324,7 +324,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 												LastScrapeDurationSeconds: "2.4",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 								},
 								CollectorsFraction: "0.4",
@@ -410,7 +410,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 												LastScrapeDurationSeconds: "1.2",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 								},
 								CollectorsFraction: "1",
@@ -463,14 +463,14 @@ func TestUpdateTargetStatus(t *testing.T) {
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "up",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "a",
 												},
 												LastScrapeDurationSeconds: "1.2",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 								},
 								CollectorsFraction: "1",
@@ -515,14 +515,14 @@ func TestUpdateTargetStatus(t *testing.T) {
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "a",
 												},
 												LastScrapeDurationSeconds: "1.2",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 								},
 								CollectorsFraction: "1",
@@ -574,14 +574,14 @@ func TestUpdateTargetStatus(t *testing.T) {
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "b",
 												},
 												LastScrapeDurationSeconds: "1.2",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 									{
 										SampleTargets: []monitoringv1.SampleTarget{
@@ -593,7 +593,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 												LastScrapeDurationSeconds: "4.3",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 								},
 								CollectorsFraction: "1",
@@ -664,27 +664,27 @@ func TestUpdateTargetStatus(t *testing.T) {
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "a",
 												},
 												LastScrapeDurationSeconds: "5.3",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 									{
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err y"),
+												LastError: ptr.To("err y"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "b",
 												},
 												LastScrapeDurationSeconds: "7",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 								},
 								CollectorsFraction: "1",
@@ -699,7 +699,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "c",
 												},
@@ -707,14 +707,14 @@ func TestUpdateTargetStatus(t *testing.T) {
 											},
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "d",
 												},
 												LastScrapeDurationSeconds: "3.6",
 											},
 										},
-										Count: pointer.Int32(2),
+										Count: ptr.To(int32(2)),
 									},
 								},
 								CollectorsFraction: "1",
@@ -799,7 +799,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "b",
 												},
@@ -807,7 +807,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 											},
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "e",
 												},
@@ -815,33 +815,33 @@ func TestUpdateTargetStatus(t *testing.T) {
 											},
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "f",
 												},
 												LastScrapeDurationSeconds: "1.2",
 											},
 										},
-										Count: pointer.Int32(3),
+										Count: ptr.To(int32(3)),
 									},
 									{
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err y"),
+												LastError: ptr.To("err y"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "c",
 												},
 												LastScrapeDurationSeconds: "2.4",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 									{
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err z"),
+												LastError: ptr.To("err z"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "a",
 												},
@@ -849,14 +849,14 @@ func TestUpdateTargetStatus(t *testing.T) {
 											},
 											{
 												Health:    "down",
-												LastError: pointer.String("err z"),
+												LastError: ptr.To("err z"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "d",
 												},
 												LastScrapeDurationSeconds: "4.7",
 											},
 										},
-										Count: pointer.Int32(2),
+										Count: ptr.To(int32(2)),
 									},
 								},
 								CollectorsFraction: "1",
@@ -973,7 +973,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "a",
 												},
@@ -981,7 +981,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 											},
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "b",
 												},
@@ -989,7 +989,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 											},
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "c",
 												},
@@ -997,7 +997,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 											},
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "d",
 												},
@@ -1005,33 +1005,33 @@ func TestUpdateTargetStatus(t *testing.T) {
 											},
 											{
 												Health:    "down",
-												LastError: pointer.String("err x"),
+												LastError: ptr.To("err x"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "e",
 												},
 												LastScrapeDurationSeconds: "4.1",
 											},
 										},
-										Count: pointer.Int32(7),
+										Count: ptr.To(int32(7)),
 									},
 									{
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err y"),
+												LastError: ptr.To("err y"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "c",
 												},
 												LastScrapeDurationSeconds: "2.4",
 											},
 										},
-										Count: pointer.Int32(1),
+										Count: ptr.To(int32(1)),
 									},
 									{
 										SampleTargets: []monitoringv1.SampleTarget{
 											{
 												Health:    "down",
-												LastError: pointer.String("err z"),
+												LastError: ptr.To("err z"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "a",
 												},
@@ -1039,14 +1039,14 @@ func TestUpdateTargetStatus(t *testing.T) {
 											},
 											{
 												Health:    "down",
-												LastError: pointer.String("err z"),
+												LastError: ptr.To("err z"),
 												Labels: map[model.LabelName]model.LabelValue{
 													"instance": "d",
 												},
 												LastScrapeDurationSeconds: "4.7",
 											},
 										},
-										Count: pointer.Int32(2),
+										Count: ptr.To(int32(2)),
 									},
 								},
 								CollectorsFraction: "1",
@@ -1315,11 +1315,11 @@ func TestPolling(t *testing.T) {
 							Labels: map[model.LabelName]model.LabelValue{
 								"instance": "a",
 							},
-							LastError:                 pointer.String("err x"),
+							LastError:                 ptr.To("err x"),
 							LastScrapeDurationSeconds: "1.2",
 						},
 					},
-					Count: pointer.Int32(1),
+					Count: ptr.To(int32(1)),
 				},
 			},
 			CollectorsFraction: "1",
@@ -1349,11 +1349,11 @@ func TestPolling(t *testing.T) {
 							Labels: map[model.LabelName]model.LabelValue{
 								"instance": "a",
 							},
-							LastError:                 pointer.String("err y"),
+							LastError:                 ptr.To("err y"),
 							LastScrapeDurationSeconds: "5.4",
 						},
 					},
-					Count: pointer.Int32(1),
+					Count: ptr.To(int32(1)),
 				},
 			},
 			CollectorsFraction: "1",
@@ -1382,11 +1382,11 @@ func TestPolling(t *testing.T) {
 							Labels: map[model.LabelName]model.LabelValue{
 								"instance": "a",
 							},
-							LastError:                 pointer.String("err z"),
+							LastError:                 ptr.To("err z"),
 							LastScrapeDurationSeconds: "8.3",
 						},
 					},
-					Count: pointer.Int32(1),
+					Count: ptr.To(int32(1)),
 				},
 			},
 			CollectorsFraction: "1",
