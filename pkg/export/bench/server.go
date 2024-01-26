@@ -28,6 +28,7 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 func main() {
@@ -46,7 +47,6 @@ func main() {
 	srv := grpc.NewServer(
 		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
 		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
-		grpc.RPCDecompressor(grpc.NewGZIPDecompressor()),
 	)
 	monitoring_pb.RegisterMetricServiceServer(srv, &server{latency: *backendLatency})
 

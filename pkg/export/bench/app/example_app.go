@@ -29,6 +29,7 @@ import (
 
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -146,8 +147,8 @@ func main() {
 	metrics := prometheus.NewRegistry()
 
 	metrics.MustRegister(
-		prometheus.NewGoCollector(),
-		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		metricIncomingRequestsPending,
 		metricOutgoingRequestsPending,
 		metricIncomingRequests,
