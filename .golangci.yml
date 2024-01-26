@@ -4,3 +4,4 @@ linters:
   - godot
   - gofmt
   - loggercheck
+  - whitespace

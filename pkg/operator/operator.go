@@ -581,5 +581,4 @@ func (o *Operator) continuouslySetCABundle(ctx context.Context, caBundle []byte)
 		case <-time.After(time.Minute):
 		}
 	}
-
 }

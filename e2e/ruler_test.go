@@ -260,7 +260,6 @@ rule_files:
 		}
 		t.Fatalf("failed waiting for generated rule-evaluator config: %s", pollErr)
 	}
-
 }
 
 func testRuleEvaluatorDeployment(ctx context.Context, t *OperatorContext) {
