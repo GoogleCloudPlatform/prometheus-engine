@@ -15,7 +15,7 @@
 package operator
 
 import (
-	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,7 +32,7 @@ const (
 
 func buildEndpointStatuses(targets []*prometheusv1.TargetsResult) (map[string][]monitoringv1.ScrapeEndpointStatus, error) {
 	endpointBuilder := &scrapeEndpointBuilder{
-		mapByJobByEndpoint: make(map[string]map[string]*scrapeEndpointStatusBuilder),
+		mapByKeyByEndpoint: make(map[string]map[string]*scrapeEndpointStatusBuilder),
 		total:              0,
 		failed:             0,
 		time:               metav1.Now(),
@@ -48,7 +48,7 @@ func buildEndpointStatuses(targets []*prometheusv1.TargetsResult) (map[string][]
 }
 
 type scrapeEndpointBuilder struct {
-	mapByJobByEndpoint map[string]map[string]*scrapeEndpointStatusBuilder
+	mapByKeyByEndpoint map[string]map[string]*scrapeEndpointStatusBuilder
 	total              uint32
 	failed             uint32
 	time               metav1.Time
@@ -68,24 +68,126 @@ func (b *scrapeEndpointBuilder) add(target *prometheusv1.TargetsResult) error {
 	return nil
 }
 
-func (b *scrapeEndpointBuilder) addActiveTarget(activeTarget prometheusv1.ActiveTarget, time metav1.Time) error {
-	portIndex := strings.LastIndex(activeTarget.ScrapePool, "/")
-	if portIndex == -1 {
-		return errors.New("Malformed scrape pool: " + activeTarget.ScrapePool)
+func setNamespacedObjectByScrapeJobKey(o monitoringv1.PodMonitoringCRD, split []string, full string) (monitoringv1.PodMonitoringCRD, error) {
+	if len(split) != 3 {
+		return nil, fmt.Errorf("invalid %s scrape key format %q", split[0], full)
 	}
-	job := activeTarget.ScrapePool[:portIndex]
-	endpoint := activeTarget.ScrapePool[portIndex+1:]
-	mapByEndpoint, ok := b.mapByJobByEndpoint[job]
+
+	o.SetNamespace(split[1])
+	o.SetName(split[2])
+	return o, nil
+}
+
+func setClusterScopedObjectByScrapeJobKey(o monitoringv1.PodMonitoringCRD, split []string, full string) (monitoringv1.PodMonitoringCRD, error) {
+	if len(split) != 2 {
+		return nil, fmt.Errorf("invalid %s scrape key format %q", split[0], full)
+	}
+
+	o.SetName(split[1])
+	return o, nil
+}
+
+// getObjectByScrapeJobKey converts the key to a CRD. See monitoringv1.PodMonitoringCRD.GetKey().
+func getObjectByScrapeJobKey(key string) (monitoringv1.PodMonitoringCRD, error) {
+	split := strings.Split(key, "/")
+	// Generally:
+	// - "kind" for scrape pools without a respective CRD.
+	// - "kind/name" for cluster-scoped resources.
+	// - "kind/namespace/name" for namespaced resources.
+	switch split[0] {
+	case "kubelet":
+		if len(split) != 1 {
+			return nil, fmt.Errorf("invalid kubelet scrape key format %q", key)
+		}
+		return nil, nil
+	case "PodMonitoring":
+		return setNamespacedObjectByScrapeJobKey(&monitoringv1.PodMonitoring{}, split, key)
+	case "ClusterPodMonitoring":
+		return setClusterScopedObjectByScrapeJobKey(&monitoringv1.ClusterPodMonitoring{}, split, key)
+	case "NodeMonitoring":
+		if _, err := setClusterScopedObjectByScrapeJobKey(&monitoringv1.ClusterPodMonitoring{}, split, key); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unknown scrape kind %q", split[0])
+	}
+}
+
+// scrapePool is the parsed Prometheus scrape pool, which is assigned to the job name from our
+// configurations. For example, for PodMonitoring this is `PodMonitoring/namespace/name/port`. The
+// key is what identifies the resource (`PodMonitoring/namespace/name`) and the group indicates a
+// small subset of that resource (`port`).
+type scrapePool struct {
+	key   string
+	group string
+}
+
+func getNamespacedScrapePool(full string, split []string) scrapePool {
+	// Same as: len(strings.Join(split, "/")) for "kind/namespace/name"
+	index := len(split[0]) + 1 + len(split[1]) + 1 + len(split[2])
+	return scrapePool{
+		key:   full[:index],
+		group: full[index:],
+	}
+}
+
+func getClusterScopedScrapePool(full string, split []string) scrapePool {
+	// Same as: len(strings.Join(split, "/")) for "kind/namespace"
+	index := len(split[0]) + 1 + len(split[1])
+	return scrapePool{
+		key:   full[:index],
+		group: full[index:],
+	}
+}
+
+func parseScrapePool(pool string) (scrapePool, error) {
+	split := strings.Split(pool, "/")
+	switch split[0] {
+	case "kubelet":
+		if len(split) != 2 {
+			return scrapePool{}, fmt.Errorf("invalid kubelet scrape pool format %q", pool)
+		}
+		return scrapePool{
+			key:   split[0],
+			group: split[1],
+		}, nil
+	case "PodMonitoring":
+		if len(split) != 4 {
+			return scrapePool{}, fmt.Errorf("invalid PodMonitoring scrape pool format %q", pool)
+		}
+		return getNamespacedScrapePool(pool, split), nil
+	case "ClusterPodMonitoring":
+		if len(split) != 3 {
+			return scrapePool{}, fmt.Errorf("invalid ClusterPodMonitoring scrape pool format %q", pool)
+		}
+		return getClusterScopedScrapePool(pool, split), nil
+	case "NodeMonitoring":
+		if len(split) != 3 {
+			return scrapePool{}, fmt.Errorf("invalid NodeMonitoring scrape pool format %q", pool)
+		}
+		return getClusterScopedScrapePool(pool, split), nil
+	default:
+		return scrapePool{}, fmt.Errorf("unknown scrape kind %q", split[0])
+	}
+}
+
+func (b *scrapeEndpointBuilder) addActiveTarget(activeTarget prometheusv1.ActiveTarget, time metav1.Time) error {
+	scrapePool, err := parseScrapePool(activeTarget.ScrapePool)
+	if err != nil {
+		return err
+	}
+	mapByEndpoint, ok := b.mapByKeyByEndpoint[scrapePool.key]
 	if !ok {
 		tmp := make(map[string]*scrapeEndpointStatusBuilder)
 		mapByEndpoint = tmp
-		b.mapByJobByEndpoint[job] = mapByEndpoint
+		b.mapByKeyByEndpoint[scrapePool.key] = mapByEndpoint
 	}
 
-	statusBuilder, exists := mapByEndpoint[endpoint]
+	statusBuilder, exists := mapByEndpoint[scrapePool.group]
 	if !exists {
 		statusBuilder = newScrapeEndpointStatusBuilder(&activeTarget, time)
-		mapByEndpoint[endpoint] = statusBuilder
+		mapByEndpoint[scrapePool.group] = statusBuilder
 	}
 	statusBuilder.addSampleTarget(&activeTarget)
 	return nil
@@ -96,7 +198,7 @@ func (b *scrapeEndpointBuilder) build() map[string][]monitoringv1.ScrapeEndpoint
 	collectorsFraction := strconv.FormatFloat(fraction, 'f', -1, 64)
 	resultMap := make(map[string][]monitoringv1.ScrapeEndpointStatus)
 
-	for job, endpointMap := range b.mapByJobByEndpoint {
+	for key, endpointMap := range b.mapByKeyByEndpoint {
 		endpointStatuses := make([]monitoringv1.ScrapeEndpointStatus, 0)
 		for _, statusBuilder := range endpointMap {
 			endpointStatus := statusBuilder.build()
@@ -110,7 +212,7 @@ func (b *scrapeEndpointBuilder) build() map[string][]monitoringv1.ScrapeEndpoint
 			rhsName := endpointStatuses[j].Name
 			return lhsName < rhsName
 		})
-		resultMap[job] = endpointStatuses
+		resultMap[key] = endpointStatuses
 	}
 	return resultMap
 }

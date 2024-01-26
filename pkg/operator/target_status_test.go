@@ -49,7 +49,7 @@ type updateTargetStatusTestCase struct {
 	targets               []*prometheusv1.TargetsResult
 	podMonitorings        []monitoringv1.PodMonitoring
 	clusterPodMonitorings []monitoringv1.ClusterPodMonitoring
-	expErr                bool
+	expErr                func(err error) bool
 }
 
 // Given a list of test cases on PodMonitoring, creates a new list containing
@@ -171,7 +171,10 @@ func TestUpdateTargetStatus(t *testing.T) {
 					}},
 				},
 			},
-			expErr: true,
+			expErr: func(err error) bool {
+				msg := err.Error()
+				return strings.HasPrefix(msg, "unable to patch status:") && strings.HasSuffix(msg, "\"prom-example-1\" not found")
+			},
 		},
 		// Single healthy target with no error, with matching PodMonitoring.
 		{
@@ -233,7 +236,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 							},
 						},
 					},
-				}},
+				},
+			},
 		},
 		// Collectors target fetch failure.
 		{
@@ -357,8 +361,12 @@ func TestUpdateTargetStatus(t *testing.T) {
 							Port: intstr.FromString("metrics"),
 						}},
 					},
-				}},
-			expErr: true,
+				},
+			},
+			expErr: func(err error) bool {
+				msg := err.Error()
+				return strings.HasPrefix(msg, "unable to patch status:") && strings.HasSuffix(msg, "\"prom-example-2\" not found")
+			},
 		},
 		// Single healthy target with no error, with single matching PodMonitoring.
 		{
@@ -1055,6 +1063,84 @@ func TestUpdateTargetStatus(t *testing.T) {
 					},
 				}},
 		},
+		// Multiple healthy targets with one non-matching PodMonitoring.
+		{
+			desc: "multiple-healthy-target-one-non-match",
+			targets: []*prometheusv1.TargetsResult{
+				{
+					Active: []prometheusv1.ActiveTarget{{
+						Health:     "up",
+						LastError:  "err x",
+						ScrapePool: "PodMonitoring/gmp-test/prom-example-1/metrics",
+						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+							"instance": "a",
+						}),
+						LastScrapeDuration: 1.2,
+					}},
+				},
+				{
+					Active: []prometheusv1.ActiveTarget{{
+						Health:     "up",
+						ScrapePool: "PodMonitoring/gmp-test/prom-example-2/metrics",
+						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+							"instance": "b",
+						}),
+						LastScrapeDuration: 4.3,
+					}},
+				},
+			},
+			podMonitorings: []monitoringv1.PodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{{
+							Port: intstr.FromString("metrics"),
+						}},
+					},
+					Status: monitoringv1.PodMonitoringStatus{
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 2,
+							Conditions: []monitoringv1.MonitoringCondition{{
+								Type:               monitoringv1.ConfigurationCreateSuccess,
+								Status:             corev1.ConditionTrue,
+								LastUpdateTime:     metav1.Time{},
+								LastTransitionTime: metav1.Time{},
+								Reason:             "",
+								Message:            "",
+							}},
+						},
+						EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
+							{
+								Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
+								ActiveTargets:    1,
+								UnhealthyTargets: 0,
+								LastUpdateTime:   date,
+								SampleGroups: []monitoringv1.SampleGroup{
+									{
+										SampleTargets: []monitoringv1.SampleTarget{
+											{
+												Health:    "up",
+												LastError: ptr.To("err x"),
+												Labels: map[model.LabelName]model.LabelValue{
+													"instance": "a",
+												},
+												LastScrapeDurationSeconds: "1.2",
+											},
+										},
+										Count: ptr.To[int32](1),
+									},
+								},
+								CollectorsFraction: "1",
+							},
+						},
+					},
+				},
+			},
+			expErr: func(err error) bool {
+				msg := err.Error()
+				return strings.HasPrefix(msg, "unable to patch status:") && strings.HasSuffix(msg, "\"prom-example-2\" not found")
+			},
+		},
 		{
 			desc: "kubelet hardcoded scrape configs",
 			targets: []*prometheusv1.TargetsResult{
@@ -1086,6 +1172,42 @@ func TestUpdateTargetStatus(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "NodeMonitoring hardcoded scrape configs",
+			targets: []*prometheusv1.TargetsResult{
+				{
+					Active: []prometheusv1.ActiveTarget{{
+						Health:     "up",
+						LastError:  "",
+						ScrapePool: "NodeMonitoring/node-example-1/metrics",
+						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+							"instance": "a",
+							"node":     "node-1-default-pool-abcd1234",
+						}),
+						LastScrapeDuration: 1.2,
+					}},
+				},
+			},
+		},
+		{
+			desc: "Unknown hardcoded scrape configs",
+			targets: []*prometheusv1.TargetsResult{
+				{
+					Active: []prometheusv1.ActiveTarget{{
+						Health:     "up",
+						LastError:  "",
+						ScrapePool: "unknown/example-1/metrics",
+						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+							"instance": "a",
+						}),
+						LastScrapeDuration: 1.2,
+					}},
+				},
+			},
+			expErr: func(err error) bool {
+				return err.Error() == "unknown scrape kind \"unknown\""
+			},
+		},
 	})
 
 	for _, testCase := range testCases {
@@ -1105,7 +1227,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			kubeClient := clientBuilder.Build()
 
 			err := updateTargetStatus(context.Background(), testr.New(t), kubeClient, testCase.targets)
-			if err != nil && !testCase.expErr {
+			if err != nil && (testCase.expErr == nil || !testCase.expErr(err)) {
 				t.Fatalf("unexpected error updating target status: %s", err)
 			}
 
