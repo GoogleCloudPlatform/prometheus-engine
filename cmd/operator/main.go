@@ -38,10 +38,6 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 )
 
-func unstableFlagHelp(help string) string {
-	return help + " (Setting this flag voids any guarantees of proper behavior of the operator.)"
-}
-
 func main() {
 	var (
 		defaultProjectID string
