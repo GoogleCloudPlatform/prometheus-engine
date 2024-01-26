@@ -88,6 +88,13 @@ func newTransport(ctx context.Context, base http.RoundTripper, settings *interna
 		if err != nil {
 			return nil, err
 		}
+		credsUniverseDomain, err := creds.GetUniverseDomain()
+		if err != nil {
+			return nil, err
+		}
+		if settings.GetUniverseDomain() != credsUniverseDomain {
+			return nil, internal.ErrUniverseNotMatch(settings.GetUniverseDomain(), credsUniverseDomain)
+		}
 		paramTransport.quotaProject = internal.GetQuotaProject(creds, settings.QuotaProject)
 		ts := creds.TokenSource
 		if settings.ImpersonationConfig == nil && settings.TokenSource != nil {
