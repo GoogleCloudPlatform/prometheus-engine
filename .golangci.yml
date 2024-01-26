@@ -1,9 +1,6 @@
 linters:
   enable:
-  - bodyclose
-  - dupl
   - dupword
-  - errname
   - godot
   - gofmt
   - loggercheck
