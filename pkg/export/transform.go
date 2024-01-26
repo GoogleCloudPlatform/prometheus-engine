@@ -118,6 +118,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 	// based on the type determined in the series cache.
 	// If both are set, we double-write the series as a gauge and a cumulative.
 	if g := entry.protos.gauge; g.proto != nil {
+		//nolint:govet
 		ts := *g.proto
 
 		ts.Points = []*monitoring_pb.Point{{
@@ -125,7 +126,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 				EndTime: getTimestamp(sample.T),
 			},
 			Value: &monitoring_pb.TypedValue{
-				Value: &monitoring_pb.TypedValue_DoubleValue{sample.V},
+				Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: sample.V},
 			},
 		}}
 		result = append(result, hashedSeries{hash: g.hash, proto: &ts})
@@ -155,7 +156,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 			}
 			if v != nil {
 				value = &monitoring_pb.TypedValue{
-					Value: &monitoring_pb.TypedValue_DistributionValue{v},
+					Value: &monitoring_pb.TypedValue_DistributionValue{DistributionValue: v},
 				}
 			}
 		} else {
@@ -164,7 +165,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 			resetTimestamp, v, ok = b.series.getResetAdjusted(storage.SeriesRef(sample.Ref), sample.T, sample.V)
 			if ok {
 				value = &monitoring_pb.TypedValue{
-					Value: &monitoring_pb.TypedValue_DoubleValue{v},
+					Value: &monitoring_pb.TypedValue_DoubleValue{DoubleValue: v},
 				}
 				discardExemplarIncIfExists(storage.SeriesRef(sample.Ref), exemplars, "counters-unsupported")
 			}
@@ -174,6 +175,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 		//   1. It was the first sample of a cumulative and we only initialized  the reset timestamp with it.
 		//   2. We could not observe all necessary series to build a full distribution sample.
 		if value != nil {
+			//nolint:govet
 			ts := *c.proto
 
 			ts.Points = []*monitoring_pb.Point{{

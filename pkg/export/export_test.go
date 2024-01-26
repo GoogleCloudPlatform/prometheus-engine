@@ -193,6 +193,7 @@ func TestSampleInRange(t *testing.T) {
 			want:  false,
 		},
 	}
+	//nolint:govet
 	for _, c := range cases {
 		p := &monitoring_pb.TimeSeries{
 			Points: []*monitoring_pb.Point{

@@ -154,7 +154,7 @@ func main() {
 			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
 			return server.ListenAndServe()
 		}, func(err error) {
-			ctx, _ = context.WithTimeout(ctx, time.Minute)
+			ctx, cancel = context.WithTimeout(ctx, time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
 				//nolint:errcheck
 				level.Error(logger).Log("msg", "Server failed to shut down gracefully")
