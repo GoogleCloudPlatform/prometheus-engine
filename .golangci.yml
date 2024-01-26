@@ -4,4 +4,3 @@ linters:
     - ineffassign
     - govet
     - staticcheck
-    - unused

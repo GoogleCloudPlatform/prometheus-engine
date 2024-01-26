@@ -48,8 +48,6 @@ type ingestionTest struct {
 
 	testID string
 
-	env e2e.Environment
-
 	backends               map[string]backend
 	expectationsPerBackend map[string]model.Matrix
 
