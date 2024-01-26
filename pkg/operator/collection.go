@@ -406,6 +406,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
+			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
+			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
@@ -445,6 +447,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for ClusterPodMonitoring endpoint"
+			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
+			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
@@ -492,6 +496,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cfgs, err := nm.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for NodeMonitoring endpoint"
+			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
+			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
