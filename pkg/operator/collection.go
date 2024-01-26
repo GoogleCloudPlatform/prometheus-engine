@@ -525,7 +525,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 type podMonitoringDefaulter struct{}
 
-func (d *podMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) error {
+func (d *podMonitoringDefaulter) Default(_ context.Context, o runtime.Object) error {
 	pm := o.(*monitoringv1.PodMonitoring)
 
 	if pm.Spec.TargetLabels.Metadata == nil {
@@ -537,7 +537,7 @@ func (d *podMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) 
 
 type clusterPodMonitoringDefaulter struct{}
 
-func (d *clusterPodMonitoringDefaulter) Default(ctx context.Context, o runtime.Object) error {
+func (d *clusterPodMonitoringDefaulter) Default(_ context.Context, o runtime.Object) error {
 	pm := o.(*monitoringv1.ClusterPodMonitoring)
 
 	if pm.Spec.TargetLabels.Metadata == nil {

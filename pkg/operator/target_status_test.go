@@ -85,18 +85,18 @@ func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase
 			clusterTargets = append(clusterTargets, targetClusterPodMonitoring)
 		}
 		for _, pm := range tc.podMonitorings {
-			copy := pm.DeepCopy()
+			pmCopy := pm.DeepCopy()
 			cpm := monitoringv1.ClusterPodMonitoring{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: copy.Name,
+					Name: pmCopy.Name,
 				},
 				Spec: monitoringv1.ClusterPodMonitoringSpec{
-					Selector:     copy.Spec.Selector,
-					Endpoints:    copy.Spec.Endpoints,
-					TargetLabels: copy.Spec.TargetLabels,
-					Limits:       copy.Spec.Limits,
+					Selector:     pmCopy.Spec.Selector,
+					Endpoints:    pmCopy.Spec.Endpoints,
+					TargetLabels: pmCopy.Spec.TargetLabels,
+					Limits:       pmCopy.Spec.Limits,
 				},
-				Status: copy.Status,
+				Status: pmCopy.Status,
 			}
 			for idx, status := range cpm.Status.EndpointStatuses {
 				cpm.Status.EndpointStatuses[idx].Name = podMonitoringScrapePoolToClusterPodMonitoringScrapePool(status.Name)
@@ -1092,14 +1092,14 @@ func TestUpdateTargetStatus(t *testing.T) {
 		t.Run(fmt.Sprintf("target-status-conversion-%s", testCase.desc), func(t *testing.T) {
 			clientBuilder := newFakeClientBuilder()
 			for _, podMonitoring := range testCase.podMonitorings {
-				copy := podMonitoring.DeepCopy()
-				copy.GetPodMonitoringStatus().EndpointStatuses = nil
-				clientBuilder.WithObjects(copy)
+				pmCopy := podMonitoring.DeepCopy()
+				pmCopy.GetPodMonitoringStatus().EndpointStatuses = nil
+				clientBuilder.WithObjects(pmCopy)
 			}
 			for _, clusterPodMonitoring := range testCase.clusterPodMonitorings {
-				copy := clusterPodMonitoring.DeepCopy()
-				copy.GetPodMonitoringStatus().EndpointStatuses = nil
-				clientBuilder.WithObjects(copy)
+				pmCopy := clusterPodMonitoring.DeepCopy()
+				pmCopy.GetPodMonitoringStatus().EndpointStatuses = nil
+				clientBuilder.WithObjects(pmCopy)
 			}
 
 			kubeClient := clientBuilder.Build()

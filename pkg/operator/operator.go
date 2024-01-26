@@ -131,7 +131,7 @@ type Options struct {
 	CollectorHTTPClient *http.Client
 }
 
-func (o *Options) defaultAndValidate(logger logr.Logger) error {
+func (o *Options) defaultAndValidate(_ logr.Logger) error {
 	if o.OperatorNamespace == "" {
 		o.OperatorNamespace = DefaultOperatorNamespace
 	}
@@ -163,6 +163,7 @@ func (o *Options) defaultAndValidate(logger logr.Logger) error {
 	return nil
 }
 
+// NewScheme creates a new Kubernetes runtime.Scheme for the GMP Operator
 func NewScheme() (*runtime.Scheme, error) {
 	sc := runtime.NewScheme()
 
@@ -504,19 +505,19 @@ func (o namespacedNamePredicate) Generic(e event.GenericEvent) bool {
 // enqueueConst always enqueues the same request regardless of the event.
 type enqueueConst reconcile.Request
 
-func (e enqueueConst) Create(ctx context.Context, _ event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Create(_ context.Context, _ event.CreateEvent, q workqueue.RateLimitingInterface) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Update(ctx context.Context, _ event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Update(_ context.Context, _ event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Delete(ctx context.Context, _ event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Delete(_ context.Context, _ event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Generic(ctx context.Context, _ event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Generic(_ context.Context, _ event.GenericEvent, q workqueue.RateLimitingInterface) {
 	q.Add(reconcile.Request(e))
 }
 

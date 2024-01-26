@@ -160,7 +160,7 @@ func shouldPoll(ctx context.Context, cfgNamespacedName types.NamespacedName, kub
 
 // Reconcile polls the collector pods, fetches and aggregates target status and
 // upserts into each PodMonitoring's Status field.
-func (r *targetStatusReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
+func (r *targetStatusReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
 	timer := r.clock.NewTimer(minPollDuration)
 
 	now := time.Now()
@@ -406,7 +406,7 @@ func getPrometheusPods(ctx context.Context, kubeClient client.Client, opts Optio
 	return podsFiltered, nil
 }
 
-func getTarget(ctx context.Context, logger logr.Logger, httpClient *http.Client, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error) {
+func getTarget(ctx context.Context, _ logr.Logger, httpClient *http.Client, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error) {
 	if pod.Status.PodIP == "" {
 		return nil, errors.New("pod does not have IP allocated")
 	}
