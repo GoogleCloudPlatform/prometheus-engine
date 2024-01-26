@@ -36,6 +36,7 @@ import (
 	"google.golang.org/api/option"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	empty_pb "google.golang.org/protobuf/types/known/emptypb"
 )
@@ -353,7 +354,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 	}
 	metricClient, err := monitoring.NewMetricClient(ctx,
 		option.WithoutAuthentication(),
-		option.WithGRPCDialOption(grpc.WithInsecure()),
+		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		option.WithGRPCDialOption(grpc.WithContextDialer(bufDialer)),
 	)
 	if err != nil {

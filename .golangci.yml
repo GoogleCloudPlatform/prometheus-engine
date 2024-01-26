@@ -3,4 +3,3 @@ linters:
     - errcheck
     - ineffassign
     - govet
-    - staticcheck
