@@ -146,8 +146,12 @@ func New(
 		opts.RenewDeadline = 10 * time.Second
 	}
 	if metrics != nil {
-		metrics.Register(leaseHolder)
-		metrics.Register(leaseFailingOpen)
+		if err := metrics.Register(leaseHolder); err != nil {
+			return nil, err
+		}
+		if err := metrics.Register(leaseFailingOpen); err != nil {
+			return nil, err
+		}
 	}
 	leaseHolder.WithLabelValues(lock.Describe()).Set(0)
 	leaseFailingOpen.WithLabelValues(lock.Describe()).Set(0)

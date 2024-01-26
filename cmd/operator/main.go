@@ -143,7 +143,9 @@ func main() {
 			return server.ListenAndServe()
 		}, func(err error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-			server.Shutdown(ctx)
+			if err := server.Shutdown(ctx); err != nil {
+				logger.Error(err, "Server failed to shut down gracefully.")
+			}
 			cancel()
 		})
 	}

@@ -480,6 +480,7 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 		)
 		samples, batch, err = builder.next(metadata, externalLabels, batch, exemplarMap)
 		if err != nil {
+			//nolint:errcheck
 			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
 			continue
 		}
@@ -844,6 +845,7 @@ func (e *Exporter) withUntypedDefaultMetadata(f MetadataFunc) MetadataFunc {
 		defer e.mtx.Unlock()
 
 		if _, ok := e.warnedUntypedMetrics[metric]; !ok {
+			//nolint:errcheck
 			level.Warn(e.logger).Log("msg", "no metadata found, defaulting to untyped metric", "metric_name", metric)
 			e.warnedUntypedMetrics[metric] = struct{}{}
 		}
@@ -944,6 +946,7 @@ func (b batch) send(
 				TimeSeries: l,
 			})
 			if err != nil {
+				//nolint:errcheck
 				level.Error(b.logger).Log("msg", "send batch", "size", len(l), "err", err)
 			}
 			samplesSent.Add(float64(len(l)))

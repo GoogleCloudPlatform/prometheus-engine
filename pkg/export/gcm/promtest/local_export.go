@@ -96,12 +96,15 @@ func (l *localExportWithGCM) start(t testing.TB, _ e2e.Environment) (v1.API, map
 	}
 
 	// Apply empty config, so resources labels are attached.
-	l.e.ApplyConfig(&config.DefaultConfig)
+	if err := l.e.ApplyConfig(&config.DefaultConfig); err != nil {
+		t.Fatalf("apply config: %v", err)
+	}
 	l.e.SetLabelsByIDFunc(func(ref storage.SeriesRef) labels.Labels {
 		return l.labelsByRef[ref]
 	})
 
 	cancelableCtx, cancel := context.WithCancel(ctx)
+	//nolint:errcheck
 	go l.e.Run(cancelableCtx)
 	// TODO(bwplotka): Consider listening for KILL signal too.
 	t.Cleanup(cancel)

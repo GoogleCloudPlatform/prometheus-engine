@@ -167,7 +167,9 @@ func TestSeriesCache_garbageCollect(t *testing.T) {
 	cache.get(record.RefSample{Ref: 1, T: (now - 100) * 1000}, labels.EmptyLabels(), nil)
 	cache.get(record.RefSample{Ref: 2, T: (now - 101) * 1000}, labels.EmptyLabels(), nil)
 
-	cache.garbageCollect(100 * time.Second)
+	if err := cache.garbageCollect(100 * time.Second); err != nil {
+		t.Fatal(err)
+	}
 
 	// Entry for series 1 should remain while 2 got dropped.
 	if len(cache.entries) != 1 {

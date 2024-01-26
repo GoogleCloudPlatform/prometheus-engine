@@ -63,6 +63,7 @@ func main() {
 
 	reloadURL, err := url.Parse(*reloadURLStr)
 	if err != nil {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "parsing reloader URL failed", "err", err)
 		os.Exit(1)
 	}
@@ -74,25 +75,30 @@ func main() {
 	// Poll ready endpoint indefinitely until it's up and running.
 	req, err := http.NewRequest(http.MethodGet, *readyURLStr, nil)
 	if err != nil {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "creating request", "err", err)
 		os.Exit(1)
 	}
 	ticker := time.NewTicker(500 * time.Millisecond)
 	done := make(chan bool)
 	go func() {
+		//nolint:errcheck
 		level.Info(logger).Log("msg", "ensure ready-url is healthy")
 		for {
 			select {
 			case <-term:
+				//nolint:errcheck
 				level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
 				os.Exit(0)
 			case <-ticker.C:
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
+					//nolint:errcheck
 					level.Error(logger).Log("msg", "polling ready-url", "err", err)
 					os.Exit(1)
 				}
 				if resp.StatusCode == http.StatusOK {
+					//nolint:errcheck
 					level.Info(logger).Log("msg", "ready-url is healthy")
 					ticker.Stop()
 					done <- true
@@ -136,6 +142,7 @@ func main() {
 			func() error {
 				select {
 				case <-term:
+					//nolint:errcheck
 					level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
 				case <-cancel:
 				}
@@ -151,16 +158,21 @@ func main() {
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
 
 		g.Add(func() error {
+			//nolint:errcheck
 			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
 			return server.ListenAndServe()
 		}, func(err error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-			server.Shutdown(ctx)
+			if err := server.Shutdown(ctx); err != nil {
+				//nolint:errcheck
+				level.Error(logger).Log("msg", "Server failed to shut down gracefully.")
+			}
 			cancel()
 		})
 	}
 
 	if err := g.Run(); err != nil {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "running reloader failed", "err", err)
 		os.Exit(1)
 	}
