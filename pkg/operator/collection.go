@@ -483,7 +483,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	)
 	// Mark status updates in batch with single timestamp.
 	for _, nm := range NodeMons.Items {
-		if spec.KubeletScraping != nil && nm.Namespace == r.opts.OperatorNamespace && (nm.Name == reservedKubeletJobName || nm.Name == reservedCAdvisorJobName) {
+		if spec.KubeletScraping != nil && nm.Namespace == DefaultOperatorNamespace && (nm.Name == reservedKubeletJobName || nm.Name == reservedCAdvisorJobName) {
 			logger.Info("NodeMonitoring job %s was not applied because OperatorConfig.collector.kubeletScraping is enabled. kubeletScraping already includes the metrics in this job.", "name", nm.Name)
 			continue
 		}
