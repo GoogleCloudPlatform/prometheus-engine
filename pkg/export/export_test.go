@@ -343,6 +343,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 	)
 	monitoring_pb.RegisterMetricServiceServer(srv, metricServer)
 
+	//nolint:errcheck
 	go srv.Serve(listener)
 	defer srv.Stop()
 
@@ -378,6 +379,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 		}, nil)
 	}
 
+	//nolint:errcheck
 	go e.Run(ctx)
 	// As our samples are all for the same series, each batch can only contain a single sample.
 	// The exporter waits for the batch delay duration before sending it.

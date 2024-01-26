@@ -80,18 +80,21 @@ func main() {
 	)
 
 	if *projectID == "" {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "--query.project-id must be set")
 		os.Exit(1)
 	}
 
 	targetURL, err := url.Parse(strings.ReplaceAll(*targetURLStr, projectIDVar, *projectID))
 	if err != nil {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "parsing target URL failed", "err", err)
 		os.Exit(1)
 	}
 
 	externalURL, err := url.Parse(*externalURLStr)
 	if err != nil {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "parsing external URL failed", "err", err)
 		os.Exit(1)
 	}
@@ -106,6 +109,7 @@ func main() {
 			func() error {
 				select {
 				case <-term:
+					//nolint:errcheck
 					level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
 				case <-cancel:
 				}
@@ -125,6 +129,7 @@ func main() {
 
 		transport, err := apihttp.NewTransport(ctx, http.DefaultTransport, opts...)
 		if err != nil {
+			//nolint:errcheck
 			level.Error(logger).Log("msg", "create proxy HTTP transport", "err", err)
 			os.Exit(1)
 		}
@@ -145,16 +150,21 @@ func main() {
 		http.Handle("/", authenticate(ui.Handler(externalURL)))
 
 		g.Add(func() error {
+			//nolint:errcheck
 			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
 			return server.ListenAndServe()
 		}, func(err error) {
 			ctx, _ = context.WithTimeout(ctx, time.Minute)
-			server.Shutdown(ctx)
+			if err := server.Shutdown(ctx); err != nil {
+				//nolint:errcheck
+				level.Error(logger).Log("msg", "Server failed to shut down gracefully")
+			}
 			cancel()
 		})
 	}
 
 	if err := g.Run(); err != nil {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "running reloader failed", "err", err)
 		os.Exit(1)
 	}
@@ -193,7 +203,9 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 		// /api/v1/series currently not accepting match[] params on POST.
 		if req.URL.Path == "/api/v1/series" {
 			method = "GET"
-			req.ParseForm()
+			if err := req.ParseForm(); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
 			u.RawQuery = req.Form.Encode()
 		} else {
 			u.RawQuery = req.URL.RawQuery
@@ -201,6 +213,7 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 
 		newReq, err := http.NewRequestWithContext(req.Context(), method, u.String(), req.Body)
 		if err != nil {
+			//nolint:errcheck
 			level.Warn(logger).Log("msg", "creating request failed", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -209,6 +222,7 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 
 		resp, err := client.Do(newReq)
 		if err != nil {
+			//nolint:errcheck
 			level.Warn(logger).Log("msg", "requesting GCM failed", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -219,6 +233,7 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 
 		defer resp.Body.Close()
 		if _, err := io.Copy(w, resp.Body); err != nil {
+			//nolint:errcheck
 			level.Warn(logger).Log("msg", "copying response body failed", "err", err)
 			return
 		}

@@ -145,15 +145,19 @@ func TestCollectionStatus(t *testing.T) {
 		Build()
 
 	collectionReconciler := newCollectionReconciler(kubeClient, opts)
-	collectionReconciler.Reconcile(ctx, reconcile.Request{
+	if _, err := collectionReconciler.Reconcile(ctx, reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Namespace: opts.PublicNamespace,
 			Name:      NameOperatorConfig,
 		},
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	var podMonitorings monitoringv1.PodMonitoringList
-	kubeClient.List(ctx, &podMonitorings)
+	if err := kubeClient.List(ctx, &podMonitorings); err != nil {
+		t.Fatal(err)
+	}
 	switch amount := len(podMonitorings.Items); amount {
 	case 1:
 		status := podMonitorings.Items[0].Status

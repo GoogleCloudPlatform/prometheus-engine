@@ -161,6 +161,8 @@ func (c *seriesCache) run(ctx context.Context) {
 			return
 		case <-tick.C:
 			if err := c.garbageCollect(10 * time.Minute); err != nil {
+				//nolint:errcheck
+				//nolint:errcheck
 				level.Error(c.logger).Log("msg", "garbage collection failed", "err", err)
 			}
 		}
@@ -218,6 +220,7 @@ func (c *seriesCache) garbageCollect(delay time.Duration) error {
 		delete(c.entries, ref)
 		i++
 	}
+	//nolint:errcheck
 	level.Info(c.logger).Log("msg", "garbage collection completed", "took", time.Since(start), "seriesPurged", i)
 
 	return nil
@@ -239,6 +242,7 @@ func (c *seriesCache) get(s record.RefSample, externalLabels labels.Labels, meta
 	}
 	if e.shouldRefresh() {
 		if err := c.populate(ref, e, externalLabels, metadata); err != nil {
+			//nolint:errcheck
 			level.Debug(c.logger).Log("msg", "populating series failed", "ref", s.Ref, "err", err)
 		}
 		e.setNextRefresh()
@@ -556,7 +560,9 @@ func hashSeries(s *monitoring_pb.TimeSeries) uint64 {
 	hashLabels(h, s.Resource.Labels)
 	h.Write([]byte(s.Metric.Type))
 	hashLabels(h, s.Metric.Labels)
+	//nolint:errcheck
 	binary.Write(h, binary.LittleEndian, s.MetricKind)
+	//nolint:errcheck
 	binary.Write(h, binary.LittleEndian, s.ValueType)
 
 	return h.Sum64()

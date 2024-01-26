@@ -50,26 +50,31 @@ func main() {
 	logger = log.With(logger, "caller", log.DefaultCaller)
 
 	if len(*datasourceUIDList) == 0 {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "--datasource-uid must be set")
 		os.Exit(1)
 	}
 
 	if *grafanaAPIToken == "" {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "--grafana-api-token must be set")
 		os.Exit(1)
 	}
 	if *grafanaEndpoint == "" {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "--grafana-api-endpoint must be set")
 		os.Exit(1)
 	}
 
 	if *projectID == "" {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "--project-id must be set")
 		os.Exit(1)
 	}
 
 	client, err := getTLSClient(*certFile, *keyFile, *caFile, *insecureSkipVerify)
 	if err != nil {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "couldn't create client", "err", err)
 		os.Exit(1)
 	}
@@ -79,12 +84,14 @@ func main() {
 		Client: client,
 	})
 	if err != nil {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "couldn't create grafana client", "err", err)
 		os.Exit(1)
 	}
 
 	token, err := getOAuth2Token(*credentialsFile)
 	if err != nil {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", "couldn't get Google OAuth2 token", "err", err)
 		os.Exit(1)
 	}
@@ -101,6 +108,7 @@ func main() {
 		dataSource, err := grafanaClient.DataSourceByUID(datasourceUID)
 		if err != nil {
 			dsErrors = append(dsErrors, datasourceUID)
+			//nolint:errcheck
 			level.Error(logger).Log("msg", fmt.Sprintf("error fetching data source config of data source uid: %s", datasourceUID), "err", err)
 			continue
 		}
@@ -108,6 +116,7 @@ func main() {
 		dataSource, err = buildUpdateDataSourceRequest(*dataSource, token)
 		if err != nil {
 			dsErrors = append(dsErrors, datasourceUID)
+			//nolint:errcheck
 			level.Error(logger).Log("msg", fmt.Sprintf("couldn't build data source update request for data source uid: %s", datasourceUID), "err", err)
 			continue
 		}
@@ -115,15 +124,18 @@ func main() {
 		err = grafanaClient.UpdateDataSourceByUID(dataSource)
 		if err != nil {
 			dsErrors = append(dsErrors, datasourceUID)
+			//nolint:errcheck
 			level.Error(logger).Log("msg", fmt.Sprintf("couldn't send update data source request to data source id: %s", datasourceUID), "err", err)
 			continue
 		}
 		dsSuccessfullyUpdated = append(dsSuccessfullyUpdated, datasourceUID)
 	}
 	if len(dsSuccessfullyUpdated) != 0 {
+		//nolint:errcheck
 		level.Info(logger).Log("msg", fmt.Sprintf("Updated Grafana data source uids: %s", dsSuccessfullyUpdated))
 	}
 	if len(dsErrors) != 0 {
+		//nolint:errcheck
 		level.Error(logger).Log("msg", fmt.Sprintf("Failed to update Grafana data source uids: %s", dsErrors))
 		os.Exit(1)
 	}

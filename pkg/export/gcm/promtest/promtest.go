@@ -169,6 +169,7 @@ type ingestionTestExpRecorder struct {
 
 func (ir *ingestionTestExpRecorder) Expect(val float64, metric prometheus.Metric, b Backend) ExpectationsRecorder {
 	m := dto.Metric{}
+	//nolint:errcheck
 	metric.Write(&m)
 	if m.GetSummary() != nil || m.GetHistogram() != nil {
 		// TODO(bwplotka): Implement an alternative.
@@ -226,6 +227,7 @@ func (it *ingestionTest) FatalOnUnexpectedPromQLResults(b Backend, metric promet
 	it.t.Helper()
 
 	m := dto.Metric{}
+	//nolint:errcheck
 	metric.Write(&m)
 
 	if m.GetSummary() != nil || m.GetHistogram() != nil {
@@ -296,6 +298,7 @@ func (it *ingestionTest) FatalOnUnexpectedPromQLResults(b Backend, metric promet
 
 func toModelMetric(metric prometheus.Metric) model.Metric {
 	m := dto.Metric{}
+	//nolint:errcheck
 	metric.Write(&m)
 
 	ret := model.Metric{}
