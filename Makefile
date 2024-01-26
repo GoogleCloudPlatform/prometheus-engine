@@ -141,6 +141,7 @@ else
 	$(call docker_build, -f ./hack/Dockerfile --target sync -o . -t gmp/sync \
 		--build-arg RUNCMD='./hack/presubmit.sh all' .)
 	rm -rf vendor && mv vendor.tmp vendor
+	rm -rf pkg/operator/generated && mv pkg/operator/generated.tmp pkg/operator/generated
 endif
 
 .PHONY: test
