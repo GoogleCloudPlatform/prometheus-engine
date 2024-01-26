@@ -22,7 +22,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -157,7 +156,7 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 	}
 
 	var alertManagerStatefulSet appsv1.StatefulSet
-	if err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "alertmanager"}, &alertManagerStatefulSet); errors.IsNotFound(err) {
+	if err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "alertmanager"}, &alertManagerStatefulSet); apierrors.IsNotFound(err) {
 		msg := fmt.Sprintf("Alertmanager StatefulSet not found, cannot scale to %d. In-cluster Alertmanager will not function.", desiredReplicas)
 		logger.Error(err, msg)
 	} else if err != nil {
@@ -171,7 +170,7 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 	}
 
 	var ruleEvaluatorDeployment appsv1.Deployment
-	if err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "rule-evaluator"}, &ruleEvaluatorDeployment); errors.IsNotFound(err) {
+	if err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "rule-evaluator"}, &ruleEvaluatorDeployment); apierrors.IsNotFound(err) {
 		msg := fmt.Sprintf("Rule Evaluator Deployment not found, cannot scale to %d. In-cluster Rule Evaluator will not function.", desiredReplicas)
 		logger.Error(err, msg)
 	} else if err != nil {

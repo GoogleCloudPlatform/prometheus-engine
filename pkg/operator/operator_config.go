@@ -25,7 +25,6 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	promcommonconfig "github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
@@ -523,7 +522,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 			cfg.ServiceDiscoveryConfigs = discovery.Configs{
 				discovery.StaticConfig{
 					&targetgroup.Group{
-						Targets: []model.LabelSet{{model.AddressLabel: model.LabelValue(svcDNSName)}},
+						Targets: []prommodel.LabelSet{{prommodel.AddressLabel: prommodel.LabelValue(svcDNSName)}},
 					},
 				},
 			}

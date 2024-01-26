@@ -145,10 +145,10 @@ func (o *Options) defaultAndValidate(_ logr.Logger) error {
 	// ProjectID and Cluster must be always be set. Collectors and rule-evaluator can
 	// auto-discover them but we need them in the operator to scope generated rules.
 	if o.ProjectID == "" {
-		return errors.New("ProjectID must be set")
+		return errors.New("projectID must be set")
 	}
 	if o.Cluster == "" {
-		return errors.New("Cluster must be set")
+		return errors.New("cluster must be set")
 	}
 
 	if o.TargetPollConcurrency == 0 {

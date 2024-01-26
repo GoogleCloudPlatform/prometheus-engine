@@ -36,7 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/clock"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -450,7 +450,7 @@ func getPrometheusPort(container *corev1.Container) *int32 {
 		// In the future, we could fall back to reading the command line args.
 		if containerPort.Name == CollectorPrometheusContainerPortName {
 			// Make a copy.
-			return pointer.Int32(containerPort.ContainerPort)
+			return ptr.To(containerPort.ContainerPort)
 		}
 	}
 	return nil

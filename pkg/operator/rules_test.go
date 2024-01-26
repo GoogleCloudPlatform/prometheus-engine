@@ -357,7 +357,7 @@ func TestScaleRuleConsumers(t *testing.T) {
 				t.Error(err)
 			}
 			if ruleEvaluator.Spec.Replicas != nil && *ruleEvaluator.Spec.Replicas != tc.want {
-				t.Errorf("want: %d, got: %d", tc.want, *&ruleEvaluator.Spec.Replicas)
+				t.Errorf("want: %d, got: %d", tc.want, ruleEvaluator.Spec.Replicas)
 			}
 		})
 	}

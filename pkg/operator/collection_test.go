@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -76,7 +76,7 @@ func TestCollectionStatus(t *testing.T) {
 								LastScrapeDurationSeconds: "1.2",
 							},
 						},
-						Count: pointer.Int32(1),
+						Count: ptr.To(int32(1)),
 					},
 				},
 				CollectorsFraction: "1",
