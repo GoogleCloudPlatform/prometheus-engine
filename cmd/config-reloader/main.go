@@ -92,6 +92,7 @@ func main() {
 				os.Exit(0)
 			case <-ticker.C:
 				resp, err := http.DefaultClient.Do(req)
+				defer resp.Body.Close()
 				if err != nil {
 					//nolint:errcheck
 					level.Error(logger).Log("msg", "polling ready-url", "err", err)
