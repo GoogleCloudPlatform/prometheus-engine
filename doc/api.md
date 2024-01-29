@@ -26,8 +26,6 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterRules">ClusterRules</a>
 </li><li>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">ClusterSecretKeySelector</a>
-</li><li>
 <a href="#monitoring.googleapis.com/v1.CollectionSpec">CollectionSpec</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.CompressionType">CompressionType</a>
@@ -41,6 +39,8 @@ Resource Types:
 <a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.KubeletScraping">KubeletScraping</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.KubernetesSecretKeySelector">KubernetesSecretKeySelector</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.LabelMapping">LabelMapping</a>
 </li><li>
@@ -103,6 +103,8 @@ Resource Types:
 <a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.SecretOrConfigMap">SecretOrConfigMap</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.SecretSelector">SecretSelector</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.TLS">TLS</a>
 </li><li>
@@ -302,16 +304,16 @@ Basic will cause an error, as the BasicAuth object should be used instead.</p>
 </tr>
 <tr>
 <td>
-<code>credentialsSecret</code><br/>
+<code>credentials</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
-ClusterSecretKeySelector
+<a href="#monitoring.googleapis.com/v1.SecretSelector">
+SecretSelector
 </a>
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>CredentialsSecret references the Kubernetes secret&rsquo;s key with the credentials
+<p>Credentials references the Kubernetes secret&rsquo;s key with the credentials
 (token) for the auth header to send along the request.
 Optional, as in previous resource versions we allowed no credentials.</p>
 </td>
@@ -396,16 +398,16 @@ string
 </tr>
 <tr>
 <td>
-<code>passwordSecret</code><br/>
+<code>password</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
-ClusterSecretKeySelector
+<a href="#monitoring.googleapis.com/v1.SecretSelector">
+SecretSelector
 </a>
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>PasswordSecret references the Kubernetes secret&rsquo;s key with the password to use.
+<p>Password references the Kubernetes secret&rsquo;s key with the password to use.
 Optional, as in previous resource versions we allowed no credentials.</p>
 </td>
 </tr>
@@ -622,65 +624,6 @@ RulesStatus
 <td>
 <em>(Optional)</em>
 <p>Most recently observed status of the resource.</p>
-</td>
-</tr>
-</tbody>
-</table>
-<h3 id="monitoring.googleapis.com/v1.ClusterSecretKeySelector">
-<span id="ClusterSecretKeySelector">ClusterSecretKeySelector
-</span>
-</h3>
-<p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.Auth">Auth</a>, <a href="#monitoring.googleapis.com/v1.BasicAuth">BasicAuth</a>, <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>, <a href="#monitoring.googleapis.com/v1.TLS">TLS</a>)
-</p>
-<div>
-<p>ClusterSecretKeySelector represents selector for Kubernetes secret.
-It&rsquo;s similar to k8s.io/api/core/v1.SecretKeySelector, but
-allows cross namespace selections.</p>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>name</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<p>Name of the secret to select from.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>key</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<p>The key of the secret to select from. Must be a valid secret key.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>namespace</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>Namespace of the secret to select from.
-If empty the parent resource namespace will be chosen.
-NOTE: For PodMonitoring, this field should be empty or specify
-the same namespace as the PodMonitoring namespace.</p>
 </td>
 </tr>
 </tbody>
@@ -1041,6 +984,65 @@ string
 </td>
 <td>
 <p>The interval at which the metric endpoints are scraped.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.KubernetesSecretKeySelector">
+<span id="KubernetesSecretKeySelector">KubernetesSecretKeySelector
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.SecretSelector">SecretSelector</a>)
+</p>
+<div>
+<p>KubernetesSecretKeySelector represents selector for Kubernetes secret.
+It&rsquo;s similar to k8s.io/api/core/v1.SecretKeySelector, but
+allows cross namespace selections.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Name of the secret to select from.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>key</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>The key of the secret to select from. Must be a valid secret key.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>namespace</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Namespace of the secret to select from.
+If empty the parent resource namespace will be chosen.
+NOTE: For PodMonitoring, this field should be empty or specify
+the same namespace as the PodMonitoring namespace.</p>
 </td>
 </tr>
 </tbody>
@@ -1463,8 +1465,8 @@ string
 <td>
 <code>clientSecret</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
-ClusterSecretKeySelector
+<a href="#monitoring.googleapis.com/v1.SecretSelector">
+SecretSelector
 </a>
 </em>
 </td>
@@ -2877,6 +2879,42 @@ Kubernetes core/v1.ConfigMapKeySelector
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.SecretSelector">
+<span id="SecretSelector">SecretSelector
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.Auth">Auth</a>, <a href="#monitoring.googleapis.com/v1.BasicAuth">BasicAuth</a>, <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>, <a href="#monitoring.googleapis.com/v1.TLS">TLS</a>)
+</p>
+<div>
+<p>SecretSelector represents a reference to a secret from the given provider
+e.g. Kubernetes Secret. Only one provider can be used at the same time.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>kubernetesSecret</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.KubernetesSecretKeySelector">
+KubernetesSecretKeySelector
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+in a given namespace.</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.TLS">
 <span id="TLS">TLS
 </span>
@@ -2945,48 +2983,48 @@ See MinVersion in <a href="https://pkg.go.dev/crypto/tls#Config">https://pkg.go.
 </tr>
 <tr>
 <td>
-<code>caSecret</code><br/>
+<code>ca</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
-ClusterSecretKeySelector
+<a href="#monitoring.googleapis.com/v1.SecretSelector">
+SecretSelector
 </a>
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>CASecret references the Kubernetes secret&rsquo;s key with the CA certificate to
+<p>CA references the Kubernetes secret&rsquo;s key with the CA certificate to
 validate API server certificate with.
 Optional, as in previous resource versions we allowed no credentials.</p>
 </td>
 </tr>
 <tr>
 <td>
-<code>certSecret</code><br/>
+<code>cert</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
-ClusterSecretKeySelector
+<a href="#monitoring.googleapis.com/v1.SecretSelector">
+SecretSelector
 </a>
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>CertSecret references the Kubernetes secret&rsquo;s key with the certificate (public
+<p>Cert references the Kubernetes secret&rsquo;s key with the certificate (public
 key) for client cert authentication to the server.
 Optional, as in previous resource versions we allowed no credentials.</p>
 </td>
 </tr>
 <tr>
 <td>
-<code>keySecret</code><br/>
+<code>key</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.ClusterSecretKeySelector">
-ClusterSecretKeySelector
+<a href="#monitoring.googleapis.com/v1.SecretSelector">
+SecretSelector
 </a>
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>KeySecret references the Kubernetes secret&rsquo;s key with the private key
+<p>Key references the Kubernetes secret&rsquo;s key with the private key
 for client cert authentication to the server.
 Optional, as in previous resource versions we allowed no credentials.</p>
 </td>

@@ -95,42 +95,50 @@ spec:
                         type:
                           type: string
                           description: The authentication type. Defaults to Bearer. Basic will cause an error, as the BasicAuth object should be used instead.
-                        credentialsSecret:
+                        credentials:
                           type: object
-                          description: CredentialsSecret references the Kubernetes secret's key with the credentials (token) for the auth header to send along the request. Optional, as in previous resource versions we allowed no credentials.
+                          description: Credentials references the Kubernetes secret's key with the credentials (token) for the auth header to send along the request. Optional, as in previous resource versions we allowed no credentials.
                           properties:
-                            name:
-                              type: string
-                              description: Name of the secret to select from.
-                            namespace:
-                              type: string
-                              description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
-                            key:
-                              type: string
-                              description: The key of the secret to select from. Must be a valid secret key.
-                          required:
-                          - key
-                          - name
+                            kubernetesSecret:
+                              type: object
+                              description: KubernetesSecret represents reference to a given key from certain Kubernetes Secret in a given namespace.
+                              properties:
+                                name:
+                                  type: string
+                                  description: Name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
                     basicAuth:
                       type: object
                       description: The HTTP basic authentication credentials for the targets.
                       properties:
-                        passwordSecret:
+                        password:
                           type: object
-                          description: PasswordSecret references the Kubernetes secret's key with the password to use. Optional, as in previous resource versions we allowed no credentials.
+                          description: Password references the Kubernetes secret's key with the password to use. Optional, as in previous resource versions we allowed no credentials.
                           properties:
-                            name:
-                              type: string
-                              description: Name of the secret to select from.
-                            namespace:
-                              type: string
-                              description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
-                            key:
-                              type: string
-                              description: The key of the secret to select from. Must be a valid secret key.
-                          required:
-                          - key
-                          - name
+                            kubernetesSecret:
+                              type: object
+                              description: KubernetesSecret represents reference to a given key from certain Kubernetes Secret in a given namespace.
+                              properties:
+                                name:
+                                  type: string
+                                  description: Name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
                         username:
                           type: string
                           description: The username for authentication.
@@ -181,18 +189,22 @@ spec:
                           type: object
                           description: ClientSecret references the Kubernetes secret's key with the client secret token for Oauth2 flow. Optional, as in previous resource versions we allowed no credentials.
                           properties:
-                            name:
-                              type: string
-                              description: Name of the secret to select from.
-                            namespace:
-                              type: string
-                              description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
-                            key:
-                              type: string
-                              description: The key of the secret to select from. Must be a valid secret key.
-                          required:
-                          - key
-                          - name
+                            kubernetesSecret:
+                              type: object
+                              description: KubernetesSecret represents reference to a given key from certain Kubernetes Secret in a given namespace.
+                              properties:
+                                name:
+                                  type: string
+                                  description: Name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
                         endpointParams:
                           type: object
                           additionalProperties:
@@ -210,57 +222,69 @@ spec:
                           type: object
                           description: Configures the token request's TLS settings.
                           properties:
-                            caSecret:
+                            ca:
                               type: object
-                              description: CASecret references the Kubernetes secret's key with the CA certificate to validate API server certificate with. Optional, as in previous resource versions we allowed no credentials.
+                              description: CA references the Kubernetes secret's key with the CA certificate to validate API server certificate with. Optional, as in previous resource versions we allowed no credentials.
                               properties:
-                                name:
-                                  type: string
-                                  description: Name of the secret to select from.
-                                namespace:
-                                  type: string
-                                  description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
-                                key:
-                                  type: string
-                                  description: The key of the secret to select from. Must be a valid secret key.
-                              required:
-                              - key
-                              - name
-                            certSecret:
+                                kubernetesSecret:
+                                  type: object
+                                  description: KubernetesSecret represents reference to a given key from certain Kubernetes Secret in a given namespace.
+                                  properties:
+                                    name:
+                                      type: string
+                                      description: Name of the secret to select from.
+                                    namespace:
+                                      type: string
+                                      description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
+                                    key:
+                                      type: string
+                                      description: The key of the secret to select from. Must be a valid secret key.
+                                  required:
+                                  - key
+                                  - name
+                            cert:
                               type: object
-                              description: CertSecret references the Kubernetes secret's key with the certificate (public key) for client cert authentication to the server. Optional, as in previous resource versions we allowed no credentials.
+                              description: Cert references the Kubernetes secret's key with the certificate (public key) for client cert authentication to the server. Optional, as in previous resource versions we allowed no credentials.
                               properties:
-                                name:
-                                  type: string
-                                  description: Name of the secret to select from.
-                                namespace:
-                                  type: string
-                                  description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
-                                key:
-                                  type: string
-                                  description: The key of the secret to select from. Must be a valid secret key.
-                              required:
-                              - key
-                              - name
+                                kubernetesSecret:
+                                  type: object
+                                  description: KubernetesSecret represents reference to a given key from certain Kubernetes Secret in a given namespace.
+                                  properties:
+                                    name:
+                                      type: string
+                                      description: Name of the secret to select from.
+                                    namespace:
+                                      type: string
+                                      description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
+                                    key:
+                                      type: string
+                                      description: The key of the secret to select from. Must be a valid secret key.
+                                  required:
+                                  - key
+                                  - name
                             insecureSkipVerify:
                               type: boolean
                               description: Disable target certificate validation.
-                            keySecret:
+                            key:
                               type: object
-                              description: KeySecret references the Kubernetes secret's key with the private key for client cert authentication to the server. Optional, as in previous resource versions we allowed no credentials.
+                              description: Key references the Kubernetes secret's key with the private key for client cert authentication to the server. Optional, as in previous resource versions we allowed no credentials.
                               properties:
-                                name:
-                                  type: string
-                                  description: Name of the secret to select from.
-                                namespace:
-                                  type: string
-                                  description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
-                                key:
-                                  type: string
-                                  description: The key of the secret to select from. Must be a valid secret key.
-                              required:
-                              - key
-                              - name
+                                kubernetesSecret:
+                                  type: object
+                                  description: KubernetesSecret represents reference to a given key from certain Kubernetes Secret in a given namespace.
+                                  properties:
+                                    name:
+                                      type: string
+                                      description: Name of the secret to select from.
+                                    namespace:
+                                      type: string
+                                      description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
+                                    key:
+                                      type: string
+                                      description: The key of the secret to select from. Must be a valid secret key.
+                                  required:
+                                  - key
+                                  - name
                             maxVersion:
                               type: string
                               description: 'Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
@@ -299,57 +323,69 @@ spec:
                       type: object
                       description: Configures the scrape request's TLS settings.
                       properties:
-                        caSecret:
+                        ca:
                           type: object
-                          description: CASecret references the Kubernetes secret's key with the CA certificate to validate API server certificate with. Optional, as in previous resource versions we allowed no credentials.
+                          description: CA references the Kubernetes secret's key with the CA certificate to validate API server certificate with. Optional, as in previous resource versions we allowed no credentials.
                           properties:
-                            name:
-                              type: string
-                              description: Name of the secret to select from.
-                            namespace:
-                              type: string
-                              description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
-                            key:
-                              type: string
-                              description: The key of the secret to select from. Must be a valid secret key.
-                          required:
-                          - key
-                          - name
-                        certSecret:
+                            kubernetesSecret:
+                              type: object
+                              description: KubernetesSecret represents reference to a given key from certain Kubernetes Secret in a given namespace.
+                              properties:
+                                name:
+                                  type: string
+                                  description: Name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
+                        cert:
                           type: object
-                          description: CertSecret references the Kubernetes secret's key with the certificate (public key) for client cert authentication to the server. Optional, as in previous resource versions we allowed no credentials.
+                          description: Cert references the Kubernetes secret's key with the certificate (public key) for client cert authentication to the server. Optional, as in previous resource versions we allowed no credentials.
                           properties:
-                            name:
-                              type: string
-                              description: Name of the secret to select from.
-                            namespace:
-                              type: string
-                              description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
-                            key:
-                              type: string
-                              description: The key of the secret to select from. Must be a valid secret key.
-                          required:
-                          - key
-                          - name
+                            kubernetesSecret:
+                              type: object
+                              description: KubernetesSecret represents reference to a given key from certain Kubernetes Secret in a given namespace.
+                              properties:
+                                name:
+                                  type: string
+                                  description: Name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
                         insecureSkipVerify:
                           type: boolean
                           description: Disable target certificate validation.
-                        keySecret:
+                        key:
                           type: object
-                          description: KeySecret references the Kubernetes secret's key with the private key for client cert authentication to the server. Optional, as in previous resource versions we allowed no credentials.
+                          description: Key references the Kubernetes secret's key with the private key for client cert authentication to the server. Optional, as in previous resource versions we allowed no credentials.
                           properties:
-                            name:
-                              type: string
-                              description: Name of the secret to select from.
-                            namespace:
-                              type: string
-                              description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
-                            key:
-                              type: string
-                              description: The key of the secret to select from. Must be a valid secret key.
-                          required:
-                          - key
-                          - name
+                            kubernetesSecret:
+                              type: object
+                              description: KubernetesSecret represents reference to a given key from certain Kubernetes Secret in a given namespace.
+                              properties:
+                                name:
+                                  type: string
+                                  description: Name of the secret to select from.
+                                namespace:
+                                  type: string
+                                  description: 'Namespace of the secret to select from. If empty the parent resource namespace will be chosen. NOTE: For PodMonitoring, this field should be empty or specify the same namespace as the PodMonitoring namespace.'
+                                key:
+                                  type: string
+                                  description: The key of the secret to select from. Must be a valid secret key.
+                              required:
+                              - key
+                              - name
                         maxVersion:
                           type: string
                           description: 'Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'

@@ -469,8 +469,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 	}
 
-	// TODO(bwplotka): Warn about missing RBAC?
-	//
+	// TODO(bwplotka): Warn about missing RBAC policies.
+	// https://github.com/GoogleCloudPlatform/prometheus-engine/issues/789
 	cfg.SecretConfigs = usedSecrets.SecretConfigs()
 
 	if err := r.client.List(ctx, &NodeMons); err != nil {

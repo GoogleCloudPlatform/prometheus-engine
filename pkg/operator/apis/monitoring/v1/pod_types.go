@@ -374,9 +374,9 @@ func endpointScrapeConfig(
 		// This requires leaving the container label empty (or at a singleton value) even if it is
 		// requested as an output label via .targetLabels.metadata. This aligns with the Pod specification,
 		// which requires port names in a Pod to be unique but not port numbers. Thus, the container is
-		// potentially ambigious for numerical ports in any case.
+		// potentially ambiguous for numerical ports in any case.
 
-		// First, drop the container label even it  was added before.
+		// First, drop the container label even if it was added before.
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action: relabel.LabelDrop,
 			Regex:  relabel.MustNewRegexp("container"),
@@ -407,17 +407,13 @@ func endpointScrapeConfig(
 
 	httpCfg, err := ep.HTTPClientConfig.ToPrometheusConfig(m, pool)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse or invalid HTTP client config: %w", err)
+		return nil, fmt.Errorf("unable to parse or invalid Prometheus HTTP client config: %w", err)
 	}
 	if err := httpCfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid Prometheus HTTP client config: %w", err)
 	}
 
-	cfg, err := buildPrometheusScrapeConfig(fmt.Sprintf("%s/%s", id, &ep.Port), discoveryCfgs, httpCfg, relabelCfgs, limits, ep)
-	if err != nil {
-		return nil, err
-	}
-	return cfg, nil
+	return buildPrometheusScrapeConfig(fmt.Sprintf("%s/%s", id, &ep.Port), discoveryCfgs, httpCfg, relabelCfgs, limits, ep)
 }
 
 func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {

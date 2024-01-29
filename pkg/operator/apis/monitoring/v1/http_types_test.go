@@ -17,7 +17,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing
 
 	t.Run("nil", func(t *testing.T) {
 		pool := PrometheusSecretConfigs{}
-		var c *ClusterSecretKeySelector
+		var c *KubernetesSecretKeySelector
 
 		ref, err := c.toPrometheusSecretRef(p, pool)
 		if err != nil {
@@ -35,7 +35,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing
 	for _, ns := range []string{"", p.Namespace} {
 		t.Run(fmt.Sprintf("namespace=%v", ns), func(t *testing.T) {
 			pool := PrometheusSecretConfigs{}
-			c := &ClusterSecretKeySelector{
+			c := &KubernetesSecretKeySelector{
 				Name:      "secret1",
 				Key:       "key1",
 				Namespace: ns,
@@ -63,14 +63,13 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing
 	}
 	t.Run("wrong namespace", func(t *testing.T) {
 		pool := PrometheusSecretConfigs{}
-		c := &ClusterSecretKeySelector{
+		c := &KubernetesSecretKeySelector{
 			Name:      "secret1",
 			Key:       "key1",
 			Namespace: "different",
 		}
 
-		_, err := c.toPrometheusSecretRef(p, pool)
-		if err == nil {
+		if _, err := c.toPrometheusSecretRef(p, pool); err == nil {
 			t.Fatal("expected failure, got nil")
 		}
 		if len(pool.SecretConfigs()) != 0 {
@@ -86,7 +85,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_ClusterPodMonitoring(t *
 
 	t.Run("nil", func(t *testing.T) {
 		pool := PrometheusSecretConfigs{}
-		var c *ClusterSecretKeySelector
+		var c *KubernetesSecretKeySelector
 
 		ref, err := c.toPrometheusSecretRef(p, pool)
 		if err != nil {
@@ -108,7 +107,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_ClusterPodMonitoring(t *
 			}
 
 			pool := PrometheusSecretConfigs{}
-			c := &ClusterSecretKeySelector{
+			c := &KubernetesSecretKeySelector{
 				Name:      "secret1",
 				Key:       "key1",
 				Namespace: ns,

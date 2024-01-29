@@ -299,10 +299,12 @@ func TestBasicAuth(t *testing.T) {
 		}, "mon-basic-auth-no-username", monitoringv1.ScrapeEndpoint{}, monitoringv1.ScrapeEndpoint{
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				BasicAuth: &monitoringv1.BasicAuth{
-					PasswordSecret: &monitoringv1.ClusterSecretKeySelector{
-						Name:      appName,
-						Key:       secretKey,
-						Namespace: t.userNamespace,
+					Password: &monitoringv1.SecretSelector{
+						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+							Name:      appName,
+							Key:       secretKey,
+							Namespace: t.userNamespace,
+						},
 					},
 				},
 			},
@@ -333,10 +335,12 @@ func TestBasicAuth(t *testing.T) {
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				BasicAuth: &monitoringv1.BasicAuth{
 					Username: appUsername,
-					PasswordSecret: &monitoringv1.ClusterSecretKeySelector{
-						Name:      appName,
-						Key:       secretKey,
-						Namespace: t.userNamespace,
+					Password: &monitoringv1.SecretSelector{
+						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+							Name:      appName,
+							Key:       secretKey,
+							Namespace: t.userNamespace,
+						},
 					},
 				},
 			},
@@ -392,10 +396,12 @@ func TestAuthorization(t *testing.T) {
 		}, monitoringv1.ScrapeEndpoint{
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				Authorization: &monitoringv1.Auth{
-					CredentialsSecret: &monitoringv1.ClusterSecretKeySelector{
-						Name:      appName,
-						Key:       secretKey,
-						Namespace: t.userNamespace,
+					Credentials: &monitoringv1.SecretSelector{
+						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+							Name:      appName,
+							Key:       secretKey,
+							Namespace: t.userNamespace,
+						},
 					},
 				},
 			},
@@ -468,10 +474,12 @@ func TestOAuth2(t *testing.T) {
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				OAuth2: &monitoringv1.OAuth2{
 					ClientID: clientID,
-					ClientSecret: &monitoringv1.ClusterSecretKeySelector{
-						Name:      appName,
-						Key:       secretKey,
-						Namespace: t.userNamespace,
+					ClientSecret: &monitoringv1.SecretSelector{
+						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+							Name:      appName,
+							Key:       secretKey,
+							Namespace: t.userNamespace,
+						},
 					},
 					Scopes:   []string{clientScope},
 					TokenURL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080/token", appName, t.userNamespace),
