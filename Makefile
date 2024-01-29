@@ -47,6 +47,10 @@ clean:       ## Clean build time resources, primarily, unused docker images.
              ##
 	for i in `docker images | grep -E '^gmp/|.*/prometheus-engine/.*' | awk '{print $$3}' | uniq`; do docker image rm -f $$i; done
 
+.PHONY: conform
+conform:
+	docker run --rm -v ${PWD}:/src -w /src ghcr.io/siderolabs/conform:v0.1.0-alpha.27 enforce
+
 .PHONY: lint
 lint:        ## Lint code.
              ##
