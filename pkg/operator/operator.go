@@ -207,7 +207,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 			Port:    port,
 			CertDir: certDir,
 		}),
-		// Don't run a metrics server with the manager. Metrics are being served.
+		// Don't run a metrics server with the manager. Metrics are being served explicitly in the main routine.
 		// explicitly in the main routine.
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
