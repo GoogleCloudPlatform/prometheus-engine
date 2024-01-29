@@ -161,7 +161,6 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 		logger.Error(err, msg)
 	} else if err != nil {
 		return err
-
 	} else if *alertManagerStatefulSet.Spec.Replicas != desiredReplicas {
 		*alertManagerStatefulSet.Spec.Replicas = desiredReplicas
 		if err := r.client.Update(ctx, &alertManagerStatefulSet); err != nil {

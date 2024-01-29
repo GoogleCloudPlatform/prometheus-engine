@@ -36,7 +36,7 @@ const (
 	tokenURLBurst = 3
 )
 
-// AltTokenSource is the structure holding the data for the functionality needed to generates tokens
+// AltTokenSource is the structure holding the data for the functionality needed to generates tokens.
 type AltTokenSource struct {
 	oauthClient *http.Client
 	tokenURL    string
@@ -44,7 +44,7 @@ type AltTokenSource struct {
 	throttle    *rate.Limiter
 }
 
-// Token returns a token which may be used for authentication
+// Token returns a token which may be used for authentication.
 func (a *AltTokenSource) Token() (*oauth2.Token, error) {
 	r := a.throttle.Reserve()
 	if !r.OK() {

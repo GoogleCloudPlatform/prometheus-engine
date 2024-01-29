@@ -354,7 +354,7 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 		// which requires port names in a Pod to be unique but not port numbers. Thus the container is
 		// potentially ambigious for numerical ports in any case.
 
-		// First, drop the container label even it it was added before.
+		// First, drop the container label even if it was added before.
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action: relabel.LabelDrop,
 			Regex:  relabel.MustNewRegexp("container"),

@@ -1,3 +1,15 @@
 linters:
   enable:
+  - bodyclose
+  - dupl
+  - dupword
+  - errname
+  - godot
   - gofmt
+  - loggercheck
+  - whitespace
+issues:
+  exclude-rules:
+  - path: _test\.go
+    linters:
+    - dupl

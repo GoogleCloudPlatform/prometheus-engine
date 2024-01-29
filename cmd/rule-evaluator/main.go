@@ -697,5 +697,4 @@ func makeInstrumentedRoundTripper(transport http.RoundTripper, reg prometheus.Re
 
 	return promhttp.InstrumentRoundTripperCounter(queryCounter,
 		promhttp.InstrumentRoundTripperDuration(queryHistogram, transport))
-
 }
