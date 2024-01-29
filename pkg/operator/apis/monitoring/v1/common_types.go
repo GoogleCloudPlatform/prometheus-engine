@@ -110,8 +110,8 @@ func relabelingsForSelector(selector metav1.LabelSelector, crd interface{}) ([]*
 	return relabelCfgs, nil
 }
 
-// buildPrometheusScrapConfig builds a Prometheus scrape configuration for a given endpoint.
-func buildPrometheusScrapConfig(jobName string, discoverCfgs discovery.Configs, httpCfg config.HTTPClientConfig, relabelCfgs []*relabel.Config, limits *ScrapeLimits, ep ScrapeEndpoint) (*promconfig.ScrapeConfig, error) {
+// buildPrometheusScrapeConfig builds a Prometheus scrape configuration for a given endpoint.
+func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs, httpCfg config.HTTPClientConfig, relabelCfgs []*relabel.Config, limits *ScrapeLimits, ep ScrapeEndpoint) (*promconfig.ScrapeConfig, error) {
 	interval, err := prommodel.ParseDuration(ep.Interval)
 	if err != nil {
 		return nil, fmt.Errorf("invalid scrape interval: %w", err)

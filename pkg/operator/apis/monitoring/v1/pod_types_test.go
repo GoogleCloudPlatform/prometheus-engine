@@ -703,7 +703,7 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 			},
 		},
 	}
-	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -925,7 +925,7 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 			},
 		},
 	}
-	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
