@@ -303,58 +303,74 @@ spec:
                         description: The HTTP authorization credentials for the targets.
                         properties:
                           credentials:
+                            description: |-
+                              Credentials references the Kubernetes secret's key with the credentials
+                              (token) for the auth header to send along the request.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           type:
-                            description: The authentication type. Defaults to Bearer, Basic will cause an error.
+                            description: |-
+                              The authentication type. Defaults to Bearer.
+                              Basic will cause an error, as the BasicAuth object should be used instead.
                             type: string
                         type: object
                       basicAuth:
                         description: The HTTP basic authentication credentials for the targets.
                         properties:
                           password:
-                            description: The password for authentication.
+                            description: |-
+                              Password references the Kubernetes secret's key with the password to use.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           username:
                             description: The username for authentication.
                             type: string
-                        required:
-                          - password
                         type: object
                       interval:
                         default: 1m
@@ -410,24 +426,32 @@ spec:
                             description: Public identifier for the client.
                             type: string
                           clientSecret:
-                            description: TODO
+                            description: |-
+                              ClientSecret references the Kubernetes secret's key with the client secret
+                              token for Oauth2 flow.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           endpointParams:
@@ -447,69 +471,93 @@ spec:
                             description: Configures the token request's TLS settings.
                             properties:
                               ca:
-                                description: TODO
+                                description: |-
+                                  CA references the Kubernetes secret's key with the CA certificate to
+                                  validate API server certificate with.
+                                  Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  secret:
-                                    description: The secret and key to use.
+                                  kubernetesSecret:
+                                    description: |-
+                                      KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                      in a given namespace.
                                     properties:
                                       key:
                                         description: The key of the secret to select from. Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: The name of the secret to select from.
+                                        description: Name of the secret to select from.
                                         type: string
                                       namespace:
-                                        description: The namespace to retrieve the secret from.
+                                        description: |-
+                                          Namespace of the secret to select from.
+                                          If empty the parent resource namespace will be chosen.
+                                          NOTE: For PodMonitoring, this field should be empty or specify
+                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
                                       - name
-                                      - namespace
                                     type: object
                                 type: object
                               cert:
-                                description: TODO
+                                description: |-
+                                  Cert references the Kubernetes secret's key with the certificate (public
+                                  key) for client cert authentication to the server.
+                                  Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  secret:
-                                    description: The secret and key to use.
+                                  kubernetesSecret:
+                                    description: |-
+                                      KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                      in a given namespace.
                                     properties:
                                       key:
                                         description: The key of the secret to select from. Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: The name of the secret to select from.
+                                        description: Name of the secret to select from.
                                         type: string
                                       namespace:
-                                        description: The namespace to retrieve the secret from.
+                                        description: |-
+                                          Namespace of the secret to select from.
+                                          If empty the parent resource namespace will be chosen.
+                                          NOTE: For PodMonitoring, this field should be empty or specify
+                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
                                       - name
-                                      - namespace
                                     type: object
                                 type: object
                               insecureSkipVerify:
                                 description: Disable target certificate validation.
                                 type: boolean
-                              keySecret:
-                                description: TODO
+                              key:
+                                description: |-
+                                  Key references the Kubernetes secret's key with the private key
+                                  for client cert authentication to the server.
+                                  Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  secret:
-                                    description: The secret and key to use.
+                                  kubernetesSecret:
+                                    description: |-
+                                      KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                      in a given namespace.
                                     properties:
                                       key:
                                         description: The key of the secret to select from. Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: The name of the secret to select from.
+                                        description: Name of the secret to select from.
                                         type: string
                                       namespace:
-                                        description: The namespace to retrieve the secret from.
+                                        description: |-
+                                          Namespace of the secret to select from.
+                                          If empty the parent resource namespace will be chosen.
+                                          NOTE: For PodMonitoring, this field should be empty or specify
+                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
                                       - name
-                                      - namespace
                                     type: object
                                 type: object
                               maxVersion:
@@ -527,17 +575,12 @@ spec:
                               serverName:
                                 description: Used to verify the hostname for the targets.
                                 type: string
-                            required:
-                              - ca
-                              - cert
-                              - keySecret
                             type: object
                           tokenURL:
                             description: The URL to fetch the token from.
                             type: string
                         required:
                           - clientID
-                          - clientSecret
                           - tokenURL
                         type: object
                       params:
@@ -574,69 +617,93 @@ spec:
                         description: Configures the scrape request's TLS settings.
                         properties:
                           ca:
-                            description: TODO
+                            description: |-
+                              CA references the Kubernetes secret's key with the CA certificate to
+                              validate API server certificate with.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           cert:
-                            description: TODO
+                            description: |-
+                              Cert references the Kubernetes secret's key with the certificate (public
+                              key) for client cert authentication to the server.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           insecureSkipVerify:
                             description: Disable target certificate validation.
                             type: boolean
-                          keySecret:
-                            description: TODO
+                          key:
+                            description: |-
+                              Key references the Kubernetes secret's key with the private key
+                              for client cert authentication to the server.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           maxVersion:
@@ -654,10 +721,6 @@ spec:
                           serverName:
                             description: Used to verify the hostname for the targets.
                             type: string
-                        required:
-                          - ca
-                          - cert
-                          - keySecret
                         type: object
                     required:
                       - port
@@ -2397,58 +2460,74 @@ spec:
                         description: The HTTP authorization credentials for the targets.
                         properties:
                           credentials:
+                            description: |-
+                              Credentials references the Kubernetes secret's key with the credentials
+                              (token) for the auth header to send along the request.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           type:
-                            description: The authentication type. Defaults to Bearer, Basic will cause an error.
+                            description: |-
+                              The authentication type. Defaults to Bearer.
+                              Basic will cause an error, as the BasicAuth object should be used instead.
                             type: string
                         type: object
                       basicAuth:
                         description: The HTTP basic authentication credentials for the targets.
                         properties:
                           password:
-                            description: The password for authentication.
+                            description: |-
+                              Password references the Kubernetes secret's key with the password to use.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           username:
                             description: The username for authentication.
                             type: string
-                        required:
-                          - password
                         type: object
                       interval:
                         default: 1m
@@ -2504,24 +2583,32 @@ spec:
                             description: Public identifier for the client.
                             type: string
                           clientSecret:
-                            description: TODO
+                            description: |-
+                              ClientSecret references the Kubernetes secret's key with the client secret
+                              token for Oauth2 flow.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           endpointParams:
@@ -2541,69 +2628,93 @@ spec:
                             description: Configures the token request's TLS settings.
                             properties:
                               ca:
-                                description: TODO
+                                description: |-
+                                  CA references the Kubernetes secret's key with the CA certificate to
+                                  validate API server certificate with.
+                                  Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  secret:
-                                    description: The secret and key to use.
+                                  kubernetesSecret:
+                                    description: |-
+                                      KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                      in a given namespace.
                                     properties:
                                       key:
                                         description: The key of the secret to select from. Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: The name of the secret to select from.
+                                        description: Name of the secret to select from.
                                         type: string
                                       namespace:
-                                        description: The namespace to retrieve the secret from.
+                                        description: |-
+                                          Namespace of the secret to select from.
+                                          If empty the parent resource namespace will be chosen.
+                                          NOTE: For PodMonitoring, this field should be empty or specify
+                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
                                       - name
-                                      - namespace
                                     type: object
                                 type: object
                               cert:
-                                description: TODO
+                                description: |-
+                                  Cert references the Kubernetes secret's key with the certificate (public
+                                  key) for client cert authentication to the server.
+                                  Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  secret:
-                                    description: The secret and key to use.
+                                  kubernetesSecret:
+                                    description: |-
+                                      KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                      in a given namespace.
                                     properties:
                                       key:
                                         description: The key of the secret to select from. Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: The name of the secret to select from.
+                                        description: Name of the secret to select from.
                                         type: string
                                       namespace:
-                                        description: The namespace to retrieve the secret from.
+                                        description: |-
+                                          Namespace of the secret to select from.
+                                          If empty the parent resource namespace will be chosen.
+                                          NOTE: For PodMonitoring, this field should be empty or specify
+                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
                                       - name
-                                      - namespace
                                     type: object
                                 type: object
                               insecureSkipVerify:
                                 description: Disable target certificate validation.
                                 type: boolean
-                              keySecret:
-                                description: TODO
+                              key:
+                                description: |-
+                                  Key references the Kubernetes secret's key with the private key
+                                  for client cert authentication to the server.
+                                  Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  secret:
-                                    description: The secret and key to use.
+                                  kubernetesSecret:
+                                    description: |-
+                                      KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                      in a given namespace.
                                     properties:
                                       key:
                                         description: The key of the secret to select from. Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: The name of the secret to select from.
+                                        description: Name of the secret to select from.
                                         type: string
                                       namespace:
-                                        description: The namespace to retrieve the secret from.
+                                        description: |-
+                                          Namespace of the secret to select from.
+                                          If empty the parent resource namespace will be chosen.
+                                          NOTE: For PodMonitoring, this field should be empty or specify
+                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
                                       - name
-                                      - namespace
                                     type: object
                                 type: object
                               maxVersion:
@@ -2621,17 +2732,12 @@ spec:
                               serverName:
                                 description: Used to verify the hostname for the targets.
                                 type: string
-                            required:
-                              - ca
-                              - cert
-                              - keySecret
                             type: object
                           tokenURL:
                             description: The URL to fetch the token from.
                             type: string
                         required:
                           - clientID
-                          - clientSecret
                           - tokenURL
                         type: object
                       params:
@@ -2668,69 +2774,93 @@ spec:
                         description: Configures the scrape request's TLS settings.
                         properties:
                           ca:
-                            description: TODO
+                            description: |-
+                              CA references the Kubernetes secret's key with the CA certificate to
+                              validate API server certificate with.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           cert:
-                            description: TODO
+                            description: |-
+                              Cert references the Kubernetes secret's key with the certificate (public
+                              key) for client cert authentication to the server.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           insecureSkipVerify:
                             description: Disable target certificate validation.
                             type: boolean
-                          keySecret:
-                            description: TODO
+                          key:
+                            description: |-
+                              Key references the Kubernetes secret's key with the private key
+                              for client cert authentication to the server.
+                              Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              secret:
-                                description: The secret and key to use.
+                              kubernetesSecret:
+                                description: |-
+                                  KubernetesSecret represents reference to a given key from certain Kubernetes Secret
+                                  in a given namespace.
                                 properties:
                                   key:
                                     description: The key of the secret to select from. Must be a valid secret key.
                                     type: string
                                   name:
-                                    description: The name of the secret to select from.
+                                    description: Name of the secret to select from.
                                     type: string
                                   namespace:
-                                    description: The namespace to retrieve the secret from.
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                      NOTE: For PodMonitoring, this field should be empty or specify
+                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
                                   - name
-                                  - namespace
                                 type: object
                             type: object
                           maxVersion:
@@ -2748,10 +2878,6 @@ spec:
                           serverName:
                             description: Used to verify the hostname for the targets.
                             type: string
-                        required:
-                          - ca
-                          - cert
-                          - keySecret
                         type: object
                     required:
                       - port

@@ -206,7 +206,7 @@ func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, pro
 		},
 	}
 
-	return buildPrometheusScrapConfig(fmt.Sprintf("%s%s", c.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, c.Spec.Limits,
+	return buildPrometheusScrapeConfig(fmt.Sprintf("%s%s", c.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, c.Spec.Limits,
 		ScrapeEndpoint{Interval: ep.Interval,
 			Timeout:          ep.Timeout,
 			Path:             metricsPath,
