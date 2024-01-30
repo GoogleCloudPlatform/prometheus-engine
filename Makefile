@@ -55,7 +55,7 @@ conform:
 lint:        ## Lint code.
              ##
 	@echo ">> linting code"
-	DOCKER_BUILDKIT=1 docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.54.2 golangci-lint run -v --timeout=5m
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2 run --verbose --timeout 5m
 
 $(GOCMDS):   ## Build go binary from cmd/ (e.g. 'operator').
              ## The following env variables configure the build, and are mutually exclusive:
