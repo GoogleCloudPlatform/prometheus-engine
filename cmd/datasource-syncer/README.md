@@ -39,7 +39,7 @@ Running the following Cron job will refresh the data source on initialization an
 ```bash
 cat datasource-syncer.yaml \
 | sed 's|$DATASOURCE_UIDS|'"$DATASOURCE_UIDS"'|; s|$GRAFANA_API_ENDPOINT|'"$GRAFANA_API_ENDPOINT"'|; s|$GRAFANA_API_TOKEN|'"$GRAFANA_API_TOKEN"'|; s|$PROJECT_ID|'"$PROJECT_ID"'|;' \
-| kubectl apply -n $NAMESPACE_NAME -f -
+| kubectl -n $NAMESPACE_NAME apply -f -
 ```
 ### Query Across Multiple Projects
 
