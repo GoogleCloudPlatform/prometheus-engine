@@ -13,7 +13,7 @@ By regularly refreshing the oAuth2 access token, you can configure Grafana to di
 
 ### Run
 
-1. Figure out the URL of your Grafana instance. e.g. `https://your.grafana.net` for a Grafana Cloud instance or `http://localhost:3000` for a local instance.
+1. Figure out the URL of your Grafana instance. e.g. `https://your.grafana.net` for a Grafana Cloud instance or `http://grafana.NAMESPACE_NAME.svc:3000` for a local instance.
 
 2. Choose any pre-existing Grafana Prometheus data source that you would like to use for Managed Service for Prometheus, or create a new Grafana Prometheus data source and save it. Once that's done, find the data source UID. The data source UID is found in the URL when configuring or exploring a data source. The data source UID is the last part of the URL, when configuring a data source, e.g. `https://your.grafana.net/connections/datasources/edit/<datasource_uid>`.
 
@@ -29,6 +29,7 @@ DATASOURCE_UIDS=YOUR_DATASOURCE_UIDs
 GRAFANA_API_TOKEN=YOUR_GRAFANA_SERVICE_ACCOUNT_TOKEN
 GRAFANA_API_ENDPOINT=YOUR_GRAFANA_INSTANCE_URL
 PROJECT_ID=PROJECT_ID_TO_QUERY_GCM
+NAMESPACE_NAME=NAMESPACE_NAME #that you deploy the datasource-syncer to, and that you bound your service account to if using workload identity.
  # Optional Credentials file. Can be left empty if default credentials have sufficient permission.
 GOOGLE_APPLICATION_CREDENTIALS=OPTIONAL_GOOGLE_CLOUD_SERVICE_ACCOUNT_WITH_GOOGLE_CLOUD_MONITORING_READ_ACCESS
 ```
@@ -38,7 +39,7 @@ Running the following Cron job will refresh the data source on initialization an
 ```bash
 cat datasource-syncer.yaml \
 | sed 's|$DATASOURCE_UIDS|'"$DATASOURCE_UIDS"'|; s|$GRAFANA_API_ENDPOINT|'"$GRAFANA_API_ENDPOINT"'|; s|$GRAFANA_API_TOKEN|'"$GRAFANA_API_TOKEN"'|; s|$PROJECT_ID|'"$PROJECT_ID"'|;' \
-| kubectl apply -f -
+| kubectl apply -n $NAMESPACE_NAME -f -
 ```
 ### Query Across Multiple Projects
 
