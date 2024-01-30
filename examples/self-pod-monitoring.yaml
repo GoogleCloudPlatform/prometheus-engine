@@ -26,9 +26,14 @@ spec:
       app.kubernetes.io/name: collector
   endpoints:
   - port: prom-metrics
-    interval: 10s
+    interval: 30s
+    metricRelabeling:
+    - sourceLabels: [__name__]
+      regex: > 
+            prometheus_target.*|prometheus_sd.*|net_conntrack_.*
+      action: drop
   - port: cfg-rel-metrics
-    interval: 10s
+    interval: 30s
 ---
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
@@ -44,6 +49,6 @@ spec:
       app.kubernetes.io/name: rule-evaluator
   endpoints:
   - port: r-eval-metrics
-    interval: 10s
+    interval: 30s
   - port: cfg-rel-metrics
-    interval: 10s
+    interval: 30s
