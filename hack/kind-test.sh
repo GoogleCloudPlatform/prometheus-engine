@@ -137,6 +137,9 @@ docker_tag_push() {
 update_manifests() {
   for bin in "$@"; do
     find manifests -type f -name "*.yaml" -exec sed -i "s#image: .*/${bin}:.*#image: localhost:${REGISTRY_PORT}/${bin}:${TAG_NAME}#g" {} \;
+    if [ "$bin" = "go-synthetic" ]; then
+      find examples/instrumentation -type f -name "*.yaml" -exec sed -i "s#image: .*/example-app:.*#image: localhost:${REGISTRY_PORT}/${bin}:${TAG_NAME}#g" {} \;
+    fi
   done
 }
 
