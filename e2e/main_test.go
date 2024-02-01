@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
@@ -50,7 +50,8 @@ func TestMain(m *testing.M) {
 }
 
 func newKubeClients() (kubernetes.Interface, versioned.Interface, error) {
-	kubeconfig, err := config.GetConfig()
+	rules := clientcmd.NewDefaultClientConfigLoadingRules()
+	kubeconfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, nil).ClientConfig()
 	if err != nil {
 		return nil, nil, err
 	}
