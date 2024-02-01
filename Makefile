@@ -1,3 +1,5 @@
+include .bingo/Variables.mk
+
 GOCMDS := $(notdir $(patsubst %/,%,$(dir $(shell find cmd -name 'main.go'))))
 GOINSTR += $(notdir $(patsubst %/,%,$(dir $(shell find examples/instrumentation -name 'main.go'))))
 
@@ -52,10 +54,9 @@ conform:
 	docker run --rm -v ${PWD}:/src -w /src ghcr.io/siderolabs/conform:v0.1.0-alpha.27 enforce
 
 .PHONY: lint
-lint:        ## Lint code.
-             ##
+lint: $(GOLANGCI_LINT)
 	@echo ">> linting code"
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2 run --verbose --timeout 5m
+	$(GOLANGCI_LINT) run --verbose --timeout 5m
 
 $(GOCMDS):   ## Build go binary from cmd/ (e.g. 'operator').
              ## The following env variables configure the build, and are mutually exclusive:
