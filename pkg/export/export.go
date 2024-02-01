@@ -465,8 +465,8 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 	e.mtx.Unlock()
 
 	if !ok {
-		exemplarsDropped.WithLabelValues("no-ha-range").Add(float64(len(exemplarMap)))
-		samplesDropped.WithLabelValues("no-ha-range").Add(float64(batchSize))
+		exemplarsDropped.WithLabelValues("not-in-ha-range").Add(float64(len(exemplarMap)))
+		samplesDropped.WithLabelValues("not-in-ha-range").Add(float64(batchSize))
 		return
 	}
 	builder := newSampleBuilder(e.seriesCache)
