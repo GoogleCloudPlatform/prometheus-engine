@@ -31,9 +31,9 @@ import (
 )
 
 var (
-	projectID, location, cluster, kubeCtx string
-	skipGCM                               bool
-	pollDuration                          time.Duration
+	projectID, location, cluster string
+	skipGCM                      bool
+	pollDuration                 time.Duration
 )
 
 // TestMain injects custom flags to tests.

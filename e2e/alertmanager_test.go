@@ -39,6 +39,7 @@ func TestAlertmanager(t *testing.T) {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
+	t.Run("rules-create", testCreateRules(ctx, t, opClient))
 	t.Run("alertmanager-deployed", testAlertmanagerDeployed(ctx, t, kubeClient))
 	t.Run("alertmanager-operatorconfig", testAlertmanagerOperatorConfig(ctx, t, kubeClient, opClient))
 }

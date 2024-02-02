@@ -134,26 +134,6 @@ func TestCollectorKubeletScraping(t *testing.T) {
 	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, t, kubeClient, opClient))
 
-	// Kubelet/cadvisor scraping nodemonitoring.
-	nm := &monitoringv1.NodeMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "kubelet-cadvisor-nodemon",
-		},
-		Spec: monitoringv1.NodeMonitoringSpec{
-			Endpoints: []monitoringv1.ScrapeNodeEndpoint{
-				{
-					Scheme:   "https",
-					Interval: "5s",
-					Path:     "/metrics",
-				},
-				{
-					Scheme:   "https",
-					Interval: "5s",
-					Path:     "/metrics/cadvisor",
-				},
-			},
-		},
-	}
 	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, t, opClient))
 	if !skipGCM {
 		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, t, kubeClient))

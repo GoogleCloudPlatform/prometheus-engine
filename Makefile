@@ -22,7 +22,7 @@ E2E_DOCKER_ARGS += --env KIND_PERSIST=1
 endif
 REGISTRY_NAME=kind-registry
 REGISTRY_PORT=5001
-KIND_PARALLEL?=3
+KIND_PARALLEL?=5
 
 # For now assume the docker daemon is mounted through a unix socket.
 # TODO(pintohutch): will this work if using a remote docker over tcp?

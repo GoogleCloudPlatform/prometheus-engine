@@ -178,14 +178,17 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testing.T, kubeClient kube
 
 		_, err = kubeClient.CoreV1().Secrets(operator.DefaultPublicNamespace).Create(ctx, tlsPair, metav1.CreateOptions{})
 		if err != nil {
-			t.Errorf("creating tls secret")
+			t.Errorf("creating tls secret: %s", err)
 		}
 		_, err = kubeClient.CoreV1().Secrets(operator.DefaultPublicNamespace).Create(ctx, authToken, metav1.CreateOptions{})
 		if err != nil {
-			t.Errorf("creating tls secret")
+			t.Errorf("creating tls secret: %s", err)
 		}
 
-		createRuleEvaluatorOperatorConfig(ctx, opClient, "alertmanager-tls", "alertmanager-authorization")
+		err = createRuleEvaluatorOperatorConfig(ctx, opClient, "alertmanager-tls", "alertmanager-authorization")
+		if err != nil {
+			t.Errorf("creating operatorconfig: %s", err)
+		}
 
 		// Verify contents but without the GCP SA credentials file to not leak secrets in tests logs.
 		// Whether the contents were copied correctly is implicitly verified by the credentials working.

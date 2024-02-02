@@ -294,7 +294,7 @@ func TestOauth2PodMonitoring(t *testing.T) {
 
 	pm := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "oauth-auth-ready",
+			Name:      "oauth-ready",
 			Namespace: "default",
 		},
 		Spec: monitoringv1.PodMonitoringSpec{
@@ -322,7 +322,7 @@ func TestOauth2PodMonitoring(t *testing.T) {
 
 	pmFail := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "oauth-auth-ready",
+			Name:      "oauth-fail",
 			Namespace: "default",
 		},
 		Spec: monitoringv1.PodMonitoringSpec{
@@ -364,7 +364,7 @@ func TestOauth2ClusterPodMonitoring(t *testing.T) {
 
 	cpm := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "oauth-auth-ready",
+			Name: "oauth-ready",
 		},
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector: metav1.LabelSelector{
@@ -391,7 +391,7 @@ func TestOauth2ClusterPodMonitoring(t *testing.T) {
 
 	cpmFail := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "oauth-auth-ready",
+			Name: "oauth-fail",
 		},
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector: metav1.LabelSelector{

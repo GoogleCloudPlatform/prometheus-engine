@@ -57,7 +57,7 @@ metadata:
   name: go-synthetic
 spec:
   selector:
-    app: go-synethetic
+    app: go-synthetic
   ports:
   - port: 8080
     targetPort: web
