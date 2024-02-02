@@ -49,7 +49,7 @@ func TestCollectorPodMonitoring(t *testing.T) {
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
 	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("collector-configured", testCollectorConfigured(ctx, t, kubeClient, opClient))
+	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, t, kubeClient, opClient))
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
 	// Self-scrape podmonitoring.
 	pm := &monitoringv1.PodMonitoring{
@@ -91,7 +91,7 @@ func TestCollectorClusterPodMonitoring(t *testing.T) {
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
 	t.Run("collector-running", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("collector-configured", testCollectorConfigured(ctx, t, kubeClient, opClient))
+	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, t, kubeClient, opClient))
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
 	// Self-scrape clusterpodmonitoring.
 	cpm := &monitoringv1.ClusterPodMonitoring{
@@ -132,7 +132,7 @@ func TestCollectorKubeletScraping(t *testing.T) {
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
 	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("collector-configured", testCollectorConfigured(ctx, t, kubeClient, opClient))
+	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, t, kubeClient, opClient))
 	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, t, opClient))
 	if !skipGCM {
 		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, t, kubeClient))
@@ -180,7 +180,7 @@ func testCollectorDeployed(ctx context.Context, t *testing.T, kubeClient kuberne
 	}
 }
 
-func testCollectorConfigured(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testCollectorOperatorConfig(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is configured")
 
