@@ -38,17 +38,13 @@ var (
 
 // PodMonitoringCRD represents a Kubernetes CRD that monitors Pod endpoints.
 type PodMonitoringCRD interface {
-	MonitoringCRD
+	MonitoringCRDWithEndpointStatus
 
 	// GetKey returns a unique identifier for this CRD.
 	GetKey() string
 
 	// GetEndpoints returns the endpoints scraped by this CRD.
 	GetEndpoints() []ScrapeEndpoint
-
-	// GetPodMonitoringStatus returns this CRD's status sub-resource, which must
-	// be available at the top-level.
-	GetPodMonitoringStatus() *PodMonitoringStatus
 }
 
 // PodMonitoring defines monitoring for a set of pods, scoped to pods
@@ -76,8 +72,12 @@ func (p *PodMonitoring) GetEndpoints() []ScrapeEndpoint {
 	return p.Spec.Endpoints
 }
 
-func (p *PodMonitoring) GetPodMonitoringStatus() *PodMonitoringStatus {
-	return &p.Status
+func (p *PodMonitoring) GetEndpointStatuses() []ScrapeEndpointStatus {
+	return p.Status.EndpointStatuses
+}
+
+func (p *PodMonitoring) SetEndpointStatuses(endpointStatuses []ScrapeEndpointStatus) {
+	p.Status.EndpointStatuses = endpointStatuses
 }
 
 func (p *PodMonitoring) GetMonitoringStatus() *MonitoringStatus {
@@ -119,8 +119,12 @@ func (p *ClusterPodMonitoring) GetEndpoints() []ScrapeEndpoint {
 	return p.Spec.Endpoints
 }
 
-func (p *ClusterPodMonitoring) GetPodMonitoringStatus() *PodMonitoringStatus {
-	return &p.Status
+func (p *ClusterPodMonitoring) GetEndpointStatuses() []ScrapeEndpointStatus {
+	return p.Status.EndpointStatuses
+}
+
+func (p *ClusterPodMonitoring) SetEndpointStatuses(endpointStatuses []ScrapeEndpointStatus) {
+	p.Status.EndpointStatuses = endpointStatuses
 }
 
 func (p *ClusterPodMonitoring) GetMonitoringStatus() *MonitoringStatus {

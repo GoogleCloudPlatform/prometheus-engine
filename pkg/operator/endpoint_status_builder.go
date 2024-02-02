@@ -68,7 +68,7 @@ func (b *scrapeEndpointBuilder) add(target *prometheusv1.TargetsResult) error {
 	return nil
 }
 
-func setNamespacedObjectByScrapeJobKey(o monitoringv1.PodMonitoringCRD, split []string, full string) (monitoringv1.PodMonitoringCRD, error) {
+func setNamespacedObjectByScrapeJobKey(o monitoringv1.MonitoringCRDWithEndpointStatus, split []string, full string) (monitoringv1.MonitoringCRDWithEndpointStatus, error) {
 	if len(split) != 3 {
 		return nil, fmt.Errorf("invalid %s scrape key format %q", split[0], full)
 	}
@@ -78,7 +78,7 @@ func setNamespacedObjectByScrapeJobKey(o monitoringv1.PodMonitoringCRD, split []
 	return o, nil
 }
 
-func setClusterScopedObjectByScrapeJobKey(o monitoringv1.PodMonitoringCRD, split []string, full string) (monitoringv1.PodMonitoringCRD, error) {
+func setClusterScopedObjectByScrapeJobKey(o monitoringv1.MonitoringCRDWithEndpointStatus, split []string, full string) (monitoringv1.MonitoringCRDWithEndpointStatus, error) {
 	if len(split) != 2 {
 		return nil, fmt.Errorf("invalid %s scrape key format %q", split[0], full)
 	}
@@ -88,7 +88,7 @@ func setClusterScopedObjectByScrapeJobKey(o monitoringv1.PodMonitoringCRD, split
 }
 
 // getObjectByScrapeJobKey converts the key to a CRD. See monitoringv1.PodMonitoringCRD.GetKey().
-func getObjectByScrapeJobKey(key string) (monitoringv1.PodMonitoringCRD, error) {
+func getObjectByScrapeJobKey(key string) (monitoringv1.MonitoringCRDWithEndpointStatus, error) {
 	split := strings.Split(key, "/")
 	// Generally:
 	// - "kind" for scrape pools without a respective CRD.
@@ -109,6 +109,8 @@ func getObjectByScrapeJobKey(key string) (monitoringv1.PodMonitoringCRD, error) 
 			return nil, err
 		}
 		return nil, nil
+	case "Probe":
+		return setClusterScopedObjectByScrapeJobKey(&monitoringv1.Probe{}, split, key)
 	default:
 		return nil, fmt.Errorf("unknown scrape kind %q", split[0])
 	}
@@ -165,6 +167,11 @@ func parseScrapePool(pool string) (scrapePool, error) {
 	case "NodeMonitoring":
 		if len(split) != 3 {
 			return scrapePool{}, fmt.Errorf("invalid NodeMonitoring scrape pool format %q", pool)
+		}
+		return getClusterScopedScrapePool(pool, split), nil
+	case "Probe":
+		if len(split) != 4 {
+			return scrapePool{}, fmt.Errorf("invalid Probe scrape pool format %q", pool)
 		}
 		return getClusterScopedScrapePool(pool, split), nil
 	default:

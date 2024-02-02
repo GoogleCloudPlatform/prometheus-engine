@@ -232,6 +232,9 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 					&monitoringv1.NodeMonitoring{}: {
 						Field: fields.Everything(),
 					},
+					&monitoringv1.Probe{}: {
+						Field: fields.Everything(),
+					},
 					&monitoringv1.GlobalRules{}: {
 						Field: fields.Everything(),
 					},
@@ -268,7 +271,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 					&appsv1.Deployment{}: {
 						Field: fields.SelectorFromSet(fields.Set{
 							"metadata.namespace": opts.OperatorNamespace,
-							"metadata.name":      NameRuleEvaluator,
 						}),
 					},
 				}})
@@ -321,6 +323,10 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	s.Register(
 		validatePath(monitoringv1.NodeMonitoringResource()),
 		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.NodeMonitoring{}),
+	)
+	s.Register(
+		validatePath(monitoringv1.ProbeResource()),
+		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.Probe{}),
 	)
 	s.Register(
 		validatePath(monitoringv1.OperatorConfigResource()),

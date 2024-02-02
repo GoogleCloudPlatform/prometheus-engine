@@ -160,19 +160,26 @@ func buildPrometheusScrapConfig(jobName string, discoverCfgs discovery.Configs, 
 		scrapeCfg.LabelNameLengthLimit = uint(limits.LabelNameLength)
 		scrapeCfg.LabelValueLengthLimit = uint(limits.LabelValueLength)
 	}
+	if err := validateScrapeConfig(scrapeCfg); err != nil {
+		return nil, err
+	}
+	return scrapeCfg, nil
+}
+
+func validateScrapeConfig(scrapeCfg *promconfig.ScrapeConfig) error {
 	// The Prometheus configuration structs do not generally have validation methods and embed their
 	// validation logic in the UnmarshalYAML methods. To keep things reasonable we don't re-validate
 	// everything and simply do a final marshal-unmarshal cycle at the end to run all validation
 	// upstream provides at the end of this method.
 	b, err := yaml.Marshal(scrapeCfg)
 	if err != nil {
-		return nil, fmt.Errorf("scrape config cannot be marshalled: %w", err)
+		return fmt.Errorf("scrape config cannot be marshalled: %w", err)
 	}
 	var scrapeCfgCopy promconfig.ScrapeConfig
 	if err := yaml.Unmarshal(b, &scrapeCfgCopy); err != nil {
-		return nil, fmt.Errorf("invalid scrape configuration: %w", err)
+		return fmt.Errorf("invalid scrape configuration: %w", err)
 	}
-	return scrapeCfg, nil
+	return nil
 }
 
 var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)

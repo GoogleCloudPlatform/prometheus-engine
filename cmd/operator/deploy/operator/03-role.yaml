@@ -75,6 +75,11 @@ rules:
   resourceNames: ["rule-evaluator"]
   verbs: ["get", "patch", "update"]
 - resources:
+  - deployments
+  apiGroups: ["apps"]
+  resourceNames: ["blackbox-exporter"]
+  verbs: ["get", "update"]
+- resources:
   - services
   apiGroups: [""]
   resourceNames: ["alertmanager"]
@@ -129,6 +134,7 @@ rules:
   - globalrules
   - nodemonitorings
   - podmonitorings
+  - probes
   - rules
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "list", "watch"]
@@ -137,6 +143,7 @@ rules:
   - clusterrules/status
   - globalrules/status
   - podmonitorings/status
+  - probes/status
   - rules/status
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "patch", "update"]
