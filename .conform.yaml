@@ -7,7 +7,7 @@ policies:
         case: lower
         invalidLastCharacters: .
       body:
-        required: true
+        required: false
       spellcheck:
         locale: US
       maximumOfOneCommit: false
@@ -15,15 +15,18 @@ policies:
         # Consistent with @commitlint/config-conventional, as referenced in Conventional Commits Specification.
         # https://github.com/conventional-changelog/commitlint/tree/master/%40commitlint/config-conventional#type-enum
         types:
-          - "build"
-          - "chore"
-          - "ci"
-          - "docs"
-          - "perf"
-          - "refactor"
-          - "revert"
-          - "style"
-          - "test"
+          - build
+          - chore
+          - ci
+          - docs
+          - perf
+          - refactor
+          - revert
+          - style
+          - test
         scopes:
-          - "operator"
+          - configs
+          - deps
+          - operator
+          - prometheus
         descriptionLength: 72
