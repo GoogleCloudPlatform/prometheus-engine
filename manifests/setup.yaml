@@ -935,7 +935,7 @@ spec:
     listKind: NodeMonitoringList
     plural: nodemonitorings
     singular: nodemonitoring
-  scope: Namespaced
+  scope: Cluster
   versions:
   - name: v1
     schema:

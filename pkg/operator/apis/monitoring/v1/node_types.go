@@ -74,7 +74,9 @@ type NodeMonitoringList struct {
 
 // NodeMonitoring defines monitoring for a set of nodes.
 // +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 type NodeMonitoring struct {
