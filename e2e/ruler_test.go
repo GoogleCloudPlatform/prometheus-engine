@@ -46,7 +46,7 @@ func TestRuleEvaluator(t *testing.T) {
 	}
 
 	t.Run("rule-evaluator-deployed", testRuleEvaluatorDeployed(ctx, t, kubeClient))
-	t.Run("rule-evaluator-configured", testRuleEvaluatorConfigured(ctx, t, kubeClient, opClient))
+	t.Run("rule-evaluator-operatorconfig", testRuleEvaluatorOperatorConfig(ctx, t, kubeClient, opClient))
 	// TODO(pintohutch): testing the generated secrets and config can be
 	// brittle as the checks need to be precise and could break if mechanics or
 	// formatting changes in the future.
@@ -92,7 +92,7 @@ func testRuleEvaluatorDeployed(ctx context.Context, t *testing.T, kubeClient kub
 	}
 }
 
-func testRuleEvaluatorConfigured(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking rule-evaluator is configured")
 
