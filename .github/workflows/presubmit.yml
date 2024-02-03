@@ -78,11 +78,21 @@ jobs:
       env:
         GCM_SECRET: ${{ secrets.GCM_SECRET }}
       run: make test-script-gcm
+  e2e-testruns:
+    runs-on: ubuntu-latest
+    outputs:
+      testrun: ${{ steps.set-testruns.outputs.testrun }}
+    steps:
+    - uses: actions/checkout@v3
+    - id: set-testruns
+      run: echo "testrun=$(go test ./e2e/... -list=. | grep -E 'Test*' | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
   e2e-test:
     runs-on: ubuntu-latest
+    needs: [e2e-testruns]
+    strategy:
+      matrix:
+        testrun: ${{fromJson(needs.e2e-testruns.outputs.testrun)}}
     steps:
     - uses: actions/checkout@v3
     - name: Run e2e
-      run: make e2e
-      env:
-        GO_ARGS: "-timeout=20m -parallel=2"
+      run: TEST_RUN=${{matrix.testrun}} make e2e

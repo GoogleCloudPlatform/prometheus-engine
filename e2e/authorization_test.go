@@ -16,394 +16,456 @@ package e2e
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kubeutil"
-	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/operatorutil"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
 )
 
-func isPodMonitoringTargetCertificateError(message string) error {
-	err := tls.CertificateVerificationError{
-		Err: x509.UnknownAuthorityError{},
-	}
-	expected := err.Error()
-	if !strings.HasSuffix(message, expected) {
-		return fmt.Errorf("expected %q", expected)
-	}
-	return nil
-}
-
-func isPodMonitoringTargetUnauthorizedError(message string) error {
-	const expected = "server returned HTTP status 401 Unauthorized"
-	if message != expected {
-		return fmt.Errorf("expected %q", expected)
-	}
-	return nil
-}
-
-func isPodMonitoringTargetInvalidOAuthCredentialsError(message string) error {
-	const expected = "oauth2: \"invalid_client\" \"incorrect client credentials\""
-	if !strings.HasSuffix(message, expected) {
-		return fmt.Errorf("expected suffix %q", expected)
-	}
-	return nil
-}
-
-func defaultEndpoint(endpoint *monitoringv1.ScrapeEndpoint) {
-	endpoint.Port = intstr.FromString(operatorutil.SyntheticAppPortName)
-	endpoint.Interval = "5s"
-}
-
-// TODO(TheSpiritXIII): This helper is temporary until we add secret management.
-func setupAuthTestMissingAuth(ctx context.Context, t *OperatorContext, appName string, args []string, podMonitoringNamePrefix string, endpointNoAuth monitoringv1.ScrapeEndpoint, expectedFn func(string) error) *appsv1.Deployment {
-	defaultEndpoint(&endpointNoAuth)
-
-	deployment, err := operatorutil.SyntheticAppDeploy(ctx, t.Client(), t.userNamespace, appName, args)
+func TestTLSPodMonitoring(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("error instantiating clients. err: %s", err)
 	}
-	service := corev1.Service{
+
+	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--tls-create-self-signed=true"}))
+
+	pm := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      appName,
-			Namespace: t.userNamespace,
+			Name:      "tls-ready",
+			Namespace: "default",
 		},
-		Spec: corev1.ServiceSpec{
-			Selector: deployment.Spec.Template.Labels,
-			Ports: []corev1.ServicePort{
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
 				{
-					Port:       8080,
-					TargetPort: intstr.FromString(operatorutil.SyntheticAppPortName),
-				},
-			},
-		},
-	}
-	if err := t.Client().Create(ctx, &service); err != nil {
-		t.Fatalf("create service: %s", err)
-	}
-
-	if err := kubeutil.WaitForDeploymentReady(ctx, t.Client(), t.userNamespace, appName); err != nil {
-		kubeutil.DeploymentDebug(t.T, ctx, t.RestConfig(), t.Client(), t.userNamespace, appName)
-		t.Fatalf("failed to start app: %s", err)
-	}
-	if _, err := kubeutil.WaitForServiceReady(ctx, t.Client(), t.userNamespace, appName); err != nil {
-		t.Fatalf("service %s/%s not ready: %s", t.userNamespace, appName, err)
-	}
-
-	t.Run("podmon-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-
-		pm := &monitoringv1.PodMonitoring{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("pod%s-missing-config", podMonitoringNamePrefix),
-				Namespace: t.userNamespace,
-			},
-			Spec: monitoringv1.PodMonitoringSpec{
-				Selector: metav1.LabelSelector{
-					MatchLabels: deployment.Spec.Template.Labels,
-				},
-				Endpoints: []monitoringv1.ScrapeEndpoint{endpointNoAuth},
-			},
-		}
-		if err := t.Client().Create(ctx, pm); err != nil {
-			t.Fatalf("create collector PodMonitoring: %s", err)
-		}
-
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
-			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-			t.Fatalf("PodMonitoring not ready: %s", err)
-		}
-
-		if err := operatorutil.WaitForPodMonitoringFailure(ctx, t.Client(), pm, expectedFn); err != nil {
-			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-			t.Fatalf("scrape endpoint expected failure: %s", err)
-		}
-	}))
-
-	t.Run("clusterpodmon-missing-config", t.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-
-		pm := &monitoringv1.ClusterPodMonitoring{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("%s-c%s-failure", t.namespace, podMonitoringNamePrefix),
-			},
-			Spec: monitoringv1.ClusterPodMonitoringSpec{
-				Selector: metav1.LabelSelector{
-					MatchLabels: deployment.Spec.Template.Labels,
-				},
-				Endpoints: []monitoringv1.ScrapeEndpoint{endpointNoAuth},
-			},
-		}
-		if err := t.Client().Create(ctx, pm); err != nil {
-			t.Fatalf("create collector PodMonitoring: %s", err)
-		}
-
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
-			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-			t.Fatalf("collector not ready: %s", err)
-		}
-
-		if err := operatorutil.WaitForPodMonitoringFailure(ctx, t.Client(), pm, expectedFn); err != nil {
-			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-			t.Fatalf("scrape endpoint expected failure: %s", err)
-		}
-	}))
-
-	return deployment
-}
-
-// setupAuthTest sets up tests for PodMonitoring and ClusterPodMonitoring for when
-// authentication configurations are present and when they are not present.
-func setupAuthTest(ctx context.Context, t *OperatorContext, appName string, args []string, podMonitoringNamePrefix string, endpointNoAuth, endpointAuth monitoringv1.ScrapeEndpoint, expectedFn func(string) error) {
-	defaultEndpoint(&endpointAuth)
-	deployment := setupAuthTestMissingAuth(ctx, t, appName, args, podMonitoringNamePrefix, endpointNoAuth, expectedFn)
-
-	t.Run("podmon-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-
-		pm := &monitoringv1.PodMonitoring{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("pod%s-success", podMonitoringNamePrefix),
-				Namespace: t.userNamespace,
-			},
-			Spec: monitoringv1.PodMonitoringSpec{
-				Selector: metav1.LabelSelector{
-					MatchLabels: deployment.Spec.Template.Labels,
-				},
-				Endpoints: []monitoringv1.ScrapeEndpoint{endpointAuth},
-			},
-		}
-		if err := t.Client().Create(ctx, pm); err != nil {
-			t.Fatalf("create collector: %s", err)
-		}
-
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
-			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-			t.Errorf("collector not ready: %s", err)
-		}
-
-		if err := operatorutil.WaitForPodMonitoringSuccess(ctx, t.Client(), pm); err != nil {
-			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-			t.Fatalf("scrape endpoint expected success: %s", err)
-		}
-	}))
-
-	t.Run("clusterpodmon-success", t.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-
-		pm := &monitoringv1.ClusterPodMonitoring{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("c%s-success", podMonitoringNamePrefix),
-			},
-			Spec: monitoringv1.ClusterPodMonitoringSpec{
-				Selector: metav1.LabelSelector{
-					MatchLabels: deployment.Spec.Template.Labels,
-				},
-				Endpoints: []monitoringv1.ScrapeEndpoint{endpointAuth},
-			},
-		}
-		if err := t.Client().Create(ctx, pm); err != nil {
-			t.Fatalf("create collector: %s", err)
-		}
-
-		if err := operatorutil.WaitForPodMonitoringReady(ctx, t.Client(), t.namespace, pm, true); err != nil {
-			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-			t.Errorf("collector not ready: %s", err)
-		}
-
-		if err := operatorutil.WaitForPodMonitoringSuccess(ctx, t.Client(), pm); err != nil {
-			kubeutil.DaemonSetDebug(t.T, ctx, t.RestConfig(), t.Client(), t.namespace, operator.NameCollector)
-			t.Fatalf("scrape endpoint expected success: %s", err)
-		}
-	}))
-}
-
-func TestTLS(t *testing.T) {
-	t.Parallel()
-	tctx := newOperatorContext(t)
-	ctx := context.Background()
-
-	tctx.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
-		Features: monitoringv1.OperatorFeatures{
-			TargetStatus: monitoringv1.TargetStatusSpec{
-				Enabled: true,
-			},
-		},
-	})
-
-	const appName = "tls-insecure"
-	setupAuthTest(ctx, tctx, appName, []string{
-		"--tls-create-self-signed=true",
-	}, "mon-tls-insecure",
-		monitoringv1.ScrapeEndpoint{
-			Scheme: "https",
-		}, monitoringv1.ScrapeEndpoint{
-			Scheme: "https",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				TLS: &monitoringv1.TLS{
-					InsecureSkipVerify: true,
-				},
-			},
-		}, isPodMonitoringTargetCertificateError)
-}
-
-func TestBasicAuth(t *testing.T) {
-	t.Parallel()
-	tctx := newOperatorContext(t)
-	ctx := context.Background()
-
-	tctx.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
-		Features: monitoringv1.OperatorFeatures{
-			TargetStatus: monitoringv1.TargetStatusSpec{
-				Enabled: true,
-			},
-		},
-	})
-
-	t.Run("no-password", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-		const appName = "basic-auth-no-password"
-		const appUsername = "gmp-user-basic-auth-no-password"
-		setupAuthTest(ctx, t, appName, []string{
-			fmt.Sprintf("--basic-auth-username=%s", appUsername),
-		}, "mon-basic-auth-no-password", monitoringv1.ScrapeEndpoint{}, monitoringv1.ScrapeEndpoint{
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				BasicAuth: &monitoringv1.BasicAuth{
-					Username: appUsername,
-				},
-			},
-		}, isPodMonitoringTargetUnauthorizedError)
-	}))
-
-	t.Run("no-username", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-		const appName = "basic-auth-no-username"
-		const appPassword = "secret-no-username"
-		setupAuthTestMissingAuth(ctx, t, appName, []string{
-			fmt.Sprintf("--basic-auth-password=%s", appPassword),
-		}, "mon-basic-auth-no-username", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
-	}))
-
-	t.Run("full", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-		const appName = "basic-auth-full"
-		const appUsername = "gmp-user-basic-auth-full"
-		const appPassword = "secret-full"
-		setupAuthTestMissingAuth(ctx, t, appName, []string{
-			fmt.Sprintf("--basic-auth-username=%s", appUsername),
-			fmt.Sprintf("--basic-auth-password=%s", appPassword),
-		}, "mon-basic-auth-full", monitoringv1.ScrapeEndpoint{}, isPodMonitoringTargetUnauthorizedError)
-	}))
-}
-
-func TestAuthorization(t *testing.T) {
-	t.Parallel()
-	tctx := newOperatorContext(t)
-	ctx := context.Background()
-
-	tctx.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
-		Features: monitoringv1.OperatorFeatures{
-			TargetStatus: monitoringv1.TargetStatusSpec{
-				Enabled: true,
-			},
-		},
-	})
-
-	t.Run("no-credentials", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-		const appName = "auth-no-credentials"
-		setupAuthTest(ctx, t, appName, []string{
-			"--auth-scheme=Bearer",
-		}, "mon-auth-no-credentials", monitoringv1.ScrapeEndpoint{},
-			monitoringv1.ScrapeEndpoint{
-				HTTPClientConfig: monitoringv1.HTTPClientConfig{
-					Authorization: &monitoringv1.Auth{
-						Type: "Bearer",
+					Scheme:   "https",
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						TLS: &monitoringv1.TLS{
+							InsecureSkipVerify: true,
+						},
 					},
 				},
-			}, isPodMonitoringTargetUnauthorizedError)
-	}))
-
-	t.Run("credentials", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-		const appName = "auth-credentials"
-		const appCredentials = "gmp-token-abc123"
-		setupAuthTestMissingAuth(ctx, t, appName, []string{
-			"--auth-scheme=Bearer",
-			fmt.Sprintf("--auth-parameters=%s", appCredentials),
-		}, "mon-auth-credentials", monitoringv1.ScrapeEndpoint{
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				Authorization: &monitoringv1.Auth{},
-			},
-		}, isPodMonitoringTargetUnauthorizedError)
-	}))
-}
-
-func TestOAuth2(t *testing.T) {
-	t.Parallel()
-	tctx := newOperatorContext(t)
-	ctx := context.Background()
-
-	tctx.createOperatorConfigFrom(ctx, monitoringv1.OperatorConfig{
-		Features: monitoringv1.OperatorFeatures{
-			TargetStatus: monitoringv1.TargetStatusSpec{
-				Enabled: true,
 			},
 		},
-	})
+	}
+	t.Run("tls-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, t, opClient, pm))
 
-	t.Run("no-client-secret", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-		const appName = "oauth2-no-client-secret"
-		const clientID = "gmp-user-client-id-no-client-secret"
-		const clientScope = "read"
-		const accessToken = "abc123"
-
-		setupAuthTest(ctx, t, appName, []string{
-			fmt.Sprintf("--oauth2-client-id=%s", clientID),
-			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
-			fmt.Sprintf("--oauth2-access-token=%s", accessToken),
-		}, "mon-oauth2-no-client-secret", monitoringv1.ScrapeEndpoint{}, monitoringv1.ScrapeEndpoint{
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				OAuth2: &monitoringv1.OAuth2{
-					ClientID: clientID,
-					Scopes:   []string{clientScope},
-					TokenURL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080/token", appName, t.userNamespace),
+	pmFail := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tls-fail",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
 				},
 			},
-		}, isPodMonitoringTargetUnauthorizedError)
-	}))
-
-	t.Run("client-secret", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-		const appName = "oauth2-client-secret"
-		const clientID = "gmp-user-client-id-client-secret"
-		const clientSecret = "secret-client-secret"
-		const clientScope = "read"
-		const accessToken = "321xyz"
-
-		setupAuthTestMissingAuth(ctx, t, appName, []string{
-			fmt.Sprintf("--oauth2-client-id=%s", clientID),
-			fmt.Sprintf("--oauth2-client-secret=%s", clientSecret),
-			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
-			fmt.Sprintf("--oauth2-access-token=%s", accessToken),
-		}, "mon-oauth2-client-secret", monitoringv1.ScrapeEndpoint{
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				OAuth2: &monitoringv1.OAuth2{
-					ClientID: clientID,
-					Scopes:   []string{clientScope},
-					TokenURL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080/token", appName, t.userNamespace),
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Scheme:   "https",
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
 				},
 			},
-		}, isPodMonitoringTargetInvalidOAuthCredentialsError)
-	}))
+		},
+	}
+	errMsg := "x509: certificate signed by unknown authority"
+	t.Run("tls-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, t, opClient, pmFail, errMsg))
+}
+
+func TestTLSClusterPodMonitoring(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
+
+	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--tls-create-self-signed=true"}))
+
+	cpm := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tls-ready",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Scheme:   "https",
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						TLS: &monitoringv1.TLS{
+							InsecureSkipVerify: true,
+						},
+					},
+				},
+			},
+		},
+	}
+	t.Run("tls-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, t, opClient, cpm))
+
+	cpmFail := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tls-fail",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Scheme:   "https",
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+				},
+			},
+		},
+	}
+	errMsg := "x509: certificate signed by unknown authority"
+	t.Run("tls-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, t, opClient, cpmFail, errMsg))
+}
+
+func TestBasicAuthPodMonitoring(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
+
+	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--basic-auth-username=user"}))
+
+	pm := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "basic-auth-ready",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						BasicAuth: &monitoringv1.BasicAuth{
+							Username: "user",
+						},
+					},
+				},
+			},
+		},
+	}
+	t.Run("basic-auth-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, t, opClient, pm))
+
+	pmFail := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "basic-auth-fail",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+				},
+			},
+		},
+	}
+	errMsg := "server returned HTTP status 401 Unauthorized"
+	t.Run("basic-auth-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, t, opClient, pmFail, errMsg))
+}
+
+func TestBasicAuthClusterPodMonitoring(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
+
+	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--basic-auth-username=user"}))
+
+	cpm := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "basic-auth-ready",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						BasicAuth: &monitoringv1.BasicAuth{
+							Username: "user",
+						},
+					},
+				},
+			},
+		},
+	}
+	t.Run("basic-auth-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, t, opClient, cpm))
+
+	cpmFail := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "basic-auth-fail",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+				},
+			},
+		},
+	}
+	errMsg := "server returned HTTP status 401 Unauthorized"
+	t.Run("basic-auth-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, t, opClient, cpmFail, errMsg))
+}
+
+func TestOauth2PodMonitoring(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
+	var (
+		clientID    = "gmp-user-client-id-no-client-secret"
+		clientScope = "read"
+		accessToken = "abc123"
+	)
+
+	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient,
+		[]string{
+			fmt.Sprintf("--oauth2-client-id=%s", clientID),
+			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
+			fmt.Sprintf("--oauth2-access-token=%s", accessToken)}))
+
+	pm := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "oauth-ready",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						OAuth2: &monitoringv1.OAuth2{
+							ClientID: clientID,
+							Scopes:   []string{clientScope},
+							TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
+						},
+					},
+				},
+			},
+		},
+	}
+	t.Run("oauth2-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, t, opClient, pm))
+
+	pmFail := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "oauth-fail",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+				},
+			},
+		},
+	}
+	t.Run("oauth2-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, t, opClient, pmFail, "server returned HTTP status 401 Unauthorized"))
+}
+
+func TestOauth2ClusterPodMonitoring(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
+	var (
+		clientID    = "gmp-user-client-id-no-client-secret"
+		clientScope = "read"
+		accessToken = "abc123"
+	)
+
+	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient,
+		[]string{
+			fmt.Sprintf("--oauth2-client-id=%s", clientID),
+			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
+			fmt.Sprintf("--oauth2-access-token=%s", accessToken)}))
+
+	cpm := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "oauth-ready",
+		},
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						OAuth2: &monitoringv1.OAuth2{
+							ClientID: clientID,
+							Scopes:   []string{clientScope},
+							TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
+						},
+					},
+				},
+			},
+		},
+	}
+	t.Run("oauth2-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, t, opClient, cpm))
+
+	cpmFail := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "oauth-fail",
+		},
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+				},
+			},
+		},
+	}
+	t.Run("oauth2-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, t, opClient, cpmFail, "server returned HTTP status 401 Unauthorized"))
+}
+
+func testPatchExampleAppArgs(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, args []string) func(*testing.T) {
+	return func(t *testing.T) {
+		deploy, err := kubeClient.AppsV1().Deployments("default").Get(ctx, "go-synthetic", metav1.GetOptions{})
+		if err != nil {
+			t.Errorf("create deployment: %s", err)
+		}
+
+		cargs := deploy.Spec.Template.Spec.Containers[0].Args
+		newArgs := append(cargs, args...)
+		deploy.Spec.Template.Spec.Containers[0].Args = newArgs
+		_, err = kubeClient.AppsV1().Deployments("default").Update(ctx, deploy, metav1.UpdateOptions{})
+		if err != nil {
+			t.Errorf("update deployment: %s", err)
+		}
+	}
+}
+
+func isPodMonitoringScrapeEndpointFailure(status *monitoringv1.ScrapeEndpointStatus, errMsg string) error {
+	if status.UnhealthyTargets == 0 {
+		return errors.New("expected no healthy targets")
+	}
+	if status.CollectorsFraction == "0" {
+		return fmt.Errorf("expected collectors fraction to be 0 but found: %s", status.CollectorsFraction)
+	}
+	if len(status.SampleGroups) == 0 {
+		return errors.New("missing sample groups")
+	}
+	for i, group := range status.SampleGroups {
+		if len(group.SampleTargets) == 0 {
+			return fmt.Errorf("missing sample targets for group %d", i)
+		}
+		for _, target := range group.SampleTargets {
+			if target.Health == "up" {
+				return fmt.Errorf("healthy target %q at group %d", target.Health, i)
+			}
+			if target.LastError == nil {
+				return fmt.Errorf("missing error for target at group %d", i)
+			}
+			if !strings.Contains(*target.LastError, errMsg) {
+				return fmt.Errorf("expected error message %q at group %d: got %s", errMsg, i, *target.LastError)
+			}
+		}
+	}
+	return nil
+}
+
+func testEnsurePodMonitoringFailure(ctx context.Context, t *testing.T, opClient versioned.Interface, pm *monitoringv1.PodMonitoring, errMsg string) func(*testing.T) {
+	return testEnsurePodMonitoringStatus(ctx, t, opClient, pm,
+		func(status *monitoringv1.ScrapeEndpointStatus) error {
+			return isPodMonitoringScrapeEndpointFailure(status, errMsg)
+		})
+}
+
+func testEnsureClusterPodMonitoringFailure(ctx context.Context, t *testing.T, opClient versioned.Interface, cpm *monitoringv1.ClusterPodMonitoring, errMsg string) func(*testing.T) {
+	return testEnsureClusterPodMonitoringStatus(ctx, t, opClient, cpm,
+		func(status *monitoringv1.ScrapeEndpointStatus) error {
+			return isPodMonitoringScrapeEndpointFailure(status, errMsg)
+		})
 }

@@ -122,6 +122,9 @@ const CompressionGzip CompressionType = "gzip"
 type KubeletScraping struct {
 	// The interval at which the metric endpoints are scraped.
 	Interval string `json:"interval"`
+	// TLSInsecureSkipVerify disables verifying the target cert.
+	// This can be useful for clusters provisioned with kubeadm.
+	TLSInsecureSkipVerify bool `json:"tlsInsecureSkipVerify,omitempty"`
 }
 
 // ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.

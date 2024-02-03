@@ -107,16 +107,6 @@ a single node kind cluster and runs [e2e](./e2e) tests against it.
   ```bash
   TEST_RUN=TestCollector make e2e
   ```
-  * To pass args to the test, use the `TEST_ARGS` environment variable. For example, to add `-skip-gcm`, pass `TEST_ARGS=-skip-gcm`:
-  ```bash
-  NO_DOCKER=1 TEST_ARGS=-skip-gcm make e2e
-  ```
-  * If `NO_DOCKER=1` is set, end-to-end tests will be run against the current
-    kubectl context. It is assumed the cluster has access to the GCM API.
-    Ensure `GMP_CLUSTER` and `GMP_LOCATION` are set, e.g.
-  ```bash
-  NO_DOCKER=1 GMP_CLUSTER=<my-cluster> GMP_LOCATION=<cluster-location> make e2e
-  ```
 
 ##### Debugging
 
