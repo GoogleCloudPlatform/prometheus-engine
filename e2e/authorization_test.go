@@ -272,7 +272,127 @@ func TestBasicAuthClusterPodMonitoring(t *testing.T) {
 	t.Run("basic-auth-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, t, opClient, cpmFail, errMsg))
 }
 
-func TestOauth2PodMonitoring(t *testing.T) {
+func TestAuthorizationPodMonitoring(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
+
+	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--auth-scheme=Bearer"}))
+
+	pm := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "auth-ready",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						Authorization: &monitoringv1.Auth{
+							Type: "Bearer",
+						},
+					},
+				},
+			},
+		},
+	}
+	t.Run("auth-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, t, opClient, pm))
+
+	pmFail := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "auth-fail",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+				},
+			},
+		},
+	}
+	errMsg := "server returned HTTP status 401 Unauthorized"
+	t.Run("auth-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, t, opClient, pmFail, errMsg))
+}
+
+func TestAuthorizationClusterPodMonitoring(t *testing.T) {
+	ctx := context.Background()
+	kubeClient, opClient, err := newKubeClients()
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
+
+	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--auth-scheme=Bearer"}))
+
+	cpm := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "auth-ready",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						Authorization: &monitoringv1.Auth{
+							Type: "Bearer",
+						},
+					},
+				},
+			},
+		},
+	}
+	t.Run("auth-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, t, opClient, cpm))
+
+	cpmFail := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "auth-fail",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "go-synthetic",
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "5s",
+				},
+			},
+		},
+	}
+	errMsg := "server returned HTTP status 401 Unauthorized"
+	t.Run("auth-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, t, opClient, cpmFail, errMsg))
+}
+
+func TestOAuth2PodMonitoring(t *testing.T) {
 	ctx := context.Background()
 	kubeClient, opClient, err := newKubeClients()
 	if err != nil {
@@ -342,7 +462,7 @@ func TestOauth2PodMonitoring(t *testing.T) {
 	t.Run("oauth2-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, t, opClient, pmFail, "server returned HTTP status 401 Unauthorized"))
 }
 
-func TestOauth2ClusterPodMonitoring(t *testing.T) {
+func TestOAuth2ClusterPodMonitoring(t *testing.T) {
 	ctx := context.Background()
 	kubeClient, opClient, err := newKubeClients()
 	if err != nil {
