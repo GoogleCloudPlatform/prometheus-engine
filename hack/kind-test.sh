@@ -25,7 +25,12 @@ REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 TAG_NAME=$(date "+gmp-%Y%d%m_%H%M")
 TEST_ARGS=""
 # Convert kind cluster name to required regex if necessary.
-KIND_CLUSTER=`echo ${GO_TEST} | sed -r 's/([A-Z])/-\L\1/g' | sed 's/^-//'`
+# We need to ensure this name is not too long due to: https://github.com/kubernetes-sigs/kind/issues/623
+# while still unique enough to avoid dups between similar test names when trimming.
+# So we omit the Test* prefix and add a hash at the end.
+KIND_CLUSTER_HASH=`echo $RANDOM | md5sum | head -c4`
+KIND_CLUSTER=`echo ${GO_TEST#"Test"} | sed -r 's/([A-Z])/-\L\1/g' | sed 's/^-//' | head -c28`
+KIND_CLUSTER=${KIND_CLUSTER}-${KIND_CLUSTER_HASH}
 KUBECTL="kubectl --context kind-${KIND_CLUSTER}"
 # Ensure a unique label on any test data sent to GCM.
 GMP_CLUSTER=$TAG_NAME
