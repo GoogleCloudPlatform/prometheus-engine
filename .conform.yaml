@@ -44,4 +44,5 @@ policies:
           - main
           - operator
           - prometheus
+          - e2e
         descriptionLength: 72

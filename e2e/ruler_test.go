@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 package e2e
 
 import (
@@ -40,7 +41,7 @@ import (
 
 func TestRuleEvaluator(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}

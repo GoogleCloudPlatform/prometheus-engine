@@ -21,6 +21,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/deploy"
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,7 +32,7 @@ import (
 
 func TestTLSPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -92,7 +94,7 @@ func TestTLSPodMonitoring(t *testing.T) {
 
 func TestTLSClusterPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -154,7 +156,7 @@ func TestTLSClusterPodMonitoring(t *testing.T) {
 
 func TestBasicAuthPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -214,7 +216,7 @@ func TestBasicAuthPodMonitoring(t *testing.T) {
 
 func TestBasicAuthClusterPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -274,7 +276,7 @@ func TestBasicAuthClusterPodMonitoring(t *testing.T) {
 
 func TestAuthorizationPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -334,7 +336,7 @@ func TestAuthorizationPodMonitoring(t *testing.T) {
 
 func TestAuthorizationClusterPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -394,7 +396,7 @@ func TestAuthorizationClusterPodMonitoring(t *testing.T) {
 
 func TestOAuth2PodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -464,7 +466,7 @@ func TestOAuth2PodMonitoring(t *testing.T) {
 
 func TestOAuth2ClusterPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -532,17 +534,29 @@ func TestOAuth2ClusterPodMonitoring(t *testing.T) {
 
 func testPatchExampleAppArgs(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, args []string) func(*testing.T) {
 	return func(t *testing.T) {
-		deploy, err := kubeClient.AppsV1().Deployments("default").Get(ctx, "go-synthetic", metav1.GetOptions{})
+		scheme, err := newScheme()
+		if err != nil {
+			t.Errorf("create scheme: %s", err)
+		}
+
+		deployment, service, err := deploy.SyntheticAppResources(scheme)
+		if err != nil {
+			t.Errorf("get synthetic app resources: %s", err)
+		}
+
+		container, err := kube.DeploymentContainer(deployment, deploy.SyntheticAppContainerName)
+		if err != nil {
+			t.Errorf("find synthetic app container: %s", err)
+		}
+		container.Args = append(container.Args, args...)
+		_, err = kubeClient.AppsV1().Deployments("default").Create(ctx, deployment, metav1.CreateOptions{})
 		if err != nil {
 			t.Errorf("create deployment: %s", err)
 		}
 
-		cargs := deploy.Spec.Template.Spec.Containers[0].Args
-		newArgs := append(cargs, args...)
-		deploy.Spec.Template.Spec.Containers[0].Args = newArgs
-		_, err = kubeClient.AppsV1().Deployments("default").Update(ctx, deploy, metav1.UpdateOptions{})
+		_, err = kubeClient.CoreV1().Services("default").Create(ctx, service, metav1.CreateOptions{})
 		if err != nil {
-			t.Errorf("update deployment: %s", err)
+			t.Errorf("create service: %s", err)
 		}
 	}
 }
