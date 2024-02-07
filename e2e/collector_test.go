@@ -41,7 +41,7 @@ import (
 
 func TestCollectorPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -83,7 +83,7 @@ func TestCollectorPodMonitoring(t *testing.T) {
 
 func TestCollectorClusterPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -124,7 +124,7 @@ func TestCollectorClusterPodMonitoring(t *testing.T) {
 
 func TestCollectorKubeletScraping(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := newKubeClients()
+	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}

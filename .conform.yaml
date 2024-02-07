@@ -43,4 +43,5 @@ policies:
           - deps
           - operator
           - prometheus
+          - e2e
         descriptionLength: 72

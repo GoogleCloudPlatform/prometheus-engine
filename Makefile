@@ -14,7 +14,7 @@ API_DIR=pkg/operator/apis
 LOCAL_CREDENTIALS=/tmp/gcm-editor.json
 # If credentials are provided, ensure we mount them during e2e test.
 ifneq ($(GOOGLE_APPLICATION_CREDENTIALS),)
-E2E_DOCKER_ARGS := -v $(GOOGLE_APPLICATION_CREDENTIALS):$(LOCAL_CREDENTIALS)
+E2E_DOCKER_ARGS := --env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" -v $(GOOGLE_APPLICATION_CREDENTIALS):$(LOCAL_CREDENTIALS)
 endif
 
 ifeq ($(KIND_PERSIST), 1)
@@ -217,7 +217,6 @@ e2e-only:    ## Run e2e test suite without rebuilding images. This assumes that
 # will do the trick.
 	echo $(TEST_RUN) | tr ' ' '\n' | xargs -I {} -P$(KIND_PARALLEL) \
 		docker run \
-		--env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" \
 		--env PROJECT_ID="$(PROJECT_ID)" \
 		--env GMP_LOCATION="$(GMP_LOCATION)" \
 		--env BINARIES="$(E2E_DEPS)" \
