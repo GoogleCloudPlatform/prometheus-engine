@@ -18,7 +18,6 @@ metadata:
   name: rule-evaluator
   namespace: gmp-system
 spec:
-  replicas: 1
   selector:
     matchLabels:
       # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
