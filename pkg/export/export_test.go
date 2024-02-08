@@ -26,7 +26,6 @@ import (
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	monitoring_pb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/go-kit/log"
-	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/go-cmp/cmp"
 	gax "github.com/googleapis/gax-go/v2"
 	"github.com/prometheus/prometheus/model/labels"
@@ -39,6 +38,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	empty_pb "google.golang.org/protobuf/types/known/emptypb"
+	timestamp_pb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestBatchAdd(t *testing.T) {

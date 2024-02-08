@@ -24,11 +24,11 @@ import (
 	"time"
 
 	monitoring_pb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
-	"github.com/golang/protobuf/ptypes/empty"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func main() {
@@ -67,8 +67,8 @@ type server struct {
 	latency time.Duration
 }
 
-func (srv *server) CreateTimeSeries(_ context.Context, req *monitoring_pb.CreateTimeSeriesRequest) (*empty.Empty, error) {
+func (srv *server) CreateTimeSeries(_ context.Context, req *monitoring_pb.CreateTimeSeriesRequest) (*emptypb.Empty, error) {
 	l := srv.latency
 	time.Sleep(time.Duration(l))
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
