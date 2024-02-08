@@ -31,10 +31,10 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	monitoring_pb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
-	timestamp_pb "github.com/golang/protobuf/ptypes/timestamp"
 	distribution_pb "google.golang.org/genproto/googleapis/api/distribution"
 	metric_pb "google.golang.org/genproto/googleapis/api/metric"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
+	timestamp_pb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type seriesMap map[storage.SeriesRef]labels.Labels
