@@ -85,7 +85,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - id: set-testruns
-      run: echo "testrun=$(go test ./e2e/... -list=. | grep -E 'Test*' | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_OUTPUT
+      run: echo "testrun=$(go test ./e2e/... -list=. | grep -E 'Test*' | jq -R -s -c 'split("\n")[:-1] | map("^" + . + "$")')" >> $GITHUB_OUTPUT
   e2e-test:
     runs-on: ubuntu-latest
     needs: [e2e-testruns]
