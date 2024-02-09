@@ -29,6 +29,21 @@ subjects:
   kind: ServiceAccount
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gmp-system:operator:webhook-admin
+  labels:
+    {{- include "prometheus-engine.labels" . | nindent 4 }}
+roleRef:
+  name: gmp-system:operator:webhook-admin
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- name: operator
+  namespace: {{.Values.namespace.system}}
+  kind: ServiceAccount
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: operator
