@@ -113,10 +113,7 @@ update_manifests() {
   combine $CRD_DIR ${REPO_ROOT}/manifests/setup.yaml
   ${HELM} template ${REPO_ROOT}/charts/operator > ${REPO_ROOT}/manifests/operator.yaml
   ${HELM} template ${REPO_ROOT}/charts/rule-evaluator > ${REPO_ROOT}/manifests/rule-evaluator.yaml
-<<<<<<< HEAD
   ${ADDLICENSE} ${REPO_ROOT}/manifests/*.yaml
-=======
->>>>>>> fb51c0be8 (refactor: use helm to generate manifests)
 }
 
 run_tests() {
