@@ -29,7 +29,7 @@ TEST_ARGS=""
 # while still unique enough to avoid dups between similar test names when trimming.
 # So we omit the Test* prefix and add a hash at the end.
 KIND_CLUSTER_HASH=`echo $RANDOM | md5sum | head -c4`
-KIND_CLUSTER=`echo ${GO_TEST#"Test"} | sed -r 's/([A-Z])/-\L\1/g' | sed 's/^-//' | head -c28`
+KIND_CLUSTER=`echo ${GO_TEST#"Test"} | sed -r 's/[^[:alnum:]]//g' | sed -r 's/([A-Z])/-\L\1/g' | sed 's/^-//' | head -c28`
 KIND_CLUSTER=${KIND_CLUSTER}-${KIND_CLUSTER_HASH}
 KUBECTL="kubectl --context kind-${KIND_CLUSTER}"
 # Ensure a unique label on any test data sent to GCM.
