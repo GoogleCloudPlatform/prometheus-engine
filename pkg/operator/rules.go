@@ -162,8 +162,9 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 	} else if err != nil {
 		return err
 	} else if *alertManagerStatefulSet.Spec.Replicas != desiredReplicas {
+		patch := client.MergeFrom(alertManagerStatefulSet.DeepCopy())
 		*alertManagerStatefulSet.Spec.Replicas = desiredReplicas
-		if err := r.client.Update(ctx, &alertManagerStatefulSet); err != nil {
+		if err := r.client.Patch(ctx, &alertManagerStatefulSet, patch); err != nil {
 			return err
 		}
 	}
@@ -175,8 +176,9 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 	} else if err != nil {
 		return err
 	} else if *ruleEvaluatorDeployment.Spec.Replicas != desiredReplicas {
+		patch := client.MergeFrom(ruleEvaluatorDeployment.DeepCopy())
 		*ruleEvaluatorDeployment.Spec.Replicas = desiredReplicas
-		if err := r.client.Update(ctx, &ruleEvaluatorDeployment); err != nil {
+		if err := r.client.Patch(ctx, &ruleEvaluatorDeployment, patch); err != nil {
 			return err
 		}
 	}
