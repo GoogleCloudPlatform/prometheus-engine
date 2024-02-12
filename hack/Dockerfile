@@ -6,7 +6,7 @@ WORKDIR /workspace
 # RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
 #   && cd prometheus-operator \
 #   && go install ./cmd/po-docgen
-RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.12.0
+RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
 RUN go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
 
 # hermetic is a lite copy of the repo resources used in building

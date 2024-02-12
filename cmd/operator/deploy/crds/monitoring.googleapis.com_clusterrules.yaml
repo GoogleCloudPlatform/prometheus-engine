@@ -16,7 +16,7 @@ kind: CustomResourceDefinition
 metadata:
   name: clusterrules.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.14.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -30,14 +30,28 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: ClusterRules defines Prometheus alerting and recording rules that are scoped to the current cluster. Only metric data from the current cluster is processed and all rule results have their project_id and cluster label preserved for query processing. If the location label is not preserved by the rule, it defaults to the cluster's location.
+        description: |-
+          ClusterRules defines Prometheus alerting and recording rules that are scoped
+          to the current cluster. Only metric data from the current cluster is processed
+          and all rule results have their project_id and cluster label preserved
+          for query processing.
+          If the location label is not preserved by the rule, it defaults to the cluster's location.
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
@@ -49,7 +63,9 @@ spec:
                 description: A list of Prometheus rule groups.
                 items:
                   type: object
-                  description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                  description: |-
+                    RuleGroup declares rules in the Prometheus format:
+                    https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                   properties:
                     name:
                       type: string
@@ -62,7 +78,9 @@ spec:
                       description: A list of rules that are executed sequentially as part of this group.
                       items:
                         type: object
-                        description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                        description: |-
+                          Rule is a single rule in the Prometheus format:
+                          https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                         properties:
                           labels:
                             type: object
@@ -73,19 +91,27 @@ spec:
                             type: object
                             additionalProperties:
                               type: string
-                            description: A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set.
+                            description: |-
+                              A set of annotations to attach to alerts produced by the query expression.
+                              Only valid if `alert` is set.
                           alert:
                             type: string
-                            description: Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Name of the alert to evaluate the expression as.
+                              Only one of `record` and `alert` must be set.
                           expr:
                             type: string
                             description: The PromQL expression to evaluate.
                           for:
                             type: string
-                            description: The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set.
+                            description: |-
+                              The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
+                              Only valid if `alert` is set.
                           record:
                             type: string
-                            description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Record the result of the expression to this metric name.
+                              Only one of `record` and `alert` must be set.
                         required:
                         - expr
                   required:
@@ -108,14 +134,28 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: ClusterRules defines Prometheus alerting and recording rules that are scoped to the current cluster. Only metric data from the current cluster is processed and all rule results have their project_id and cluster label preserved for query processing. If the location label is not preserved by the rule, it defaults to the cluster's location.
+        description: |-
+          ClusterRules defines Prometheus alerting and recording rules that are scoped
+          to the current cluster. Only metric data from the current cluster is processed
+          and all rule results have their project_id and cluster label preserved
+          for query processing.
+          If the location label is not preserved by the rule, it defaults to the cluster's location.
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
@@ -127,7 +167,9 @@ spec:
                 description: A list of Prometheus rule groups.
                 items:
                   type: object
-                  description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                  description: |-
+                    RuleGroup declares rules in the Prometheus format:
+                    https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                   properties:
                     name:
                       type: string
@@ -140,7 +182,9 @@ spec:
                       description: A list of rules that are executed sequentially as part of this group.
                       items:
                         type: object
-                        description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                        description: |-
+                          Rule is a single rule in the Prometheus format:
+                          https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                         properties:
                           labels:
                             type: object
@@ -151,19 +195,27 @@ spec:
                             type: object
                             additionalProperties:
                               type: string
-                            description: A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set.
+                            description: |-
+                              A set of annotations to attach to alerts produced by the query expression.
+                              Only valid if `alert` is set.
                           alert:
                             type: string
-                            description: Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Name of the alert to evaluate the expression as.
+                              Only one of `record` and `alert` must be set.
                           expr:
                             type: string
                             description: The PromQL expression to evaluate.
                           for:
                             type: string
-                            description: The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set.
+                            description: |-
+                              The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
+                              Only valid if `alert` is set.
                           record:
                             type: string
-                            description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Record the result of the expression to this metric name.
+                              Only one of `record` and `alert` must be set.
                         required:
                         - expr
                   required:
