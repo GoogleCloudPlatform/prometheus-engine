@@ -1,0 +1,108 @@
+{{- /*
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License. 
+*/}}
+{{- if .Values.deployOperator }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gmp-operator
+  namespace: {{.Values.namespace.system}}
+  labels:
+    {{- include "prometheus-engine.labels" . | nindent 4 }}
+    app: managed-prometheus-operator
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/name: gmp-operator
+    app.kubernetes.io/part-of: gmp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: operator
+      app.kubernetes.io/name: gmp-operator
+      app.kubernetes.io/part-of: gmp
+  template:
+    metadata:
+      labels:
+        app: managed-prometheus-operator
+        app.kubernetes.io/component: operator
+        app.kubernetes.io/name: gmp-operator
+        app.kubernetes.io/part-of: gmp
+        app.kubernetes.io/version: 0.9.0
+    spec:
+      serviceAccountName: operator
+      automountServiceAccountToken: true
+      priorityClassName: gmp-critical
+      containers:
+      - name: operator
+        image: {{.Values.images.operator.image}}:{{.Values.images.operator.tag}}
+        args:
+        - "--operator-namespace={{.Values.namespace.system}}"
+        - "--public-namespace={{.Values.namespace.public}}"
+        - "--webhook-addr=:10250"
+        {{- if .Values.tls.base64.ca }}
+        - "--tls-ca-cert-base64={{.Values.tls.base64.ca}}"
+        {{- end }}
+        {{- if .Values.tls.base64.cert }}
+        - "--tls-cert-base64={{.Values.tls.base64.cert}}"
+        {{- end }}
+        {{- if .Values.tls.base64.key }}
+        - "--tls-key-base64={{.Values.tls.base64.key}}"
+        {{- end}}
+        ports:
+        - name: web
+          # Note this should match the --listen-addr flag passed in to the operator args.
+          # Default is 10250.
+          containerPort: 10250
+        - name: metrics
+          # Note this should match the --metrics-addr flag passed in to the operator args.
+          # Default is 18080.
+          containerPort: 18080
+        resources: {{- toYaml $.Values.resources.operator | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      tolerations:
+      - value: "amd64"
+        effect: "NoSchedule"
+        key: "kubernetes.io/arch"
+        operator: "Equal"
+      - value: "arm64"
+        effect: "NoSchedule"
+        key: "kubernetes.io/arch"
+        operator: "Equal"
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+{{- end }}

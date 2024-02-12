@@ -45,7 +45,7 @@ SED?=$(shell which gsed 2>/dev/null || which sed)
 # TODO(pintohutch): this is a bit hacky, but can be useful when testing.
 # Ultimately this should be replaced with go templating.
 define update_manifests
-	find manifests examples cmd/operator/deploy -type f -name "*.yaml" -exec sed -i "s#image: .*/$(1):.*#image: ${IMAGE_REGISTRY}/$(1):${TAG_NAME}#g" {} \;
+	find manifests examples -type f -name "*.yaml" -exec sed -i "s#image: .*/$(1):.*#image: ${IMAGE_REGISTRY}/$(1):${TAG_NAME}#g" {} \;
 endef
 
 define docker_build
@@ -231,29 +231,43 @@ presubmit:   ## Regenerate all resources, build all images and run all tests.
 presubmit: updateversions regen bin test
 
 .PHONY: updateversions
-CURRENT_TAG = v0.9.0-gke.1
+export CURRENT_TAG = v0.9.0-gke.1
+export CURRENT_PROM_TAG = v2.41.0-gmp.9-gke.0
+export CURRENT_AM_TAG = v0.25.1-gmp.2-gke.0
+export CURRENT_RE_TAG = v0.9.0-gke.1
+export CURRENT_CONFIG_RELOADER_TAG = v0.9.0-gke.1
 #TODO(macxamin) Sync CURRENT_DATASOURCE_SYNCER_TAG with CURRENT_TAG
-CURRENT_DATASOURCE_SYNCER_TAG = v0.10.0-gke.3
-CURRENT_PROM_TAG = v2.41.0-gmp.9-gke.0
-CURRENT_AM_TAG = v0.25.1-gmp.2-gke.0
-LABEL_API_VERSION = 0.9.0
-FILES_TO_UPDATE = $(shell find manifests cmd/operator/deploy -type f -name "*.yaml")
+export CURRENT_DATASOURCE_SYNCER_TAG = v0.10.0-gke.3
+export CURRENT_BASH_TAG = 20220419
+export LABEL_API_VERSION = 0.9.0
 updateversions: ## Modify all manifests, so it contains the expected versions.
                 ##
                 ## TODO(bwplotka): CI does not check updateversions--add that there.
                 ## Also, consider moving updateversion to hack/presubmit.sh for
                 ## consistency.
                 ##
-updateversions: $(SED)
+updateversions: $(HELM) $(SED) $(YQ)
 	@echo ">> Updating prometheus-engine images in manifests to $(CURRENT_TAG)"
-	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/(.*):.*#image: gke.gcr.io/prometheus-engine/\1:$(CURRENT_TAG)#g' $(FILES_TO_UPDATE) # This will match all, but Prom and AM will be fixed below.
+	@$(YQ) -i '.images.operator.tag = strenv(CURRENT_TAG)' ./charts/operator/values.yaml
+
 	@echo ">> Updating prometheus images in manifests to $(CURRENT_PROM_TAG)"
-	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/prometheus:.*#image: gke.gcr.io/prometheus-engine/prometheus:$(CURRENT_PROM_TAG)#g' $(FILES_TO_UPDATE)
+	@$(YQ) -i '.images.prometheus.tag = strenv(CURRENT_PROM_TAG)' ./charts/operator/values.yaml
+
 	@echo ">> Updating alertmanager images in manifests to $(CURRENT_AM_TAG)"
-	@$(SED) -i -r 's#image: gke.gcr.io/prometheus-engine/alertmanager:.*#image: gke.gcr.io/prometheus-engine/alertmanager:$(CURRENT_AM_TAG)#g' $(FILES_TO_UPDATE)
+	@$(YQ) -i '.images.alertmanager.tag = strenv(CURRENT_AM_TAG)' ./charts/operator/values.yaml
+
+	@echo ">> Updating rule-evaluator images in manifests to $(CURRENT_RE_TAG)"
+	@$(YQ) -i '.images.ruleEvaluator.tag = strenv(CURRENT_RE_TAG)' ./charts/operator/values.yaml
+	@$(YQ) -i '.images.ruleEvaluator.tag = strenv(CURRENT_RE_TAG)' ./charts/rule-evaluator/values.yaml
+
 	@echo ">> Updating app.kubernetes.io/version to $(LABEL_API_VERSION)"
-	@$(SED) -i -r 's#app.kubernetes.io/version: .*#app.kubernetes.io/version: $(LABEL_API_VERSION)#g' $(FILES_TO_UPDATE)
+	@$(YQ) -i '.appVersion = strenv(LABEL_API_VERSION)' ./charts/operator/Chart.yaml
+
 	@echo ">> Updating constant in export.go to $(LABEL_API_VERSION)"
 	@$(SED) -i -r 's#	Version    = .*#	Version    = "$(LABEL_API_VERSION)"#g' pkg/export/export.go
+
 	@echo ">> Updating datasource-syncer version to $(CURRENT_DATASOURCE_SYNCER_TAG)"
 	@$(SED) -i -r 's#image: gcr.io/gke-release/prometheus-engine/datasource-syncer:.*#image: gcr.io/gke-release/prometheus-engine/datasource-syncer:$(CURRENT_DATASOURCE_SYNCER_TAG)#g' cmd/datasource-syncer/datasource-syncer.yaml
+
+	@$(HELM) template ./charts/operator > manifests/operator.yaml
+	@$(ADDLICENSE) manifests/operator.yaml

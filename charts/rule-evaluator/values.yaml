@@ -1,0 +1,30 @@
+gke: false
+images:
+  bash:
+    image: gke.gcr.io/gke-distroless/bash
+    tag: '20220419'
+  configReloader:
+    image: gke.gcr.io/prometheus-engine/config-reloader
+    tag: v0.9.0-gke.1
+  ruleEvaluator:
+    image: gke.gcr.io/prometheus-engine/rule-evaluator
+    tag: v0.9.0-gke.1
+resources:
+  bash:
+    limits:
+      memory: 32M
+    requests:
+      cpu: 1m
+      memory: 4M
+  configReloader:
+    limits:
+      memory: 32M
+    requests:
+      cpu: 1m
+      memory: 4M
+  ruleEvaluator:
+    limits:
+      memory: 1G
+    requests:
+      cpu: 1m
+      memory: 16M

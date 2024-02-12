@@ -1,139 +1,74 @@
-# Copyright 2024 Google LLC
+{{- /*
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
----
-# Source: rule-evaluator/templates/service-account.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: rule-evaluator
----
-# Source: rule-evaluator/templates/configmaps.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: rule-evaluator
-  labels:
-    app.kubernetes.io/name: rule-evaluator
-data:
-  config.yaml: |
-    global:
-      external_labels: {}
-      evaluation_interval: 60s
-
-    rule_files:
-    - "/etc/rules/*.yaml"
----
-# Source: rule-evaluator/templates/configmaps.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: rules
-  labels:
-    app.kubernetes.io/name: rule-evaluator
-data:
-  rules.yaml: |
-    groups:
-    - name: example
-      interval: 10s
-      rules:
-      - record: job:up:sum
-        expr: sum without(instance) (up)
-      - alert: AlwaysFiring
-        expr: vector(1)
----
-# Source: rule-evaluator/templates/role.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: rule-evaluator
-rules:
-- resources:
-  - endpoints
-  - nodes
-  - nodes/metrics
-  - pods
-  - services
-  apiGroups: [""]
-  verbs: ["get", "list", "watch"]
-- resources:
-  - configmaps
-  apiGroups: [""]
-  verbs: ["get"]
-- nonResourceURLs: ["/metrics"]
-  verbs: ["get"]
----
-# Source: rule-evaluator/templates/rolebinding.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: rule-evaluator
-roleRef:
-  name: rule-evaluator
-  kind: ClusterRole
-  apiGroup: rbac.authorization.k8s.io
-subjects:
-- name: rule-evaluator
-  namespace: default
-  kind: ServiceAccount
----
-# Source: rule-evaluator/templates/deployment.yaml
+*/}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: rule-evaluator
+  namespace: {{.Values.namespace.system}}
   labels:
-    app.kubernetes.io/name: rule-evaluator
+    {{- include "prometheus-engine.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
+      # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
+      # see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
       app.kubernetes.io/name: rule-evaluator
   template:
     metadata:
       labels:
+        app: managed-prometheus-rule-evaluator
         app.kubernetes.io/name: rule-evaluator
         app.kubernetes.io/version: 0.9.0
+      annotations:
+        # The emptyDir for the storage and config directories prevents cluster
+        # autoscaling unless this annotation is set.
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        components.gke.io/component-name: managed_prometheus
     spec:
-      serviceAccountName: rule-evaluator
+      serviceAccountName: collector
       automountServiceAccountToken: true
+      priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
+        image: {{.Values.images.bash.image}}:{{.Values.images.bash.tag}}
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: {{.Values.images.configReloader.image}}:{{.Values.images.configReloader.tag}}
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
         - --watched-dir=/etc/rules
-        - --reload-url=http://127.0.0.1:9092/-/reload
-        - --ready-url=http://127.0.0.1:9092/-/ready
-        - --listen-address=:9093
+        - --watched-dir=/etc/secrets
+        - --reload-url=http://127.0.0.1:19092/-/reload
+        - --ready-url=http://127.0.0.1:19092/-/ready
+        - --listen-address=:19093
         ports:
         - name: cfg-rel-metrics
-          protocol: TCP
-          containerPort: 9093
-        resources:
-          limits:
-            memory: 32M
-          requests:
-            cpu: 1m
-            memory: 4M
+          containerPort: 19093
+        resources: {{- toYaml $.Values.resources.configReloader | nindent 10 }}
         volumeMounts:
         - name: config
           readOnly: true
@@ -143,6 +78,9 @@ spec:
         - name: rules
           readOnly: true
           mountPath: /etc/rules
+        - name: rules-secret
+          readOnly: true
+          mountPath: /etc/secrets
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -150,19 +88,15 @@ spec:
             - all
           privileged: false
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
+        image: {{.Values.images.ruleEvaluator.image}}:{{.Values.images.ruleEvaluator.tag}}
         args:
-        - "--config.file=/prometheus/config_out/config.yaml"
-        - "--web.listen-address=:9092"
+        - --config.file=/prometheus/config_out/config.yaml
+        - --web.listen-address=:19092
+        - --export.user-agent-mode=kubectl
         ports:
         - name: r-eval-metrics
-          containerPort: 9092
-        resources:
-          limits:
-            memory: 1G
-          requests:
-            cpu: 1m
-            memory: 16M
+          containerPort: 19092
+        resources: {{- toYaml $.Values.resources.ruleEvaluator | nindent 10 }}
         volumeMounts:
         - name: config-out
           readOnly: true
@@ -170,16 +104,19 @@ spec:
         - name: rules
           readOnly: true
           mountPath: /etc/rules
+        - name: rules-secret
+          readOnly: true
+          mountPath: /etc/secrets
         livenessProbe:
           httpGet:
-            port: r-eval-metrics
+            port: 19092
             path: /-/healthy
+            scheme: HTTP
         readinessProbe:
           httpGet:
-            port: r-eval-metrics
+            port: 19092
             path: /-/ready
-          # Readiness attempts a query round-trip so we need a more generous timeout.
-          timeoutSeconds: 5
+            scheme: HTTP
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -190,11 +127,17 @@ spec:
       - name: config
         configMap:
           name: rule-evaluator
+          defaultMode: 420
       - name: config-out
         emptyDir: {}
       - name: rules
         configMap:
-          name: rules
+          name: rules-generated
+          defaultMode: 420
+      - name: rules-secret
+        secret:
+          defaultMode: 420
+          secretName: rules
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -222,3 +165,5 @@ spec:
         runAsGroup: 1000
         runAsNonRoot: true
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault

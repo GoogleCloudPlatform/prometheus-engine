@@ -9,10 +9,14 @@ WORKDIR /workspace
 RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
 RUN go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
 
+RUN go install github.com/bwplotka/bingo@v0.9.0
+COPY .bingo .bingo
+RUN bingo get
+
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
 FROM golang:1.21-bullseye AS hermetic
-RUN curl -L https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv4.5.7/kustomize_v4.5.7_linux_amd64.tar.gz | tar -zx -C /usr/local/bin
+
 COPY --from=deps /go/bin /go/bin
 ARG RUNCMD='go fmt ./...'
 WORKDIR /workspace
@@ -21,11 +25,13 @@ WORKDIR /workspace
 # ensure .dockerignore is updated.
 COPY vendor vendor
 COPY hack hack
+COPY .bingo .bingo
 COPY go.mod go.mod
 COPY go.sum go.sum
 COPY examples examples
 COPY manifests manifests
 COPY cmd cmd
+COPY charts charts
 COPY doc doc
 COPY pkg pkg
 COPY e2e e2e
@@ -46,6 +52,7 @@ COPY --from=hermetic /workspace/cmd cmd
 COPY --from=hermetic /workspace/doc doc
 COPY --from=hermetic /workspace/examples examples
 COPY --from=hermetic /workspace/manifests manifests
+COPY --from=hermetic /workspace/charts charts
 COPY --from=hermetic /workspace/e2e e2e
 COPY --from=hermetic /workspace/pkg/operator/generated pkg/operator/generated.tmp
 COPY --from=hermetic /workspace/vendor vendor.tmp
@@ -84,6 +91,7 @@ RUN install -o root -g root -m 0755 kind /usr/local/bin/kind \
 COPY examples examples
 COPY cmd cmd
 COPY manifests manifests
+COPY charts charts
 COPY vendor vendor
 COPY pkg pkg
 COPY e2e e2e
