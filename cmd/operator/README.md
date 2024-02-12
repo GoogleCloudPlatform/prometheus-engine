@@ -31,11 +31,10 @@ environment variables, such as `PROJECT_ID` but these are configured
 automatically if they are not set. The command will give you the uploaded image
 URL and update all necessary configurations to use it.
 
-Next, apply the Kubernetes configuration files, starting with the CRDs:
+Next, install the Kubernetes configuration files using Helm:
 
 ```bash
-kubectl apply -f cmd/operator/deploy/crds/
-kubectl apply -f cmd/operator/deploy/operator/
+helm install gmp-operator ./charts/operator
 ```
 
 Finally, wait until the operator starts up. You will see a status of `Running`
@@ -47,41 +46,14 @@ kubectl get all -ngmp-system
 
 ## Run Locally
 
-Deploy all CRDs. In this directory:
+Deploy all CRDs. From the root directory of the repo:
 
 ```bash
-kubectl apply -f deploy/crds/
+helm install ./charts/operator --set deployOperator=false
 ```
-
-Deploy all of the operator required configurations besides the operator
-deployment, otherwise you will have an operator deployed in addition to your
-local one.
-
-```bash
-kubectl apply -f deploy/operator/00-namespace.yaml
-kubectl apply -f deploy/operator/01-priority-class.yaml
-kubectl apply -f deploy/operator/02-service-account.yaml
-kubectl apply -f deploy/operator/03-role.yaml
-kubectl apply -f deploy/operator/04-rolebinding.yaml
-```
-
-Run the operator locally (requires active kubectl context to have all
-permissions the operator needs):
 
 ```bash
 go run main.go
-```
-
-Finally because the webhooks are configured to the operator apply the rest of
-the configurations in a separate terminal session:
-
-```bash
-kubectl apply -f deploy/operator/06-service.yaml
-kubectl apply -f deploy/operator/07-operatorconfig.yaml
-kubectl apply -f deploy/operator/08-validatingwebhookconfiguration.yaml
-kubectl apply -f deploy/operator/09-mutatingwebhookconfiguration.yaml
-kubectl apply -f deploy/operator/10-collector.yaml
-kubectl apply -f deploy/operator/11-rule-evaluator.yaml
 ```
 
 The operator updates the configuration of all collectors after which they start
@@ -102,5 +74,5 @@ Simply stop running the operator locally and remove all manifests in the cluster
 with:
 
 ```bash
-kubectl delete -f deploy/ --recursive
+helm uninstall gmp-operator
 ```
