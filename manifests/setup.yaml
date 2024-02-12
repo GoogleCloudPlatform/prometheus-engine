@@ -18,7 +18,7 @@ kind: CustomResourceDefinition
 metadata:
   name: clusterpodmonitorings.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.14.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -32,40 +32,63 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: ClusterPodMonitoring defines monitoring for a set of pods, scoped to all pods within the cluster.
+        description: |-
+          ClusterPodMonitoring defines monitoring for a set of pods, scoped to all
+          pods within the cluster.
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
             type: object
-            description: Specification of desired Pod selection for target discovery by Prometheus.
+            description: |-
+              Specification of desired Pod selection for target discovery by
+              Prometheus.
             properties:
               selector:
                 type: object
-                description: Label selector that specifies which pods are selected for this monitoring configuration.
+                description: |-
+                  Label selector that specifies which pods are selected for this monitoring
+                  configuration.
                 properties:
                   matchExpressions:
                     type: array
                     description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                     items:
                       type: object
-                      description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
                       properties:
                         key:
                           type: string
                           description: key is the label key that the selector applies to.
                         operator:
                           type: string
-                          description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
                         values:
                           type: array
-                          description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
                           items:
                             type: string
                       required:
@@ -75,7 +98,10 @@ spec:
                     type: object
                     additionalProperties:
                       type: string
-                    description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
                 x-kubernetes-map-type: atomic
               endpoints:
                 type: array
@@ -88,7 +114,10 @@ spec:
                       anyOf:
                       - type: integer
                       - type: string
-                      description: Name or number of the port to scrape. The container metadata label is only populated if the port is referenced by name because port numbers are not unique across containers.
+                      description: |-
+                        Name or number of the port to scrape.
+                        The container metadata label is only populated if the port is referenced by name
+                        because port numbers are not unique across containers.
                       x-kubernetes-int-or-string: true
                     authorization:
                       type: object
@@ -111,7 +140,11 @@ spec:
                       pattern: ^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$
                     metricRelabeling:
                       type: array
-                      description: Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general.
+                      description: |-
+                        Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
+                        override protected target labels (project_id, location, cluster, namespace, job,
+                        instance, or __address__) are not permitted. The labelmap action is not permitted
+                        in general.
                       items:
                         type: object
                         description: RelabelingRule defines a single Prometheus relabeling rule.
@@ -128,18 +161,25 @@ spec:
                             description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
                           replacement:
                             type: string
-                            description: Replacement value against which a regex replace is performed if the regular expression matches. Regex capture groups are available. Defaults to '$1'.
+                            description: |-
+                              Replacement value against which a regex replace is performed if the
+                              regular expression matches. Regex capture groups are available. Defaults to '$1'.
                           separator:
                             type: string
                             description: Separator placed between concatenated source label values. Defaults to ';'.
                           sourceLabels:
                             type: array
-                            description: The source labels select values from existing labels. Their content is concatenated using the configured separator and matched against the configured regular expression for the replace, keep, and drop actions.
+                            description: |-
+                              The source labels select values from existing labels. Their content is concatenated
+                              using the configured separator and matched against the configured regular expression
+                              for the replace, keep, and drop actions.
                             items:
                               type: string
                           targetLabel:
                             type: string
-                            description: Label to which the resulting value is written in a replace action. It is mandatory for replace actions. Regex capture groups are available.
+                            description: |-
+                              Label to which the resulting value is written in a replace action.
+                              It is mandatory for replace actions. Regex capture groups are available.
                     oauth2:
                       type: object
                       description: The OAuth2 client credentials used to fetch a token for the targets.
@@ -169,10 +209,16 @@ spec:
                               description: Disable target certificate validation.
                             maxVersion:
                               type: string
-                              description: 'Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                              description: |-
+                                Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+                                If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+                                See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                             minVersion:
                               type: string
-                              description: 'Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                              description: |-
+                                Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+                                If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+                                See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                             serverName:
                               type: string
                               description: Used to verify the hostname for the targets.
@@ -200,7 +246,9 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger than the scrape interval.
+                      description: |-
+                        Timeout for metrics scrapes. Must be a valid Prometheus duration.
+                        Must not be larger than the scrape interval.
                     tls:
                       type: object
                       description: Configures the scrape request's TLS settings.
@@ -210,10 +258,16 @@ spec:
                           description: Disable target certificate validation.
                         maxVersion:
                           type: string
-                          description: 'Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                          description: |-
+                            Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+                            If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+                            See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                         minVersion:
                           type: string
-                          description: 'Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                          description: |-
+                            Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+                            If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+                            See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                         serverName:
                           type: string
                           description: Used to verify the hostname for the targets.
@@ -221,49 +275,83 @@ spec:
                   - port
               filterRunning:
                 type: boolean
-                description: 'FilterRunning will drop any pods that are in the "Failed" or "Succeeded" pod lifecycle. See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase Specifically, this prevents scraping Succeeded pods from K8s jobs, which could contribute to noisy logs or irrelevant metrics. Additionally, it can mitigate issues with reusing stale target labels in cases where Pod IPs are reused (e.g. spot containers). See: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145'
+                description: |-
+                  FilterRunning will drop any pods that are in the "Failed" or "Succeeded"
+                  pod lifecycle.
+                  See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+                  Specifically, this prevents scraping Succeeded pods from K8s jobs, which
+                  could contribute to noisy logs or irrelevant metrics.
+                  Additionally, it can mitigate issues with reusing stale target
+                  labels in cases where Pod IPs are reused (e.g. spot containers).
+                  See: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/145
               limits:
                 type: object
                 description: Limits to apply at scrape time.
                 properties:
                   labels:
                     type: integer
-                    description: Maximum number of labels accepted for a single sample. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum number of labels accepted for a single sample.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   labelNameLength:
                     type: integer
-                    description: Maximum label name length. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum label name length.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   labelValueLength:
                     type: integer
-                    description: Maximum label value length. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum label value length.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   samples:
                     type: integer
-                    description: Maximum number of samples accepted within a single scrape. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum number of samples accepted within a single scrape.
+                      Uses Prometheus default if left unspecified.
                     format: int64
               targetLabels:
                 type: object
-                description: Labels to add to the Prometheus target for discovered endpoints. The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>` if the scraped pod is controlled by a DaemonSet.
+                description: |-
+                  Labels to add to the Prometheus target for discovered endpoints.
+                  The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
+                  if the scraped pod is controlled by a DaemonSet.
                 properties:
                   metadata:
                     type: array
-                    description: Pod metadata labels that are set on all scraped targets. Permitted keys are `pod`, `container`, and `node` for PodMonitoring and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. The `container` label is only populated if the scrape port is referenced by name. Defaults to [pod, container] for PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring. If set to null, it will be interpreted as the empty list for PodMonitoring and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility only.
+                    description: |-
+                      Pod metadata labels that are set on all scraped targets.
+                      Permitted keys are `pod`, `container`, and `node` for PodMonitoring and
+                      `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. The `container`
+                      label is only populated if the scrape port is referenced by name.
+                      Defaults to [pod, container] for PodMonitoring and [namespace, pod, container]
+                      for ClusterPodMonitoring.
+                      If set to null, it will be interpreted as the empty list for PodMonitoring
+                      and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
+                      only.
                     items:
                       type: string
                   fromPod:
                     type: array
-                    description: Labels to transfer from the Kubernetes Pod to Prometheus target labels. Mappings are applied in order.
+                    description: |-
+                      Labels to transfer from the Kubernetes Pod to Prometheus target labels.
+                      Mappings are applied in order.
                     items:
                       type: object
-                      description: LabelMapping specifies how to transfer a label from a Kubernetes resource onto a Prometheus target.
+                      description: |-
+                        LabelMapping specifies how to transfer a label from a Kubernetes resource
+                        onto a Prometheus target.
                       properties:
                         from:
                           type: string
                           description: Kubernetes resource label to remap.
                         to:
                           type: string
-                          description: Remapped Prometheus target label. Defaults to the same name as `From`.
+                          description: |-
+                            Remapped Prometheus target label.
+                            Defaults to the same name as `From`.
                       required:
                       - from
             required:
@@ -318,7 +406,10 @@ spec:
                       format: int64
                     collectorsFraction:
                       type: string
-                      description: Fraction of collectors included in status, bounded [0,1]. Ideally, this should always be 1. Anything less can be considered a problem and should be investigated.
+                      description: |-
+                        Fraction of collectors included in status, bounded [0,1].
+                        Ideally, this should always be 1. Anything less can
+                        be considered a problem and should be investigated.
                     lastUpdateTime:
                       type: string
                       description: Last time this status was updated.
@@ -379,36 +470,57 @@ spec:
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
             type: object
-            description: Specification of desired Pod selection for target discovery by Prometheus.
+            description: |-
+              Specification of desired Pod selection for target discovery by
+              Prometheus.
             properties:
               selector:
                 type: object
-                description: Label selector that specifies which pods are selected for this monitoring configuration.
+                description: |-
+                  Label selector that specifies which pods are selected for this monitoring
+                  configuration.
                 properties:
                   matchExpressions:
                     type: array
                     description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                     items:
                       type: object
-                      description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
                       properties:
                         key:
                           type: string
                           description: key is the label key that the selector applies to.
                         operator:
                           type: string
-                          description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
                         values:
                           type: array
-                          description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
                           items:
                             type: string
                       required:
@@ -418,7 +530,10 @@ spec:
                     type: object
                     additionalProperties:
                       type: string
-                    description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
                 x-kubernetes-map-type: atomic
               endpoints:
                 type: array
@@ -438,7 +553,11 @@ spec:
                       description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
                     metricRelabeling:
                       type: array
-                      description: Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general.
+                      description: |-
+                        Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
+                        override protected target labels (project_id, location, cluster, namespace, job,
+                        instance, or __address__) are not permitted. The labelmap action is not permitted
+                        in general.
                       items:
                         type: object
                         description: RelabelingRule defines a single Prometheus relabeling rule.
@@ -455,18 +574,25 @@ spec:
                             description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
                           replacement:
                             type: string
-                            description: Replacement value against which a regex replace is performed if the regular expression matches. Regex capture groups are available. Defaults to '$1'.
+                            description: |-
+                              Replacement value against which a regex replace is performed if the
+                              regular expression matches. Regex capture groups are available. Defaults to '$1'.
                           separator:
                             type: string
                             description: Separator placed between concatenated source label values. Defaults to ';'.
                           sourceLabels:
                             type: array
-                            description: The source labels select values from existing labels. Their content is concatenated using the configured separator and matched against the configured regular expression for the replace, keep, and drop actions.
+                            description: |-
+                              The source labels select values from existing labels. Their content is concatenated
+                              using the configured separator and matched against the configured regular expression
+                              for the replace, keep, and drop actions.
                             items:
                               type: string
                           targetLabel:
                             type: string
-                            description: Label to which the resulting value is written in a replace action. It is mandatory for replace actions. Regex capture groups are available.
+                            description: |-
+                              Label to which the resulting value is written in a replace action.
+                              It is mandatory for replace actions. Regex capture groups are available.
                     params:
                       type: object
                       additionalProperties:
@@ -485,7 +611,9 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                      description: |-
+                        Timeout for metrics scrapes. Must be a valid Prometheus duration.
+                        Must not be larger then the scrape interval.
                   required:
                   - port
               limits:
@@ -494,19 +622,27 @@ spec:
                 properties:
                   labels:
                     type: integer
-                    description: Maximum number of labels accepted for a single sample. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum number of labels accepted for a single sample.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   labelNameLength:
                     type: integer
-                    description: Maximum label name length. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum label name length.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   labelValueLength:
                     type: integer
-                    description: Maximum label value length. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum label value length.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   samples:
                     type: integer
-                    description: Maximum number of samples accepted within a single scrape. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum number of samples accepted within a single scrape.
+                      Uses Prometheus default if left unspecified.
                     format: int64
               targetLabels:
                 type: object
@@ -514,22 +650,36 @@ spec:
                 properties:
                   metadata:
                     type: array
-                    description: Pod metadata labels that are set on all scraped targets. Permitted keys are `pod`, `container`, and `node` for PodMonitoring and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. Defaults to [pod, container] for PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring. If set to null, it will be interpreted as the empty list for PodMonitoring and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility only.
+                    description: |-
+                      Pod metadata labels that are set on all scraped targets.
+                      Permitted keys are `pod`, `container`, and `node` for PodMonitoring and
+                      `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring.
+                      Defaults to [pod, container] for PodMonitoring and [namespace, pod, container]
+                      for ClusterPodMonitoring.
+                      If set to null, it will be interpreted as the empty list for PodMonitoring
+                      and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
+                      only.
                     items:
                       type: string
                   fromPod:
                     type: array
-                    description: Labels to transfer from the Kubernetes Pod to Prometheus target labels. Mappings are applied in order.
+                    description: |-
+                      Labels to transfer from the Kubernetes Pod to Prometheus target labels.
+                      Mappings are applied in order.
                     items:
                       type: object
-                      description: LabelMapping specifies how to transfer a label from a Kubernetes resource onto a Prometheus target.
+                      description: |-
+                        LabelMapping specifies how to transfer a label from a Kubernetes resource
+                        onto a Prometheus target.
                       properties:
                         from:
                           type: string
                           description: Kubenetes resource label to remap.
                         to:
                           type: string
-                          description: Remapped Prometheus target label. Defaults to the same name as `From`.
+                          description: |-
+                            Remapped Prometheus target label.
+                            Defaults to the same name as `From`.
                       required:
                       - from
             required:
@@ -585,7 +735,7 @@ kind: CustomResourceDefinition
 metadata:
   name: clusterrules.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.14.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -599,14 +749,28 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: ClusterRules defines Prometheus alerting and recording rules that are scoped to the current cluster. Only metric data from the current cluster is processed and all rule results have their project_id and cluster label preserved for query processing. If the location label is not preserved by the rule, it defaults to the cluster's location.
+        description: |-
+          ClusterRules defines Prometheus alerting and recording rules that are scoped
+          to the current cluster. Only metric data from the current cluster is processed
+          and all rule results have their project_id and cluster label preserved
+          for query processing.
+          If the location label is not preserved by the rule, it defaults to the cluster's location.
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
@@ -618,7 +782,9 @@ spec:
                 description: A list of Prometheus rule groups.
                 items:
                   type: object
-                  description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                  description: |-
+                    RuleGroup declares rules in the Prometheus format:
+                    https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                   properties:
                     name:
                       type: string
@@ -631,7 +797,9 @@ spec:
                       description: A list of rules that are executed sequentially as part of this group.
                       items:
                         type: object
-                        description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                        description: |-
+                          Rule is a single rule in the Prometheus format:
+                          https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                         properties:
                           labels:
                             type: object
@@ -642,19 +810,27 @@ spec:
                             type: object
                             additionalProperties:
                               type: string
-                            description: A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set.
+                            description: |-
+                              A set of annotations to attach to alerts produced by the query expression.
+                              Only valid if `alert` is set.
                           alert:
                             type: string
-                            description: Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Name of the alert to evaluate the expression as.
+                              Only one of `record` and `alert` must be set.
                           expr:
                             type: string
                             description: The PromQL expression to evaluate.
                           for:
                             type: string
-                            description: The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set.
+                            description: |-
+                              The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
+                              Only valid if `alert` is set.
                           record:
                             type: string
-                            description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Record the result of the expression to this metric name.
+                              Only one of `record` and `alert` must be set.
                         required:
                         - expr
                   required:
@@ -677,14 +853,28 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: ClusterRules defines Prometheus alerting and recording rules that are scoped to the current cluster. Only metric data from the current cluster is processed and all rule results have their project_id and cluster label preserved for query processing. If the location label is not preserved by the rule, it defaults to the cluster's location.
+        description: |-
+          ClusterRules defines Prometheus alerting and recording rules that are scoped
+          to the current cluster. Only metric data from the current cluster is processed
+          and all rule results have their project_id and cluster label preserved
+          for query processing.
+          If the location label is not preserved by the rule, it defaults to the cluster's location.
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
@@ -696,7 +886,9 @@ spec:
                 description: A list of Prometheus rule groups.
                 items:
                   type: object
-                  description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                  description: |-
+                    RuleGroup declares rules in the Prometheus format:
+                    https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                   properties:
                     name:
                       type: string
@@ -709,7 +901,9 @@ spec:
                       description: A list of rules that are executed sequentially as part of this group.
                       items:
                         type: object
-                        description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                        description: |-
+                          Rule is a single rule in the Prometheus format:
+                          https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                         properties:
                           labels:
                             type: object
@@ -720,19 +914,27 @@ spec:
                             type: object
                             additionalProperties:
                               type: string
-                            description: A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set.
+                            description: |-
+                              A set of annotations to attach to alerts produced by the query expression.
+                              Only valid if `alert` is set.
                           alert:
                             type: string
-                            description: Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Name of the alert to evaluate the expression as.
+                              Only one of `record` and `alert` must be set.
                           expr:
                             type: string
                             description: The PromQL expression to evaluate.
                           for:
                             type: string
-                            description: The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set.
+                            description: |-
+                              The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
+                              Only valid if `alert` is set.
                           record:
                             type: string
-                            description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Record the result of the expression to this metric name.
+                              Only one of `record` and `alert` must be set.
                         required:
                         - expr
                   required:
@@ -756,7 +958,7 @@ kind: CustomResourceDefinition
 metadata:
   name: globalrules.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.14.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -770,14 +972,27 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: GlobalRules defines Prometheus alerting and recording rules that are scoped to all data in the queried project. If the project_id or location labels are not preserved by the rule, they default to the values of the cluster.
+        description: |-
+          GlobalRules defines Prometheus alerting and recording rules that are scoped
+          to all data in the queried project.
+          If the project_id or location labels are not preserved by the rule, they default to
+          the values of the cluster.
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
@@ -789,7 +1004,9 @@ spec:
                 description: A list of Prometheus rule groups.
                 items:
                   type: object
-                  description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                  description: |-
+                    RuleGroup declares rules in the Prometheus format:
+                    https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                   properties:
                     name:
                       type: string
@@ -802,7 +1019,9 @@ spec:
                       description: A list of rules that are executed sequentially as part of this group.
                       items:
                         type: object
-                        description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                        description: |-
+                          Rule is a single rule in the Prometheus format:
+                          https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                         properties:
                           labels:
                             type: object
@@ -813,19 +1032,27 @@ spec:
                             type: object
                             additionalProperties:
                               type: string
-                            description: A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set.
+                            description: |-
+                              A set of annotations to attach to alerts produced by the query expression.
+                              Only valid if `alert` is set.
                           alert:
                             type: string
-                            description: Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Name of the alert to evaluate the expression as.
+                              Only one of `record` and `alert` must be set.
                           expr:
                             type: string
                             description: The PromQL expression to evaluate.
                           for:
                             type: string
-                            description: The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set.
+                            description: |-
+                              The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
+                              Only valid if `alert` is set.
                           record:
                             type: string
-                            description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Record the result of the expression to this metric name.
+                              Only one of `record` and `alert` must be set.
                         required:
                         - expr
                   required:
@@ -848,14 +1075,27 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: GlobalRules defines Prometheus alerting and recording rules that are scoped to all data in the queried project. If the project_id or location labels are not preserved by the rule, they default to the values of the cluster.
+        description: |-
+          GlobalRules defines Prometheus alerting and recording rules that are scoped
+          to all data in the queried project.
+          If the project_id or location labels are not preserved by the rule, they default to
+          the values of the cluster.
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
@@ -867,7 +1107,9 @@ spec:
                 description: A list of Prometheus rule groups.
                 items:
                   type: object
-                  description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                  description: |-
+                    RuleGroup declares rules in the Prometheus format:
+                    https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                   properties:
                     name:
                       type: string
@@ -880,7 +1122,9 @@ spec:
                       description: A list of rules that are executed sequentially as part of this group.
                       items:
                         type: object
-                        description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                        description: |-
+                          Rule is a single rule in the Prometheus format:
+                          https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                         properties:
                           labels:
                             type: object
@@ -891,19 +1135,27 @@ spec:
                             type: object
                             additionalProperties:
                               type: string
-                            description: A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set.
+                            description: |-
+                              A set of annotations to attach to alerts produced by the query expression.
+                              Only valid if `alert` is set.
                           alert:
                             type: string
-                            description: Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Name of the alert to evaluate the expression as.
+                              Only one of `record` and `alert` must be set.
                           expr:
                             type: string
                             description: The PromQL expression to evaluate.
                           for:
                             type: string
-                            description: The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set.
+                            description: |-
+                              The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
+                              Only valid if `alert` is set.
                           record:
                             type: string
-                            description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Record the result of the expression to this metric name.
+                              Only one of `record` and `alert` must be set.
                         required:
                         - expr
                   required:
@@ -927,7 +1179,7 @@ kind: CustomResourceDefinition
 metadata:
   name: nodemonitorings.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.14.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -945,36 +1197,57 @@ spec:
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
             type: object
-            description: Specification of desired node selection for target discovery by Prometheus.
+            description: |-
+              Specification of desired node selection for target discovery by
+              Prometheus.
             properties:
               selector:
                 type: object
-                description: Label selector that specifies which nodes are selected for this monitoring configuration. If left empty all nodes are selected.
+                description: |-
+                  Label selector that specifies which nodes are selected for this monitoring
+                  configuration. If left empty all nodes are selected.
                 properties:
                   matchExpressions:
                     type: array
                     description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                     items:
                       type: object
-                      description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
                       properties:
                         key:
                           type: string
                           description: key is the label key that the selector applies to.
                         operator:
                           type: string
-                          description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
                         values:
                           type: array
-                          description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
                           items:
                             type: string
                       required:
@@ -984,14 +1257,19 @@ spec:
                     type: object
                     additionalProperties:
                       type: string
-                    description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
                 x-kubernetes-map-type: atomic
               endpoints:
                 type: array
                 description: The endpoints to scrape on the selected nodes.
                 items:
                   type: object
-                  description: ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape. It contains all the fields used in the ScrapeEndpoint except for port and HTTPClientConfig.
+                  description: |-
+                    ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape.
+                    It contains all the fields used in the ScrapeEndpoint except for port and HTTPClientConfig.
                   properties:
                     interval:
                       type: string
@@ -1000,7 +1278,11 @@ spec:
                       pattern: ^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$
                     metricRelabeling:
                       type: array
-                      description: Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general.
+                      description: |-
+                        Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
+                        override protected target labels (project_id, location, cluster, namespace, job,
+                        instance, or __address__) are not permitted. The labelmap action is not permitted
+                        in general.
                       items:
                         type: object
                         description: RelabelingRule defines a single Prometheus relabeling rule.
@@ -1017,18 +1299,25 @@ spec:
                             description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
                           replacement:
                             type: string
-                            description: Replacement value against which a regex replace is performed if the regular expression matches. Regex capture groups are available. Defaults to '$1'.
+                            description: |-
+                              Replacement value against which a regex replace is performed if the
+                              regular expression matches. Regex capture groups are available. Defaults to '$1'.
                           separator:
                             type: string
                             description: Separator placed between concatenated source label values. Defaults to ';'.
                           sourceLabels:
                             type: array
-                            description: The source labels select values from existing labels. Their content is concatenated using the configured separator and matched against the configured regular expression for the replace, keep, and drop actions.
+                            description: |-
+                              The source labels select values from existing labels. Their content is concatenated
+                              using the configured separator and matched against the configured regular expression
+                              for the replace, keep, and drop actions.
                             items:
                               type: string
                           targetLabel:
                             type: string
-                            description: Label to which the resulting value is written in a replace action. It is mandatory for replace actions. Regex capture groups are available.
+                            description: |-
+                              Label to which the resulting value is written in a replace action.
+                              It is mandatory for replace actions. Regex capture groups are available.
                     params:
                       type: object
                       additionalProperties:
@@ -1044,26 +1333,36 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                      description: |-
+                        Timeout for metrics scrapes. Must be a valid Prometheus duration.
+                        Must not be larger then the scrape interval.
               limits:
                 type: object
                 description: Limits to apply at scrape time.
                 properties:
                   labels:
                     type: integer
-                    description: Maximum number of labels accepted for a single sample. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum number of labels accepted for a single sample.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   labelNameLength:
                     type: integer
-                    description: Maximum label name length. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum label name length.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   labelValueLength:
                     type: integer
-                    description: Maximum label value length. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum label value length.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   samples:
                     type: integer
-                    description: Maximum number of samples accepted within a single scrape. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum number of samples accepted within a single scrape.
+                      Uses Prometheus default if left unspecified.
                     format: int64
             required:
             - endpoints
@@ -1117,7 +1416,7 @@ kind: CustomResourceDefinition
 metadata:
   name: operatorconfigs.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.14.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -1135,10 +1434,19 @@ spec:
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           collection:
@@ -1153,11 +1461,19 @@ spec:
                 - gzip
               credentials:
                 type: object
-                description: A reference to GCP service account credentials with which Prometheus collectors are run. It needs to have metric write permissions for all project IDs to which data is written. Within GKE, this can typically be left empty if the compute default service account has the required permissions.
+                description: |-
+                  A reference to GCP service account credentials with which Prometheus collectors
+                  are run. It needs to have metric write permissions for all project IDs to which
+                  data is written.
+                  Within GKE, this can typically be left empty if the compute default
+                  service account has the required permissions.
                 properties:
                   name:
                     type: string
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
                   key:
                     type: string
                     description: The key of the secret to select from.  Must be a valid secret key.
@@ -1171,14 +1487,21 @@ spec:
                 type: object
                 additionalProperties:
                   type: string
-                description: ExternalLabels specifies external labels that are attached to all scraped data before being written to Cloud Monitoring. The precedence behavior matches that of Prometheus.
+                description: |-
+                  ExternalLabels specifies external labels that are attached to all scraped
+                  data before being written to Cloud Monitoring. The precedence behavior matches that
+                  of Prometheus.
               filter:
                 type: object
                 description: Filter limits which metric data is sent to Cloud Monitoring.
                 properties:
                   matchOneOf:
                     type: array
-                    description: 'A list of Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. Example: `["{job!=''foobar''}", "{__name__!~''container_foo.*|container_bar.*''}"]`'
+                    description: |-
+                      A list of Prometheus time series matchers. Every time series must match at least one
+                      of the matchers to be exported. This field can be used equivalently to the match[]
+                      parameter of the Prometheus federation endpoint to selectively export data.
+                      Example: `["{job!='foobar'}", "{__name__!~'container_foo.*|container_bar.*'}"]`
                     items:
                       type: string
               kubeletScraping:
@@ -1190,7 +1513,9 @@ spec:
                     description: The interval at which the metric endpoints are scraped.
                   tlsInsecureSkipVerify:
                     type: boolean
-                    description: TLSInsecureSkipVerify disables verifying the target cert. This can be useful for clusters provisioned with kubeadm.
+                    description: |-
+                      TLSInsecureSkipVerify disables verifying the target cert.
+                      This can be useful for clusters provisioned with kubeadm.
                 required:
                 - interval
           features:
@@ -1203,7 +1528,10 @@ spec:
                 properties:
                   compression:
                     type: string
-                    description: Compression enables compression of the config data propagated by the operator to collectors. It is recommended to use the gzip option when using a large number of ClusterPodMonitoring and/or PodMonitoring.
+                    description: |-
+                      Compression enables compression of the config data propagated by the operator to collectors.
+                      It is recommended to use the gzip option when using a large number of ClusterPodMonitoring
+                      and/or PodMonitoring.
                     enum:
                     - none
                     - gzip
@@ -1224,11 +1552,16 @@ spec:
             properties:
               configSecret:
                 type: object
-                description: ConfigSecret refers to the name of a single-key Secret in the public namespace that holds the managed Alertmanager config file.
+                description: |-
+                  ConfigSecret refers to the name of a single-key Secret in the public namespace that
+                  holds the managed Alertmanager config file.
                 properties:
                   name:
                     type: string
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
                   key:
                     type: string
                     description: The key of the secret to select from.  Must be a valid secret key.
@@ -1240,7 +1573,13 @@ spec:
                 x-kubernetes-map-type: atomic
               externalURL:
                 type: string
-                description: ExternalURL is the URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.
+                description: |-
+                  ExternalURL is the URL under which Alertmanager is externally reachable
+                  (for example, if Alertmanager is served via a reverse proxy).
+                  Used for generating relative and absolute links back to Alertmanager
+                  itself. If the URL has a path portion, it will be used to prefix all HTTP
+                  endpoints served by Alertmanager.
+                  If omitted, relevant URL components will be derived automatically.
           rules:
             type: object
             description: Rules specifies how the operator configures and deploys rule-evaluator.
@@ -1254,7 +1593,9 @@ spec:
                     description: Alertmanagers contains endpoint configuration for designated Alertmanagers.
                     items:
                       type: object
-                      description: AlertmanagerEndpoints defines a selection of a single Endpoints object containing alertmanager IPs to fire alerts against.
+                      description: |-
+                        AlertmanagerEndpoints defines a selection of a single Endpoints object
+                        containing alertmanager IPs to fire alerts against.
                       properties:
                         name:
                           type: string
@@ -1264,7 +1605,9 @@ spec:
                           description: Namespace of Endpoints object.
                         apiVersion:
                           type: string
-                          description: Version of the Alertmanager API that rule-evaluator uses to send alerts. It can be "v1" or "v2".
+                          description: |-
+                            Version of the Alertmanager API that rule-evaluator uses to send alerts. It
+                            can be "v1" or "v2".
                         port:
                           anyOf:
                           - type: integer
@@ -1277,14 +1620,19 @@ spec:
                           properties:
                             type:
                               type: string
-                              description: Set the authentication type. Defaults to Bearer, Basic will cause an error
+                              description: |-
+                                Set the authentication type. Defaults to Bearer, Basic will cause an
+                                error
                             credentials:
                               type: object
                               description: The secret's key that contains the credentials of the request
                               properties:
                                 name:
                                   type: string
-                                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                  description: |-
+                                    Name of the referent.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    TODO: Add other useful fields. apiVersion, kind, uid?
                                 key:
                                   type: string
                                   description: The key of the secret to select from.  Must be a valid secret key.
@@ -1317,7 +1665,10 @@ spec:
                                   properties:
                                     name:
                                       type: string
-                                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                      description: |-
+                                        Name of the referent.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                     key:
                                       type: string
                                       description: The key to select.
@@ -1333,7 +1684,10 @@ spec:
                                   properties:
                                     name:
                                       type: string
-                                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                      description: |-
+                                        Name of the referent.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                     key:
                                       type: string
                                       description: The key of the secret to select from.  Must be a valid secret key.
@@ -1353,7 +1707,10 @@ spec:
                                   properties:
                                     name:
                                       type: string
-                                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                      description: |-
+                                        Name of the referent.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                     key:
                                       type: string
                                       description: The key to select.
@@ -1369,7 +1726,10 @@ spec:
                                   properties:
                                     name:
                                       type: string
-                                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                      description: |-
+                                        Name of the referent.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                     key:
                                       type: string
                                       description: The key of the secret to select from.  Must be a valid secret key.
@@ -1388,7 +1748,10 @@ spec:
                               properties:
                                 name:
                                   type: string
-                                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                  description: |-
+                                    Name of the referent.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    TODO: Add other useful fields. apiVersion, kind, uid?
                                 key:
                                   type: string
                                   description: The key of the secret to select from.  Must be a valid secret key.
@@ -1400,10 +1763,16 @@ spec:
                               x-kubernetes-map-type: atomic
                             maxVersion:
                               type: string
-                              description: 'Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                              description: |-
+                                Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+                                If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+                                See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                             minVersion:
                               type: string
-                              description: 'Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                              description: |-
+                                Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+                                If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+                                See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                             serverName:
                               type: string
                               description: Used to verify the hostname for the targets.
@@ -1413,11 +1782,20 @@ spec:
                       - port
               credentials:
                 type: object
-                description: A reference to GCP service account credentials with which the rule evaluator container is run. It needs to have metric read permissions against queryProjectId and metric write permissions against all projects to which rule results are written. Within GKE, this can typically be left empty if the compute default service account has the required permissions.
+                description: |-
+                  A reference to GCP service account credentials with which the rule
+                  evaluator container is run. It needs to have metric read permissions
+                  against queryProjectId and metric write permissions against all projects
+                  to which rule results are written.
+                  Within GKE, this can typically be left empty if the compute default
+                  service account has the required permissions.
                 properties:
                   name:
                     type: string
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
                   key:
                     type: string
                     description: The key of the secret to select from.  Must be a valid secret key.
@@ -1431,13 +1809,21 @@ spec:
                 type: object
                 additionalProperties:
                   type: string
-                description: ExternalLabels specifies external labels that are attached to any rule results and alerts produced by rules. The precedence behavior matches that of Prometheus.
+                description: |-
+                  ExternalLabels specifies external labels that are attached to any rule
+                  results and alerts produced by rules. The precedence behavior matches that
+                  of Prometheus.
               generatorUrl:
                 type: string
-                description: The base URL used for the generator URL in the alert notification payload. Should point to an instance of a query frontend that gives access to queryProjectID.
+                description: |-
+                  The base URL used for the generator URL in the alert notification payload.
+                  Should point to an instance of a query frontend that gives access to queryProjectID.
               queryProjectID:
                 type: string
-                description: QueryProjectID is the GCP project ID to evaluate rules against. If left blank, the rule-evaluator will try attempt to infer the Project ID from the environment.
+                description: |-
+                  QueryProjectID is the GCP project ID to evaluate rules against.
+                  If left blank, the rule-evaluator will try attempt to infer the Project ID
+                  from the environment.
     served: true
     storage: true
   - name: v1alpha1
@@ -1449,10 +1835,19 @@ spec:
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           collection:
@@ -1461,11 +1856,19 @@ spec:
             properties:
               credentials:
                 type: object
-                description: A reference to GCP service account credentials with which Prometheus collectors are run. It needs to have metric write permissions for all project IDs to which data is written. Within GKE, this can typically be left empty if the compute default service account has the required permissions.
+                description: |-
+                  A reference to GCP service account credentials with which Prometheus collectors
+                  are run. It needs to have metric write permissions for all project IDs to which
+                  data is written.
+                  Within GKE, this can typically be left empty if the compute default
+                  service account has the required permissions.
                 properties:
                   name:
                     type: string
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
                   key:
                     type: string
                     description: The key of the secret to select from.  Must be a valid secret key.
@@ -1479,14 +1882,21 @@ spec:
                 type: object
                 additionalProperties:
                   type: string
-                description: ExternalLabels specifies external labels that are attached to all scraped data before being written to Cloud Monitoring. The precedence behavior matches that of Prometheus.
+                description: |-
+                  ExternalLabels specifies external labels that are attached to all scraped
+                  data before being written to Cloud Monitoring. The precedence behavior matches that
+                  of Prometheus.
               filter:
                 type: object
                 description: Filter limits which metric data is sent to Cloud Monitoring.
                 properties:
                   matchOneOf:
                     type: array
-                    description: 'A list Prometheus time series matchers. Every time series must match at least one of the matchers to be exported. This field can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. Example: `["{job=''prometheus''}", "{__name__=~''job:.*''}"]`'
+                    description: |-
+                      A list Prometheus time series matchers. Every time series must match at least one
+                      of the matchers to be exported. This field can be used equivalently to the match[]
+                      parameter of the Prometheus federation endpoint to selectively export data.
+                      Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`
                     items:
                       type: string
           rules:
@@ -1502,7 +1912,9 @@ spec:
                     description: Alertmanagers contains endpoint configuration for designated Alertmanagers.
                     items:
                       type: object
-                      description: AlertmanagerEndpoints defines a selection of a single Endpoints object containing alertmanager IPs to fire alerts against.
+                      description: |-
+                        AlertmanagerEndpoints defines a selection of a single Endpoints object
+                        containing alertmanager IPs to fire alerts against.
                       properties:
                         name:
                           type: string
@@ -1512,7 +1924,9 @@ spec:
                           description: Namespace of Endpoints object.
                         apiVersion:
                           type: string
-                          description: Version of the Alertmanager API that rule-evaluator uses to send alerts. It can be "v1" or "v2".
+                          description: |-
+                            Version of the Alertmanager API that rule-evaluator uses to send alerts. It
+                            can be "v1" or "v2".
                         port:
                           anyOf:
                           - type: integer
@@ -1525,14 +1939,19 @@ spec:
                           properties:
                             type:
                               type: string
-                              description: Set the authentication type. Defaults to Bearer, Basic will cause an error
+                              description: |-
+                                Set the authentication type. Defaults to Bearer, Basic will cause an
+                                error
                             credentials:
                               type: object
                               description: The secret's key that contains the credentials of the request
                               properties:
                                 name:
                                   type: string
-                                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                  description: |-
+                                    Name of the referent.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    TODO: Add other useful fields. apiVersion, kind, uid?
                                 key:
                                   type: string
                                   description: The key of the secret to select from.  Must be a valid secret key.
@@ -1565,7 +1984,10 @@ spec:
                                   properties:
                                     name:
                                       type: string
-                                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                      description: |-
+                                        Name of the referent.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                     key:
                                       type: string
                                       description: The key to select.
@@ -1581,7 +2003,10 @@ spec:
                                   properties:
                                     name:
                                       type: string
-                                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                      description: |-
+                                        Name of the referent.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                     key:
                                       type: string
                                       description: The key of the secret to select from.  Must be a valid secret key.
@@ -1601,7 +2026,10 @@ spec:
                                   properties:
                                     name:
                                       type: string
-                                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                      description: |-
+                                        Name of the referent.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                     key:
                                       type: string
                                       description: The key to select.
@@ -1617,7 +2045,10 @@ spec:
                                   properties:
                                     name:
                                       type: string
-                                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                      description: |-
+                                        Name of the referent.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                     key:
                                       type: string
                                       description: The key of the secret to select from.  Must be a valid secret key.
@@ -1636,7 +2067,10 @@ spec:
                               properties:
                                 name:
                                   type: string
-                                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                  description: |-
+                                    Name of the referent.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    TODO: Add other useful fields. apiVersion, kind, uid?
                                 key:
                                   type: string
                                   description: The key of the secret to select from.  Must be a valid secret key.
@@ -1655,11 +2089,20 @@ spec:
                       - port
               credentials:
                 type: object
-                description: A reference to GCP service account credentials with which the rule evaluator container is run. It needs to have metric read permissions against queryProjectId and metric write permissions against all projects to which rule results are written. Within GKE, this can typically be left empty if the compute default service account has the required permissions.
+                description: |-
+                  A reference to GCP service account credentials with which the rule
+                  evaluator container is run. It needs to have metric read permissions
+                  against queryProjectId and metric write permissions against all projects
+                  to which rule results are written.
+                  Within GKE, this can typically be left empty if the compute default
+                  service account has the required permissions.
                 properties:
                   name:
                     type: string
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
                   key:
                     type: string
                     description: The key of the secret to select from.  Must be a valid secret key.
@@ -1673,10 +2116,16 @@ spec:
                 type: object
                 additionalProperties:
                   type: string
-                description: ExternalLabels specifies external labels that are attached to any rule results and alerts produced by rules. The precedence behavior matches that of Prometheus.
+                description: |-
+                  ExternalLabels specifies external labels that are attached to any rule
+                  results and alerts produced by rules. The precedence behavior matches that
+                  of Prometheus.
               queryProjectID:
                 type: string
-                description: QueryProjectID is the GCP project ID to evaluate rules against. If left blank, the rule-evaluator will try attempt to infer the Project ID from the environment.
+                description: |-
+                  QueryProjectID is the GCP project ID to evaluate rules against.
+                  If left blank, the rule-evaluator will try attempt to infer the Project ID
+                  from the environment.
     served: true
     storage: false
 ---
@@ -1685,7 +2134,7 @@ kind: CustomResourceDefinition
 metadata:
   name: podmonitorings.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.14.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -1699,40 +2148,63 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: PodMonitoring defines monitoring for a set of pods, scoped to pods within the PodMonitoring's namespace.
+        description: |-
+          PodMonitoring defines monitoring for a set of pods, scoped to pods
+          within the PodMonitoring's namespace.
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
             type: object
-            description: Specification of desired Pod selection for target discovery by Prometheus.
+            description: |-
+              Specification of desired Pod selection for target discovery by
+              Prometheus.
             properties:
               selector:
                 type: object
-                description: Label selector that specifies which pods are selected for this monitoring configuration.
+                description: |-
+                  Label selector that specifies which pods are selected for this monitoring
+                  configuration.
                 properties:
                   matchExpressions:
                     type: array
                     description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                     items:
                       type: object
-                      description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
                       properties:
                         key:
                           type: string
                           description: key is the label key that the selector applies to.
                         operator:
                           type: string
-                          description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
                         values:
                           type: array
-                          description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
                           items:
                             type: string
                       required:
@@ -1742,7 +2214,10 @@ spec:
                     type: object
                     additionalProperties:
                       type: string
-                    description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
                 x-kubernetes-map-type: atomic
               endpoints:
                 type: array
@@ -1755,7 +2230,10 @@ spec:
                       anyOf:
                       - type: integer
                       - type: string
-                      description: Name or number of the port to scrape. The container metadata label is only populated if the port is referenced by name because port numbers are not unique across containers.
+                      description: |-
+                        Name or number of the port to scrape.
+                        The container metadata label is only populated if the port is referenced by name
+                        because port numbers are not unique across containers.
                       x-kubernetes-int-or-string: true
                     authorization:
                       type: object
@@ -1778,7 +2256,11 @@ spec:
                       pattern: ^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$
                     metricRelabeling:
                       type: array
-                      description: Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general.
+                      description: |-
+                        Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
+                        override protected target labels (project_id, location, cluster, namespace, job,
+                        instance, or __address__) are not permitted. The labelmap action is not permitted
+                        in general.
                       items:
                         type: object
                         description: RelabelingRule defines a single Prometheus relabeling rule.
@@ -1795,18 +2277,25 @@ spec:
                             description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
                           replacement:
                             type: string
-                            description: Replacement value against which a regex replace is performed if the regular expression matches. Regex capture groups are available. Defaults to '$1'.
+                            description: |-
+                              Replacement value against which a regex replace is performed if the
+                              regular expression matches. Regex capture groups are available. Defaults to '$1'.
                           separator:
                             type: string
                             description: Separator placed between concatenated source label values. Defaults to ';'.
                           sourceLabels:
                             type: array
-                            description: The source labels select values from existing labels. Their content is concatenated using the configured separator and matched against the configured regular expression for the replace, keep, and drop actions.
+                            description: |-
+                              The source labels select values from existing labels. Their content is concatenated
+                              using the configured separator and matched against the configured regular expression
+                              for the replace, keep, and drop actions.
                             items:
                               type: string
                           targetLabel:
                             type: string
-                            description: Label to which the resulting value is written in a replace action. It is mandatory for replace actions. Regex capture groups are available.
+                            description: |-
+                              Label to which the resulting value is written in a replace action.
+                              It is mandatory for replace actions. Regex capture groups are available.
                     oauth2:
                       type: object
                       description: The OAuth2 client credentials used to fetch a token for the targets.
@@ -1836,10 +2325,16 @@ spec:
                               description: Disable target certificate validation.
                             maxVersion:
                               type: string
-                              description: 'Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                              description: |-
+                                Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+                                If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+                                See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                             minVersion:
                               type: string
-                              description: 'Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                              description: |-
+                                Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+                                If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+                                See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                             serverName:
                               type: string
                               description: Used to verify the hostname for the targets.
@@ -1867,7 +2362,9 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger than the scrape interval.
+                      description: |-
+                        Timeout for metrics scrapes. Must be a valid Prometheus duration.
+                        Must not be larger than the scrape interval.
                     tls:
                       type: object
                       description: Configures the scrape request's TLS settings.
@@ -1877,10 +2374,16 @@ spec:
                           description: Disable target certificate validation.
                         maxVersion:
                           type: string
-                          description: 'Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                          description: |-
+                            Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+                            If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+                            See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                         minVersion:
                           type: string
-                          description: 'Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3). If unset, Prometheus will use Go default minimum version, which is TLS 1.2. See MinVersion in https://pkg.go.dev/crypto/tls#Config.'
+                          description: |-
+                            Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
+                            If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+                            See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                         serverName:
                           type: string
                           description: Used to verify the hostname for the targets.
@@ -1888,49 +2391,78 @@ spec:
                   - port
               filterRunning:
                 type: boolean
-                description: 'FilterRunning will drop any pods that are in the "Failed" or "Succeeded" pod lifecycle. See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase'
+                description: |-
+                  FilterRunning will drop any pods that are in the "Failed" or "Succeeded"
+                  pod lifecycle.
+                  See: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
               limits:
                 type: object
                 description: Limits to apply at scrape time.
                 properties:
                   labels:
                     type: integer
-                    description: Maximum number of labels accepted for a single sample. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum number of labels accepted for a single sample.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   labelNameLength:
                     type: integer
-                    description: Maximum label name length. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum label name length.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   labelValueLength:
                     type: integer
-                    description: Maximum label value length. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum label value length.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   samples:
                     type: integer
-                    description: Maximum number of samples accepted within a single scrape. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum number of samples accepted within a single scrape.
+                      Uses Prometheus default if left unspecified.
                     format: int64
               targetLabels:
                 type: object
-                description: Labels to add to the Prometheus target for discovered endpoints. The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>` if the scraped pod is controlled by a DaemonSet.
+                description: |-
+                  Labels to add to the Prometheus target for discovered endpoints.
+                  The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
+                  if the scraped pod is controlled by a DaemonSet.
                 properties:
                   metadata:
                     type: array
-                    description: Pod metadata labels that are set on all scraped targets. Permitted keys are `pod`, `container`, and `node` for PodMonitoring and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. The `container` label is only populated if the scrape port is referenced by name. Defaults to [pod, container] for PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring. If set to null, it will be interpreted as the empty list for PodMonitoring and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility only.
+                    description: |-
+                      Pod metadata labels that are set on all scraped targets.
+                      Permitted keys are `pod`, `container`, and `node` for PodMonitoring and
+                      `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. The `container`
+                      label is only populated if the scrape port is referenced by name.
+                      Defaults to [pod, container] for PodMonitoring and [namespace, pod, container]
+                      for ClusterPodMonitoring.
+                      If set to null, it will be interpreted as the empty list for PodMonitoring
+                      and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
+                      only.
                     items:
                       type: string
                   fromPod:
                     type: array
-                    description: Labels to transfer from the Kubernetes Pod to Prometheus target labels. Mappings are applied in order.
+                    description: |-
+                      Labels to transfer from the Kubernetes Pod to Prometheus target labels.
+                      Mappings are applied in order.
                     items:
                       type: object
-                      description: LabelMapping specifies how to transfer a label from a Kubernetes resource onto a Prometheus target.
+                      description: |-
+                        LabelMapping specifies how to transfer a label from a Kubernetes resource
+                        onto a Prometheus target.
                       properties:
                         from:
                           type: string
                           description: Kubernetes resource label to remap.
                         to:
                           type: string
-                          description: Remapped Prometheus target label. Defaults to the same name as `From`.
+                          description: |-
+                            Remapped Prometheus target label.
+                            Defaults to the same name as `From`.
                       required:
                       - from
             required:
@@ -1985,7 +2517,10 @@ spec:
                       format: int64
                     collectorsFraction:
                       type: string
-                      description: Fraction of collectors included in status, bounded [0,1]. Ideally, this should always be 1. Anything less can be considered a problem and should be investigated.
+                      description: |-
+                        Fraction of collectors included in status, bounded [0,1].
+                        Ideally, this should always be 1. Anything less can
+                        be considered a problem and should be investigated.
                     lastUpdateTime:
                       type: string
                       description: Last time this status was updated.
@@ -2046,36 +2581,57 @@ spec:
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
             type: object
-            description: Specification of desired Pod selection for target discovery by Prometheus.
+            description: |-
+              Specification of desired Pod selection for target discovery by
+              Prometheus.
             properties:
               selector:
                 type: object
-                description: Label selector that specifies which pods are selected for this monitoring configuration.
+                description: |-
+                  Label selector that specifies which pods are selected for this monitoring
+                  configuration.
                 properties:
                   matchExpressions:
                     type: array
                     description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                     items:
                       type: object
-                      description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
                       properties:
                         key:
                           type: string
                           description: key is the label key that the selector applies to.
                         operator:
                           type: string
-                          description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
                         values:
                           type: array
-                          description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
                           items:
                             type: string
                       required:
@@ -2085,7 +2641,10 @@ spec:
                     type: object
                     additionalProperties:
                       type: string
-                    description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
                 x-kubernetes-map-type: atomic
               endpoints:
                 type: array
@@ -2105,7 +2664,11 @@ spec:
                       description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
                     metricRelabeling:
                       type: array
-                      description: Relabeling rules for metrics scraped from this endpoint. Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job, instance, or __address__) are not permitted. The labelmap action is not permitted in general.
+                      description: |-
+                        Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
+                        override protected target labels (project_id, location, cluster, namespace, job,
+                        instance, or __address__) are not permitted. The labelmap action is not permitted
+                        in general.
                       items:
                         type: object
                         description: RelabelingRule defines a single Prometheus relabeling rule.
@@ -2122,18 +2685,25 @@ spec:
                             description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
                           replacement:
                             type: string
-                            description: Replacement value against which a regex replace is performed if the regular expression matches. Regex capture groups are available. Defaults to '$1'.
+                            description: |-
+                              Replacement value against which a regex replace is performed if the
+                              regular expression matches. Regex capture groups are available. Defaults to '$1'.
                           separator:
                             type: string
                             description: Separator placed between concatenated source label values. Defaults to ';'.
                           sourceLabels:
                             type: array
-                            description: The source labels select values from existing labels. Their content is concatenated using the configured separator and matched against the configured regular expression for the replace, keep, and drop actions.
+                            description: |-
+                              The source labels select values from existing labels. Their content is concatenated
+                              using the configured separator and matched against the configured regular expression
+                              for the replace, keep, and drop actions.
                             items:
                               type: string
                           targetLabel:
                             type: string
-                            description: Label to which the resulting value is written in a replace action. It is mandatory for replace actions. Regex capture groups are available.
+                            description: |-
+                              Label to which the resulting value is written in a replace action.
+                              It is mandatory for replace actions. Regex capture groups are available.
                     params:
                       type: object
                       additionalProperties:
@@ -2152,7 +2722,9 @@ spec:
                       description: Protocol scheme to use to scrape.
                     timeout:
                       type: string
-                      description: Timeout for metrics scrapes. Must be a valid Prometheus duration. Must not be larger then the scrape interval.
+                      description: |-
+                        Timeout for metrics scrapes. Must be a valid Prometheus duration.
+                        Must not be larger then the scrape interval.
                   required:
                   - port
               limits:
@@ -2161,19 +2733,27 @@ spec:
                 properties:
                   labels:
                     type: integer
-                    description: Maximum number of labels accepted for a single sample. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum number of labels accepted for a single sample.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   labelNameLength:
                     type: integer
-                    description: Maximum label name length. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum label name length.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   labelValueLength:
                     type: integer
-                    description: Maximum label value length. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum label value length.
+                      Uses Prometheus default if left unspecified.
                     format: int64
                   samples:
                     type: integer
-                    description: Maximum number of samples accepted within a single scrape. Uses Prometheus default if left unspecified.
+                    description: |-
+                      Maximum number of samples accepted within a single scrape.
+                      Uses Prometheus default if left unspecified.
                     format: int64
               targetLabels:
                 type: object
@@ -2181,22 +2761,36 @@ spec:
                 properties:
                   metadata:
                     type: array
-                    description: Pod metadata labels that are set on all scraped targets. Permitted keys are `pod`, `container`, and `node` for PodMonitoring and `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. Defaults to [pod, container] for PodMonitoring and [namespace, pod, container] for ClusterPodMonitoring. If set to null, it will be interpreted as the empty list for PodMonitoring and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility only.
+                    description: |-
+                      Pod metadata labels that are set on all scraped targets.
+                      Permitted keys are `pod`, `container`, and `node` for PodMonitoring and
+                      `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring.
+                      Defaults to [pod, container] for PodMonitoring and [namespace, pod, container]
+                      for ClusterPodMonitoring.
+                      If set to null, it will be interpreted as the empty list for PodMonitoring
+                      and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
+                      only.
                     items:
                       type: string
                   fromPod:
                     type: array
-                    description: Labels to transfer from the Kubernetes Pod to Prometheus target labels. Mappings are applied in order.
+                    description: |-
+                      Labels to transfer from the Kubernetes Pod to Prometheus target labels.
+                      Mappings are applied in order.
                     items:
                       type: object
-                      description: LabelMapping specifies how to transfer a label from a Kubernetes resource onto a Prometheus target.
+                      description: |-
+                        LabelMapping specifies how to transfer a label from a Kubernetes resource
+                        onto a Prometheus target.
                       properties:
                         from:
                           type: string
                           description: Kubenetes resource label to remap.
                         to:
                           type: string
-                          description: Remapped Prometheus target label. Defaults to the same name as `From`.
+                          description: |-
+                            Remapped Prometheus target label.
+                            Defaults to the same name as `From`.
                       required:
                       - from
             required:
@@ -2252,7 +2846,7 @@ kind: CustomResourceDefinition
 metadata:
   name: rules.monitoring.googleapis.com
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.14.0
 spec:
   group: monitoring.googleapis.com
   names:
@@ -2266,14 +2860,28 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: Rules defines Prometheus alerting and recording rules that are scoped to the namespace of the resource. Only metric data from this namespace is processed and all rule results have their project_id, cluster, and namespace label preserved for query processing. If the location label is not preserved by the rule, it defaults to the cluster's location.
+        description: |-
+          Rules defines Prometheus alerting and recording rules that are scoped
+          to the namespace of the resource. Only metric data from this namespace is processed
+          and all rule results have their project_id, cluster, and namespace label preserved
+          for query processing.
+          If the location label is not preserved by the rule, it defaults to the cluster's location.
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
@@ -2285,7 +2893,9 @@ spec:
                 description: A list of Prometheus rule groups.
                 items:
                   type: object
-                  description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                  description: |-
+                    RuleGroup declares rules in the Prometheus format:
+                    https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                   properties:
                     name:
                       type: string
@@ -2298,7 +2908,9 @@ spec:
                       description: A list of rules that are executed sequentially as part of this group.
                       items:
                         type: object
-                        description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                        description: |-
+                          Rule is a single rule in the Prometheus format:
+                          https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                         properties:
                           labels:
                             type: object
@@ -2309,19 +2921,27 @@ spec:
                             type: object
                             additionalProperties:
                               type: string
-                            description: A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set.
+                            description: |-
+                              A set of annotations to attach to alerts produced by the query expression.
+                              Only valid if `alert` is set.
                           alert:
                             type: string
-                            description: Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Name of the alert to evaluate the expression as.
+                              Only one of `record` and `alert` must be set.
                           expr:
                             type: string
                             description: The PromQL expression to evaluate.
                           for:
                             type: string
-                            description: The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set.
+                            description: |-
+                              The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
+                              Only valid if `alert` is set.
                           record:
                             type: string
-                            description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Record the result of the expression to this metric name.
+                              Only one of `record` and `alert` must be set.
                         required:
                         - expr
                   required:
@@ -2344,14 +2964,28 @@ spec:
     schema:
       openAPIV3Schema:
         type: object
-        description: Rules defines Prometheus alerting and recording rules that are scoped to the namespace of the resource. Only metric data from this namespace is processed and all rule results have their project_id, cluster, and namespace label preserved for query processing. If the location label is not preserved by the rule, it defaults to the cluster's location.
+        description: |-
+          Rules defines Prometheus alerting and recording rules that are scoped
+          to the namespace of the resource. Only metric data from this namespace is processed
+          and all rule results have their project_id, cluster, and namespace label preserved
+          for query processing.
+          If the location label is not preserved by the rule, it defaults to the cluster's location.
         properties:
           apiVersion:
             type: string
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
           kind:
             type: string
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
           metadata:
             type: object
           spec:
@@ -2363,7 +2997,9 @@ spec:
                 description: A list of Prometheus rule groups.
                 items:
                   type: object
-                  description: 'RuleGroup declares rules in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                  description: |-
+                    RuleGroup declares rules in the Prometheus format:
+                    https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                   properties:
                     name:
                       type: string
@@ -2376,7 +3012,9 @@ spec:
                       description: A list of rules that are executed sequentially as part of this group.
                       items:
                         type: object
-                        description: 'Rule is a single rule in the Prometheus format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/'
+                        description: |-
+                          Rule is a single rule in the Prometheus format:
+                          https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                         properties:
                           labels:
                             type: object
@@ -2387,19 +3025,27 @@ spec:
                             type: object
                             additionalProperties:
                               type: string
-                            description: A set of annotations to attach to alerts produced by the query expression. Only valid if `alert` is set.
+                            description: |-
+                              A set of annotations to attach to alerts produced by the query expression.
+                              Only valid if `alert` is set.
                           alert:
                             type: string
-                            description: Name of the alert to evaluate the expression as. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Name of the alert to evaluate the expression as.
+                              Only one of `record` and `alert` must be set.
                           expr:
                             type: string
                             description: The PromQL expression to evaluate.
                           for:
                             type: string
-                            description: The duration to wait before a firing alert produced by this rule is sent to Alertmanager. Only valid if `alert` is set.
+                            description: |-
+                              The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
+                              Only valid if `alert` is set.
                           record:
                             type: string
-                            description: Record the result of the expression to this metric name. Only one of `record` and `alert` must be set.
+                            description: |-
+                              Record the result of the expression to this metric name.
+                              Only one of `record` and `alert` must be set.
                         required:
                         - expr
                   required:
