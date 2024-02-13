@@ -48,7 +48,7 @@ Let's go through an example leveraging the `go test` flow:
 
 4. Use `e2emon.AsInstrumented` if you want to be able to query your service for metrics, which is a great way to assess it's internal state in tests! For example see following Etcd definition:
 
-   ```go mdox-exec="sed -n '216,228p' db/db.go"
+   ```go mdox-exec="sed -n '351,363p' db/db.go"
    	return e2emon.AsInstrumented(env.Runnable(name).WithPorts(map[string]int{AccessPortName: 2379, "metrics": 9000}).Init(
    		e2e.StartOptions{
    			Image: o.image,
@@ -186,6 +186,23 @@ In the profiling UI choose a profile type, filter by instances (autocompleted) a
 ### Monitoring + Profiling
 
 For runnables that are both instrumented and profiled you can use [`e2eobs.AsObservable`](observable/observable.go).
+
+### Debugging flaky tests
+
+Sometimes tests might fail due to timing problems on highly CPU constrained systems such as GitHub actions. To facilitate fixing these issues, `e2e` supports limiting CPU time allocated to Docker containers through `E2E_DOCKER_CPUS` environment variable:
+
+```go mdox-exec="sed -n '285,288p' env_docker.go"
+	dockerCPUsEnv := os.Getenv(dockerCPUEnvName)
+	if dockerCPUsEnv != "" {
+		dockerCPUsParam = dockerCPUsEnv
+	}
+```
+
+You can set it either through command line parameters or `t.Setenv("E2E_DOCKER_CPUS", "...")`.
+
+Alternatively, you could pass `WithCPUs` through environment options so that some e2e test would have permanently reduced available CPU time.
+
+See what values you can pass to the `--cpus` flag on [Docker website](https://docs.docker.com/config/containers/resource_constraints/#configure-the-default-cfs-scheduler).
 
 ### Troubleshooting
 

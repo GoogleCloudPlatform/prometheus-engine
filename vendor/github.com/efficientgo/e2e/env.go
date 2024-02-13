@@ -28,6 +28,13 @@ type environmentOptions struct {
 	name    string
 
 	volumes []string
+	cpus    string
+}
+
+func WithCPUs(cpus string) EnvironmentOption {
+	return func(o *environmentOptions) {
+		o.cpus = cpus
+	}
 }
 
 // WithLogger tells environment to use custom logger to default one (stdout).
@@ -191,8 +198,17 @@ type runnable interface {
 type ExecOption func(o *ExecOptions)
 
 type ExecOptions struct {
+	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+}
+
+// WithExecOptionStdin sets stdin reader to be used when exec is performed.
+// By default, it is nil.
+func WithExecOptionStdin(stdin io.Reader) ExecOption {
+	return func(o *ExecOptions) {
+		o.Stdin = stdin
+	}
 }
 
 // WithExecOptionStdout sets stdout writer to be used when exec is performed.
