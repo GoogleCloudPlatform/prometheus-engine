@@ -34,7 +34,7 @@ var (
 	)
 	secretsTotal = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "prometheus_kubernetes_secrets_total",
+			Name: "prometheus_kubernetes_secrets_configured",
 			Help: "Current number of secrets.",
 		},
 	)
