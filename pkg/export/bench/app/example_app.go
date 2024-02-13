@@ -77,12 +77,14 @@ var (
 	metricIncomingRequestsPending = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "example_incoming_requests_pending",
+			Help: "Number of incoming requests currently pending.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestsPending = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "example_outgoing_requests_pending",
+			Help: "Number of outgoing requests currently pending.",
 		},
 		[]string{"status", "method", "path"},
 	)
@@ -90,52 +92,64 @@ var (
 	metricIncomingRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "example_incoming_requests_total",
+			Help: "Total number of incoming requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "example_outgoing_requests_total",
+			Help: "Total number of outgoing requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricIncomingRequestErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "example_incoming_request_errors_total",
+			Help: "Total number of errors on incoming requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "example_outgoing_request_errors_total",
+			Help: "Total number of errors on outgoing requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 
 	metricIncomingRequestDurationHistogram = prometheus.NewHistogramVec(
+		//nolint:promlinter // Test metric.
 		prometheus.HistogramOpts{
 			Name:    "example_histogram_incoming_request_duration",
 			Buckets: prometheus.LinearBuckets(0, 100, 8),
+			Help:    "Distribution of incoming request latencies.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestDurationHistogram = prometheus.NewHistogramVec(
+		//nolint:promlinter // Test metric.
 		prometheus.HistogramOpts{
 			Name:    "example_histogram_outgoing_request_duration",
 			Buckets: prometheus.LinearBuckets(0, 100, 8),
+			Help:    "Distribution of outgoing request latencies.",
 		},
 		[]string{"status", "method", "path"},
 	)
 
 	metricIncomingRequestDurationSummary = prometheus.NewSummaryVec(
+		//nolint:promlinter // Test metric.
 		prometheus.SummaryOpts{
 			Name: "example_summary_incoming_request_duration",
+			Help: "Summary of incoming request latencies.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestDurationSummary = prometheus.NewSummaryVec(
+		//nolint:promlinter // Test metric.
 		prometheus.SummaryOpts{
 			Name: "example_summary_outgoing_request_duration",
+			Help: "Summary of outgoing request latencies.",
 		},
 		[]string{"status", "method", "path"},
 	)
