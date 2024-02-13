@@ -103,7 +103,7 @@ func TestEnsureCertsExplicit(t *testing.T) {
 			if err != nil && tc.expectErr {
 				return
 			}
-			// Test outputed files.
+			// Test outputted files.
 			outCert, outKey := readKeyAndCertFiles(dir, t)
 			if string(outCert) != tc.expectCert {
 				t.Errorf("want cert: %v; got %v", tc.opts.TLSCert, string(outCert))

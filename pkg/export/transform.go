@@ -372,7 +372,7 @@ func isHistogramSeries(metric, name string) bool {
 // buildDistribution consumes series from the input slice and populates the histogram cache with it.
 // It returns when a series is consumed which completes a full distribution.
 // Once all series for a single distribution have been observed, it returns it.
-// It returns the reset timestamp along with the distrubution and the remaining samples.
+// It returns the reset timestamp along with the distribution and the remaining samples.
 func (b *sampleBuilder) buildDistribution(
 	metric string,
 	matchLset labels.Labels,
@@ -510,7 +510,7 @@ func buildExemplars(exemplars []record.RefExemplar) []*distribution_pb.Distribut
 //
 // The rest of the LabelSet will go into the DroppedLabels attachment. If one of the above
 // fields is missing, we will put the entire LabelSet into a DroppedLabels attachment.
-// This is to maintain comptability with CloudTrace.
+// This is to maintain compatibility with CloudTrace.
 // Note that the project_id needs to be the project_id where the span was written.
 // This may not necessarily be the same project_id where the metric was written.
 func buildExemplarAttachments(lset labels.Labels) []*anypb.Any {

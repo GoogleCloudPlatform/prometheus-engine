@@ -409,8 +409,8 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
 	lset := builder.Labels()
 
 	// At this point we expect location and project ID to be set. They are effectively only a default
-	// however as they may be overriden by metric labels.
-	// In production scenarios, "location" should most likely never be overriden as it means crossing
+	// however as they may be overridden by metric labels.
+	// In production scenarios, "location" should most likely never be overridden as it means crossing
 	// failure domains. Instead, each location should run a replica of the evaluator with the same rules.
 	if lset.Get(KeyProjectID) == "" {
 		return fmt.Errorf("no label %q set via external labels or flag", KeyProjectID)

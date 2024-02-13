@@ -201,7 +201,7 @@ func main() {
 		v, warnings, err := QueryFunc(ctx, q, t, v1api)
 		if len(warnings) > 0 {
 			//nolint:errcheck
-			level.Warn(logger).Log("msg", "Querying Promethues instance returned warnings", "warn", warnings)
+			level.Warn(logger).Log("msg", "Querying Prometheus instance returned warnings", "warn", warnings)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("execute query: %w", err)

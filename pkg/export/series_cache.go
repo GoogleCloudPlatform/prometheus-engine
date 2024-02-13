@@ -125,7 +125,7 @@ func (e *seriesCacheEntry) shouldRefresh() bool {
 
 // setNextRefresh determines a timestamp for the next refresh.
 func (e *seriesCacheEntry) setNextRefresh() {
-	// Randomly offset the timestamp around the targeted average so a bulk of simultaniously
+	// Randomly offset the timestamp around the targeted average so a bulk of simultaneously
 	// created series are not invalidated all at once, causing potential CPU and allocation
 	// spikes.
 	jitter := time.Duration((rand.Float64() - 0.5) * float64(refreshJitter))
