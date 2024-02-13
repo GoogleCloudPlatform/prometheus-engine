@@ -101,8 +101,8 @@ func TestGenerateRules(t *testing.T) {
 			if (err == nil && test.wantErr) || (err != nil && !test.wantErr) {
 				t.Fatalf("expected err: %v; actual %v", test.wantErr, err)
 			}
-			if string(got) != test.want {
-				t.Errorf("expected: %v; actual %v", test.want, string(got))
+			if got != test.want {
+				t.Errorf("expected: %v; actual %v", test.want, got)
 			}
 		})
 	}
@@ -178,7 +178,7 @@ func TestGenerateClusterRules(t *testing.T) {
 			if (err == nil && test.wantErr) || (err != nil && !test.wantErr) {
 				t.Fatalf("expected err: %v; actual %v", test.wantErr, err)
 			}
-			if diff := cmp.Diff(test.want, string(got)); diff != "" {
+			if diff := cmp.Diff(test.want, got); diff != "" {
 				t.Fatalf("unexpected result (-want, +got):\n %s", diff)
 			}
 		})
@@ -245,7 +245,7 @@ func TestGenerateGlobalRules(t *testing.T) {
 			if (err == nil && test.wantErr) || (err != nil && !test.wantErr) {
 				t.Fatalf("expected err: %v; actual %v", test.wantErr, err)
 			}
-			if diff := cmp.Diff(test.want, string(got)); diff != "" {
+			if diff := cmp.Diff(test.want, got); diff != "" {
 				t.Fatalf("unexpected result (-want, +got):\n %s", diff)
 			}
 		})

@@ -64,7 +64,7 @@ var (
 // discardExemplarIncIfExists increments the counter prometheusExemplarsDiscarded
 // if an exemplar exists for the given storage.SeriesRef.
 func discardExemplarIncIfExists(series storage.SeriesRef, exemplars map[storage.SeriesRef]record.RefExemplar, reason string) {
-	if _, ok := exemplars[storage.SeriesRef(series)]; ok {
+	if _, ok := exemplars[series]; ok {
 		prometheusExemplarsDiscarded.WithLabelValues(reason).Inc()
 	}
 }

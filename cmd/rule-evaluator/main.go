@@ -582,7 +582,7 @@ func (ss *listSeriesSet) Next() bool {
 
 // At returns the current series.
 func (ss *listSeriesSet) At() storage.Series {
-	return promql.NewStorageSeries(promql.Series(ss.m[ss.idx]))
+	return promql.NewStorageSeries(ss.m[ss.idx])
 }
 
 // Err returns an error encountered while iterating.
