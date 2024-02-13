@@ -1380,7 +1380,7 @@ func TestPolling(t *testing.T) {
 		if pollErr := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 			var podMonitorings monitoringv1.PodMonitoringList
 			if err := kubeClient.List(ctx, &podMonitorings); err != nil {
-				return false, nil
+				return false, err
 			}
 			switch amount := len(podMonitorings.Items); amount {
 			case 0:

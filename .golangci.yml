@@ -50,7 +50,6 @@ linters:
     - maligned # Deprecated
     - misspell
     - nestif
-    - nilerr
     - nilnil
     - nlreturn
     - noctx
