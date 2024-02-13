@@ -48,8 +48,8 @@ func testMetadataFunc(metadata metricMetadataMap) MetadataFunc {
 	}
 }
 
-func wrapAsAny(any proto.Message) *anypb.Any {
-	result, err := anypb.New(any)
+func wrapAsAny(msg proto.Message) *anypb.Any {
+	result, err := anypb.New(msg)
 	if err != nil {
 		panic(err)
 	}
