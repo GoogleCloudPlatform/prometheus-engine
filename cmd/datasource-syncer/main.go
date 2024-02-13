@@ -170,7 +170,7 @@ func getOAuth2Token(credentialsFile string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to read json key file: %v", err)
 		}
-		token, err = google.JWTAccessTokenSourceWithScope([]byte(jsonKey), "https://www.googleapis.com/auth/monitoring.read")
+		token, err = google.JWTAccessTokenSourceWithScope(jsonKey, "https://www.googleapis.com/auth/monitoring.read")
 		if err != nil {
 			return "", fmt.Errorf("could not generate token: %v", err)
 		}

@@ -68,7 +68,6 @@ type server struct {
 }
 
 func (srv *server) CreateTimeSeries(_ context.Context, req *monitoring_pb.CreateTimeSeriesRequest) (*emptypb.Empty, error) {
-	l := srv.latency
-	time.Sleep(time.Duration(l))
+	time.Sleep(srv.latency)
 	return &emptypb.Empty{}, nil
 }

@@ -260,7 +260,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			logger.Error(err, "converting rules failed", "clusterrules_name", rs.Name)
 		}
 		filename := fmt.Sprintf("clusterrules__%s.yaml", rs.Name)
-		cm.Data[filename] = string(result)
+		cm.Data[filename] = result
 	}
 
 	var globalRulesList monitoringv1.GlobalRulesList
@@ -274,7 +274,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			logger.Error(err, "converting rules failed", "globalrules_name", rs.Name)
 		}
 		filename := fmt.Sprintf("globalrules__%s.yaml", rs.Name)
-		cm.Data[filename] = string(result)
+		cm.Data[filename] = result
 	}
 
 	// Create or update generated rule ConfigMap.

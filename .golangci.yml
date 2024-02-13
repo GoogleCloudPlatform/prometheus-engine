@@ -71,7 +71,6 @@ linters:
     - testpackage
     - thelper
     - tparallel
-    - unconvert
     - unparam
     - usestdlibvars
     - varcheck # Deprecated
