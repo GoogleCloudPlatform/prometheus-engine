@@ -13,15 +13,81 @@
 # limitations under the License.
 
 linters:
-  enable:
-  - bodyclose
-  - dupl
-  - dupword
-  - errname
-  - godot
-  - gofmt
-  - loggercheck
-  - whitespace
+  enable-all: true
+  disable:
+    - containedctx
+    - contextcheck
+    - cyclop
+    - deadcode # Deprecated
+    - depguard
+    - errorlint
+    - exhaustive
+    - exhaustivestruct
+    - exhaustruct # Deprecated
+    - exportloopref
+    - forbidigo
+    - forcetypeassert
+    - funlen
+    - gci
+    - gochecknoglobals
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godox
+    - goerr113
+    - gofumpt
+    - golint # Deprecated
+    - gomnd
+    - gomoddirectives
+    - gosec
+    - ifshort # Deprecated
+    - inamedparam
+    - interfacer # Deprecated
+    - ireturn
+    - lll
+    - maintidx
+    - maligned # Deprecated
+    - misspell
+    - nestif
+    - nilerr
+    - nilnil
+    - nlreturn
+    - noctx
+    - nonamedreturns
+    - nosnakecase # Deprecated
+    - nosprintfhostport
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - predeclared
+    - promlinter
+    - protogetter
+    - revive
+    - scopelint # Deprecated
+    - structcheck # Deprecated
+    - stylecheck
+    - tagliatelle
+    - testpackage
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - varcheck # Deprecated
+    - varnamelen
+    - wastedassign
+    - wrapcheck
+    - wsl
+linters-settings:
+  importas:
+    alias:
+    - pkg: "k8s.io/api/apps/v1"
+      alias: appsv1
+    - pkg: "k8s.io/api/meta/v1"
+      alias: metav1
+    - pkg: "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+      alias: monitoringv1
 issues:
   exclude-rules:
   - path: _test\.go
