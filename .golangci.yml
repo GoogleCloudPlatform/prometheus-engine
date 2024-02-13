@@ -48,7 +48,6 @@ linters:
     - lll
     - maintidx
     - maligned # Deprecated
-    - misspell
     - nestif
     - nilerr
     - nilnil

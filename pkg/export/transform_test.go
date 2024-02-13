@@ -467,7 +467,7 @@ func TestSampleBuilder(t *testing.T) {
 			},
 			wantSeries: []*monitoring_pb.TimeSeries{
 				// First sample skipped to initialize reset handling.
-				// Second sample occured before first, panic.
+				// Second sample occurred before first, panic.
 			},
 		}, {
 			doc: "convert summary",

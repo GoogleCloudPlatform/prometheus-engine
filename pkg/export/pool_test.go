@@ -28,7 +28,7 @@ func TestPool(t *testing.T) {
 	ts1 := &monitoring_pb.TimeSeries{
 		Resource: &monitoredres_pb.MonitoredResource{
 			Labels: map[string]string{
-				"resouce_k1":  "resource_v1",
+				"resource_k1": "resource_v1",
 				"resource_k2": "resource_v2",
 			},
 		},
