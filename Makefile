@@ -20,6 +20,7 @@ endif
 ifeq ($(KIND_PERSIST), 1)
 E2E_DOCKER_ARGS += --env KIND_PERSIST=1
 endif
+E2E_DEPS:=config-reloader operator rule-evaluator go-synthetic
 REGISTRY_NAME=kind-registry
 REGISTRY_PORT=5001
 KIND_PARALLEL?=5
@@ -193,7 +194,14 @@ e2e:         ## Run e2e test suite against fresh kind k8s clusters.
              ## Setting GOOGLE_APPLICATION_CREDENTIALS to the path of a
              ## service account key JSON file will attempt to write and read
              ## back metric data for full e2e validation.
-e2e: config-reloader operator rule-evaluator go-synthetic
+e2e: $(E2E_DEPS)
+	$(MAKE) e2e-only
+
+.PHONY: e2e-only
+e2e-only:    ## Run e2e test suite without rebuilding images. This assumes that
+             ## images are already built (e.g. make e2e was called at least
+             ## once). This is useful when testing e2e changes only.
+             ##
 	$(call ensure_registry)
 # We lose some isolation by sharing the host network with the kind containers.
 # However, we avoid a gcloud-shell "Dockerception" and save on build times.
@@ -212,7 +220,7 @@ e2e: config-reloader operator rule-evaluator go-synthetic
 		--env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" \
 		--env PROJECT_ID="$(PROJECT_ID)" \
 		--env GMP_LOCATION="$(GMP_LOCATION)" \
-		--env BINARIES="$^" \
+		--env BINARIES="$(E2E_DEPS)" \
 		--env REGISTRY_NAME=$(REGISTRY_NAME) \
 		--env REGISTRY_PORT=$(REGISTRY_PORT) \
 		--network host \
