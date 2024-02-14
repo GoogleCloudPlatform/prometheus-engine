@@ -29,13 +29,15 @@ func (n noopBackend) Ref() string {
 	return "noop"
 }
 
-func (n noopBackend) start(t testing.TB, env e2e.Environment) (api v1.API, extraLset map[string]string) {
+func (n noopBackend) start(testing.TB, e2e.Environment) (api v1.API, extraLset map[string]string) {
 	return
 }
 
-func (n noopBackend) injectScrapes(t testing.TB, scrapeRecordings [][]*dto.MetricFamily, timeout time.Duration) {
+func (n noopBackend) injectScrapes(testing.TB, [][]*dto.MetricFamily, time.Duration) {
 }
 
 // NoopBackend creates noop backend, useful when you want to skip one backend for
 // local debugging purpose without changing test significantly.
+//
+//nolint:revive // Intentional unexported return
 func NoopBackend() noopBackend { return noopBackend{} }

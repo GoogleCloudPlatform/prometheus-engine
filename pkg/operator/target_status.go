@@ -116,7 +116,7 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer, httpC
 	}
 
 	// Start the controller only once.
-	if err := op.manager.Add(manager.RunnableFunc(func(ctx context.Context) error {
+	if err := op.manager.Add(manager.RunnableFunc(func(context.Context) error {
 		reconciler.ch <- event.GenericEvent{
 			Object: &appsv1.DaemonSet{},
 		}

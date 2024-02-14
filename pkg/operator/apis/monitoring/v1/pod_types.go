@@ -111,20 +111,20 @@ type ClusterPodMonitoring struct {
 	Status PodMonitoringStatus `json:"status"`
 }
 
-func (p *ClusterPodMonitoring) GetKey() string {
-	return fmt.Sprintf("ClusterPodMonitoring/%s", p.Name)
+func (c *ClusterPodMonitoring) GetKey() string {
+	return fmt.Sprintf("ClusterPodMonitoring/%s", c.Name)
 }
 
-func (p *ClusterPodMonitoring) GetEndpoints() []ScrapeEndpoint {
-	return p.Spec.Endpoints
+func (c *ClusterPodMonitoring) GetEndpoints() []ScrapeEndpoint {
+	return c.Spec.Endpoints
 }
 
-func (p *ClusterPodMonitoring) GetPodMonitoringStatus() *PodMonitoringStatus {
-	return &p.Status
+func (c *ClusterPodMonitoring) GetPodMonitoringStatus() *PodMonitoringStatus {
+	return &c.Status
 }
 
-func (p *ClusterPodMonitoring) GetMonitoringStatus() *MonitoringStatus {
-	return &p.Status.MonitoringStatus
+func (c *ClusterPodMonitoring) GetMonitoringStatus() *MonitoringStatus {
+	return &c.Status.MonitoringStatus
 }
 
 // ClusterPodMonitoringList is a list of ClusterPodMonitorings.
@@ -135,29 +135,29 @@ type ClusterPodMonitoringList struct {
 	Items           []ClusterPodMonitoring `json:"items"`
 }
 
-func (cm *ClusterPodMonitoring) ValidateCreate() (admission.Warnings, error) {
-	if len(cm.Spec.Endpoints) == 0 {
+func (c *ClusterPodMonitoring) ValidateCreate() (admission.Warnings, error) {
+	if len(c.Spec.Endpoints) == 0 {
 		return nil, errors.New("at least one endpoint is required")
 	}
 	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
 	// example values has no adverse effects.
-	_, err := cm.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	_, err := c.ScrapeConfigs("test_project", "test_location", "test_cluster")
 	return nil, err
 }
 
-func (cm *ClusterPodMonitoring) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+func (c *ClusterPodMonitoring) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
-	return cm.ValidateCreate()
+	return c.ValidateCreate()
 }
 
-func (cm *ClusterPodMonitoring) ValidateDelete() (admission.Warnings, error) {
+func (*ClusterPodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	// Deletions are always valid.
 	return nil, nil
 }
 
-func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
-	for i := range cm.Spec.Endpoints {
-		c, err := cm.endpointScrapeConfig(i, projectID, location, cluster)
+func (c *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
+	for i := range c.Spec.Endpoints {
+		c, err := c.endpointScrapeConfig(i, projectID, location, cluster)
 		if err != nil {
 			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
@@ -166,30 +166,30 @@ func (cm *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster strin
 	return res, nil
 }
 
-func (pm *PodMonitoring) ValidateCreate() (admission.Warnings, error) {
-	if len(pm.Spec.Endpoints) == 0 {
+func (p *PodMonitoring) ValidateCreate() (admission.Warnings, error) {
+	if len(p.Spec.Endpoints) == 0 {
 		return nil, errors.New("at least one endpoint is required")
 	}
 	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
 	// example values has no adverse effects.
-	_, err := pm.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	_, err := p.ScrapeConfigs("test_project", "test_location", "test_cluster")
 	return nil, err
 }
 
-func (pm *PodMonitoring) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+func (p *PodMonitoring) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
-	return pm.ValidateCreate()
+	return p.ValidateCreate()
 }
 
-func (pm *PodMonitoring) ValidateDelete() (admission.Warnings, error) {
+func (p *PodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	// Deletions are always valid.
 	return nil, nil
 }
 
 // ScrapeConfigs generated Prometheus scrape configs for the PodMonitoring.
-func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
-	for i := range pm.Spec.Endpoints {
-		c, err := pm.endpointScrapeConfig(i, projectID, location, cluster)
+func (p *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
+	for i := range p.Spec.Endpoints {
+		c, err := p.endpointScrapeConfig(i, projectID, location, cluster)
 		if err != nil {
 			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
@@ -198,18 +198,18 @@ func (pm *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res
 	return res, nil
 }
 
-func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+func (p *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
 	relabelCfgs := []*relabel.Config{
 		// Filter targets by namespace of the PodMonitoring configuration.
 		{
 			Action:       relabel.Keep,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
-			Regex:        relabel.MustNewRegexp(pm.Namespace),
+			Regex:        relabel.MustNewRegexp(p.Namespace),
 		},
 	}
 
 	// Filter targets that belong to selected pods.
-	selectors, err := relabelingsForSelector(pm.Spec.Selector, pm)
+	selectors, err := relabelingsForSelector(p.Spec.Selector, p)
 	if err != nil {
 		return nil, err
 	}
@@ -218,8 +218,8 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	metadataLabels := map[string]struct{}{}
 	// The metadata list must be always set in general but we allow the null case
 	// for backwards compatibility and won't add any labels in that case.
-	if pm.Spec.TargetLabels.Metadata != nil {
-		for _, l := range *pm.Spec.TargetLabels.Metadata {
+	if p.Spec.TargetLabels.Metadata != nil {
+		for _, l := range *p.Spec.TargetLabels.Metadata {
 			if allowed := []string{"pod", "container", "node"}; !containsString(allowed, l) {
 				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
 			}
@@ -236,12 +236,12 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	})
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
 		Action:      relabel.Replace,
-		Replacement: pm.Name,
+		Replacement: p.Name,
 		TargetLabel: "job",
 	})
 
 	// Drop any non-running pods if left unspecified or explicitly enabled.
-	if pm.Spec.FilterRunning == nil || *pm.Spec.FilterRunning {
+	if p.Spec.FilterRunning == nil || *p.Spec.FilterRunning {
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Drop,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_phase"},
@@ -250,12 +250,12 @@ func (pm *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cl
 	}
 
 	return endpointScrapeConfig(
-		pm.GetKey(),
+		p.GetKey(),
 		projectID, location, cluster,
-		pm.Spec.Endpoints[index],
+		p.Spec.Endpoints[index],
 		relabelCfgs,
-		pm.Spec.TargetLabels.FromPod,
-		pm.Spec.Limits,
+		p.Spec.TargetLabels.FromPod,
+		p.Spec.Limits,
 	)
 }
 
@@ -377,11 +377,11 @@ func endpointScrapeConfig(id, projectID, location, cluster string, ep ScrapeEndp
 	}
 
 	// Add pod labels.
-	if pCfgs, err := labelMappingRelabelConfigs(podLabels, "__meta_kubernetes_pod_label_"); err != nil {
+	pCfgs, err := labelMappingRelabelConfigs(podLabels, "__meta_kubernetes_pod_label_")
+	if err != nil {
 		return nil, fmt.Errorf("invalid pod label mapping: %w", err)
-	} else {
-		relabelCfgs = append(relabelCfgs, pCfgs...)
 	}
+	relabelCfgs = append(relabelCfgs, pCfgs...)
 
 	httpCfg, err := ep.HTTPClientConfig.ToPrometheusConfig()
 	if err != nil {
@@ -426,9 +426,9 @@ func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
 	return res
 }
 
-func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected pods.
-	relabelCfgs, err := relabelingsForSelector(cm.Spec.Selector, cm)
+	relabelCfgs, err := relabelingsForSelector(c.Spec.Selector, c)
 	if err != nil {
 		return nil, err
 	}
@@ -436,12 +436,12 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 	metadataLabels := map[string]struct{}{}
 	// The metadata list must be always set in general but we allow the null case
 	// for backwards compatibility. In that case we must always add the namespace label.
-	if cm.Spec.TargetLabels.Metadata == nil {
+	if c.Spec.TargetLabels.Metadata == nil {
 		metadataLabels = map[string]struct{}{
 			"namespace": {},
 		}
 	} else {
-		for _, l := range *cm.Spec.TargetLabels.Metadata {
+		for _, l := range *c.Spec.TargetLabels.Metadata {
 			if allowed := []string{"namespace", "pod", "container", "node"}; !containsString(allowed, l) {
 				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
 			}
@@ -452,12 +452,12 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
 		Action:      relabel.Replace,
-		Replacement: cm.Name,
+		Replacement: c.Name,
 		TargetLabel: "job",
 	})
 
 	// Drop any non-running pods if left unspecified or explicitly enabled.
-	if cm.Spec.FilterRunning == nil || *cm.Spec.FilterRunning {
+	if c.Spec.FilterRunning == nil || *c.Spec.FilterRunning {
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Drop,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_phase"},
@@ -466,12 +466,12 @@ func (cm *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locat
 	}
 
 	return endpointScrapeConfig(
-		cm.GetKey(),
+		c.GetKey(),
 		projectID, location, cluster,
-		cm.Spec.Endpoints[index],
+		c.Spec.Endpoints[index],
 		relabelCfgs,
-		cm.Spec.TargetLabels.FromPod,
-		cm.Spec.Limits,
+		c.Spec.TargetLabels.FromPod,
+		c.Spec.Limits,
 	)
 }
 

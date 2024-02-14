@@ -48,7 +48,7 @@ type AltTokenSource struct {
 func (a *AltTokenSource) Token() (*oauth2.Token, error) {
 	r := a.throttle.Reserve()
 	if !r.OK() {
-		return nil, fmt.Errorf("Rate limiter (rate: %f, burst: %d) cannot provide the requested token.",
+		return nil, fmt.Errorf("rate limiter (rate: %f, burst: %d) cannot provide the requested token",
 			a.throttle.Limit(), a.throttle.Burst())
 	}
 	time.Sleep(r.Delay())

@@ -137,7 +137,7 @@ func podMonitoringScrapePoolToClusterPodMonitoringScrapePool(podMonitoringScrape
 }
 
 func targetFetchFromMap(m map[string]*prometheusv1.TargetsResult) getTargetFn {
-	return func(_ context.Context, _ logr.Logger, httpClient *http.Client, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error) {
+	return func(_ context.Context, _ logr.Logger, _ *http.Client, port int32, pod *corev1.Pod) (*prometheusv1.TargetsResult, error) {
 		key := getPodKey(pod, port)
 		targetsResult, ok := m[key]
 		if !ok {

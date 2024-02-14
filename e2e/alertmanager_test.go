@@ -44,7 +44,7 @@ func TestAlertmanager(t *testing.T) {
 	t.Run("alertmanager-operatorconfig", testAlertmanagerOperatorConfig(ctx, t, kubeClient, opClient))
 }
 
-func testAlertmanagerDeployed(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+func testAlertmanagerDeployed(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking alertmanager is running")
 
@@ -95,7 +95,7 @@ func testAlertmanagerDeployed(ctx context.Context, t *testing.T, kubeClient kube
 	}
 }
 
-func testAlertmanagerOperatorConfig(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testAlertmanagerOperatorConfig(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking alertmanager is configured")
 

@@ -258,7 +258,7 @@ func buildUpdateDataSourceRequest(dataSource grafana.DataSource, token string) (
 			found = true
 			break
 		}
-		x += 1
+		x++
 	}
 
 	if !found {

@@ -98,33 +98,33 @@ func (n *NodeMonitoring) GetEndpoints() []ScrapeNodeEndpoint {
 	return n.Spec.Endpoints
 }
 
-func (p *NodeMonitoring) GetMonitoringStatus() *MonitoringStatus {
-	return &p.Status
+func (n *NodeMonitoring) GetMonitoringStatus() *MonitoringStatus {
+	return &n.Status
 }
 
-func (nm *NodeMonitoring) ValidateCreate() (admission.Warnings, error) {
-	if len(nm.Spec.Endpoints) == 0 {
+func (n *NodeMonitoring) ValidateCreate() (admission.Warnings, error) {
+	if len(n.Spec.Endpoints) == 0 {
 		return nil, errors.New("at least one endpoint is required")
 	}
 	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
 	// example values has no adverse effects.
-	_, err := nm.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	_, err := n.ScrapeConfigs("test_project", "test_location", "test_cluster")
 	return nil, err
 }
 
-func (nm *NodeMonitoring) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+func (n *NodeMonitoring) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
-	return nm.ValidateCreate()
+	return n.ValidateCreate()
 }
 
-func (nm *NodeMonitoring) ValidateDelete() (admission.Warnings, error) {
+func (*NodeMonitoring) ValidateDelete() (admission.Warnings, error) {
 	// Deletions are always valid.
 	return nil, nil
 }
 
-func (nm *NodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
-	for i, ep := range nm.Spec.Endpoints {
-		c, err := nm.endpointScrapeConfig(&ep, projectID, location, cluster)
+func (n *NodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
+	for i, ep := range n.Spec.Endpoints {
+		c, err := n.endpointScrapeConfig(&ep, projectID, location, cluster)
 		if err != nil {
 			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
@@ -133,9 +133,9 @@ func (nm *NodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (re
 	return res, nil
 }
 
-func (nm *NodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+func (n *NodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected nodes.
-	relabelCfgs, err := relabelingsForSelector(nm.Spec.Selector, nm)
+	relabelCfgs, err := relabelingsForSelector(n.Spec.Selector, n)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (nm *NodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID
 	relabelCfgs = append(relabelCfgs,
 		&relabel.Config{
 			Action:      relabel.Replace,
-			Replacement: nm.Name,
+			Replacement: n.Name,
 			TargetLabel: "job",
 		},
 		&relabel.Config{
@@ -206,7 +206,7 @@ func (nm *NodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID
 		},
 	}
 
-	return buildPrometheusScrapConfig(fmt.Sprintf("%s%s", nm.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, nm.Spec.Limits,
+	return buildPrometheusScrapConfig(fmt.Sprintf("%s%s", n.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, n.Spec.Limits,
 		ScrapeEndpoint{Interval: ep.Interval,
 			Timeout:          ep.Timeout,
 			Path:             metricsPath,

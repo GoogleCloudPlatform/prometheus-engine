@@ -258,7 +258,7 @@ func (alwaysLease) Run(ctx context.Context) {
 	<-ctx.Done()
 }
 
-func (alwaysLease) OnLeaderChange(f func()) {
+func (alwaysLease) OnLeaderChange(func()) {
 	// We never lose the lease as it's always owned.
 }
 

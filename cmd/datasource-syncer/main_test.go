@@ -192,15 +192,15 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 				}
 				return
 			}
-			gotJson, err := json.Marshal(got)
+			gotJSON, err := json.Marshal(got)
 			if err != nil {
 				t.Fatalf("unmarshal gotJson failed with error: %v", err)
 			}
-			wantJson, err := json.Marshal(tt.want)
+			wantJSON, err := json.Marshal(tt.want)
 			if err != nil {
 				t.Fatalf("unmarshal wantJson failed with error: %v", err)
 			}
-			if diff := cmp.Diff(string(wantJson), string(gotJson)); diff != "" {
+			if diff := cmp.Diff(string(wantJSON), string(gotJSON)); diff != "" {
 				t.Fatalf("unexpected json config (-want, +got): %s", diff)
 			}
 		})

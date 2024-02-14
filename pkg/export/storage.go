@@ -88,7 +88,7 @@ func (s *Storage) clearLabels(samples []record.RefSample) {
 }
 
 // Appender returns a new Appender.
-func (s *Storage) Appender(ctx context.Context) storage.Appender {
+func (s *Storage) Appender(context.Context) storage.Appender {
 	return &storageAppender{
 		storage: s,
 		samples: make([]record.RefSample, 0, 64),

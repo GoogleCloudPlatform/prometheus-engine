@@ -115,7 +115,7 @@ func main() {
 				}
 				return nil
 			},
-			func(err error) {
+			func(error) {
 				close(cancel)
 			},
 		)
@@ -138,11 +138,11 @@ func main() {
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
 		http.Handle("/api/", authenticate(forward(logger, targetURL, transport)))
 
-		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
+		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "Prometheus frontend is Healthy.\n")
 		})
-		http.HandleFunc("/-/ready", func(w http.ResponseWriter, r *http.Request) {
+		http.HandleFunc("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "Prometheus frontend is Ready.\n")
 		})
@@ -153,7 +153,7 @@ func main() {
 			//nolint:errcheck
 			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
 			return server.ListenAndServe()
-		}, func(err error) {
+		}, func(error) {
 			ctx, cancel = context.WithTimeout(ctx, time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
 				//nolint:errcheck

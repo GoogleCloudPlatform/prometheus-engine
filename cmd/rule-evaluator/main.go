@@ -292,7 +292,7 @@ func main() {
 				}
 				return nil
 			},
-			func(err error) {
+			func(error) {
 				close(cancel)
 			},
 		)
@@ -314,7 +314,7 @@ func main() {
 			level.Info(logger).Log("msg", "Notification manager stopped")
 			return nil
 		},
-			func(err error) {
+			func(error) {
 				notificationManager.Stop()
 			},
 		)
@@ -328,7 +328,7 @@ func main() {
 				level.Info(logger).Log("msg", "Discovery manager stopped")
 				return err
 			},
-			func(err error) {
+			func(error) {
 				//nolint:errcheck
 				level.Info(logger).Log("msg", "Stopping Discovery manager...")
 				cancelDiscover()
@@ -366,10 +366,10 @@ func main() {
 				http.Error(w, "Only POST requests allowed.", http.StatusMethodNotAllowed)
 			}
 		})
-		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
+		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
-		http.HandleFunc("/-/ready", func(w http.ResponseWriter, r *http.Request) {
+		http.HandleFunc("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "rule-evaluator is Ready.\n")
 		})
@@ -377,7 +377,7 @@ func main() {
 			//nolint:errcheck
 			level.Info(logger).Log("msg", "Starting web server", "listen", *listenAddress)
 			return server.ListenAndServe()
-		}, func(err error) {
+		}, func(error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
 				//nolint:errcheck
@@ -413,7 +413,7 @@ func main() {
 					}
 				}
 			},
-			func(err error) {
+			func(error) {
 				// Wait for any in-progress reloads to complete to avoid
 				// reloading things after they have been shutdown.
 				cancel <- struct{}{}
@@ -447,7 +447,7 @@ func QueryFunc(ctx context.Context, q string, t time.Time, v1api v1.API) (parser
 
 // sendAlerts returns the rules.NotifyFunc for a Notifier.
 func sendAlerts(s *notifier.Manager, externalURL string) rules.NotifyFunc {
-	return func(ctx context.Context, expr string, alerts ...*rules.Alert) {
+	return func(_ context.Context, expr string, alerts ...*rules.Alert) {
 		var res []*notifier.Alert
 		for _, alert := range alerts {
 			a := &notifier.Alert{

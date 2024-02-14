@@ -79,6 +79,8 @@ type backend struct {
 //
 // NOTE(bwplotka): All test functionality fails tests on error (instead of returning
 // error).
+//
+//nolint:revive // Intentional unexported return
 func NewIngestionTest(t testing.TB, backends []Backend) *ingestionTest {
 	t.Helper()
 
