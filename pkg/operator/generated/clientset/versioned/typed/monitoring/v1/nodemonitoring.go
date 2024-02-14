@@ -31,7 +31,7 @@ import (
 // NodeMonitoringsGetter has a method to return a NodeMonitoringInterface.
 // A group's client should implement this interface.
 type NodeMonitoringsGetter interface {
-	NodeMonitorings(namespace string) NodeMonitoringInterface
+	NodeMonitorings() NodeMonitoringInterface
 }
 
 // NodeMonitoringInterface has methods to work with NodeMonitoring resources.
@@ -51,14 +51,12 @@ type NodeMonitoringInterface interface {
 // nodeMonitorings implements NodeMonitoringInterface
 type nodeMonitorings struct {
 	client rest.Interface
-	ns     string
 }
 
 // newNodeMonitorings returns a NodeMonitorings
-func newNodeMonitorings(c *MonitoringV1Client, namespace string) *nodeMonitorings {
+func newNodeMonitorings(c *MonitoringV1Client) *nodeMonitorings {
 	return &nodeMonitorings{
 		client: c.RESTClient(),
-		ns:     namespace,
 	}
 }
 
@@ -66,7 +64,6 @@ func newNodeMonitorings(c *MonitoringV1Client, namespace string) *nodeMonitoring
 func (c *nodeMonitorings) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.NodeMonitoring, err error) {
 	result = &v1.NodeMonitoring{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("nodemonitorings").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -83,7 +80,6 @@ func (c *nodeMonitorings) List(ctx context.Context, opts metav1.ListOptions) (re
 	}
 	result = &v1.NodeMonitoringList{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("nodemonitorings").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -100,7 +96,6 @@ func (c *nodeMonitorings) Watch(ctx context.Context, opts metav1.ListOptions) (w
 	}
 	opts.Watch = true
 	return c.client.Get().
-		Namespace(c.ns).
 		Resource("nodemonitorings").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -111,7 +106,6 @@ func (c *nodeMonitorings) Watch(ctx context.Context, opts metav1.ListOptions) (w
 func (c *nodeMonitorings) Create(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.CreateOptions) (result *v1.NodeMonitoring, err error) {
 	result = &v1.NodeMonitoring{}
 	err = c.client.Post().
-		Namespace(c.ns).
 		Resource("nodemonitorings").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(nodeMonitoring).
@@ -124,7 +118,6 @@ func (c *nodeMonitorings) Create(ctx context.Context, nodeMonitoring *v1.NodeMon
 func (c *nodeMonitorings) Update(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.UpdateOptions) (result *v1.NodeMonitoring, err error) {
 	result = &v1.NodeMonitoring{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("nodemonitorings").
 		Name(nodeMonitoring.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
@@ -139,7 +132,6 @@ func (c *nodeMonitorings) Update(ctx context.Context, nodeMonitoring *v1.NodeMon
 func (c *nodeMonitorings) UpdateStatus(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.UpdateOptions) (result *v1.NodeMonitoring, err error) {
 	result = &v1.NodeMonitoring{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("nodemonitorings").
 		Name(nodeMonitoring.Name).
 		SubResource("status").
@@ -153,7 +145,6 @@ func (c *nodeMonitorings) UpdateStatus(ctx context.Context, nodeMonitoring *v1.N
 // Delete takes name of the nodeMonitoring and deletes it. Returns an error if one occurs.
 func (c *nodeMonitorings) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("nodemonitorings").
 		Name(name).
 		Body(&opts).
@@ -168,7 +159,6 @@ func (c *nodeMonitorings) DeleteCollection(ctx context.Context, opts metav1.Dele
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("nodemonitorings").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -181,7 +171,6 @@ func (c *nodeMonitorings) DeleteCollection(ctx context.Context, opts metav1.Dele
 func (c *nodeMonitorings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.NodeMonitoring, err error) {
 	result = &v1.NodeMonitoring{}
 	err = c.client.Patch(pt).
-		Namespace(c.ns).
 		Resource("nodemonitorings").
 		Name(name).
 		SubResource(subresources...).

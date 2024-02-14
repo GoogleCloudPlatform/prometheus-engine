@@ -30,7 +30,6 @@ import (
 // FakeNodeMonitorings implements NodeMonitoringInterface
 type FakeNodeMonitorings struct {
 	Fake *FakeMonitoringV1
-	ns   string
 }
 
 var nodemonitoringsResource = v1.SchemeGroupVersion.WithResource("nodemonitorings")
@@ -40,8 +39,7 @@ var nodemonitoringsKind = v1.SchemeGroupVersion.WithKind("NodeMonitoring")
 // Get takes name of the nodeMonitoring, and returns the corresponding nodeMonitoring object, and an error if there is any.
 func (c *FakeNodeMonitorings) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.NodeMonitoring, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(nodemonitoringsResource, c.ns, name), &v1.NodeMonitoring{})
-
+		Invokes(testing.NewRootGetAction(nodemonitoringsResource, name), &v1.NodeMonitoring{})
 	if obj == nil {
 		return nil, err
 	}
@@ -51,8 +49,7 @@ func (c *FakeNodeMonitorings) Get(ctx context.Context, name string, options meta
 // List takes label and field selectors, and returns the list of NodeMonitorings that match those selectors.
 func (c *FakeNodeMonitorings) List(ctx context.Context, opts metav1.ListOptions) (result *v1.NodeMonitoringList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(nodemonitoringsResource, nodemonitoringsKind, c.ns, opts), &v1.NodeMonitoringList{})
-
+		Invokes(testing.NewRootListAction(nodemonitoringsResource, nodemonitoringsKind, opts), &v1.NodeMonitoringList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -73,15 +70,13 @@ func (c *FakeNodeMonitorings) List(ctx context.Context, opts metav1.ListOptions)
 // Watch returns a watch.Interface that watches the requested nodeMonitorings.
 func (c *FakeNodeMonitorings) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(nodemonitoringsResource, c.ns, opts))
-
+		InvokesWatch(testing.NewRootWatchAction(nodemonitoringsResource, opts))
 }
 
 // Create takes the representation of a nodeMonitoring and creates it.  Returns the server's representation of the nodeMonitoring, and an error, if there is any.
 func (c *FakeNodeMonitorings) Create(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.CreateOptions) (result *v1.NodeMonitoring, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(nodemonitoringsResource, c.ns, nodeMonitoring), &v1.NodeMonitoring{})
-
+		Invokes(testing.NewRootCreateAction(nodemonitoringsResource, nodeMonitoring), &v1.NodeMonitoring{})
 	if obj == nil {
 		return nil, err
 	}
@@ -91,8 +86,7 @@ func (c *FakeNodeMonitorings) Create(ctx context.Context, nodeMonitoring *v1.Nod
 // Update takes the representation of a nodeMonitoring and updates it. Returns the server's representation of the nodeMonitoring, and an error, if there is any.
 func (c *FakeNodeMonitorings) Update(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.UpdateOptions) (result *v1.NodeMonitoring, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(nodemonitoringsResource, c.ns, nodeMonitoring), &v1.NodeMonitoring{})
-
+		Invokes(testing.NewRootUpdateAction(nodemonitoringsResource, nodeMonitoring), &v1.NodeMonitoring{})
 	if obj == nil {
 		return nil, err
 	}
@@ -103,8 +97,7 @@ func (c *FakeNodeMonitorings) Update(ctx context.Context, nodeMonitoring *v1.Nod
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 func (c *FakeNodeMonitorings) UpdateStatus(ctx context.Context, nodeMonitoring *v1.NodeMonitoring, opts metav1.UpdateOptions) (*v1.NodeMonitoring, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(nodemonitoringsResource, "status", c.ns, nodeMonitoring), &v1.NodeMonitoring{})
-
+		Invokes(testing.NewRootUpdateSubresourceAction(nodemonitoringsResource, "status", nodeMonitoring), &v1.NodeMonitoring{})
 	if obj == nil {
 		return nil, err
 	}
@@ -114,14 +107,13 @@ func (c *FakeNodeMonitorings) UpdateStatus(ctx context.Context, nodeMonitoring *
 // Delete takes name of the nodeMonitoring and deletes it. Returns an error if one occurs.
 func (c *FakeNodeMonitorings) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(nodemonitoringsResource, c.ns, name, opts), &v1.NodeMonitoring{})
-
+		Invokes(testing.NewRootDeleteActionWithOptions(nodemonitoringsResource, name, opts), &v1.NodeMonitoring{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeNodeMonitorings) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(nodemonitoringsResource, c.ns, listOpts)
+	action := testing.NewRootDeleteCollectionAction(nodemonitoringsResource, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.NodeMonitoringList{})
 	return err
@@ -130,8 +122,7 @@ func (c *FakeNodeMonitorings) DeleteCollection(ctx context.Context, opts metav1.
 // Patch applies the patch and returns the patched nodeMonitoring.
 func (c *FakeNodeMonitorings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.NodeMonitoring, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(nodemonitoringsResource, c.ns, name, pt, data, subresources...), &v1.NodeMonitoring{})
-
+		Invokes(testing.NewRootPatchSubresourceAction(nodemonitoringsResource, name, pt, data, subresources...), &v1.NodeMonitoring{})
 	if obj == nil {
 		return nil, err
 	}
