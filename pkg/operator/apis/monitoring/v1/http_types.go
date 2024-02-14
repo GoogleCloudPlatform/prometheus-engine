@@ -57,9 +57,8 @@ type KubernetesSecretKeySelector struct {
 
 	// Namespace of the secret to select from.
 	// If empty the parent resource namespace will be chosen.
-	// NOTE: For PodMonitoring, this field should be empty or specify
-	// the same namespace as the PodMonitoring namespace.
 	// +optional
+	// +kubebuilder:field:scope=Cluster
 	Namespace string `json:"namespace,omitempty"`
 }
 

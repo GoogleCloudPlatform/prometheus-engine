@@ -80,7 +80,8 @@ combine() {
 update_crdgen() {
   echo ">>> regenerating CRD yamls"
 
-  which controller-gen || go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
+  # TODO(TheSpiritXIII): Replace once merged: https://github.com/kubernetes-sigs/controller-tools/pull/878
+  which controller-gen || go install github.com/TheSpiritXIII/controller-tools/cmd/controller-gen@v0.14.1-gmp
 
   API_DIR=${REPO_ROOT}/pkg/operator/apis/...
 
