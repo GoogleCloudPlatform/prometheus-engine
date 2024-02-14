@@ -52,8 +52,8 @@ func (c *MonitoringV1Client) GlobalRules() GlobalRulesInterface {
 	return newGlobalRules(c)
 }
 
-func (c *MonitoringV1Client) NodeMonitorings(namespace string) NodeMonitoringInterface {
-	return newNodeMonitorings(c, namespace)
+func (c *MonitoringV1Client) NodeMonitorings() NodeMonitoringInterface {
+	return newNodeMonitorings(c)
 }
 
 func (c *MonitoringV1Client) OperatorConfigs(namespace string) OperatorConfigInterface {
