@@ -20,7 +20,8 @@ WORKDIR /workspace
 # RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
 #   && cd prometheus-operator \
 #   && go install ./cmd/po-docgen
-RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
+# TODO(TheSpiritXIII): Replace once merged: https://github.com/kubernetes-sigs/controller-tools/pull/878
+RUN go install github.com/TheSpiritXIII/controller-tools/cmd/controller-gen@v0.14.1-gmp
 RUN go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
 
 RUN go install github.com/bwplotka/bingo@v0.9.0

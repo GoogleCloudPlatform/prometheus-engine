@@ -17,7 +17,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.14.1-gmp
   name: clusternodemonitorings.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -254,7 +254,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.14.1-gmp
   name: clusterpodmonitorings.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -323,8 +323,6 @@ spec:
                                     description: |-
                                       Namespace of the secret to select from.
                                       If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
@@ -360,8 +358,6 @@ spec:
                                     description: |-
                                       Namespace of the secret to select from.
                                       If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
@@ -446,8 +442,6 @@ spec:
                                     description: |-
                                       Namespace of the secret to select from.
                                       If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
@@ -491,8 +485,6 @@ spec:
                                         description: |-
                                           Namespace of the secret to select from.
                                           If empty the parent resource namespace will be chosen.
-                                          NOTE: For PodMonitoring, this field should be empty or specify
-                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
@@ -520,8 +512,6 @@ spec:
                                         description: |-
                                           Namespace of the secret to select from.
                                           If empty the parent resource namespace will be chosen.
-                                          NOTE: For PodMonitoring, this field should be empty or specify
-                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
@@ -552,8 +542,6 @@ spec:
                                         description: |-
                                           Namespace of the secret to select from.
                                           If empty the parent resource namespace will be chosen.
-                                          NOTE: For PodMonitoring, this field should be empty or specify
-                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
@@ -637,8 +625,6 @@ spec:
                                     description: |-
                                       Namespace of the secret to select from.
                                       If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
@@ -666,8 +652,6 @@ spec:
                                     description: |-
                                       Namespace of the secret to select from.
                                       If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
@@ -698,8 +682,6 @@ spec:
                                     description: |-
                                       Namespace of the secret to select from.
                                       If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
@@ -1233,7 +1215,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.14.1-gmp
   name: clusterrules.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -1456,7 +1438,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.14.1-gmp
   name: globalrules.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -1677,7 +1659,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.14.1-gmp
   name: operatorconfigs.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -2411,7 +2393,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.14.1-gmp
   name: podmonitorings.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -2476,13 +2458,6 @@ spec:
                                   name:
                                     description: Name of the secret to select from.
                                     type: string
-                                  namespace:
-                                    description: |-
-                                      Namespace of the secret to select from.
-                                      If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
-                                    type: string
                                 required:
                                   - key
                                   - name
@@ -2512,13 +2487,6 @@ spec:
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
-                                    type: string
-                                  namespace:
-                                    description: |-
-                                      Namespace of the secret to select from.
-                                      If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
@@ -2599,13 +2567,6 @@ spec:
                                   name:
                                     description: Name of the secret to select from.
                                     type: string
-                                  namespace:
-                                    description: |-
-                                      Namespace of the secret to select from.
-                                      If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
-                                    type: string
                                 required:
                                   - key
                                   - name
@@ -2644,13 +2605,6 @@ spec:
                                       name:
                                         description: Name of the secret to select from.
                                         type: string
-                                      namespace:
-                                        description: |-
-                                          Namespace of the secret to select from.
-                                          If empty the parent resource namespace will be chosen.
-                                          NOTE: For PodMonitoring, this field should be empty or specify
-                                          the same namespace as the PodMonitoring namespace.
-                                        type: string
                                     required:
                                       - key
                                       - name
@@ -2672,13 +2626,6 @@ spec:
                                         type: string
                                       name:
                                         description: Name of the secret to select from.
-                                        type: string
-                                      namespace:
-                                        description: |-
-                                          Namespace of the secret to select from.
-                                          If empty the parent resource namespace will be chosen.
-                                          NOTE: For PodMonitoring, this field should be empty or specify
-                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
@@ -2704,13 +2651,6 @@ spec:
                                         type: string
                                       name:
                                         description: Name of the secret to select from.
-                                        type: string
-                                      namespace:
-                                        description: |-
-                                          Namespace of the secret to select from.
-                                          If empty the parent resource namespace will be chosen.
-                                          NOTE: For PodMonitoring, this field should be empty or specify
-                                          the same namespace as the PodMonitoring namespace.
                                         type: string
                                     required:
                                       - key
@@ -2790,13 +2730,6 @@ spec:
                                   name:
                                     description: Name of the secret to select from.
                                     type: string
-                                  namespace:
-                                    description: |-
-                                      Namespace of the secret to select from.
-                                      If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
-                                    type: string
                                 required:
                                   - key
                                   - name
@@ -2818,13 +2751,6 @@ spec:
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
-                                    type: string
-                                  namespace:
-                                    description: |-
-                                      Namespace of the secret to select from.
-                                      If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
@@ -2850,13 +2776,6 @@ spec:
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
-                                    type: string
-                                  namespace:
-                                    description: |-
-                                      Namespace of the secret to select from.
-                                      If empty the parent resource namespace will be chosen.
-                                      NOTE: For PodMonitoring, this field should be empty or specify
-                                      the same namespace as the PodMonitoring namespace.
                                     type: string
                                 required:
                                   - key
@@ -3385,7 +3304,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.14.1-gmp
   name: rules.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
