@@ -22,7 +22,6 @@ set -o pipefail
 GO_TEST=$1
 
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
-TAG_NAME=$(date "+gmp-%Y%d%m_%H%M")
 TEST_ARGS=""
 # Convert kind cluster name to required regex if necessary.
 # We need to ensure this name is not too long due to: https://github.com/kubernetes-sigs/kind/issues/623
@@ -132,7 +131,7 @@ docker_tag_push() {
   for bin in "$@"; do
     REGISTRY_TAG=localhost:${REGISTRY_PORT}/${bin}:${TAG_NAME}
     echo ">>> tagging and pushing image: ${bin}"
-    docker tag gmp/${bin} ${REGISTRY_TAG}
+    docker tag gmp/${bin}:${TAG_NAME} ${REGISTRY_TAG}
     docker push ${REGISTRY_TAG}
   done
 }
