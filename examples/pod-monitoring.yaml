@@ -25,3 +25,9 @@ spec:
   endpoints:
   - port: metrics
     interval: 30s
+  targetLabels:
+    metadata:
+    # omitting workload_controller labels here will revert the change.
+    - pod
+    - container
+    - node
