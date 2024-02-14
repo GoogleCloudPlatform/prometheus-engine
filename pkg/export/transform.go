@@ -246,10 +246,10 @@ func (d *distribution) reset() {
 
 func (d *distribution) inputSampleCount() (c int) {
 	if d.hasSum {
-		c += 1
+		c++
 	}
 	if d.hasCount {
-		c += 1
+		c++
 	}
 	return c + len(d.values)
 }
@@ -375,7 +375,7 @@ func isHistogramSeries(metric, name string) bool {
 // It returns the reset timestamp along with the distribution and the remaining samples.
 func (b *sampleBuilder) buildDistribution(
 	metric string,
-	matchLset labels.Labels,
+	_ labels.Labels,
 	samples []record.RefSample,
 	exemplars map[storage.SeriesRef]record.RefExemplar,
 	externalLabels labels.Labels,

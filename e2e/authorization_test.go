@@ -530,7 +530,7 @@ func TestOAuth2ClusterPodMonitoring(t *testing.T) {
 	t.Run("oauth2-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, t, opClient, cpmFail, "server returned HTTP status 401 Unauthorized"))
 }
 
-func testPatchExampleAppArgs(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, args []string) func(*testing.T) {
+func testPatchExampleAppArgs(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, args []string) func(*testing.T) {
 	return func(t *testing.T) {
 		deploy, err := kubeClient.AppsV1().Deployments("default").Get(ctx, "go-synthetic", metav1.GetOptions{})
 		if err != nil {

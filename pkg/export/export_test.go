@@ -114,7 +114,7 @@ func TestBatchFillFromShardsAndSend(t *testing.T) {
 
 	// When sending the batch we should see the right number of samples and all shards we pass should
 	// be notified at the end.
-	sendOne := func(ctx context.Context, req *monitoring_pb.CreateTimeSeriesRequest, opts ...gax.CallOption) error {
+	sendOne := func(_ context.Context, req *monitoring_pb.CreateTimeSeriesRequest, _ ...gax.CallOption) error {
 		mtx.Lock()
 		receivedSamples += len(req.TimeSeries)
 		mtx.Unlock()
@@ -331,7 +331,7 @@ type testMetricService struct {
 	samples                           []*monitoring_pb.TimeSeries
 }
 
-func (srv *testMetricService) CreateTimeSeries(ctx context.Context, req *monitoring_pb.CreateTimeSeriesRequest) (*empty_pb.Empty, error) {
+func (srv *testMetricService) CreateTimeSeries(_ context.Context, req *monitoring_pb.CreateTimeSeriesRequest) (*empty_pb.Empty, error) {
 	srv.samples = append(srv.samples, req.TimeSeries...)
 	return &empty_pb.Empty{}, nil
 }
@@ -369,7 +369,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 	}
 	e.metricClient = metricClient
 
-	e.SetLabelsByIDFunc(func(i storage.SeriesRef) labels.Labels {
+	e.SetLabelsByIDFunc(func(storage.SeriesRef) labels.Labels {
 		return labels.FromStrings("project_id", "test", "location", "test")
 	})
 

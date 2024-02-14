@@ -60,7 +60,6 @@ linters:
     - prealloc
     - promlinter
     - protogetter
-    - revive
     - scopelint # Deprecated
     - structcheck # Deprecated
     - stylecheck

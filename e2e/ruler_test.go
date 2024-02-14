@@ -61,7 +61,7 @@ func TestRuleEvaluator(t *testing.T) {
 	}
 }
 
-func testRuleEvaluatorDeployed(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+func testRuleEvaluatorDeployed(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking rule-evaluator is running")
 
@@ -92,7 +92,7 @@ func testRuleEvaluatorDeployed(ctx context.Context, t *testing.T, kubeClient kub
 	}
 }
 
-func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testRuleEvaluatorOperatorConfig(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking rule-evaluator is configured")
 
@@ -149,7 +149,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, t *testing.T, kubeClie
 	}
 }
 
-func testRuleEvaluatorSecrets(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testRuleEvaluatorSecrets(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		cert, key, err := cert.GenerateSelfSignedCertKey("test", nil, nil)
 		if err != nil {
@@ -223,7 +223,7 @@ func testRuleEvaluatorSecrets(ctx context.Context, t *testing.T, kubeClient kube
 	}
 }
 
-func testRuleEvaluatorConfiguration(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+func testRuleEvaluatorConfiguration(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		replace := func(s string) string {
 			return strings.NewReplacer(
@@ -301,7 +301,7 @@ rule_files:
 	}
 }
 
-func testCreateRules(ctx context.Context, t *testing.T, opClient versioned.Interface) func(*testing.T) {
+func testCreateRules(ctx context.Context, _ *testing.T, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("creating rules")
 
@@ -332,7 +332,7 @@ func testCreateRules(ctx context.Context, t *testing.T, opClient versioned.Inter
 	}
 }
 
-func testValidateRuleEvaluationMetrics(ctx context.Context, t *testing.T) func(*testing.T) {
+func testValidateRuleEvaluationMetrics(ctx context.Context, _ *testing.T) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 

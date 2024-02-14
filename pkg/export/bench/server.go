@@ -67,7 +67,7 @@ type server struct {
 	latency time.Duration
 }
 
-func (srv *server) CreateTimeSeries(_ context.Context, req *monitoring_pb.CreateTimeSeriesRequest) (*emptypb.Empty, error) {
+func (srv *server) CreateTimeSeries(context.Context, *monitoring_pb.CreateTimeSeriesRequest) (*emptypb.Empty, error) {
 	time.Sleep(srv.latency)
 	return &emptypb.Empty{}, nil
 }

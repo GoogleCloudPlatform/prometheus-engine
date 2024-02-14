@@ -180,7 +180,7 @@ func main() {
 				}
 				return nil
 			},
-			func(err error) {
+			func(error) {
 				close(cancel)
 			},
 		)
@@ -191,7 +191,7 @@ func main() {
 
 		g.Add(func() error {
 			return server.ListenAndServe()
-		}, func(err error) {
+		}, func(error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
 				log.Printf("Server failed to shut down gracefully: %s", err)
@@ -205,7 +205,7 @@ func main() {
 			func() error {
 				return burnCPU(ctx, *cpuBurnOps)
 			},
-			func(err error) {
+			func(error) {
 				cancel()
 			},
 		)
@@ -216,7 +216,7 @@ func main() {
 			func() error {
 				return updateMetrics(ctx)
 			},
-			func(err error) {
+			func(error) {
 				cancel()
 			},
 		)
@@ -242,6 +242,7 @@ func burnCPU(ctx context.Context, ops int) error {
 		// Burn some CPU proportional to the input ops.
 		// This must be fixed work, i.e. we cannot spin for a fraction of scheduling will
 		// greatly affect how many times we spin, even without high CPU utilization.
+		//nolint:revive // Intentionally empty block
 		for i := 0; i < ops*20000000; i++ {
 		}
 

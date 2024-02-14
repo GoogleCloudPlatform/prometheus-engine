@@ -41,7 +41,7 @@ func Handler(externalURL *url.URL) http.Handler {
 		"/graph",
 	}
 	for _, p := range reactRouterPaths {
-		mux.HandleFunc(p, func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc(p, func(w http.ResponseWriter, _ *http.Request) {
 			f, err := Assets.Open("/static/react/index.html")
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)

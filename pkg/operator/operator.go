@@ -213,7 +213,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 			BindAddress: "0",
 		},
 		// Manage cluster-wide and namespace resources at the same time.
-		NewCache: cache.NewCacheFunc(func(config *rest.Config, options cache.Options) (cache.Cache, error) {
+		NewCache: cache.NewCacheFunc(func(_ *rest.Config, options cache.Options) (cache.Cache, error) {
 			return cache.New(clientConfig, cache.Options{
 				Scheme: options.Scheme,
 

@@ -149,7 +149,7 @@ func main() {
 				}
 				return nil
 			},
-			func(err error) {
+			func(error) {
 				close(cancel)
 			},
 		)
@@ -162,7 +162,7 @@ func main() {
 			//nolint:errcheck
 			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
 			return server.ListenAndServe()
-		}, func(err error) {
+		}, func(error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
 				//nolint:errcheck

@@ -142,7 +142,7 @@ func TestCollectorKubeletScraping(t *testing.T) {
 
 // testCollectorDeployed does a high-level verification on whether the
 // collector is deployed to the cluster.
-func testCollectorDeployed(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+func testCollectorDeployed(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is running")
 
@@ -181,7 +181,7 @@ func testCollectorDeployed(ctx context.Context, t *testing.T, kubeClient kuberne
 	}
 }
 
-func testCollectorOperatorConfig(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testCollectorOperatorConfig(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is configured")
 
@@ -257,7 +257,7 @@ func testEnsurePodMonitoringReady(ctx context.Context, t *testing.T, opClient ve
 
 // testEnsurePodMonitoringStatus sets up a PodMonitoring and runs validations against
 // its status with the provided function.
-func testEnsurePodMonitoringStatus(ctx context.Context, t *testing.T, opClient versioned.Interface, pm *monitoringv1.PodMonitoring, validate statusFn) func(*testing.T) {
+func testEnsurePodMonitoringStatus(ctx context.Context, _ *testing.T, opClient versioned.Interface, pm *monitoringv1.PodMonitoring, validate statusFn) func(*testing.T) {
 	// The operator should configure the collector to scrape itself and its metrics
 	// should show up in Cloud Monitoring shortly after.
 	return func(t *testing.T) {
@@ -317,7 +317,7 @@ func testEnsureClusterPodMonitoringReady(ctx context.Context, t *testing.T, opCl
 
 // testEnsureClusterPodMonitoringStatus sets up a ClusterPodMonitoring and runs
 // validations against its status with the provided function.
-func testEnsureClusterPodMonitoringStatus(ctx context.Context, t *testing.T, opClient versioned.Interface, cpm *monitoringv1.ClusterPodMonitoring, validate statusFn) func(*testing.T) {
+func testEnsureClusterPodMonitoringStatus(ctx context.Context, _ *testing.T, opClient versioned.Interface, cpm *monitoringv1.ClusterPodMonitoring, validate statusFn) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("ensuring ClusterPodMonitoring is created and ready")
 
@@ -370,7 +370,7 @@ func testEnsureClusterPodMonitoringStatus(ctx context.Context, t *testing.T, opC
 	}
 }
 
-func testEnableTargetStatus(ctx context.Context, t *testing.T, opClient versioned.Interface) func(*testing.T) {
+func testEnableTargetStatus(ctx context.Context, _ *testing.T, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("enabling target status reporting")
 
@@ -389,7 +389,7 @@ func testEnableTargetStatus(ctx context.Context, t *testing.T, opClient versione
 	}
 }
 
-func testEnableKubeletScraping(ctx context.Context, t *testing.T, opClient versioned.Interface) func(*testing.T) {
+func testEnableKubeletScraping(ctx context.Context, _ *testing.T, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("enabling kubelet scraping")
 
@@ -413,7 +413,7 @@ func testEnableKubeletScraping(ctx context.Context, t *testing.T, opClient versi
 
 // testValidateCollectorUpMetrics checks whether the scrape-time up metrics for all collector
 // pods can be queried from GCM.
-func testValidateCollectorUpMetrics(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, job string) func(*testing.T) {
+func testValidateCollectorUpMetrics(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, job string) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 
@@ -489,7 +489,7 @@ func testValidateCollectorUpMetrics(ctx context.Context, t *testing.T, kubeClien
 }
 
 // testCollectorScrapeKubelet verifies that kubelet metric endpoints are successfully scraped.
-func testCollectorScrapeKubelet(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+func testCollectorScrapeKubelet(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 

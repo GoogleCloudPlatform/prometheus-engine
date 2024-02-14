@@ -86,7 +86,7 @@ func TestSelect(t *testing.T) {
 			db: &queryAccess{
 				mint: 1000,
 				maxt: 2000,
-				query: func(ctx context.Context, q string, timeValue time.Time, v1api v1.API) (parser.Value, v1.Warnings, error) {
+				query: func(_ context.Context, q string, timeValue time.Time, _ v1.API) (parser.Value, v1.Warnings, error) {
 					maxt := time.Unix(2000, 0)
 					expectedQuery := "{__name__=\"testLabel\"}[1000s]"
 					if q != expectedQuery {
@@ -112,7 +112,7 @@ func TestSelect(t *testing.T) {
 			db: &queryAccess{
 				mint: 1000,
 				maxt: 2000,
-				query: func(ctx context.Context, q string, timeValue time.Time, v1api v1.API) (parser.Value, v1.Warnings, error) {
+				query: func(context.Context, string, time.Time, v1.API) (parser.Value, v1.Warnings, error) {
 					return nil, nil, errors.New("Query Error")
 				},
 			},
@@ -132,7 +132,7 @@ func TestSelect(t *testing.T) {
 			description: "queryfunc returns a vector instead of a matrix",
 			db: &queryAccess{
 				maxt: 1000,
-				query: func(ctx context.Context, q string, timeValue time.Time, v1api v1.API) (parser.Value, v1.Warnings, error) {
+				query: func(context.Context, string, time.Time, v1.API) (parser.Value, v1.Warnings, error) {
 					return promql.Vector{}, nil, nil
 				},
 			},
@@ -146,7 +146,7 @@ func TestSelect(t *testing.T) {
 			db: &queryAccess{
 				mint: 0,
 				maxt: 1000,
-				query: func(ctx context.Context, q string, timeValue time.Time, v1api v1.API) (parser.Value, v1.Warnings, error) {
+				query: func(context.Context, string, time.Time, v1.API) (parser.Value, v1.Warnings, error) {
 					return promql.Matrix{}, v1.Warnings{"warning test"}, nil
 				},
 			},

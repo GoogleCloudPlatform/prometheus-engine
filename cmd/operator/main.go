@@ -130,7 +130,7 @@ func main() {
 				}
 				return nil
 			},
-			func(err error) {
+			func(error) {
 				close(cancel)
 			},
 		)
@@ -141,7 +141,7 @@ func main() {
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
 		g.Add(func() error {
 			return server.ListenAndServe()
-		}, func(err error) {
+		}, func(error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
 				logger.Error(err, "Server failed to shut down gracefully.")
@@ -154,7 +154,7 @@ func main() {
 		ctx, cancel := context.WithCancel(context.Background())
 		g.Add(func() error {
 			return op.Run(ctx, metrics)
-		}, func(err error) {
+		}, func(error) {
 			cancel()
 		})
 	}
