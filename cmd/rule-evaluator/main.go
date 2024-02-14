@@ -356,7 +356,7 @@ func main() {
 
 		http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
 		http.HandleFunc("/-/reload", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == "POST" {
+			if r.Method == http.MethodPost {
 				rc := make(chan error)
 				reloadCh <- rc
 				if err := <-rc; err != nil {

@@ -55,7 +55,7 @@ func (a *AltTokenSource) Token() (*oauth2.Token, error) {
 	return a.token()
 }
 func (a *AltTokenSource) token() (*oauth2.Token, error) {
-	req, err := http.NewRequest("POST", a.tokenURL, strings.NewReader(a.tokenBody))
+	req, err := http.NewRequest(http.MethodPost, a.tokenURL, strings.NewReader(a.tokenBody))
 	if err != nil {
 		return nil, err
 	}
