@@ -69,7 +69,6 @@ linters:
     - thelper
     - tparallel
     - unparam
-    - usestdlibvars
     - varcheck # Deprecated
     - varnamelen
     - wastedassign
