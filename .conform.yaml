@@ -41,6 +41,7 @@ policies:
         scopes:
           - configs
           - deps
+          - main
           - operator
           - prometheus
         descriptionLength: 72
