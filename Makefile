@@ -31,7 +31,10 @@ DOCKER_HOST?=unix:///var/run/docker.sock
 DOCKER_VOLUME:=$(DOCKER_HOST:unix://%=%)
 
 IMAGE_REGISTRY?=us-east4-docker.pkg.dev/$(PROJECT_ID)/prometheus-engine
-TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
+ifeq ($(origin TAG_NAME), undefined)
+  TAG_NAME:=$(shell date "+gmp-%Y%d%m_%H%M%S_%N")
+endif
+export TAG_NAME
 
 # If an individual test is not specified, run them all.
 TEST_RUN?=$(shell go test ./e2e/... -list=. | grep -E 'Test*')
@@ -46,16 +49,11 @@ SED?=$(shell which gsed 2>/dev/null || which sed)
 # TODO(pintohutch): this is a bit hacky, but can be useful when testing.
 # Ultimately this should be replaced with go templating.
 define update_manifests
-	find manifests examples -type f -name "*.yaml" -exec sed -i "s#image: .*/$(1):.*#image: ${IMAGE_REGISTRY}/$(1):${TAG_NAME}#g" {} \;
+	find manifests examples -type f -name "*.yaml" -exec sed -i "s#image: .*/$(1):.*#image: ${IMAGE_REGISTRY}/$(1):$(TAG_NAME)#g" {} \;
 endef
 
 define docker_build
 	DOCKER_BUILDKIT=1 docker build --label "part-of=gmp" $(1)
-endef
-
-define docker_tag_push
-	docker tag $(1) $(2)
-	docker push $(2)
 endef
 
 define ensure_registry
@@ -113,9 +111,11 @@ ifeq ($(NO_DOCKER), 1)
 	CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o ./build/bin/$(BIN_GO_NAME) ./$(BIN_GO_DIR)/$(BIN_GO_NAME)/*.go
 # If pushing, build and tag native arch image to GCR.
 else ifeq ($(DOCKER_PUSH), 1)
-	$(call docker_build, --tag gmp/$(BIN_GO_NAME) -f ./$(BIN_GO_DIR)/$(BIN_GO_NAME)/Dockerfile .)
+	$(call docker_build, --tag "gmp/$(BIN_GO_NAME):$(TAG_NAME)" -f "./$(BIN_GO_DIR)/$(BIN_GO_NAME)/Dockerfile" .)
 	@echo ">> tagging and pushing images"
-	$(call docker_tag_push,gmp/$(BIN_GO_NAME),${IMAGE_REGISTRY}/$(BIN_GO_NAME):${TAG_NAME})
+	docker tag "gmp/$(BIN_GO_NAME):$(TAG_NAME)" "gmp/$(BIN_GO_NAME):latest"
+	docker tag "gmp/$(BIN_GO_NAME):$(TAG_NAME)" "${IMAGE_REGISTRY}/$(BIN_GO_NAME):$(TAG_NAME)"
+	docker push "${IMAGE_REGISTRY}/$(BIN_GO_NAME):$(TAG_NAME)"
 	@echo ">> updating manifests with pushed images"
 	$(call update_manifests,$(BIN_GO_NAME))
 # Run on cloudbuild and tag multi-arch image to GCR.
@@ -126,7 +126,8 @@ else ifeq ($(CLOUD_BUILD), 1)
 	$(call update_manifests,$(BIN_GO_NAME))
 # Just build it locally.
 else
-	$(call docker_build, --tag gmp/$(BIN_GO_NAME) -f ./$(BIN_GO_DIR)/$(BIN_GO_NAME)/Dockerfile .)
+	docker build --tag "gmp/$(BIN_GO_NAME):$(TAG_NAME)" -f "./$(BIN_GO_DIR)/$(BIN_GO_NAME)/Dockerfile" .
+	docker tag "gmp/$(BIN_GO_NAME):$(TAG_NAME)" "gmp/$(BIN_GO_NAME):latest"
 endif
 
 bin:         ## Build all go binaries from cmd/ and examples/instrumentation/.
@@ -221,6 +222,7 @@ e2e-only:    ## Run e2e test suite without rebuilding images. This assumes that
 		--env BINARIES="$(E2E_DEPS)" \
 		--env REGISTRY_NAME=$(REGISTRY_NAME) \
 		--env REGISTRY_PORT=$(REGISTRY_PORT) \
+		--env TAG_NAME=$(TAG_NAME) \
 		--network host \
 		--rm \
 		-v $(DOCKER_VOLUME):/var/run/docker.sock \
