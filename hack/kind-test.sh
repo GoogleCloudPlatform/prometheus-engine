@@ -22,7 +22,7 @@ set -o pipefail
 GO_TEST=$1
 
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
-TEST_ARGS=""
+TEST_ARGS="-image-tag=${TAG_NAME} -registry-port=${REGISTRY_PORT}"
 # Convert kind cluster name to required regex if necessary.
 # We need to ensure this name is not too long due to: https://github.com/kubernetes-sigs/kind/issues/623
 # while still unique enough to avoid dups between similar test names when trimming.
@@ -87,15 +87,6 @@ document_registry() {
 EOF
 }
 
-docker_tag_push() {
-  for bin in "$@"; do
-    REGISTRY_TAG=localhost:${REGISTRY_PORT}/${bin}:${TAG_NAME}
-    echo ">>> tagging and pushing image: ${bin}"
-    docker tag gmp/${bin} ${REGISTRY_TAG}
-    docker push ${REGISTRY_TAG}
-  done
-}
-
 # TODO(pintohutch): this is a bit hacky, but can be useful when testing.
 # Ultimately this should be replaced with go templating.
 update_manifests() {
@@ -107,9 +98,7 @@ update_manifests() {
   done
 }
 
-# Set up local image registry and tag and push images to it.
-# Finally update the install manifests to reference those images.
-docker_tag_push $BINARIES
+# Update the install manifests to reference those images.
 update_manifests $BINARIES
 
 # Set up kind cluster and connect it to the local registry.
