@@ -46,23 +46,23 @@ func TestRuleEvaluator(t *testing.T) {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	t.Run("rule-evaluator-deployed", testRuleEvaluatorDeployed(ctx, t, kubeClient))
-	t.Run("rule-evaluator-operatorconfig", testRuleEvaluatorOperatorConfig(ctx, t, kubeClient, opClient))
+	t.Run("rule-evaluator-deployed", testRuleEvaluatorDeployed(ctx, kubeClient))
+	t.Run("rule-evaluator-operatorconfig", testRuleEvaluatorOperatorConfig(ctx, kubeClient, opClient))
 	// TODO(pintohutch): testing the generated secrets and config can be
 	// brittle as the checks need to be precise and could break if mechanics or
 	// formatting changes in the future.
 	// Ideally this is replaced by a true e2e test that deploys a custom
 	// secured alertmanager and successfully sends alerts to it.
-	t.Run("rule-evaluator-secrets", testRuleEvaluatorSecrets(ctx, t, kubeClient, opClient))
-	t.Run("rule-evaluator-configuration", testRuleEvaluatorConfiguration(ctx, t, kubeClient))
+	t.Run("rule-evaluator-secrets", testRuleEvaluatorSecrets(ctx, kubeClient, opClient))
+	t.Run("rule-evaluator-configuration", testRuleEvaluatorConfiguration(ctx, kubeClient))
 
-	t.Run("rules-create", testCreateRules(ctx, t, opClient))
+	t.Run("rules-create", testCreateRules(ctx, opClient))
 	if !skipGCM {
-		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx, t))
+		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx))
 	}
 }
 
-func testRuleEvaluatorDeployed(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+func testRuleEvaluatorDeployed(ctx context.Context, kubeClient kubernetes.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking rule-evaluator is running")
 
@@ -93,7 +93,7 @@ func testRuleEvaluatorDeployed(ctx context.Context, _ *testing.T, kubeClient kub
 	}
 }
 
-func testRuleEvaluatorOperatorConfig(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking rule-evaluator is configured")
 
@@ -150,7 +150,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, _ *testing.T, kubeClie
 	}
 }
 
-func testRuleEvaluatorSecrets(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testRuleEvaluatorSecrets(ctx context.Context, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		cert, key, err := cert.GenerateSelfSignedCertKey("test", nil, nil)
 		if err != nil {
@@ -224,7 +224,7 @@ func testRuleEvaluatorSecrets(ctx context.Context, _ *testing.T, kubeClient kube
 	}
 }
 
-func testRuleEvaluatorConfiguration(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+func testRuleEvaluatorConfiguration(ctx context.Context, kubeClient kubernetes.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		replace := func(s string) string {
 			return strings.NewReplacer(
@@ -302,7 +302,7 @@ rule_files:
 	}
 }
 
-func testCreateRules(ctx context.Context, _ *testing.T, opClient versioned.Interface) func(*testing.T) {
+func testCreateRules(ctx context.Context, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("creating rules")
 
@@ -333,7 +333,7 @@ func testCreateRules(ctx context.Context, _ *testing.T, opClient versioned.Inter
 	}
 }
 
-func testValidateRuleEvaluationMetrics(ctx context.Context, _ *testing.T) func(*testing.T) {
+func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 

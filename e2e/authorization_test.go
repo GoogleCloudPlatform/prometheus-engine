@@ -37,9 +37,9 @@ func TestTLSPodMonitoring(t *testing.T) {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--tls-create-self-signed=true"}))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{"--tls-create-self-signed=true"}))
 
 	pm := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -66,7 +66,7 @@ func TestTLSPodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("tls-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, t, opClient, pm))
+	t.Run("tls-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, opClient, pm))
 
 	pmFail := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -89,7 +89,7 @@ func TestTLSPodMonitoring(t *testing.T) {
 		},
 	}
 	errMsg := "x509: certificate signed by unknown authority"
-	t.Run("tls-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, t, opClient, pmFail, errMsg))
+	t.Run("tls-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, opClient, pmFail, errMsg))
 }
 
 func TestTLSClusterPodMonitoring(t *testing.T) {
@@ -99,9 +99,9 @@ func TestTLSClusterPodMonitoring(t *testing.T) {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--tls-create-self-signed=true"}))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{"--tls-create-self-signed=true"}))
 
 	cpm := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -128,7 +128,7 @@ func TestTLSClusterPodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("tls-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, t, opClient, cpm))
+	t.Run("tls-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, opClient, cpm))
 
 	cpmFail := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -151,7 +151,7 @@ func TestTLSClusterPodMonitoring(t *testing.T) {
 		},
 	}
 	errMsg := "x509: certificate signed by unknown authority"
-	t.Run("tls-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, t, opClient, cpmFail, errMsg))
+	t.Run("tls-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, opClient, cpmFail, errMsg))
 }
 
 func TestBasicAuthPodMonitoring(t *testing.T) {
@@ -161,9 +161,9 @@ func TestBasicAuthPodMonitoring(t *testing.T) {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--basic-auth-username=user"}))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{"--basic-auth-username=user"}))
 
 	pm := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -189,7 +189,7 @@ func TestBasicAuthPodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("basic-auth-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, t, opClient, pm))
+	t.Run("basic-auth-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, opClient, pm))
 
 	pmFail := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -211,7 +211,7 @@ func TestBasicAuthPodMonitoring(t *testing.T) {
 		},
 	}
 	errMsg := "server returned HTTP status 401 Unauthorized"
-	t.Run("basic-auth-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, t, opClient, pmFail, errMsg))
+	t.Run("basic-auth-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, opClient, pmFail, errMsg))
 }
 
 func TestBasicAuthClusterPodMonitoring(t *testing.T) {
@@ -221,9 +221,9 @@ func TestBasicAuthClusterPodMonitoring(t *testing.T) {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--basic-auth-username=user"}))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{"--basic-auth-username=user"}))
 
 	cpm := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -249,7 +249,7 @@ func TestBasicAuthClusterPodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("basic-auth-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, t, opClient, cpm))
+	t.Run("basic-auth-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, opClient, cpm))
 
 	cpmFail := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -271,7 +271,7 @@ func TestBasicAuthClusterPodMonitoring(t *testing.T) {
 		},
 	}
 	errMsg := "server returned HTTP status 401 Unauthorized"
-	t.Run("basic-auth-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, t, opClient, cpmFail, errMsg))
+	t.Run("basic-auth-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, opClient, cpmFail, errMsg))
 }
 
 func TestAuthorizationPodMonitoring(t *testing.T) {
@@ -281,9 +281,9 @@ func TestAuthorizationPodMonitoring(t *testing.T) {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--auth-scheme=Bearer"}))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{"--auth-scheme=Bearer"}))
 
 	pm := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -309,7 +309,7 @@ func TestAuthorizationPodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("auth-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, t, opClient, pm))
+	t.Run("auth-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, opClient, pm))
 
 	pmFail := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -331,7 +331,7 @@ func TestAuthorizationPodMonitoring(t *testing.T) {
 		},
 	}
 	errMsg := "server returned HTTP status 401 Unauthorized"
-	t.Run("auth-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, t, opClient, pmFail, errMsg))
+	t.Run("auth-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, opClient, pmFail, errMsg))
 }
 
 func TestAuthorizationClusterPodMonitoring(t *testing.T) {
@@ -341,9 +341,9 @@ func TestAuthorizationClusterPodMonitoring(t *testing.T) {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient, []string{"--auth-scheme=Bearer"}))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{"--auth-scheme=Bearer"}))
 
 	cpm := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -369,7 +369,7 @@ func TestAuthorizationClusterPodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("auth-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, t, opClient, cpm))
+	t.Run("auth-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, opClient, cpm))
 
 	cpmFail := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -391,7 +391,7 @@ func TestAuthorizationClusterPodMonitoring(t *testing.T) {
 		},
 	}
 	errMsg := "server returned HTTP status 401 Unauthorized"
-	t.Run("auth-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, t, opClient, cpmFail, errMsg))
+	t.Run("auth-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, opClient, cpmFail, errMsg))
 }
 
 func TestOAuth2PodMonitoring(t *testing.T) {
@@ -406,9 +406,9 @@ func TestOAuth2PodMonitoring(t *testing.T) {
 		accessToken = "abc123"
 	)
 
-	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient,
+	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient,
 		[]string{
 			fmt.Sprintf("--oauth2-client-id=%s", clientID),
 			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
@@ -440,7 +440,7 @@ func TestOAuth2PodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("oauth2-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, t, opClient, pm))
+	t.Run("oauth2-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, opClient, pm))
 
 	pmFail := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -461,7 +461,7 @@ func TestOAuth2PodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("oauth2-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, t, opClient, pmFail, "server returned HTTP status 401 Unauthorized"))
+	t.Run("oauth2-podmonitoring-failure", testEnsurePodMonitoringFailure(ctx, opClient, pmFail, "server returned HTTP status 401 Unauthorized"))
 }
 
 func TestOAuth2ClusterPodMonitoring(t *testing.T) {
@@ -476,9 +476,9 @@ func TestOAuth2ClusterPodMonitoring(t *testing.T) {
 		accessToken = "abc123"
 	)
 
-	t.Run("collector-deployed", testCollectorDeployed(ctx, t, kubeClient))
-	t.Run("enable-target-status", testEnableTargetStatus(ctx, t, opClient))
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, t, kubeClient,
+	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, opClient))
+	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient,
 		[]string{
 			fmt.Sprintf("--oauth2-client-id=%s", clientID),
 			fmt.Sprintf("--oauth2-scopes=%s", clientScope),
@@ -509,7 +509,7 @@ func TestOAuth2ClusterPodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("oauth2-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, t, opClient, cpm))
+	t.Run("oauth2-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, opClient, cpm))
 
 	cpmFail := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -529,10 +529,10 @@ func TestOAuth2ClusterPodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("oauth2-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, t, opClient, cpmFail, "server returned HTTP status 401 Unauthorized"))
+	t.Run("oauth2-clusterpodmonitoring-failure", testEnsureClusterPodMonitoringFailure(ctx, opClient, cpmFail, "server returned HTTP status 401 Unauthorized"))
 }
 
-func testPatchExampleAppArgs(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, args []string) func(*testing.T) {
+func testPatchExampleAppArgs(ctx context.Context, kubeClient kubernetes.Interface, args []string) func(*testing.T) {
 	return func(t *testing.T) {
 		scheme, err := newScheme()
 		if err != nil {
@@ -590,15 +590,15 @@ func isPodMonitoringScrapeEndpointFailure(status *monitoringv1.ScrapeEndpointSta
 	return nil
 }
 
-func testEnsurePodMonitoringFailure(ctx context.Context, t *testing.T, opClient versioned.Interface, pm *monitoringv1.PodMonitoring, errMsg string) func(*testing.T) {
-	return testEnsurePodMonitoringStatus(ctx, t, opClient, pm,
+func testEnsurePodMonitoringFailure(ctx context.Context, opClient versioned.Interface, pm *monitoringv1.PodMonitoring, errMsg string) func(*testing.T) {
+	return testEnsurePodMonitoringStatus(ctx, opClient, pm,
 		func(status *monitoringv1.ScrapeEndpointStatus) error {
 			return isPodMonitoringScrapeEndpointFailure(status, errMsg)
 		})
 }
 
-func testEnsureClusterPodMonitoringFailure(ctx context.Context, t *testing.T, opClient versioned.Interface, cpm *monitoringv1.ClusterPodMonitoring, errMsg string) func(*testing.T) {
-	return testEnsureClusterPodMonitoringStatus(ctx, t, opClient, cpm,
+func testEnsureClusterPodMonitoringFailure(ctx context.Context, opClient versioned.Interface, cpm *monitoringv1.ClusterPodMonitoring, errMsg string) func(*testing.T) {
+	return testEnsureClusterPodMonitoringStatus(ctx, opClient, cpm,
 		func(status *monitoringv1.ScrapeEndpointStatus) error {
 			return isPodMonitoringScrapeEndpointFailure(status, errMsg)
 		})

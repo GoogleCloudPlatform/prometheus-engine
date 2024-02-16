@@ -39,12 +39,12 @@ func TestAlertmanager(t *testing.T) {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	t.Run("rules-create", testCreateRules(ctx, t, opClient))
-	t.Run("alertmanager-deployed", testAlertmanagerDeployed(ctx, t, kubeClient))
-	t.Run("alertmanager-operatorconfig", testAlertmanagerOperatorConfig(ctx, t, kubeClient, opClient))
+	t.Run("rules-create", testCreateRules(ctx, opClient))
+	t.Run("alertmanager-deployed", testAlertmanagerDeployed(ctx, kubeClient))
+	t.Run("alertmanager-operatorconfig", testAlertmanagerOperatorConfig(ctx, kubeClient, opClient))
 }
 
-func testAlertmanagerDeployed(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface) func(*testing.T) {
+func testAlertmanagerDeployed(ctx context.Context, kubeClient kubernetes.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking alertmanager is running")
 
@@ -95,7 +95,7 @@ func testAlertmanagerDeployed(ctx context.Context, _ *testing.T, kubeClient kube
 	}
 }
 
-func testAlertmanagerOperatorConfig(ctx context.Context, _ *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testAlertmanagerOperatorConfig(ctx context.Context, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking alertmanager is configured")
 
