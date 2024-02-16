@@ -459,13 +459,8 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 		return err
 	}
 
-	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+	var projectID, _, _ = resolveLabels(r.opts, spec.ExternalLabels)
 
-	flags := []string{
-		fmt.Sprintf("--export.label.project-id=%q", projectID),
-		fmt.Sprintf("--export.label.location=%q", location),
-		fmt.Sprintf("--export.label.cluster=%q", cluster),
-	}
 	// If no explicit project ID is set, use the one provided to the operator.
 	// On GKE the rule-evaluator can also auto-detect the cluster's project
 	// but this won't work in other Kubernetes environments.
@@ -473,7 +468,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 	if spec.QueryProjectID != "" {
 		queryProjectID = spec.QueryProjectID
 	}
-	flags = append(flags, fmt.Sprintf("--query.project-id=%q", queryProjectID))
+	flags := []string{fmt.Sprintf("--query.project-id=%q", queryProjectID)}
 
 	if spec.Credentials != nil {
 		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))

@@ -248,14 +248,8 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 		return err
 	}
 
-	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
-
-	flags := []string{
-		fmt.Sprintf("--export.label.project-id=%q", projectID),
-		fmt.Sprintf("--export.label.location=%q", location),
-		fmt.Sprintf("--export.label.cluster=%q", cluster),
-	}
-	// Populate export filtering from OperatorConfig.
+	var flags []string
+	// Populate export flags for collector if necessary.
 	for _, matcher := range spec.Filter.MatchOneOf {
 		flags = append(flags, fmt.Sprintf("--export.match=%q", matcher))
 	}
@@ -582,6 +576,30 @@ func makeRemoteWriteConfig(exports []monitoringv1.ExportSpec) ([]*promconfig.Rem
 			})
 	}
 	return exportConfigs, nil
+}
+
+type operatorConfigDefaulter struct {
+	opts Options
+}
+
+func (d *operatorConfigDefaulter) Default(_ context.Context, o runtime.Object) error {
+	oc := o.(*monitoringv1.OperatorConfig)
+
+	// Upsert projectID, location, and cluster to external labels.
+	// If not present in external labels, use the values passed to the operator.
+	// If present in external labels, this is effectively a no-op.
+	// Do this for both collection and rule-evaluator configuration.
+	var projectID, location, cluster = resolveLabels(d.opts, oc.Collection.ExternalLabels)
+	oc.Collection.ExternalLabels[export.KeyProjectID] = projectID
+	oc.Collection.ExternalLabels[export.KeyLocation] = location
+	oc.Collection.ExternalLabels[export.KeyCluster] = cluster
+
+	projectID, location, cluster = resolveLabels(d.opts, oc.Rules.ExternalLabels)
+	oc.Rules.ExternalLabels[export.KeyProjectID] = projectID
+	oc.Rules.ExternalLabels[export.KeyLocation] = location
+	oc.Rules.ExternalLabels[export.KeyCluster] = cluster
+
+	return nil
 }
 
 func makeKubeletScrapeConfigs(cfg *monitoringv1.KubeletScraping) ([]*promconfig.ScrapeConfig, error) {
