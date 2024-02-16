@@ -23,8 +23,6 @@ metadata:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
     app: managed-prometheus-operator
     app.kubernetes.io/component: operator
-    app.kubernetes.io/name: gmp-operator
-    app.kubernetes.io/part-of: gmp
 spec:
   replicas: 1
   selector:
