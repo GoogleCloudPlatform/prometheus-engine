@@ -23,7 +23,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -40,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/deploy"
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kind"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
@@ -56,8 +59,14 @@ var (
 
 	gcpServiceAccount string
 
+	imageRegistryName string
 	imageRegistryPort int
 	imageTag          string
+
+	kindPersist bool
+	noKind      bool
+
+	dockerClient *dockerclient.Client
 )
 
 // TestMain injects custom flags to tests.
@@ -72,26 +81,143 @@ func TestMain(m *testing.M) {
 
 	flag.StringVar(&gcpServiceAccount, "gcp-service-account", "", "Path to GCP service account file for usage by deployed containers.")
 
+	flag.StringVar(&imageRegistryName, "registry-name", "", "The name of the local registry.")
 	flag.IntVar(&imageRegistryPort, "registry-port", -1, "The port of the local registry.")
 	flag.StringVar(&imageTag, "image-tag", "", "The tag to copy images from.")
 
+	flag.BoolVar(&kindPersist, "kind-persist", false, "If set, prevents deleting the cluster.")
+	flag.BoolVar(&noKind, "no-kind", false, "If set, does not create a kind cluster and uses the system's current cluster instead.")
+
 	flag.Parse()
+
+	if err := setupMain(context.Background(), &printLog{}); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to setup tests: %s", err)
+		os.Exit(1)
+	}
 
 	os.Exit(m.Run())
 }
 
-func setupCluster(ctx context.Context, logger log) (kubernetes.Interface, versioned.Interface, error) {
-	if imageTag != "" && imageRegistryPort >= 0 {
-		if err := copyImagesToLocalRegistry(ctx, logger, imageTag, imageRegistryPort); err != nil {
-			return nil, nil, err
+// log is a subset of the `testing.TB` logging methods.
+type log interface {
+	Log(args ...any)
+	Logf(format string, args ...any)
+}
+
+// printLog implements log with `fmt.Print`.
+type printLog struct{}
+
+func (l *printLog) Log(args ...any) {
+	fmt.Print(args...)
+	fmt.Print("\n")
+}
+
+func (l *printLog) Logf(format string, args ...any) {
+	fmt.Printf(format, args...)
+	fmt.Print("\n")
+}
+
+func setupMain(ctx context.Context, logger log) error {
+	var err error
+	dockerClient, err = dockerclient.NewClientWithOpts(dockerclient.FromEnv)
+	if err != nil {
+		return err
+	}
+	dockerClient.NegotiateAPIVersion(ctx)
+
+	if hasLocalRegistry() && imageTag != "" {
+		if err := copyImagesToLocalRegistry(ctx, logger, dockerClient, imageTag, imageRegistryPort); err != nil {
+			return err
 		}
 	} else {
 		logger.Log(">>> skipping image copy")
 	}
 
-	restConfig, err := newRestConfig()
+	return nil
+}
+
+func newCluster(t testing.TB, dockerClient *dockerclient.Client) (*rest.Config, error) {
+	clusterName, err := findUniqueKindClusterName(kind.NormalizeClusterName(t.Name()))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+
+	if !kindPersist {
+		t.Cleanup(func() {
+			t.Log(">>> deleting kind cluster")
+			if err := kind.ClusterDelete(clusterName); err != nil {
+				t.Errorf("failed to delete cluster: %v", err)
+			}
+		})
+	}
+
+	t.Logf(">>> creating kind cluster with name %s", clusterName)
+	config := ""
+	if hasLocalRegistry() {
+		config = kind.ConfigLocalRegistryFilepath
+	}
+	if err := kind.ClusterCreate(clusterName, config); err != nil {
+		return nil, fmt.Errorf("failed to create cluster: %w", err)
+	}
+
+	if hasLocalRegistry() {
+		t.Log(">>> adding registry to kind cluster nodes and connecting registry to kind cluster")
+		if err := kind.ClusterAddRegistry(context.Background(), clusterName, dockerClient, imageRegistryName, imageRegistryPort); err != nil {
+			return nil, fmt.Errorf("failed to add registry to cluster: %w", err)
+		}
+	}
+
+	return kind.ClusterRestConfig(clusterName)
+}
+
+// findUniqueKindClusterName finds a non-existing kind cluster name using the given base.
+func findUniqueKindClusterName(name string) (string, error) {
+	clusters, err := kind.Clusters()
+	if err != nil {
+		return "", err
+	}
+	for {
+		clusterName := addRandKindClusterNameSuffix(name, 8, kind.ClusterNameMaxLength)
+		if !slices.Contains(clusters, clusterName) {
+			return clusterName, nil
+		}
+	}
+}
+
+func addRandKindClusterNameSuffix(s string, suffixLen, totalLen int) string {
+	suffix := "-" + randLowercaseDigitsString(suffixLen)
+	trim := s[:min(len(s), totalLen-len(suffix))]
+	return trim + suffix
+}
+
+func randLowercaseDigitsString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
+
+func hasLocalRegistry() bool {
+	return imageRegistryPort >= 0 && imageRegistryName != ""
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyz1234567890"
+
+func setupCluster(ctx context.Context, t testing.TB) (kubernetes.Interface, versioned.Interface, error) {
+	var restConfig *rest.Config
+	if noKind {
+		var err error
+		restConfig, err = newRestConfig()
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		var err error
+		restConfig, err = newCluster(t, dockerClient)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	kubeClient, opClient, err := newKubeClients(restConfig)
@@ -111,16 +237,11 @@ func setupCluster(ctx context.Context, logger log) (kubernetes.Interface, versio
 		return nil, nil, err
 	}
 
-	logger.Log(">>> deploying static resources")
-	if err := createResources(ctx, c, logger); err != nil {
+	t.Log(">>> deploying static resources")
+	if err := createResources(ctx, c, t); err != nil {
 		return nil, nil, err
 	}
 	return kubeClient, opClient, nil
-}
-
-type log interface {
-	Log(args ...any)
-	Logf(format string, args ...any)
 }
 
 func newRestConfig() (*rest.Config, error) {
@@ -182,8 +303,8 @@ func createResources(ctx context.Context, kubeClient client.Client, logger log) 
 	return nil
 }
 
-func imageExists(ctx context.Context, c *dockerclient.Client, image string) (bool, error) {
-	images, err := c.ImageList(ctx, types.ImageListOptions{
+func imageExists(ctx context.Context, dockerClient *dockerclient.Client, image string) (bool, error) {
+	images, err := dockerClient.ImageList(ctx, types.ImageListOptions{
 		Filters: filters.NewArgs(filters.Arg("reference", image)),
 	})
 	if err != nil {
@@ -195,19 +316,13 @@ func imageExists(ctx context.Context, c *dockerclient.Client, image string) (boo
 	return len(images) == 1, nil
 }
 
-func copyImagesToLocalRegistry(ctx context.Context, logger log, tag string, port int) error {
+func copyImagesToLocalRegistry(ctx context.Context, logger log, dockerClient *dockerclient.Client, tag string, port int) error {
 	if tag == "" {
 		return errors.New("tag is required")
 	}
 	if port < 0 {
 		return fmt.Errorf("invalid port: %d", port)
 	}
-
-	dockerClient, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv)
-	if err != nil {
-		return err
-	}
-	dockerClient.NegotiateAPIVersion(ctx)
 
 	for _, image := range images {
 		srcRoot := fmt.Sprintf("gmp/%s", image)
@@ -241,7 +356,7 @@ func copyImagesToLocalRegistry(ctx context.Context, logger log, tag string, port
 		}
 		if exists {
 			logger.Logf(">>> skipping existent destination: %s", dst)
-			return nil
+			continue
 		}
 
 		logger.Logf(">>> tagging and pushing image: %s", image)
@@ -255,5 +370,5 @@ func copyImagesToLocalRegistry(ctx context.Context, logger log, tag string, port
 			return err
 		}
 	}
-	return err
+	return nil
 }

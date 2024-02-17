@@ -22,15 +22,8 @@ set -o pipefail
 GO_TEST=$1
 
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
-TEST_ARGS="-image-tag=${TAG_NAME} -registry-port=${REGISTRY_PORT}"
-# Convert kind cluster name to required regex if necessary.
-# We need to ensure this name is not too long due to: https://github.com/kubernetes-sigs/kind/issues/623
-# while still unique enough to avoid dups between similar test names when trimming.
-# So we omit the Test* prefix and add a hash at the end.
-KIND_CLUSTER_HASH=$(echo $RANDOM | md5sum | head -c4)
-KIND_CLUSTER=$(echo ${GO_TEST#"Test"} | sed -r 's/[^[:alnum:]]//g' | sed -r 's/([A-Z])/-\L\1/g' | sed 's/^-//' | head -c28)
-KIND_CLUSTER=${KIND_CLUSTER}-${KIND_CLUSTER_HASH}
-KUBECTL="kubectl --context kind-${KIND_CLUSTER}"
+TAG_NAME=$(date "+gmp-%Y%d%m_%H%M")
+TEST_ARGS="-image-tag=${TAG_NAME} -registry-name=${REGISTRY_NAME} -registry-port=${REGISTRY_PORT}"
 # Ensure a unique label on any test data sent to GCM.
 GMP_CLUSTER=$TAG_NAME
 if [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
@@ -40,52 +33,9 @@ else
   TEST_ARGS="${TEST_ARGS} -skip-gcm"
 fi
 TEST_ARGS="${TEST_ARGS} -project-id=${PROJECT_ID} -location=${GMP_LOCATION} -cluster=${GMP_CLUSTER}"
-
-create_kind_cluster() {
-  echo ">>> creating kind cluster"
-  cat <<EOF | kind create cluster --name ${KIND_CLUSTER} --config=-
-  kind: Cluster
-  apiVersion: kind.x-k8s.io/v1alpha4
-  containerdConfigPatches:
-  - |-
-    [plugins."io.containerd.grpc.v1.cri".registry]
-      config_path = "/etc/containerd/certs.d"
-EOF
-}
-
-add_registry_to_nodes() {
-  echo ">>> adding registry to kind cluster nodes"
-  REGISTRY_DIR="/etc/containerd/certs.d/localhost:${REGISTRY_PORT}"
-  for node in $(kind get nodes --name ${KIND_CLUSTER}); do
-    docker exec "${node}" mkdir -p "${REGISTRY_DIR}"
-    cat <<EOF | docker exec -i "${node}" cp /dev/stdin "${REGISTRY_DIR}/hosts.toml"
-  [host."http://${REGISTRY_NAME}:5000"]
-EOF
-  done
-}
-
-connect_registry() {
-  echo ">>> connecting registry to kind cluster"
-  if [ "$(docker inspect -f='{{json .NetworkSettings.Networks.kind}}' "${REGISTRY_NAME}")" = 'null' ]; then
-    # Tolerate races of connecting registry container to kind network.
-    docker network connect "kind" "${REGISTRY_NAME}" || true
-  fi
-}
-
-document_registry() {
-  echo ">>> documenting registry through configmap"
-  cat <<EOF | $KUBECTL apply -f -
-  apiVersion: v1
-  kind: ConfigMap
-  metadata:
-    name: local-registry-hosting
-    namespace: kube-public
-  data:
-    localRegistryHosting.v1: |
-      host: "localhost:${REGISTRY_PORT}"
-      help: "https://kind.sigs.k8s.io/docs/user/local-registry/"
-EOF
-}
+if [[ "${KIND_PERSIST:-0}" == "1" ]]; then
+  TEST_ARGS="${TEST_ARGS} -kind-persist"
+fi
 
 # TODO(pintohutch): this is a bit hacky, but can be useful when testing.
 # Ultimately this should be replaced with go templating.
@@ -101,20 +51,6 @@ update_manifests() {
 # Update the install manifests to reference those images.
 update_manifests $BINARIES
 
-# Set up kind cluster and connect it to the local registry.
-kind delete cluster --name ${KIND_CLUSTER}
-create_kind_cluster
-add_registry_to_nodes
-connect_registry
-
 # Run the go tests.
-echo ">>> executing gmp e2e tests: ${GO_TEST}"
-# Note: a test failure here should exit non-zero and leave the cluster running
-# for debugging.
+echo ">>> executing gmp e2e tests: ${GO_TEST:-.}"
 go test -v -timeout 10m "${REPO_ROOT}/e2e" -run "${GO_TEST:-.}" -args ${TEST_ARGS}
-
-# Delete cluster if it's not set to clean up post-test.
-# Otherwise, leave cluster running (e.g. for debugging).
-if [ -z ${KIND_PERSIST+x} ]; then
-  kind delete cluster --name ${KIND_CLUSTER}
-fi
