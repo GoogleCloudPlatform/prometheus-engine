@@ -21,7 +21,7 @@ require (
 	github.com/oklog/ulid v1.3.1
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/client_model v0.5.0
-	github.com/prometheus/common v0.45.0
+	github.com/prometheus/common v0.47.0
 	github.com/prometheus/common/assets v0.2.0
 	github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7
 	github.com/thanos-io/thanos v0.25.2
@@ -93,7 +93,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -169,10 +168,6 @@ exclude (
 	k8s.io/client-go v12.0.0+incompatible
 )
 
-replace (
-	// Patch authorization-related changes.
-	github.com/prometheus/common => github.com/TheSpiritXIII/prometheus-common v0.45.0-gmp.0
-	// Go modules keeps resetting the required v0.35.0 to a random unversioned commit.
-	// So this is required for unknown reasons.
-	github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.45.2
-)
+// Go modules keeps resetting the version to a random unversioned commit.
+// So this is required for unknown reasons.
+replace github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.45.2
