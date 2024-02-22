@@ -729,6 +729,15 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 relabel_configs:
+- target_label: project_id
+  replacement: test_project
+  action: replace
+- target_label: location
+  replacement: test_location
+  action: replace
+- target_label: cluster
+  replacement: test_cluster
+  action: replace
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
   action: keep
@@ -741,15 +750,6 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_pod_phase]
   regex: (Failed|Succeeded)
   action: drop
-- target_label: project_id
-  replacement: test_project
-  action: replace
-- target_label: location
-  replacement: test_location
-  action: replace
-- target_label: cluster
-  replacement: test_cluster
-  action: replace
 - source_labels: [__meta_kubernetes_pod_name]
   target_label: __tmp_instance
   action: replace
@@ -807,6 +807,15 @@ follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
 relabel_configs:
+- target_label: project_id
+  replacement: test_project
+  action: replace
+- target_label: location
+  replacement: test_location
+  action: replace
+- target_label: cluster
+  replacement: test_cluster
+  action: replace
 - source_labels: [__meta_kubernetes_namespace]
   regex: ns1
   action: keep
@@ -819,15 +828,6 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_pod_phase]
   regex: (Failed|Succeeded)
   action: drop
-- target_label: project_id
-  replacement: test_project
-  action: replace
-- target_label: location
-  replacement: test_location
-  action: replace
-- target_label: cluster
-  replacement: test_cluster
-  action: replace
 - source_labels: [__meta_kubernetes_pod_name]
   target_label: __tmp_instance
   action: replace
@@ -951,15 +951,6 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 relabel_configs:
-- source_labels: [__meta_kubernetes_namespace]
-  target_label: namespace
-  action: replace
-- target_label: job
-  replacement: name1
-  action: replace
-- source_labels: [__meta_kubernetes_pod_phase]
-  regex: (Failed|Succeeded)
-  action: drop
 - target_label: project_id
   replacement: test_project
   action: replace
@@ -969,6 +960,15 @@ relabel_configs:
 - target_label: cluster
   replacement: test_cluster
   action: replace
+- source_labels: [__meta_kubernetes_namespace]
+  target_label: namespace
+  action: replace
+- target_label: job
+  replacement: name1
+  action: replace
+- source_labels: [__meta_kubernetes_pod_phase]
+  regex: (Failed|Succeeded)
+  action: drop
 - source_labels: [__meta_kubernetes_pod_name]
   target_label: __tmp_instance
   action: replace
@@ -1024,15 +1024,6 @@ follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
 relabel_configs:
-- source_labels: [__meta_kubernetes_namespace]
-  target_label: namespace
-  action: replace
-- target_label: job
-  replacement: name1
-  action: replace
-- source_labels: [__meta_kubernetes_pod_phase]
-  regex: (Failed|Succeeded)
-  action: drop
 - target_label: project_id
   replacement: test_project
   action: replace
@@ -1042,6 +1033,15 @@ relabel_configs:
 - target_label: cluster
   replacement: test_cluster
   action: replace
+- source_labels: [__meta_kubernetes_namespace]
+  target_label: namespace
+  action: replace
+- target_label: job
+  replacement: name1
+  action: replace
+- source_labels: [__meta_kubernetes_pod_phase]
+  regex: (Failed|Succeeded)
+  action: drop
 - source_labels: [__meta_kubernetes_pod_name]
   target_label: __tmp_instance
   action: replace
