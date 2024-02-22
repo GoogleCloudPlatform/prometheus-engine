@@ -59,6 +59,25 @@ func newFakeClientBuilder() *fake.ClientBuilder {
 		WithStatusSubresource(&monitoringv1.ClusterPodMonitoring{})
 }
 
+func TestLoop(t *testing.T) {
+	var a []*int
+	var one = 1
+	var two = 2
+	var three = 3
+	a = append(a, &one)
+	a = append(a, &two)
+	a = append(a, &three)
+
+	b := []int{1, 2, 3}
+
+	for i, aa := range a {
+		fmt.Printf("i: %+v, aa: %+v, val: %+v\n", i, aa, *aa)
+	}
+	for i, bb := range b {
+		fmt.Printf("i: %+v, bb: %+v, val: %+v\n", i, bb, &bb)
+	}
+}
+
 // Tests that the collection does not overwrite the non-managed status fields.
 func TestCollectionStatus(t *testing.T) {
 	statusIn := monitoringv1.PodMonitoringStatus{
