@@ -213,6 +213,22 @@ func (p *PodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool 
 
 func (p *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string, pool PrometheusSecretConfigs) (*promconfig.ScrapeConfig, error) {
 	relabelCfgs := []*relabel.Config{
+		// Force target labels, so they cannot be overwritten by metric labels.
+		{
+			Action:      relabel.Replace,
+			TargetLabel: "project_id",
+			Replacement: projectID,
+		},
+		{
+			Action:      relabel.Replace,
+			TargetLabel: "location",
+			Replacement: location,
+		},
+		{
+			Action:      relabel.Replace,
+			TargetLabel: "cluster",
+			Replacement: cluster,
+		},
 		// Filter targets by namespace of the PodMonitoring configuration.
 		{
 			Action:       relabel.Keep,
@@ -264,7 +280,6 @@ func (p *PodMonitoring) endpointScrapeConfig(index int, projectID, location, clu
 
 	return endpointScrapeConfig(
 		p,
-		projectID, location, cluster,
 		p.Spec.Endpoints[index],
 		relabelCfgs,
 		p.Spec.TargetLabels.FromPod,
@@ -275,7 +290,6 @@ func (p *PodMonitoring) endpointScrapeConfig(index int, projectID, location, clu
 
 func endpointScrapeConfig(
 	m PodMonitoringCRD,
-	projectID, location, cluster string,
 	ep ScrapeEndpoint,
 	relabelCfgs []*relabel.Config,
 	podLabels []LabelMapping,
@@ -305,22 +319,6 @@ func endpointScrapeConfig(
 	}
 
 	relabelCfgs = append(relabelCfgs,
-		// Force target labels, so they cannot be overwritten by metric labels.
-		&relabel.Config{
-			Action:      relabel.Replace,
-			TargetLabel: "project_id",
-			Replacement: projectID,
-		},
-		&relabel.Config{
-			Action:      relabel.Replace,
-			TargetLabel: "location",
-			Replacement: location,
-		},
-		&relabel.Config{
-			Action:      relabel.Replace,
-			TargetLabel: "cluster",
-			Replacement: cluster,
-		},
 		// Use the pod name as the primary identifier in the instance label. Unless the pod
 		// is controlled by a DaemonSet, in which case the node name will be used.
 		// This provides a better user experience on dashboards which template on the instance label
@@ -450,11 +448,31 @@ func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
 }
 
 func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string, pool PrometheusSecretConfigs) (*promconfig.ScrapeConfig, error) {
+	relabelCfgs := []*relabel.Config{
+		// Force target labels, so they cannot be overwritten by metric labels.
+		{
+			Action:      relabel.Replace,
+			TargetLabel: "project_id",
+			Replacement: projectID,
+		},
+		{
+			Action:      relabel.Replace,
+			TargetLabel: "location",
+			Replacement: location,
+		},
+		{
+			Action:      relabel.Replace,
+			TargetLabel: "cluster",
+			Replacement: cluster,
+		},
+	}
+
 	// Filter targets that belong to selected pods.
-	relabelCfgs, err := relabelingsForSelector(c.Spec.Selector, c)
+	selectors, err := relabelingsForSelector(c.Spec.Selector, c)
 	if err != nil {
 		return nil, err
 	}
+	relabelCfgs = append(relabelCfgs, selectors...)
 
 	metadataLabels := map[string]struct{}{}
 	// The metadata list must be always set in general but we allow the null case
@@ -490,7 +508,6 @@ func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, projectID, locati
 
 	return endpointScrapeConfig(
 		c,
-		projectID, location, cluster,
 		c.Spec.Endpoints[index],
 		relabelCfgs,
 		c.Spec.TargetLabels.FromPod,
