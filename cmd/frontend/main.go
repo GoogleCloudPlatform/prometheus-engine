@@ -21,6 +21,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -223,8 +224,13 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 		resp, err := client.Do(newReq)
 		if err != nil {
 			//nolint:errcheck
-			level.Warn(logger).Log("msg", "requesting GCM failed", "err", err)
-			w.WriteHeader(http.StatusInternalServerError)
+			if errors.Is(err, context.Canceled) {
+				level.Warn(logger).Log("msg", "request to GCM was canceled by the caller of frontend. If a program made the request, consider increasing the timeout", "err", err)
+				w.WriteHeader(http.StatusBadRequest)
+			} else {
+				level.Warn(logger).Log("msg", "requesting GCM failed", "err", err)
+				w.WriteHeader(http.StatusInternalServerError)
+			}
 			return
 		}
 
