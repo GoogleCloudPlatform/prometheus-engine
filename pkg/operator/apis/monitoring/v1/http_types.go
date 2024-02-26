@@ -20,6 +20,7 @@ import (
 	"net/url"
 
 	"github.com/prometheus/common/config"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets"
 )
@@ -100,9 +101,16 @@ func (s *KubernetesSecretKeySelector) toPrometheusSecretRef(m PodMonitoringCRD, 
 
 	ns := s.Namespace
 	if ns == "" {
-		ns = m.GetNamespace()
-	} else if m.IsNamespaceScoped() && ns != m.GetNamespace() {
-		return "", fmt.Errorf("PodMonitoring secret selector can't select secret from the different namespace than PodMonitoring namespace %q, got: %q; Consider using ClusterPodMonitoring or copy secret to PodMonitoring namespace", m.GetNamespace(), ns)
+		ns = metav1.NamespaceDefault
+	}
+	if m.IsNamespaceScoped() {
+		monitoringNamespace := m.GetNamespace()
+		if monitoringNamespace == "" {
+			monitoringNamespace = metav1.NamespaceDefault
+		}
+		if ns != monitoringNamespace {
+			return "", fmt.Errorf("PodMonitoring secret selector can't select secret from the different namespace than PodMonitoring namespace %q, got: %q; Consider using ClusterPodMonitoring or copy secret to PodMonitoring namespace", m.GetNamespace(), ns)
+		}
 	}
 
 	ref := fmt.Sprintf("%s/%s/%s", ns, s.Name, s.Key)
