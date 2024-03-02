@@ -42,3 +42,8 @@ resources:
     requests:
       cpu: 1m
       memory: 16M
+rbac:
+  create: true
+serviceAccount:
+  create: true
+  name: rule-evaluator
