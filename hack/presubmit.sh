@@ -112,7 +112,7 @@ update_manifests() {
 
   combine $CRD_DIR ${REPO_ROOT}/manifests/setup.yaml
   ${HELM} template ${REPO_ROOT}/charts/operator > ${REPO_ROOT}/manifests/operator.yaml
-  ${HELM} template ${REPO_ROOT}/charts/rule-evaluator > ${REPO_ROOT}/manifests/rule-evaluator.yaml
+  ${HELM} template --set noCommonLabels=true "${REPO_ROOT}/charts/rule-evaluator" > "${REPO_ROOT}/manifests/rule-evaluator.yaml"
   ${ADDLICENSE} ${REPO_ROOT}/manifests/*.yaml
 }
 
