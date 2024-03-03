@@ -18,13 +18,13 @@ kind: Service
 metadata:
   name: gmp-operator
   namespace: {{.Values.namespace.system}}
+  {{- if not .Values.noCommonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 spec:
   selector:
-    app.kubernetes.io/component: operator
-    app.kubernetes.io/name: gmp-operator
-    app.kubernetes.io/part-of: gmp
+    {{- include "prometheus-engine.operator.selectorLabels" . | nindent 4 }}
   ports:
   # This port does not do anything, but allows upgrades in the case
   # of server-side apply (SSA) conflicts.

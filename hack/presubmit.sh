@@ -35,6 +35,7 @@ warn() {
 }
 
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
+CRD_DIR=${REPO_ROOT}/charts/operator/crds
 
 codegen_diff() {
   git fetch https://github.com/GoogleCloudPlatform/prometheus-engine
@@ -82,7 +83,6 @@ update_crdgen() {
   which controller-gen || go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
 
   API_DIR=${REPO_ROOT}/pkg/operator/apis/...
-  CRD_DIR=${REPO_ROOT}/charts/operator/crds
 
   controller-gen crd paths=./$API_DIR output:crd:dir=$CRD_DIR
 
@@ -111,7 +111,7 @@ update_manifests() {
   echo ">>> regenerating example yamls"
 
   combine $CRD_DIR ${REPO_ROOT}/manifests/setup.yaml
-  ${HELM} template ${REPO_ROOT}/charts/operator > ${REPO_ROOT}/manifests/operator.yaml
+  ${HELM} template --set noCommonLabels=true "${REPO_ROOT}/charts/operator" > "${REPO_ROOT}/manifests/operator.yaml"
   ${HELM} template --set noCommonLabels=true "${REPO_ROOT}/charts/rule-evaluator" > "${REPO_ROOT}/manifests/rule-evaluator.yaml"
   ${ADDLICENSE} ${REPO_ROOT}/manifests/*.yaml
 }

@@ -48,11 +48,14 @@ Create chart name and version as used by the chart label.
 Common labels
 */}}
 {{- define "prometheus-engine.labels" -}}
-{{ include "prometheus-engine.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
+  {{- if not .Values.noCommonLabels -}}
+app.kubernetes.io/name: {{ include "prometheus-engine.name" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "prometheus-engine.name" . ) .Chart.AppVersion) .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion }}
 app.kubernetes.io/part-of: {{ eq .Release.Name "release-name" | ternary "gmp" .Release.Name }}
+helm.sh/chart: {{ include "prometheus-engine.chart" . }}
+  {{- end }}
 {{- end }}
 
 {{/*
@@ -63,12 +66,128 @@ app.kubernetes.io/name: {{ include "prometheus-engine.name" . }}
 {{- end }}
 
 {{/*
-Create the name of the service account to use
+Operator labels
 */}}
-{{- define "prometheus-engine.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "prometheus-engine.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
+{{- define "prometheus-engine.operator.labels" -}}
+app: managed-prometheus-operator
+app.kubernetes.io/component: operator
+app.kubernetes.io/name: gmp-operator
+  {{- if not .Values.noCommonLabels }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "prometheus-engine.name" . ) .Chart.AppVersion) .Release.Name }}
+app.kubernetes.io/version: {{ .Chart.AppVersion }}
+  {{- end }}
+app.kubernetes.io/part-of: {{ eq .Release.Name "release-name" | ternary "gmp" .Release.Name }}
+  {{- if not .Values.noCommonLabels }}
+helm.sh/chart: {{ include "prometheus-engine.chart" . }}
+  {{- end }}
 {{- end }}
+
+{{/*
+Operator selector labels
+*/}}
+{{- define "prometheus-engine.operator.selectorLabels" -}}
+app.kubernetes.io/component: operator
+app.kubernetes.io/name: gmp-operator
+app.kubernetes.io/part-of: {{ eq .Release.Name "release-name" | ternary "gmp" .Release.Name }}
+{{- end }}
+
+{{/*
+Operator template labels
+*/}}
+{{- define "prometheus-engine.operator.templateLabels" -}}
+app: managed-prometheus-operator
+{{ include "prometheus-engine.operator.selectorLabels" . }}
+app.kubernetes.io/version: {{ .Chart.AppVersion }}
+{{- end }}
+
+{{/*
+Collector labels
+*/}}
+{{- define "prometheus-engine.collector.labels" -}}
+{{ include "prometheus-engine.labels" . }}
+{{- end }}
+
+{{/*
+Collector selector labels
+*/}}
+{{- define "prometheus-engine.collector.selectorLabels" -}}
+app.kubernetes.io/name: collector
+{{- end }}
+
+{{/*
+Collector template labels
+*/}}
+{{- define "prometheus-engine.collector.templateLabels" -}}
+app: managed-prometheus-collector
+{{ include "prometheus-engine.collector.selectorLabels" . }}
+app.kubernetes.io/version: {{ .Chart.AppVersion }}
+{{- end }}
+
+{{/*
+Rule-evaluator labels
+*/}}
+{{- define "prometheus-engine.rule-evaluator.labels" -}}
+{{ include "prometheus-engine.labels" . }}
+{{- end }}
+
+{{/*
+Rule-evaluator selector labels
+*/}}
+{{- define "prometheus-engine.rule-evaluator.selectorLabels" -}}
+app.kubernetes.io/name: rule-evaluator
+{{- end }}
+
+{{/*
+Rule-evaluator template labels
+*/}}
+{{- define "prometheus-engine.rule-evaluator.templateLabels" -}}
+{{ include "prometheus-engine.rule-evaluator.selectorLabels" . }}
+app: managed-prometheus-rule-evaluator
+app.kubernetes.io/version: {{ .Chart.AppVersion }}
+{{- end }}
+
+{{/*
+Alertmanager labels
+*/}}
+{{- define "prometheus-engine.alertmanager.labels" -}}
+{{ include "prometheus-engine.labels" . }}
+{{- end }}
+
+{{/*
+Alertmanager selector labels
+*/}}
+{{- define "prometheus-engine.alertmanager.selectorLabels" -}}
+app: managed-prometheus-alertmanager
+app.kubernetes.io/name: alertmanager
+{{- end }}
+
+{{/*
+Alertmanager template labels
+*/}}
+{{- define "prometheus-engine.alertmanager.templateLabels" -}}
+{{ include "prometheus-engine.alertmanager.selectorLabels" . }}
+app.kubernetes.io/version: {{ .Chart.AppVersion }}
+{{- end }}
+
+{{/*
+Create the name of the collector service account to use
+*/}}
+{{- define "prometheus-engine.collector.serviceAccountName" -}}
+  {{- if .Values.collector.serviceAccount.create }}
+    {{- default "collector" .Values.collector.serviceAccount.name }}
+  {{- else }}
+    {{- default "default" .Values.collector.serviceAccount.name }}
+  {{- end }}
+{{- end }}
+
+{{/*
+Create the name of the operator service account to use
+*/}}
+{{- define "prometheus-engine.operator.serviceAccountName" -}}
+  {{- if .Values.operator.serviceAccount.create }}
+    {{- default "operator" .Values.operator.serviceAccount.name }}
+  {{- else }}
+    {{- default "default" .Values.operator.serviceAccount.name }}
+  {{- end }}
 {{- end }}
