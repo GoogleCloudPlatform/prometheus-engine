@@ -13,12 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 */}}
+{{- if .Values.collector.rbac.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: gmp-system:collector
+  {{- if not .Values.noCommonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 rules:
 - resources:
   - endpoints
@@ -34,14 +37,20 @@ rules:
   verbs: ["get"]
 - nonResourceURLs: ["/metrics"]
   verbs: ["get"]
+{{- end }}
+{{- if .Values.operator.rbac.create -}}
+  {{- if .Values.collector.rbac.create }}
 ---
+  {{- end }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: operator
   namespace: {{.Values.namespace.system}}
+  {{- if not .Values.noCommonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 rules:
 - resources:
   - pods
@@ -95,6 +104,10 @@ kind: Role
 metadata:
   name: operator
   namespace: {{.Values.namespace.public}}
+  {{- if not .Values.noCommonLabels }}
+  labels:
+    {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 rules:
 - resources:
   - secrets
@@ -137,6 +150,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: gmp-system:operator:webhook-admin
+  {{- if not .Values.noCommonLabels }}
+  labels:
+    {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 rules:
 # Permission to inject CA bundles into webhook configs of fixed name.
 - resources:
@@ -155,3 +172,4 @@ rules:
   resourceNames:
   - gmp-operator
   verbs: ["delete"]
+{{- end -}}

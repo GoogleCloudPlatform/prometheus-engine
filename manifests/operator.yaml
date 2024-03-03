@@ -18,10 +18,6 @@ apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: gmp-critical
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 # Maximum allowed user-defined. Only system-node-critical and system-cluster-critical
 # pods are higher.
 value: 1000000000
@@ -32,20 +28,12 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: gmp-system
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 ---
 # Source: prometheus-engine/templates/namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
   name: gmp-public
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 ---
 # Source: prometheus-engine/templates/service-account.yaml
 apiVersion: v1
@@ -53,10 +41,6 @@ kind: ServiceAccount
 metadata:
   name: collector
   namespace: gmp-system
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 ---
 # Source: prometheus-engine/templates/service-account.yaml
 apiVersion: v1
@@ -64,20 +48,12 @@ kind: ServiceAccount
 metadata:
   name: operator
   namespace: gmp-system
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 ---
 # Source: prometheus-engine/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: gmp-system:collector
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 rules:
 - resources:
   - endpoints
@@ -152,10 +128,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: gmp-system:operator
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 roleRef:
   name: gmp-system:operator
   kind: ClusterRole
@@ -170,10 +142,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: gmp-system:operator:webhook-admin
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 roleRef:
   name: gmp-system:operator:webhook-admin
   kind: ClusterRole
@@ -188,10 +156,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: gmp-system:collector
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 roleRef:
   name: gmp-system:collector
   kind: ClusterRole
@@ -207,10 +171,6 @@ kind: Role
 metadata:
   name: operator
   namespace: gmp-system
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 rules:
 - resources:
   - pods
@@ -280,10 +240,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: operator
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
   namespace: gmp-public
 roleRef:
   name: operator
@@ -300,10 +256,6 @@ kind: RoleBinding
 metadata:
   name: operator
   namespace: gmp-system
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 roleRef:
   name: operator
   kind: Role
@@ -318,12 +270,9 @@ kind: Service
 metadata:
   name: alertmanager
   namespace: gmp-system
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 spec:
   selector:
+    app: managed-prometheus-alertmanager
     app.kubernetes.io/name: alertmanager
   ports:
   - name: alertmanager
@@ -337,10 +286,6 @@ kind: Service
 metadata:
   name: gmp-operator
   namespace: gmp-system
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 spec:
   selector:
     app.kubernetes.io/component: operator
@@ -365,15 +310,11 @@ kind: DaemonSet
 metadata:
   name: collector
   namespace: gmp-system
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 spec:
   selector:
     matchLabels:
       # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
-      # see: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#pod-selector
+      # see: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#pod-selector.
       app.kubernetes.io/name: collector
   template:
     metadata:
@@ -544,15 +485,16 @@ metadata:
   name: gmp-operator
   namespace: gmp-system
   labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
     app: managed-prometheus-operator
     app.kubernetes.io/component: operator
+    app.kubernetes.io/name: gmp-operator
+    app.kubernetes.io/part-of: gmp
 spec:
   replicas: 1
   selector:
     matchLabels:
+      # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
+      # see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
       app.kubernetes.io/component: operator
       app.kubernetes.io/name: gmp-operator
       app.kubernetes.io/part-of: gmp
@@ -632,10 +574,6 @@ kind: Deployment
 metadata:
   name: rule-evaluator
   namespace: gmp-system
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 spec:
   selector:
     matchLabels:
@@ -645,8 +583,8 @@ spec:
   template:
     metadata:
       labels:
-        app: managed-prometheus-rule-evaluator
         app.kubernetes.io/name: rule-evaluator
+        app: managed-prometheus-rule-evaluator
         app.kubernetes.io/version: 0.9.0
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
@@ -800,13 +738,11 @@ kind: StatefulSet
 metadata:
   name: alertmanager
   namespace: gmp-system
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 spec:
   selector:
     matchLabels:
+      # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
+      # see: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#pod-selector.
       app: managed-prometheus-alertmanager
       app.kubernetes.io/name: alertmanager
   template:
@@ -948,10 +884,6 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   name: gmp-operator.gmp-system.monitoring.googleapis.com
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 webhooks:
 - name: default.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
@@ -1005,19 +937,12 @@ metadata:
   name: config
   namespace: gmp-public
   labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 ---
 # Source: prometheus-engine/templates/validatingwebhookconfiguration.yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: gmp-operator.gmp-system.monitoring.googleapis.com
-  labels:
-    app.kubernetes.io/name: prometheus-engine
-    app.kubernetes.io/version: "0.9.0"
-    app.kubernetes.io/part-of: gmp
 webhooks:
 - name: validate.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:

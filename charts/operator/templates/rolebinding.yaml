@@ -13,12 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 */}}
+{{- if .Values.collector.rbac.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: gmp-system:operator
+  {{- if not .Values.noCommonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 roleRef:
   name: gmp-system:operator
   kind: ClusterRole
@@ -32,8 +35,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: gmp-system:operator:webhook-admin
+  {{- if not .Values.noCommonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 roleRef:
   name: gmp-system:operator:webhook-admin
   kind: ClusterRole
@@ -47,9 +52,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: operator
-  labels:
-    {{- include "prometheus-engine.labels" . | nindent 4 }}
   namespace: {{.Values.namespace.public}}
+  {{- if not .Values.noCommonLabels }}
+  labels:
+    {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 roleRef:
   name: operator
   kind: Role
@@ -64,8 +71,10 @@ kind: RoleBinding
 metadata:
   name: operator
   namespace: {{.Values.namespace.system}}
+  {{- if not .Values.noCommonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 roleRef:
   name: operator
   kind: Role
@@ -73,13 +82,19 @@ roleRef:
 subjects:
 - name: operator
   kind: ServiceAccount
+{{- end }}
+{{- if .Values.collector.rbac.create -}}
+  {{- if .Values.operator.rbac.create }}
 ---
+  {{- end }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: gmp-system:collector
+  {{- if not .Values.noCommonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 roleRef:
   name: gmp-system:collector
   kind: ClusterRole
@@ -88,3 +103,4 @@ subjects:
 - name: collector
   namespace: {{.Values.namespace.system}}
   kind: ServiceAccount
+{{- end -}}

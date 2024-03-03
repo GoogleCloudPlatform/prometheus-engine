@@ -20,26 +20,20 @@ metadata:
   name: gmp-operator
   namespace: {{.Values.namespace.system}}
   labels:
-    {{- include "prometheus-engine.labels" . | nindent 4 }}
-    app: managed-prometheus-operator
-    app.kubernetes.io/component: operator
+    {{- include "prometheus-engine.operator.labels" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/component: operator
-      app.kubernetes.io/name: gmp-operator
-      app.kubernetes.io/part-of: gmp
+      # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
+      # see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
+      {{- include "prometheus-engine.operator.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: managed-prometheus-operator
-        app.kubernetes.io/component: operator
-        app.kubernetes.io/name: gmp-operator
-        app.kubernetes.io/part-of: gmp
-        app.kubernetes.io/version: 0.9.0
+        {{- include "prometheus-engine.operator.templateLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: operator
+      serviceAccountName: {{ include "prometheus-engine.operator.serviceAccountName" . }}
       automountServiceAccountToken: true
       priorityClassName: gmp-critical
       containers:

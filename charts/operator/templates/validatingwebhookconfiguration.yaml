@@ -17,8 +17,10 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: gmp-operator.gmp-system.monitoring.googleapis.com
+  {{- if not .Values.noCommonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
 webhooks:
 - name: validate.podmonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:

@@ -18,20 +18,20 @@ kind: Deployment
 metadata:
   name: rule-evaluator
   namespace: {{.Values.namespace.system}}
+  {{- if not .Values.noCommonLabels }}
   labels:
-    {{- include "prometheus-engine.labels" . | nindent 4 }}
+    {{- include "prometheus-engine.rule-evaluator.labels" . | nindent 4 }}
+  {{- end }}
 spec:
   selector:
     matchLabels:
       # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
       # see: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#label-selector-updates.
-      app.kubernetes.io/name: rule-evaluator
+      {{- include "prometheus-engine.rule-evaluator.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: managed-prometheus-rule-evaluator
-        app.kubernetes.io/name: rule-evaluator
-        app.kubernetes.io/version: 0.9.0
+        {{- include "prometheus-engine.rule-evaluator.templateLabels" . | nindent 8 }}
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.

@@ -77,3 +77,13 @@ tls:
     ca: null
     cert: null
     key: null
+collector:
+  rbac:
+    create: true
+  serviceAccount:
+    create: true
+operator:
+  rbac:
+    create: true
+  serviceAccount:
+    create: true

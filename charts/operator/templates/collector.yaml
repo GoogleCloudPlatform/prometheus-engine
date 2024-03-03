@@ -18,27 +18,27 @@ kind: DaemonSet
 metadata:
   name: collector
   namespace: {{.Values.namespace.system}}
+  {{- if not .Values.noCommonLabels }}
   labels:
-    {{- include "prometheus-engine.labels" . | nindent 4 }}
+    {{- include "prometheus-engine.collector.labels" . | nindent 4 }}
+  {{- end }}
 spec:
   selector:
     matchLabels:
       # DO NOT MODIFY - label selectors are immutable by the Kubernetes API.
-      # see: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#pod-selector
-      app.kubernetes.io/name: collector
+      # see: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#pod-selector.
+      {{- include "prometheus-engine.collector.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: managed-prometheus-collector
-        app.kubernetes.io/name: collector
-        app.kubernetes.io/version: 0.9.0
+        {{- include "prometheus-engine.collector.templateLabels" . | nindent 8 }}
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
     spec:
-      serviceAccountName: collector
+      serviceAccountName: {{ include "prometheus-engine.collector.serviceAccountName" . }}
       automountServiceAccountToken: true
       priorityClassName: gmp-critical
       initContainers:
