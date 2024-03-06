@@ -61,28 +61,6 @@ webhooks:
     - CREATE
     - UPDATE
   sideEffects: None
-- name: validate.nodemonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
-  - v1
-  clientConfig:
-    # caBundle populated by operator.
-    service:
-      name: gmp-operator
-      namespace: gmp-system
-      port: 443
-      path: /validate/monitoring.googleapis.com/v1/nodemonitorings
-  failurePolicy: Fail
-  rules:
-  - resources:
-    - nodemonitorings
-    apiGroups:
-    - monitoring.googleapis.com
-    apiVersions:
-    - v1
-    operations:
-    - CREATE
-    - UPDATE
-  sideEffects: None
 - name: validate.rules.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
