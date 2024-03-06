@@ -26,10 +26,10 @@ import (
 
 type MonitoringV1Interface interface {
 	RESTClient() rest.Interface
+	ClusterNodeMonitoringsGetter
 	ClusterPodMonitoringsGetter
 	ClusterRulesGetter
 	GlobalRulesGetter
-	NodeMonitoringsGetter
 	OperatorConfigsGetter
 	PodMonitoringsGetter
 	RulesGetter
@@ -38,6 +38,10 @@ type MonitoringV1Interface interface {
 // MonitoringV1Client is used to interact with features provided by the monitoring.googleapis.com group.
 type MonitoringV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *MonitoringV1Client) ClusterNodeMonitorings() ClusterNodeMonitoringInterface {
+	return newClusterNodeMonitorings(c)
 }
 
 func (c *MonitoringV1Client) ClusterPodMonitorings() ClusterPodMonitoringInterface {
@@ -50,10 +54,6 @@ func (c *MonitoringV1Client) ClusterRules() ClusterRulesInterface {
 
 func (c *MonitoringV1Client) GlobalRules() GlobalRulesInterface {
 	return newGlobalRules(c)
-}
-
-func (c *MonitoringV1Client) NodeMonitorings() NodeMonitoringInterface {
-	return newNodeMonitorings(c)
 }
 
 func (c *MonitoringV1Client) OperatorConfigs(namespace string) OperatorConfigInterface {

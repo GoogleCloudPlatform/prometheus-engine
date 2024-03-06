@@ -96,9 +96,9 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
-		// Any update to a NodeMonitoring requires regenerating the config.
+		// Any update to a ClusterNodeMonitoring requires regenerating the config.
 		Watches(
-			&monitoringv1.NodeMonitoring{},
+			&monitoringv1.ClusterNodeMonitoring{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
@@ -384,9 +384,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
 	var (
-		podMons        monitoringv1.PodMonitoringList
-		clusterPodMons monitoringv1.ClusterPodMonitoringList
-		NodeMons       monitoringv1.NodeMonitoringList
+		podMons         monitoringv1.PodMonitoringList
+		clusterPodMons  monitoringv1.ClusterPodMonitoringList
+		clusterNodeMons monitoringv1.ClusterNodeMonitoringList
 	)
 	if err := r.client.List(ctx, &podMons); err != nil {
 		return nil, fmt.Errorf("failed to list PodMonitorings: %w", err)
@@ -472,30 +472,30 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 	}
 
-	if err := r.client.List(ctx, &NodeMons); err != nil {
-		return nil, fmt.Errorf("failed to list NodeMonitorings: %w", err)
+	if err := r.client.List(ctx, &clusterNodeMons); err != nil {
+		return nil, fmt.Errorf("failed to list ClusterNodeMonitorings: %w", err)
 	}
-	// The following job names are reserved by GMP for NodeMonitoring in the
+	// The following job names are reserved by GMP for ClusterNodeMonitoring in the
 	// gmp-system namespace. They will not be generated if kubeletScraping is enabled.
 	var (
 		reservedCAdvisorJobName = "gmp-kubelet-cadvisor"
 		reservedKubeletJobName  = "gmp-kubelet-metrics"
 	)
 	// Mark status updates in batch with single timestamp.
-	for _, nm := range NodeMons.Items {
-		if spec.KubeletScraping != nil && nm.Namespace == r.opts.OperatorNamespace && (nm.Name == reservedKubeletJobName || nm.Name == reservedCAdvisorJobName) {
-			logger.Info("NodeMonitoring job %s was not applied because OperatorConfig.collector.kubeletScraping is enabled. kubeletScraping already includes the metrics in this job.", "name", nm.Name)
+	for _, cm := range clusterNodeMons.Items {
+		if spec.KubeletScraping != nil && (cm.Name == reservedKubeletJobName || cm.Name == reservedCAdvisorJobName) {
+			logger.Info("ClusterNodeMonitoring job %s was not applied because OperatorConfig.collector.kubeletScraping is enabled. kubeletScraping already includes the metrics in this job.", "name", cm.Name)
 			continue
 		}
 		// Reassign so we can safely get a pointer.
-		nm := nm
+		cm := cm
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := nm.ScrapeConfigs(projectID, location, cluster)
+		cfgs, err := cm.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
-			msg := "generating scrape config failed for NodeMonitoring endpoint"
+			msg := "generating scrape config failed for ClusterNodeMonitoring endpoint"
 			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
 			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{
@@ -504,20 +504,20 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 				Reason:  "ScrapeConfigError",
 				Message: msg,
 			}
-			logger.Error(err, msg, "namespace", nm.Namespace, "name", nm.Name)
+			logger.Error(err, msg, "namespace", cm.Namespace, "name", cm.Name)
 			continue
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		change, err := nm.Status.SetMonitoringCondition(nm.GetGeneration(), metav1.Now(), cond)
+		change, err := cm.Status.SetMonitoringCondition(cm.GetGeneration(), metav1.Now(), cond)
 		if err != nil {
 			// Log an error but let operator continue to avoid getting stuck
 			// on a potential bad resource.
-			logger.Error(err, "setting nodemonitoring status state", "namespace", nm.Namespace, "name", nm.Name)
+			logger.Error(err, "setting clusternodemonitoring status state", "namespace", cm.Namespace, "name", cm.Name)
 		}
 
 		if change {
-			r.statusUpdates = append(r.statusUpdates, &nm)
+			r.statusUpdates = append(r.statusUpdates, &cm)
 		}
 	}
 

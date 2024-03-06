@@ -53,8 +53,8 @@ type ScrapeNodeEndpoint struct {
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
 }
 
-// NodeMonitoringSpec contains specification parameters for NodeMonitoring.
-type NodeMonitoringSpec struct {
+// ClusterNodeMonitoringSpec contains specification parameters for ClusterNodeMonitoring.
+type ClusterNodeMonitoringSpec struct {
 	// Label selector that specifies which nodes are selected for this monitoring
 	// configuration. If left empty all nodes are selected.
 	Selector metav1.LabelSelector `json:"selector,omitempty"`
@@ -64,78 +64,78 @@ type NodeMonitoringSpec struct {
 	Limits *ScrapeLimits `json:"limits,omitempty"`
 }
 
-// NodeMonitoringList is a list of NodeMonitorings.
+// ClusterNodeMonitoringList is a list of ClusterNodeMonitorings.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type NodeMonitoringList struct {
+type ClusterNodeMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []NodeMonitoring `json:"items"`
+	Items           []ClusterNodeMonitoring `json:"items"`
 }
 
-// NodeMonitoring defines monitoring for a set of nodes.
+// ClusterNodeMonitoring defines monitoring for a set of nodes.
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
-type NodeMonitoring struct {
+type ClusterNodeMonitoring struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Specification of desired node selection for target discovery by
 	// Prometheus.
-	Spec NodeMonitoringSpec `json:"spec"`
+	Spec ClusterNodeMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
 	// +optional
 	Status MonitoringStatus `json:"status,omitempty"`
 }
 
-func (n *NodeMonitoring) GetKey() string {
-	return fmt.Sprintf("NodeMonitoring/%s", n.Name)
+func (c *ClusterNodeMonitoring) GetKey() string {
+	return fmt.Sprintf("ClusterNodeMonitoring/%s", c.Name)
 }
 
-func (n *NodeMonitoring) GetEndpoints() []ScrapeNodeEndpoint {
-	return n.Spec.Endpoints
+func (c *ClusterNodeMonitoring) GetEndpoints() []ScrapeNodeEndpoint {
+	return c.Spec.Endpoints
 }
 
-func (n *NodeMonitoring) GetMonitoringStatus() *MonitoringStatus {
-	return &n.Status
+func (c *ClusterNodeMonitoring) GetMonitoringStatus() *MonitoringStatus {
+	return &c.Status
 }
 
-func (n *NodeMonitoring) ValidateCreate() (admission.Warnings, error) {
-	if len(n.Spec.Endpoints) == 0 {
+func (c *ClusterNodeMonitoring) ValidateCreate() (admission.Warnings, error) {
+	if len(c.Spec.Endpoints) == 0 {
 		return nil, errors.New("at least one endpoint is required")
 	}
 	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
 	// example values has no adverse effects.
-	_, err := n.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	_, err := c.ScrapeConfigs("test_project", "test_location", "test_cluster")
 	return nil, err
 }
 
-func (n *NodeMonitoring) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+func (c *ClusterNodeMonitoring) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
-	return n.ValidateCreate()
+	return c.ValidateCreate()
 }
 
-func (*NodeMonitoring) ValidateDelete() (admission.Warnings, error) {
+func (*ClusterNodeMonitoring) ValidateDelete() (admission.Warnings, error) {
 	// Deletions are always valid.
 	return nil, nil
 }
 
-func (n *NodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
-	for i, ep := range n.Spec.Endpoints {
-		c, err := n.endpointScrapeConfig(&ep, projectID, location, cluster)
+func (c *ClusterNodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
+	for i, ep := range c.Spec.Endpoints {
+		sc, err := c.endpointScrapeConfig(&ep, projectID, location, cluster)
 		if err != nil {
 			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
-		res = append(res, c)
+		res = append(res, sc)
 	}
 	return res, nil
 }
 
-func (n *NodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected nodes.
-	relabelCfgs, err := relabelingsForSelector(n.Spec.Selector, n)
+	relabelCfgs, err := relabelingsForSelector(c.Spec.Selector, c)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (n *NodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID,
 	relabelCfgs = append(relabelCfgs,
 		&relabel.Config{
 			Action:      relabel.Replace,
-			Replacement: n.Name,
+			Replacement: c.Name,
 			TargetLabel: "job",
 		},
 		&relabel.Config{
@@ -206,7 +206,7 @@ func (n *NodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID,
 		},
 	}
 
-	return buildPrometheusScrapConfig(fmt.Sprintf("%s%s", n.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, n.Spec.Limits,
+	return buildPrometheusScrapConfig(fmt.Sprintf("%s%s", c.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, c.Spec.Limits,
 		ScrapeEndpoint{Interval: ep.Interval,
 			Timeout:          ep.Timeout,
 			Path:             metricsPath,

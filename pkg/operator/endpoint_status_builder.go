@@ -104,7 +104,7 @@ func getObjectByScrapeJobKey(key string) (monitoringv1.PodMonitoringCRD, error) 
 		return setNamespacedObjectByScrapeJobKey(&monitoringv1.PodMonitoring{}, split, key)
 	case "ClusterPodMonitoring":
 		return setClusterScopedObjectByScrapeJobKey(&monitoringv1.ClusterPodMonitoring{}, split, key)
-	case "NodeMonitoring":
+	case "ClusterNodeMonitoring":
 		if _, err := setClusterScopedObjectByScrapeJobKey(&monitoringv1.ClusterPodMonitoring{}, split, key); err != nil {
 			return nil, err
 		}
@@ -162,9 +162,9 @@ func parseScrapePool(pool string) (scrapePool, error) {
 			return scrapePool{}, fmt.Errorf("invalid ClusterPodMonitoring scrape pool format %q", pool)
 		}
 		return getClusterScopedScrapePool(pool, split), nil
-	case "NodeMonitoring":
+	case "ClusterNodeMonitoring":
 		if len(split) != 3 {
-			return scrapePool{}, fmt.Errorf("invalid NodeMonitoring scrape pool format %q", pool)
+			return scrapePool{}, fmt.Errorf("invalid ClusterNodeMonitoring scrape pool format %q", pool)
 		}
 		return getClusterScopedScrapePool(pool, split), nil
 	default:

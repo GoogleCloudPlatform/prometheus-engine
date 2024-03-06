@@ -16,13 +16,13 @@
 
 package v1
 
+type ClusterNodeMonitoringExpansion interface{}
+
 type ClusterPodMonitoringExpansion interface{}
 
 type ClusterRulesExpansion interface{}
 
 type GlobalRulesExpansion interface{}
-
-type NodeMonitoringExpansion interface{}
 
 type OperatorConfigExpansion interface{}
 

@@ -1173,13 +1173,13 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 		},
 		{
-			desc: "NodeMonitoring hardcoded scrape configs",
+			desc: "ClusterNodeMonitoring hardcoded scrape configs",
 			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "up",
 						LastError:  "",
-						ScrapePool: "NodeMonitoring/node-example-1/metrics",
+						ScrapePool: "ClusterNodeMonitoring/node-example-1/metrics",
 						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
 							"instance": "a",
 							"node":     "node-1-default-pool-abcd1234",

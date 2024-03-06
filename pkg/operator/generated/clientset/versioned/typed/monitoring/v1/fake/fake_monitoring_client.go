@@ -26,6 +26,10 @@ type FakeMonitoringV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeMonitoringV1) ClusterNodeMonitorings() v1.ClusterNodeMonitoringInterface {
+	return &FakeClusterNodeMonitorings{c}
+}
+
 func (c *FakeMonitoringV1) ClusterPodMonitorings() v1.ClusterPodMonitoringInterface {
 	return &FakeClusterPodMonitorings{c}
 }
@@ -36,10 +40,6 @@ func (c *FakeMonitoringV1) ClusterRules() v1.ClusterRulesInterface {
 
 func (c *FakeMonitoringV1) GlobalRules() v1.GlobalRulesInterface {
 	return &FakeGlobalRules{c}
-}
-
-func (c *FakeMonitoringV1) NodeMonitorings() v1.NodeMonitoringInterface {
-	return &FakeNodeMonitorings{c}
 }
 
 func (c *FakeMonitoringV1) OperatorConfigs(namespace string) v1.OperatorConfigInterface {

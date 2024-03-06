@@ -13,7 +13,7 @@
 # limitations under the License.
 
 apiVersion: monitoring.googleapis.com/v1
-kind: NodeMonitoring
+kind: ClusterNodeMonitoring
 metadata:
   name: gmp-kubelet-cadvisor
 spec:

@@ -66,7 +66,7 @@ webhooks:
     - CREATE
     - UPDATE
   sideEffects: None
-- name: validate.nodemonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
+- name: validate.clusternodemonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
   clientConfig:
@@ -75,11 +75,11 @@ webhooks:
       name: gmp-operator
       namespace: {{.Values.namespace.system}}
       port: 443
-      path: /validate/monitoring.googleapis.com/v1/nodemonitorings
+      path: /validate/monitoring.googleapis.com/v1/clusternodemonitorings
   failurePolicy: Fail
   rules:
   - resources:
-    - nodemonitorings
+    - clusternodemonitorings
     apiGroups:
     - monitoring.googleapis.com
     apiVersions:

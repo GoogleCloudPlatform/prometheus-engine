@@ -65,13 +65,13 @@ func ClusterPodMonitoringResource() metav1.GroupVersionResource {
 	}
 }
 
-// NodeMonitoringResource returns a NodeMonitoring GroupVersionResource.
+// ClusterNodeMonitoringResource returns a ClusterNodeMonitoring GroupVersionResource.
 // This can be used to enforce API types.
-func NodeMonitoringResource() metav1.GroupVersionResource {
+func ClusterNodeMonitoringResource() metav1.GroupVersionResource {
 	return metav1.GroupVersionResource{
 		Group:    monitoring.GroupName,
 		Version:  Version,
-		Resource: "nodemonitorings",
+		Resource: "clusternodemonitorings",
 	}
 }
 
@@ -122,8 +122,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PodMonitoringList{},
 		&ClusterPodMonitoring{},
 		&ClusterPodMonitoringList{},
-		&NodeMonitoring{},
-		&NodeMonitoringList{},
+		&ClusterNodeMonitoring{},
+		&ClusterNodeMonitoringList{},
 		&Rules{},
 		&RulesList{},
 		&ClusterRules{},

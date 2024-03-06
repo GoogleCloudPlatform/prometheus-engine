@@ -16,20 +16,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: nodemonitorings.monitoring.googleapis.com
+  name: clusternodemonitorings.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
   names:
-    kind: NodeMonitoring
-    listKind: NodeMonitoringList
-    plural: nodemonitorings
-    singular: nodemonitoring
+    kind: ClusterNodeMonitoring
+    listKind: ClusterNodeMonitoringList
+    plural: clusternodemonitorings
+    singular: clusternodemonitoring
   scope: Cluster
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: NodeMonitoring defines monitoring for a set of nodes.
+        description: ClusterNodeMonitoring defines monitoring for a set of nodes.
         properties:
           apiVersion:
             description: |-
