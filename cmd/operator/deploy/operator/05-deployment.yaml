@@ -36,7 +36,7 @@ spec:
         app.kubernetes.io/component: operator
         app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/part-of: gmp
-        app.kubernetes.io/version: 0.9.0
+        app.kubernetes.io/version: 0.10.0
     spec:
       serviceAccountName: operator
       automountServiceAccountToken: true

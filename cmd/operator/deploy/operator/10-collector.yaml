@@ -28,7 +28,7 @@ spec:
       labels:
         app: managed-prometheus-collector
         app.kubernetes.io/name: collector
-        app.kubernetes.io/version: 0.9.0
+        app.kubernetes.io/version: 0.10.0
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
