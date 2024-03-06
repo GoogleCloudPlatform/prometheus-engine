@@ -23,10 +23,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestValidateNodeMonitoring(t *testing.T) {
+func TestValidateClusterNodeMonitoring(t *testing.T) {
 	cases := []struct {
 		desc        string
-		pm          NodeMonitoringSpec
+		pm          ClusterNodeMonitoringSpec
 		eps         []ScrapeNodeEndpoint
 		fail        bool
 		errContains string
@@ -72,8 +72,8 @@ func TestValidateNodeMonitoring(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc+"", func(t *testing.T) {
-			nm := &NodeMonitoring{
-				Spec: NodeMonitoringSpec{
+			nm := &ClusterNodeMonitoring{
+				Spec: ClusterNodeMonitoringSpec{
 					Endpoints: c.eps,
 				},
 			}
@@ -93,17 +93,17 @@ func TestValidateNodeMonitoring(t *testing.T) {
 	}
 }
 
-func TestNodeMonitoring_ScrapeConfig(t *testing.T) {
+func TestClusterNodeMonitoring_ScrapeConfig(t *testing.T) {
 	// Generate YAML for one complex scrape config and make sure everything
 	// adds up. This primarily verifies that everything is included and marshalling
 	// the generated config to YAML does not produce any bad configurations due to
 	// defaulting as the Prometheus structs are misconfigured in this regard in
 	// several places.
-	pmon := &NodeMonitoring{
+	pmon := &ClusterNodeMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "kubelet",
 		},
-		Spec: NodeMonitoringSpec{
+		Spec: ClusterNodeMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{"kubernetes.io/os": "linux"},
 			},
@@ -157,7 +157,7 @@ func TestNodeMonitoring_ScrapeConfig(t *testing.T) {
 		got = append(got, string(b))
 	}
 	want := []string{
-		`job_name: NodeMonitoring/kubelet/cadvisor/metrics
+		`job_name: ClusterNodeMonitoring/kubelet/cadvisor/metrics
 honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 10s
@@ -217,7 +217,7 @@ kubernetes_sd_configs:
   - role: node
     field: metadata.name=$(NODE_NAME)
 `,
-		`job_name: NodeMonitoring/kubelet/metrics
+		`job_name: ClusterNodeMonitoring/kubelet/metrics
 honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 5s

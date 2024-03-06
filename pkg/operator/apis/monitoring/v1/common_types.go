@@ -42,7 +42,7 @@ func relabelingsForSelector(selector metav1.LabelSelector, crd interface{}) ([]*
 	case *PodMonitoring, *ClusterPodMonitoring:
 		objectLabel = "__meta_kubernetes_pod_label_"
 		objectLabelPresent = "__meta_kubernetes_pod_labelpresent_"
-	case *NodeMonitoring:
+	case *ClusterNodeMonitoring:
 		objectLabel = "__meta_kubernetes_node_label_"
 		objectLabelPresent = "__meta_kubernetes_node_labelpresent_"
 	default:

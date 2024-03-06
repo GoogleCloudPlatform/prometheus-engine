@@ -128,7 +128,7 @@ rules:
   - clusterpodmonitorings
   - clusterrules
   - globalrules
-  - nodemonitorings
+  - clusternodemonitorings
   - podmonitorings
   - rules
   apiGroups: ["monitoring.googleapis.com"]
@@ -137,6 +137,7 @@ rules:
   - clusterpodmonitorings/status
   - clusterrules/status
   - globalrules/status
+  - clusternodemonitorings/status
   - podmonitorings/status
   - rules/status
   apiGroups: ["monitoring.googleapis.com"]

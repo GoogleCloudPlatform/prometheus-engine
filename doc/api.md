@@ -20,6 +20,10 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.BasicAuth">BasicAuth</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoring">ClusterNodeMonitoring</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoringSpec">ClusterNodeMonitoringSpec</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterPodMonitoring">ClusterPodMonitoring</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>
@@ -51,10 +55,6 @@ Resource Types:
 <a href="#monitoring.googleapis.com/v1.MonitoringConditionType">MonitoringConditionType</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.MonitoringStatus">MonitoringStatus</a>
-</li><li>
-<a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>
-</li><li>
-<a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>
 </li><li>
@@ -373,6 +373,125 @@ string
 </td>
 <td>
 <p>The username for authentication.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ClusterNodeMonitoring">
+<span id="ClusterNodeMonitoring">ClusterNodeMonitoring
+</span>
+</h3>
+<div>
+<p>ClusterNodeMonitoring defines monitoring for a set of nodes.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>metadata</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#objectmeta-v1-meta">
+Kubernetes meta/v1.ObjectMeta
+</a>
+</em>
+</td>
+<td>
+Refer to the Kubernetes API documentation for the fields of the
+<code>metadata</code> field.
+</td>
+</tr>
+<tr>
+<td>
+<code>spec</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoringSpec">
+ClusterNodeMonitoringSpec
+</a>
+</em>
+</td>
+<td>
+<p>Specification of desired node selection for target discovery by
+Prometheus.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>status</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
+MonitoringStatus
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Most recently observed status of the resource.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ClusterNodeMonitoringSpec">
+<span id="ClusterNodeMonitoringSpec">ClusterNodeMonitoringSpec
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoring">ClusterNodeMonitoring</a>)
+</p>
+<div>
+<p>ClusterNodeMonitoringSpec contains specification parameters for ClusterNodeMonitoring.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>selector</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#labelselector-v1-meta">
+Kubernetes meta/v1.LabelSelector
+</a>
+</em>
+</td>
+<td>
+<p>Label selector that specifies which nodes are selected for this monitoring
+configuration. If left empty all nodes are selected.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>endpoints</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">
+[]ScrapeNodeEndpoint
+</a>
+</em>
+</td>
+<td>
+<p>The endpoints to scrape on the selected nodes.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>limits</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ScrapeLimits">
+ScrapeLimits
+</a>
+</em>
+</td>
+<td>
+<p>Limits to apply at scrape time.</p>
 </td>
 </tr>
 </tbody>
@@ -1190,7 +1309,7 @@ monitoring resource was created successfully.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoring">ClusterNodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
 </p>
 <div>
 <p>MonitoringStatus holds status information of a monitoring resource.</p>
@@ -1226,125 +1345,6 @@ int64
 </td>
 <td>
 <p>Represents the latest available observations of a podmonitor&rsquo;s current state.</p>
-</td>
-</tr>
-</tbody>
-</table>
-<h3 id="monitoring.googleapis.com/v1.NodeMonitoring">
-<span id="NodeMonitoring">NodeMonitoring
-</span>
-</h3>
-<div>
-<p>NodeMonitoring defines monitoring for a set of nodes.</p>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>metadata</code><br/>
-<em>
-<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#objectmeta-v1-meta">
-Kubernetes meta/v1.ObjectMeta
-</a>
-</em>
-</td>
-<td>
-Refer to the Kubernetes API documentation for the fields of the
-<code>metadata</code> field.
-</td>
-</tr>
-<tr>
-<td>
-<code>spec</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">
-NodeMonitoringSpec
-</a>
-</em>
-</td>
-<td>
-<p>Specification of desired node selection for target discovery by
-Prometheus.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>status</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
-MonitoringStatus
-</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>Most recently observed status of the resource.</p>
-</td>
-</tr>
-</tbody>
-</table>
-<h3 id="monitoring.googleapis.com/v1.NodeMonitoringSpec">
-<span id="NodeMonitoringSpec">NodeMonitoringSpec
-</span>
-</h3>
-<p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>)
-</p>
-<div>
-<p>NodeMonitoringSpec contains specification parameters for NodeMonitoring.</p>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>selector</code><br/>
-<em>
-<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#labelselector-v1-meta">
-Kubernetes meta/v1.LabelSelector
-</a>
-</em>
-</td>
-<td>
-<p>Label selector that specifies which nodes are selected for this monitoring
-configuration. If left empty all nodes are selected.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>endpoints</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">
-[]ScrapeNodeEndpoint
-</a>
-</em>
-</td>
-<td>
-<p>The endpoints to scrape on the selected nodes.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>limits</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ScrapeLimits">
-ScrapeLimits
-</a>
-</em>
-</td>
-<td>
-<p>Limits to apply at scrape time.</p>
 </td>
 </tr>
 </tbody>
@@ -2570,7 +2570,7 @@ be considered a problem and should be investigated.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringSpec">PodMonitoringSpec</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoringSpec">ClusterNodeMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringSpec">PodMonitoringSpec</a>)
 </p>
 <div>
 <p>ScrapeLimits limits applied to scraped targets.</p>
@@ -2638,7 +2638,7 @@ Uses Prometheus default if left unspecified.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoringSpec">ClusterNodeMonitoringSpec</a>)
 </p>
 <div>
 <p>ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape.

@@ -398,7 +398,7 @@ func testEnableKubeletScraping(ctx context.Context, opClient versioned.Interface
 			t.Errorf("get operatorconfig: %s", err)
 		}
 		// Enable kubelet scraping.
-		// TODO(pintohutch): use NodeMonitoring instead once TLSInsecureSkipVerify is added there.
+		// TODO(pintohutch): use ClusterNodeMonitoring instead once TLSInsecureSkipVerify is added there.
 		// Since kubelet scraping wont work in kind clusters without this option.
 		config.Collection.KubeletScraping = &monitoringv1.KubeletScraping{
 			Interval:              "5s",
