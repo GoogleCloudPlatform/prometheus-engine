@@ -149,30 +149,6 @@ func TestCollector(t *testing.T) {
 		}))
 	}))
 
-	t.Run("nodemonitoring", tctx.subtest(func(ctx context.Context, t *OperatorContext) {
-		t.Parallel()
-		testNodeMonitoring(ctx, t, &monitoringv1.NodeMonitoring{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "collector-nodemon",
-				Namespace: t.namespace,
-			},
-			Spec: monitoringv1.NodeMonitoringSpec{
-				Endpoints: []monitoringv1.ScrapeNodeEndpoint{
-					{
-						Scheme:   "https",
-						Interval: "5s",
-						Path:     "/metrics",
-					},
-					{
-						Scheme:   "https",
-						Interval: "5s",
-						Path:     "/metrics/cadvisor",
-					},
-				},
-			},
-		})
-	}))
-
 	t.Run("scrape-kubelet", tctx.subtest(testCollectorScrapeKubelet))
 }
 
@@ -282,24 +258,6 @@ func selfScrapeEndpointConfig() []monitoringv1.ScrapeEndpoint {
 			Port:     intstr.FromString(operator.CollectorConfigReloaderContainerPortName),
 			Interval: "5s",
 		},
-	}
-}
-
-// testNodeMonitoring sets up node monitoring and waits for samples to become available in GCM.
-func testNodeMonitoring(ctx context.Context, t *OperatorContext, nm monitoringv1.MonitoringCRD) {
-	var err error
-	if err = t.Client().Create(ctx, nm); err != nil {
-		t.Fatalf("create NodeMonitoring error: %s", err)
-	}
-	t.Logf("Waiting for %q to be processed", nm.GetName())
-
-	if err := operatorutil.WaitForNodeMonitoringReady(ctx, t.Client(), t.namespace, nm); err != nil {
-		t.Errorf("unable to validate status: %s", err)
-	}
-
-	if !skipGCM {
-		t.Log("Waiting for up metrics for collector targets")
-		ValidateKubeletMetrics(ctx, t, nm.GetName(), []string{"metrics", "metrics/cadvisor"})
 	}
 }
 

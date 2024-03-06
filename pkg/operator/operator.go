@@ -228,9 +228,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 					&monitoringv1.ClusterPodMonitoring{}: {
 						Field: fields.Everything(),
 					},
-					&monitoringv1.NodeMonitoring{}: {
-						Field: fields.Everything(),
-					},
 					&monitoringv1.GlobalRules{}: {
 						Field: fields.Everything(),
 					},
@@ -316,10 +313,6 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	s.Register(
 		validatePath(monitoringv1.ClusterPodMonitoringResource()),
 		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.ClusterPodMonitoring{}),
-	)
-	s.Register(
-		validatePath(monitoringv1.NodeMonitoringResource()),
-		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.NodeMonitoring{}),
 	)
 	s.Register(
 		validatePath(monitoringv1.OperatorConfigResource()),

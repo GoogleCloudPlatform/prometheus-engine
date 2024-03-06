@@ -52,10 +52,6 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.MonitoringStatus">MonitoringStatus</a>
 </li><li>
-<a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>
-</li><li>
-<a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>
-</li><li>
 <a href="#monitoring.googleapis.com/v1.OperatorConfig">OperatorConfig</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.OperatorFeatures">OperatorFeatures</a>
@@ -93,8 +89,6 @@ Resource Types:
 <a href="#monitoring.googleapis.com/v1.ScrapeEndpointStatus">ScrapeEndpointStatus</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ScrapeLimits">ScrapeLimits</a>
-</li><li>
-<a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.SecretOrConfigMap">SecretOrConfigMap</a>
 </li><li>
@@ -1163,7 +1157,7 @@ monitoring resource was created successfully.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
 </p>
 <div>
 <p>MonitoringStatus holds status information of a monitoring resource.</p>
@@ -1199,125 +1193,6 @@ int64
 </td>
 <td>
 <p>Represents the latest available observations of a podmonitor&rsquo;s current state.</p>
-</td>
-</tr>
-</tbody>
-</table>
-<h3 id="monitoring.googleapis.com/v1.NodeMonitoring">
-<span id="NodeMonitoring">NodeMonitoring
-</span>
-</h3>
-<div>
-<p>NodeMonitoring defines monitoring for a set of nodes.</p>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>metadata</code><br/>
-<em>
-<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#objectmeta-v1-meta">
-Kubernetes meta/v1.ObjectMeta
-</a>
-</em>
-</td>
-<td>
-Refer to the Kubernetes API documentation for the fields of the
-<code>metadata</code> field.
-</td>
-</tr>
-<tr>
-<td>
-<code>spec</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">
-NodeMonitoringSpec
-</a>
-</em>
-</td>
-<td>
-<p>Specification of desired node selection for target discovery by
-Prometheus.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>status</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
-MonitoringStatus
-</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>Most recently observed status of the resource.</p>
-</td>
-</tr>
-</tbody>
-</table>
-<h3 id="monitoring.googleapis.com/v1.NodeMonitoringSpec">
-<span id="NodeMonitoringSpec">NodeMonitoringSpec
-</span>
-</h3>
-<p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoring">NodeMonitoring</a>)
-</p>
-<div>
-<p>NodeMonitoringSpec contains specification parameters for NodeMonitoring.</p>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>selector</code><br/>
-<em>
-<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#labelselector-v1-meta">
-Kubernetes meta/v1.LabelSelector
-</a>
-</em>
-</td>
-<td>
-<p>Label selector that specifies which nodes are selected for this monitoring
-configuration. If left empty all nodes are selected.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>endpoints</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">
-[]ScrapeNodeEndpoint
-</a>
-</em>
-</td>
-<td>
-<p>The endpoints to scrape on the selected nodes.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>limits</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ScrapeLimits">
-ScrapeLimits
-</a>
-</em>
-</td>
-<td>
-<p>Limits to apply at scrape time.</p>
 </td>
 </tr>
 </tbody>
@@ -1689,7 +1564,7 @@ string
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>, <a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>)
 </p>
 <div>
 <p>RelabelingRule defines a single Prometheus relabeling rule.</p>
@@ -2450,7 +2325,7 @@ be considered a problem and should be investigated.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringSpec">PodMonitoringSpec</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringSpec">PodMonitoringSpec</a>)
 </p>
 <div>
 <p>ScrapeLimits limits applied to scraped targets.</p>
@@ -2509,99 +2384,6 @@ uint64
 <td>
 <p>Maximum label value length.
 Uses Prometheus default if left unspecified.</p>
-</td>
-</tr>
-</tbody>
-</table>
-<h3 id="monitoring.googleapis.com/v1.ScrapeNodeEndpoint">
-<span id="ScrapeNodeEndpoint">ScrapeNodeEndpoint
-</span>
-</h3>
-<p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.NodeMonitoringSpec">NodeMonitoringSpec</a>)
-</p>
-<div>
-<p>ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape.
-It contains all the fields used in the ScrapeEndpoint except for port and HTTPClientConfig.</p>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>scheme</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<p>Protocol scheme to use to scrape.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>path</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<p>HTTP path to scrape metrics from. Defaults to &ldquo;/metrics&rdquo;.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>params</code><br/>
-<em>
-map[string][]string
-</em>
-</td>
-<td>
-<p>HTTP GET params to use when scraping.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>interval</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<p>Interval at which to scrape metrics. Must be a valid Prometheus duration.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>timeout</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<p>Timeout for metrics scrapes. Must be a valid Prometheus duration.
-Must not be larger then the scrape interval.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>metricRelabeling</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.RelabelingRule">
-[]RelabelingRule
-</a>
-</em>
-</td>
-<td>
-<p>Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
-override protected target labels (project_id, location, cluster, namespace, job,
-instance, or <strong>address</strong>) are not permitted. The labelmap action is not permitted
-in general.</p>
 </td>
 </tr>
 </tbody>

@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	tclock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -1169,23 +1170,6 @@ func TestUpdateTargetStatus(t *testing.T) {
 							LastScrapeDuration: 0.2,
 						},
 					},
-				},
-			},
-		},
-		{
-			desc: "NodeMonitoring hardcoded scrape configs",
-			targets: []*prometheusv1.TargetsResult{
-				{
-					Active: []prometheusv1.ActiveTarget{{
-						Health:     "up",
-						LastError:  "",
-						ScrapePool: "NodeMonitoring/node-example-1/metrics",
-						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
-							"instance": "a",
-							"node":     "node-1-default-pool-abcd1234",
-						}),
-						LastScrapeDuration: 1.2,
-					}},
 				},
 			},
 		},
