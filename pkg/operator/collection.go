@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"path"
 	"sort"
 	"strings"
@@ -181,7 +182,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, fmt.Errorf("ensure collector daemon set: %w", err)
 	}
 
-	if err := r.ensureCollectorConfig(ctx, &config.Collection, config.Features.Config.Compression); err != nil {
+	if err := r.ensureCollectorConfig(ctx, &config.Collection, config.Features.Config.Compression, config.Exports); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector config: %w", err)
 	}
 
@@ -320,8 +321,8 @@ func gzipData(data []byte) ([]byte, error) {
 }
 
 // ensureCollectorConfig generates the collector config and creates or updates it.
-func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, compression monitoringv1.CompressionType) error {
-	cfg, err := r.makeCollectorConfig(ctx, spec)
+func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, compression monitoringv1.CompressionType, exports []monitoringv1.ExportSpec) error {
+	cfg, err := r.makeCollectorConfig(ctx, spec, exports)
 	if err != nil {
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
@@ -367,7 +368,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	return nil
 }
 
-func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec) (*promconfig.Config, error) {
+func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*promconfig.Config, error) {
 	logger, _ := logr.FromContext(ctx)
 
 	cfg := &promconfig.Config{
@@ -380,6 +381,11 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	cfg.ScrapeConfigs, err = makeKubeletScrapeConfigs(spec.KubeletScraping)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kubelet scrape config: %w", err)
+	}
+
+	cfg.RemoteWriteConfigs, err = makeRemoteWriteConfig(exports)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create export config: %w", err)
 	}
 
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
@@ -551,6 +557,22 @@ func (d *clusterPodMonitoringDefaulter) Default(_ context.Context, o runtime.Obj
 		pm.Spec.TargetLabels.Metadata = &md
 	}
 	return nil
+}
+
+// makeRemoteWriteConfig generate the configs for the Prometheus remote_write feature.
+func makeRemoteWriteConfig(exports []monitoringv1.ExportSpec) ([]*promconfig.RemoteWriteConfig, error) {
+	var exportConfigs []*promconfig.RemoteWriteConfig
+	for _, export := range exports {
+		url, err := url.Parse(export.URL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse url: %w", err)
+		}
+		exportConfigs = append(exportConfigs,
+			&promconfig.RemoteWriteConfig{
+				URL: &config.URL{URL: url},
+			})
+	}
+	return exportConfigs, nil
 }
 
 func makeKubeletScrapeConfigs(cfg *monitoringv1.KubeletScraping) ([]*promconfig.ScrapeConfig, error) {

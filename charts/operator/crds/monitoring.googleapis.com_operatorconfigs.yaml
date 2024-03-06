@@ -39,7 +39,9 @@ spec:
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           collection:
-            description: Collection specifies how the operator configures collection.
+            description: |-
+              Collection specifies how the operator configures collection including
+              integrated exports to Google Cloud Monitoring.
             properties:
               compression:
                 description: Compression enables compression of metrics collection
@@ -78,11 +80,12 @@ spec:
                   type: string
                 description: |-
                   ExternalLabels specifies external labels that are attached to all scraped
-                  data before being written to Cloud Monitoring. The precedence behavior matches that
-                  of Prometheus.
+                  data before being written to Google Cloud Monitoring or any other additional exports
+                  specified in the OperatorConfig. The precedence behavior matches that of Prometheus.
                 type: object
               filter:
-                description: Filter limits which metric data is sent to Cloud Monitoring.
+                description: Filter limits which metric data is sent to Cloud Monitoring(Doesn't
+                  apply to additional exports).
                 properties:
                   matchOneOf:
                     description: |-
@@ -109,6 +112,19 @@ spec:
                 - interval
                 type: object
             type: object
+          exports:
+            description: |-
+              Exports specifies additional exporting mechanism on top of Google Cloud Monitoring collection.
+              Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in Collection.
+            items:
+              properties:
+                url:
+                  description: The URL of the endpoint to export samples to.
+                  type: string
+              required:
+              - url
+              type: object
+            type: array
           features:
             description: Features holds configuration for optional managed-collection
               features.

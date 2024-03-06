@@ -38,6 +38,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ExportFilters">ExportFilters</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.ExportSpec">ExportSpec</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.GlobalRules">GlobalRules</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>
@@ -738,8 +740,8 @@ map[string]string
 </td>
 <td>
 <p>ExternalLabels specifies external labels that are attached to all scraped
-data before being written to Cloud Monitoring. The precedence behavior matches that
-of Prometheus.</p>
+data before being written to Google Cloud Monitoring or any other additional exports
+specified in the OperatorConfig. The precedence behavior matches that of Prometheus.</p>
 </td>
 </tr>
 <tr>
@@ -752,7 +754,7 @@ ExportFilters
 </em>
 </td>
 <td>
-<p>Filter limits which metric data is sent to Cloud Monitoring.</p>
+<p>Filter limits which metric data is sent to Cloud Monitoring(Doesn&rsquo;t apply to additional exports).</p>
 </td>
 </tr>
 <tr>
@@ -887,6 +889,36 @@ and/or PodMonitoring.</p>
 of the matchers to be exported. This field can be used equivalently to the match[]
 parameter of the Prometheus federation endpoint to selectively export data.
 Example: <code>[&quot;{job!='foobar'}&quot;, &quot;{__name__!~'container_foo.*|container_bar.*'}&quot;]</code></p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ExportSpec">
+<span id="ExportSpec">ExportSpec
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.OperatorConfig">OperatorConfig</a>)
+</p>
+<div>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>url</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>The URL of the endpoint to export samples to.</p>
 </td>
 </tr>
 </tbody>
@@ -1494,7 +1526,22 @@ CollectionSpec
 </em>
 </td>
 <td>
-<p>Collection specifies how the operator configures collection.</p>
+<p>Collection specifies how the operator configures collection including
+integrated exports to Google Cloud Monitoring.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>exports</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ExportSpec">
+[]ExportSpec
+</a>
+</em>
+</td>
+<td>
+<p>Exports specifies additional exporting mechanism on top of Google Cloud Monitoring collection.
+Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in Collection.</p>
 </td>
 </tr>
 <tr>
