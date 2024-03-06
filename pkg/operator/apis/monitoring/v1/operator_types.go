@@ -29,8 +29,12 @@ type OperatorConfig struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Rules specifies how the operator configures and deploys rule-evaluator.
 	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
-	// Collection specifies how the operator configures collection.
+	// Collection specifies how the operator configures collection including
+	// integrated exports to Google Cloud Monitoring.
 	Collection CollectionSpec `json:"collection,omitempty"`
+	// Exports specifies additional exporting mechanism on top of Google Cloud Monitoring collection.
+	// Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in Collection.
+	Exports []ExportSpec `json:"exports,omitempty"`
 	// ManagedAlertmanager holds information for configuring the managed instance of Alertmanager.
 	// +kubebuilder:default={configSecret: {name: alertmanager, key: alertmanager.yaml}}
 	ManagedAlertmanager *ManagedAlertmanagerSpec `json:"managedAlertmanager,omitempty"`
@@ -73,10 +77,10 @@ type RuleEvaluatorSpec struct {
 // CollectionSpec specifies how the operator configures collection of metric data.
 type CollectionSpec struct {
 	// ExternalLabels specifies external labels that are attached to all scraped
-	// data before being written to Cloud Monitoring. The precedence behavior matches that
-	// of Prometheus.
+	// data before being written to Google Cloud Monitoring or any other additional exports
+	// specified in the OperatorConfig. The precedence behavior matches that of Prometheus.
 	ExternalLabels map[string]string `json:"externalLabels,omitempty"`
-	// Filter limits which metric data is sent to Cloud Monitoring.
+	// Filter limits which metric data is sent to Cloud Monitoring(Doesn't apply to additional exports).
 	Filter ExportFilters `json:"filter,omitempty"`
 	// A reference to GCP service account credentials with which Prometheus collectors
 	// are run. It needs to have metric write permissions for all project IDs to which
@@ -88,6 +92,11 @@ type CollectionSpec struct {
 	KubeletScraping *KubeletScraping `json:"kubeletScraping,omitempty"`
 	// Compression enables compression of metrics collection data
 	Compression CompressionType `json:"compression,omitempty"`
+}
+
+type ExportSpec struct {
+	// The URL of the endpoint to export samples to.
+	URL string `json:"url"`
 }
 
 // OperatorFeatures holds configuration for optional managed-collection features.
