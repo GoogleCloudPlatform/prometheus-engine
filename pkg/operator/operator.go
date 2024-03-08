@@ -391,8 +391,13 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 	validatingWebhookConfig := arv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
 	}
-	if err := o.client.Delete(ctx, &validatingWebhookConfig); client.IgnoreNotFound(err) != nil {
-		return fmt.Errorf("delete legacy ValidatingWebHookConfiguration: %w", err)
+	if err := o.client.Delete(ctx, &validatingWebhookConfig); err != nil {
+		switch {
+		case apierrors.IsForbidden(err):
+			o.logger.Info("delete legacy ValidatingWebHookConfiguration was not allowed. Please remove it manually")
+		case !apierrors.IsNotFound(err):
+			return fmt.Errorf("delete legacy ValidatingWebHookConfiguration failed: %w", err)
+		}
 	}
 
 	// If cleanup annotations are not provided, do not clean up any further.
