@@ -80,14 +80,7 @@ func setupCluster(ctx context.Context, t testing.TB) (kubernetes.Interface, vers
 		return nil, nil, err
 	}
 
-	scheme, err := newScheme()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	c, err := client.New(restConfig, client.Options{
-		Scheme: scheme,
-	})
+	c, err := newKubeClient(restConfig)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -95,6 +88,16 @@ func setupCluster(ctx context.Context, t testing.TB) (kubernetes.Interface, vers
 	if err := createResources(ctx, c); err != nil {
 		return nil, nil, err
 	}
+
+	t.Log(">>> waiting for operator to be deployed")
+	if err := kube.WaitForDeploymentReady(ctx, c, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
+		return nil, nil, err
+	}
+	t.Log(">>> waiting for operator to be ready")
+	if err := deploy.WaitForOperatorReady(ctx, t, c); err != nil {
+		return nil, nil, err
+	}
+	t.Log(">>> operator started successfully")
 	return kubeClient, opClient, nil
 }
 
@@ -116,6 +119,17 @@ func newKubeClients(restConfig *rest.Config) (kubernetes.Interface, versioned.In
 	return kubeClient, opClient, nil
 }
 
+func newKubeClient(restConfig *rest.Config) (client.Client, error) {
+	scheme, err := newScheme()
+	if err != nil {
+		return nil, err
+	}
+
+	return client.New(restConfig, client.Options{
+		Scheme: scheme,
+	})
+}
+
 func newScheme() (*runtime.Scheme, error) {
 	scheme, err := operator.NewScheme()
 	if err != nil {
@@ -128,7 +142,7 @@ func newScheme() (*runtime.Scheme, error) {
 }
 
 func createResources(ctx context.Context, kubeClient client.Client) error {
-	if err := deploy.CreateResources(context.Background(), kubeClient, deploy.WithMeta(projectID, cluster, location), deploy.WithDisableGCM(skipGCM)); err != nil {
+	if err := deploy.CreateResources(ctx, kubeClient, deploy.WithMeta(projectID, cluster, location), deploy.WithDisableGCM(skipGCM)); err != nil {
 		return err
 	}
 
@@ -144,13 +158,5 @@ func createResources(ctx context.Context, kubeClient client.Client) error {
 			return err
 		}
 	}
-
-	if err := kube.WaitForDeploymentReady(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
-		return err
-	}
-	if err := deploy.WaitForOperatorReady(ctx, kubeClient, operator.DefaultOperatorNamespace); err != nil {
-		return err
-	}
-
 	return nil
 }
