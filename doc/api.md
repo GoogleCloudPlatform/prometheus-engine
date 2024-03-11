@@ -46,8 +46,6 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.KubeletScraping">KubeletScraping</a>
 </li><li>
-<a href="#monitoring.googleapis.com/v1.KubernetesSecretKeySelector">KubernetesSecretKeySelector</a>
-</li><li>
 <a href="#monitoring.googleapis.com/v1.LabelMapping">LabelMapping</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ManagedAlertmanagerSpec">ManagedAlertmanagerSpec</a>
@@ -103,6 +101,8 @@ Resource Types:
 <a href="#monitoring.googleapis.com/v1.ScrapeLimits">ScrapeLimits</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.SecretKeySelector">SecretKeySelector</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.SecretOrConfigMap">SecretOrConfigMap</a>
 </li><li>
@@ -300,7 +300,8 @@ string
 </em>
 </td>
 <td>
-<p>The authentication type. Defaults to Bearer.
+<em>(Optional)</em>
+<p>Type is the authentication type. Defaults to Bearer.
 Basic will cause an error, as the BasicAuth object should be used instead.</p>
 </td>
 </tr>
@@ -315,9 +316,7 @@ SecretSelector
 </td>
 <td>
 <em>(Optional)</em>
-<p>Credentials references the Kubernetes secret&rsquo;s key with the credentials
-(token) for the auth header to send along the request.
-Optional, as in previous resource versions we allowed no credentials.</p>
+<p>Credentials uses the secret as the credentials (token) for the authentication header.</p>
 </td>
 </tr>
 </tbody>
@@ -376,8 +375,8 @@ Kubernetes core/v1.SecretKeySelector
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>)
 </p>
 <div>
-<p>BasicAuth sets the <code>Authorization</code> header on every HTTP request with the
-configured username and optional password.</p>
+<p>BasicAuth sets the <code>Authorization</code> header on every HTTP request with the configured username
+and password.</p>
 </div>
 <table>
 <thead>
@@ -395,7 +394,8 @@ string
 </em>
 </td>
 <td>
-<p>The username for authentication.</p>
+<em>(Optional)</em>
+<p>Username is the BasicAuth username.</p>
 </td>
 </tr>
 <tr>
@@ -409,8 +409,7 @@ SecretSelector
 </td>
 <td>
 <em>(Optional)</em>
-<p>Password references the Kubernetes secret&rsquo;s key with the password to use.
-Optional, as in previous resource versions we allowed no credentials.</p>
+<p>Password uses the secret as the BasicAuth password.</p>
 </td>
 </tr>
 </tbody>
@@ -1048,7 +1047,8 @@ Auth
 </em>
 </td>
 <td>
-<p>The HTTP authorization credentials for the targets.</p>
+<em>(Optional)</em>
+<p>Authorization is the HTTP authorization credentials for the targets.</p>
 </td>
 </tr>
 <tr>
@@ -1061,7 +1061,8 @@ BasicAuth
 </em>
 </td>
 <td>
-<p>The HTTP basic authentication credentials for the targets.</p>
+<em>(Optional)</em>
+<p>BasicAuth is the HTTP basic authentication credentials for the targets.</p>
 </td>
 </tr>
 <tr>
@@ -1074,7 +1075,8 @@ TLS
 </em>
 </td>
 <td>
-<p>Configures the scrape request&rsquo;s TLS settings.</p>
+<em>(Optional)</em>
+<p>TLS configures the scrape request&rsquo;s TLS settings.</p>
 </td>
 </tr>
 <tr>
@@ -1087,7 +1089,8 @@ OAuth2
 </em>
 </td>
 <td>
-<p>The OAuth2 client credentials used to fetch a token for the targets.</p>
+<em>(Optional)</em>
+<p>OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.</p>
 </td>
 </tr>
 <tr>
@@ -1103,7 +1106,6 @@ ProxyConfig
 <p>
 (Members of <code>ProxyConfig</code> are embedded into this type.)
 </p>
-<p>Proxy configuration.</p>
 </td>
 </tr>
 </tbody>
@@ -1147,63 +1149,6 @@ bool
 <td>
 <p>TLSInsecureSkipVerify disables verifying the target cert.
 This can be useful for clusters provisioned with kubeadm.</p>
-</td>
-</tr>
-</tbody>
-</table>
-<h3 id="monitoring.googleapis.com/v1.KubernetesSecretKeySelector">
-<span id="KubernetesSecretKeySelector">KubernetesSecretKeySelector
-</span>
-</h3>
-<p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.SecretSelector">SecretSelector</a>)
-</p>
-<div>
-<p>KubernetesSecretKeySelector represents selector for Kubernetes secret.
-It&rsquo;s similar to k8s.io/api/core/v1.SecretKeySelector, but
-allows cross namespace selections.</p>
-</div>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<code>name</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<p>Name of the secret to select from.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>key</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<p>The key of the secret to select from. Must be a valid secret key.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>namespace</code><br/>
-<em>
-string
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>Namespace of the secret to select from.
-If empty the parent resource namespace will be chosen.</p>
 </td>
 </tr>
 </tbody>
@@ -1500,7 +1445,8 @@ string
 </em>
 </td>
 <td>
-<p>Public identifier for the client.</p>
+<em>(Optional)</em>
+<p>ClientID is the public identifier for the client.</p>
 </td>
 </tr>
 <tr>
@@ -1514,9 +1460,7 @@ SecretSelector
 </td>
 <td>
 <em>(Optional)</em>
-<p>ClientSecret references the Kubernetes secret&rsquo;s key with the client secret
-token for Oauth2 flow.
-Optional, as in previous resource versions we allowed no credentials.</p>
+<p>ClientSecret uses the secret as the client secret token.</p>
 </td>
 </tr>
 <tr>
@@ -1527,7 +1471,8 @@ Optional, as in previous resource versions we allowed no credentials.</p>
 </em>
 </td>
 <td>
-<p>Scopes for the token request.</p>
+<em>(Optional)</em>
+<p>Scopes represents the scopes for the token request.</p>
 </td>
 </tr>
 <tr>
@@ -1538,7 +1483,8 @@ string
 </em>
 </td>
 <td>
-<p>The URL to fetch the token from.</p>
+<em>(Optional)</em>
+<p>TokenURL is the URL to fetch the token from.</p>
 </td>
 </tr>
 <tr>
@@ -1549,7 +1495,8 @@ map[string]string
 </em>
 </td>
 <td>
-<p>Optional parameters to append to the token URL.</p>
+<em>(Optional)</em>
+<p>EndpointParams are additional parameters to append to the token URL.</p>
 </td>
 </tr>
 <tr>
@@ -1562,7 +1509,8 @@ TLS
 </em>
 </td>
 <td>
-<p>Configures the token request&rsquo;s TLS settings.</p>
+<em>(Optional)</em>
+<p>TLS configures the token request&rsquo;s TLS settings.</p>
 </td>
 </tr>
 <tr>
@@ -1935,8 +1883,7 @@ MonitoringStatus
 (<code>map[string]github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets.KubernetesSecretConfig</code> alias)</span>
 </h3>
 <div>
-<p>PrometheusSecretConfigs allows quick gathering of SecretConfigs for Prometheus configuration.
-NOTE(bwplotka): This could be removed depending on how upstream Prometheus would like us to reference the secrets.</p>
+<p>PrometheusSecretConfigs allows quick gathering of SecretConfigs for Prometheus configuration.</p>
 </div>
 <h3 id="monitoring.googleapis.com/v1.ProxyConfig">
 <span id="ProxyConfig">ProxyConfig
@@ -1946,6 +1893,7 @@ NOTE(bwplotka): This could be removed depending on how upstream Prometheus would
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>, <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>)
 </p>
 <div>
+<p>ProxyConfig specifies the proxy HTTP configuration.</p>
 </div>
 <table>
 <thead>
@@ -1963,7 +1911,9 @@ string
 </em>
 </td>
 <td>
-<p>HTTP proxy server to use to connect to the targets. Encoded passwords are not supported.</p>
+<em>(Optional)</em>
+<p>ProxyURL is the HTTP proxy server to use to connect to the targets.</p>
+<p>Encoded passwords are not supported.</p>
 </td>
 </tr>
 </tbody>
@@ -2890,6 +2840,62 @@ in general.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.SecretKeySelector">
+<span id="SecretKeySelector">SecretKeySelector
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.SecretSelector">SecretSelector</a>)
+</p>
+<div>
+<p>SecretKeySelector represents selector for Kubernetes secret.
+It&rsquo;s similar to k8s.io/api/core/v1.SecretKeySelector, but allows cross namespace selections.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>name</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Name of the secret to select from.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>key</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<p>Key of the secret to select from. Must be a valid secret key.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>namespace</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Namespace of the secret to select from.
+If empty the parent resource namespace will be chosen.</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.SecretOrConfigMap">
 <span id="SecretOrConfigMap">SecretOrConfigMap
 </span>
@@ -2945,8 +2951,8 @@ Kubernetes core/v1.ConfigMapKeySelector
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.Auth">Auth</a>, <a href="#monitoring.googleapis.com/v1.BasicAuth">BasicAuth</a>, <a href="#monitoring.googleapis.com/v1.OAuth2">OAuth2</a>, <a href="#monitoring.googleapis.com/v1.TLS">TLS</a>)
 </p>
 <div>
-<p>SecretSelector represents a reference to a secret from the given provider
-e.g. Kubernetes Secret. Only one provider can be used at the same time.</p>
+<p>SecretSelector references a secret from a secret provider e.g. Kubernetes Secret. Only one
+provider can be used at a time.</p>
 </div>
 <table>
 <thead>
@@ -2958,17 +2964,16 @@ e.g. Kubernetes Secret. Only one provider can be used at the same time.</p>
 <tbody>
 <tr>
 <td>
-<code>kubernetesSecret</code><br/>
+<code>secret</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.KubernetesSecretKeySelector">
-KubernetesSecretKeySelector
+<a href="#monitoring.googleapis.com/v1.SecretKeySelector">
+SecretKeySelector
 </a>
 </em>
 </td>
 <td>
 <em>(Optional)</em>
-<p>KubernetesSecret represents reference to a given key from certain Kubernetes Secret
-in a given namespace.</p>
+<p>Secret represents reference to a given key from certain Secret in a given namespace.</p>
 </td>
 </tr>
 </tbody>
@@ -2999,7 +3004,8 @@ string
 </em>
 </td>
 <td>
-<p>Used to verify the hostname for the targets.</p>
+<em>(Optional)</em>
+<p>ServerName is used to verify the hostname for the targets.</p>
 </td>
 </tr>
 <tr>
@@ -3010,7 +3016,8 @@ bool
 </em>
 </td>
 <td>
-<p>Disable target certificate validation.</p>
+<em>(Optional)</em>
+<p>InsecureSkipVerify disables target certificate validation.</p>
 </td>
 </tr>
 <tr>
@@ -3021,8 +3028,10 @@ string
 </em>
 </td>
 <td>
-<p>Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
-If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+<em>(Optional)</em>
+<p>MinVersion is the minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
+TLS12 (TLS 1.2), TLS13 (TLS 1.3).</p>
+<p>If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
 See MinVersion in <a href="https://pkg.go.dev/crypto/tls#Config">https://pkg.go.dev/crypto/tls#Config</a>.</p>
 </td>
 </tr>
@@ -3034,8 +3043,10 @@ string
 </em>
 </td>
 <td>
-<p>Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
-If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
+<em>(Optional)</em>
+<p>MaxVersion is the maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
+TLS12 (TLS 1.2), TLS13 (TLS 1.3).</p>
+<p>If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
 See MinVersion in <a href="https://pkg.go.dev/crypto/tls#Config">https://pkg.go.dev/crypto/tls#Config</a>.</p>
 </td>
 </tr>
@@ -3049,10 +3060,6 @@ SecretSelector
 </em>
 </td>
 <td>
-<em>(Optional)</em>
-<p>CA references the Kubernetes secret&rsquo;s key with the CA certificate to
-validate API server certificate with.
-Optional, as in previous resource versions we allowed no credentials.</p>
 </td>
 </tr>
 <tr>
@@ -3066,9 +3073,7 @@ SecretSelector
 </td>
 <td>
 <em>(Optional)</em>
-<p>Cert references the Kubernetes secret&rsquo;s key with the certificate (public
-key) for client cert authentication to the server.
-Optional, as in previous resource versions we allowed no credentials.</p>
+<p>Cert uses the secret as the certificate for client authentication to the server.</p>
 </td>
 </tr>
 <tr>
@@ -3082,9 +3087,7 @@ SecretSelector
 </td>
 <td>
 <em>(Optional)</em>
-<p>Key references the Kubernetes secret&rsquo;s key with the private key
-for client cert authentication to the server.
-Optional, as in previous resource versions we allowed no credentials.</p>
+<p>Key uses the secret as the private key for client authentication to the server.</p>
 </td>
 </tr>
 </tbody>
