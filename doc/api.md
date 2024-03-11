@@ -754,7 +754,7 @@ ExportFilters
 </em>
 </td>
 <td>
-<p>Filter limits which metric data is sent to Cloud Monitoring(Doesn&rsquo;t apply to additional exports).</p>
+<p>Filter limits which metric data is sent to Cloud Monitoring (it doesn&rsquo;t apply to additional exports).</p>
 </td>
 </tr>
 <tr>
@@ -918,7 +918,7 @@ string
 </em>
 </td>
 <td>
-<p>The URL of the endpoint to export samples to.</p>
+<p>The URL of the endpoint that supports Prometheus Remote Write to export samples to.</p>
 </td>
 </tr>
 </tbody>
@@ -1526,8 +1526,8 @@ CollectionSpec
 </em>
 </td>
 <td>
-<p>Collection specifies how the operator configures collection including
-integrated exports to Google Cloud Monitoring.</p>
+<p>Collection specifies how the operator configures collection, including
+scraping and an integrated export to Google Cloud Monitoring.</p>
 </td>
 </tr>
 <tr>
@@ -1540,8 +1540,9 @@ integrated exports to Google Cloud Monitoring.</p>
 </em>
 </td>
 <td>
-<p>Exports specifies additional exporting mechanism on top of Google Cloud Monitoring collection.
-Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in Collection.</p>
+<p>Exports is an EXPERIMENTAL feature that specifies additional, optional endpoints to export to,
+on top of Google Cloud Monitoring collection.
+Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in the &ldquo;collection.filter&rdquo; field.</p>
 </td>
 </tr>
 <tr>

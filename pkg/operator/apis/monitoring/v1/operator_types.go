@@ -32,8 +32,9 @@ type OperatorConfig struct {
 	// Collection specifies how the operator configures collection, including
 	// scraping and an integrated export to Google Cloud Monitoring.
 	Collection CollectionSpec `json:"collection,omitempty"`
-	// Exports specifies additional exporting mechanism on top of Google Cloud Monitoring collection.
-	// Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in Collection.
+	// Exports is an EXPERIMENTAL feature that specifies additional, optional endpoints to export to,
+	// on top of Google Cloud Monitoring collection.
+	// Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in the "collection.filter" field.
 	Exports []ExportSpec `json:"exports,omitempty"`
 	// ManagedAlertmanager holds information for configuring the managed instance of Alertmanager.
 	// +kubebuilder:default={configSecret: {name: alertmanager, key: alertmanager.yaml}}

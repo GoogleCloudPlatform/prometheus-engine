@@ -1440,8 +1440,8 @@ spec:
               type: string
             collection:
               description: |-
-                Collection specifies how the operator configures collection including
-                integrated exports to Google Cloud Monitoring.
+                Collection specifies how the operator configures collection, including
+                scraping and an integrated export to Google Cloud Monitoring.
               properties:
                 compression:
                   description: Compression enables compression of metrics collection data
@@ -1482,7 +1482,7 @@ spec:
                     specified in the OperatorConfig. The precedence behavior matches that of Prometheus.
                   type: object
                 filter:
-                  description: Filter limits which metric data is sent to Cloud Monitoring(Doesn't apply to additional exports).
+                  description: Filter limits which metric data is sent to Cloud Monitoring (it doesn't apply to additional exports).
                   properties:
                     matchOneOf:
                       description: |-
@@ -1511,12 +1511,13 @@ spec:
               type: object
             exports:
               description: |-
-                Exports specifies additional exporting mechanism on top of Google Cloud Monitoring collection.
-                Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in Collection.
+                Exports is an EXPERIMENTAL feature that specifies additional, optional endpoints to export to,
+                on top of Google Cloud Monitoring collection.
+                Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in the "collection.filter" field.
               items:
                 properties:
                   url:
-                    description: The URL of the endpoint to export samples to.
+                    description: The URL of the endpoint that supports Prometheus Remote Write to export samples to.
                     type: string
                 required:
                   - url
