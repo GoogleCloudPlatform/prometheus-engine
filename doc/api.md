@@ -2958,7 +2958,7 @@ e.g. Kubernetes Secret. Only one provider can be used at the same time.</p>
 <tbody>
 <tr>
 <td>
-<code>kubernetesSecret</code><br/>
+<code>secret</code><br/>
 <em>
 <a href="#monitoring.googleapis.com/v1.KubernetesSecretKeySelector">
 KubernetesSecretKeySelector

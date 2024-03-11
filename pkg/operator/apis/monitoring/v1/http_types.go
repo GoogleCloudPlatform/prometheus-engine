@@ -31,7 +31,7 @@ type SecretSelector struct {
 	// KubernetesSecret represents reference to a given key from certain Kubernetes Secret
 	// in a given namespace.
 	// +optional
-	KubernetesSecret *KubernetesSecretKeySelector `json:"kubernetesSecret,omitempty"`
+	KubernetesSecret *KubernetesSecretKeySelector `json:"secret,omitempty"`
 }
 
 func (s *SecretSelector) toPrometheusSecretRef(m PodMonitoringCRD, pool PrometheusSecretConfigs) (string, error) {

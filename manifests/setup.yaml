@@ -308,7 +308,7 @@ spec:
                               (token) for the auth header to send along the request.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -343,7 +343,7 @@ spec:
                               Password references the Kubernetes secret's key with the password to use.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -427,7 +427,7 @@ spec:
                               token for Oauth2 flow.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -470,7 +470,7 @@ spec:
                                   validate API server certificate with.
                                   Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  kubernetesSecret:
+                                  secret:
                                     description: |-
                                       KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                       in a given namespace.
@@ -497,7 +497,7 @@ spec:
                                   key) for client cert authentication to the server.
                                   Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  kubernetesSecret:
+                                  secret:
                                     description: |-
                                       KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                       in a given namespace.
@@ -527,7 +527,7 @@ spec:
                                   for client cert authentication to the server.
                                   Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  kubernetesSecret:
+                                  secret:
                                     description: |-
                                       KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                       in a given namespace.
@@ -610,7 +610,7 @@ spec:
                               validate API server certificate with.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -637,7 +637,7 @@ spec:
                               key) for client cert authentication to the server.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -667,7 +667,7 @@ spec:
                               for client cert authentication to the server.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -2447,7 +2447,7 @@ spec:
                               (token) for the auth header to send along the request.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -2477,7 +2477,7 @@ spec:
                               Password references the Kubernetes secret's key with the password to use.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -2556,7 +2556,7 @@ spec:
                               token for Oauth2 flow.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -2594,7 +2594,7 @@ spec:
                                   validate API server certificate with.
                                   Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  kubernetesSecret:
+                                  secret:
                                     description: |-
                                       KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                       in a given namespace.
@@ -2616,7 +2616,7 @@ spec:
                                   key) for client cert authentication to the server.
                                   Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  kubernetesSecret:
+                                  secret:
                                     description: |-
                                       KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                       in a given namespace.
@@ -2641,7 +2641,7 @@ spec:
                                   for client cert authentication to the server.
                                   Optional, as in previous resource versions we allowed no credentials.
                                 properties:
-                                  kubernetesSecret:
+                                  secret:
                                     description: |-
                                       KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                       in a given namespace.
@@ -2719,7 +2719,7 @@ spec:
                               validate API server certificate with.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -2741,7 +2741,7 @@ spec:
                               key) for client cert authentication to the server.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
@@ -2766,7 +2766,7 @@ spec:
                               for client cert authentication to the server.
                               Optional, as in previous resource versions we allowed no credentials.
                             properties:
-                              kubernetesSecret:
+                              secret:
                                 description: |-
                                   KubernetesSecret represents reference to a given key from certain Kubernetes Secret
                                   in a given namespace.
