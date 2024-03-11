@@ -29,8 +29,8 @@ type OperatorConfig struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	// Rules specifies how the operator configures and deploys rule-evaluator.
 	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
-	// Collection specifies how the operator configures collection including
-	// integrated exports to Google Cloud Monitoring.
+	// Collection specifies how the operator configures collection, including
+	// scraping and an integrated export to Google Cloud Monitoring.
 	Collection CollectionSpec `json:"collection,omitempty"`
 	// Exports specifies additional exporting mechanism on top of Google Cloud Monitoring collection.
 	// Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in Collection.
