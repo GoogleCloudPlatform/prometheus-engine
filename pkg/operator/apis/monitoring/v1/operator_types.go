@@ -80,7 +80,7 @@ type CollectionSpec struct {
 	// data before being written to Google Cloud Monitoring or any other additional exports
 	// specified in the OperatorConfig. The precedence behavior matches that of Prometheus.
 	ExternalLabels map[string]string `json:"externalLabels,omitempty"`
-	// Filter limits which metric data is sent to Cloud Monitoring(Doesn't apply to additional exports).
+	// Filter limits which metric data is sent to Cloud Monitoring (it doesn't apply to additional exports).
 	Filter ExportFilters `json:"filter,omitempty"`
 	// A reference to GCP service account credentials with which Prometheus collectors
 	// are run. It needs to have metric write permissions for all project IDs to which
