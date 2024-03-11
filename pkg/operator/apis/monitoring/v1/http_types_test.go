@@ -37,7 +37,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing
 			ObjectMeta: metav1.ObjectMeta{Namespace: "foo"},
 		}
 		pool := PrometheusSecretConfigs{}
-		var c *KubernetesSecretKeySelector
+		var c *SecretKeySelector
 
 		ref, err := c.toPrometheusSecretRef(p, pool)
 		if err != nil {
@@ -85,7 +85,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing
 			}
 
 			pool := PrometheusSecretConfigs{}
-			c := &KubernetesSecretKeySelector{
+			c := &SecretKeySelector{
 				Name:      "secret1",
 				Key:       "key1",
 				Namespace: tc.secretNamespace,
@@ -131,7 +131,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_ClusterPodMonitoring(t *
 			ObjectMeta: metav1.ObjectMeta{Namespace: "foo"},
 		}
 		pool := PrometheusSecretConfigs{}
-		var c *KubernetesSecretKeySelector
+		var c *SecretKeySelector
 
 		ref, err := c.toPrometheusSecretRef(p, pool)
 		if err != nil {
@@ -180,7 +180,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_ClusterPodMonitoring(t *
 			}
 
 			pool := PrometheusSecretConfigs{}
-			c := &KubernetesSecretKeySelector{
+			c := &SecretKeySelector{
 				Name:      "secret1",
 				Key:       "key1",
 				Namespace: tc.secretNamespace,

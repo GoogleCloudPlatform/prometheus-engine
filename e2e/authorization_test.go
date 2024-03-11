@@ -172,7 +172,7 @@ func TestBasicAuthPodMonitoringNoUsername(t *testing.T) {
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				BasicAuth: &monitoringv1.BasicAuth{
 					Password: &monitoringv1.SecretSelector{
-						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+						Secret: &monitoringv1.SecretKeySelector{
 							Name: secretName,
 							Key:  secretKey,
 						},
@@ -210,7 +210,7 @@ func TestBasicAuthClusterPodMonitoringNoUsername(t *testing.T) {
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				BasicAuth: &monitoringv1.BasicAuth{
 					Password: &monitoringv1.SecretSelector{
-						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+						Secret: &monitoringv1.SecretKeySelector{
 							Name:      secretName,
 							Key:       secretKey,
 							Namespace: metav1.NamespaceDefault,
@@ -251,7 +251,7 @@ func TestBasicAuthPodMonitoring(t *testing.T) {
 				BasicAuth: &monitoringv1.BasicAuth{
 					Username: "user",
 					Password: &monitoringv1.SecretSelector{
-						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+						Secret: &monitoringv1.SecretKeySelector{
 							Name: secretName,
 							Key:  secretKey,
 						},
@@ -296,7 +296,7 @@ func TestBasicAuthClusterPodMonitoring(t *testing.T) {
 				BasicAuth: &monitoringv1.BasicAuth{
 					Username: "user",
 					Password: &monitoringv1.SecretSelector{
-						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+						Secret: &monitoringv1.SecretKeySelector{
 							Name:      secretName,
 							Key:       secretKey,
 							Namespace: metav1.NamespaceDefault,
@@ -395,7 +395,7 @@ func TestAuthPodMonitoring(t *testing.T) {
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				Authorization: &monitoringv1.Auth{
 					Credentials: &monitoringv1.SecretSelector{
-						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+						Secret: &monitoringv1.SecretKeySelector{
 							Name: secretName,
 							Key:  secretKey,
 						},
@@ -437,7 +437,7 @@ func TestAuthClusterPodMonitoring(t *testing.T) {
 			HTTPClientConfig: monitoringv1.HTTPClientConfig{
 				Authorization: &monitoringv1.Auth{
 					Credentials: &monitoringv1.SecretSelector{
-						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+						Secret: &monitoringv1.SecretKeySelector{
 							Name:      secretName,
 							Key:       secretKey,
 							Namespace: metav1.NamespaceDefault,
@@ -561,7 +561,7 @@ func TestOAuth2PodMonitoring(t *testing.T) {
 				OAuth2: &monitoringv1.OAuth2{
 					ClientID: clientID,
 					ClientSecret: &monitoringv1.SecretSelector{
-						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+						Secret: &monitoringv1.SecretKeySelector{
 							Name: secretName,
 							Key:  secretKey,
 						},
@@ -618,7 +618,7 @@ func TestOAuth2ClusterPodMonitoring(t *testing.T) {
 				OAuth2: &monitoringv1.OAuth2{
 					ClientID: clientID,
 					ClientSecret: &monitoringv1.SecretSelector{
-						KubernetesSecret: &monitoringv1.KubernetesSecretKeySelector{
+						Secret: &monitoringv1.SecretKeySelector{
 							Name:      secretName,
 							Key:       secretKey,
 							Namespace: metav1.NamespaceDefault,
