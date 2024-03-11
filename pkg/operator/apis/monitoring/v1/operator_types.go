@@ -95,7 +95,7 @@ type CollectionSpec struct {
 }
 
 type ExportSpec struct {
-	// The URL of the endpoint to export samples to.
+	// The URL of the endpoint that supports Prometheus Remote Write to export samples to.
 	URL string `json:"url"`
 }
 
