@@ -34,14 +34,25 @@ import (
 
 func TestAlertmanager(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
+	clientSet, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	t.Run("rules-create", testCreateRules(ctx, opClient))
-	t.Run("alertmanager-deployed", testAlertmanagerDeployed(ctx, kubeClient))
-	t.Run("alertmanager-operatorconfig", testAlertmanagerOperatorConfig(ctx, kubeClient, opClient))
+	restConfig, err := newRestConfig()
+	if err != nil {
+		t.Fatalf("error creating rest config: %s", err)
+	}
+
+	kubeClient, err := newKubeClient(restConfig)
+	if err != nil {
+		t.Fatalf("error creating client: %s", err)
+	}
+
+	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, clientSet, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, monitoringv1.OperatorFeatures{}))
+
+	t.Run("alertmanager-deployed", testAlertmanagerDeployed(ctx, clientSet))
+	t.Run("alertmanager-operatorconfig", testAlertmanagerOperatorConfig(ctx, clientSet, opClient))
 }
 
 func testAlertmanagerDeployed(ctx context.Context, kubeClient kubernetes.Interface) func(*testing.T) {
