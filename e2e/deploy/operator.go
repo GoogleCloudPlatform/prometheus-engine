@@ -16,8 +16,8 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"testing"
 	"time"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func WaitForOperatorReady(ctx context.Context, t testing.TB, kubeClient client.Client) error {
+func WaitForOperatorReady(ctx context.Context, kubeClient client.Client) error {
 	dryRun := client.NewDryRunClient(kubeClient)
 	pm := monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -53,16 +53,24 @@ func WaitForOperatorReady(ctx context.Context, t testing.TB, kubeClient client.C
 			},
 		},
 	}
-	return wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
-		if err := dryRun.Create(ctx, &pm); err != nil {
+	var err error
+	pollErr := wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
+		if err = dryRun.Create(ctx, &pm); err != nil {
 			// Expected to have a forbidden PodMonitoring until we're ready.
 			if !apierrors.IsForbidden(err) {
-				t.Logf("unable to create PodMonitoring: %s", err)
+				err = fmt.Errorf("unable to create PodMonitoring: %s", err)
 			}
 			return false, nil
 		}
 		return true, nil
 	})
+	if pollErr != nil {
+		if errors.Is(pollErr, context.Canceled) {
+			pollErr = err
+		}
+		return fmt.Errorf("operator is not ready: %s", pollErr)
+	}
+	return nil
 }
 
 // OperatorLogs returns the operator pods logs.
@@ -79,8 +87,8 @@ func operatorPod(ctx context.Context, kubeClient client.Client, operatorNamespac
 	if err != nil {
 		return nil, err
 	}
-	if len(podList.Items) != 1 {
-		return nil, fmt.Errorf("expected 1 pod, found %d", len(podList.Items))
+	if len(podList) != 1 {
+		return nil, fmt.Errorf("expected 1 pod, found %d", len(podList))
 	}
-	return &podList.Items[0], nil
+	return &podList[0], nil
 }
