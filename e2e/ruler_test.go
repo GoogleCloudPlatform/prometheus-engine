@@ -16,8 +16,10 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -28,35 +30,55 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 	"github.com/google/go-cmp/cmp"
+	"github.com/prometheus/client_golang/api"
+	prometheus "github.com/prometheus/client_golang/api/prometheus/v1"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/cert"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 )
 
+const configReloaderContainerName = "config-reloader"
+
 func TestRuleEvaluator(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	clientSet, opClient, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	t.Run("rule-evaluator-deployed", testRuleEvaluatorDeployed(ctx, kubeClient))
-	t.Run("rule-evaluator-operatorconfig", testRuleEvaluatorOperatorConfig(ctx, kubeClient, opClient))
+	restConfig, err := newRestConfig()
+	if err != nil {
+		t.Fatalf("error creating rest config: %s", err)
+	}
+
+	kubeClient, err := newKubeClient(restConfig)
+	if err != nil {
+		t.Fatalf("error creating client: %s", err)
+	}
+
+	t.Run("rule-evaluator-deployed", testRuleEvaluatorDeployed(ctx, clientSet))
+	t.Run("rule-evaluator-operatorconfig", testRuleEvaluatorOperatorConfig(ctx, clientSet, opClient))
 	// TODO(pintohutch): testing the generated secrets and config can be
 	// brittle as the checks need to be precise and could break if mechanics or
 	// formatting changes in the future.
 	// Ideally this is replaced by a true e2e test that deploys a custom
 	// secured alertmanager and successfully sends alerts to it.
-	t.Run("rule-evaluator-secrets", testRuleEvaluatorSecrets(ctx, kubeClient, opClient))
-	t.Run("rule-evaluator-configuration", testRuleEvaluatorConfiguration(ctx, kubeClient))
+	t.Run("rule-evaluator-secrets", testRuleEvaluatorSecrets(ctx, clientSet, opClient))
+	t.Run("rule-evaluator-configuration", testRuleEvaluatorConfiguration(ctx, clientSet))
 
 	t.Run("rules-create", testCreateRules(ctx, opClient))
+	t.Run("rules-generated", testRulesGeneration(ctx, restConfig, kubeClient, clientSet, operator.DefaultOperatorNamespace, metav1.NamespaceDefault))
 	if !skipGCM {
 		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx))
 	}
@@ -440,4 +462,293 @@ func createRuleEvaluatorOperatorConfig(ctx context.Context, opClient versioned.I
 		return err
 	}
 	return nil
+}
+
+func testRulesGeneration(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, clientSet kubernetes.Interface, systemNamespace, userNamespace string) func(*testing.T) {
+	return func(t *testing.T) {
+		timeStart := time.Now()
+		replace := strings.NewReplacer(
+			"{project_id}", projectID,
+			"{cluster}", cluster,
+			"{location}", location,
+			"{namespace}", userNamespace,
+		).Replace
+
+		// Create multiple rules in the cluster and expect their scoped equivalents
+		// to be present in the generated rule file.
+		if err := kubeClient.Create(ctx, &monitoringv1.GlobalRules{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: userNamespace + "-global-rules",
+			},
+			Spec: monitoringv1.RulesSpec{
+				Groups: []monitoringv1.RuleGroup{
+					{
+						Name: "group-1",
+						Rules: []monitoringv1.Rule{
+							{
+								Record: "bar",
+								Expr:   "avg(up)",
+								Labels: map[string]string{
+									"flavor": "test",
+								},
+							},
+						},
+					},
+				},
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := kubeClient.Create(ctx, &monitoringv1.ClusterRules{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: userNamespace + "-cluster-rules",
+			},
+			Spec: monitoringv1.RulesSpec{
+				Groups: []monitoringv1.RuleGroup{
+					{
+						Name: "group-1",
+						Rules: []monitoringv1.Rule{
+							{
+								Record: "foo",
+								Expr:   "sum(up)",
+								Labels: map[string]string{
+									"flavor": "test",
+								},
+							},
+						},
+					},
+				},
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := kubeClient.Create(ctx, &monitoringv1.Rules{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "rules",
+				Namespace: userNamespace,
+			},
+			Spec: monitoringv1.RulesSpec{
+				Groups: []monitoringv1.RuleGroup{
+					{
+						Name: "group-1",
+						Rules: []monitoringv1.Rule{
+							{
+								Alert: "Bar",
+								Expr:  "avg(down) > 1",
+								Annotations: map[string]string{
+									"description": "bar avg down",
+								},
+								Labels: map[string]string{
+									"flavor": "test",
+								},
+							},
+							{
+								Record: "always_one",
+								Expr:   "vector(1)",
+							},
+						},
+					},
+				},
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		want := map[string]string{
+			replace("globalrules__{namespace}-global-rules.yaml"): replace(`groups:
+    - name: group-1
+      rules:
+        - record: bar
+          expr: avg(up)
+          labels:
+            flavor: test
+`),
+			replace("clusterrules__{namespace}-cluster-rules.yaml"): replace(`groups:
+    - name: group-1
+      rules:
+        - record: foo
+          expr: sum(up{cluster="{cluster}",location="{location}",project_id="{project_id}"})
+          labels:
+            cluster: {cluster}
+            flavor: test
+            location: {location}
+            project_id: {project_id}
+`),
+			replace("rules__{namespace}__rules.yaml"): replace(`groups:
+    - name: group-1
+      rules:
+        - alert: Bar
+          expr: avg(down{cluster="{cluster}",location="{location}",namespace="{namespace}",project_id="{project_id}"}) > 1
+          labels:
+            cluster: {cluster}
+            flavor: test
+            location: {location}
+            namespace: {namespace}
+            project_id: {project_id}
+          annotations:
+            description: bar avg down
+        - record: always_one
+          expr: vector(1)
+          labels:
+            cluster: {cluster}
+            location: {location}
+            namespace: {namespace}
+            project_id: {project_id}
+`),
+		}
+
+		var diff string
+
+		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+			var cm corev1.ConfigMap
+			if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rules-generated"}, &cm); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, fmt.Errorf("get ConfigMap: %w", err)
+			}
+			data := cm.Data
+
+			// The operator observes Rules across all namespaces. For the purpose of this test we
+			// drop all outputs from the result that aren't in the expected set.
+			for name := range data {
+				if _, ok := want[name]; !ok {
+					delete(data, name)
+				}
+			}
+			diff = cmp.Diff(want, data)
+			return diff == "", nil
+		})
+		if err != nil {
+			t.Errorf("diff (-want, +got): %s", diff)
+			t.Fatalf("failed waiting for generated rules: %s", err)
+		}
+
+		httpClient, err := kube.PortForwardClient(
+			restConfig,
+			kubeClient,
+			writerFn(func(p []byte) (n int, err error) {
+				t.Logf("portforward: info: %s", string(p))
+				return len(p), nil
+			}),
+			writerFn(func(p []byte) (n int, err error) {
+				t.Logf("portforward: error: %s", string(p))
+				return len(p), nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("failed to create port forward client: %s", err)
+		}
+
+		if err := kube.WaitForDeploymentReady(ctx, kubeClient, systemNamespace, operator.NameRuleEvaluator); err != nil {
+			t.Errorf("rule-evaluator is not ready: %s", err)
+			out := strings.Builder{}
+			if err := kube.Debug(context.Background(), clientSet, kubeClient, &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: systemNamespace,
+					Name:      operator.NameRuleEvaluator,
+				},
+			}, &out,
+			); err != nil {
+				t.Fatalf("unable to debug: %s", err)
+			}
+			t.Fatalf("debug:\n%s", out.String())
+		}
+		pod, err := ruleEvaluatorPod(ctx, kubeClient, systemNamespace)
+		if err != nil {
+			t.Fatalf("unable to get rule-evaluator pod: %s", err)
+		}
+
+		err = wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+			updated, err := isRuntimeInfoUpdatedSince(ctx, httpClient, pod, 19092, timeStart)
+			if err != nil {
+				t.Logf("unable to check rule-evaluator status: %s", err)
+				return false, nil
+			}
+			return updated, nil
+		})
+		if err != nil {
+			t.Fatalf("failed waiting for collectors to be updated: %s", err)
+		}
+
+		logs, err := kube.PodLogs(ctx, clientSet, pod.Namespace, pod.Name, configReloaderContainerName)
+		if err != nil {
+			t.Fatalf("unable to fetch rule-evaluator config-reloader logs: %s", err)
+		}
+		line, err := logsError(logs)
+		if err != nil {
+			t.Fatalf("unable to read logs: %s", err)
+		}
+		if line != "" {
+			t.Fatalf("found error in rule-evaluator config-reloader logs: %s", line)
+		}
+	}
+}
+
+func ruleEvaluatorPod(ctx context.Context, kubeClient client.Client, namespace string) (*corev1.Pod, error) {
+	podList, err := kube.DeploymentPods(ctx, kubeClient, namespace, operator.NameRuleEvaluator)
+	if err != nil {
+		return nil, err
+	}
+	if len(podList) != 1 {
+		return nil, fmt.Errorf("expected 1 pod, found %d", len(podList))
+	}
+	return &podList[0], nil
+}
+
+type writerFn func(p []byte) (n int, err error)
+
+func (w writerFn) Write(p []byte) (n int, err error) {
+	return w(p)
+}
+
+func isRuntimeInfoUpdatedSince(ctx context.Context, httpClient *http.Client, pod *corev1.Pod, port int32, since time.Time) (bool, error) {
+	runtimeInfo, err := getRuntimeInfo(ctx, httpClient, pod, port)
+	if err != nil {
+		return false, err
+	}
+	if since.After(runtimeInfo.LastConfigTime) {
+		return false, nil
+	}
+	if !runtimeInfo.ReloadConfigSuccess {
+		return false, fmt.Errorf("pod %s failed to reload config", pod.Name)
+	}
+
+	return true, nil
+}
+
+func getRuntimeInfo(ctx context.Context, httpClient *http.Client, pod *corev1.Pod, port int32) (*prometheus.RuntimeinfoResult, error) {
+	client, err := api.NewClient(api.Config{
+		Address: fmt.Sprintf("http://%s:%d", pod.Status.PodIP, port),
+		Client:  httpClient,
+	})
+	if err != nil {
+		return nil, err
+	}
+	v1api := prometheus.NewAPI(client)
+	runtimeInfo, err := v1api.Runtimeinfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &runtimeInfo, nil
+}
+
+func logsError(logs string) (string, error) {
+	lines := strings.Split(logs, "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		data := map[string]string{}
+		if err := json.Unmarshal([]byte(line), &data); err != nil {
+			return "", fmt.Errorf("unable to unmarshal log line: %s", err)
+		}
+		if data["level"] == "error" {
+			return line, nil
+		}
+	}
+	return "", nil
 }

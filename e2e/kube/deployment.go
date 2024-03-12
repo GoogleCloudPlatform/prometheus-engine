@@ -21,7 +21,6 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -62,7 +61,7 @@ func WaitForDeploymentReady(ctx context.Context, kubeClient client.Client, names
 }
 
 // DeploymentPods returns the pods used for the given Deployment.
-func DeploymentPods(ctx context.Context, kubeClient client.Client, namespace, name string) (*v1.PodList, error) {
+func DeploymentPods(ctx context.Context, kubeClient client.Client, namespace, name string) ([]corev1.Pod, error) {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -77,11 +76,11 @@ func DeploymentPods(ctx context.Context, kubeClient client.Client, namespace, na
 	if err != nil {
 		return nil, err
 	}
-	podList := &v1.PodList{}
+	podList := &corev1.PodList{}
 	if err := kubeClient.List(ctx, podList, &client.ListOptions{
 		LabelSelector: selector,
 	}); err != nil {
 		return nil, err
 	}
-	return podList, nil
+	return podList.Items, nil
 }

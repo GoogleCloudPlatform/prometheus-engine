@@ -30,7 +30,9 @@ import (
 	metav1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,6 +43,12 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
+)
+
+const (
+	// Arbitrary amount of time to let tests exit cleanly before the main process
+	// terminates.
+	timeoutGracePeriod = 10 * time.Second
 )
 
 var (
@@ -94,16 +102,40 @@ func setupCluster(ctx context.Context, t testing.TB) (kubernetes.Interface, vers
 		return nil, nil, err
 	}
 	t.Log(">>> waiting for operator to be ready")
-	if err := deploy.WaitForOperatorReady(ctx, t, c); err != nil {
+	if err := deploy.WaitForOperatorReady(ctx, c); err != nil {
 		return nil, nil, err
 	}
 	t.Log(">>> operator started successfully")
 	return kubeClient, opClient, nil
 }
 
+func setRESTConfigDefaults(restConfig *rest.Config) error {
+	// https://github.com/kubernetes/client-go/issues/657
+	// https://github.com/kubernetes/client-go/issues/1159
+	// https://github.com/kubernetes/kubectl/blob/6fb6697c77304b7aaf43a520d30cb17563c69886/pkg/cmd/util/kubectl_match_version.go#L115
+	defaultGroupVersion := &schema.GroupVersion{Group: "", Version: "v1"}
+	if restConfig.GroupVersion == nil {
+		restConfig.GroupVersion = defaultGroupVersion
+	}
+	if restConfig.APIPath == "" {
+		restConfig.APIPath = "/api"
+	}
+	if restConfig.NegotiatedSerializer == nil {
+		restConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	}
+	return rest.SetKubernetesDefaults(restConfig)
+}
+
 func newRestConfig() (*rest.Config, error) {
 	rules := clientcmd.NewDefaultClientConfigLoadingRules()
-	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, nil).ClientConfig()
+	restConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, nil).ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	if err := setRESTConfigDefaults(restConfig); err != nil {
+		return nil, err
+	}
+	return restConfig, nil
 }
 
 func newKubeClients(restConfig *rest.Config) (kubernetes.Interface, versioned.Interface, error) {
@@ -159,4 +191,19 @@ func createResources(ctx context.Context, kubeClient client.Client) error {
 		}
 	}
 	return nil
+}
+
+// contextWithDeadline returns a context that will timeout before t.Deadline().
+// See: https://github.com/golang/go/issues/36532
+func contextWithDeadline(t *testing.T) context.Context {
+	t.Helper()
+
+	deadline, ok := t.Deadline()
+	if !ok {
+		return context.Background()
+	}
+
+	ctx, cancel := context.WithDeadline(context.Background(), deadline.Truncate(timeoutGracePeriod))
+	t.Cleanup(cancel)
+	return ctx
 }
