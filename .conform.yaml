@@ -41,8 +41,9 @@ policies:
         scopes:
           - configs
           - deps
+          - e2e
           - main
           - operator
           - prometheus
-          - e2e
+          - rule-evaluator
         descriptionLength: 72
