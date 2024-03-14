@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,12 +19,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/efficientgo/e2e/host"
+
 	"github.com/efficientgo/core/backoff"
 	"github.com/efficientgo/core/errors"
 )
 
 const (
-	dockerMacOSGatewayAddr = "host.docker.internal"
+	dockerGatewayAddr = "host.docker.internal"
 )
 
 var (
@@ -41,6 +44,7 @@ type DockerEnvironment struct {
 
 	hostAddr      string
 	dockerVolumes []string
+	cpus          string
 
 	registered map[string]struct{}
 	listeners  []EnvironmentListener
@@ -110,6 +114,7 @@ func New(opts ...EnvironmentOption) (_ *DockerEnvironment, err error) {
 		verbose:       e.verbose,
 		registered:    map[string]struct{}{},
 		dockerVolumes: e.volumes,
+		cpus:          e.cpus,
 	}
 
 	// Force a shutdown in order to cleanup from a spurious situation in case
@@ -129,10 +134,10 @@ func New(opts ...EnvironmentOption) (_ *DockerEnvironment, err error) {
 		return nil, errors.Wrapf(err, "create docker network '%s'", d.networkName)
 	}
 
-	switch runtime.GOOS {
-	case "darwin":
-		d.hostAddr = dockerMacOSGatewayAddr
-	default:
+	switch host.OSPlatform() {
+	case "darwin", "WSL2":
+		d.hostAddr = dockerGatewayAddr
+	default: // the "linux" behavior is default
 		out, err := d.exec("docker", "network", "inspect", d.networkName).CombinedOutput()
 		if err != nil {
 			e.logger.Log(string(out))
@@ -266,11 +271,27 @@ func (e *DockerEnvironment) SharedDir() string {
 	return e.dir
 }
 
+const dockerCPUEnvName = "E2E_DOCKER_CPUS"
+
 func (e *DockerEnvironment) buildDockerRunArgs(name string, ports map[string]int, opts StartOptions) []string {
 	args := []string{"--rm", "--net=" + e.networkName, "--name=" + dockerNetworkContainerHost(e.networkName, name), "--hostname=" + name}
 
 	// Mount the docker env working directory into the container. It's shared across all containers to allow easier scenarios.
 	args = append(args, "-v", fmt.Sprintf("%s:%s:z", e.dir, e.dir))
+
+	// Allow reducing available CPU Time via environment variables or
+	// environment parameters. The latter takes precedence.
+	dockerCPUsParam := ""
+	dockerCPUsEnv := os.Getenv(dockerCPUEnvName)
+	if dockerCPUsEnv != "" {
+		dockerCPUsParam = dockerCPUsEnv
+	}
+	if e.cpus != "" {
+		dockerCPUsParam = e.cpus
+	}
+	if dockerCPUsParam != "" {
+		args = append(args, "--cpus", dockerCPUsParam)
+	}
 
 	for _, v := range e.dockerVolumes {
 		args = append(args, "-v", v)
@@ -521,7 +542,18 @@ func (d *dockerRunnable) Endpoint(portName string) string {
 	}
 
 	// Do not use "localhost", because it doesn't work with the AWS DynamoDB client.
-	return fmt.Sprintf("127.0.0.1:%d", localPort)
+	addr := "127.0.0.1"
+	// If we are running inside Docker then 127.0.0.1 is not accessible.
+	// To access the host's network, let's use host.docker.internal.
+	// See: https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host.
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		dockerAddrs, err := net.LookupIP(dockerGatewayAddr)
+		if err == nil && len(dockerAddrs) > 0 {
+			addr = dockerGatewayAddr
+		}
+	}
+
+	return fmt.Sprintf("%s:%d", addr, localPort)
 }
 
 // InternalEndpoint returns internal service endpoint (host:port) for given internal port.
@@ -663,7 +695,13 @@ func (d *dockerRunnable) Exec(command Command, opts ...ExecOption) error {
 	args := []string{"exec", d.containerName()}
 	args = append(args, command.Cmd)
 	args = append(args, command.Args...)
+	if o.Stdin != nil {
+		args = append(args[:1], append([]string{"-i"}, args[1:]...)...)
+	}
 	cmd := d.env.exec("docker", args...)
+	if o.Stdin != nil {
+		cmd.Stdin = o.Stdin
+	}
 	cmd.Stdout = o.Stdout
 	cmd.Stderr = o.Stderr
 	return cmd.Run()
