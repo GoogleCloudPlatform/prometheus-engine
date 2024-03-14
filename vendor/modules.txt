@@ -492,7 +492,7 @@ github.com/spf13/pflag
 ## explicit; go 1.20
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# github.com/thanos-io/thanos v0.34.1
+# github.com/thanos-io/thanos v0.34.2-0.20240314081355-f731719f9515
 ## explicit; go 1.21
 github.com/thanos-io/thanos/pkg/errutil
 github.com/thanos-io/thanos/pkg/reloader
