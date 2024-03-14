@@ -11,9 +11,10 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"runtime"
 	"sync"
 	"syscall"
+
+	"github.com/efficientgo/e2e/host"
 
 	"github.com/efficientgo/core/errors"
 )
@@ -22,7 +23,9 @@ import (
 func OpenInBrowser(url string) error {
 	fmt.Println("Opening", url, "in browser.")
 	var err error
-	switch runtime.GOOS {
+	switch host.OSPlatform() {
+	case "WSL2":
+		err = exec.Command("rundll32.exe", "url.dll,FileProtocolHandler", url).Run()
 	case "linux":
 		err = exec.Command("xdg-open", url).Run()
 	case "windows":
@@ -42,13 +45,18 @@ func OpenInBrowser(url string) error {
 // This function is useful when you want to interact with e2e tests and manually decide when to finish. Use this function
 // as opposed to RunUntilSignal for certain IDEs that does not send correct signal on stop (e.g. Goland pre 2022.3,
 // see https://youtrack.jetbrains.com/issue/GO-5982).
-func RunUntilEndpointHit() (err error) {
+func RunUntilEndpointHit() error {
+	return RunUntilEndpointHitWithPort(0)
+}
+
+// RunUntilEndpointHitWithPort is like RunUntilEndpointHit, but it allows specifying static port.
+func RunUntilEndpointHitWithPort(port int) (err error) {
 	once := sync.Once{}
 	wg := sync.WaitGroup{}
 	stopWG := sync.WaitGroup{}
 	stopWG.Add(1)
 
-	l, err := net.Listen("tcp", "localhost:0")
+	l, err := net.Listen("tcp", fmt.Sprintf("localhost:%v", port))
 	if err != nil {
 		return err
 	}
@@ -78,7 +86,7 @@ func RunUntilEndpointHit() (err error) {
 		wg.Done()
 	}()
 
-	fmt.Println("Waiting for user HTTP request on ", "http://"+l.Addr().String(), " or SIGINT, SIGKILL or SIGHUP signal...")
+	fmt.Println("Waiting for user HTTP request on", "http://"+l.Addr().String(), " or SIGINT, SIGKILL or SIGHUP signal...")
 	stopWG.Wait()
 
 	// Cleanup.
