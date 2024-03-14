@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,6 +24,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -35,6 +38,7 @@ import (
 	"github.com/go-kit/log/level"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
+	apiv1 "github.com/prometheus/prometheus/web/api/v1"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
 
@@ -133,6 +137,7 @@ func main() {
 		a.Usage(os.Args[1:])
 		os.Exit(2)
 	}
+	startTime := time.Now()
 
 	if *projectID == "" {
 		//nolint:errcheck
@@ -269,8 +274,11 @@ func main() {
 			},
 		},
 	}
+
+	configMetrics := newConfigMetrics(reg)
+
 	// Do an initial load of the configuration for all components.
-	if err := reloadConfig(*configFile, logger, reloaders...); err != nil {
+	if err := reloadConfig(*configFile, logger, configMetrics, reloaders...); err != nil {
 		//nolint:errcheck
 		level.Error(logger).Log("msg", "error loading config file.", "err", err)
 		os.Exit(1)
@@ -349,6 +357,7 @@ func main() {
 			cancel()
 		})
 	}
+	cwd, err := os.Getwd()
 	reloadCh := make(chan chan error)
 	{
 		// Web Server.
@@ -373,6 +382,37 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "rule-evaluator is Ready.\n")
 		})
+		// https://prometheus.io/docs/prometheus/latest/querying/api/#runtime-information
+		// Useful for knowing whether a config reload was successful.
+		http.HandleFunc("/api/v1/status/runtimeinfo", func(w http.ResponseWriter, _ *http.Request) {
+			runtimeInfo := apiv1.RuntimeInfo{
+				StartTime:           startTime,
+				CWD:                 cwd,
+				GoroutineCount:      runtime.NumGoroutine(),
+				GOMAXPROCS:          runtime.GOMAXPROCS(0),
+				GOMEMLIMIT:          debug.SetMemoryLimit(-1),
+				GOGC:                os.Getenv("GOGC"),
+				GODEBUG:             os.Getenv("GODEBUG"),
+				StorageRetention:    "0d",
+				CorruptionCount:     0,
+				ReloadConfigSuccess: configMetrics.lastReloadSuccess,
+				LastConfigTime:      configMetrics.lastReloadSuccessTime,
+			}
+			response := response{
+				Status: "success",
+				Data:   runtimeInfo,
+			}
+			data, err := json.Marshal(response)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Failed to marshal status: %s", err), http.StatusInternalServerError)
+				return
+			}
+
+			if _, err := w.Write(data); err != nil {
+				//nolint:errcheck
+				level.Error(logger).Log("msg", "Unable to write runtime info status", "err", err)
+			}
+		})
 		g.Add(func() error {
 			//nolint:errcheck
 			level.Info(logger).Log("msg", "Starting web server", "listen", *listenAddress)
@@ -396,12 +436,12 @@ func main() {
 				for {
 					select {
 					case <-hup:
-						if err := reloadConfig(*configFile, logger, reloaders...); err != nil {
+						if err := reloadConfig(*configFile, logger, configMetrics, reloaders...); err != nil {
 							//nolint:errcheck
 							level.Error(logger).Log("msg", "Error reloading config", "err", err)
 						}
 					case rc := <-reloadCh:
-						if err := reloadConfig(*configFile, logger, reloaders...); err != nil {
+						if err := reloadConfig(*configFile, logger, configMetrics, reloaders...); err != nil {
 							//nolint:errcheck
 							level.Error(logger).Log("msg", "Error reloading config", "err", err)
 							rc <- err
@@ -433,6 +473,12 @@ func main() {
 		level.Error(logger).Log("msg", "Running rule evaluator failed", "err", err)
 		os.Exit(1)
 	}
+}
+
+// response wraps all Prometheus API responses.
+type response struct {
+	Status string `json:"status"`
+	Data   any    `json:"data,omitempty"`
 }
 
 // QueryFunc queries a Prometheus instance and returns a promql.Vector.
@@ -476,8 +522,45 @@ type reloader struct {
 	reloader func(*config.Config) error
 }
 
+// configMetrics establishes reloading metrics similar to Prometheus' built-in ones.
+type configMetrics struct {
+	lastReloadSuccess       bool
+	lastReloadSuccessTime   time.Time
+	reloadSuccessMetric     prometheus.Gauge
+	reloadSuccessTimeMetric prometheus.Gauge
+}
+
+func newConfigMetrics(reg prometheus.Registerer) *configMetrics {
+	m := &configMetrics{
+		reloadSuccessMetric: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "rule_evaluator_config_last_reload_successful",
+			Help: "Whether the last configuration reload attempt was successful.",
+		}),
+		reloadSuccessTimeMetric: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "rule_evaluator_config_last_reload_success_timestamp_seconds",
+			Help: "Timestamp of the last successful configuration reload.",
+		}),
+	}
+	if reg != nil {
+		reg.MustRegister(m.reloadSuccessMetric, m.reloadSuccessTimeMetric)
+	}
+	return m
+}
+
+func (m *configMetrics) setSuccess() {
+	m.lastReloadSuccess = true
+	m.lastReloadSuccessTime = time.Now()
+	m.reloadSuccessMetric.Set(1)
+	m.reloadSuccessTimeMetric.SetToCurrentTime()
+}
+
+func (m *configMetrics) setFailure() {
+	m.lastReloadSuccess = false
+	m.reloadSuccessMetric.Set(0)
+}
+
 // reloadConfig applies the configuration files.
-func reloadConfig(filename string, logger log.Logger, rls ...reloader) (err error) {
+func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rls ...reloader) (err error) {
 	start := time.Now()
 	timings := []interface{}{}
 	//nolint:errcheck
@@ -485,6 +568,7 @@ func reloadConfig(filename string, logger log.Logger, rls ...reloader) (err erro
 
 	conf, err := config.LoadFile(filename, false, false, logger)
 	if err != nil {
+		metrics.setFailure()
 		return fmt.Errorf("couldn't load configuration (--config.file=%q): %w", filename, err)
 	}
 
@@ -499,9 +583,11 @@ func reloadConfig(filename string, logger log.Logger, rls ...reloader) (err erro
 		timings = append(timings, rl.name, time.Since(rstart))
 	}
 	if failed {
+		metrics.setFailure()
 		return fmt.Errorf("one or more errors occurred while applying the new configuration (--config.file=%q)", filename)
 	}
 
+	metrics.setSuccess()
 	l := []interface{}{"msg", "Completed loading of configuration file", "filename", filename, "totalDuration", time.Since(start)}
 	//nolint:errcheck
 	level.Info(logger).Log(append(l, timings...)...)
