@@ -25,7 +25,7 @@ require (
 	github.com/prometheus/common/assets v0.2.0
 	github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7
 	github.com/stretchr/testify v1.8.4
-	github.com/thanos-io/thanos v0.34.1
+	github.com/thanos-io/thanos v0.34.2-0.20240314081355-f731719f9515
 	go.uber.org/zap v1.26.0
 	golang.org/x/mod v0.15.0
 	golang.org/x/oauth2 v0.17.0
