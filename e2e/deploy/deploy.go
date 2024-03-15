@@ -38,40 +38,9 @@ func CreateResources(ctx context.Context, kubeClient client.Client, deployOpts .
 	return createResources(ctx, kubeClient, func(obj client.Object) (client.Object, error) {
 		switch obj := obj.(type) {
 		case *appsv1.DaemonSet:
-			if !opts.disableGCM {
-				break
-			}
-			if obj.GetName() == operator.NameCollector {
-				for i := range obj.Spec.Template.Spec.Containers {
-					container := &obj.Spec.Template.Spec.Containers[i]
-					if container.Name == operator.CollectorPrometheusContainerName {
-						container.Args = append(container.Args, "--export.debug.disable-auth")
-						break
-					}
-				}
-			}
+			return normalizeDeamonSets(opts, obj)
 		case *appsv1.Deployment:
-			if obj.GetName() == operator.NameOperator {
-				container, err := kube.DeploymentContainer(obj, "operator")
-				if err != nil {
-					return nil, fmt.Errorf("unable to find operator container: %w", err)
-				}
-				if opts.projectID != "" {
-					container.Args = append(container.Args, fmt.Sprintf("--project-id=%s", opts.projectID))
-				}
-				if opts.location != "" {
-					container.Args = append(container.Args, fmt.Sprintf("--location=%s", opts.location))
-				}
-				if opts.cluster != "" {
-					container.Args = append(container.Args, fmt.Sprintf("--cluster=%s", opts.cluster))
-				}
-				if opts.operatorNamespace != "" {
-					container.Args = append(container.Args, fmt.Sprintf("--operator-namespace=%s", opts.operatorNamespace))
-				}
-				if opts.publicNamespace != "" {
-					container.Args = append(container.Args, fmt.Sprintf("--public-namespace=%s", opts.publicNamespace))
-				}
-			}
+			return normalizeDeployments(opts, obj)
 		}
 		return obj, nil
 	})
@@ -158,6 +127,59 @@ func resources(scheme *runtime.Scheme) ([]client.Object, error) {
 	}
 	resources = append(resources, objs...)
 	return resources, nil
+}
+
+func normalizeDeamonSets(opts *deployOptions, obj *appsv1.DaemonSet) (client.Object, error) {
+	if !opts.disableGCM {
+		return obj, nil
+	}
+	if obj.GetName() != operator.NameCollector {
+		return obj, nil
+	}
+	for i := range obj.Spec.Template.Spec.Containers {
+		container := &obj.Spec.Template.Spec.Containers[i]
+		if container.Name == operator.CollectorPrometheusContainerName {
+			container.Args = append(container.Args, "--export.debug.disable-auth")
+			return obj, nil
+		}
+	}
+	return nil, fmt.Errorf("unable to find collector %q container", operator.CollectorPrometheusContainerName)
+}
+
+func normalizeDeployments(opts *deployOptions, obj *appsv1.Deployment) (client.Object, error) {
+	switch obj.GetName() {
+	case operator.NameOperator:
+		container, err := kube.DeploymentContainer(obj, "operator")
+		if err != nil {
+			return nil, fmt.Errorf("unable to find operator container: %w", err)
+		}
+		if opts.projectID != "" {
+			container.Args = append(container.Args, fmt.Sprintf("--project-id=%s", opts.projectID))
+		}
+		if opts.location != "" {
+			container.Args = append(container.Args, fmt.Sprintf("--location=%s", opts.location))
+		}
+		if opts.cluster != "" {
+			container.Args = append(container.Args, fmt.Sprintf("--cluster=%s", opts.cluster))
+		}
+		if opts.operatorNamespace != "" {
+			container.Args = append(container.Args, fmt.Sprintf("--operator-namespace=%s", opts.operatorNamespace))
+		}
+		if opts.publicNamespace != "" {
+			container.Args = append(container.Args, fmt.Sprintf("--public-namespace=%s", opts.publicNamespace))
+		}
+	case operator.NameRuleEvaluator:
+		if !opts.disableGCM {
+			break
+		}
+		container, err := kube.DeploymentContainer(obj, operator.RuleEvaluatorContainerName)
+		if err != nil {
+			return nil, fmt.Errorf("unable to find rule-evaluator %q container: %w", operator.RuleEvaluatorContainerName, err)
+		}
+		container.Args = append(container.Args, "--export.debug.disable-auth")
+		container.Args = append(container.Args, "--query.debug.disable-auth")
+	}
+	return obj, nil
 }
 
 func CreateGCPSecretResources(ctx context.Context, kubeClient client.Client, namespace string, serviceAccount []byte) error {
