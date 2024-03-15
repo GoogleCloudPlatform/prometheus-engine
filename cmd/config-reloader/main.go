@@ -39,6 +39,8 @@ func main() {
 		watchedDirs      stringSlice
 		configFile       = flag.String("config-file", "", "config file to watch for changes")
 		configFileOutput = flag.String("config-file-output", "", "config file to write with interpolated environment variables")
+		configDir        = flag.String("config-dir", "", "config directory to watch for changes")
+		configDirOutput  = flag.String("config-dir-output", "", "config directory to write with interpolated environment variables")
 		// Ready and reload endpoints should be compatible with Prometheus-style
 		// management APIs, e.g.
 		// https://prometheus.io/docs/prometheus/latest/management_api/
@@ -54,6 +56,12 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "caller", log.DefaultCaller)
+
+	if *configDirOutput != "" && *configDir == "" {
+		//nolint:errcheck
+		level.Error(logger).Log("msg", "config-dir-output specified without config-dir")
+		os.Exit(1)
+	}
 
 	metrics := prometheus.NewRegistry()
 	metrics.MustRegister(
@@ -113,6 +121,14 @@ func main() {
 	}()
 	<-done
 
+	var cfgDirs []reloader.CfgDirOption
+	if *configDir != "" {
+		cfgDirs = append(cfgDirs, reloader.CfgDirOption{
+			Dir:       *configDir,
+			OutputDir: *configDirOutput,
+		})
+	}
+
 	rel := reloader.New(
 		logger,
 		metrics,
@@ -120,6 +136,7 @@ func main() {
 			ReloadURL:     reloadURL,
 			CfgFile:       *configFile,
 			CfgOutputFile: *configFileOutput,
+			CfgDirs:       cfgDirs,
 			WatchedDirs:   watchedDirs,
 			// There are some reliability issues with fsnotify picking up file changes.
 			// Configure a very aggress refresh for now. The reloader will only send reload signals

@@ -43,7 +43,8 @@ spec:
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
-        - --watched-dir=/etc/rules
+        - --config-dir=/etc/rules
+        - --config-dir-output=/prometheus/rules_out
         - --reload-url=http://127.0.0.1:9092/-/reload
         - --ready-url=http://127.0.0.1:9092/-/ready
         - --listen-address=:9093
@@ -61,6 +62,8 @@ spec:
         - name: rules
           readOnly: true
           mountPath: /etc/rules
+        - name: rules-out
+          mountPath: /prometheus/rules_out
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -80,7 +83,7 @@ spec:
         - name: config-out
           readOnly: true
           mountPath: /prometheus/config_out
-        - name: rules
+        - name: rules-out
           readOnly: true
           mountPath: /etc/rules
         livenessProbe:
@@ -108,6 +111,8 @@ spec:
       - name: rules
         configMap:
           name: rules
+      - name: rules-out
+        emptyDir: {}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
