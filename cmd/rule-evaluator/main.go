@@ -41,6 +41,8 @@ import (
 	apiv1 "github.com/prometheus/prometheus/web/api/v1"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -79,7 +81,7 @@ func main() {
 		defaultProjectID, err = metadata.ProjectID()
 		if err != nil {
 			//nolint:errcheck
-			level.Error(logger).Log("msg", "Unable to fetch Google Cloud project", "err", err)
+			level.Warn(logger).Log("msg", "Unable to detect Google Cloud project", "err", err)
 		}
 	}
 
@@ -114,6 +116,9 @@ func main() {
 
 	queryCredentialsFile := a.Flag("query.credentials-file", "Credentials file for OAuth2 authentication with --query.target-url.").
 		Default("").String()
+
+	disableAuth := a.Flag("query.debug.disable-auth", "Disable authentication (for debugging purposes).").
+		Default("false").Bool()
 
 	listenAddress := a.Flag("web.listen-address", "The address to listen on for HTTP requests.").
 		Default(":9091").String()
@@ -183,6 +188,12 @@ func main() {
 	}
 	if *queryCredentialsFile != "" {
 		opts = append(opts, option.WithCredentialsFile(*queryCredentialsFile))
+	}
+	if *disableAuth {
+		opts = append(opts,
+			option.WithoutAuthentication(),
+			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
+		)
 	}
 	transport, err := apihttp.NewTransport(ctxRuleManger, http.DefaultTransport, opts...)
 	if err != nil {
