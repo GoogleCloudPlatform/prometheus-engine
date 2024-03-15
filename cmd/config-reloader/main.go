@@ -92,11 +92,14 @@ func main() {
 				os.Exit(0)
 			case <-ticker.C:
 				resp, err := http.DefaultClient.Do(req)
-				defer resp.Body.Close()
 				if err != nil {
 					//nolint:errcheck
 					level.Error(logger).Log("msg", "polling ready-url", "err", err)
 					os.Exit(1)
+				}
+				if err := resp.Body.Close(); err != nil {
+					//nolint:errcheck
+					level.Warn(logger).Log("msg", "unable to close response body", "err", err)
 				}
 				if resp.StatusCode == http.StatusOK {
 					//nolint:errcheck
