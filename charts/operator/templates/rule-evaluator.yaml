@@ -60,7 +60,8 @@ spec:
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
-        - --watched-dir=/etc/rules
+        - --config-dir=/etc/rules
+        - --config-dir-output=/prometheus/rules_out
         - --watched-dir=/etc/secrets
         - --reload-url=http://127.0.0.1:19092/-/reload
         - --ready-url=http://127.0.0.1:19092/-/ready
@@ -78,6 +79,8 @@ spec:
         - name: rules
           readOnly: true
           mountPath: /etc/rules
+        - name: rules-out
+          mountPath: /prometheus/rules_out
         - name: rules-secret
           readOnly: true
           mountPath: /etc/secrets
@@ -101,7 +104,7 @@ spec:
         - name: config-out
           readOnly: true
           mountPath: /prometheus/config_out
-        - name: rules
+        - name: rules-out
           readOnly: true
           mountPath: /etc/rules
         - name: rules-secret
@@ -134,6 +137,8 @@ spec:
         configMap:
           name: rules-generated
           defaultMode: 420
+      - name: rules-out
+        emptyDir: {}
       - name: rules-secret
         secret:
           defaultMode: 420
