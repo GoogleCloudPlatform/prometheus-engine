@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -24,8 +25,9 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/client-go/kubernetes"
 )
 
 // TestWebhooksNoRBAC validates that the operator works without any webhook RBAC policies.
@@ -55,7 +57,7 @@ func TestWebhooksNoRBAC(t *testing.T) {
 
 	// Restart the GMP operator since it is already healthy before we delete the RBAC policies.
 	t.Log("restarting operator")
-	if err := deploymentRestart(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
+	if err := deploymentRestart(ctx, clientSet, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
 		t.Fatalf("error restarting operator. err: %s", err)
 	}
 
@@ -91,18 +93,13 @@ func TestWebhooksNoRBAC(t *testing.T) {
 	}
 }
 
-func deploymentRestart(ctx context.Context, kubeClient client.Client, namespace, name string) error {
-	// Deleted Pods managed by a Deployment are automatically restarted.
-	pods, err := kube.DeploymentPods(ctx, kubeClient, namespace, name)
+func deploymentRestart(ctx context.Context, clientSet kubernetes.Interface, namespace, name string) error {
+	restartAtPatch := `{"spec": {"template": {"metadata": {"annotations": {"kubectl.kubernetes.io/restartedAt": "%s"}}}}}`
+	restartNowPatch := []byte(fmt.Sprintf(restartAtPatch, time.Now().Format(time.RFC3339)))
+	_, err := clientSet.AppsV1().Deployments(namespace).Patch(ctx, name, types.StrategicMergePatchType, restartNowPatch, metav1.PatchOptions{})
 	if err != nil {
 		return err
 	}
 
-	for i := range pods.Items {
-		pod := &pods.Items[i]
-		if err := kubeClient.Delete(ctx, pod); err != nil {
-			return err
-		}
-	}
 	return nil
 }
