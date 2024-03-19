@@ -24,7 +24,7 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -56,7 +56,7 @@ func WaitForOperatorReady(ctx context.Context, t testing.TB, kubeClient client.C
 	return wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
 		if err := dryRun.Create(ctx, &pm); err != nil {
 			// Expected to have a forbidden PodMonitoring until we're ready.
-			if !errors.IsForbidden(err) {
+			if !apierrors.IsForbidden(err) {
 				t.Logf("unable to create PodMonitoring: %s", err)
 			}
 			return false, nil

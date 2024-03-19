@@ -75,11 +75,14 @@ linters:
     - wsl
 linters-settings:
   importas:
+    no-unaliased: true
     alias:
     - pkg: "k8s.io/api/apps/v1"
       alias: appsv1
     - pkg: "k8s.io/api/meta/v1"
       alias: metav1
+    - pkg: "k8s.io/apimachinery/pkg/api/errors"
+      alias: apierrors
     - pkg: "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
       alias: monitoringv1
   revive:
