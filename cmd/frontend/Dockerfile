@@ -20,7 +20,7 @@ COPY --from=assets /app/pkg/ui/static pkg/ui/static
 FROM buildbase AS appbase
 WORKDIR /app
 COPY --from=assets /app ./
-RUN CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
+RUN CGO_ENABLED=0 GOEXPERIMENT=boringcrypto go build -tags builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
 
 FROM gcr.io/distroless/static-debian11:latest
 COPY --from=appbase /app/frontend /bin/frontend
