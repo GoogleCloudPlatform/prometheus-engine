@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.21-bullseye AS buildbase
+FROM google-go.pkg.dev/golang:1.22.1@sha256:4463a06a8378eddc4efa36de9a5310ff087c03d3cc4278c87059209d3d95e4c0 as buildbase
 WORKDIR /app
 COPY go.mod go.mod
 COPY go.sum go.sum
@@ -21,8 +21,9 @@ COPY pkg pkg
 COPY vendor vendor
 
 FROM buildbase as appbase
-RUN CGO_ENABLED=0 GOEXPERIMENT=boringcrypto go build -mod=vendor -o config-reloader cmd/config-reloader/*.go
+RUN CGO_ENABLED=1 GOEXPERIMENT=boringcrypto \
+    go build -tags boring -mod=vendor -o config-reloader cmd/config-reloader/*.go
 
-FROM gcr.io/distroless/static-debian11:latest
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20240307.00_p0@sha256:4f834e207f2721977094aeec4c9daee7032c5daec2083c0be97760f4306e4f88
 COPY --from=appbase /app/config-reloader /bin/config-reloader
 ENTRYPOINT ["/bin/config-reloader"]
