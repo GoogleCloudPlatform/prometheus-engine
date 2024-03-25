@@ -58,7 +58,6 @@ linters:
     - paralleltest
     - perfsprint
     - prealloc
-    - promlinter
     - protogetter
     - scopelint # Deprecated
     - structcheck # Deprecated

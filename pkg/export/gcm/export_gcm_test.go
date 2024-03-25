@@ -30,6 +30,7 @@ func TestExport_CounterReset(t *testing.T) {
 
 	it := promtest.NewIngestionTest(t, []promtest.Backend{prom, export})
 
+	//nolint:promlinter
 	counter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "pe_test_counter_total",
 		Help: "Test counter used by prometheus-engine export GCM acceptance tests.",
