@@ -386,11 +386,32 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 			fail:        true,
 			errContains: "at most one of basic_auth, oauth2 & authorization must be configured",
 		},
+		{
+			// Regression test for https://github.com/GoogleCloudPlatform/prometheus-engine/issues/479
+			desc: "Duplicated job name",
+			eps: []ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10s",
+				},
+				{
+					Port:     intstr.FromString("web"),
+					Interval: "10000ms",
+					Path:     "different",
+				},
+			},
+			fail:        true,
+			errContains: "/r1/web for endpoints with index 0 and 1;consider creating a separate custom resource (PodMonitoring, etc.) for endpoints that share the same resource name, namespace and port name",
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.desc+"_podmonitoring", func(t *testing.T) {
 			pm := &PodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "r1",
+					Namespace: "ns1",
+				},
 				Spec: PodMonitoringSpec{
 					Endpoints:    c.eps,
 					TargetLabels: c.tls,
@@ -412,6 +433,9 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 
 		t.Run(c.desc+"_clusterpodmonitoring", func(t *testing.T) {
 			cm := &ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "r1",
+				},
 				Spec: ClusterPodMonitoringSpec{
 					Endpoints:    c.eps,
 					TargetLabels: c.tls,

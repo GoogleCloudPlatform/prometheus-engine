@@ -181,3 +181,18 @@ var invalidLabelCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 func sanitizeLabelName(name string) prommodel.LabelName {
 	return prommodel.LabelName(invalidLabelCharRE.ReplaceAllString(name, "_"))
 }
+
+// validateDistinctJobNames returns error if any job name duplicates.
+// This would also result in an error on Prometheus server config parsing.
+func validateDistinctJobNames(jobs []*promconfig.ScrapeConfig) error {
+	jobToIndex := map[string]int{}
+	for i, job := range jobs {
+		if dup, ok := jobToIndex[job.JobName]; ok {
+			// TODO(bwplotka): Consider adding JobSuffix field or so for https://github.com/GoogleCloudPlatform/prometheus-engine/issues/479
+			return fmt.Errorf("duplicated job name %v for endpoints with index %d and %d;"+
+				"consider creating a separate custom resource (PodMonitoring, etc.) for endpoints that share the same resource name, namespace and port name", job.JobName, dup, i)
+		}
+		jobToIndex[job.JobName] = i
+	}
+	return nil
+}

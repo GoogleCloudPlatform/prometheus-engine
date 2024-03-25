@@ -163,7 +163,7 @@ func (c *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string
 		}
 		res = append(res, c)
 	}
-	return res, nil
+	return res, validateDistinctJobNames(res)
 }
 
 func (p *PodMonitoring) ValidateCreate() (admission.Warnings, error) {
@@ -195,7 +195,7 @@ func (p *PodMonitoring) ScrapeConfigs(projectID, location, cluster string) (res 
 		}
 		res = append(res, c)
 	}
-	return res, nil
+	return res, validateDistinctJobNames(res)
 }
 
 func (p *PodMonitoring) endpointScrapeConfig(index int, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
