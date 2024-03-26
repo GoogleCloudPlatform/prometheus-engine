@@ -48,6 +48,10 @@ import (
 )
 
 var (
+	gcmExportCalledWhileDisabled = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "gcm_export_called_while_disabled_total",
+		Help: "Number of calls to export while metric exporting was disabled.",
+	})
 	samplesExported = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "gcm_export_samples_exported_total",
 		Help: "Number of samples exported at scrape time.",
@@ -120,6 +124,9 @@ type Exporter struct {
 	// be processed.
 	nextc chan struct{}
 
+	// Channel for signaling to exit the exporter. Used to indicate
+	// data is done exporting during unit tests.
+	exitc chan struct{}
 	// The external labels may be updated asynchronously by configuration changes
 	// and must be locked with mtx.
 	mtx            sync.Mutex
@@ -141,7 +148,9 @@ const (
 	// Time after an accumulating batch is flushed to GCM. This avoids data being
 	// held indefinititely if not enough new data flows in to fill up the batch.
 	batchDelayMax = 50 * time.Millisecond
-
+	// Time after context is cancelled that we use to flush the remaining buffered data.
+	// This avoids data loss on shutdown.
+	cancelTimeout = 15 * time.Second
 	// Prefix for GCM metric.
 	MetricTypePrefix = "prometheus.googleapis.com"
 )
@@ -331,6 +340,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 			pendingRequests,
 			projectsPerBatch,
 			samplesPerRPCBatch,
+			gcmExportCalledWhileDisabled,
 		)
 	}
 
@@ -363,6 +373,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		opts:                 opts,
 		metricClient:         metricClient,
 		nextc:                make(chan struct{}, 1),
+		exitc:                make(chan struct{}, 1),
 		shards:               make([]*shard, opts.Efficiency.ShardCount),
 		warnedUntypedMetrics: map[string]struct{}{},
 	}
@@ -446,16 +457,30 @@ func (e *Exporter) SetLabelsByIDFunc(f func(storage.SeriesRef) labels.Labels) {
 	e.seriesCache.getLabelsByRef = f
 }
 
+// isDisabled checks if Exporter is disabled.
+func (e *Exporter) isDisabled() bool {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	return e.opts.Disable
+}
+
+// disable stops requests from being sent to Monarch.
+func (e *Exporter) disable() {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.opts.Disable = true
+}
+
 // Export enqueues the samples and exemplars to be written to Cloud Monitoring.
 func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemplarMap map[storage.SeriesRef]record.RefExemplar) {
+	if e.isDisabled() {
+		gcmExportCalledWhileDisabled.Inc()
+		return
+	}
 	// Wether we're sending data or not, add batchsize of samples exported by
 	// Prometheus from appender commit.
 	batchSize := len(batch)
 	samplesExported.Add(float64(batchSize))
-
-	if e.opts.Disable {
-		return
-	}
 
 	metadata = e.wrapMetadata(metadata)
 
@@ -623,9 +648,12 @@ func Version() (string, error) {
 // to cover a large range of potential throughput and latency combinations without requiring
 // user configuration or, even worse, runtime changes to the shard number.
 func (e *Exporter) Run(ctx context.Context) error {
+	exportCtx, exportCancel := context.WithCancel(context.Background())
+	defer exportCancel()
+
 	defer e.metricClient.Close()
-	go e.seriesCache.run(ctx)
-	go e.opts.Lease.Run(ctx)
+	go e.seriesCache.run(exportCtx)
+	go e.opts.Lease.Run(exportCtx)
 
 	timer := time.NewTimer(batchDelayMax)
 	stopTimer := func() {
@@ -651,13 +679,50 @@ func (e *Exporter) Run(ctx context.Context) error {
 			// We could only trigger if we didn't fully empty shards in this batch.
 			// Benchmarking showed no beneficial impact of this optimization.
 			e.triggerNext()
-		}(ctx, curBatch)
+		}(exportCtx, curBatch)
 
 		// Reset state for new batch.
 		stopTimer()
 		timer.Reset(batchDelayMax)
 
 		curBatch = newBatch(e.logger, e.opts.Efficiency.ShardCount, e.opts.Efficiency.BatchSize)
+	}
+
+	// Try to drain the remaining data before exiting or the timelimit (15 seconds) expires.
+	// A sleep timer is added after draining the shards to ensure it has time to be sent.
+	drainShardsBeforeExiting := func() {
+		level.Info(e.logger).Log("msg", "Exiting Exporter - will attempt to send remaining data in the next 15 seconds.")
+		exitTimer := time.NewTimer(cancelTimeout)
+		drained := make(chan struct{}, 1)
+		go func() {
+			for {
+				totalRemaining := 0
+				pending := false
+				for _, shard := range e.shards {
+					_, remaining := shard.fill(curBatch)
+					totalRemaining += remaining
+					pending = pending || shard.pending
+					if !curBatch.empty() {
+						send()
+					}
+				}
+				if totalRemaining == 0 && !pending {
+					// Wait for the final shards to send.
+					time.Sleep(100 * time.Millisecond)
+					drained <- struct{}{}
+				}
+			}
+		}()
+		for {
+			select {
+			case <-exitTimer.C:
+				level.Info(e.logger).Log("msg", "Exiting Exporter - Data wasn't sent within the timeout limit.")
+				samplesDropped.WithLabelValues("Data wasn't sent within the timeout limit.")
+				return
+			case <-drained:
+				return
+			}
+		}
 	}
 
 	for {
@@ -667,6 +732,14 @@ func (e *Exporter) Run(ctx context.Context) error {
 		// This is fine once we persist data submitted via Export() but for now there may be some
 		// data loss on shutdown.
 		case <-ctx.Done():
+			// On Termination:
+			// 1. Stop the exporter from recieving new data.
+			// 2. Try to drain the remaining shards within the CancelTimeout.
+			// This is done to prevent data loss during a shutdown.
+			e.disable()
+			drainShardsBeforeExiting()
+			// This channel is used for unit test case.
+			e.exitc <- struct{}{}
 			return nil
 		// This is activated for each new sample that arrives
 		case <-e.nextc:
