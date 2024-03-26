@@ -68,11 +68,28 @@ func TestValidateClusterNodeMonitoring(t *testing.T) {
 			fail:        true,
 			errContains: "scrape timeout 2s must not be greater than scrape interval 1s",
 		},
+		{
+			// Regression test for https://github.com/GoogleCloudPlatform/prometheus-engine/issues/479
+			desc: "Duplicated job name",
+			eps: []ScrapeNodeEndpoint{
+				{
+					Interval: "10s",
+				},
+				{
+					Interval: "10000ms",
+				},
+			},
+			fail:        true,
+			errContains: "/r1/metrics for endpoints with index 0 and 1;consider creating a separate custom resource (PodMonitoring, etc.) for endpoints that share the same resource name, namespace and port name",
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.desc+"", func(t *testing.T) {
 			nm := &ClusterNodeMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "r1",
+				},
 				Spec: ClusterNodeMonitoringSpec{
 					Endpoints: c.eps,
 				},

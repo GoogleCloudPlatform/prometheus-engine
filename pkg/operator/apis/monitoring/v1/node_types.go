@@ -130,7 +130,7 @@ func (c *ClusterNodeMonitoring) ScrapeConfigs(projectID, location, cluster strin
 		}
 		res = append(res, sc)
 	}
-	return res, nil
+	return res, validateDistinctJobNames(res)
 }
 
 func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
