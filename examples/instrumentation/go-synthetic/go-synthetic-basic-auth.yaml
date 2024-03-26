@@ -15,16 +15,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: go-synthetic
+  name: go-synthetic-basic-auth
 spec:
   replicas: 2
   selector:
-    matchLabels: 
-      app: "go-synthetic"
+    matchLabels:
+      app: "go-synthetic-basic-auth"
   template:
     metadata:
       labels:
-        app: "go-synthetic"
+        app: "go-synthetic-basic-auth"
     spec:
       containers:
       - name: go-synthetic
@@ -34,12 +34,8 @@ spec:
         - "--listen-address=:8080"
         - "--cpu-burn-ops=75"
         - "--memory-ballast-mbs=1024"
-        env:
-        # Needed when using --tls-create-self-signed
-        - name: POD_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
+        - "--basic-auth-username=me"
+        - "--basic-auth-password=fakepasswordusedonlyfortest"
         ports:
         - name: web
           containerPort: 8080
@@ -54,10 +50,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: go-synthetic
+  name: go-synthetic-basic-auth
 spec:
   selector:
-    app: go-synthetic
+    app: go-synthetic-basic-auth
   ports:
   - port: 8080
     targetPort: web
@@ -65,11 +61,49 @@ spec:
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
-  name: go-synthetic
+  name: go-synthetic-basic-auth
 spec:
   selector:
     matchLabels:
-      app: go-synthetic
+      app: go-synthetic-basic-auth
   endpoints:
   - port: 8080
     interval: 15s
+    basicAuth:
+      username: me
+      password:
+        secret:
+          key: password
+          name: go-synthetic-basic-auth
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: go-synthetic-basic-auth
+stringData:
+  password: fakepasswordusedonlyfortest
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: go-synthetic-basic-auth-secret-read
+rules:
+- resources:
+  - secrets
+  apiGroups: [""]
+  verbs: ["get", "list", "watch"]
+  resourceNames: ["go-synthetic-basic-auth"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gmp-system:collector-go-synthetic-basic-auth-secret-read
+  namespace: default
+roleRef:
+  name: go-synthetic-basic-auth-secret-read
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- name: collector
+  namespace: gmp-system
+  kind: ServiceAccount
