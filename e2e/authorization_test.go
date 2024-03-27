@@ -37,7 +37,7 @@ const errCertificate = "x509: certificate signed by unknown authority"
 const errUnauthorized = "server returned HTTP status 401 Unauthorized"
 const errInvalidClientCredentials = "oauth2: \"invalid_client\" \"incorrect client credentials\""
 
-func TestTLSPodMonitoring(t *testing.T) {
+func TestTLS(t *testing.T) {
 	ctx := context.Background()
 	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
@@ -47,7 +47,7 @@ func TestTLSPodMonitoring(t *testing.T) {
 	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
 		"--tls-create-self-signed=true",
 	}))
-	authorizationPodMonitoringTest(ctx, t, kubeClient, opClient, "tls",
+	authorizationTest(ctx, t, kubeClient, opClient, "tls",
 		&monitoringv1.ScrapeEndpoint{
 			Scheme:   "https",
 			Port:     intstr.FromString("web"),
@@ -66,36 +66,7 @@ func TestTLSPodMonitoring(t *testing.T) {
 	)
 }
 
-func TestTLSClusterPodMonitoring(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
-	if err != nil {
-		t.Fatalf("error instantiating clients. err: %s", err)
-	}
-
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
-		"--tls-create-self-signed=true",
-	}))
-	authorizationClusterPodMonitoringTest(ctx, t, kubeClient, opClient, "tls",
-		&monitoringv1.ScrapeEndpoint{
-			Scheme:   "https",
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				TLS: &monitoringv1.TLS{
-					InsecureSkipVerify: true,
-				},
-			},
-		}, &monitoringv1.ScrapeEndpoint{
-			Scheme:   "https",
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-		},
-		errCertificate,
-	)
-}
-
-func TestBasicAuthPodMonitoringNoPassword(t *testing.T) {
+func TestBasicAuthPassword(t *testing.T) {
 	ctx := context.Background()
 	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
@@ -105,7 +76,7 @@ func TestBasicAuthPodMonitoringNoPassword(t *testing.T) {
 	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
 		"--basic-auth-username=user",
 	}))
-	authorizationPodMonitoringTest(ctx, t, kubeClient, opClient, "basic-auth-no-password",
+	authorizationTest(ctx, t, kubeClient, opClient, "basic-auth-no-password",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -122,34 +93,7 @@ func TestBasicAuthPodMonitoringNoPassword(t *testing.T) {
 	)
 }
 
-func TestBasicAuthClusterPodMonitoringNoPassword(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
-	if err != nil {
-		t.Fatalf("error instantiating clients. err: %s", err)
-	}
-
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
-		"--basic-auth-username=user",
-	}))
-	authorizationClusterPodMonitoringTest(ctx, t, kubeClient, opClient, "basic-auth-no-password",
-		&monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				BasicAuth: &monitoringv1.BasicAuth{
-					Username: "user",
-				},
-			},
-		}, &monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-		},
-		errUnauthorized,
-	)
-}
-
-func TestBasicAuthPodMonitoringNoUsername(t *testing.T) {
+func TestBasicAuthNoUsername(t *testing.T) {
 	ctx := context.Background()
 	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
@@ -165,7 +109,7 @@ func TestBasicAuthPodMonitoringNoUsername(t *testing.T) {
 	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
 		"--basic-auth-password=pass",
 	}))
-	authorizationPodMonitoringTest(ctx, t, kubeClient, opClient, "basic-auth-no-username",
+	authorizationTest(ctx, t, kubeClient, opClient, "basic-auth-no-username",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -187,46 +131,7 @@ func TestBasicAuthPodMonitoringNoUsername(t *testing.T) {
 	)
 }
 
-func TestBasicAuthClusterPodMonitoringNoUsername(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
-	if err != nil {
-		t.Fatalf("error instantiating clients. err: %s", err)
-	}
-
-	const secretName = "basic-auth-no-username"
-	const secretKey = "k1"
-	if err := addSecret(ctx, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, secretName, secretKey, []byte("pass")); err != nil {
-		t.Fatalf("error adding secret: %s", err)
-	}
-
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
-		"--basic-auth-password=pass",
-	}))
-	authorizationClusterPodMonitoringTest(ctx, t, kubeClient, opClient, "basic-auth-no-username",
-		&monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				BasicAuth: &monitoringv1.BasicAuth{
-					Password: &monitoringv1.SecretSelector{
-						Secret: &monitoringv1.SecretKeySelector{
-							Name:      secretName,
-							Key:       secretKey,
-							Namespace: metav1.NamespaceDefault,
-						},
-					},
-				},
-			},
-		}, &monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-		},
-		errUnauthorized,
-	)
-}
-
-func TestBasicAuthPodMonitoring(t *testing.T) {
+func TestBasicAuth(t *testing.T) {
 	ctx := context.Background()
 	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
@@ -243,7 +148,7 @@ func TestBasicAuthPodMonitoring(t *testing.T) {
 		"--basic-auth-username=user",
 		"--basic-auth-password=pass",
 	}))
-	authorizationPodMonitoringTest(ctx, t, kubeClient, opClient, "basic-auth",
+	authorizationTest(ctx, t, kubeClient, opClient, "basic-auth",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -271,53 +176,7 @@ func TestBasicAuthPodMonitoring(t *testing.T) {
 	)
 }
 
-func TestBasicAuthClusterPodMonitoring(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
-	if err != nil {
-		t.Fatalf("error instantiating clients. err: %s", err)
-	}
-
-	const secretName = "basic-auth"
-	const secretKey = "k1"
-	if err := addSecret(ctx, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, secretName, secretKey, []byte("pass")); err != nil {
-		t.Fatalf("error adding secret: %s", err)
-	}
-
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
-		"--basic-auth-username=user",
-		"--basic-auth-password=pass",
-	}))
-	authorizationClusterPodMonitoringTest(ctx, t, kubeClient, opClient, "basic-auth",
-		&monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				BasicAuth: &monitoringv1.BasicAuth{
-					Username: "user",
-					Password: &monitoringv1.SecretSelector{
-						Secret: &monitoringv1.SecretKeySelector{
-							Name:      secretName,
-							Key:       secretKey,
-							Namespace: metav1.NamespaceDefault,
-						},
-					},
-				},
-			},
-		}, &monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				BasicAuth: &monitoringv1.BasicAuth{
-					Username: "user",
-				},
-			},
-		},
-		errUnauthorized,
-	)
-}
-
-func TestAuthPodMonitoringNoCredentials(t *testing.T) {
+func TestAuthNoCredentials(t *testing.T) {
 	ctx := context.Background()
 	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
@@ -327,7 +186,7 @@ func TestAuthPodMonitoringNoCredentials(t *testing.T) {
 	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
 		"--auth-scheme=Bearer",
 	}))
-	authorizationPodMonitoringTest(ctx, t, kubeClient, opClient, "auth",
+	authorizationTest(ctx, t, kubeClient, opClient, "auth",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -344,34 +203,7 @@ func TestAuthPodMonitoringNoCredentials(t *testing.T) {
 	)
 }
 
-func TestAuthClusterPodMonitoringNoCredentials(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
-	if err != nil {
-		t.Fatalf("error instantiating clients. err: %s", err)
-	}
-
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
-		"--auth-scheme=Bearer",
-	}))
-	authorizationClusterPodMonitoringTest(ctx, t, kubeClient, opClient, "auth",
-		&monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				Authorization: &monitoringv1.Auth{
-					Type: "Bearer",
-				},
-			},
-		}, &monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-		},
-		errUnauthorized,
-	)
-}
-
-func TestAuthPodMonitoring(t *testing.T) {
+func TestAuth(t *testing.T) {
 	ctx := context.Background()
 	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
@@ -388,7 +220,7 @@ func TestAuthPodMonitoring(t *testing.T) {
 		"--auth-scheme=Bearer",
 		"--auth-parameters=pass",
 	}))
-	authorizationPodMonitoringTest(ctx, t, kubeClient, opClient, "auth",
+	authorizationTest(ctx, t, kubeClient, opClient, "auth",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -413,50 +245,7 @@ func TestAuthPodMonitoring(t *testing.T) {
 	)
 }
 
-func TestAuthClusterPodMonitoring(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
-	if err != nil {
-		t.Fatalf("error instantiating clients. err: %s", err)
-	}
-
-	const secretName = "auth"
-	const secretKey = "k1"
-	if err := addSecret(ctx, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, secretName, secretKey, []byte("pass")); err != nil {
-		t.Fatalf("error adding secret: %s", err)
-	}
-
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
-		"--auth-scheme=Bearer",
-		"--auth-parameters=pass",
-	}))
-	authorizationClusterPodMonitoringTest(ctx, t, kubeClient, opClient, "auth",
-		&monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				Authorization: &monitoringv1.Auth{
-					Credentials: &monitoringv1.SecretSelector{
-						Secret: &monitoringv1.SecretKeySelector{
-							Name:      secretName,
-							Key:       secretKey,
-							Namespace: metav1.NamespaceDefault,
-						},
-					},
-				},
-			},
-		}, &monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				Authorization: &monitoringv1.Auth{},
-			},
-		},
-		errUnauthorized,
-	)
-}
-
-func TestOAuth2PodMonitoringNoSecret(t *testing.T) {
+func TestOAuth2NoSecret(t *testing.T) {
 	ctx := context.Background()
 	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
@@ -473,7 +262,7 @@ func TestOAuth2PodMonitoringNoSecret(t *testing.T) {
 		fmt.Sprintf("--oauth2-scopes=%s", clientScope),
 		fmt.Sprintf("--oauth2-access-token=%s", accessToken),
 	}))
-	authorizationPodMonitoringTest(ctx, t, kubeClient, opClient, "oauth2-no-client-secret",
+	authorizationTest(ctx, t, kubeClient, opClient, "oauth2-no-client-secret",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -492,43 +281,7 @@ func TestOAuth2PodMonitoringNoSecret(t *testing.T) {
 	)
 }
 
-func TestOAuth2ClusterPodMonitoringNoSecret(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
-	if err != nil {
-		t.Fatalf("error instantiating clients. err: %s", err)
-	}
-
-	var (
-		clientID    = "gmp-user-client-id-no-client-secret"
-		clientScope = "read"
-		accessToken = "abc123"
-	)
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
-		fmt.Sprintf("--oauth2-client-id=%s", clientID),
-		fmt.Sprintf("--oauth2-scopes=%s", clientScope),
-		fmt.Sprintf("--oauth2-access-token=%s", accessToken),
-	}))
-	authorizationClusterPodMonitoringTest(ctx, t, kubeClient, opClient, "oauth2-no-client-secret",
-		&monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				OAuth2: &monitoringv1.OAuth2{
-					ClientID: clientID,
-					Scopes:   []string{clientScope},
-					TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
-				},
-			},
-		}, &monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-		},
-		errUnauthorized,
-	)
-}
-
-func TestOAuth2PodMonitoring(t *testing.T) {
+func TestOAuth2(t *testing.T) {
 	ctx := context.Background()
 	kubeClient, opClient, err := setupCluster(ctx, t)
 	if err != nil {
@@ -553,7 +306,7 @@ func TestOAuth2PodMonitoring(t *testing.T) {
 		fmt.Sprintf("--oauth2-scopes=%s", clientScope),
 		fmt.Sprintf("--oauth2-access-token=%s", accessToken),
 	}))
-	authorizationPodMonitoringTest(ctx, t, kubeClient, opClient, "oauth2",
+	authorizationTest(ctx, t, kubeClient, opClient, "oauth2",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -585,62 +338,13 @@ func TestOAuth2PodMonitoring(t *testing.T) {
 	)
 }
 
-func TestOAuth2ClusterPodMonitoring(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
-	if err != nil {
-		t.Fatalf("error instantiating clients. err: %s", err)
-	}
-	const (
-		clientID    = "gmp-user-client-id-no-client-secret"
-		clientPass  = "pass"
-		clientScope = "read"
-		accessToken = "abc123"
-	)
-
-	const secretName = "oauth2"
-	const secretKey = "k1"
-	if err := addSecret(ctx, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, secretName, secretKey, []byte(clientPass)); err != nil {
-		t.Fatalf("error adding secret: %s", err)
-	}
-
-	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
-		fmt.Sprintf("--oauth2-client-id=%s", clientID),
-		fmt.Sprintf("--oauth2-client-secret=%s", clientPass),
-		fmt.Sprintf("--oauth2-scopes=%s", clientScope),
-		fmt.Sprintf("--oauth2-access-token=%s", accessToken),
-	}))
-	authorizationClusterPodMonitoringTest(ctx, t, kubeClient, opClient, "oauth2",
-		&monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				OAuth2: &monitoringv1.OAuth2{
-					ClientID: clientID,
-					ClientSecret: &monitoringv1.SecretSelector{
-						Secret: &monitoringv1.SecretKeySelector{
-							Name:      secretName,
-							Key:       secretKey,
-							Namespace: metav1.NamespaceDefault,
-						},
-					},
-					Scopes:   []string{clientScope},
-					TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
-				},
-			},
-		}, &monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				OAuth2: &monitoringv1.OAuth2{
-					ClientID: clientID,
-					Scopes:   []string{clientScope},
-					TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
-				},
-			},
-		},
-		errInvalidClientCredentials,
-	)
+func authorizationTest(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface, name string, successConfig, failureConfig *monitoringv1.ScrapeEndpoint, errMsg string) {
+	t.Run("podmonitoring", func(t *testing.T) {
+		authorizationPodMonitoringTest(ctx, t, kubeClient, opClient, name, successConfig, failureConfig, errMsg)
+	})
+	t.Run("clustermonitoring", func(t *testing.T) {
+		authorizationClusterPodMonitoringTest(ctx, t, kubeClient, opClient, name, successConfig, failureConfig, errMsg)
+	})
 }
 
 func authorizationPodMonitoringTest(ctx context.Context, t *testing.T, kubeClient kubernetes.Interface, opClient versioned.Interface, name string, successConfig, failureConfig *monitoringv1.ScrapeEndpoint, errMsg string) {
