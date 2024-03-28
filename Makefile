@@ -248,7 +248,7 @@ export CURRENT_CONFIG_RELOADER_TAG = v0.9.0-gke.1
 #TODO(macxamin) Sync CURRENT_DATASOURCE_SYNCER_TAG with CURRENT_TAG
 export CURRENT_DATASOURCE_SYNCER_TAG = v0.10.0-gke.3
 export CURRENT_BASH_TAG = 20220419
-export LABEL_API_VERSION = 0.11.0
+export LABEL_API_VERSION = 0.12.0
 updateversions: ## Modify all manifests, so it contains the expected versions.
                 ##
                 ## TODO(bwplotka): CI does not check updateversions--add that there.
