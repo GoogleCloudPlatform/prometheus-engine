@@ -50,7 +50,11 @@ func getValue(s *corev1.Secret, key string) (string, error) {
 	if value, ok := s.StringData[key]; ok {
 		return value, nil
 	}
-	return "", fmt.Errorf("secret %s/%s does not contain key: %s", s.Namespace, s.Name, key)
+	return "", errKeyNotFound(s.Namespace, s.Name, key)
+}
+
+func errKeyNotFound(namespace, name, key string) error {
+	return fmt.Errorf("secret %s/%s does not contain key: %s", namespace, name, key)
 }
 
 // ClientConfig configures access to the Kubernetes API server.
