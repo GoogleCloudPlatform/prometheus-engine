@@ -59,11 +59,18 @@ func newWatcher(ctx context.Context, logger log.Logger, client kubernetes.Interf
 		done:     false,
 	}
 
-	if err := watcher.start(ctx, client, config); err != nil {
-		return nil, err
+	err := watcher.start(ctx, client, config)
+	if err != nil {
+		_ = logger.Log("msg", "secret watcher failed to start", "err", err, "namespace", config.Namespace, "name", config.Name)
 	}
+	started := err == nil
 
 	go func() {
+		if !started {
+			if ok := watcher.tryRestart(ctx, logger, client, config); !ok {
+				return
+			}
+		}
 		for {
 			select {
 			case e, ok := <-watcher.w.ResultChan():
@@ -72,24 +79,8 @@ func newWatcher(ctx context.Context, logger log.Logger, client kubernetes.Interf
 					continue
 				}
 
-				// If the application shutdown, we don't care about cleanup.
-				if ctx.Err() != nil {
-					watcher.mu.Lock()
-					defer watcher.mu.Lock()
-					watcher.s = nil
+				if ok := watcher.tryRestart(ctx, logger, client, config); !ok {
 					return
-				}
-				// If closed unintentionally (i.e. network issues), try and restart it.
-				for {
-					ok, err := watcher.restart(ctx, client, config)
-					if ok {
-						return
-					}
-					// If an error occurred trying to watch, keep retrying.
-					if err == nil {
-						break
-					}
-					_ = logger.Log("msg", "unable to restart secret watcher", "err", err, "namespace", watcher.s.Namespace, "name", watcher.s.Name)
 				}
 			case <-ctx.Done():
 				// The application shutdown, we don't care about cleaning up.
@@ -125,13 +116,18 @@ func (w *secretWatcher) secret(config *KubernetesSecretConfig) Secret {
 		w.mu.Lock()
 		defer w.mu.Unlock()
 		if w.s == nil {
-			return "", fmt.Errorf("secret %s/%s not found", config.Namespace, config.Name)
+			return "", errNotFound(config.Namespace, config.Name)
 		}
 		return getValue(w.s, config.Key)
 	})
 	return &fn
 }
 
+func errNotFound(namespace, name string) error {
+	return fmt.Errorf("secret %s/%s not found or forbidden", namespace, name)
+}
+
+// start creates the secret watch and returns true if the watch is running.
 func (w *secretWatcher) start(ctx context.Context, client kubernetes.Interface, config *KubernetesSecretConfig) error {
 	var err error
 	w.w, err = client.CoreV1().Secrets(config.Namespace).Watch(ctx, metav1.ListOptions{
@@ -139,31 +135,55 @@ func (w *secretWatcher) start(ctx context.Context, client kubernetes.Interface, 
 		AllowWatchBookmarks: false,
 	})
 	if err != nil {
-		return fmt.Errorf("unable to watch secret %s/%s: %w", config.Namespace, config.Name, err)
+		return fmt.Errorf("watch: %w", err)
 	}
 
 	// We could wait for the first watch event, but it doesn't notify us if the resource doesn't exist.
 	w.s, err = client.CoreV1().Secrets(config.Namespace).Get(ctx, config.Name, metav1.GetOptions{})
-	if err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("unable to fetch secret %s/%s: %w", config.Namespace, config.Name, err)
+	if err != nil && !apierrors.IsNotFound(err) && !apierrors.IsForbidden(err) {
+		defer w.w.Stop()
+		return fmt.Errorf("fetch: %w", err)
 	}
 	return nil
 }
 
-// restart attempts to restart the secret watch. If the watcher is cancelled, we return false after
-// clearing the secret. If the watcher is still running, we return true after restarting the watch.
+// tryRestart restarts the secret watch indefinitely until it succeeds or the context is
+// cancelled and returns true if the watcher is still running.
+func (w *secretWatcher) tryRestart(ctx context.Context, logger log.Logger, client kubernetes.Interface, config *KubernetesSecretConfig) bool {
+	// If the application shutdown, we don't care about cleanup.
+	if ctx.Err() != nil {
+		w.mu.Lock()
+		defer w.mu.Lock()
+		w.s = nil
+		return false
+	}
+	// If closed unintentionally (i.e. network issues), try and restart it.
+	for {
+		ok, err := w.restart(ctx, client, config)
+		if !ok {
+			return false
+		}
+		// If an error occurred trying to watch, keep retrying.
+		if err == nil {
+			break
+		}
+		_ = logger.Log("msg", "unable to restart secret watcher", "err", err, "namespace", w.s.Namespace, "name", w.s.Name)
+	}
+	return true
+}
+
+// restart attempts to restart the secret watch. Returns true if the watcher is still
+// running, or false if the context is cancelled.
 func (w *secretWatcher) restart(ctx context.Context, client kubernetes.Interface, config *KubernetesSecretConfig) (bool, error) {
 	// Check in case the channel cancelled intentionally.
 	if w.done {
 		w.mu.Lock()
 		defer w.mu.Unlock()
 		w.s = nil
-		return true, nil
+		return false, nil
 	}
 
-	// Pseudo-arbitrarily jitter the length of the most common scrape interval.
-	jitter := time.Second * time.Duration(1+rand.Intn(30))
-	time.Sleep(1*time.Second + jitter)
+	jitter()
 
 	// Lock the watcher so it doesn't cancel before we restart.
 	w.mu.Lock()
@@ -172,14 +192,20 @@ func (w *secretWatcher) restart(ctx context.Context, client kubernetes.Interface
 	// Check again in case the watcher cancelled while we were waiting for the mutex.
 	if w.done {
 		w.s = nil
-		return true, nil
+		return false, nil
 	}
 
 	if err := w.start(ctx, client, config); err != nil {
 		return false, err
 	}
+	return true, nil
+}
 
-	return false, nil
+func jitter() {
+	// Pseudo-arbitrarily jitter the length of the most common scrape interval.
+	// In the future, we may want an increasing jitter.
+	jitter := time.Second * time.Duration(1+rand.Intn(30))
+	time.Sleep(1*time.Second + jitter)
 }
 
 func (w *secretWatcher) close() {
@@ -232,7 +258,8 @@ func (p *watchProvider) Update(configBefore, configAfter *KubernetesSecretConfig
 		// If we're using the same secret with a different key, just remap your current watch.
 		val := p.secretKeyToWatcher[objKeyAfter.String()]
 		if val == nil {
-			return nil, fmt.Errorf("secret %s/%s not found", configAfter.Namespace, configAfter.Name)
+			// Highly unlikely occurrence.
+			return nil, errNotFound(configAfter.Namespace, configAfter.Name)
 		}
 		return val.secret(configAfter), nil
 	}

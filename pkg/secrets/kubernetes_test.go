@@ -25,12 +25,15 @@ import (
 	"github.com/go-kit/log"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
 	clienttesting "k8s.io/client-go/testing"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func toSecretConfig(s *corev1.Secret, key string) *KubernetesSecretConfig {
@@ -72,7 +75,7 @@ func copyKey(s *corev1.Secret, keyFrom, keyTo string) {
 
 type testCase struct {
 	description string
-	test        func(ctx context.Context, c *fake.Clientset, provider *watchProvider)
+	test        func(ctx context.Context, t testing.TB, c *fake.Clientset, provider *watchProvider)
 }
 
 type entry struct {
@@ -87,6 +90,10 @@ type testCategory struct {
 }
 
 func requireFetchEquals(ctx context.Context, t testing.TB, s Secret, expected string) {
+	t.Helper()
+	if s == nil {
+		t.Fatal("nil secret")
+	}
 	var err error
 	pollErr := wait.PollUntilContextTimeout(ctx, time.Millisecond, 100000*time.Second, true, func(ctx context.Context) (bool, error) {
 		var val string
@@ -111,6 +118,10 @@ func requireFetchEquals(ctx context.Context, t testing.TB, s Secret, expected st
 }
 
 func requireFetchFail(ctx context.Context, t testing.TB, s Secret, expected error) {
+	t.Helper()
+	if s == nil {
+		t.Fatal("nil secret")
+	}
 	var err error
 	pollErr := wait.PollUntilContextTimeout(ctx, time.Millisecond, 10*time.Second, true, func(ctx context.Context) (bool, error) {
 		var val string
@@ -178,17 +189,17 @@ func TestProvider(t *testing.T) {
 		testCases := []testCase{
 			{
 				description: fmt.Sprintf("remove untracked %s secret", main.name),
-				test: func(_ context.Context, _ *fake.Clientset, provider *watchProvider) {
+				test: func(_ context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
 					provider.Remove(toSecretConfig(main.secret, main.entries[0].key))
 				},
 			},
 			{
 				description: fmt.Sprintf("remove tracked %s secret", main.name),
-				test: func(ctx context.Context, _ *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
 					key := main.entries[0].key
-					s, err := provider.Add(toSecretConfig(main.secret, key))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, key))
 					require.NoError(t, err)
-					requireFetchEquals(ctx, t, s, main.entries[0].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[0].value)
 
 					provider.Remove(toSecretConfig(main.secret, key))
 
@@ -198,7 +209,7 @@ func TestProvider(t *testing.T) {
 			},
 			{
 				description: fmt.Sprintf("watch %s secret twice", main.name),
-				test: func(ctx context.Context, _ *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
 					key := main.entries[0].key
 					value := main.entries[0].value
 					s1, err := provider.Add(toSecretConfig(main.secret, key))
@@ -217,75 +228,75 @@ func TestProvider(t *testing.T) {
 
 					provider.Remove(toSecretConfig(main.secret, key))
 
-					err = fmt.Errorf("secret %s/%s not found", main.secret.Namespace, main.secret.Name)
+					err = errNotFound(main.secret.Namespace, main.secret.Name)
 					requireFetchFail(ctx, t, s1, err)
 					requireFetchFail(ctx, t, s2, err)
 				},
 			},
 			{
 				description: fmt.Sprintf("valid %s delete key", main.name),
-				test: func(ctx context.Context, c *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, c *fake.Clientset, provider *watchProvider) {
 					key := main.entries[0].key
-					s, err := provider.Add(toSecretConfig(main.secret, key))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, key))
 					require.NoError(t, err)
-					requireFetchEquals(ctx, t, s, main.entries[0].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[0].value)
 
 					secret := main.secret.DeepCopy()
 					deleteKey(secret, key)
 					_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
 					require.NoError(t, err)
 
-					requireFetchFail(ctx, t, s, fmt.Errorf("secret %s/%s does not contain key: %s", main.secret.Namespace, main.secret.Name, key))
+					requireFetchFail(ctx, t, providerSecret, errKeyNotFound(main.secret.Namespace, main.secret.Name, key))
 
 					provider.Remove(toSecretConfig(main.secret, key))
 				},
 			},
 			{
 				description: fmt.Sprintf("valid %s delete secret", main.name),
-				test: func(ctx context.Context, c *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, c *fake.Clientset, provider *watchProvider) {
 					key := main.entries[0].key
-					s, err := provider.Add(toSecretConfig(main.secret, key))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, key))
 					require.NoError(t, err)
-					requireFetchEquals(ctx, t, s, main.entries[0].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[0].value)
 
 					err = c.CoreV1().Secrets(main.secret.Namespace).Delete(ctx, main.secret.Name, metav1.DeleteOptions{})
 					require.NoError(t, err)
 
-					requireFetchFail(ctx, t, s, fmt.Errorf("secret %s/%s not found", main.secret.Namespace, main.secret.Name))
+					requireFetchFail(ctx, t, providerSecret, errNotFound(main.secret.Namespace, main.secret.Name))
 
 					provider.Remove(toSecretConfig(main.secret, key))
 				},
 			},
 			{
 				description: fmt.Sprintf("valid %s update value", main.name),
-				test: func(ctx context.Context, c *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, c *fake.Clientset, provider *watchProvider) {
 					key := main.entries[0].key
-					s, err := provider.Add(toSecretConfig(main.secret, key))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, key))
 					require.NoError(t, err)
-					requireFetchEquals(ctx, t, s, main.entries[0].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[0].value)
 
 					secret := main.secret.DeepCopy()
 					updateKey(secret, key, "Goodbye")
 					_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
 					require.NoError(t, err)
 
-					requireFetchEquals(ctx, t, s, "Goodbye")
+					requireFetchEquals(ctx, t, providerSecret, "Goodbye")
 
 					provider.Remove(toSecretConfig(main.secret, key))
 				},
 			},
 			{
 				description: fmt.Sprintf("valid %s update valid key", main.name),
-				test: func(ctx context.Context, c *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, c *fake.Clientset, provider *watchProvider) {
 					keyFrom := main.entries[0].key
-					s, err := provider.Add(toSecretConfig(main.secret, keyFrom))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, keyFrom))
 					require.NoError(t, err)
-					requireFetchEquals(ctx, t, s, main.entries[0].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[0].value)
 
 					keyTo := main.entries[1].key
-					s, err = provider.Update(toSecretConfig(main.secret, keyFrom), toSecretConfig(main.secret, keyTo))
+					providerSecret, err = provider.Update(toSecretConfig(main.secret, keyFrom), toSecretConfig(main.secret, keyTo))
 					require.NoError(t, err)
-					requireFetchEquals(ctx, t, s, main.entries[1].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[1].value)
 
 					// Update original key.
 					secret := main.secret.DeepCopy()
@@ -293,55 +304,55 @@ func TestProvider(t *testing.T) {
 					_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
 					require.NoError(t, err)
 
-					requireFetchEquals(ctx, t, s, main.entries[1].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[1].value)
 
 					// Update new key.
 					updateKey(secret, keyTo, "Sayonara")
 					_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
 					require.NoError(t, err)
 
-					requireFetchEquals(ctx, t, s, "Sayonara")
+					requireFetchEquals(ctx, t, providerSecret, "Sayonara")
 
 					provider.Remove(toSecretConfig(main.secret, keyTo))
 				},
 			},
 			{
 				description: fmt.Sprintf("valid %s update invalid key", main.name),
-				test: func(ctx context.Context, _ *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
 					key := main.entries[0].key
-					s, err := provider.Add(toSecretConfig(main.secret, key))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, key))
 					require.NoError(t, err)
-					requireFetchEquals(ctx, t, s, main.entries[0].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[0].value)
 
-					s, err = provider.Update(toSecretConfig(main.secret, key), toSecretConfig(main.secret, "x"))
+					providerSecret, err = provider.Update(toSecretConfig(main.secret, key), toSecretConfig(main.secret, "x"))
 					require.NoError(t, err)
-					requireFetchFail(ctx, t, s, fmt.Errorf("secret %s/%s does not contain key: x", main.secret.Namespace, main.secret.Name))
+					requireFetchFail(ctx, t, providerSecret, errKeyNotFound(main.secret.Namespace, main.secret.Name, "x"))
 
 					provider.Remove(toSecretConfig(main.secret, key))
 				},
 			},
 			{
 				description: fmt.Sprintf("valid %s update invalid secret", main.name),
-				test: func(ctx context.Context, _ *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
 					key := main.entries[0].key
-					s, err := provider.Add(toSecretConfig(main.secret, key))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, key))
 					require.NoError(t, err)
-					requireFetchEquals(ctx, t, s, main.entries[0].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[0].value)
 
-					s, err = provider.Update(toSecretConfig(main.secret, key), &KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"})
+					providerSecret, err = provider.Update(toSecretConfig(main.secret, key), &KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"})
 					require.NoError(t, err)
-					requireFetchFail(ctx, t, s, fmt.Errorf("secret x/y not found"))
+					requireFetchFail(ctx, t, providerSecret, errNotFound("x", "y"))
 
 					provider.Remove(&KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"})
 				},
 			},
 			{
 				description: fmt.Sprintf("invalid %s create key", main.name),
-				test: func(ctx context.Context, c *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, c *fake.Clientset, provider *watchProvider) {
 					key := "kn"
-					s, err := provider.Add(toSecretConfig(main.secret, key))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, key))
 					require.NoError(t, err)
-					requireFetchFail(ctx, t, s, fmt.Errorf("secret %s/%s does not contain key: %s", main.secret.Namespace, main.secret.Name, key))
+					requireFetchFail(ctx, t, providerSecret, errKeyNotFound(main.secret.Namespace, main.secret.Name, key))
 
 					secret := main.secret.DeepCopy()
 					copyKey(secret, main.entries[0].key, key)
@@ -349,89 +360,89 @@ func TestProvider(t *testing.T) {
 					_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
 					require.NoError(t, err)
 
-					requireFetchEquals(ctx, t, s, "Goodbye")
+					requireFetchEquals(ctx, t, providerSecret, "Goodbye")
 
 					provider.Remove(toSecretConfig(main.secret, key))
 				},
 			},
 			{
 				description: fmt.Sprintf("invalid %s create secret", main.name),
-				test: func(ctx context.Context, c *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, c *fake.Clientset, provider *watchProvider) {
 					err := c.CoreV1().Secrets(main.secret.Namespace).Delete(ctx, main.secret.Name, metav1.DeleteOptions{})
 					require.NoError(t, err)
 
 					key := main.entries[0].key
-					s, err := provider.Add(toSecretConfig(main.secret, key))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, key))
 					require.NoError(t, err)
-					requireFetchFail(ctx, t, s, fmt.Errorf("secret %s/%s not found", main.secret.Namespace, main.secret.Name))
+					requireFetchFail(ctx, t, providerSecret, errNotFound(main.secret.Namespace, main.secret.Name))
 
 					secret := main.secret.DeepCopy()
 					updateKey(secret, key, "Goodbye")
 					_, err = c.CoreV1().Secrets(secret.Namespace).Create(ctx, secret, metav1.CreateOptions{})
 					require.NoError(t, err)
 
-					requireFetchEquals(ctx, t, s, "Goodbye")
+					requireFetchEquals(ctx, t, providerSecret, "Goodbye")
 
 					provider.Remove(toSecretConfig(main.secret, key))
 				},
 			},
 			{
 				description: fmt.Sprintf("invalid %s update valid key", main.name),
-				test: func(ctx context.Context, _ *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
 					keyFrom := "kn1"
-					s, err := provider.Add(toSecretConfig(main.secret, keyFrom))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, keyFrom))
 					require.NoError(t, err)
-					requireFetchFail(ctx, t, s, fmt.Errorf("secret %s/%s does not contain key: %s", main.secret.Namespace, main.secret.Name, keyFrom))
+					requireFetchFail(ctx, t, providerSecret, errKeyNotFound(main.secret.Namespace, main.secret.Name, keyFrom))
 
 					keyTo := "kn2"
-					s, err = provider.Update(toSecretConfig(main.secret, keyFrom), toSecretConfig(main.secret, keyTo))
+					providerSecret, err = provider.Update(toSecretConfig(main.secret, keyFrom), toSecretConfig(main.secret, keyTo))
 					require.NoError(t, err)
-					requireFetchFail(ctx, t, s, fmt.Errorf("secret %s/%s does not contain key: %s", main.secret.Namespace, main.secret.Name, keyTo))
+					requireFetchFail(ctx, t, providerSecret, errKeyNotFound(main.secret.Namespace, main.secret.Name, keyTo))
 
 					provider.Remove(toSecretConfig(main.secret, keyTo))
 				},
 			},
 			{
 				description: fmt.Sprintf("invalid update valid %s secret", main.name),
-				test: func(ctx context.Context, _ *fake.Clientset, provider *watchProvider) {
-					s, err := provider.Add(&KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"})
+				test: func(ctx context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
+					providerSecret, err := provider.Add(&KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"})
 					require.NoError(t, err)
-					requireFetchFail(ctx, t, s, errors.New("secret x/y not found"))
+					requireFetchFail(ctx, t, providerSecret, errNotFound("x", "y"))
 
 					keyTo := main.entries[0].key
-					s, err = provider.Update(&KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"}, toSecretConfig(main.secret, keyTo))
+					providerSecret, err = provider.Update(&KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"}, toSecretConfig(main.secret, keyTo))
 					require.NoError(t, err)
-					requireFetchEquals(ctx, t, s, main.entries[0].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[0].value)
 
 					provider.Remove(toSecretConfig(main.secret, keyTo))
 				},
 			},
 			{
 				description: fmt.Sprintf("invalid %s update invalid key", main.name),
-				test: func(ctx context.Context, _ *fake.Clientset, provider *watchProvider) {
+				test: func(ctx context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
 					keyFrom := "kn"
-					s, err := provider.Add(toSecretConfig(main.secret, keyFrom))
+					providerSecret, err := provider.Add(toSecretConfig(main.secret, keyFrom))
 					require.NoError(t, err)
-					requireFetchFail(ctx, t, s, fmt.Errorf("secret %s/%s does not contain key: %s", main.secret.Namespace, main.secret.Name, keyFrom))
+					requireFetchFail(ctx, t, providerSecret, errKeyNotFound(main.secret.Namespace, main.secret.Name, keyFrom))
 
 					keyTo := main.entries[0].key
-					s, err = provider.Update(toSecretConfig(main.secret, keyFrom), toSecretConfig(main.secret, keyTo))
+					providerSecret, err = provider.Update(toSecretConfig(main.secret, keyFrom), toSecretConfig(main.secret, keyTo))
 					require.NoError(t, err)
-					requireFetchEquals(ctx, t, s, main.entries[0].value)
+					requireFetchEquals(ctx, t, providerSecret, main.entries[0].value)
 
 					provider.Remove(toSecretConfig(main.secret, keyTo))
 				},
 			},
 			{
 				description: fmt.Sprintf("invalid %s update invalid secret", main.name),
-				test: func(ctx context.Context, _ *fake.Clientset, provider *watchProvider) {
-					s, err := provider.Add(&KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"})
+				test: func(ctx context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
+					providerSecret, err := provider.Add(&KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"})
 					require.NoError(t, err)
-					requireFetchFail(ctx, t, s, errors.New("secret x/y not found"))
+					requireFetchFail(ctx, t, providerSecret, errNotFound("x", "y"))
 
-					s, err = provider.Update(&KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"}, &KubernetesSecretConfig{Namespace: "a", Name: "b", Key: "c"})
+					providerSecret, err = provider.Update(&KubernetesSecretConfig{Namespace: "x", Name: "y", Key: "z"}, &KubernetesSecretConfig{Namespace: "a", Name: "b", Key: "c"})
 					require.NoError(t, err)
-					requireFetchFail(ctx, t, s, errors.New("secret a/b not found"))
+					requireFetchFail(ctx, t, providerSecret, errNotFound("a", "b"))
 
 					provider.Remove(&KubernetesSecretConfig{Namespace: "a", Name: "b", Key: "c"})
 				},
@@ -442,16 +453,16 @@ func TestProvider(t *testing.T) {
 				testCases,
 				testCase{
 					description: fmt.Sprintf("valid %s update valid %s secret", main.name, other.name),
-					test: func(ctx context.Context, c *fake.Clientset, provider *watchProvider) {
+					test: func(ctx context.Context, t testing.TB, c *fake.Clientset, provider *watchProvider) {
 						keyFrom := main.entries[0].key
-						s, err := provider.Add(toSecretConfig(main.secret, keyFrom))
+						providerSecret, err := provider.Add(toSecretConfig(main.secret, keyFrom))
 						require.NoError(t, err)
-						requireFetchEquals(ctx, t, s, main.entries[0].value)
+						requireFetchEquals(ctx, t, providerSecret, main.entries[0].value)
 
 						keyTo := other.entries[0].key
-						s, err = provider.Update(toSecretConfig(main.secret, keyFrom), toSecretConfig(other.secret, keyTo))
+						providerSecret, err = provider.Update(toSecretConfig(main.secret, keyFrom), toSecretConfig(other.secret, keyTo))
 						require.NoError(t, err)
-						requireFetchEquals(ctx, t, s, other.entries[0].value)
+						requireFetchEquals(ctx, t, providerSecret, other.entries[0].value)
 
 						// Update original secret.
 						secret := main.secret.DeepCopy()
@@ -459,7 +470,7 @@ func TestProvider(t *testing.T) {
 						_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
 						require.NoError(t, err)
 
-						requireFetchEquals(ctx, t, s, other.entries[0].value)
+						requireFetchEquals(ctx, t, providerSecret, other.entries[0].value)
 
 						// Update new secret.
 						secret = other.secret.DeepCopy()
@@ -467,7 +478,7 @@ func TestProvider(t *testing.T) {
 						_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
 						require.NoError(t, err)
 
-						requireFetchEquals(ctx, t, s, "Sayonara")
+						requireFetchEquals(ctx, t, providerSecret, "Sayonara")
 
 						provider.Remove(toSecretConfig(other.secret, keyTo))
 					},
@@ -512,7 +523,7 @@ func TestProvider(t *testing.T) {
 	testCases := []testCase{
 		{
 			description: "add secret with no keys",
-			test: func(_ context.Context, _ *fake.Clientset, provider *watchProvider) {
+			test: func(_ context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
 				provider.Remove(toSecretConfig(validEmptySecret, "k1"))
 			},
 		},
@@ -535,7 +546,7 @@ func TestProvider(t *testing.T) {
 			ctx := context.Background()
 			provider := newWatchProvider(ctx, log.NewNopLogger(), c)
 
-			tc.test(ctx, c, provider)
+			tc.test(ctx, t, c, provider)
 			require.True(t, provider.isClean())
 		})
 	}
@@ -552,12 +563,12 @@ func TestProvider(t *testing.T) {
 		provider := newWatchProvider(ctx, log.NewNopLogger(), c)
 
 		key := typeBinary.entries[0].key
-		s, err := provider.Add(toSecretConfig(typeBinary.secret, key))
+		providerSecret, err := provider.Add(toSecretConfig(typeBinary.secret, key))
 		require.NoError(t, err)
-		requireFetchEquals(ctx, t, s, typeBinary.entries[0].value)
+		requireFetchEquals(ctx, t, providerSecret, typeBinary.entries[0].value)
 
 		cancel()
-		requireFetchFail(parentCtx, t, s, fmt.Errorf("secret %s/%s not found", typeBinary.secret.Namespace, typeBinary.secret.Name))
+		requireFetchFail(parentCtx, t, providerSecret, errNotFound(typeBinary.secret.Namespace, typeBinary.secret.Name))
 
 		provider.Remove(toSecretConfig(typeBinary.secret, key))
 
@@ -591,9 +602,9 @@ func TestProvider(t *testing.T) {
 		provider := newWatchProvider(ctx, log.NewNopLogger(), proxyClient)
 
 		key := typeBinary.entries[0].key
-		s, err := provider.Add(toSecretConfig(typeBinary.secret, key))
+		providerSecret, err := provider.Add(toSecretConfig(typeBinary.secret, key))
 		require.NoError(t, err)
-		requireFetchEquals(ctx, t, s, typeBinary.entries[0].value)
+		requireFetchEquals(ctx, t, providerSecret, typeBinary.entries[0].value)
 
 		// Don't let the watcher reload until we update the secret.
 		waitMutex.Lock()
@@ -606,14 +617,122 @@ func TestProvider(t *testing.T) {
 
 		// Now that we've updated the secret, let the watcher reload.
 		waitMutex.Unlock()
-		requireFetchEquals(ctx, t, s, "Goodbye")
+		requireFetchEquals(ctx, t, providerSecret, "Goodbye")
 
 		// Ensure the new watcher is working.
 		updateKey(secret, key, "Hello")
 		_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
 		require.NoError(t, err)
 
-		requireFetchEquals(ctx, t, s, "Hello")
+		requireFetchEquals(ctx, t, providerSecret, "Hello")
+
+		provider.Remove(toSecretConfig(typeBinary.secret, key))
+
+		require.True(t, provider.isClean())
+	})
+	t.Run("network error", func(t *testing.T) {
+		c := fake.NewSimpleClientset(
+			validEmptySecret.DeepCopy(),
+			validBinarySecret.DeepCopy(),
+			validStringSecret.DeepCopy(),
+			validMixedSecret.DeepCopy(),
+		)
+
+		networkError := true
+
+		c.PrependReactor("get", "secrets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+			if networkError {
+				return true, nil, apierrors.NewInternalError(errors.New("network"))
+			}
+			return false, nil, nil
+		})
+
+		ctx := context.Background()
+		provider := newWatchProvider(ctx, log.NewNopLogger(), c)
+
+		key := typeBinary.entries[0].key
+		providerSecret, err := provider.Add(toSecretConfig(typeBinary.secret, key))
+		require.NoError(t, err)
+		err = errNotFound(typeBinary.secret.Namespace, typeBinary.secret.Name)
+		requireFetchFail(ctx, t, providerSecret, err)
+
+		secret := typeBinary.secret.DeepCopy()
+		updateKey(secret, key, "Goodbye")
+		_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
+		require.NoError(t, err)
+
+		networkError = false
+		requireFetchEquals(ctx, t, providerSecret, "Goodbye")
+
+		// Ensure the new watcher is working.
+		updateKey(secret, key, "Hello")
+		_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
+		require.NoError(t, err)
+
+		requireFetchEquals(ctx, t, providerSecret, "Hello")
+
+		provider.Remove(toSecretConfig(typeBinary.secret, key))
+
+		require.True(t, provider.isClean())
+	})
+	t.Run("permission denied", func(t *testing.T) {
+		c := fake.NewSimpleClientset(
+			validEmptySecret.DeepCopy(),
+			validBinarySecret.DeepCopy(),
+			validStringSecret.DeepCopy(),
+			validMixedSecret.DeepCopy(),
+		)
+
+		permissionDenied := true
+
+		// Use a proxy to ensure we can route results.
+		proxyClient := fake.NewSimpleClientset()
+		proxyClient.PrependReactor("get", "secrets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+			obj, err := c.Invokes(action, &corev1.Secret{})
+			if permissionDenied {
+				o := obj.(client.Object)
+				return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, o.GetName(), errors.New("forbidden"))
+			}
+			return true, obj, err
+		})
+		proxyClient.PrependWatchReactor("secrets", func(action clienttesting.Action) (bool, watch.Interface, error) {
+			w, err := c.InvokesWatch(action)
+			if permissionDenied {
+				defer w.Stop()
+				obj, err := c.Invokes(action, &corev1.Secret{})
+				if err != nil {
+					return true, nil, err
+				}
+				o := obj.(client.Object)
+				return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, o.GetName(), errors.New("forbidden"))
+			}
+			return true, w, err
+		})
+
+		ctx := context.Background()
+		provider := newWatchProvider(ctx, log.NewNopLogger(), proxyClient)
+
+		key := typeBinary.entries[0].key
+		providerSecret, err := provider.Add(toSecretConfig(typeBinary.secret, key))
+		require.NoError(t, err)
+		err = errNotFound(typeBinary.secret.Namespace, typeBinary.secret.Name)
+		requireFetchFail(ctx, t, providerSecret, err)
+
+		secret := typeBinary.secret.DeepCopy()
+		updateKey(secret, key, "Goodbye")
+		_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
+		require.NoError(t, err)
+
+		// Now that we've updated the secret, give permission to view the secret.
+		permissionDenied = false
+		requireFetchEquals(ctx, t, providerSecret, "Goodbye")
+
+		// Ensure the new watcher is working.
+		updateKey(secret, key, "Hello")
+		_, err = c.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
+		require.NoError(t, err)
+
+		requireFetchEquals(ctx, t, providerSecret, "Hello")
 
 		provider.Remove(toSecretConfig(typeBinary.secret, key))
 
