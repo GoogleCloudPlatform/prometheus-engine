@@ -66,3 +66,27 @@ webhooks:
     - CREATE
     - UPDATE
   sideEffects: None
+- name: default.operatorconfigs.gmp-operator.gmp-system.monitoring.googleapis.com
+  admissionReviewVersions:
+  - v1
+  clientConfig:
+    # caBundle populated by operator.
+    service:
+      name: gmp-operator
+      namespace: {{.Values.namespace.system}}
+      port: 443
+      path: /default/monitoring.googleapis.com/v1/operatorconfigs
+  # Since this is re-applied at runtime by the operator's controllers
+  # we can safely ingore any transient issues with the webhook server.
+  failurePolicy: Ignore
+  rules:
+  - resources:
+    - operatorconfigs
+    apiGroups:
+    - monitoring.googleapis.com
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+  sideEffects: None

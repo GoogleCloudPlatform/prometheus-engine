@@ -279,6 +279,8 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 		secretData[p] = b
 	}
 
+	_, _, _ = resolveLabels(r.opts, spec.ExternalLabels)
+
 	cfg := &promconfig.Config{
 		GlobalConfig: promconfig.GlobalConfig{
 			ExternalLabels: labels.FromMap(spec.ExternalLabels),
@@ -840,4 +842,22 @@ func (v *operatorConfigValidator) ValidateUpdate(ctx context.Context, _, o runti
 
 func (v *operatorConfigValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
+}
+
+type operatorConfigDefaulter struct {
+	opts Options
+}
+
+func (d *operatorConfigDefaulter) Default(_ context.Context, o runtime.Object) error {
+	oc := o.(*monitoringv1.OperatorConfig)
+
+	// Upsert projectID, location, and cluster to external labels.
+	// If not present in external labels, use the values passed to the operator.
+	// If present in external labels, this is effectively a no-op.
+	// Do this for both collection and rule-evaluator configuration.
+	_, _, _ = resolveLabels(d.opts, oc.Collection.ExternalLabels)
+
+	_, _, _ = resolveLabels(d.opts, oc.Rules.ExternalLabels)
+
+	return nil
 }

@@ -266,28 +266,6 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 	return r.client.Update(ctx, &ds)
 }
 
-func resolveLabels(opts Options, externalLabels map[string]string) (projectID string, location string, cluster string) {
-	// Prioritize OperatorConfig's external labels over operator's flags
-	// to be consistent with our export layer's priorities.
-	// This is to avoid confusion if users specify a project_id, location, and
-	// cluster in the OperatorConfig's external labels but not in flags passed
-	// to the operator - since on GKE environnments, these values are autopopulated
-	// without user intervention.
-	projectID = opts.ProjectID
-	if p, ok := externalLabels[export.KeyProjectID]; ok {
-		projectID = p
-	}
-	location = opts.Location
-	if l, ok := externalLabels[export.KeyLocation]; ok {
-		location = l
-	}
-	cluster = opts.Cluster
-	if c, ok := externalLabels[export.KeyCluster]; ok {
-		cluster = c
-	}
-	return
-}
-
 func gzipData(data []byte) ([]byte, error) {
 	var b bytes.Buffer
 	gz := gzip.NewWriter(&b)
