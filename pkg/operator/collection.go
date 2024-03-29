@@ -365,6 +365,7 @@ type prometheusConfig struct {
 
 func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*prometheusConfig, error) {
 	logger, _ := logr.FromContext(ctx)
+	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
 
 	cfg := &promconfig.Config{
 		GlobalConfig: promconfig.GlobalConfig{
@@ -394,7 +395,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	}
 
 	usedSecrets := monitoringv1.PrometheusSecretConfigs{}
-	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
 
 	// Mark status updates in batch with single timestamp.
 	for _, pm := range podMons.Items {
