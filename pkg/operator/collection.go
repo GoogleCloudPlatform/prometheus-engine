@@ -267,23 +267,8 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 	if len(spec.Compression) > 0 && spec.Compression != monitoringv1.CompressionNone {
 		flags = append(flags, fmt.Sprintf("--export.compression=%s", spec.Compression))
 	}
+	setContainerExtraArgs(ds.Spec.Template.Spec.Containers, CollectorPrometheusContainerName, strings.Join(flags, " "))
 
-	// Set EXTRA_ARGS envvar in Prometheus container.
-	for i, c := range ds.Spec.Template.Spec.Containers {
-		if c.Name != "prometheus" {
-			continue
-		}
-		var repl []corev1.EnvVar
-
-		for _, ev := range c.Env {
-			if ev.Name != "EXTRA_ARGS" {
-				repl = append(repl, ev)
-			}
-		}
-		repl = append(repl, corev1.EnvVar{Name: "EXTRA_ARGS", Value: strings.Join(flags, " ")})
-
-		ds.Spec.Template.Spec.Containers[i].Env = repl
-	}
 	return r.client.Update(ctx, &ds)
 }
 
