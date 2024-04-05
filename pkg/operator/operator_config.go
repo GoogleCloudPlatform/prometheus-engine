@@ -389,6 +389,28 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 	return nil
 }
 
+// setContainerExtraArgs updates EXTRA_ARG environment variable in a given
+// container. This is a pattern, only our binaries use to be able to read dynamic
+// flags. See e.g.
+// https://github.com/GoogleCloudPlatform/prometheus-engine/blob/99644a1aafa3396eef6a1858f6db74517599361f/pkg/export/setup/setup.go#L229-L228
+func setContainerExtraArgs(cs []corev1.Container, containerName string, extraArgs string) {
+	for i, c := range cs {
+		if c.Name != containerName {
+			continue
+		}
+
+		var all []corev1.EnvVar
+		// Gather all other envvars we don't plan to change.
+		for _, ev := range c.Env {
+			if ev.Name != "EXTRA_ARGS" {
+				all = append(all, ev)
+			}
+		}
+		all = append(all, corev1.EnvVar{Name: "EXTRA_ARGS", Value: extraArgs})
+		cs[i].Env = all
+	}
+}
+
 // ensureAlertmanagerStatefulSet configures the managed Alertmanager instance
 // to reflect the provided spec.
 func (r *operatorConfigReconciler) ensureAlertmanagerStatefulSet(ctx context.Context, spec *monitoringv1.ManagedAlertmanagerSpec) error {
@@ -415,23 +437,7 @@ func (r *operatorConfigReconciler) ensureAlertmanagerStatefulSet(ctx context.Con
 	if externalURL := spec.ExternalURL; externalURL != "" {
 		flags = append(flags, fmt.Sprintf("--web.external-url=%q", externalURL))
 	}
-
-	// Set EXTRA_ARGS envvar in alertmanager container.
-	for i, c := range sset.Spec.Template.Spec.Containers {
-		if c.Name != "alertmanager" {
-			continue
-		}
-		var repl []corev1.EnvVar
-
-		for _, ev := range c.Env {
-			if ev.Name != "EXTRA_ARGS" {
-				repl = append(repl, ev)
-			}
-		}
-		repl = append(repl, corev1.EnvVar{Name: "EXTRA_ARGS", Value: strings.Join(flags, " ")})
-
-		sset.Spec.Template.Spec.Containers[i].Env = repl
-	}
+	setContainerExtraArgs(sset.Spec.Template.Spec.Containers, AlertmanagerContainerName, strings.Join(flags, " "))
 
 	// Upsert alertmanager StatefulSet.
 	return r.client.Update(ctx, &sset)
@@ -477,23 +483,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 	if spec.GeneratorURL != "" {
 		flags = append(flags, fmt.Sprintf("--query.generator-url=%q", spec.GeneratorURL))
 	}
-
-	// Set EXTRA_ARGS envvar in evaluator container.
-	for i, c := range deploy.Spec.Template.Spec.Containers {
-		if c.Name != "evaluator" {
-			continue
-		}
-		var repl []corev1.EnvVar
-
-		for _, ev := range c.Env {
-			if ev.Name != "EXTRA_ARGS" {
-				repl = append(repl, ev)
-			}
-		}
-		repl = append(repl, corev1.EnvVar{Name: "EXTRA_ARGS", Value: strings.Join(flags, " ")})
-
-		deploy.Spec.Template.Spec.Containers[i].Env = repl
-	}
+	setContainerExtraArgs(deploy.Spec.Template.Spec.Containers, RuleEvaluatorContainerName, strings.Join(flags, " "))
 
 	// Upsert rule-evaluator Deployment.
 	return r.client.Update(ctx, &deploy)
