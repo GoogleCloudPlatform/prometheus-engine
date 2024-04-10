@@ -699,18 +699,17 @@ func getSecretKeyBytes(ctx context.Context, c client.Reader, namespace string, s
 			Namespace: namespace,
 			Name:      sel.Name,
 		}
-		bytes []byte
 	)
 	err := c.Get(ctx, nn, secret)
 	if err != nil {
-		return bytes, fmt.Errorf("unable to get secret %q: %w", sel.Name, err)
+		return nil, fmt.Errorf("get secret: %w", err)
 	}
-	bytes, ok := secret.Data[sel.Key]
-	if !ok {
-		return bytes, fmt.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
+	if b, ok := secret.Data[sel.Key]; ok {
+		return b, nil
+	} else if s, ok := secret.StringData[sel.Key]; ok {
+		return []byte(s), nil
 	}
-
-	return bytes, nil
+	return nil, fmt.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
 }
 
 // getConfigMapKeyBytes processes the given NamespacedConfigMapKeySelector and returns the referenced data.
@@ -721,19 +720,17 @@ func getConfigMapKeyBytes(ctx context.Context, c client.Reader, namespace string
 			Namespace: namespace,
 			Name:      sel.Name,
 		}
-		b []byte
 	)
 	err := c.Get(ctx, nn, cm)
 	if err != nil {
-		return b, fmt.Errorf("unable to get secret %q: %w", sel.Name, err)
+		return nil, fmt.Errorf("get configmap: %w", err)
 	}
-	// Check 'data' first, then 'binaryData'.
 	if s, ok := cm.Data[sel.Key]; ok {
 		return []byte(s), nil
 	} else if b, ok := cm.BinaryData[sel.Key]; ok {
 		return b, nil
 	}
-	return b, fmt.Errorf("key %q in secret %q not found", sel.Key, sel.Name)
+	return nil, fmt.Errorf("key %q in configmap %q not found", sel.Key, sel.Name)
 }
 
 // pathForSelector cretes the filepath for the provided NamespacedSecretOrConfigMap.
