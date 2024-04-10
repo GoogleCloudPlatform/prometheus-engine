@@ -16,61 +16,18 @@ package deploy
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
-	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// WaitForOperatorReady waits until the GMP operator is ready to serve webhooks.
 func WaitForOperatorReady(ctx context.Context, kubeClient client.Client) error {
-	dryRun := client.NewDryRunClient(kubeClient)
-	pm := monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "collector-podmon",
-			Namespace: operator.DefaultOperatorNamespace,
-		},
-		Spec: monitoringv1.PodMonitoringSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					operator.LabelAppName: operator.NameCollector,
-				},
-			},
-			Endpoints: []monitoringv1.ScrapeEndpoint{
-				{
-					Port:     intstr.FromString(operator.CollectorPrometheusContainerPortName),
-					Interval: "5s",
-				},
-			},
-		},
-	}
-	var err error
-	pollErr := wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
-		if err = dryRun.Create(ctx, &pm); err != nil {
-			// Expected to have a forbidden PodMonitoring until we're ready.
-			if !apierrors.IsForbidden(err) {
-				err = fmt.Errorf("unable to create PodMonitoring: %s", err)
-			}
-			return false, nil
-		}
-		return true, nil
-	})
-	if pollErr != nil {
-		if errors.Is(pollErr, context.Canceled) {
-			pollErr = err
-		}
-		return fmt.Errorf("operator is not ready: %s", pollErr)
-	}
-	return nil
+	return kube.WaitForDeploymentReady(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameOperator)
 }
 
 // OperatorLogs returns the operator pods logs.
