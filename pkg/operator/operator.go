@@ -114,6 +114,8 @@ type Options struct {
 	// Namespace to which the operator looks for user-specified configuration
 	// data, like Secrets and ConfigMaps.
 	PublicNamespace string
+	// Health and readiness serving address.
+	ProbeAddr string
 	// Certificate of the server in base 64.
 	TLSCert string
 	// Key of the server in base 64.
@@ -201,6 +203,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 		return nil, fmt.Errorf("invalid port: %w", err)
 	}
 	manager, err := ctrl.NewManager(clientConfig, manager.Options{
+		Logger: logger,
 		Scheme: sc,
 		WebhookServer: webhook.NewServer(webhook.Options{
 			Host:    host,
@@ -212,6 +215,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
 		},
+		HealthProbeBindAddress: opts.ProbeAddr,
 		// Manage cluster-wide and namespace resources at the same time.
 		NewCache: cache.NewCacheFunc(func(_ *rest.Config, options cache.Options) (cache.Cache, error) {
 			return cache.New(clientConfig, cache.Options{
@@ -276,6 +280,14 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create controller manager: %w", err)
+	}
+
+	webhookChecker := manager.GetWebhookServer().StartedChecker()
+	if err := manager.AddHealthzCheck("webhooks", webhookChecker); err != nil {
+		return nil, fmt.Errorf("add healthz check for webhooks: %w", err)
+	}
+	if err := manager.AddReadyzCheck("webhooks", webhookChecker); err != nil {
+		return nil, fmt.Errorf("add readyz check for webhooks: %w", err)
 	}
 
 	client, err := client.New(clientConfig, client.Options{Scheme: sc})

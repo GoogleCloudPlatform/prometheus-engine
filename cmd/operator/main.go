@@ -69,6 +69,7 @@ func main() {
 		caCert      = flag.String("ca-cert-base64", "", "The base64-encoded certificate authority.")
 		webhookAddr = flag.String("webhook-addr", ":10250",
 			"Address to listen to for incoming kube admission webhook connections.")
+		probeAddr   = flag.String("probe-addr", ":18081", "Address to outputs probe statuses (e.g. /readyz and /healthz)")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
 
 		// Permit the operator to cleanup previously-managed resources that
@@ -103,6 +104,7 @@ func main() {
 		Cluster:           *cluster,
 		OperatorNamespace: *operatorNamespace,
 		PublicNamespace:   *publicNamespace,
+		ProbeAddr:         *probeAddr,
 		TLSCert:           *tlsCert,
 		TLSKey:            *tlsKey,
 		CACert:            *caCert,

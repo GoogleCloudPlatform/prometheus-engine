@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/deploy"
-	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	appsv1 "k8s.io/api/apps/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -60,21 +59,8 @@ func TestWebhooksNoRBAC(t *testing.T) {
 	}
 
 	t.Log("waiting for operator to be deployed")
-	if err := kube.WaitForDeploymentReady(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
+	if err := deploy.WaitForOperatorReady(ctx, kubeClient); err != nil {
 		t.Fatalf("error waiting for operator deployment to be ready: %s", err)
-	}
-
-	t.Log("waiting for operator to be ready")
-	if err := wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
-		logs, err := deploy.OperatorLogs(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace)
-		if err != nil {
-			t.Logf("unable to get operator logs: %s", err)
-			return false, nil
-		}
-		t.Logf("waiting for operator logs to contain start message")
-		return strings.Contains(logs, "starting GMP operator"), nil
-	}); err != nil {
-		t.Fatalf("unable to check operator ready: %s", err)
 	}
 
 	if err := wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {

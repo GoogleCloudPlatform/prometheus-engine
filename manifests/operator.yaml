@@ -541,6 +541,20 @@ spec:
             drop:
             - all
           privileged: false
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            # Note this should match the --probe-addr flag passed in to the operator args.
+            # Default is 18081.
+            port: 18081
+            scheme: HTTP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            # Note this should match the --probe-addr flag passed in to the operator args.
+            # Default is 18081.
+            port: 18081
+            scheme: HTTP
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
