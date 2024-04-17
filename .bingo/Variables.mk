@@ -23,11 +23,11 @@ $(ADDLICENSE): $(BINGO_DIR)/addlicense.mod
 	@echo "(re)installing $(GOBIN)/addlicense-v1.1.1"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.1.1 "github.com/google/addlicense"
 
-GOLANGCI_LINT := $(GOBIN)/golangci-lint-v1.56.1
+GOLANGCI_LINT := $(GOBIN)/golangci-lint-v1.57.2
 $(GOLANGCI_LINT): $(BINGO_DIR)/golangci-lint.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/golangci-lint-v1.56.1"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=golangci-lint.mod -o=$(GOBIN)/golangci-lint-v1.56.1 "github.com/golangci/golangci-lint/cmd/golangci-lint"
+	@echo "(re)installing $(GOBIN)/golangci-lint-v1.57.2"
+	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=golangci-lint.mod -o=$(GOBIN)/golangci-lint-v1.57.2 "github.com/golangci/golangci-lint/cmd/golangci-lint"
 
 HELM := $(GOBIN)/helm-v3.14.0
 $(HELM): $(BINGO_DIR)/helm.mod

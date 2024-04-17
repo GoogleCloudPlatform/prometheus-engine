@@ -189,7 +189,7 @@ func TestProvider(t *testing.T) {
 		testCases := []testCase{
 			{
 				description: fmt.Sprintf("remove untracked %s secret", main.name),
-				test: func(_ context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
+				test: func(_ context.Context, _ testing.TB, _ *fake.Clientset, provider *watchProvider) {
 					provider.Remove(toSecretConfig(main.secret, main.entries[0].key))
 				},
 			},
@@ -523,7 +523,7 @@ func TestProvider(t *testing.T) {
 	testCases := []testCase{
 		{
 			description: "add secret with no keys",
-			test: func(_ context.Context, t testing.TB, _ *fake.Clientset, provider *watchProvider) {
+			test: func(_ context.Context, _ testing.TB, _ *fake.Clientset, provider *watchProvider) {
 				provider.Remove(toSecretConfig(validEmptySecret, "k1"))
 			},
 		},
@@ -640,7 +640,7 @@ func TestProvider(t *testing.T) {
 
 		networkError := true
 
-		c.PrependReactor("get", "secrets", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		c.PrependReactor("get", "secrets", func(clienttesting.Action) (bool, runtime.Object, error) {
 			if networkError {
 				return true, nil, apierrors.NewInternalError(errors.New("network"))
 			}
