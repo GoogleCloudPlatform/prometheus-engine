@@ -21,7 +21,12 @@ import "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 // latter, they take precedence and are returned. If any are not found, they are
 // inserted into the externalLabels.
 // The higher-precedence labels are then returned.
-func resolveLabels(opts Options, externalLabels map[string]string) (projectID, location, cluster string) {
+func resolveLabels(opts Options, exLabels *map[string]string) (projectID, location, cluster string) {
+	var externalLabels map[string]string
+	if exLabels == nil {
+		externalLabels = make(map[string]string)
+	}
+	externalLabels = *exLabels
 	// Prioritize OperatorConfig's external labels over operator's flags
 	// to be consistent with our export layer's priorities.
 	// This is to avoid confusion if users specify a project_id, location, and
