@@ -41,6 +41,8 @@ type OperatorConfig struct {
 	ManagedAlertmanager *ManagedAlertmanagerSpec `json:"managedAlertmanager,omitempty"`
 	// Features holds configuration for optional managed-collection features.
 	Features OperatorFeatures `json:"features,omitempty"`
+	// Scaling contains configuration options for scaling GMP.
+	Scaling ScalingSpec `json:"scaling,omitempty"`
 }
 
 // OperatorConfigList is a list of OperatorConfigs.
@@ -230,4 +232,17 @@ type SecretOrConfigMap struct {
 	Secret *corev1.SecretKeySelector `json:"secret,omitempty"`
 	// ConfigMap containing data to use for the targets.
 	ConfigMap *corev1.ConfigMapKeySelector `json:"configMap,omitempty"`
+}
+
+// ScalingSpec defines configuration options for scaling GMP.
+type ScalingSpec struct {
+	VPA VPASpec `json:"vpa,omitempty"`
+}
+
+// VPASpec defines configuration options for vertical pod autoscaling.
+type VPASpec struct {
+	// Enabled configures whether the operator configures Vertical Pod Autoscaling for the collector pods.
+	// In GKE, installing Vertical Pod Autoscaling requires a cluster restart, and therefore it also results in an operator restart.
+	// In other environments, the operator may need to be restarted to enable VPA to run the following check again and watch for the objects.
+	Enabled bool `json:"enabled,omitempty"`
 }

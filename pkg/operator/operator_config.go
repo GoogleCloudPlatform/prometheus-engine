@@ -812,7 +812,8 @@ func validateSecretOrConfigMap(secretOrConfigMap *monitoringv1.SecretOrConfigMap
 }
 
 type operatorConfigValidator struct {
-	namespace string
+	namespace    string
+	vpaAvailable bool
 }
 
 func (v *operatorConfigValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
@@ -835,6 +836,9 @@ func (v *operatorConfigValidator) ValidateCreate(_ context.Context, o runtime.Ob
 	}
 	if err := validateRules(&oc.Rules); err != nil {
 		return nil, fmt.Errorf("invalid rules config: %w", err)
+	}
+	if oc.Scaling.VPA.Enabled && !v.vpaAvailable {
+		return nil, fmt.Errorf("vertical pod autoscaling is not available - install vpa support and restart the operator")
 	}
 	return nil, nil
 }

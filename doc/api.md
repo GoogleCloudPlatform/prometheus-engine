@@ -94,6 +94,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.SampleTarget">SampleTarget</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.ScalingSpec">ScalingSpec</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ScrapeEndpointStatus">ScrapeEndpointStatus</a>
@@ -115,6 +117,8 @@ Resource Types:
 <a href="#monitoring.googleapis.com/v1.TargetLabels">TargetLabels</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.TargetStatusSpec">TargetStatusSpec</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.VPASpec">VPASpec</a>
 </li></ul>
 <h3 id="monitoring.googleapis.com/v1.AlertingSpec">
 <span id="AlertingSpec">AlertingSpec
@@ -1627,6 +1631,19 @@ OperatorFeatures
 <p>Features holds configuration for optional managed-collection features.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>scaling</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ScalingSpec">
+ScalingSpec
+</a>
+</em>
+</td>
+<td>
+<p>Scaling contains configuration options for scaling GMP.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="monitoring.googleapis.com/v1.OperatorFeatures">
@@ -2467,6 +2484,38 @@ string
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.ScalingSpec">
+<span id="ScalingSpec">ScalingSpec
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.OperatorConfig">OperatorConfig</a>)
+</p>
+<div>
+<p>ScalingSpec defines configuration options for scaling GMP.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>vpa</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.VPASpec">
+VPASpec
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.ScrapeEndpoint">
 <span id="ScrapeEndpoint">ScrapeEndpoint
 </span>
@@ -3279,6 +3328,39 @@ bool
 </td>
 <td>
 <p>Enable target status reporting.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.VPASpec">
+<span id="VPASpec">VPASpec
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ScalingSpec">ScalingSpec</a>)
+</p>
+<div>
+<p>VPASpec defines configuration options for vertical pod autoscaling.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>enabled</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>Enabled configures whether the operator configures Vertical Pod Autoscaling for the collector pods.
+In GKE, installing Vertical Pod Autoscaling requires a cluster restart, and therefore it also results in an operator restart.
+In other environments, the operator may need to be restarted to enable VPA to run the following check again and watch for the objects.</p>
 </td>
 </tr>
 </tbody>

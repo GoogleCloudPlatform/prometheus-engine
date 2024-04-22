@@ -98,6 +98,10 @@ rules:
   apiGroups: ["apps"]
   resourceNames: ["alertmanager"]
   verbs: ["get", "patch", "update"]
+- resources:
+  - verticalpodautoscalers
+  apiGroups: ["autoscaling.k8s.io"]
+  verbs: ["create", "delete", "get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -146,6 +150,11 @@ rules:
   - statefulsets
   apiGroups: ["apps"]
   verbs: ["get", "list", "watch"]
+- resources:
+  - customresourcedefinitions
+  resourceNames: ["verticalpodautoscalers.autoscaling.k8s.io"]
+  apiGroups: ["apiextensions.k8s.io"]
+  verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

@@ -469,6 +469,21 @@ spec:
                   from the environment.
                 type: string
             type: object
+          scaling:
+            description: Scaling contains configuration options for scaling GMP.
+            properties:
+              vpa:
+                description: VPASpec defines configuration options for vertical pod
+                  autoscaling.
+                properties:
+                  enabled:
+                    description: |-
+                      Enabled configures whether the operator configures Vertical Pod Autoscaling for the collector pods.
+                      In GKE, installing Vertical Pod Autoscaling requires a cluster restart, and therefore it also results in an operator restart.
+                      In other environments, the operator may need to be restarted to enable VPA to run the following check again and watch for the objects.
+                    type: boolean
+                type: object
+            type: object
         type: object
     served: true
     storage: true

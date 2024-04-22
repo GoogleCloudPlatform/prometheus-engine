@@ -33,11 +33,13 @@ import (
 	arv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiextensions "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	runtimeutil "k8s.io/apimachinery/pkg/util/runtime"
+	autoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/cert"
@@ -95,10 +97,11 @@ const (
 
 // Operator to implement managed collection for Google Prometheus Engine.
 type Operator struct {
-	logger  logr.Logger
-	opts    Options
-	client  client.Client
-	manager manager.Manager
+	logger       logr.Logger
+	opts         Options
+	client       client.Client
+	manager      manager.Manager
+	vpaAvailable bool
 }
 
 // Options for the Operator.
@@ -175,6 +178,9 @@ func NewScheme() (*runtime.Scheme, error) {
 	if err := monitoringv1.AddToScheme(sc); err != nil {
 		return nil, fmt.Errorf("add monitoringv1 scheme: %w", err)
 	}
+	if err := autoscalingv1.AddToScheme(sc); err != nil {
+		return nil, fmt.Errorf("add autoscalerv1 scheme: %w", err)
+	}
 	return sc, nil
 }
 
@@ -202,6 +208,79 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	if err != nil {
 		return nil, fmt.Errorf("invalid port: %w", err)
 	}
+
+	watchObjects := map[client.Object]cache.ByObject{
+		&corev1.Pod{}: {
+			Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+		},
+		&monitoringv1.PodMonitoring{}: {
+			Field: fields.Everything(),
+		},
+		&monitoringv1.ClusterPodMonitoring{}: {
+			Field: fields.Everything(),
+		},
+		&monitoringv1.ClusterNodeMonitoring{}: {
+			Field: fields.Everything(),
+		},
+		&monitoringv1.GlobalRules{}: {
+			Field: fields.Everything(),
+		},
+		&monitoringv1.ClusterRules{}: {
+			Field: fields.Everything(),
+		},
+		&monitoringv1.Rules{}: {
+			Field: fields.Everything(),
+		},
+		&corev1.Secret{}: {
+			Namespaces: map[string]cache.Config{
+				opts.OperatorNamespace: {},
+				opts.PublicNamespace:   {},
+			},
+		},
+		&monitoringv1.OperatorConfig{}: {
+			Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
+		},
+		&corev1.Service{}: {
+			Field: fields.SelectorFromSet(fields.Set{
+				"metadata.namespace": opts.OperatorNamespace,
+				"metadata.name":      NameAlertmanager,
+			}),
+		},
+		&corev1.ConfigMap{}: {
+			Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
+		},
+		&appsv1.DaemonSet{}: {
+			Field: fields.SelectorFromSet(fields.Set{
+				"metadata.namespace": opts.OperatorNamespace,
+				"metadata.name":      NameCollector,
+			}),
+		},
+		&appsv1.Deployment{}: {
+			Field: fields.SelectorFromSet(fields.Set{
+				"metadata.namespace": opts.OperatorNamespace,
+				"metadata.name":      NameRuleEvaluator,
+			}),
+		},
+	}
+
+	// Determine whether VPA is installed in the cluster. If so, set up the scaling controller.
+	var vpaAvailable bool
+	clientset, err := apiextensions.NewForConfig(clientConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create clientset: %w", err)
+	}
+	if _, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(context.Background(), "verticalpodautoscalers.autoscaling.k8s.io", metav1.GetOptions{}); err != nil {
+		logger.Info("vertical pod autoscaling is not available, scaling.vpa.enabled option on the OperatorConfig will not work")
+	} else {
+		logger.Info("vertical pod autoscaling available, monitoring OperatorConfig for scaling.vpa.enabled option")
+		vpaAvailable = true
+		watchObjects[&autoscalingv1.VerticalPodAutoscaler{}] = cache.ByObject{
+			Field: fields.SelectorFromSet(fields.Set{
+				"metadata.namespace": opts.OperatorNamespace,
+			}),
+		}
+	}
+
 	manager, err := ctrl.NewManager(clientConfig, manager.Options{
 		Logger: logger,
 		Scheme: sc,
@@ -223,59 +302,8 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 
 				// The presence of metadata.namespace has special handling internally causing the
 				// cache's watch-list to only watch that namespace.
-				ByObject: map[client.Object]cache.ByObject{
-					&corev1.Pod{}: {
-						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
-					},
-					&monitoringv1.PodMonitoring{}: {
-						Field: fields.Everything(),
-					},
-					&monitoringv1.ClusterPodMonitoring{}: {
-						Field: fields.Everything(),
-					},
-					&monitoringv1.ClusterNodeMonitoring{}: {
-						Field: fields.Everything(),
-					},
-					&monitoringv1.GlobalRules{}: {
-						Field: fields.Everything(),
-					},
-					&monitoringv1.ClusterRules{}: {
-						Field: fields.Everything(),
-					},
-					&monitoringv1.Rules{}: {
-						Field: fields.Everything(),
-					},
-					&corev1.Secret{}: {
-						Namespaces: map[string]cache.Config{
-							opts.OperatorNamespace: {},
-							opts.PublicNamespace:   {},
-						},
-					},
-					&monitoringv1.OperatorConfig{}: {
-						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.PublicNamespace}),
-					},
-					&corev1.Service{}: {
-						Field: fields.SelectorFromSet(fields.Set{
-							"metadata.namespace": opts.OperatorNamespace,
-							"metadata.name":      NameAlertmanager,
-						}),
-					},
-					&corev1.ConfigMap{}: {
-						Field: fields.SelectorFromSet(fields.Set{"metadata.namespace": opts.OperatorNamespace}),
-					},
-					&appsv1.DaemonSet{}: {
-						Field: fields.SelectorFromSet(fields.Set{
-							"metadata.namespace": opts.OperatorNamespace,
-							"metadata.name":      NameCollector,
-						}),
-					},
-					&appsv1.Deployment{}: {
-						Field: fields.SelectorFromSet(fields.Set{
-							"metadata.namespace": opts.OperatorNamespace,
-							"metadata.name":      NameRuleEvaluator,
-						}),
-					},
-				}})
+				ByObject: watchObjects,
+			})
 		}),
 	})
 	if err != nil {
@@ -296,10 +324,11 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	}
 
 	op := &Operator{
-		logger:  logger,
-		opts:    opts,
-		client:  client,
-		manager: manager,
+		logger:       logger,
+		opts:         opts,
+		client:       client,
+		manager:      manager,
+		vpaAvailable: vpaAvailable,
 	}
 	return op, nil
 }
@@ -337,7 +366,8 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	s.Register(
 		validatePath(monitoringv1.OperatorConfigResource()),
 		admission.WithCustomValidator(o.manager.GetScheme(), &monitoringv1.OperatorConfig{}, &operatorConfigValidator{
-			namespace: o.opts.PublicNamespace,
+			namespace:    o.opts.PublicNamespace,
+			vpaAvailable: o.vpaAvailable,
 		}),
 	)
 	s.Register(
@@ -388,6 +418,9 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 	}
 	if err := setupOperatorConfigControllers(o); err != nil {
 		return fmt.Errorf("setup rule-evaluator controllers: %w", err)
+	}
+	if err := setupScalingController(o); err != nil {
+		return fmt.Errorf("setup scaling controllers: %w", err)
 	}
 	if err := setupTargetStatusPoller(o, registry, o.opts.CollectorHTTPClient); err != nil {
 		return fmt.Errorf("setup target status processor: %w", err)
