@@ -152,6 +152,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       - name: evaluator
         image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
         args:
@@ -189,6 +190,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       volumes:
       - name: config
         configMap:
@@ -227,3 +229,5 @@ spec:
         runAsGroup: 1000
         runAsNonRoot: true
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault

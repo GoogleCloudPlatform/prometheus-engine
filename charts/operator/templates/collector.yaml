@@ -54,6 +54,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
         image: {{.Values.images.configReloader.image}}:{{.Values.images.configReloader.tag}}
@@ -85,6 +86,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       - name: prometheus
         image: {{.Values.images.prometheus.image}}:{{.Values.images.prometheus.tag}}
         args:
@@ -143,6 +145,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       volumes:
       - name: storage
         emptyDir: {}

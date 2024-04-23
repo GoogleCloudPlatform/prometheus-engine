@@ -354,6 +354,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
@@ -390,6 +391,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       - name: prometheus
         image: gke.gcr.io/prometheus-engine/prometheus:v2.45.3-gmp.1-gke.0
         args:
@@ -453,6 +455,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       volumes:
       - name: storage
         emptyDir: {}
@@ -550,6 +553,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
         livenessProbe:
           httpGet:
             path: /healthz
@@ -564,6 +568,9 @@ spec:
             # Default is 18081.
             port: 18081
             scheme: HTTP
+        volumeMounts:
+        - name: certs
+          mountPath: /etc/tls/private
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -593,6 +600,9 @@ spec:
         runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
+      volumes:
+      - name: certs
+        emptyDir: {}
 ---
 # Source: operator/templates/rule-evaluator.yaml
 apiVersion: apps/v1
@@ -634,6 +644,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
@@ -675,6 +686,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       - name: evaluator
         image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
         args:
@@ -716,6 +728,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       volumes:
       - name: config
         configMap:
@@ -800,6 +813,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       containers:
       - name: alertmanager
         image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.2-gke.0
@@ -836,6 +850,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
         args:
@@ -871,6 +886,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       volumes:
       - name: config
         secret:

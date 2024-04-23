@@ -125,6 +125,8 @@ type Options struct {
 	TLSKey string
 	// Certificate authority in base 64.
 	CACert string
+	// CertDir is the path to a directory containing TLS certificates for the webhook server
+	CertDir string
 	// Webhook serving address.
 	ListenAddr string
 	// Cleanup resources without this annotation.
@@ -188,11 +190,6 @@ func NewScheme() (*runtime.Scheme, error) {
 func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator, error) {
 	if err := opts.defaultAndValidate(logger); err != nil {
 		return nil, fmt.Errorf("invalid options: %w", err)
-	}
-	// Create temporary directory to store webhook serving cert files.
-	certDir, err := os.MkdirTemp("", "operator-cert")
-	if err != nil {
-		return nil, fmt.Errorf("create temporary certificate dir: %w", err)
 	}
 
 	sc, err := NewScheme()
@@ -287,7 +284,7 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 		WebhookServer: webhook.NewServer(webhook.Options{
 			Host:    host,
 			Port:    port,
-			CertDir: certDir,
+			CertDir: opts.CertDir,
 		}),
 		// Don't run a metrics server with the manager. Metrics are being served.
 		// explicitly in the main routine.
