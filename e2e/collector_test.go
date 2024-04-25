@@ -28,29 +28,30 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
 
 func TestCollectorPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
+	kubeClient, clientSet, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
-	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
-	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient, opClient))
-	t.Run("enable-target-status", testEnableTargetStatus(ctx, opClient))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, clientSet))
+	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 	// Self-scrape podmonitoring.
 	pm := &monitoringv1.PodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -75,24 +76,24 @@ func TestCollectorPodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, opClient, pm))
+	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, pm))
 	if !skipGCM {
-		t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-podmon"))
+		t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, clientSet, "collector-podmon"))
 	}
 }
 
 func TestCollectorClusterPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
+	kubeClient, clientSet, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
-	t.Run("collector-running", testCollectorDeployed(ctx, kubeClient))
-	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient, opClient))
-	t.Run("enable-target-status", testEnableTargetStatus(ctx, opClient))
+	t.Run("collector-running", testCollectorDeployed(ctx, clientSet))
+	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
+	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 	// Self-scrape clusterpodmonitoring.
 	cpm := &monitoringv1.ClusterPodMonitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -116,27 +117,27 @@ func TestCollectorClusterPodMonitoring(t *testing.T) {
 			},
 		},
 	}
-	t.Run("self-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, opClient, cpm))
+	t.Run("self-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, kubeClient, cpm))
 	if !skipGCM {
-		t.Run("self-clusterpodmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-cmon"))
+		t.Run("self-clusterpodmonitoring-gcm", testValidateCollectorUpMetrics(ctx, clientSet, "collector-cmon"))
 	}
 }
 
 func TestCollectorKubeletScraping(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, opClient, err := setupCluster(ctx, t)
+	kubeClient, clientSet, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
-	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
-	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient, opClient))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, clientSet))
+	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 
-	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, opClient))
+	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, kubeClient))
 	if !skipGCM {
-		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, kubeClient))
+		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, clientSet))
 	}
 }
 
@@ -181,7 +182,7 @@ func testCollectorDeployed(ctx context.Context, kubeClient kubernetes.Interface)
 	}
 }
 
-func testCollectorOperatorConfig(ctx context.Context, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is configured")
 
@@ -191,8 +192,13 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient kubernetes.Inte
 		// TODO(pintohutch): remove once we've fixed: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/728.
 		kubeletFilter := "{job='kubelet'}"
 
-		config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
-		if err != nil {
+		config := monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      operator.NameOperatorConfig,
+				Namespace: operator.DefaultPublicNamespace,
+			},
+		}
+		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Fatalf("get operatorconfig: %s", err)
 		}
 		config.Collection.Filter = monitoringv1.ExportFilters{
@@ -201,17 +207,22 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient kubernetes.Inte
 
 		// TODO(pintohutch): add external_labels.
 		// Update OperatorConfig.
-		_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
-		if err != nil {
+		if err := kubeClient.Update(ctx, &config); err != nil {
 			t.Fatalf("update operatorconfig: %s", err)
 		}
 
 		// Keep checking the state of the collectors until they're running.
-		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			ds, err := kubeClient.AppsV1().DaemonSets(operator.DefaultOperatorNamespace).Get(ctx, operator.NameCollector, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				return false, nil
-			} else if err != nil {
+		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			ds := appsv1.DaemonSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      operator.NameCollector,
+					Namespace: operator.DefaultOperatorNamespace,
+				},
+			}
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&ds), &ds); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
 				return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
 			}
 
@@ -251,26 +262,24 @@ type statusFn func(*monitoringv1.ScrapeEndpointStatus) error
 
 // testEnsurePodMonitoringReady sets up a PodMonitoring and ensures its status
 // is successfully scraping targets.
-func testEnsurePodMonitoringReady(ctx context.Context, opClient versioned.Interface, pm *monitoringv1.PodMonitoring) func(*testing.T) {
-	return testEnsurePodMonitoringStatus(ctx, opClient, pm, isPodMonitoringScrapeEndpointSuccess)
+func testEnsurePodMonitoringReady(ctx context.Context, kubeClient client.Client, pm *monitoringv1.PodMonitoring) func(*testing.T) {
+	return testEnsurePodMonitoringStatus(ctx, kubeClient, pm, isPodMonitoringScrapeEndpointSuccess)
 }
 
 // testEnsurePodMonitoringStatus sets up a PodMonitoring and runs validations against
 // its status with the provided function.
-func testEnsurePodMonitoringStatus(ctx context.Context, opClient versioned.Interface, pm *monitoringv1.PodMonitoring, validate statusFn) func(*testing.T) {
+func testEnsurePodMonitoringStatus(ctx context.Context, kubeClient client.Client, pm *monitoringv1.PodMonitoring, validate statusFn) func(*testing.T) {
 	// The operator should configure the collector to scrape itself and its metrics
 	// should show up in Cloud Monitoring shortly after.
 	return func(t *testing.T) {
 		t.Log("ensuring PodMonitoring is created and ready")
 
-		_, err := opClient.MonitoringV1().PodMonitorings(pm.Namespace).Create(ctx, pm, metav1.CreateOptions{})
-		if err != nil {
+		if err := kubeClient.Create(ctx, pm); err != nil {
 			t.Fatalf("create collector PodMonitoring: %s", err)
 		}
 
-		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			pm, err := opClient.MonitoringV1().PodMonitorings(pm.Namespace).Get(ctx, pm.Name, metav1.GetOptions{})
-			if err != nil {
+		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(pm), pm); err != nil {
 				return false, fmt.Errorf("getting PodMonitoring failed: %w", err)
 			}
 			// Ensure no status update cycles.
@@ -294,8 +303,7 @@ func testEnsurePodMonitoringStatus(ctx context.Context, opClient versioned.Inter
 
 			// Check target status.
 			for _, status := range pm.Status.EndpointStatuses {
-				err = validate(&status)
-				if err != nil {
+				if err := validate(&status); err != nil {
 					t.Logf("endpoint status is not valid: %s", err)
 					return false, nil
 				}
@@ -311,26 +319,24 @@ func testEnsurePodMonitoringStatus(ctx context.Context, opClient versioned.Inter
 
 // testEnsureClusterPodMonitoringReady sets up a ClusterPodMonitoring and
 // ensures its status is successfully scraping targets.
-func testEnsureClusterPodMonitoringReady(ctx context.Context, opClient versioned.Interface, cpm *monitoringv1.ClusterPodMonitoring) func(*testing.T) {
-	return testEnsureClusterPodMonitoringStatus(ctx, opClient, cpm, isPodMonitoringScrapeEndpointSuccess)
+func testEnsureClusterPodMonitoringReady(ctx context.Context, kubeClient client.Client, cpm *monitoringv1.ClusterPodMonitoring) func(*testing.T) {
+	return testEnsureClusterPodMonitoringStatus(ctx, kubeClient, cpm, isPodMonitoringScrapeEndpointSuccess)
 }
 
 // testEnsureClusterPodMonitoringStatus sets up a ClusterPodMonitoring and runs
 // validations against its status with the provided function.
-func testEnsureClusterPodMonitoringStatus(ctx context.Context, opClient versioned.Interface, cpm *monitoringv1.ClusterPodMonitoring, validate statusFn) func(*testing.T) {
+func testEnsureClusterPodMonitoringStatus(ctx context.Context, kubeClient client.Client, cpm *monitoringv1.ClusterPodMonitoring, validate statusFn) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("ensuring ClusterPodMonitoring is created and ready")
 
 		// The operator should configure the collector to scrape itself and its metrics
 		// should show up in Cloud Monitoring shortly after.
-		_, err := opClient.MonitoringV1().ClusterPodMonitorings().Create(ctx, cpm, metav1.CreateOptions{})
-		if err != nil {
+		if err := kubeClient.Create(ctx, cpm); err != nil {
 			t.Fatalf("create collector ClusterPodMonitoring: %s", err)
 		}
 
-		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			cpm, err := opClient.MonitoringV1().ClusterPodMonitorings().Get(ctx, cpm.Name, metav1.GetOptions{})
-			if err != nil {
+		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(cpm), cpm); err != nil {
 				return false, fmt.Errorf("getting ClusterPodMonitoring failed: %w", err)
 			}
 			// Ensure no status update cycles.
@@ -355,8 +361,7 @@ func testEnsureClusterPodMonitoringStatus(ctx context.Context, opClient versione
 
 			// Check target status.
 			for _, status := range cpm.Status.EndpointStatuses {
-				err = validate(&status)
-				if err != nil {
+				if err := validate(&status); err != nil {
 					t.Logf("endpoint status is not ready: %s", err)
 					return false, nil
 				}
@@ -370,31 +375,40 @@ func testEnsureClusterPodMonitoringStatus(ctx context.Context, opClient versione
 	}
 }
 
-func testEnableTargetStatus(ctx context.Context, opClient versioned.Interface) func(*testing.T) {
+func testEnableTargetStatus(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("enabling target status reporting")
 
-		config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
-		if err != nil {
+		config := monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      operator.NameOperatorConfig,
+				Namespace: operator.DefaultPublicNamespace,
+			},
+		}
+		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Errorf("get operatorconfig: %s", err)
 		}
 		// Enable target status reporting.
 		config.Features.TargetStatus = monitoringv1.TargetStatusSpec{
 			Enabled: true,
 		}
-		_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
-		if err != nil {
+		if err := kubeClient.Update(ctx, &config); err != nil {
 			t.Errorf("updating operatorconfig: %s", err)
 		}
 	}
 }
 
-func testEnableKubeletScraping(ctx context.Context, opClient versioned.Interface) func(*testing.T) {
+func testEnableKubeletScraping(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("enabling kubelet scraping")
 
-		config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
-		if err != nil {
+		config := monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      operator.NameOperatorConfig,
+				Namespace: operator.DefaultPublicNamespace,
+			},
+		}
+		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Errorf("get operatorconfig: %s", err)
 		}
 		// Enable kubelet scraping.
@@ -404,8 +418,7 @@ func testEnableKubeletScraping(ctx context.Context, opClient versioned.Interface
 			Interval:              "5s",
 			TLSInsecureSkipVerify: true,
 		}
-		_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
-		if err != nil {
+		if err := kubeClient.Update(ctx, &config); err != nil {
 			t.Errorf("updating operatorconfig: %s", err)
 		}
 	}
