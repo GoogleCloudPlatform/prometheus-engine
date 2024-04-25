@@ -50,21 +50,7 @@ update_codegen() {
   # Refresh vendored dependencies to ensure script is found.
   go mod vendor
 
-  # Idempotently regenerate by deleting current resources.
-  rm -rf "$REPO_ROOT/pkg/operator/generated"
-
   CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${REPO_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
-  chmod +x "${CODEGEN_PKG}/generate-internal-groups.sh"
-
-  bash "${CODEGEN_PKG}"/generate-groups.sh "client" \
-    github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis \
-    monitoring:v1 \
-    --go-header-file "${REPO_ROOT}"/hack/boilerplate.go.txt \
-    --plural-exceptions "Rules:Rules,ClusterRules:ClusterRules,GlobalRules:GlobalRules" \
-    --output-base "${REPO_ROOT}"
-
-  cp -r "$REPO_ROOT"/github.com/GoogleCloudPlatform/prometheus-engine/* "$REPO_ROOT"
-  rm -r "$REPO_ROOT/github.com"
 }
 
 combine() {

@@ -42,7 +42,6 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/deploy"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 )
 
 const (
@@ -76,37 +75,37 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func setupCluster(ctx context.Context, t testing.TB) (kubernetes.Interface, versioned.Interface, error) {
+func setupCluster(ctx context.Context, t testing.TB) (client.Client, kubernetes.Interface, error) {
 	t.Log(">>> deploying static resources")
 	restConfig, err := newRestConfig()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	kubeClient, opClient, err := newKubeClients(restConfig)
+	clientSet, err := newClientSet(restConfig)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	c, err := newKubeClient(restConfig)
+	kubeClient, err := newKubeClient(restConfig)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if err := createResources(ctx, c); err != nil {
+	if err := createResources(ctx, kubeClient); err != nil {
 		return nil, nil, err
 	}
 
 	t.Log(">>> waiting for operator to be deployed")
-	if err := kube.WaitForDeploymentReady(ctx, c, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
+	if err := kube.WaitForDeploymentReady(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
 		return nil, nil, err
 	}
 	t.Log(">>> waiting for operator to be ready")
-	if err := deploy.WaitForOperatorReady(ctx, c); err != nil {
+	if err := deploy.WaitForOperatorReady(ctx, kubeClient); err != nil {
 		return nil, nil, err
 	}
 	t.Log(">>> operator started successfully")
-	return kubeClient, opClient, nil
+	return kubeClient, clientSet, nil
 }
 
 func setRESTConfigDefaults(restConfig *rest.Config) error {
@@ -138,17 +137,13 @@ func newRestConfig() (*rest.Config, error) {
 	return restConfig, nil
 }
 
-func newKubeClients(restConfig *rest.Config) (kubernetes.Interface, versioned.Interface, error) {
+func newClientSet(restConfig *rest.Config) (kubernetes.Interface, error) {
 	kubeClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		return nil, nil, err
-	}
-	opClient, err := versioned.NewForConfig(restConfig)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return kubeClient, opClient, nil
+	return kubeClient, nil
 }
 
 func newKubeClient(restConfig *rest.Config) (client.Client, error) {

@@ -31,7 +31,6 @@ import (
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/client_golang/api"
 	prometheus "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -71,7 +70,7 @@ func TestRuleEvaluatorGzipCompression(t *testing.T) {
 
 func testRuleEvaluator(t *testing.T, features monitoringv1.OperatorFeatures) {
 	ctx := contextWithDeadline(t)
-	clientSet, opClient, err := setupCluster(ctx, t)
+	kubeClient, clientSet, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -81,19 +80,14 @@ func testRuleEvaluator(t *testing.T, features monitoringv1.OperatorFeatures) {
 		t.Fatalf("error creating rest config: %s", err)
 	}
 
-	kubeClient, err := newKubeClient(restConfig)
-	if err != nil {
-		t.Fatalf("error creating client: %s", err)
-	}
-
 	t.Run("rule-evaluator-deployed", testRuleEvaluatorDeployed(ctx, clientSet))
-	t.Run("rule-evaluator-operatorconfig", testRuleEvaluatorOperatorConfig(ctx, clientSet, opClient, features))
+	t.Run("rule-evaluator-operatorconfig", testRuleEvaluatorOperatorConfig(ctx, kubeClient, features))
 	// TODO(pintohutch): testing the generated secrets and config can be
 	// brittle as the checks need to be precise and could break if mechanics or
 	// formatting changes in the future.
 	// Ideally this is replaced by a true e2e test that deploys a custom
 	// secured alertmanager and successfully sends alerts to it.
-	t.Run("rule-evaluator-secrets", testRuleEvaluatorSecrets(ctx, clientSet, opClient))
+	t.Run("rule-evaluator-secrets", testRuleEvaluatorSecrets(ctx, kubeClient))
 	t.Run("rule-evaluator-configuration", testRuleEvaluatorConfiguration(ctx, clientSet))
 
 	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, clientSet, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, features))
@@ -133,12 +127,17 @@ func testRuleEvaluatorDeployed(ctx context.Context, kubeClient kubernetes.Interf
 	}
 }
 
-func testRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient kubernetes.Interface, opClient versioned.Interface, features monitoringv1.OperatorFeatures) func(*testing.T) {
+func testRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient client.Client, features monitoringv1.OperatorFeatures) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking rule-evaluator is configured")
 
-		config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
-		if err != nil {
+		config := monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      operator.NameOperatorConfig,
+				Namespace: operator.DefaultPublicNamespace,
+			},
+		}
+		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Fatalf("get operatorconfig: %s", err)
 		}
 
@@ -148,16 +147,21 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient kubernetes.
 		config.Rules.GeneratorURL = "http://example.com/"
 		config.Features = features
 
-		_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
-		if err != nil {
+		if err := kubeClient.Update(ctx, &config); err != nil {
 			t.Fatalf("update operatorconfig: %s", err)
 		}
 		// Keep checking the state of the collectors until they're running.
-		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			deploy, err := kubeClient.AppsV1().Deployments(operator.DefaultOperatorNamespace).Get(ctx, operator.NameRuleEvaluator, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				return false, nil
-			} else if err != nil {
+		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			deploy := appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      operator.NameRuleEvaluator,
+					Namespace: operator.DefaultOperatorNamespace,
+				},
+			}
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&deploy), &deploy); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
 				return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
 			}
 
@@ -191,14 +195,14 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient kubernetes.
 	}
 }
 
-func testRuleEvaluatorSecrets(ctx context.Context, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testRuleEvaluatorSecrets(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		cert, key, err := cert.GenerateSelfSignedCertKey("test", nil, nil)
 		if err != nil {
 			t.Errorf("generating tls cert and key pair: %s", err)
 		}
 
-		tlsPair := &corev1.Secret{
+		tlsPair := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "alertmanager-authorization",
 				Namespace: operator.DefaultPublicNamespace,
@@ -207,7 +211,7 @@ func testRuleEvaluatorSecrets(ctx context.Context, kubeClient kubernetes.Interfa
 				"token": []byte("auth-bearer-password"),
 			},
 		}
-		authToken := &corev1.Secret{
+		authToken := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "alertmanager-tls",
 				Namespace: operator.DefaultPublicNamespace,
@@ -218,17 +222,14 @@ func testRuleEvaluatorSecrets(ctx context.Context, kubeClient kubernetes.Interfa
 			},
 		}
 
-		_, err = kubeClient.CoreV1().Secrets(operator.DefaultPublicNamespace).Create(ctx, tlsPair, metav1.CreateOptions{})
-		if err != nil {
+		if err := kubeClient.Create(ctx, &tlsPair); err != nil {
 			t.Errorf("creating tls secret: %s", err)
 		}
-		_, err = kubeClient.CoreV1().Secrets(operator.DefaultPublicNamespace).Create(ctx, authToken, metav1.CreateOptions{})
-		if err != nil {
+		if err := kubeClient.Create(ctx, &authToken); err != nil {
 			t.Errorf("creating tls secret: %s", err)
 		}
 
-		err = createRuleEvaluatorOperatorConfig(ctx, opClient, "alertmanager-tls", "alertmanager-authorization")
-		if err != nil {
+		if err := createRuleEvaluatorOperatorConfig(ctx, kubeClient, "alertmanager-tls", "alertmanager-authorization"); err != nil {
 			t.Errorf("creating operatorconfig: %s", err)
 		}
 
@@ -240,10 +241,16 @@ func testRuleEvaluatorSecrets(ctx context.Context, kubeClient kubernetes.Interfa
 			fmt.Sprintf("secret_%s_alertmanager-authorization_token", operator.DefaultPublicNamespace): []byte("auth-bearer-password"),
 		}
 		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			secret, err := kubeClient.CoreV1().Secrets(operator.DefaultOperatorNamespace).Get(ctx, operator.RulesSecretName, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				return false, nil
-			} else if err != nil {
+			secret := corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      operator.RulesSecretName,
+					Namespace: operator.DefaultOperatorNamespace,
+				},
+			}
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&secret), &secret); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
 				return false, fmt.Errorf("get secret: %w", err)
 			}
 
@@ -644,9 +651,14 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 
 // createRuleEvaluatorOperatorConfig ensures an OperatorConfig can be deployed
 // that contains rule-evaluator configuration.
-func createRuleEvaluatorOperatorConfig(ctx context.Context, opClient versioned.Interface, certSecretName, tokenSecretName string) error {
-	config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
-	if err != nil {
+func createRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient client.Client, certSecretName, tokenSecretName string) error {
+	config := monitoringv1.OperatorConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      operator.NameOperatorConfig,
+			Namespace: operator.DefaultPublicNamespace,
+		},
+	}
+	if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 		return err
 	}
 	// Setup TLS secret selectors.
@@ -689,8 +701,7 @@ func createRuleEvaluatorOperatorConfig(ctx context.Context, opClient versioned.I
 		},
 	}
 
-	_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
-	if err != nil {
+	if err := kubeClient.Update(ctx, &config); err != nil {
 		return err
 	}
 	return nil

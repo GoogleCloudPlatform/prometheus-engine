@@ -33,7 +33,7 @@ import (
 // TestWebhooksNoRBAC validates that the operator works without any webhook RBAC policies.
 func TestWebhooksNoRBAC(t *testing.T) {
 	ctx := context.Background()
-	clientSet, _, err := setupCluster(ctx, t)
+	_, clientSet, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}

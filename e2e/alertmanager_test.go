@@ -23,18 +23,19 @@ import (
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/generated/clientset/versioned"
 	"github.com/google/go-cmp/cmp"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestAlertmanager(t *testing.T) {
 	ctx := context.Background()
-	clientSet, opClient, err := setupCluster(ctx, t)
+	kubeClient, clientSet, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -44,15 +45,10 @@ func TestAlertmanager(t *testing.T) {
 		t.Fatalf("error creating rest config: %s", err)
 	}
 
-	kubeClient, err := newKubeClient(restConfig)
-	if err != nil {
-		t.Fatalf("error creating client: %s", err)
-	}
-
 	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, clientSet, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, monitoringv1.OperatorFeatures{}))
 
 	t.Run("alertmanager-deployed", testAlertmanagerDeployed(ctx, clientSet))
-	t.Run("alertmanager-operatorconfig", testAlertmanagerOperatorConfig(ctx, clientSet, opClient))
+	t.Run("alertmanager-operatorconfig", testAlertmanagerOperatorConfig(ctx, kubeClient))
 }
 
 func testAlertmanagerDeployed(ctx context.Context, kubeClient kubernetes.Interface) func(*testing.T) {
@@ -106,7 +102,7 @@ func testAlertmanagerDeployed(ctx context.Context, kubeClient kubernetes.Interfa
 	}
 }
 
-func testAlertmanagerOperatorConfig(ctx context.Context, kubeClient kubernetes.Interface, opClient versioned.Interface) func(*testing.T) {
+func testAlertmanagerOperatorConfig(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking alertmanager is configured")
 
@@ -117,22 +113,27 @@ receivers:
 route:
   receiver: "foobar"
 `
-		secret := &corev1.Secret{
+		secret := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "my-secret-name",
+				Name:      "my-secret-name",
+				Namespace: operator.DefaultPublicNamespace,
 			},
 			Data: map[string][]byte{
 				"my-secret-key": []byte(alertmanagerConfig),
 			},
 		}
 
-		_, err := kubeClient.CoreV1().Secrets(operator.DefaultPublicNamespace).Create(ctx, secret, metav1.CreateOptions{})
-		if err != nil {
+		if err := kubeClient.Create(ctx, &secret); err != nil {
 			t.Fatalf("create alertmanager custom secret: %s", err)
 		}
 
-		config, err := opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Get(ctx, operator.NameOperatorConfig, metav1.GetOptions{})
-		if err != nil {
+		config := monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      operator.NameOperatorConfig,
+				Namespace: operator.DefaultPublicNamespace,
+			},
+		}
+		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Fatalf("get operatorconfig: %s", err)
 		}
 		// Update OperatorConfig alertmanager spec with secret info.
@@ -147,16 +148,21 @@ route:
 		}
 
 		// Update OperatorConfig.
-		_, err = opClient.MonitoringV1().OperatorConfigs(operator.DefaultPublicNamespace).Update(ctx, config, metav1.UpdateOptions{})
-		if err != nil {
+		if err := kubeClient.Update(ctx, &config); err != nil {
 			t.Fatalf("update operatorconfig: %s", err)
 		}
 
-		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			secret, err := kubeClient.CoreV1().Secrets(operator.DefaultOperatorNamespace).Get(ctx, operator.AlertmanagerSecretName, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				return false, nil
-			} else if err != nil {
+		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			secret := corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      operator.AlertmanagerSecretName,
+					Namespace: operator.DefaultOperatorNamespace,
+				},
+			}
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&secret), &secret); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
 				return false, fmt.Errorf("getting alertmanager secret failed: %w", err)
 			}
 			bytes, ok := secret.Data[operator.AlertmanagerConfigKey]
@@ -170,10 +176,16 @@ route:
 			}
 
 			// Check externalURL was set on statefulset.
-			ss, err := kubeClient.AppsV1().StatefulSets(operator.DefaultOperatorNamespace).Get(ctx, operator.NameAlertmanager, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				return false, nil
-			} else if err != nil {
+			ss := appsv1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      operator.NameAlertmanager,
+					Namespace: operator.DefaultOperatorNamespace,
+				},
+			}
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&ss), &ss); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
 				return false, fmt.Errorf("getting alertmanager StatefulSet failed: %w", err)
 			}
 
@@ -191,7 +203,7 @@ route:
 				if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
 					return false, fmt.Errorf("unexpected flags (-want, +got): %s", diff)
 				}
-				return err == nil, nil
+				return true, nil
 			}
 
 			return false, errors.New("no alertmanager container found")
