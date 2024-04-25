@@ -17,7 +17,7 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: {{.Values.namespace.system}}
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
   {{- end }}
@@ -26,7 +26,7 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: {{.Values.namespace.public}}
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
   {{- end }}

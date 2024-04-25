@@ -18,7 +18,7 @@ kind: Service
 metadata:
   name: alertmanager
   namespace: {{.Values.namespace.system}}
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
   {{- end }}
@@ -36,7 +36,7 @@ kind: StatefulSet
 metadata:
   name: alertmanager
   namespace: {{.Values.namespace.system}}
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
   labels:
     {{- include "prometheus-engine.alertmanager.labels" . | nindent 4 }}
   {{- end }}

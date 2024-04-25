@@ -48,7 +48,7 @@ Create chart name and version as used by the chart label.
 Common labels
 */}}
 {{- define "prometheus-engine.labels" -}}
-  {{- if not .Values.noCommonLabels -}}
+  {{- if .Values.commonLabels -}}
 app.kubernetes.io/name: {{ include "prometheus-engine.name" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "prometheus-engine.name" . ) .Chart.AppVersion) .Release.Name }}
@@ -72,13 +72,13 @@ Operator labels
 app: managed-prometheus-operator
 app.kubernetes.io/component: operator
 app.kubernetes.io/name: gmp-operator
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "prometheus-engine.name" . ) .Chart.AppVersion) .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion }}
   {{- end }}
 app.kubernetes.io/part-of: {{ eq .Release.Name "release-name" | ternary "gmp" .Release.Name }}
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
 helm.sh/chart: {{ include "prometheus-engine.chart" . }}
   {{- end }}
 {{- end }}

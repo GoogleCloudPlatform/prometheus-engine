@@ -18,7 +18,7 @@ kind: DaemonSet
 metadata:
   name: collector
   namespace: {{.Values.namespace.system}}
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
   labels:
     {{- include "prometheus-engine.collector.labels" . | nindent 4 }}
   {{- end }}

@@ -18,7 +18,7 @@ kind: Deployment
 metadata:
   name: rule-evaluator
   namespace: {{.Values.namespace.system}}
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
   labels:
     {{- include "prometheus-engine.rule-evaluator.labels" . | nindent 4 }}
   {{- end }}

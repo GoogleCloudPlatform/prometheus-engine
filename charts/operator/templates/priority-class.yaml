@@ -17,7 +17,7 @@ apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: gmp-critical
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
   {{- end }}

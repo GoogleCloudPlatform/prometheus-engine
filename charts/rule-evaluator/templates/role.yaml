@@ -18,7 +18,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: rule-evaluator
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
   labels:
     {{- include "rule-evaluator.labels" . | nindent 4 }}
   {{- end }}

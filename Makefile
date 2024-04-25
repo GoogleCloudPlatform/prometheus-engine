@@ -241,7 +241,7 @@ presubmit: updateversions regen bin test
 
 .PHONY: updateversions
 export CURRENT_TAG = v0.9.0-gke.1
-export CURRENT_PROM_TAG = v2.41.0-gmp.9-gke.0
+export CURRENT_PROM_TAG = v2.45.3-gmp.1-gke.0
 export CURRENT_AM_TAG = v0.25.1-gmp.2-gke.0
 export CURRENT_RE_TAG = v0.9.0-gke.1
 export CURRENT_CONFIG_RELOADER_TAG = v0.9.0-gke.1
