@@ -1,4 +1,4 @@
-// Copyright 2022 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,59 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package rules
+package v1
 
 import (
 	"fmt"
 
-	"github.com/prometheus/common/model"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	model "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"github.com/prometheus/prometheus/promql/parser"
-	yaml "gopkg.in/yaml.v2"
-
-	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"gopkg.in/yaml.v3"
 )
 
-// FromAPIRules constructs rule groups from a list of rule groups in the
+func (r *Rules) RuleGroupsConfig(projectID, location, cluster string) (string, error) {
+	return ruleGroupsConfig(r.Spec.Groups, map[string]string{
+		export.KeyProjectID: projectID,
+		export.KeyLocation:  location,
+		export.KeyCluster:   cluster,
+		export.KeyNamespace: r.Namespace,
+	})
+}
+
+func (r *ClusterRules) RuleGroupsConfig(projectID, location, cluster string) (string, error) {
+	return ruleGroupsConfig(r.Spec.Groups, map[string]string{
+		export.KeyProjectID: projectID,
+		export.KeyLocation:  location,
+		export.KeyCluster:   cluster,
+	})
+}
+
+func (r *GlobalRules) RuleGroupsConfig() (string, error) {
+	return ruleGroupsConfig(r.Spec.Groups, map[string]string{})
+}
+
+func ruleGroupsConfig(ruleGroups []RuleGroup, labelSet map[string]string) (string, error) {
+	rs, err := fromAPIRules(ruleGroups)
+	if err != nil {
+		return "", fmt.Errorf("converting rules failed: %w", err)
+	}
+	if err := scope(&rs, labelSet); err != nil {
+		return "", fmt.Errorf("isolating rules failed: %w", err)
+	}
+	result, err := yaml.Marshal(rs)
+	if err != nil {
+		return "", fmt.Errorf("marshalling rules failed: %w", err)
+	}
+	return string(result), nil
+}
+
+// fromAPIRules constructs rule groups from a list of rule groups in the
 // resource API format. It ensures that the groups are valid according to the
 // Prometheus upstream validation logic.
-func FromAPIRules(groups []monitoringv1.RuleGroup) (result rulefmt.RuleGroups, err error) {
+func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 	for _, g := range groups {
 		var rules []rulefmt.RuleNode
 
@@ -77,12 +112,12 @@ func FromAPIRules(groups []monitoringv1.RuleGroup) (result rulefmt.RuleGroups, e
 	return result, nil
 }
 
-// Scope all rules in the given groups to the given labels. All metric selectors
+// scope all rules in the given groups to the given labels. All metric selectors
 // check for equality on the labels and all rule results are annotated with them again.
 // This ensures that the scope is preserved in output data, even if the given label keys
 // are aggregated away.
 // An error is returned if metric selectors have a conflicting selector set.
-func Scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
+func scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 	for _, g := range groups.Groups {
 		for i, r := range g.Rules {
 			expr, err := parser.ParseExpr(r.Expr.Value)

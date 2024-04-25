@@ -38,7 +38,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -542,30 +541,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		Config:        *cfg,
 		SecretConfigs: secretConfigs,
 	}, nil
-}
-
-type podMonitoringDefaulter struct{}
-
-func (d *podMonitoringDefaulter) Default(_ context.Context, o runtime.Object) error {
-	pm := o.(*monitoringv1.PodMonitoring)
-
-	if pm.Spec.TargetLabels.Metadata == nil {
-		md := []string{"pod", "container"}
-		pm.Spec.TargetLabels.Metadata = &md
-	}
-	return nil
-}
-
-type clusterPodMonitoringDefaulter struct{}
-
-func (d *clusterPodMonitoringDefaulter) Default(_ context.Context, o runtime.Object) error {
-	pm := o.(*monitoringv1.ClusterPodMonitoring)
-
-	if pm.Spec.TargetLabels.Metadata == nil {
-		md := []string{"namespace", "pod", "container"}
-		pm.Spec.TargetLabels.Metadata = &md
-	}
-	return nil
 }
 
 // makeRemoteWriteConfig generate the configs for the Prometheus remote_write feature.
