@@ -330,28 +330,24 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 	)
 	s.Register(
 		validatePath(monitoringv1.RulesResource()),
-		admission.WithCustomValidator(o.manager.GetScheme(), &monitoringv1.Rules{}, &rulesValidator{
-			opts: o.opts,
-		}),
+		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.Rules{}),
 	)
 	s.Register(
 		validatePath(monitoringv1.ClusterRulesResource()),
-		admission.WithCustomValidator(o.manager.GetScheme(), &monitoringv1.ClusterRules{}, &clusterRulesValidator{
-			opts: o.opts,
-		}),
+		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.ClusterRules{}),
 	)
 	s.Register(
 		validatePath(monitoringv1.GlobalRulesResource()),
-		admission.WithCustomValidator(o.manager.GetScheme(), &monitoringv1.GlobalRules{}, &globalRulesValidator{}),
+		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.GlobalRules{}),
 	)
 	// Defaulting webhooks.
 	s.Register(
 		defaultPath(monitoringv1.PodMonitoringResource()),
-		admission.WithCustomDefaulter(o.manager.GetScheme(), &monitoringv1.PodMonitoring{}, &podMonitoringDefaulter{}),
+		admission.DefaultingWebhookFor(o.manager.GetScheme(), &monitoringv1.PodMonitoring{}),
 	)
 	s.Register(
 		defaultPath(monitoringv1.ClusterPodMonitoringResource()),
-		admission.WithCustomDefaulter(o.manager.GetScheme(), &monitoringv1.ClusterPodMonitoring{}, &clusterPodMonitoringDefaulter{}),
+		admission.DefaultingWebhookFor(o.manager.GetScheme(), &monitoringv1.ClusterPodMonitoring{}),
 	)
 	return nil
 }
