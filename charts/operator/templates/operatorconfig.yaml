@@ -18,5 +18,7 @@ kind: OperatorConfig
 metadata:
   name: config
   namespace: {{.Values.namespace.public}}
+  {{- if .Values.commonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}

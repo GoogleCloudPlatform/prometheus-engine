@@ -944,7 +944,6 @@ kind: OperatorConfig
 metadata:
   name: config
   namespace: gmp-public
-  labels:
 ---
 # Source: prometheus-engine/templates/validatingwebhookconfiguration.yaml
 apiVersion: admissionregistration.k8s.io/v1

@@ -18,7 +18,7 @@ kind: Service
 metadata:
   name: gmp-operator
   namespace: {{.Values.namespace.system}}
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
   {{- end }}

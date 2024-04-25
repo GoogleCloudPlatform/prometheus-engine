@@ -35,7 +35,7 @@ Common labels
 */}}
 {{- define "rule-evaluator.labels" -}}
 app.kubernetes.io/name: {{ include "rule-evaluator.name" . }}
-  {{- if not .Values.noCommonLabels }}
+  {{- if .Values.commonLabels }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "rule-evaluator.name" . ) .Chart.AppVersion) .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion }}
