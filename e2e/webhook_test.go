@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -24,40 +23,39 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/deploy"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
+	appsv1 "k8s.io/api/apps/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // TestWebhooksNoRBAC validates that the operator works without any webhook RBAC policies.
 func TestWebhooksNoRBAC(t *testing.T) {
 	ctx := context.Background()
-	_, clientSet, err := setupCluster(ctx, t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	if err := clientSet.RbacV1().ClusterRoles().Delete(ctx, "gmp-system:operator:webhook-admin", metav1.DeleteOptions{}); err != nil {
+	if err := kubeClient.Delete(ctx, &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gmp-system:operator:webhook-admin",
+		},
+	}); err != nil {
 		t.Fatalf("error deleting cluster role: %s", err)
 	}
-	if err := clientSet.RbacV1().ClusterRoleBindings().Delete(ctx, "gmp-system:operator:webhook-admin", metav1.DeleteOptions{}); err != nil {
+	if err := kubeClient.Delete(ctx, &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gmp-system:operator:webhook-admin",
+		},
+	}); err != nil {
 		t.Fatalf("error deleting cluster role binding: %s", err)
-	}
-
-	restConfig, err := newRestConfig()
-	if err != nil {
-		t.Fatalf("error creating rest config: %s", err)
-	}
-
-	kubeClient, err := newKubeClient(restConfig)
-	if err != nil {
-		t.Fatalf("error creating client: %s", err)
 	}
 
 	// Restart the GMP operator since it is already healthy before we delete the RBAC policies.
 	t.Log("restarting operator")
-	if err := deploymentRestart(ctx, clientSet, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
+	if err := deploymentRestart(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
 		t.Fatalf("error restarting operator. err: %s", err)
 	}
 
@@ -68,7 +66,7 @@ func TestWebhooksNoRBAC(t *testing.T) {
 
 	t.Log("waiting for operator to be ready")
 	if err := wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
-		logs, err := deploy.OperatorLogs(ctx, kubeClient, clientSet, operator.DefaultOperatorNamespace)
+		logs, err := deploy.OperatorLogs(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace)
 		if err != nil {
 			t.Logf("unable to get operator logs: %s", err)
 			return false, nil
@@ -80,7 +78,7 @@ func TestWebhooksNoRBAC(t *testing.T) {
 	}
 
 	if err := wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
-		logs, err := deploy.OperatorLogs(ctx, kubeClient, clientSet, operator.DefaultOperatorNamespace)
+		logs, err := deploy.OperatorLogs(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace)
 		if err != nil {
 			t.Logf("unable to get operator logs: %s", err)
 			return false, nil
@@ -93,11 +91,22 @@ func TestWebhooksNoRBAC(t *testing.T) {
 	}
 }
 
-func deploymentRestart(ctx context.Context, clientSet kubernetes.Interface, namespace, name string) error {
-	restartAtPatch := `{"spec": {"template": {"metadata": {"annotations": {"kubectl.kubernetes.io/restartedAt": "%s"}}}}}`
-	restartNowPatch := []byte(fmt.Sprintf(restartAtPatch, time.Now().Format(time.RFC3339)))
-	_, err := clientSet.AppsV1().Deployments(namespace).Patch(ctx, name, types.StrategicMergePatchType, restartNowPatch, metav1.PatchOptions{})
-	if err != nil {
+func deploymentRestart(ctx context.Context, kubeClient client.Client, namespace, name string) error {
+	deploy := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+	}
+	if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&deploy), &deploy); err != nil {
+		return err
+	}
+	deployPatch := deploy.DeepCopy()
+	if deployPatch.Spec.Template.Annotations == nil {
+		deployPatch.Spec.Template.Annotations = make(map[string]string)
+	}
+	deployPatch.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+	if err := kubeClient.Patch(ctx, deployPatch, client.MergeFrom(&deploy)); err != nil {
 		return err
 	}
 

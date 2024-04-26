@@ -24,11 +24,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // PodLogs returns the logs of the pod with the given name.
-func PodLogs(ctx context.Context, clientSet kubernetes.Interface, namespace, name, container string) (string, error) {
+func PodLogs(ctx context.Context, restConfig *rest.Config, namespace, name, container string) (string, error) {
+	clientSet, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return "", err
+	}
 	req := clientSet.CoreV1().Pods(namespace).GetLogs(name, &corev1.PodLogOptions{
 		Container: container,
 	})

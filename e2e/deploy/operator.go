@@ -28,7 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -74,12 +74,12 @@ func WaitForOperatorReady(ctx context.Context, kubeClient client.Client) error {
 }
 
 // OperatorLogs returns the operator pods logs.
-func OperatorLogs(ctx context.Context, kubeClient client.Client, clientSet kubernetes.Interface, operatorNamespace string) (string, error) {
+func OperatorLogs(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, operatorNamespace string) (string, error) {
 	pod, err := operatorPod(ctx, kubeClient, operatorNamespace)
 	if err != nil {
 		return "", err
 	}
-	return kube.PodLogs(ctx, clientSet, pod.Namespace, pod.Name, "operator")
+	return kube.PodLogs(ctx, restConfig, pod.Namespace, pod.Name, "operator")
 }
 
 func operatorPod(ctx context.Context, kubeClient client.Client, operatorNamespace string) (*corev1.Pod, error) {

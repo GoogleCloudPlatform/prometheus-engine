@@ -25,7 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
@@ -52,7 +52,7 @@ func Events(ctx context.Context, kubeClient client.Client, gvk schema.GroupVersi
 
 // Debug prints both events and logs of the given resource. Consider passing a new context
 // here in case the original context is cancelled.
-func Debug(ctx context.Context, clientSet kubernetes.Interface, kubeClient client.Client, o client.Object, out io.Writer) error {
+func Debug(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, o client.Object, out io.Writer) error {
 	gvk, err := apiutil.GVKForObject(o, kubeClient.Scheme())
 	if err != nil {
 		return fmt.Errorf("unable to get GVK")
@@ -81,7 +81,7 @@ func Debug(ctx context.Context, clientSet kubernetes.Interface, kubeClient clien
 
 	showPodLogs := func(pod *corev1.Pod, container string) error {
 		const amount = 20
-		logs, err := PodLogs(ctx, clientSet, pod.Namespace, pod.Name, container)
+		logs, err := PodLogs(ctx, restConfig, pod.Namespace, pod.Name, container)
 		if err != nil {
 			return fmt.Errorf("unable to get container %s logs: %w", container, err)
 		}
