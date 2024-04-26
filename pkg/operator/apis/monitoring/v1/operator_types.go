@@ -15,6 +15,10 @@
 package v1
 
 import (
+	"errors"
+	"fmt"
+	"net/url"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -43,6 +47,88 @@ type OperatorConfig struct {
 	Features OperatorFeatures `json:"features,omitempty"`
 	// Scaling contains configuration options for scaling GMP.
 	Scaling ScalingSpec `json:"scaling,omitempty"`
+}
+
+func (oc *OperatorConfig) Validate() error {
+	if _, err := oc.Collection.ScrapeConfigs(); err != nil {
+		return fmt.Errorf("failed to create kubelet scrape config: %w", err)
+	}
+
+	if err := validateSecretKeySelector(oc.Collection.Credentials); err != nil {
+		return fmt.Errorf("invalid collection credentials: %w", err)
+	}
+	if oc.ManagedAlertmanager != nil {
+		if err := validateSecretKeySelector(oc.ManagedAlertmanager.ConfigSecret); err != nil {
+			return fmt.Errorf("invalid managed alert manager config secret: %w", err)
+		}
+	}
+	if err := validateRules(&oc.Rules); err != nil {
+		return fmt.Errorf("invalid rules config: %w", err)
+	}
+	return nil
+}
+
+func validateRules(rules *RuleEvaluatorSpec) error {
+	if rules.GeneratorURL != "" {
+		if _, err := url.Parse(rules.GeneratorURL); err != nil {
+			return fmt.Errorf("failed to parse generator URL: %w", err)
+		}
+	}
+
+	if err := validateSecretKeySelector(rules.Credentials); err != nil {
+		return fmt.Errorf("invalid credentials: %w", err)
+	}
+	for i, alertManagerEndpoint := range rules.Alerting.Alertmanagers {
+		if err := validateAlertManagerEndpoint(&alertManagerEndpoint); err != nil {
+			return fmt.Errorf("invalid alert manager endpoint `%s` (index %d): %w", alertManagerEndpoint.Name, i, err)
+		}
+	}
+	return nil
+}
+
+func validateAlertManagerEndpoint(alertManagerEndpoint *AlertmanagerEndpoints) error {
+	if alertManagerEndpoint.Authorization != nil {
+		if err := validateSecretKeySelector(alertManagerEndpoint.Authorization.Credentials); err != nil {
+			return fmt.Errorf("invalid authorization credentials: %w", err)
+		}
+	}
+	if alertManagerEndpoint.TLS != nil {
+		if err := validateSecretKeySelector(alertManagerEndpoint.TLS.KeySecret); err != nil {
+			return fmt.Errorf("invalid TLS key: %w", err)
+		}
+		if err := validateSecretOrConfigMap(alertManagerEndpoint.TLS.CA); err != nil {
+			return fmt.Errorf("invalid TLS CA: %w", err)
+		}
+		if err := validateSecretOrConfigMap(alertManagerEndpoint.TLS.Cert); err != nil {
+			return fmt.Errorf("invalid TLS Cert: %w", err)
+		}
+	}
+	return nil
+}
+
+func validateSecretOrConfigMap(secretOrConfigMap *SecretOrConfigMap) error {
+	if secretOrConfigMap == nil {
+		return nil
+	}
+	if secretOrConfigMap.Secret != nil {
+		if err := validateSecretKeySelector(secretOrConfigMap.Secret); err != nil {
+			return err
+		}
+		if secretOrConfigMap.ConfigMap != nil {
+			return errors.New("SecretOrConfigMap fields are mutually exclusive")
+		}
+	}
+	return nil
+}
+
+func validateSecretKeySelector(secretKeySelector *corev1.SecretKeySelector) error {
+	if secretKeySelector == nil {
+		return nil
+	}
+	if secretKeySelector.LocalObjectReference.Name == "" {
+		return errors.New("missing secret key selector name")
+	}
+	return nil
 }
 
 // OperatorConfigList is a list of OperatorConfigs.
