@@ -45,8 +45,11 @@ func main() {
 		// management APIs, e.g.
 		// https://prometheus.io/docs/prometheus/latest/management_api/
 		// https://prometheus.io/docs/alerting/latest/management_api/
-		reloadURLStr  = flag.String("reload-url", "http://127.0.0.1:19090/-/reload", "reload endpoint triggers a reload of the configuration file")
-		readyURLStr   = flag.String("ready-url", "http://127.0.0.1:19090/-/ready", "ready endpoint returns a 200 when ready to serve traffic")
+		reloadURLStr                      = flag.String("reload-url", "http://127.0.0.1:19090/-/reload", "reload endpoint of the configuration target that triggers a reload of the configuration file")
+		readyURLStr                       = flag.String("ready-url", "http://127.0.0.1:19090/-/ready", "ready endpoint of the configuration target that returns a 200 when ready to serve traffic. If set, the config-reloader will probe it on startup")
+		readyProbingInterval              = flag.Duration("ready-startup-probing-interval", 1*time.Second, "how often to poll ready endpoint during startup")
+		readyProbingNoConnectionThreshold = flag.Int("ready-startup-probing-no-conn-threshold", 5, "how many times ready endpoint can fail due to no connection failure. This can happen if the config-reloader starts faster than the config target endpoint readiness server.")
+
 		listenAddress = flag.String("listen-address", ":19091", "address on which to expose metrics")
 	)
 	flag.Var(&watchedDirs, "watched-dir", "directory to watch for file changes (for rule and secret files, may be repeated)")
@@ -87,8 +90,13 @@ func main() {
 		level.Error(logger).Log("msg", "creating request", "err", err)
 		os.Exit(1)
 	}
-	ticker := time.NewTicker(500 * time.Millisecond)
-	done := make(chan bool)
+
+	var (
+		ticker                       = time.NewTicker(*readyProbingInterval)
+		acceptableNoConnectionErrors = *readyProbingNoConnectionThreshold
+		done                         = make(chan bool)
+	)
+
 	go func() {
 		//nolint:errcheck
 		level.Info(logger).Log("msg", "ensure ready-url is healthy")
@@ -101,9 +109,13 @@ func main() {
 			case <-ticker.C:
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					//nolint:errcheck
-					level.Error(logger).Log("msg", "polling ready-url", "err", err)
-					os.Exit(1)
+					if acceptableNoConnectionErrors <= 0 {
+						//nolint:errcheck
+						level.Error(logger).Log("msg", "polling ready-url", "err", err, "no-connection-threshold", *readyProbingNoConnectionThreshold)
+						os.Exit(1)
+					}
+					acceptableNoConnectionErrors--
+					continue
 				}
 				if err := resp.Body.Close(); err != nil {
 					//nolint:errcheck
