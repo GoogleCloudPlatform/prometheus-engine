@@ -12,64 +12,40 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package operator
+package v1
 
 import (
-	"context"
 	"strings"
 	"testing"
 
-	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestOperatorConfigValidator(t *testing.T) {
-	v := &operatorConfigValidator{namespace: "foo"}
-
+func TestOperatorConfigValidate(t *testing.T) {
 	cases := []struct {
 		desc string
-		oc   *monitoringv1.OperatorConfig
+		oc   *OperatorConfig
 		err  string
 	}{
 		{
 			desc: "valid",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
 			},
-		},
-		{
-			desc: "bad namespace",
-			oc: &monitoringv1.OperatorConfig{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "foo_x",
-					Name:      "config",
-				},
-			},
-			err: `OperatorConfig must be in namespace "foo" with name "config"`,
-		},
-		{
-			desc: "bad name",
-			oc: &monitoringv1.OperatorConfig{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "foo",
-					Name:      "config_x",
-				},
-			},
-			err: `OperatorConfig must be in namespace "foo" with name "config"`,
 		},
 		{
 			desc: "bad scrape interval",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Collection: monitoringv1.CollectionSpec{
-					KubeletScraping: &monitoringv1.KubeletScraping{
+				Collection: CollectionSpec{
+					KubeletScraping: &KubeletScraping{
 						Interval: "xyz",
 					},
 				},
@@ -78,13 +54,13 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "missing scrape interval",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Collection: monitoringv1.CollectionSpec{
-					KubeletScraping: &monitoringv1.KubeletScraping{
+				Collection: CollectionSpec{
+					KubeletScraping: &KubeletScraping{
 						Interval: "",
 					},
 				},
@@ -93,12 +69,12 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "bad generator URL",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
+				Rules: RuleEvaluatorSpec{
 					GeneratorURL: "~:://example.com",
 				},
 			},
@@ -106,12 +82,12 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "missing collection credentials secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Collection: monitoringv1.CollectionSpec{
+				Collection: CollectionSpec{
 					Credentials: &v1.SecretKeySelector{},
 				},
 			},
@@ -119,12 +95,12 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "collection credentials secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Collection: monitoringv1.CollectionSpec{
+				Collection: CollectionSpec{
 					Credentials: &v1.SecretKeySelector{
 						LocalObjectReference: v1.LocalObjectReference{
 							Name: "baz",
@@ -135,12 +111,12 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "missing managed alert manager config secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+				ManagedAlertmanager: &ManagedAlertmanagerSpec{
 					ConfigSecret: &v1.SecretKeySelector{},
 				},
 			},
@@ -148,12 +124,12 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "managed alert manager config secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+				ManagedAlertmanager: &ManagedAlertmanagerSpec{
 					ConfigSecret: &v1.SecretKeySelector{
 						LocalObjectReference: v1.LocalObjectReference{
 							Name: "baz",
@@ -164,12 +140,12 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "missing rule manager credentials secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
+				Rules: RuleEvaluatorSpec{
 					Credentials: &v1.SecretKeySelector{},
 				},
 			},
@@ -177,12 +153,12 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "rule manager credentials secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
+				Rules: RuleEvaluatorSpec{
 					Credentials: &v1.SecretKeySelector{
 						LocalObjectReference: v1.LocalObjectReference{
 							Name: "baz",
@@ -193,17 +169,17 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "missing rule manager authorization credentials secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
-					Alerting: monitoringv1.AlertingSpec{
-						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+				Rules: RuleEvaluatorSpec{
+					Alerting: AlertingSpec{
+						Alertmanagers: []AlertmanagerEndpoints{{
 							Name: "bar",
-							TLS:  &monitoringv1.TLSConfig{},
-							Authorization: &monitoringv1.Authorization{
+							TLS:  &TLSConfig{},
+							Authorization: &Authorization{
 								Credentials: &v1.SecretKeySelector{},
 							},
 						}},
@@ -214,17 +190,17 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "rule manager authorization credentials secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
-					Alerting: monitoringv1.AlertingSpec{
-						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+				Rules: RuleEvaluatorSpec{
+					Alerting: AlertingSpec{
+						Alertmanagers: []AlertmanagerEndpoints{{
 							Name: "bar",
-							TLS:  &monitoringv1.TLSConfig{},
-							Authorization: &monitoringv1.Authorization{
+							TLS:  &TLSConfig{},
+							Authorization: &Authorization{
 								Credentials: &v1.SecretKeySelector{
 									LocalObjectReference: v1.LocalObjectReference{
 										Name: "baz",
@@ -238,16 +214,16 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "missing rule manager TLS secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
-					Alerting: monitoringv1.AlertingSpec{
-						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+				Rules: RuleEvaluatorSpec{
+					Alerting: AlertingSpec{
+						Alertmanagers: []AlertmanagerEndpoints{{
 							Name: "bar",
-							TLS: &monitoringv1.TLSConfig{
+							TLS: &TLSConfig{
 								KeySecret: &v1.SecretKeySelector{},
 							},
 						}},
@@ -258,16 +234,16 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "rule manager TLS secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
-					Alerting: monitoringv1.AlertingSpec{
-						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+				Rules: RuleEvaluatorSpec{
+					Alerting: AlertingSpec{
+						Alertmanagers: []AlertmanagerEndpoints{{
 							Name: "bar",
-							TLS: &monitoringv1.TLSConfig{
+							TLS: &TLSConfig{
 								KeySecret: &v1.SecretKeySelector{
 									LocalObjectReference: v1.LocalObjectReference{
 										Name: "baz",
@@ -281,17 +257,17 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "missing rule manager TLS CA secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
-					Alerting: monitoringv1.AlertingSpec{
-						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+				Rules: RuleEvaluatorSpec{
+					Alerting: AlertingSpec{
+						Alertmanagers: []AlertmanagerEndpoints{{
 							Name: "bar",
-							TLS: &monitoringv1.TLSConfig{
-								CA: &monitoringv1.SecretOrConfigMap{
+							TLS: &TLSConfig{
+								CA: &SecretOrConfigMap{
 									Secret: &v1.SecretKeySelector{},
 								},
 							},
@@ -303,17 +279,17 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "rule manager TLS CA secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
-					Alerting: monitoringv1.AlertingSpec{
-						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+				Rules: RuleEvaluatorSpec{
+					Alerting: AlertingSpec{
+						Alertmanagers: []AlertmanagerEndpoints{{
 							Name: "bar",
-							TLS: &monitoringv1.TLSConfig{
-								CA: &monitoringv1.SecretOrConfigMap{
+							TLS: &TLSConfig{
+								CA: &SecretOrConfigMap{
 									Secret: &v1.SecretKeySelector{
 										LocalObjectReference: v1.LocalObjectReference{
 											Name: "baz",
@@ -328,17 +304,17 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "missing rule manager TLS Cert secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
-					Alerting: monitoringv1.AlertingSpec{
-						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+				Rules: RuleEvaluatorSpec{
+					Alerting: AlertingSpec{
+						Alertmanagers: []AlertmanagerEndpoints{{
 							Name: "bar",
-							TLS: &monitoringv1.TLSConfig{
-								Cert: &monitoringv1.SecretOrConfigMap{
+							TLS: &TLSConfig{
+								Cert: &SecretOrConfigMap{
 									Secret: &v1.SecretKeySelector{},
 								},
 							},
@@ -350,17 +326,17 @@ func TestOperatorConfigValidator(t *testing.T) {
 		},
 		{
 			desc: "rule manager TLS Cert secret key",
-			oc: &monitoringv1.OperatorConfig{
+			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "config",
 				},
-				Rules: monitoringv1.RuleEvaluatorSpec{
-					Alerting: monitoringv1.AlertingSpec{
-						Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+				Rules: RuleEvaluatorSpec{
+					Alerting: AlertingSpec{
+						Alertmanagers: []AlertmanagerEndpoints{{
 							Name: "bar",
-							TLS: &monitoringv1.TLSConfig{
-								Cert: &monitoringv1.SecretOrConfigMap{
+							TLS: &TLSConfig{
+								Cert: &SecretOrConfigMap{
 									Secret: &v1.SecretKeySelector{
 										LocalObjectReference: v1.LocalObjectReference{
 											Name: "baz",
@@ -376,7 +352,7 @@ func TestOperatorConfigValidator(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			_, err := v.ValidateCreate(context.Background(), c.oc)
+			err := c.oc.Validate()
 			if err == nil && c.err == "" {
 				return
 			}
