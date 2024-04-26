@@ -32,9 +32,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
@@ -42,14 +42,14 @@ import (
 
 func TestCollectorPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, clientSet, err := setupCluster(ctx, t)
+	kubeClient, _, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
-	t.Run("collector-deployed", testCollectorDeployed(ctx, clientSet))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 	// Self-scrape podmonitoring.
@@ -78,20 +78,20 @@ func TestCollectorPodMonitoring(t *testing.T) {
 	}
 	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, pm))
 	if !skipGCM {
-		t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, clientSet, "collector-podmon"))
+		t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-podmon"))
 	}
 }
 
 func TestCollectorClusterPodMonitoring(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, clientSet, err := setupCluster(ctx, t)
+	kubeClient, _, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
-	t.Run("collector-running", testCollectorDeployed(ctx, clientSet))
+	t.Run("collector-running", testCollectorDeployed(ctx, kubeClient))
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 	// Self-scrape clusterpodmonitoring.
@@ -119,40 +119,46 @@ func TestCollectorClusterPodMonitoring(t *testing.T) {
 	}
 	t.Run("self-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, kubeClient, cpm))
 	if !skipGCM {
-		t.Run("self-clusterpodmonitoring-gcm", testValidateCollectorUpMetrics(ctx, clientSet, "collector-cmon"))
+		t.Run("self-clusterpodmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-cmon"))
 	}
 }
 
 func TestCollectorKubeletScraping(t *testing.T) {
 	ctx := context.Background()
-	kubeClient, clientSet, err := setupCluster(ctx, t)
+	kubeClient, _, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
-	t.Run("collector-deployed", testCollectorDeployed(ctx, clientSet))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 
 	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, kubeClient))
 	if !skipGCM {
-		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, clientSet))
+		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, kubeClient))
 	}
 }
 
 // testCollectorDeployed does a high-level verification on whether the
 // collector is deployed to the cluster.
-func testCollectorDeployed(ctx context.Context, kubeClient kubernetes.Interface) func(*testing.T) {
+func testCollectorDeployed(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is running")
 
 		// Keep checking the state of the collectors until they're running.
 		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			ds, err := kubeClient.AppsV1().DaemonSets(operator.DefaultOperatorNamespace).Get(ctx, operator.NameCollector, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				return false, nil
-			} else if err != nil {
+			ds := appsv1.DaemonSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      operator.NameCollector,
+					Namespace: operator.DefaultOperatorNamespace,
+				},
+			}
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&ds), &ds); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
 				return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
 			}
 			// At first creation the DaemonSet may appear with 0 desired replicas. This should
@@ -426,7 +432,7 @@ func testEnableKubeletScraping(ctx context.Context, kubeClient client.Client) fu
 
 // testValidateCollectorUpMetrics checks whether the scrape-time up metrics for all collector
 // pods can be queried from GCM.
-func testValidateCollectorUpMetrics(ctx context.Context, kubeClient kubernetes.Interface, job string) func(*testing.T) {
+func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Client, job string) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 
@@ -437,8 +443,11 @@ func testValidateCollectorUpMetrics(ctx context.Context, kubeClient kubernetes.I
 		}
 		defer metricClient.Close()
 
-		pods, err := kubeClient.CoreV1().Pods(operator.DefaultOperatorNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("%s=%s", operator.LabelAppName, operator.NameCollector),
+		pods := corev1.PodList{}
+		err = kubeClient.List(ctx, &pods, client.InNamespace(operator.DefaultPublicNamespace), &client.ListOptions{
+			LabelSelector: labels.SelectorFromSet(map[string]string{
+				operator.LabelAppName: operator.NameCollector,
+			}),
 		})
 		if err != nil {
 			t.Fatalf("list collector pods: %s", err)
@@ -502,7 +511,7 @@ func testValidateCollectorUpMetrics(ctx context.Context, kubeClient kubernetes.I
 }
 
 // testCollectorScrapeKubelet verifies that kubelet metric endpoints are successfully scraped.
-func testCollectorScrapeKubelet(ctx context.Context, kubeClient kubernetes.Interface) func(*testing.T) {
+func testCollectorScrapeKubelet(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 
@@ -513,8 +522,8 @@ func testCollectorScrapeKubelet(ctx context.Context, kubeClient kubernetes.Inter
 		}
 		defer metricClient.Close()
 
-		nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-		if err != nil {
+		nodes := corev1.NodeList{}
+		if err := kubeClient.List(ctx, &nodes); err != nil {
 			t.Fatalf("list nodes: %s", err)
 		}
 

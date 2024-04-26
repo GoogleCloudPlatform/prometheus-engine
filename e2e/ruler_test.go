@@ -42,7 +42,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/cert"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -70,17 +69,12 @@ func TestRuleEvaluatorGzipCompression(t *testing.T) {
 
 func testRuleEvaluator(t *testing.T, features monitoringv1.OperatorFeatures) {
 	ctx := contextWithDeadline(t)
-	kubeClient, clientSet, err := setupCluster(ctx, t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
-	restConfig, err := newRestConfig()
-	if err != nil {
-		t.Fatalf("error creating rest config: %s", err)
-	}
-
-	t.Run("rule-evaluator-deployed", testRuleEvaluatorDeployed(ctx, clientSet))
+	t.Run("rule-evaluator-deployed", testRuleEvaluatorDeployed(ctx, kubeClient))
 	t.Run("rule-evaluator-operatorconfig", testRuleEvaluatorOperatorConfig(ctx, kubeClient, features))
 	// TODO(pintohutch): testing the generated secrets and config can be
 	// brittle as the checks need to be precise and could break if mechanics or
@@ -88,23 +82,29 @@ func testRuleEvaluator(t *testing.T, features monitoringv1.OperatorFeatures) {
 	// Ideally this is replaced by a true e2e test that deploys a custom
 	// secured alertmanager and successfully sends alerts to it.
 	t.Run("rule-evaluator-secrets", testRuleEvaluatorSecrets(ctx, kubeClient))
-	t.Run("rule-evaluator-configuration", testRuleEvaluatorConfiguration(ctx, clientSet))
+	t.Run("rule-evaluator-configuration", testRuleEvaluatorConfiguration(ctx, kubeClient))
 
-	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, clientSet, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, features))
+	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, features))
 	if !skipGCM {
 		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx))
 	}
 }
 
-func testRuleEvaluatorDeployed(ctx context.Context, kubeClient kubernetes.Interface) func(*testing.T) {
+func testRuleEvaluatorDeployed(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking rule-evaluator is running")
 
 		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			deploy, err := kubeClient.AppsV1().Deployments(operator.DefaultOperatorNamespace).Get(ctx, operator.NameRuleEvaluator, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				return false, nil
-			} else if err != nil {
+			deploy := appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      operator.NameRuleEvaluator,
+					Namespace: operator.DefaultOperatorNamespace,
+				},
+			}
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&deploy), &deploy); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
 				return false, fmt.Errorf("getting rule-evaluator Deployment failed: %w", err)
 			}
 			if *deploy.Spec.Replicas != deploy.Status.ReadyReplicas {
@@ -272,7 +272,7 @@ func testRuleEvaluatorSecrets(ctx context.Context, kubeClient client.Client) fun
 	}
 }
 
-func testRuleEvaluatorConfiguration(ctx context.Context, kubeClient kubernetes.Interface) func(*testing.T) {
+func testRuleEvaluatorConfiguration(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		replace := func(s string) string {
 			return strings.NewReplacer(
@@ -332,12 +332,19 @@ rule_files:
 		}
 
 		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			cm, err := kubeClient.CoreV1().ConfigMaps(operator.DefaultOperatorNamespace).Get(ctx, operator.NameRuleEvaluator, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				return false, nil
-			} else if err != nil {
+			cm := corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      operator.NameRuleEvaluator,
+					Namespace: operator.DefaultOperatorNamespace,
+				},
+			}
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&cm), &cm); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
 				return false, fmt.Errorf("get configmap: %w", err)
 			}
+			var err error
 			if diff := cmp.Diff(want, cm.Data); diff != "" {
 				err = fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 				t.Logf("diff for rules configmap: %s", err)
@@ -350,10 +357,10 @@ rule_files:
 	}
 }
 
-func testCreateRules(ctx context.Context,
+func testCreateRules(
+	ctx context.Context,
 	restConfig *rest.Config,
 	kubeClient client.Client,
-	clientSet kubernetes.Interface,
 	systemNamespace,
 	userNamespace string,
 	features monitoringv1.OperatorFeatures,
@@ -552,7 +559,7 @@ func testCreateRules(ctx context.Context,
 		if err := kube.WaitForDeploymentReady(ctx, kubeClient, systemNamespace, operator.NameRuleEvaluator); err != nil {
 			t.Errorf("rule-evaluator is not ready: %s", err)
 			out := strings.Builder{}
-			if err := kube.Debug(context.Background(), clientSet, kubeClient, &appsv1.Deployment{
+			if err := kube.Debug(ctx, restConfig, kubeClient, &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: systemNamespace,
 					Name:      operator.NameRuleEvaluator,
@@ -580,7 +587,7 @@ func testCreateRules(ctx context.Context,
 			t.Fatalf("failed waiting for collectors to be updated: %s", err)
 		}
 
-		logs, err := kube.PodLogs(ctx, clientSet, pod.Namespace, pod.Name, configReloaderContainerName)
+		logs, err := kube.PodLogs(ctx, restConfig, pod.Namespace, pod.Name, configReloaderContainerName)
 		if err != nil {
 			t.Fatalf("unable to fetch rule-evaluator config-reloader logs: %s", err)
 		}

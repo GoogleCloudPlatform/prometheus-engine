@@ -31,7 +31,6 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -75,14 +74,9 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func setupCluster(ctx context.Context, t testing.TB) (client.Client, kubernetes.Interface, error) {
+func setupCluster(ctx context.Context, t testing.TB) (client.Client, *rest.Config, error) {
 	t.Log(">>> deploying static resources")
 	restConfig, err := newRestConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	clientSet, err := newClientSet(restConfig)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -105,7 +99,7 @@ func setupCluster(ctx context.Context, t testing.TB) (client.Client, kubernetes.
 		return nil, nil, err
 	}
 	t.Log(">>> operator started successfully")
-	return kubeClient, clientSet, nil
+	return kubeClient, restConfig, nil
 }
 
 func setRESTConfigDefaults(restConfig *rest.Config) error {
@@ -135,15 +129,6 @@ func newRestConfig() (*rest.Config, error) {
 		return nil, err
 	}
 	return restConfig, nil
-}
-
-func newClientSet(restConfig *rest.Config) (kubernetes.Interface, error) {
-	kubeClient, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return kubeClient, nil
 }
 
 func newKubeClient(restConfig *rest.Config) (client.Client, error) {
