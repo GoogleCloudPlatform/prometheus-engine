@@ -13,7 +13,7 @@
 # limitations under the License.
 
 apiVersion: v2
-name: operator
-description: Google Managed Service for Prometheus (GMP) Operator
+name: datasource-syncer
+description: CLI for cron jobs that syncs GMP settings to Grafana's Prometheus DataSource Type.
 type: application
 version: 0.1.0

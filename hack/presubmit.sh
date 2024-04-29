@@ -84,8 +84,7 @@ update_crdgen() {
   which controller-gen || go install github.com/TheSpiritXIII/controller-tools/cmd/controller-gen@v0.14.1-gmp
 
   API_DIR=${REPO_ROOT}/pkg/operator/apis/...
-
-  controller-gen crd paths=./$API_DIR output:crd:dir=$CRD_DIR
+  controller-gen crd paths=./${API_DIR} output:crd:dir=${CRD_DIR}
 
   CRD_YAMLS=$(find ${CRD_DIR} -iname '*.yaml' | sort)
   for i in $CRD_YAMLS; do
@@ -95,7 +94,7 @@ update_crdgen() {
     echo -e "$(cat ${REPO_ROOT}/hack/boilerplate.txt)\n$(cat $i)" > $i
   done
 
-  combine $CRD_DIR ${REPO_ROOT}/manifests/setup.yaml
+  combine ${CRD_DIR} ${REPO_ROOT}/manifests/setup.yaml
 }
 
 update_docgen() {
@@ -111,10 +110,19 @@ update_docgen() {
 update_manifests() {
   echo ">>> regenerating example yamls"
 
-  combine $CRD_DIR ${REPO_ROOT}/manifests/setup.yaml
-  ${HELM} template "${REPO_ROOT}/charts/operator" > "${REPO_ROOT}/manifests/operator.yaml"
-  ${HELM} template "${REPO_ROOT}/charts/rule-evaluator" > "${REPO_ROOT}/manifests/rule-evaluator.yaml"
-  ${ADDLICENSE} ${REPO_ROOT}/manifests/*.yaml
+  combine ${CRD_DIR} "${REPO_ROOT}/manifests/setup.yaml"
+  ${HELM} template "${REPO_ROOT}/charts/operator" \
+    -f "${REPO_ROOT}/charts/values.global.yaml" \
+     > "${REPO_ROOT}/manifests/operator.yaml"
+  ${HELM} template "${REPO_ROOT}/charts/rule-evaluator" \
+   -f "${REPO_ROOT}/charts/values.global.yaml" \
+    > "${REPO_ROOT}/manifests/rule-evaluator.yaml"
+  # TODO(bwplotka): Unify output paths (has to be synced with GCP docs).
+  ${HELM} template "${REPO_ROOT}/charts/datasource-syncer" \
+     -f "${REPO_ROOT}/charts/values.global.yaml" \
+      > "${REPO_ROOT}/cmd/datasource-syncer/datasource-syncer.yaml"
+
+  ${ADDLICENSE} ${REPO_ROOT}/manifests/*.yaml "${REPO_ROOT}/cmd/datasource-syncer/datasource-syncer.yaml"
 }
 
 run_tests() {

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 ---
-# Source: prometheus-engine/templates/priority-class.yaml
+# Source: operator/templates/priorityclass.yaml
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
@@ -23,33 +23,33 @@ metadata:
 value: 1000000000
 description: Used for GMP collector pods.
 ---
-# Source: prometheus-engine/templates/namespace.yaml
+# Source: operator/templates/namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
   name: gmp-system
 ---
-# Source: prometheus-engine/templates/namespace.yaml
+# Source: operator/templates/namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
   name: gmp-public
 ---
-# Source: prometheus-engine/templates/service-account.yaml
+# Source: operator/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: collector
   namespace: gmp-system
 ---
-# Source: prometheus-engine/templates/service-account.yaml
+# Source: operator/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: operator
   namespace: gmp-system
 ---
-# Source: prometheus-engine/templates/role.yaml
+# Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -70,7 +70,7 @@ rules:
 - nonResourceURLs: ["/metrics"]
   verbs: ["get"]
 ---
-# Source: prometheus-engine/templates/role.yaml
+# Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -100,7 +100,7 @@ rules:
   apiGroups: ["apps"]
   verbs: ["get", "list", "watch"]
 ---
-# Source: prometheus-engine/templates/role.yaml
+# Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -124,7 +124,7 @@ rules:
   - gmp-operator
   verbs: ["delete"]
 ---
-# Source: prometheus-engine/templates/rolebinding.yaml
+# Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -138,7 +138,7 @@ subjects:
   namespace: gmp-system
   kind: ServiceAccount
 ---
-# Source: prometheus-engine/templates/rolebinding.yaml
+# Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -152,7 +152,7 @@ subjects:
   namespace: gmp-system
   kind: ServiceAccount
 ---
-# Source: prometheus-engine/templates/rolebinding.yaml
+# Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -166,7 +166,7 @@ subjects:
   namespace: gmp-system
   kind: ServiceAccount
 ---
-# Source: prometheus-engine/templates/role.yaml
+# Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -220,7 +220,7 @@ rules:
   resourceNames: ["alertmanager"]
   verbs: ["get", "patch", "update"]
 ---
-# Source: prometheus-engine/templates/role.yaml
+# Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -236,7 +236,7 @@ rules:
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "list", "watch"]
 ---
-# Source: prometheus-engine/templates/rolebinding.yaml
+# Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -251,7 +251,7 @@ subjects:
   namespace: gmp-system
   kind: ServiceAccount
 ---
-# Source: prometheus-engine/templates/rolebinding.yaml
+# Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -265,7 +265,7 @@ subjects:
 - name: operator
   kind: ServiceAccount
 ---
-# Source: prometheus-engine/templates/alertmanager.yaml
+# Source: operator/templates/alertmanager.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -281,7 +281,7 @@ spec:
     targetPort: 9093
   clusterIP: None
 ---
-# Source: prometheus-engine/templates/service.yaml
+# Source: operator/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -305,7 +305,7 @@ spec:
     port: 443
     targetPort: web
 ---
-# Source: prometheus-engine/templates/collector.yaml
+# Source: operator/templates/collector.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -481,7 +481,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
 ---
-# Source: prometheus-engine/templates/deployment.yaml
+# Source: operator/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -571,7 +571,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
 ---
-# Source: prometheus-engine/templates/rule-evaluator.yaml
+# Source: operator/templates/rule-evaluator.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -740,7 +740,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
 ---
-# Source: prometheus-engine/templates/alertmanager.yaml
+# Source: operator/templates/alertmanager.yaml
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -887,7 +887,7 @@ spec:
           type: RuntimeDefault
   serviceName: alertmanager
 ---
-# Source: prometheus-engine/templates/mutatingwebhookconfiguration.yaml
+# Source: operator/templates/mutatingwebhookconfiguration.yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
@@ -938,14 +938,14 @@ webhooks:
     - UPDATE
   sideEffects: None
 ---
-# Source: prometheus-engine/templates/operatorconfig.yaml
+# Source: operator/templates/operatorconfig.yaml
 apiVersion: monitoring.googleapis.com/v1
 kind: OperatorConfig
 metadata:
   name: config
   namespace: gmp-public
 ---
-# Source: prometheus-engine/templates/validatingwebhookconfiguration.yaml
+# Source: operator/templates/validatingwebhookconfiguration.yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:

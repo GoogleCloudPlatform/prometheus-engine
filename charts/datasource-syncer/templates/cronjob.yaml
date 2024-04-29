@@ -1,41 +1,18 @@
-# Copyright 2024 Google LLC
+{{- /*
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
----
-# Source: datasource-syncer/templates/job.yaml
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: datasource-syncer-init
-spec:
-  ttlSecondsAfterFinished: 60
-  template:
-    metadata:
-      labels:
-        app: datasource-syncer-init
-    spec:
-      containers:
-      - name: datasource-syncer-init
-        image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.10.0-gke.3
-        args:
-        - "--datasource-uids=$DATASOURCE_UIDS"
-        - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
-        - "--grafana-api-token=$GRAFANA_API_TOKEN"
-        - "--project-id=$PROJECT_ID"
-      restartPolicy: Never
----
-# Source: datasource-syncer/templates/cronjob.yaml
+*/}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -51,7 +28,7 @@ spec:
         spec:
           containers:
           - name: datasource-syncer
-            image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.10.0-gke.3
+            image: {{.Values.images.datasourceSyncer.image}}:{{.Values.images.datasourceSyncer.tag}}
             args:
             - "--datasource-uids=$DATASOURCE_UIDS"
             - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"

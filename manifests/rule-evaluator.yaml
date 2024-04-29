@@ -13,7 +13,7 @@
 # limitations under the License.
 
 ---
-# Source: rule-evaluator/templates/service-account.yaml
+# Source: rule-evaluator/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
