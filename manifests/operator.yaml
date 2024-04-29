@@ -331,7 +331,7 @@ spec:
       labels:
         app: managed-prometheus-collector
         app.kubernetes.io/name: collector
-        app.kubernetes.io/version: 0.12.0
+        app.kubernetes.io/version: 0.13.0
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -393,7 +393,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.45.3-gmp.1-gke.0
+        image: gke.gcr.io/prometheus-engine/prometheus@sha256:7473d52f4a3e563e6377f8a6183091f25192b1e0705dd0933903e800bd69b7b2
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage
@@ -401,6 +401,13 @@ spec:
         - --enable-feature=google-kubernetes-secret-provider
         - --storage.tsdb.path=/prometheus/data
         - --storage.tsdb.no-lockfile
+        # Special Google flag for force deleting all data on start. We use ephemeral storage in
+        # this manifest, but there are cases were container restart still reuses, potentially
+        # bad data (corrupted, with high cardinality causing OOMs or slow startups).
+        # Force deleting, so container restart is consistent with pod restart.
+        # NOTE: Data is likely already sent GCM, plus GCM export does not use that
+        # data on disk (WAL).
+        - --gmp.storage.delete-data-on-start
         # Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
         # the containers memory usage. We could lower it further if this becomes problematic, but
         # it the window for local data is quite convenient for debugging.
@@ -520,7 +527,7 @@ spec:
         app.kubernetes.io/component: operator
         app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/part-of: gmp
-        app.kubernetes.io/version: 0.12.0
+        app.kubernetes.io/version: 0.13.0
     spec:
       serviceAccountName: operator
       automountServiceAccountToken: true
@@ -621,7 +628,7 @@ spec:
       labels:
         app.kubernetes.io/name: rule-evaluator
         app: managed-prometheus-rule-evaluator
-        app.kubernetes.io/version: 0.12.0
+        app.kubernetes.io/version: 0.13.0
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -794,7 +801,7 @@ spec:
       labels:
         app: managed-prometheus-alertmanager
         app.kubernetes.io/name: alertmanager
-        app.kubernetes.io/version: 0.12.0
+        app.kubernetes.io/version: 0.13.0
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
