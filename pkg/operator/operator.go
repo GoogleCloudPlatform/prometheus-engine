@@ -391,6 +391,10 @@ func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
 		defaultPath(monitoringv1.ClusterPodMonitoringResource()),
 		admission.DefaultingWebhookFor(o.manager.GetScheme(), &monitoringv1.ClusterPodMonitoring{}),
 	)
+	s.Register(
+		defaultPath(monitoringv1.OperatorConfigResource()),
+		admission.WithCustomDefaulter(o.manager.GetScheme(), &monitoringv1.OperatorConfig{}, &operatorConfigDefaulter{o.opts}),
+	)
 	return nil
 }
 

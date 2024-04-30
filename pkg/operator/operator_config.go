@@ -279,6 +279,8 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 		secretData[p] = b
 	}
 
+	_, _, _ = resolveLabels(r.opts, spec.ExternalLabels)
+
 	cfg := &promconfig.Config{
 		GlobalConfig: promconfig.GlobalConfig{
 			ExternalLabels: labels.FromMap(spec.ExternalLabels),
@@ -459,13 +461,8 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 		return err
 	}
 
-	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+	var projectID, _, _ = resolveLabels(r.opts, spec.ExternalLabels)
 
-	flags := []string{
-		fmt.Sprintf("--export.label.project-id=%q", projectID),
-		fmt.Sprintf("--export.label.location=%q", location),
-		fmt.Sprintf("--export.label.cluster=%q", cluster),
-	}
 	// If no explicit project ID is set, use the one provided to the operator.
 	// On GKE the rule-evaluator can also auto-detect the cluster's project
 	// but this won't work in other Kubernetes environments.
@@ -473,7 +470,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 	if spec.QueryProjectID != "" {
 		queryProjectID = spec.QueryProjectID
 	}
-	flags = append(flags, fmt.Sprintf("--query.project-id=%q", queryProjectID))
+	flags := []string{fmt.Sprintf("--query.project-id=%q", queryProjectID)}
 
 	if spec.Credentials != nil {
 		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
@@ -849,4 +846,22 @@ func (v *operatorConfigValidator) ValidateUpdate(ctx context.Context, _, o runti
 
 func (v *operatorConfigValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
+}
+
+type operatorConfigDefaulter struct {
+	opts Options
+}
+
+func (d *operatorConfigDefaulter) Default(_ context.Context, o runtime.Object) error {
+	oc := o.(*monitoringv1.OperatorConfig)
+
+	// Upsert projectID, location, and cluster to external labels.
+	// If not present in external labels, use the values passed to the operator.
+	// If present in external labels, this is effectively a no-op.
+	// Do this for both collection and rule-evaluator configuration.
+	_, _, _ = resolveLabels(d.opts, oc.Collection.ExternalLabels)
+
+	_, _, _ = resolveLabels(d.opts, oc.Rules.ExternalLabels)
+
+	return nil
 }
