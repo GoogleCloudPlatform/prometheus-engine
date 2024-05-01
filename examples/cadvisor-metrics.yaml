@@ -22,7 +22,7 @@ spec:
     interval: 30s
     scheme: https
     metricRelabeling:
-    # Ensure any changes made to the metrics are also reflected in https://cloud.google.com/kubernetes-engine/docs/how-to/cadvisor-kubelet-metrics#cadvisor-metrics
+    # Ensure any changes made to the metrics are also reflected in https://cloud.google.com/kubernetes-engine/docs/how-to/cadvisor-kubelet-metrics#cadvisor-metrics.
     - sourceLabels: [__name__]
       regex: >
         container_(cpu_cfs_periods_total|cpu_cfs_throttled_periods_total|cpu_usage_seconds_total|memory_rss|memory_working_set_bytes)|
