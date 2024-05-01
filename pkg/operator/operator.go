@@ -415,8 +415,10 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 	if err := setupOperatorConfigControllers(o); err != nil {
 		return fmt.Errorf("setup rule-evaluator controllers: %w", err)
 	}
-	if err := setupScalingController(o); err != nil {
-		return fmt.Errorf("setup scaling controllers: %w", err)
+	if o.vpaAvailable {
+		if err := setupScalingController(o); err != nil {
+			return fmt.Errorf("setup scaling controllers: %w", err)
+		}
 	}
 	if err := setupTargetStatusPoller(o, registry, o.opts.CollectorHTTPClient); err != nil {
 		return fmt.Errorf("setup target status processor: %w", err)
