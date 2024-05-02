@@ -17,15 +17,12 @@ package operator
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
@@ -42,7 +39,6 @@ import (
 	autoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -52,7 +48,6 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
@@ -333,67 +328,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	return op, nil
 }
 
-// setupAdmissionWebhooks configures validating webhooks for the operator-managed
-// custom resources and registers handlers with the webhook server.
-func (o *Operator) setupAdmissionWebhooks(ctx context.Context) error {
-	// Write provided cert files.
-	caBundle, err := o.ensureCerts(o.manager.GetWebhookServer().(*webhook.DefaultServer).Options.CertDir)
-	if err != nil {
-		return err
-	}
-
-	if len(caBundle) > 0 {
-		// Keep setting the caBundle, if "ensureCerts" gives us those, in the expected webhook configurations.
-		// In case of not enough permissions we will keep trying with error message.
-		go o.continuouslySetCABundle(ctx, caBundle)
-	}
-
-	s := o.manager.GetWebhookServer()
-
-	// Validating webhooks.
-	s.Register(
-		validatePath(monitoringv1.PodMonitoringResource()),
-		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.PodMonitoring{}),
-	)
-	s.Register(
-		validatePath(monitoringv1.ClusterPodMonitoringResource()),
-		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.ClusterPodMonitoring{}),
-	)
-	s.Register(
-		validatePath(monitoringv1.ClusterNodeMonitoringResource()),
-		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.ClusterNodeMonitoring{}),
-	)
-	s.Register(
-		validatePath(monitoringv1.OperatorConfigResource()),
-		admission.WithCustomValidator(o.manager.GetScheme(), &monitoringv1.OperatorConfig{}, &operatorConfigValidator{
-			namespace:    o.opts.PublicNamespace,
-			vpaAvailable: o.vpaAvailable,
-		}),
-	)
-	s.Register(
-		validatePath(monitoringv1.RulesResource()),
-		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.Rules{}),
-	)
-	s.Register(
-		validatePath(monitoringv1.ClusterRulesResource()),
-		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.ClusterRules{}),
-	)
-	s.Register(
-		validatePath(monitoringv1.GlobalRulesResource()),
-		admission.ValidatingWebhookFor(o.manager.GetScheme(), &monitoringv1.GlobalRules{}),
-	)
-	// Defaulting webhooks.
-	s.Register(
-		defaultPath(monitoringv1.PodMonitoringResource()),
-		admission.DefaultingWebhookFor(o.manager.GetScheme(), &monitoringv1.PodMonitoring{}),
-	)
-	s.Register(
-		defaultPath(monitoringv1.ClusterPodMonitoringResource()),
-		admission.DefaultingWebhookFor(o.manager.GetScheme(), &monitoringv1.ClusterPodMonitoring{}),
-	)
-	return nil
-}
-
 // Run the reconciliation loop of the operator.
 // The passed owner references are set on cluster-wide resources created by the
 // operator.
@@ -403,7 +337,7 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 	if err := o.cleanupOldResources(ctx); err != nil {
 		return fmt.Errorf("cleanup old resources: %w", err)
 	}
-	if err := o.setupAdmissionWebhooks(ctx); err != nil {
+	if err := setupAdmissionWebhooks(ctx, o.logger, o.client, o.manager.GetWebhookServer().(*webhook.DefaultServer), &o.opts, o.vpaAvailable); err != nil {
 		return fmt.Errorf("init admission resources: %w", err)
 	}
 	if err := setupCollectionControllers(o); err != nil {
@@ -482,54 +416,6 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 	return nil
 }
 
-// ensureCerts writes the cert/key files to the specified directory.
-// If cert/key are not available, generate them.
-func (o *Operator) ensureCerts(dir string) ([]byte, error) {
-	var (
-		crt, key, caData []byte
-		err              error
-	)
-	if o.opts.TLSKey != "" && o.opts.TLSCert != "" {
-		crt, err = base64.StdEncoding.DecodeString(o.opts.TLSCert)
-		if err != nil {
-			return nil, fmt.Errorf("decoding TLS certificate: %w", err)
-		}
-		key, err = base64.StdEncoding.DecodeString(o.opts.TLSKey)
-		if err != nil {
-			return nil, fmt.Errorf("decoding TLS key: %w", err)
-		}
-		if o.opts.CACert != "" {
-			caData, err = base64.StdEncoding.DecodeString(o.opts.CACert)
-			if err != nil {
-				return nil, fmt.Errorf("decoding certificate authority: %w", err)
-			}
-		}
-	} else if o.opts.TLSKey == "" && o.opts.TLSCert == "" && o.opts.CACert == "" {
-		// Generate a self-signed pair if none was explicitly provided. It will be valid
-		// for 1 year.
-		// TODO(freinartz): re-generate at runtime and update the ValidatingWebhookConfiguration
-		// at runtime whenever the files change.
-		fqdn := fmt.Sprintf("%s.%s.svc", NameOperator, o.opts.OperatorNamespace)
-
-		crt, key, err = cert.GenerateSelfSignedCertKey(fqdn, nil, nil)
-		if err != nil {
-			return nil, fmt.Errorf("generate self-signed TLS key pair: %w", err)
-		}
-		// Use crt as the ca in the self-sign case.
-		caData = crt
-	} else {
-		return nil, errors.New("flags key-base64 and cert-base64 must both be set")
-	}
-	// Create cert/key files.
-	if err := os.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
-		return nil, fmt.Errorf("create cert file: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "tls.key"), key, 0666); err != nil {
-		return nil, fmt.Errorf("create key file: %w", err)
-	}
-	return caData, nil
-}
-
 // namespacedNamePredicate is an event filter predicate that only allows events with
 // a single object.
 type namespacedNamePredicate struct {
@@ -567,66 +453,4 @@ func (e enqueueConst) Delete(_ context.Context, _ event.DeleteEvent, q workqueue
 
 func (e enqueueConst) Generic(_ context.Context, _ event.GenericEvent, q workqueue.RateLimitingInterface) {
 	q.Add(reconcile.Request(e))
-}
-
-func validatePath(gvr metav1.GroupVersionResource) string {
-	return fmt.Sprintf("/validate/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
-}
-
-func defaultPath(gvr metav1.GroupVersionResource) string {
-	return fmt.Sprintf("/default/%s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
-}
-
-func (o *Operator) webhookConfigName() string {
-	return fmt.Sprintf("%s.%s.monitoring.googleapis.com", NameOperator, o.opts.OperatorNamespace)
-}
-
-func (o *Operator) setValidatingWebhookCABundle(ctx context.Context, caBundle []byte) error {
-	var vwc arv1.ValidatingWebhookConfiguration
-	err := o.client.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &vwc)
-	if apierrors.IsNotFound(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	for i := range vwc.Webhooks {
-		vwc.Webhooks[i].ClientConfig.CABundle = caBundle
-	}
-	return o.client.Update(ctx, &vwc)
-}
-
-func (o *Operator) setMutatingWebhookCABundle(ctx context.Context, caBundle []byte) error {
-	var mwc arv1.MutatingWebhookConfiguration
-	err := o.client.Get(ctx, client.ObjectKey{Name: o.webhookConfigName()}, &mwc)
-	if apierrors.IsNotFound(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	for i := range mwc.Webhooks {
-		mwc.Webhooks[i].ClientConfig.CABundle = caBundle
-	}
-	return o.client.Update(ctx, &mwc)
-}
-
-func (o *Operator) continuouslySetCABundle(ctx context.Context, caBundle []byte) {
-	// Initial sleep for the client to initialize before our first calls.
-	// Ideally we could explicitly wait for it.
-	time.Sleep(5 * time.Second)
-
-	for {
-		if err := o.setValidatingWebhookCABundle(ctx, caBundle); err != nil {
-			o.logger.Error(err, "Setting CA bundle for ValidatingWebhookConfiguration failed; retrying in 1m...")
-		}
-		if err := o.setMutatingWebhookCABundle(ctx, caBundle); err != nil {
-			o.logger.Error(err, "Setting CA bundle for MutatingWebhookConfiguration failed; retrying in 1m...")
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Minute):
-		}
-	}
 }

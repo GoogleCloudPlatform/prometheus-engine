@@ -35,14 +35,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // Base resource names which may be used for multiple different resource kinds
@@ -744,29 +742,4 @@ func pathForSelector(namespace string, scm *monitoringv1.SecretOrConfigMap) stri
 		return fmt.Sprintf("%s_%s_%s_%s", "secret", namespace, scm.Secret.Name, scm.Secret.Key)
 	}
 	return ""
-}
-
-type operatorConfigValidator struct {
-	namespace    string
-	vpaAvailable bool
-}
-
-func (v *operatorConfigValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
-	oc := o.(*monitoringv1.OperatorConfig)
-
-	if oc.Namespace != v.namespace || oc.Name != NameOperatorConfig {
-		return nil, fmt.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
-	}
-	if oc.Scaling.VPA.Enabled && !v.vpaAvailable {
-		return nil, fmt.Errorf("vertical pod autoscaling is not available - install vpa support and restart the operator")
-	}
-	return nil, oc.Validate()
-}
-
-func (v *operatorConfigValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
-	return v.ValidateCreate(ctx, o)
-}
-
-func (v *operatorConfigValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
-	return nil, nil
 }
