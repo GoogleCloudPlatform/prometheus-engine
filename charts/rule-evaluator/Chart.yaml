@@ -14,7 +14,6 @@
 
 apiVersion: v2
 name: rule-evaluator
-description: Prometheus Rule Evaluator
+description: Prometheus Rule Evaluator (standalone GMP compatible rule evaluation).
 type: application
 version: 0.1.0
-appVersion: 0.12.0
