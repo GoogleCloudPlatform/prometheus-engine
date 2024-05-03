@@ -34,6 +34,20 @@ spec:
         - "--grafana-api-token=$GRAFANA_API_TOKEN"
         - "--project-id=$PROJECT_ID"
       restartPolicy: Never
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
 ---
 # Source: datasource-syncer/templates/cronjob.yaml
 apiVersion: batch/v1
@@ -58,3 +72,17 @@ spec:
             - "--grafana-api-token=$GRAFANA_API_TOKEN"
             - "--project-id=$PROJECT_ID"
           restartPolicy: Never
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                    - arm64
+                    - amd64
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                    - linux
