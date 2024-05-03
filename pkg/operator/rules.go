@@ -117,6 +117,7 @@ func (r *rulesReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
 
+	// TODO: Check operatorconfig is valid.
 	var projectID, location, cluster = resolveLabels(r.opts, config.Rules.ExternalLabels)
 
 	if err := r.ensureRuleConfigs(ctx, projectID, location, cluster, config.Features.Config.Compression); err != nil {
@@ -238,6 +239,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
 		if err != nil {
 			// TODO(freinartz): update resource condition.
+			// TODO: We need to add some status condition and skip this.
 			logger.Error(err, "converting rules failed", "rules_namespace", rs.Namespace, "rules_name", rs.Name)
 		}
 		filename := fmt.Sprintf("rules__%s__%s.yaml", rs.Namespace, rs.Name)
@@ -254,6 +256,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
 		if err != nil {
 			// TODO(freinartz): update resource condition.
+			// TODO: We need to add some status condition and skip this.
 			logger.Error(err, "converting rules failed", "clusterrules_name", rs.Name)
 		}
 		filename := fmt.Sprintf("clusterrules__%s.yaml", rs.Name)

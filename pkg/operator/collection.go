@@ -170,6 +170,8 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
 
+	// TODO: Ensure operatorconfig is valid.
+
 	if err := r.ensureCollectorSecrets(ctx, &config.Collection); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector secrets: %w", err)
 	}
@@ -408,7 +410,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster, usedSecrets)
 		if err != nil {
+			// TODO: We can skip this if it's already set.
 			msg := "generating scrape config failed for PodMonitoring endpoint"
+			// TODO: We should be saving the condition of the pmon.
 			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
 			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{

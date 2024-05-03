@@ -104,6 +104,7 @@ func (p *PodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
 
+// TODO: Replace this with https://book.kubebuilder.io/reference/markers/crd-validation
 func (p *PodMonitoring) Default() {
 	if p.Spec.TargetLabels.Metadata == nil {
 		md := []string{"pod", "container"}
@@ -176,6 +177,7 @@ func (*ClusterPodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
 
+// TODO: Replace this with https://book.kubebuilder.io/reference/markers/crd-validation
 func (c *ClusterPodMonitoring) Default() {
 	if c.Spec.TargetLabels.Metadata == nil {
 		md := []string{"namespace", "pod", "container"}
@@ -236,6 +238,7 @@ type ClusterPodMonitoringSpec struct {
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
 	// if the scraped pod is controlled by a DaemonSet.
+	// TODO: Add https://book.kubebuilder.io/reference/markers/crd-validation
 	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`

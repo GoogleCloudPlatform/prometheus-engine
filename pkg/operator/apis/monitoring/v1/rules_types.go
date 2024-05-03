@@ -193,4 +193,5 @@ type Rule struct {
 // RulesStatus contains status information for a Rules resource.
 type RulesStatus struct {
 	// TODO: add status information.
+	// TODO: We need to add a status condition.
 }

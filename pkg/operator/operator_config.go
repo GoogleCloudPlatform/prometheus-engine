@@ -210,6 +210,9 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	} else if err != nil {
 		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
+
+	// TODO: Ensure it's valid.
+
 	// Ensure the rule-evaluator config and grab any to-be-mirrored
 	// secret data on the way.
 	secretData, err := r.ensureRuleEvaluatorConfig(ctx, &config.Rules)

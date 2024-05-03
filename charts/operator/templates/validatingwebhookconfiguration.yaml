@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 */}}
+# TODO: Set failurePolicy: Ignore (go/managed-prometheus:0-node-validation)
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
