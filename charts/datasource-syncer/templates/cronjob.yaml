@@ -26,6 +26,20 @@ spec:
           labels:
             app: datasource-syncer
         spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                    - arm64
+                    - amd64
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                    - linux
           containers:
           - name: datasource-syncer
             image: {{.Values.images.datasourceSyncer.image}}:{{.Values.images.datasourceSyncer.tag}}

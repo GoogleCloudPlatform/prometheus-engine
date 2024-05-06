@@ -25,15 +25,6 @@ spec:
       labels:
         app: datasource-syncer-init
     spec:
-      containers:
-      - name: datasource-syncer-init
-        image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.10.0-gke.3
-        args:
-        - "--datasource-uids=$DATASOURCE_UIDS"
-        - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
-        - "--grafana-api-token=$GRAFANA_API_TOKEN"
-        - "--project-id=$PROJECT_ID"
-      restartPolicy: Never
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -48,6 +39,15 @@ spec:
                 operator: In
                 values:
                 - linux
+      containers:
+      - name: datasource-syncer-init
+        image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.10.0-gke.3
+        args:
+        - "--datasource-uids=$DATASOURCE_UIDS"
+        - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
+        - "--grafana-api-token=$GRAFANA_API_TOKEN"
+        - "--project-id=$PROJECT_ID"
+      restartPolicy: Never
 ---
 # Source: datasource-syncer/templates/cronjob.yaml
 apiVersion: batch/v1
@@ -63,15 +63,6 @@ spec:
           labels:
             app: datasource-syncer
         spec:
-          containers:
-          - name: datasource-syncer
-            image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.10.0-gke.3
-            args:
-            - "--datasource-uids=$DATASOURCE_UIDS"
-            - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
-            - "--grafana-api-token=$GRAFANA_API_TOKEN"
-            - "--project-id=$PROJECT_ID"
-          restartPolicy: Never
           affinity:
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
@@ -86,3 +77,12 @@ spec:
                     operator: In
                     values:
                     - linux
+          containers:
+          - name: datasource-syncer
+            image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.10.0-gke.3
+            args:
+            - "--datasource-uids=$DATASOURCE_UIDS"
+            - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
+            - "--grafana-api-token=$GRAFANA_API_TOKEN"
+            - "--project-id=$PROJECT_ID"
+          restartPolicy: Never
