@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: synthetic
+spec:
+  selector:
+    matchLabels:
+      app: synthetic
+  template:
+    metadata:
+      labels:
+        app: synthetic
+    spec:
+      containers:
+      - name: synthetic
+        image: us-west4-docker.pkg.dev/gpe-test-1/bernot/go-synthetic@sha256:ca56517ed83286deaa27e35a83d272329d852ab91ef4d2b07dff73a99393bbe5
+        args:
+        - --histogram-count=2500
+        - --native-histogram-count=2500
+        - --gauge-count=2500
+        - --counter-count=2500
+        - --summary-count=2500
+        ports:
+        - name: metrics
+          containerPort: 8080

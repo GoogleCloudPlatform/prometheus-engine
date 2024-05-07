@@ -1,0 +1,11 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: synthetic
+spec:
+  selector:
+    matchLabels:
+      app: synthetic
+  endpoints:
+  - port: metrics
+    interval: 30s
