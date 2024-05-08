@@ -1,14 +1,36 @@
+# cloud.google.com/go v0.112.0
+## explicit; go 1.19
+cloud.google.com/go
+cloud.google.com/go/civil
+# cloud.google.com/go/aiplatform v1.59.0
+## explicit; go 1.19
+cloud.google.com/go/aiplatform/apiv1beta1
+cloud.google.com/go/aiplatform/apiv1beta1/aiplatformpb
+cloud.google.com/go/aiplatform/internal
 # cloud.google.com/go/compute v1.23.3
 ## explicit; go 1.19
 cloud.google.com/go/compute/internal
 # cloud.google.com/go/compute/metadata v0.2.3
 ## explicit; go 1.19
 cloud.google.com/go/compute/metadata
+# cloud.google.com/go/iam v1.1.6
+## explicit; go 1.19
+cloud.google.com/go/iam/apiv1/iampb
+# cloud.google.com/go/longrunning v0.5.5
+## explicit; go 1.19
+cloud.google.com/go/longrunning
+cloud.google.com/go/longrunning/autogen
+cloud.google.com/go/longrunning/autogen/longrunningpb
 # cloud.google.com/go/monitoring v1.18.0
 ## explicit; go 1.19
 cloud.google.com/go/monitoring/apiv3/v2
 cloud.google.com/go/monitoring/apiv3/v2/monitoringpb
 cloud.google.com/go/monitoring/internal
+# cloud.google.com/go/vertexai v0.7.1
+## explicit; go 1.20
+cloud.google.com/go/vertexai/genai
+cloud.google.com/go/vertexai/internal
+cloud.google.com/go/vertexai/internal/support
 # github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.1
 ## explicit; go 1.18
 github.com/Azure/azure-sdk-for-go/sdk/azcore
@@ -181,6 +203,9 @@ github.com/felixge/httpsnoop
 # github.com/fsnotify/fsnotify v1.7.0
 ## explicit; go 1.17
 github.com/fsnotify/fsnotify
+# github.com/go-chi/chi/v5 v5.0.12
+## explicit; go 1.14
+github.com/go-chi/chi/v5
 # github.com/go-kit/log v0.2.1
 ## explicit; go 1.17
 github.com/go-kit/log
@@ -671,7 +696,7 @@ golang.org/x/tools/internal/imports
 # gomodules.xyz/jsonpatch/v2 v2.4.0
 ## explicit; go 1.20
 gomodules.xyz/jsonpatch/v2
-# google.golang.org/api v0.162.0
+# google.golang.org/api v0.163.0
 ## explicit; go 1.19
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
@@ -699,13 +724,19 @@ google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/urlfetch
 # google.golang.org/genproto v0.0.0-20240125205218-1f4bbc51befe
 ## explicit; go 1.19
+google.golang.org/genproto/googleapis/cloud/location
 google.golang.org/genproto/googleapis/type/calendarperiod
+google.golang.org/genproto/googleapis/type/date
+google.golang.org/genproto/googleapis/type/expr
+google.golang.org/genproto/googleapis/type/interval
+google.golang.org/genproto/googleapis/type/money
 google.golang.org/genproto/internal
 # google.golang.org/genproto/googleapis/api v0.0.0-20240205150955-31a09d347014
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/distribution
+google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
