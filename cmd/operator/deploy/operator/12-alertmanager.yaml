@@ -48,7 +48,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240207.00_p0
         command: ['/bin/bash', '-c', 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  - name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml']
         volumeMounts:
         - name: alertmanager-config
@@ -61,7 +61,7 @@ spec:
           privileged: false
       containers:
       - name: alertmanager
-        image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.2-gke.0
+        image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.3-gke.0
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
@@ -96,7 +96,7 @@ spec:
             - all
           privileged: false
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.10.0-gke.6
         args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
