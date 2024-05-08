@@ -43,7 +43,7 @@ spec:
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/operator:v0.10.0-gke.6
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
