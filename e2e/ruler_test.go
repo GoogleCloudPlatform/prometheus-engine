@@ -173,9 +173,6 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient client.Clie
 				// We're mainly interested in the dynamic flags but checking the entire set including
 				// the static ones is ultimately simpler.
 				wantArgs := []string{
-					fmt.Sprintf("--export.label.project-id=%q", projectID),
-					fmt.Sprintf("--export.label.location=%q", location),
-					fmt.Sprintf("--export.label.cluster=%q", cluster),
 					fmt.Sprintf("--query.project-id=%q", projectID),
 					fmt.Sprintf("--query.generator-url=%q", "http://example.com/"),
 				}
@@ -278,13 +275,19 @@ func testRuleEvaluatorConfiguration(ctx context.Context, kubeClient client.Clien
 			return strings.NewReplacer(
 				"{namespace}", operator.DefaultOperatorNamespace,
 				"{pubNamespace}", operator.DefaultPublicNamespace,
+				"{projectID}", projectID,
+				"{location}", location,
+				"{cluster}", cluster,
 			).Replace(s)
 		}
 
 		want := map[string]string{
 			"config.yaml": replace(`global:
     external_labels:
+        cluster: {cluster}
         external_key: external_val
+        location: {location}
+        project_id: {projectID}
 alerting:
     alertmanagers:
         - follow_redirects: true
