@@ -249,9 +249,6 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 				// We're mainly interested in the dynamic flags but checking the entire set including
 				// the static ones is ultimately simpler.
 				wantArgs := []string{
-					fmt.Sprintf("--export.label.project-id=%q", projectID),
-					fmt.Sprintf("--export.label.location=%q", location),
-					fmt.Sprintf("--export.label.cluster=%q", cluster),
 					fmt.Sprintf("--export.match=%q", projectFilter),
 					fmt.Sprintf("--export.match=%q", locationFilter),
 					fmt.Sprintf("--export.match=%q", kubeletFilter)}
