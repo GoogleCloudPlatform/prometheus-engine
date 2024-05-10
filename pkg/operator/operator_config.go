@@ -202,14 +202,11 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	logger, _ := logr.FromContext(ctx)
 	logger.WithValues("operatorconfig", req.NamespacedName).Info("reconciling operatorconfig")
 
-	config := &monitoringv1.OperatorConfig{}
-
-	// Fetch OperatorConfig.
-	if err := r.client.Get(ctx, req.NamespacedName, config); apierrors.IsNotFound(err) {
-		logger.Info("no operatorconfig created yet")
-	} else if err != nil {
-		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
+	config, err := r.ensureOperatorConfig(ctx, logger, req)
+	if err != nil {
+		return reconcile.Result{}, err
 	}
+
 	// Ensure the rule-evaluator config and grab any to-be-mirrored
 	// secret data on the way.
 	secretData, err := r.ensureRuleEvaluatorConfig(ctx, &config.Rules)
@@ -238,6 +235,37 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	}
 
 	return reconcile.Result{}, nil
+}
+
+// ensureOperatorConfig returns either the defaulted user-defined OperatorConfig, or if it
+// does not exist in the cluster, a default OperatorConfig. If the user-defined
+// OperatorConfig is missing default values, it is updated in the cluster.
+func (r *operatorConfigReconciler) ensureOperatorConfig(ctx context.Context, logger logr.Logger, req reconcile.Request) (*monitoringv1.OperatorConfig, error) {
+	exists := true
+	config := &monitoringv1.OperatorConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: req.Namespace,
+			Name:      req.Name,
+		},
+	}
+	if err := r.client.Get(ctx, req.NamespacedName, config); apierrors.IsNotFound(err) {
+		logger.Info("no operatorconfig created yet")
+		exists = false
+	} else if err != nil {
+		return nil, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
+	}
+	defaulter := &operatorConfigDefaulter{
+		projectID: r.opts.ProjectID,
+		location:  r.opts.Location,
+		cluster:   r.opts.Cluster,
+	}
+	wasUpdated := defaulter.update(config)
+	if exists && wasUpdated {
+		if err := r.client.Update(ctx, config); err != nil {
+			return nil, fmt.Errorf("default operatorconfig: %w", err)
+		}
+	}
+	return config, nil
 }
 
 // ensureRuleEvaluatorConfig reconciles the config for rule-evaluator.
@@ -455,13 +483,8 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 		return err
 	}
 
-	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+	var projectID, _, _ = resolveLabels(r.opts.ProjectID, r.opts.Location, r.opts.Cluster, spec.ExternalLabels)
 
-	flags := []string{
-		fmt.Sprintf("--export.label.project-id=%q", projectID),
-		fmt.Sprintf("--export.label.location=%q", location),
-		fmt.Sprintf("--export.label.cluster=%q", cluster),
-	}
 	// If no explicit project ID is set, use the one provided to the operator.
 	// On GKE the rule-evaluator can also auto-detect the cluster's project
 	// but this won't work in other Kubernetes environments.
@@ -469,7 +492,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 	if spec.QueryProjectID != "" {
 		queryProjectID = spec.QueryProjectID
 	}
-	flags = append(flags, fmt.Sprintf("--query.project-id=%q", queryProjectID))
+	flags := []string{fmt.Sprintf("--query.project-id=%q", queryProjectID)}
 
 	if spec.Credentials != nil {
 		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
