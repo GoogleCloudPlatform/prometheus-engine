@@ -354,6 +354,12 @@ spec:
             drop:
             - all
           privileged: false
+        resources:
+          limits:
+            memory: 6M
+          requests:
+            cpu: 1m
+            memory: 6M
       containers:
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
@@ -634,6 +640,12 @@ spec:
             drop:
             - all
           privileged: false
+        resources:
+          limits:
+            memory: 6M
+          requests:
+            cpu: 1m
+            memory: 6M
       containers:
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
@@ -800,6 +812,12 @@ spec:
             drop:
             - all
           privileged: false
+        resources:
+          limits:
+            memory: 6M
+          requests:
+            cpu: 1m
+            memory: 6M
       containers:
       - name: alertmanager
         image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.2-gke.0

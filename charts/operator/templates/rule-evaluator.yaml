@@ -54,6 +54,7 @@ spec:
             drop:
             - all
           privileged: false
+        resources: {{- toYaml $.Values.resources.bash | nindent 10 }}
       containers:
       - name: config-reloader
         image: {{.Values.images.configReloader.image}}:{{.Values.images.configReloader.tag}}

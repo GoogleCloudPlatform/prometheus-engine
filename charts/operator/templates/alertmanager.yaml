@@ -68,6 +68,7 @@ spec:
             drop:
             - all
           privileged: false
+        resources: {{- toYaml $.Values.resources.bash | nindent 10}}
       containers:
       - name: alertmanager
         image: {{.Values.images.alertmanager.image}}:{{.Values.images.alertmanager.tag}}

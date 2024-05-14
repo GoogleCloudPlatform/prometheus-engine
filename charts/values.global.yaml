@@ -49,11 +49,11 @@ resources:
       memory: 16M
   bash:
     limits:
-      memory: 32M
+      memory: 6M
     requests:
       cpu: 1m
-      memory: 4M
-  collector:
+      memory: 6M
+  prometheus:
     limits:
       memory: 2G
     requests:
