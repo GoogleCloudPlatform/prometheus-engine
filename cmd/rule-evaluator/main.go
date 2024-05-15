@@ -261,14 +261,12 @@ func main() {
 	}
 	{
 		// Storage Processing.
-		ctxStorage, cancelStorage := context.WithCancel(ctx)
 		g.Add(func() error {
-			err = destination.Run(ctxStorage)
+			err = destination.Run()
 			_ = level.Info(logger).Log("msg", "Background processing of storage stopped")
 			return err
 		}, func(error) {
 			_ = level.Info(logger).Log("msg", "Stopping background storage processing...")
-			cancelStorage()
 		})
 	}
 	cwd, err := os.Getwd()

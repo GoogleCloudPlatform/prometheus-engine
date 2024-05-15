@@ -18,14 +18,15 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"math"
 	"os"
 	"os/exec"
+	"reflect"
 	"runtime/debug"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
@@ -41,6 +42,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -107,12 +109,18 @@ var (
 		"See https://www.cloudinfrastructuremap.com/")
 )
 
+type metricServiceClient interface {
+	Close() error
+	CreateTimeSeries(context.Context, *monitoring_pb.CreateTimeSeriesRequest, ...gax.CallOption) error
+}
+
 // Exporter converts Prometheus samples into Cloud Monitoring samples and exports them.
 type Exporter struct {
 	logger log.Logger
+	ctx    context.Context
 	opts   ExporterOpts
 
-	metricClient *monitoring.MetricClient
+	metricClient metricServiceClient
 	seriesCache  *seriesCache
 	shards       []*shard
 
@@ -122,7 +130,7 @@ type Exporter struct {
 
 	// The external labels may be updated asynchronously by configuration changes
 	// and must be locked with mtx.
-	mtx            sync.Mutex
+	mtx            sync.RWMutex
 	externalLabels labels.Labels
 	// A set of metrics for which we defaulted the metadata to untyped and have
 	// issued a warning about that.
@@ -132,6 +140,10 @@ type Exporter struct {
 	// It is checked for on each batch provided to the Export method.
 	// If unset, data is always sent.
 	lease Lease
+
+	// Used to construct a new metric client when options change, or at initialization. It
+	// is exposed as a variable so that unit tests may change the constructor.
+	newMetricClient func(ctx context.Context, opts ExporterOpts) (metricServiceClient, error)
 }
 
 const (
@@ -208,6 +220,7 @@ type ExporterOpts struct {
 	Efficiency EfficiencyOpts
 }
 
+// Default defaults any unset values.
 func (opts *ExporterOpts) Default() {
 	if opts.Efficiency.BatchSize == 0 {
 		opts.Efficiency.BatchSize = BatchSizeMax
@@ -260,10 +273,12 @@ type EfficiencyOpts struct {
 	ShardBufferSize uint
 }
 
-// NopExporter returns an inactive exporter.
+// NopExporter returns a permanently inactive exporter.
 func NopExporter() *Exporter {
 	return &Exporter{
-		opts: ExporterOpts{Disable: true},
+		opts: ExporterOpts{
+			Disable: true,
+		},
 	}
 }
 
@@ -299,7 +314,7 @@ func (alwaysLease) OnLeaderChange(func()) {
 	// We never lose the lease as it's always owned.
 }
 
-func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.MetricClient, error) {
+func defaultNewMetricClient(ctx context.Context, opts ExporterOpts) (metricServiceClient, error) {
 	version, err := Version()
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch user agent version: %w", err)
@@ -316,11 +331,19 @@ func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.Metric
 	if opts.Endpoint != "" {
 		clientOpts = append(clientOpts, option.WithEndpoint(opts.Endpoint))
 	}
-	if opts.DisableAuth {
+	// Disable auth when the exporter is disabled because we don't want a panic when default
+	// credentials are not found.
+	if opts.DisableAuth || opts.Disable {
 		clientOpts = append(clientOpts,
 			option.WithoutAuthentication(),
 			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		)
+	} else if opts.CredentialsFile == "" && len(opts.CredentialsFromJSON) == 0 {
+		// If no credentials are found, gRPC panics so we check manually.
+		_, err := google.FindDefaultCredentials(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if opts.CredentialsFile != "" {
 		clientOpts = append(clientOpts, option.WithCredentialsFile(opts.CredentialsFile))
@@ -379,20 +402,24 @@ func New(ctx context.Context, logger log.Logger, reg prometheus.Registerer, opts
 		lease = NopLease()
 	}
 
-	metricClient, err := newMetricClient(ctx, opts)
+	metricClient, err := defaultNewMetricClient(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("create metric client: %w", err)
 	}
+
 	e := &Exporter{
 		logger:               logger,
+		ctx:                  ctx,
 		opts:                 opts,
 		metricClient:         metricClient,
+		seriesCache:          newSeriesCache(logger, reg, opts.MetricTypePrefix, opts.Matchers),
+		externalLabels:       createLabelSet(&config.Config{}, &opts),
+		newMetricClient:      defaultNewMetricClient,
 		nextc:                make(chan struct{}, 1),
 		shards:               make([]*shard, opts.Efficiency.ShardCount),
 		warnedUntypedMetrics: map[string]struct{}{},
 		lease:                lease,
 	}
-	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, opts.Matchers)
 
 	// Whenever the lease is lost, clear the series cache so we don't start off of out-of-range
 	// reset timestamps when we gain the lease again.
@@ -416,54 +443,88 @@ const (
 )
 
 // ApplyConfig updates the exporter state to the given configuration.
-// Must be called at least once before Export() can be used.
-func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
-	// If project_id, location, or cluster were set through the external_labels in the config file,
-	// these values take precedence. If they are unset, the flag value, which defaults to an
-	// environment-specific value on GCE/GKE, is used.
-	builder := labels.NewBuilder(cfg.GlobalConfig.ExternalLabels)
+func (e *Exporter) ApplyConfig(cfg *config.Config, opts *ExporterOpts) (err error) {
+	if e.isNopExporter() {
+		return errors.New("nop exporter")
+	}
 
-	if !cfg.GlobalConfig.ExternalLabels.Has(KeyProjectID) {
-		builder.Set(KeyProjectID, e.opts.ProjectID)
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	optsChanged := false
+	if opts != nil {
+		opts.Default()
+		if err := opts.Validate(); err != nil {
+			return err
+		}
+		optsChanged = !reflect.DeepEqual(e.opts, opts)
+		if optsChanged {
+			e.opts = *opts
+		}
 	}
-	if !cfg.GlobalConfig.ExternalLabels.Has(KeyLocation) {
-		builder.Set(KeyLocation, e.opts.Location)
-	}
-	if !cfg.GlobalConfig.ExternalLabels.Has(KeyCluster) {
-		builder.Set(KeyCluster, e.opts.Cluster)
-	}
-	lset := builder.Labels()
+
+	lset := createLabelSet(cfg, &e.opts)
+	labelsChanged := !labels.Equal(e.externalLabels, lset)
 
 	// We don't need to validate if there's no scrape configs or rules, i.e. at startup.
 	hasScrapeConfigs := len(cfg.ScrapeConfigs) != 0 || len(cfg.ScrapeConfigFiles) != 0
 	hasRules := len(cfg.RuleFiles) != 0
 	if hasScrapeConfigs || hasRules {
-		// At this point we expect location and project ID to be set. They are effectively
-		// only a default however as they may be overridden by metric labels.
-		//
-		// In production scenarios, "location" should most likely never be overridden as it
-		// means crossing failure domains. Instead, each location should run a replica of
-		// the evaluator with the same rules.
-
-		if lset.Get(KeyProjectID) == "" {
-			return fmt.Errorf("no label %q set via external labels or flag", KeyProjectID)
-		}
-		if loc := lset.Get(KeyLocation); loc == "" {
-			return fmt.Errorf("no label %q set via external labels or flag", KeyLocation)
-		} else if loc == "global" {
-			return ErrLocationGlobal
-		}
-		if labels.Equal(e.externalLabels, lset) {
-			return nil
+		if err := validateLabelSet(lset); err != nil {
+			return err
 		}
 	}
 
-	// New external labels possibly invalidate the cached series conversions.
-	e.mtx.Lock()
-	e.externalLabels = lset
-	e.seriesCache.forceRefresh()
-	e.mtx.Unlock()
+	// If changed, or we're calling this for the first time, we need to recreate the client.
+	if optsChanged {
+		e.metricClient, err = e.newMetricClient(e.ctx, e.opts)
+		if err != nil {
+			return fmt.Errorf("create metric client: %w", err)
+		}
+	}
 
+	if labelsChanged {
+		e.externalLabels = lset
+		// New external labels possibly invalidate the cached series conversions.
+		e.seriesCache.forceRefresh()
+	}
+
+	return nil
+}
+
+func createLabelSet(cfg *config.Config, opts *ExporterOpts) labels.Labels {
+	// If project_id, location, or cluster were set through the external_labels in the config
+	// file, these values take precedence. If they are unset, the flag value, which defaults
+	// to an environment-specific value on GCE/GKE, is used.
+	builder := labels.NewBuilder(cfg.GlobalConfig.ExternalLabels)
+
+	if !cfg.GlobalConfig.ExternalLabels.Has(KeyProjectID) {
+		builder.Set(KeyProjectID, opts.ProjectID)
+	}
+	if !cfg.GlobalConfig.ExternalLabels.Has(KeyLocation) {
+		builder.Set(KeyLocation, opts.Location)
+	}
+	if !cfg.GlobalConfig.ExternalLabels.Has(KeyCluster) {
+		builder.Set(KeyCluster, opts.Cluster)
+	}
+	return builder.Labels()
+}
+
+func validateLabelSet(lset labels.Labels) error {
+	// We expect location and project ID to be set. They are effectively only a default
+	// however as they may be overridden by metric labels.
+	if lset.Get(KeyProjectID) == "" {
+		return fmt.Errorf("no label %q set via external labels or flag", KeyProjectID)
+	}
+
+	// In production scenarios, "location" should most likely never be overridden as it
+	// means crossing failure domains. Instead, each location should run a replica of the
+	// evaluator with the same rules.
+	if loc := lset.Get(KeyLocation); loc == "" {
+		return fmt.Errorf("no label %q set via external labels or flag", KeyLocation)
+	} else if loc == "global" {
+		return ErrLocationGlobal
+	}
 	return nil
 }
 
@@ -471,8 +532,7 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
 // based on a series ID we got through exported sample records.
 // Must be called before any call to Export is made.
 func (e *Exporter) SetLabelsByIDFunc(f func(storage.SeriesRef) labels.Labels) {
-	// Prevent panics in case a default disabled exporter was instantiated (see Global()).
-	if e.opts.Disable {
+	if e.isNopExporter() {
 		return
 	}
 	if e.seriesCache.getLabelsByRef != nil {
@@ -570,18 +630,12 @@ const (
 	mainModuleName = "github.com/GoogleCloudPlatform/prometheus-engine"
 )
 
-// Testing returns true if running within a unit test.
-// TODO(TheSpiritXIII): Replace with https://github.com/golang/go/issues/52600
-func Testing() bool {
-	return flag.Lookup("test.v") != nil
-}
-
 // Version is used in the User Agent. This version is automatically detected if
 // this function is imported as a library. However, the version is statically
 // set if this function is used in a binary in prometheus-engine due to Golang
 // restrictions. While testing, the static version is validated for correctness.
 func Version() (string, error) {
-	if Testing() {
+	if testing.Testing() {
 		// TODO(TheSpiritXIII): After https://github.com/golang/go/issues/50603 just return an empty
 		// string here. For now, use the opportunity to confirm that the static version is correct.
 		// We manually get the closest git tag if the user is running the unit test locally, but
@@ -633,7 +687,6 @@ func Version() (string, error) {
 }
 
 // Run sends exported samples to Google Cloud Monitoring. Must be called at most once.
-// ApplyConfig must be called once prior to calling Run.
 //
 // Run starts a loop that gathers samples and sends them to GCM.
 //
@@ -657,10 +710,14 @@ func Version() (string, error) {
 // The per-shard overhead is minimal and thus a high number can be picked, which allows us
 // to cover a large range of potential throughput and latency combinations without requiring
 // user configuration or, even worse, runtime changes to the shard number.
-func (e *Exporter) Run(ctx context.Context) error {
-	defer e.metricClient.Close()
-	go e.seriesCache.run(ctx)
-	go e.lease.Run(ctx)
+func (e *Exporter) Run() error {
+	if e.isNopExporter() {
+		return errors.New("nop exporter")
+	}
+
+	defer e.close()
+	go e.seriesCache.run(e.ctx)
+	go e.lease.Run(e.ctx)
 
 	timer := time.NewTimer(batchDelayMax)
 	stopTimer := func() {
@@ -673,26 +730,37 @@ func (e *Exporter) Run(ctx context.Context) error {
 	}
 	defer stopTimer()
 
-	curBatch := newBatch(e.logger, e.opts.Efficiency.ShardCount, e.opts.Efficiency.BatchSize)
+	e.mtx.RLock()
+	opts := e.opts
+	e.mtx.RUnlock()
+
+	curBatch := newBatch(e.logger, opts.Efficiency.ShardCount, opts.Efficiency.BatchSize)
 
 	// Send the currently accumulated batch to GCM asynchronously.
 	send := func() {
+		e.mtx.RLock()
+		opts := e.opts
+		sendFunc := e.metricClient.CreateTimeSeries
+		e.mtx.RUnlock()
+
 		// Send the batch and once it completed, trigger next to process remaining data in the
 		// shards that were part of the batch. This ensures that if we didn't take all samples
 		// from a shard when filling the batch, we'll come back for them and any queue built-up
 		// gets sent eventually.
 		go func(ctx context.Context, b *batch) {
-			b.send(ctx, e.metricClient.CreateTimeSeries)
+			if !opts.Disable {
+				b.send(ctx, sendFunc)
+			}
 			// We could only trigger if we didn't fully empty shards in this batch.
 			// Benchmarking showed no beneficial impact of this optimization.
 			e.triggerNext()
-		}(ctx, curBatch)
+		}(e.ctx, curBatch)
 
 		// Reset state for new batch.
 		stopTimer()
 		timer.Reset(batchDelayMax)
 
-		curBatch = newBatch(e.logger, e.opts.Efficiency.ShardCount, e.opts.Efficiency.BatchSize)
+		curBatch = newBatch(e.logger, opts.Efficiency.ShardCount, opts.Efficiency.BatchSize)
 	}
 
 	for {
@@ -701,7 +769,7 @@ func (e *Exporter) Run(ctx context.Context) error {
 		// buffered data. In-flight requests will be aborted as well.
 		// This is fine once we persist data submitted via Export() but for now there may be some
 		// data loss on shutdown.
-		case <-ctx.Done():
+		case <-e.ctx.Done():
 			return nil
 		// This is activated for each new sample that arrives
 		case <-e.nextc:
@@ -731,6 +799,20 @@ func (e *Exporter) Run(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func (e *Exporter) close() {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	if err := e.metricClient.Close(); err != nil {
+		_ = e.logger.Log("msg", "error closing metric client", "err", err)
+	}
+	e.metricClient = nil
+}
+
+// isNopExporter returns true if this exporter was created with `NopExporter`.
+func (e *Exporter) isNopExporter() bool {
+	return e.seriesCache == nil
 }
 
 // CtxKey is a dedicated type for keys of context-embedded values propagated

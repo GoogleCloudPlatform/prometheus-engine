@@ -16,29 +16,25 @@ package export
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
-	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	monitoring_pb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/go-kit/log"
 	"github.com/google/go-cmp/cmp"
 	gax "github.com/googleapis/gax-go/v2"
+	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
-	"google.golang.org/api/option"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/test/bufconn"
-	empty_pb "google.golang.org/protobuf/types/known/emptypb"
 	timestamp_pb "google.golang.org/protobuf/types/known/timestamppb"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func TestBatchAdd(t *testing.T) {
@@ -332,64 +328,173 @@ type testMetricService struct {
 	samples                           []*monitoring_pb.TimeSeries
 }
 
-func (srv *testMetricService) CreateTimeSeries(_ context.Context, req *monitoring_pb.CreateTimeSeriesRequest) (*empty_pb.Empty, error) {
+func (srv *testMetricService) CreateTimeSeries(_ context.Context, req *monitoring_pb.CreateTimeSeriesRequest, _ ...gax.CallOption) error {
 	srv.samples = append(srv.samples, req.TimeSeries...)
-	return &empty_pb.Empty{}, nil
+	return nil
+}
+
+func (srv *testMetricService) Close() error {
+	return nil
+}
+
+func (srv *testMetricService) clear() {
+	srv.samples = []*monitoring_pb.TimeSeries{}
 }
 
 func TestExporter_drainBacklog(t *testing.T) {
-	var (
-		srv          = grpc.NewServer()
-		listener     = bufconn.Listen(1e6)
-		metricServer = &testMetricService{}
-	)
-	monitoring_pb.RegisterMetricServiceServer(srv, metricServer)
-
-	//nolint:errcheck
-	go srv.Serve(listener)
-	defer srv.Stop()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	bufDialer := func(context.Context, string) (net.Conn, error) {
-		return listener.Dial()
-	}
-	metricClient, err := monitoring.NewMetricClient(ctx,
-		option.WithoutAuthentication(),
-		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
-		option.WithGRPCDialOption(grpc.WithContextDialer(bufDialer)),
-	)
-	if err != nil {
-		t.Fatalf("Creating metric client failed: %s", err)
-	}
+	ctx := context.Background()
 
 	e, err := New(ctx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true}, NopLease())
 	if err != nil {
 		t.Fatalf("Creating Exporter failed: %s", err)
 	}
-	e.metricClient = metricClient
+	metricServer := testMetricService{}
+	e.metricClient = &metricServer
 
 	e.SetLabelsByIDFunc(func(storage.SeriesRef) labels.Labels {
 		return labels.FromStrings("project_id", "test", "location", "test")
 	})
 
 	// Fill a single shard with samples.
-	for i := range 50 {
+	wantSamples := 50
+	for i := range wantSamples {
 		e.Export(nil, []record.RefSample{
 			{Ref: 1, T: int64(i), V: float64(i)},
 		}, nil)
 	}
 
 	//nolint:errcheck
-	go e.Run(ctx)
+	go e.Run()
 	// As our samples are all for the same series, each batch can only contain a single sample.
 	// The exporter waits for the batch delay duration before sending it.
 	// We sleep for an appropriate multiple of it to allow it to drain the shard.
-	time.Sleep(55 * batchDelayMax)
+	ctxTimeout, cancel := context.WithTimeout(ctx, 60*batchDelayMax)
+	defer cancel()
 
-	// Check that we received all samples that went in.
-	if got, want := len(metricServer.samples), 50; got != want {
-		t.Fatalf("got %d, want %d", got, want)
+	pollErr := wait.PollUntilContextCancel(ctxTimeout, batchDelayMax, false, func(_ context.Context) (bool, error) {
+		// Check that we received all samples that went in.
+		if got, want := len(metricServer.samples), wantSamples; got != want {
+			err = fmt.Errorf("got %d, want %d", got, want)
+			return false, nil
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		if wait.Interrupted(pollErr) && err != nil {
+			pollErr = err
+		}
+		t.Fatalf("did not get samples: %s", pollErr)
 	}
+}
+
+func TestApplyConfig(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	e, err := New(ctx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true}, NopLease())
+	if err != nil {
+		t.Fatalf("Create exporter: %s", err)
+	}
+	e.SetLabelsByIDFunc(func(storage.SeriesRef) labels.Labels {
+		return labels.FromStrings("location", "us-central1-c")
+	})
+
+	metricServer := testMetricService{}
+	e.newMetricClient = func(_ context.Context, _ ExporterOpts) (metricServiceClient, error) {
+		return &metricServer, nil
+	}
+	// Sends a sample with no labels. The project label is automatically added by the
+	// exporter.
+	sendSample := func() {
+		e.Export(nil, []record.RefSample{{Ref: 1, T: int64(0), V: float64(0)}}, nil)
+	}
+	// Tests all samples have the correct project ID label value.
+	testSamples := func(expectedProjectID string, expectedSampleCount int) {
+		var err error
+		pollErr := wait.PollUntilContextCancel(ctx, batchDelayMax, false, func(_ context.Context) (bool, error) {
+			switch len(metricServer.samples) {
+			case 0:
+				err = errors.New("no samples sent")
+				return false, nil
+			case expectedSampleCount:
+				// Good.
+			default:
+				// Sometimes there's a small delay from the thread that sends the new
+				// samples, so let's wait.
+				err = fmt.Errorf("expected %d samples but got %d", expectedSampleCount, len(metricServer.samples))
+				return false, nil
+			}
+
+			for _, sample := range metricServer.samples {
+				projectID := sample.Resource.Labels[KeyProjectID]
+				if projectID != expectedProjectID {
+					err = fmt.Errorf("expected project ID %q but got %q", expectedProjectID, projectID)
+					return false, nil
+				}
+			}
+
+			return true, nil
+		})
+		if pollErr != nil {
+			if wait.Interrupted(pollErr) && err != nil {
+				pollErr = err
+			}
+			t.Fatalf("did not get samples: %s", pollErr)
+		}
+	}
+	sendAndTestSamples := func(expectedProjectID string) {
+		// Send two samples to ensure both have correct labels.
+		sendSample()
+		sendSample()
+		sendSample()
+		testSamples(expectedProjectID, 3)
+		metricServer.clear()
+	}
+
+	// In our Prometheus fork, GCM is executed before the reloader in the run group.
+	go func() {
+		if err := e.Run(); err != nil {
+			t.Errorf("Run exporter: %s", err)
+		}
+	}()
+
+	if err := e.ApplyConfig(&config.Config{}, &ExporterOpts{ProjectID: "project-test"}); err != nil {
+		t.Fatalf("Initial apply: %s", err)
+	}
+	sendAndTestSamples("project-test")
+
+	if err := e.ApplyConfig(&config.Config{}, &ExporterOpts{ProjectID: "project-abc"}); err != nil {
+		t.Fatalf("Initial apply: %s", err)
+	}
+	sendAndTestSamples("project-abc")
+
+	if err := e.ApplyConfig(&config.Config{}, &ExporterOpts{ProjectID: "project-xyz"}); err != nil {
+		t.Fatalf("Initial apply: %s", err)
+	}
+	sendAndTestSamples("project-xyz")
+}
+
+func TestDisabledExporter(t *testing.T) {
+	ctx := context.Background()
+	e, err := New(ctx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{Disable: true}, NopLease())
+	if err != nil {
+		t.Fatalf("Run exporter: %s", err)
+	}
+
+	// In our Prometheus fork, GCM is executed before the reloader in the run group.
+	go func() {
+		if err := e.Run(); err != nil {
+			t.Errorf("Run exporter: %s", err)
+		}
+	}()
+	if err := e.ApplyConfig(&config.Config{}, &ExporterOpts{
+		Disable:   true,
+		ProjectID: "project-test",
+	}); err != nil {
+		t.Fatalf("Initial apply: %s", err)
+	}
+	e.Export(nil, []record.RefSample{{Ref: 1, T: int64(0), V: float64(0)}}, nil)
+
+	// Allow samples to be sent to the void.
+	time.Sleep(batchDelayMax)
 }
