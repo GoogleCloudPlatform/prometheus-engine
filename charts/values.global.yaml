@@ -49,10 +49,10 @@ resources:
       memory: 16M
   bash:
     limits:
-      memory: 6M
+      memory: 1M
     requests:
       cpu: 1m
-      memory: 6M
+      memory: 1M
   prometheus:
     limits:
       memory: 2G
