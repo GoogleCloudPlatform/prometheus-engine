@@ -53,14 +53,16 @@ func NewStorage(exporter *Exporter) *Storage {
 	return s
 }
 
-// ApplyConfig applies the new configuration to the storage.
-func (s *Storage) ApplyConfig(cfg *config.Config) error {
-	return s.exporter.ApplyConfig(cfg)
+// ApplyConfig applies the new configuration to the storage. The given `ExporterOpts`, if
+// non-nil, is applied to the exporter, potentially recreating the metric client. It must be
+// defaulted and validated.
+func (s *Storage) ApplyConfig(cfg *config.Config, opts *ExporterOpts) error {
+	return s.exporter.ApplyConfig(cfg, opts)
 }
 
 // Run background processing of the storage.
-func (s *Storage) Run(ctx context.Context) error {
-	return s.exporter.Run(ctx)
+func (s *Storage) Run() error {
+	return s.exporter.Run()
 }
 
 func (s *Storage) labelsByID(id storage.SeriesRef) labels.Labels {

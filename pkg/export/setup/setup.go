@@ -22,6 +22,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -82,9 +83,15 @@ func SetGlobal(exporter *export.Exporter) (err error) {
 // Global returns the global instance of the GCM exporter.
 func Global() *export.Exporter {
 	if globalExporter == nil {
-		// This should usually be a panic but we set an inactive default exporter in this case
-		// to not break existing tests in Prometheus.
+		if !testing.Testing() {
+			panic("must set a global exporter")
+		}
+
 		fmt.Fprintln(os.Stderr, "No global GCM exporter was set, setting default inactive exporter.")
+
+		// We don't want to change all upstream Prometheus unit tests, so let's just create
+		// a disabled exporter. These are created on-demand to prevent race conditions
+		// between tests.
 		return export.NopExporter()
 	}
 	return globalExporter
@@ -92,7 +99,7 @@ func Global() *export.Exporter {
 
 // ExporterOptsFlags adds flags to the application, defaulting the options.
 func ExporterOptsFlags(a *kingpin.Application, opts *export.ExporterOpts) {
-	opts.Default()
+	opts.DefaultUnsetFields()
 
 	a.Flag("export.disable", "Disable exporting to GCM.").
 		Default(strconv.FormatBool(opts.Disable)).

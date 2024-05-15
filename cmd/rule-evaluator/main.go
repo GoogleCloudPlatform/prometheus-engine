@@ -153,7 +153,8 @@ func main() {
 		_ = level.Error(logger).Log("msg", "Unable to setup Cloud Monitoring Exporter lease", "err", err)
 		os.Exit(1)
 	}
-	exporter, err := export.New(ctx, logger, reg, exporterOpts, lease)
+	ctxExporter, cancelExporter := context.WithCancel(ctx)
+	exporter, err := export.New(ctxExporter, logger, reg, exporterOpts, lease)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "Creating a Cloud Monitoring Exporter failed", "err", err)
 		os.Exit(1)
@@ -179,8 +180,10 @@ func main() {
 			name:     "notify",
 			reloader: notificationManager.ApplyConfig,
 		}, {
-			name:     "exporter",
-			reloader: destination.ApplyConfig,
+			name: "exporter",
+			reloader: func(c *config.Config) error {
+				return destination.ApplyConfig(c, nil)
+			},
 		}, {
 			name: "notify_sd",
 			reloader: func(cfg *config.Config) error {
@@ -261,14 +264,13 @@ func main() {
 	}
 	{
 		// Storage Processing.
-		ctxStorage, cancelStorage := context.WithCancel(ctx)
 		g.Add(func() error {
-			err = destination.Run(ctxStorage)
+			err = destination.Run()
 			_ = level.Info(logger).Log("msg", "Background processing of storage stopped")
 			return err
 		}, func(error) {
 			_ = level.Info(logger).Log("msg", "Stopping background storage processing...")
-			cancelStorage()
+			cancelExporter()
 		})
 	}
 	cwd, err := os.Getwd()
