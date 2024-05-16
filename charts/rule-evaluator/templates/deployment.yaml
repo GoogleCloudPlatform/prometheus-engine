@@ -70,6 +70,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       - name: evaluator
         image: {{.Values.images.ruleEvaluator.image}}:{{.Values.images.ruleEvaluator.tag}}
         args:
@@ -102,6 +103,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       volumes:
       - name: config
         configMap:
@@ -140,3 +142,5 @@ spec:
         runAsGroup: 1000
         runAsNonRoot: true
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
