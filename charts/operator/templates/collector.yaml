@@ -54,6 +54,7 @@ spec:
             drop:
             - all
           privileged: false
+        resources: {{- toYaml $.Values.resources.bash | nindent 10}}
       containers:
       - name: config-reloader
         image: {{.Values.images.configReloader.image}}:{{.Values.images.configReloader.tag}}
@@ -72,7 +73,7 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        resources: {{- toYaml $.Values.resources.bash | nindent 10}}
+        resources: {{- toYaml $.Values.resources.configReloader | nindent 10}}
         volumeMounts:
         - name: config
           readOnly: true
@@ -117,7 +118,7 @@ spec:
         env:
         - name: GOGC
           value: "25"
-        resources: {{- toYaml $.Values.resources.collector | nindent 10 }}
+        resources: {{- toYaml $.Values.resources.prometheus | nindent 10 }}
         volumeMounts:
         - name: storage
           mountPath: /prometheus/data
