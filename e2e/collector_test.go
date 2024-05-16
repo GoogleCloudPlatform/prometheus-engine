@@ -24,6 +24,7 @@ import (
 
 	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
@@ -35,21 +36,22 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 )
 
 func TestCollectorPodMonitoring(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
-	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, restConfig, kubeClient))
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 	// Self-scrape podmonitoring.
@@ -83,15 +85,15 @@ func TestCollectorPodMonitoring(t *testing.T) {
 }
 
 func TestCollectorClusterPodMonitoring(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
-	t.Run("collector-running", testCollectorDeployed(ctx, kubeClient))
+	t.Run("collector-running", testCollectorDeployed(ctx, restConfig, kubeClient))
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 	// Self-scrape clusterpodmonitoring.
@@ -124,15 +126,15 @@ func TestCollectorClusterPodMonitoring(t *testing.T) {
 }
 
 func TestCollectorKubeletScraping(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
 
 	// We could simply verify that the full collection chain works once. But validating
 	// more fine-grained stages makes debugging a lot easier.
-	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+	t.Run("collector-deployed", testCollectorDeployed(ctx, restConfig, kubeClient))
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 
 	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, kubeClient))
@@ -143,18 +145,19 @@ func TestCollectorKubeletScraping(t *testing.T) {
 
 // testCollectorDeployed does a high-level verification on whether the
 // collector is deployed to the cluster.
-func testCollectorDeployed(ctx context.Context, kubeClient client.Client) func(*testing.T) {
+func testCollectorDeployed(ctx context.Context, restConfig *rest.Config, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is running")
 
+		ds := appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      operator.NameCollector,
+				Namespace: operator.DefaultOperatorNamespace,
+			},
+		}
+
 		// Keep checking the state of the collectors until they're running.
 		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			ds := appsv1.DaemonSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operator.NameCollector,
-					Namespace: operator.DefaultOperatorNamespace,
-				},
-			}
 			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&ds), &ds); err != nil {
 				if apierrors.IsNotFound(err) {
 					return false, nil
@@ -183,7 +186,12 @@ func testCollectorDeployed(ctx context.Context, kubeClient client.Client) func(*
 			return true, nil
 		})
 		if err != nil {
-			t.Fatalf("waiting for collector DaemonSet failed: %s", err)
+			t.Errorf("collector DaemonSet is not ready: %s", err)
+			out := strings.Builder{}
+			if err := kube.Debug(context.Background(), restConfig, kubeClient, &ds, &out); err != nil {
+				t.Fatalf("unable to debug: %s", err)
+			}
+			t.Fatalf("debug:\n%s", out.String())
 		}
 	}
 }
