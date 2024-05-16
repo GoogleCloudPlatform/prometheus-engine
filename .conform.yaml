@@ -42,6 +42,7 @@ policies:
           - configs
           - deps
           - e2e
+          - export
           - main
           - operator
           - prometheus

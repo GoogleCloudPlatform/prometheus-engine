@@ -93,7 +93,7 @@ func (l *localExportWithGCM) start(t testing.TB, _ e2e.Environment) (v1.API, map
 		t.Fatalf("create Prometheus client: %s", err)
 	}
 
-	l.e, err = export.New(log.NewJSONLogger(os.Stderr), prometheus.NewRegistry(), export.ExporterOpts{
+	l.e, err = export.New(ctx, log.NewJSONLogger(os.Stderr), prometheus.NewRegistry(), export.ExporterOpts{
 		UserAgentEnv:     "pe-github-action-test",
 		Endpoint:         "monitoring.googleapis.com:443",
 		Compression:      "none",
