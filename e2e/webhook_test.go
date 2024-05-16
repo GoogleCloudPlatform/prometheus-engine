@@ -31,7 +31,7 @@ import (
 
 // TestWebhooksNoRBAC validates that the operator works without any webhook RBAC policies.
 func TestWebhooksNoRBAC(t *testing.T) {
-	ctx := context.Background()
+	ctx := contextWithDeadline(t)
 	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
