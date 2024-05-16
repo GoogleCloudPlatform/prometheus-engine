@@ -30,7 +30,7 @@ KIND_PARALLEL?=5
 DOCKER_HOST?=unix:///var/run/docker.sock
 DOCKER_VOLUME:=$(DOCKER_HOST:unix://%=%)
 
-IMAGE_REGISTRY?=gcr.io/$(PROJECT_ID)/prometheus-engine
+IMAGE_REGISTRY?=us-east4-docker.pkg.dev/$(PROJECT_ID)/prometheus-engine
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
 # If an individual test is not specified, run them all.
