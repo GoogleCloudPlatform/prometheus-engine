@@ -171,7 +171,8 @@ func main() {
 		os.Exit(2)
 	}
 
-	exporter, err := newExporter(logger, reg)
+	ctxExporter := context.Background()
+	exporter, err := newExporter(ctxExporter, logger, reg)
 	if err != nil {
 		//nolint:errcheck
 		level.Error(logger).Log("msg", "Creating a Cloud Monitoring Exporter failed", "err", err)
@@ -179,7 +180,7 @@ func main() {
 	}
 	destination := export.NewStorage(exporter)
 
-	ctxRuleManger := context.Background()
+	ctxRuleManager := context.Background()
 	ctxDiscover, cancelDiscover := context.WithCancel(context.Background())
 
 	opts := []option.ClientOption{
@@ -195,7 +196,7 @@ func main() {
 			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		)
 	}
-	transport, err := apihttp.NewTransport(ctxRuleManger, http.DefaultTransport, opts...)
+	transport, err := apihttp.NewTransport(ctxRuleManager, http.DefaultTransport, opts...)
 	if err != nil {
 		//nolint:errcheck
 		level.Error(logger).Log("msg", "Creating proxy HTTP transport failed", "err", err)
@@ -239,7 +240,7 @@ func main() {
 	ruleManager := rules.NewManager(&rules.ManagerOptions{
 		ExternalURL: generatorURL,
 		QueryFunc:   queryFunc,
-		Context:     ctxRuleManger,
+		Context:     ctxRuleManager,
 		Appendable:  destination,
 		Queryable:   externalStorage,
 		Logger:      logger,

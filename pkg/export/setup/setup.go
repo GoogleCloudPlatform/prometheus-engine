@@ -16,6 +16,7 @@
 package setup
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -89,7 +90,7 @@ func Global() *export.Exporter {
 // FromFlags returns a constructor for a new exporter that is configured through flags that are
 // registered with the given application. The constructor must be called after the flags
 // have been parsed.
-func FromFlags(a *kingpin.Application, userAgentProduct string) func(log.Logger, prometheus.Registerer) (*export.Exporter, error) {
+func FromFlags(a *kingpin.Application, userAgentProduct string) func(context.Context, log.Logger, prometheus.Registerer) (*export.Exporter, error) {
 	var opts export.ExporterOpts
 	env := UAEnvUnspecified
 
@@ -183,7 +184,7 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(log.Logger,
 	kubeName := a.Flag("export.ha.kube.name", "Name for the HA locking resource. Must be identical across replicas. May be set through the KUBE_NAME environment variable.").
 		Default("").OverrideDefaultFromEnvar("KUBE_NAME").String()
 
-	return func(logger log.Logger, metrics prometheus.Registerer) (*export.Exporter, error) {
+	return func(ctx context.Context, logger log.Logger, metrics prometheus.Registerer) (*export.Exporter, error) {
 		switch *haBackend {
 		case HABackendNone:
 		case HABackendKubernetes:
@@ -204,7 +205,7 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(log.Logger,
 		default:
 			return nil, fmt.Errorf("unexpected HA backend %q", *haBackend)
 		}
-		return export.New(logger, metrics, opts)
+		return export.New(ctx, logger, metrics, opts)
 	}
 }
 
