@@ -63,122 +63,145 @@ func newFakeClientBuilder() *fake.ClientBuilder {
 		WithStatusSubresource(&monitoringv1.GlobalRules{})
 }
 
-// Tests that the collection does not overwrite the non-managed status fields.
+// Tests collection status.
 func TestCollectionStatus(t *testing.T) {
-	statusIn := monitoringv1.PodMonitoringStatus{
-		EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
-			{
-				Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
-				ActiveTargets:    1,
-				UnhealthyTargets: 0,
-				LastUpdateTime:   metav1.Date(2022, time.November, 1, 0, 0, 0, 0, time.UTC),
-				SampleGroups: []monitoringv1.SampleGroup{
+	cases := []struct {
+		doc         string
+		wantStatus  corev1.ConditionStatus
+		wantReason  string
+		wantMessage string
+		endpoint    monitoringv1.ScrapeEndpoint
+	}{
+		{
+			doc:        "collection does not overwrite the non-managed status fields",
+			wantStatus: corev1.ConditionTrue,
+			endpoint: monitoringv1.ScrapeEndpoint{
+				Port:     intstr.FromString("metrics"),
+				Interval: "10s",
+			},
+		},
+		{
+			doc:         "status is false because no endpoint is provided",
+			wantStatus:  corev1.ConditionFalse,
+			wantReason:  "ScrapeConfigError",
+			wantMessage: "generating scrape config failed for PodMonitoring endpoint",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.doc, func(t *testing.T) {
+			statusIn := monitoringv1.PodMonitoringStatus{
+				EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 					{
-						SampleTargets: []monitoringv1.SampleTarget{
+						Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
+						ActiveTargets:    1,
+						UnhealthyTargets: 0,
+						LastUpdateTime:   metav1.Date(2022, time.November, 1, 0, 0, 0, 0, time.UTC),
+						SampleGroups: []monitoringv1.SampleGroup{
 							{
-								Health: "up",
-								Labels: map[model.LabelName]model.LabelValue{
-									"instance": "a",
+								SampleTargets: []monitoringv1.SampleTarget{
+									{
+										Health: "up",
+										Labels: map[model.LabelName]model.LabelValue{
+											"instance": "a",
+										},
+										LastScrapeDurationSeconds: "1.2",
+									},
 								},
-								LastScrapeDurationSeconds: "1.2",
+								Count: ptr.To(int32(1)),
 							},
 						},
-						Count: ptr.To(int32(1)),
+						CollectorsFraction: "1",
 					},
 				},
-				CollectorsFraction: "1",
-			},
-		},
-	}
+			}
 
-	statusOut := *statusIn.DeepCopy()
-	statusOut.Conditions = append(statusOut.Conditions, monitoringv1.MonitoringCondition{
-		Type:               monitoringv1.ConfigurationCreateSuccess,
-		Status:             corev1.ConditionTrue,
-		LastUpdateTime:     metav1.Time{},
-		LastTransitionTime: metav1.Time{},
-		Reason:             "",
-		Message:            "",
-	})
+			statusOut := *statusIn.DeepCopy()
+			statusOut.Conditions = append(statusOut.Conditions, monitoringv1.MonitoringCondition{
+				Type:               monitoringv1.ConfigurationCreateSuccess,
+				Status:             c.wantStatus,
+				LastUpdateTime:     metav1.Time{},
+				LastTransitionTime: metav1.Time{},
+				Reason:             c.wantReason,
+				Message:            c.wantMessage,
+			})
 
-	logger := testr.New(t)
-	ctx := logr.NewContext(context.Background(), logger)
-	opts := Options{
-		ProjectID: "test-proj",
-		Location:  "test-loc",
-		Cluster:   "test-cluster",
-	}
-	if err := opts.defaultAndValidate(logger); err != nil {
-		t.Fatal("Invalid options:", err)
-	}
+			logger := testr.New(t)
+			ctx := logr.NewContext(context.Background(), logger)
+			opts := Options{
+				ProjectID: "test-proj",
+				Location:  "test-loc",
+				Cluster:   "test-cluster",
+			}
+			if err := opts.defaultAndValidate(logger); err != nil {
+				t.Fatal("Invalid options:", err)
+			}
 
-	kubeClient := newFakeClientBuilder().
-		WithObjects(&monitoringv1.PodMonitoring{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "prom-example",
-				Namespace: "gmp-test",
-			},
-			Spec: monitoringv1.PodMonitoringSpec{
-				Endpoints: []monitoringv1.ScrapeEndpoint{{
-					Port:     intstr.FromString("metrics"),
-					Interval: "10s",
-				}},
-			},
-			Status: statusIn,
-		}).
-		WithObjects(&monitoringv1.OperatorConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      NameOperatorConfig,
-				Namespace: opts.PublicNamespace,
-			},
-		}).
-		WithObjects(&appsv1.DaemonSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      NameCollector,
-				Namespace: opts.OperatorNamespace,
-			},
-			Spec: appsv1.DaemonSetSpec{
-				Selector: &metav1.LabelSelector{},
-				Template: corev1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{},
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{{
-							Name: "prometheus",
-						}},
+			kubeClient := newFakeClientBuilder().
+				WithObjects(&monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prom-example",
+						Namespace: "gmp-test",
 					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{c.endpoint},
+					},
+					Status: statusIn,
+				}).
+				WithObjects(&monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      NameOperatorConfig,
+						Namespace: opts.PublicNamespace,
+					},
+				}).
+				WithObjects(&appsv1.DaemonSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      NameCollector,
+						Namespace: opts.OperatorNamespace,
+					},
+					Spec: appsv1.DaemonSetSpec{
+						Selector: &metav1.LabelSelector{},
+						Template: corev1.PodTemplateSpec{
+							ObjectMeta: metav1.ObjectMeta{},
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{{
+									Name: "prometheus",
+								}},
+							},
+						},
+					},
+				}).
+				Build()
+
+			collectionReconciler := newCollectionReconciler(kubeClient, opts)
+			if _, err := collectionReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: opts.PublicNamespace,
+					Name:      NameOperatorConfig,
 				},
-			},
-		}).
-		Build()
+			}); err != nil {
+				t.Fatal(err)
+			}
 
-	collectionReconciler := newCollectionReconciler(kubeClient, opts)
-	if _, err := collectionReconciler.Reconcile(ctx, reconcile.Request{
-		NamespacedName: types.NamespacedName{
-			Namespace: opts.PublicNamespace,
-			Name:      NameOperatorConfig,
-		},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	var podMonitorings monitoringv1.PodMonitoringList
-	if err := kubeClient.List(ctx, &podMonitorings); err != nil {
-		t.Fatal(err)
-	}
-	switch amount := len(podMonitorings.Items); amount {
-	case 1:
-		status := podMonitorings.Items[0].Status
-		for i := range status.Conditions {
-			// Normalize times because we cannot predict this.
-			condition := &status.Conditions[i]
-			condition.LastUpdateTime = metav1.Time{}
-			condition.LastTransitionTime = metav1.Time{}
-		}
-		if diff := cmp.Diff(status, statusOut); diff != "" {
-			t.Fatalf("invalid PodMonitoringStatus: %s", diff)
-		}
-	default:
-		t.Fatalf("invalid PodMonitorings found: %d", amount)
+			var podMonitorings monitoringv1.PodMonitoringList
+			if err := kubeClient.List(ctx, &podMonitorings); err != nil {
+				t.Fatal(err)
+			}
+			switch amount := len(podMonitorings.Items); amount {
+			case 1:
+				status := podMonitorings.Items[0].Status
+				for i := range status.Conditions {
+					// Normalize times because we cannot predict this.
+					condition := &status.Conditions[i]
+					condition.LastUpdateTime = metav1.Time{}
+					condition.LastTransitionTime = metav1.Time{}
+				}
+				if diff := cmp.Diff(status, statusOut); diff != "" {
+					t.Fatalf("invalid PodMonitoringStatus: %s", diff)
+				}
+			default:
+				t.Fatalf("invalid PodMonitorings found: %d", amount)
+			}
+		})
 	}
 }
 
