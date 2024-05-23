@@ -17,10 +17,14 @@ package operator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/google/go-cmp/cmp"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -54,6 +58,339 @@ func TestHasRules(t *testing.T) {
 			}
 			if err != nil && !tc.wantErr {
 				t.Errorf("Unexpected error: %s", err)
+			}
+		})
+	}
+}
+
+func TestRulesStatus(t *testing.T) {
+	// The fake client truncates seconds, so create a time that can't be rounded down.
+	timeDefault := metav1.NewTime(time.Date(2024, 5, 23, 1, 23, 0, 0, time.UTC))
+	timeAfter := metav1.NewTime(timeDefault.Add(time.Minute))
+	var testCases []struct {
+		obj            monitoringv1.MonitoringCRD
+		expectedStatus monitoringv1.MonitoringStatus
+	}
+
+	addTestCases := func(name string, newObj func(objectMeta metav1.ObjectMeta, spec monitoringv1.RulesSpec, status monitoringv1.RulesStatus) monitoringv1.MonitoringCRD) {
+		testCases = append(testCases, []struct {
+			obj            monitoringv1.MonitoringCRD
+			expectedStatus monitoringv1.MonitoringStatus
+		}{
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("invalid-%s-no-condition", name),
+						Generation: 2,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr{",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionFalse,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeAfter,
+							Message:            "generating rule config failed",
+						},
+					},
+				},
+			},
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("invalid-%s-outdated-condition", name),
+						Generation: 2,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr{",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 1,
+							Conditions: []monitoringv1.MonitoringCondition{
+								{
+									Type:               monitoringv1.ConfigurationCreateSuccess,
+									Status:             corev1.ConditionTrue,
+									LastUpdateTime:     timeDefault,
+									LastTransitionTime: timeDefault,
+								},
+							},
+						},
+					},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionFalse,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeAfter,
+							Message:            "generating rule config failed",
+						},
+					},
+				},
+			},
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("invalid-%s-correct-condition", name),
+						Generation: 2,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr{",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 1,
+							Conditions: []monitoringv1.MonitoringCondition{
+								{
+									Type:               monitoringv1.ConfigurationCreateSuccess,
+									Status:             corev1.ConditionFalse,
+									LastUpdateTime:     timeDefault,
+									LastTransitionTime: timeDefault,
+								},
+							},
+						},
+					},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionFalse,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeDefault,
+							Message:            "generating rule config failed",
+						},
+					},
+				},
+			},
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("valid-%s-no-condition", name),
+						Generation: 1,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 1,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionTrue,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeAfter,
+						},
+					},
+				},
+			},
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("valid-%s-outdated-condition", name),
+						Generation: 2,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 1,
+							Conditions: []monitoringv1.MonitoringCondition{
+								{
+									Type:               monitoringv1.ConfigurationCreateSuccess,
+									Status:             corev1.ConditionFalse,
+									LastUpdateTime:     timeDefault,
+									LastTransitionTime: timeDefault,
+								},
+							},
+						},
+					},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionTrue,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeAfter,
+						},
+					},
+				},
+			},
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("valid-%s-correct-condition", name),
+						Generation: 2,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 1,
+							Conditions: []monitoringv1.MonitoringCondition{
+								{
+									Type:               monitoringv1.ConfigurationCreateSuccess,
+									Status:             corev1.ConditionTrue,
+									LastUpdateTime:     timeDefault,
+									LastTransitionTime: timeDefault,
+								},
+							},
+						},
+					},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionTrue,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeDefault,
+						},
+					},
+				},
+			},
+		}...)
+	}
+	addTestCases("namespaced-rule", func(objectMeta metav1.ObjectMeta, spec monitoringv1.RulesSpec, status monitoringv1.RulesStatus) monitoringv1.MonitoringCRD {
+		return &monitoringv1.Rules{
+			ObjectMeta: objectMeta,
+			Spec:       spec,
+			Status:     status,
+		}
+	})
+	addTestCases("cluster-rule", func(objectMeta metav1.ObjectMeta, spec monitoringv1.RulesSpec, status monitoringv1.RulesStatus) monitoringv1.MonitoringCRD {
+		return &monitoringv1.ClusterRules{
+			ObjectMeta: objectMeta,
+			Spec:       spec,
+			Status:     status,
+		}
+	})
+	addTestCases("global-rule", func(objectMeta metav1.ObjectMeta, spec monitoringv1.RulesSpec, status monitoringv1.RulesStatus) monitoringv1.MonitoringCRD {
+		return &monitoringv1.GlobalRules{
+			ObjectMeta: objectMeta,
+			Spec:       spec,
+			Status:     status,
+		}
+	})
+
+	objs := make([]client.Object, 0, len(testCases))
+	for _, tc := range testCases {
+		objs = append(objs, tc.obj)
+	}
+	kubeClient := newFakeClientBuilder().
+		WithObjects(objs...).
+		Build()
+
+	ctx := context.Background()
+	r := rulesReconciler{
+		client: kubeClient,
+	}
+
+	if err := r.ensureRuleConfigs(ctx, "", "", "", monitoringv1.CompressionNone); err != nil {
+		t.Fatal("ensure rules configs:", err)
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.obj.GetName(), func(t *testing.T) {
+			objectKey := client.ObjectKeyFromObject(tc.obj)
+			if err := kubeClient.Get(ctx, objectKey, tc.obj); err != nil {
+				t.Fatal("get obj:", err)
+			}
+
+			status := tc.obj.GetMonitoringStatus()
+			if len(status.Conditions) != 1 {
+				t.Fatalf("invalid %q conditions amount, expected 1 but got %d", objectKey, len(status.Conditions))
+			}
+			condition := &status.Conditions[0]
+			// If time changed, normalize to the "after time", since we don't mock the process time.
+			if !condition.LastTransitionTime.Equal(&timeDefault) {
+				condition.LastTransitionTime = timeAfter
+			}
+			if !condition.LastUpdateTime.Equal(&timeDefault) {
+				condition.LastUpdateTime = timeAfter
+			}
+			// The message is good enough. Don't need reason.
+			condition.Reason = ""
+
+			if diff := cmp.Diff(&tc.expectedStatus, status); diff != "" {
+				t.Errorf("expected %q condition (-want, +got): %s", objectKey, diff)
 			}
 		})
 	}

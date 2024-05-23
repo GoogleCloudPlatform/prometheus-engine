@@ -55,6 +55,10 @@ func (*Rules) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
 
+func (r *Rules) GetMonitoringStatus() *MonitoringStatus {
+	return &r.Status.MonitoringStatus
+}
+
 // RulesList is a list of Rules.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type RulesList struct {
@@ -100,6 +104,10 @@ func (*ClusterRules) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
 
+func (r *ClusterRules) GetMonitoringStatus() *MonitoringStatus {
+	return &r.Status.MonitoringStatus
+}
+
 // ClusterRulesList is a list of ClusterRules.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterRulesList struct {
@@ -142,6 +150,10 @@ func (r *GlobalRules) ValidateUpdate(runtime.Object) (admission.Warnings, error)
 func (*GlobalRules) ValidateDelete() (admission.Warnings, error) {
 	// Deletions are always valid.
 	return nil, nil
+}
+
+func (r *GlobalRules) GetMonitoringStatus() *MonitoringStatus {
+	return &r.Status.MonitoringStatus
 }
 
 // GlobalRulesList is a list of GlobalRules.
@@ -192,5 +204,5 @@ type Rule struct {
 
 // RulesStatus contains status information for a Rules resource.
 type RulesStatus struct {
-	// TODO: add status information.
+	MonitoringStatus `json:",inline"`
 }
