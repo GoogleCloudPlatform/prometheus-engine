@@ -1385,7 +1385,7 @@ monitoring resource was created successfully.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoring">ClusterNodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoring">ClusterNodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>, <a href="#monitoring.googleapis.com/v1.RulesStatus">RulesStatus</a>)
 </p>
 <div>
 <p>MonitoringStatus holds status information of a monitoring resource.</p>
@@ -2425,6 +2425,31 @@ RulesStatus
 <div>
 <p>RulesStatus contains status information for a Rules resource.</p>
 </div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>MonitoringStatus</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
+MonitoringStatus
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>MonitoringStatus</code> are embedded into this type.)
+</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.SampleGroup">
 <span id="SampleGroup">SampleGroup
 </span>

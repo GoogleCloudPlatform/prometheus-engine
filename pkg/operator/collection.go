@@ -153,7 +153,7 @@ func patchMonitoringStatus(ctx context.Context, kubeClient client.Client, obj cl
 
 	patch := client.RawPatch(types.MergePatchType, patchBytes)
 	if err := kubeClient.Status().Patch(ctx, obj, patch); err != nil {
-		return err
+		return fmt.Errorf("patch status: %w", err)
 	}
 	return nil
 }
@@ -422,14 +422,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		change, err := pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
-		if err != nil {
-			// Log an error but let operator continue to avoid getting stuck
-			// on a potential bad resource.
-			logger.Error(err, "setting podmonitoring status state", "namespace", pmon.Namespace, "name", pmon.Name)
-		}
-
-		if change {
+		if pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond) {
 			r.statusUpdates = append(r.statusUpdates, &pmon)
 		}
 	}
@@ -463,14 +456,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		change, err := cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
-		if err != nil {
-			// Log an error but let operator continue to avoid getting stuck
-			// on a potential bad resource.
-			logger.Error(err, "setting clusterpodmonitoring status state", "namespace", cmon.Namespace, "name", cmon.Name)
-		}
-
-		if change {
+		if cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond) {
 			r.statusUpdates = append(r.statusUpdates, &cmon)
 		}
 	}
@@ -516,14 +502,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 
-		change, err := cm.Status.SetMonitoringCondition(cm.GetGeneration(), metav1.Now(), cond)
-		if err != nil {
-			// Log an error but let operator continue to avoid getting stuck
-			// on a potential bad resource.
-			logger.Error(err, "setting clusternodemonitoring status state", "namespace", cm.Namespace, "name", cm.Name)
-		}
-
-		if change {
+		if cm.Status.SetMonitoringCondition(cm.GetGeneration(), metav1.Now(), cond) {
 			r.statusUpdates = append(r.statusUpdates, &cm)
 		}
 	}

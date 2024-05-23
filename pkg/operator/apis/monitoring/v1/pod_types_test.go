@@ -190,10 +190,7 @@ func TestSetMonitoringCondition(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.doc, func(t *testing.T) {
 			got := c.curr
-			change, err := got.SetMonitoringCondition(c.generation, c.now, c.cond)
-			if err != nil {
-				t.Fatalf("set podmonitoring condition: %s", err)
-			}
+			change := got.SetMonitoringCondition(c.generation, c.now, c.cond)
 
 			// Get resolved podmonitorings.
 			if change != c.change {
