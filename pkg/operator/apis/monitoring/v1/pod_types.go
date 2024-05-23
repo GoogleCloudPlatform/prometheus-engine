@@ -26,10 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-var (
-	errInvalidCond = fmt.Errorf("condition needs both 'Type' and 'Status' fields set")
-)
-
 // PodMonitoringCRD represents a Kubernetes CRD that monitors Pod endpoints.
 type PodMonitoringCRD interface {
 	MonitoringCRD

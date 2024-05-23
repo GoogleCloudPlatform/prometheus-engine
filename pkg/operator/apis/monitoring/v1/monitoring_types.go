@@ -68,6 +68,10 @@ func NewDefaultConditions(now metav1.Time) []MonitoringCondition {
 	}
 }
 
+func (cond *MonitoringCondition) IsValid() bool {
+	return cond.Type != "" && cond.Status != ""
+}
+
 // MonitoringStatus holds status information of a monitoring resource.
 type MonitoringStatus struct {
 	// The generation observed by the controller.
@@ -77,17 +81,17 @@ type MonitoringStatus struct {
 	Conditions []MonitoringCondition `json:"conditions,omitempty"`
 }
 
-// SetMonitoringCondition merges the provided condition if the resource generation changed or there is
-// a status condition state transition.
-func (status *MonitoringStatus) SetMonitoringCondition(gen int64, now metav1.Time, cond *MonitoringCondition) (bool, error) {
+// SetMonitoringCondition merges the provided valid condition if the resource generation changed or
+// there is a status condition state transition.
+func (status *MonitoringStatus) SetMonitoringCondition(gen int64, now metav1.Time, cond *MonitoringCondition) bool {
 	var (
 		specChanged              = status.ObservedGeneration != gen
 		statusTransition, update bool
 		conds                    = make(map[MonitoringConditionType]*MonitoringCondition)
 	)
 
-	if cond.Type == "" || cond.Status == "" {
-		return update, errInvalidCond
+	if !cond.IsValid() {
+		return false
 	}
 
 	// Set up defaults.
@@ -124,5 +128,5 @@ func (status *MonitoringStatus) SetMonitoringCondition(gen int64, now metav1.Tim
 		}
 	}
 
-	return update, nil
+	return update
 }
