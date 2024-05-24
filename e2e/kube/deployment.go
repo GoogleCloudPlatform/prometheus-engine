@@ -72,15 +72,5 @@ func DeploymentPods(ctx context.Context, kubeClient client.Client, namespace, na
 		return nil, err
 	}
 
-	selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
-	if err != nil {
-		return nil, err
-	}
-	podList := &corev1.PodList{}
-	if err := kubeClient.List(ctx, podList, &client.ListOptions{
-		LabelSelector: selector,
-	}); err != nil {
-		return nil, err
-	}
-	return podList.Items, nil
+	return podsFromSelector(ctx, kubeClient, deployment.Spec.Selector)
 }

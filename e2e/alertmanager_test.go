@@ -33,7 +33,7 @@ import (
 )
 
 func TestAlertmanager(t *testing.T) {
-	ctx := context.Background()
+	ctx := contextWithDeadline(t)
 	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)

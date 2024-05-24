@@ -559,7 +559,7 @@ func testCreateRules(
 		if err := kube.WaitForDeploymentReady(ctx, kubeClient, systemNamespace, operator.NameRuleEvaluator); err != nil {
 			t.Errorf("rule-evaluator is not ready: %s", err)
 			out := strings.Builder{}
-			if err := kube.Debug(ctx, restConfig, kubeClient, &appsv1.Deployment{
+			if err := kube.Debug(context.Background(), restConfig, kubeClient, &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: systemNamespace,
 					Name:      operator.NameRuleEvaluator,
