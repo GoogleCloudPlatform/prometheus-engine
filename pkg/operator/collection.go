@@ -19,6 +19,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"path"
@@ -126,9 +127,8 @@ func setupCollectionControllers(op *Operator) error {
 }
 
 type collectionReconciler struct {
-	client        client.Client
-	opts          Options
-	statusUpdates []monitoringv1.MonitoringCRD
+	client client.Client
+	opts   Options
 }
 
 func newCollectionReconciler(c client.Client, opts Options) *collectionReconciler {
@@ -181,15 +181,6 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	if err := r.ensureCollectorConfig(ctx, &config.Collection, config.Features.Config.Compression, config.Exports); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector config: %w", err)
 	}
-
-	// Reconcile any status updates.
-	for _, obj := range r.statusUpdates {
-		if err := patchMonitoringStatus(ctx, r.client, obj, obj.GetMonitoringStatus()); err != nil {
-			logger.Error(err, "update status", "obj", obj)
-		}
-	}
-	// Reset status updates for next reconcile loop.
-	r.statusUpdates = r.statusUpdates[:0]
 
 	return reconcile.Result{}, nil
 }
@@ -328,7 +319,7 @@ func setConfigMapData(cm *corev1.ConfigMap, c monitoringv1.CompressionType, key 
 
 // ensureCollectorConfig generates the collector config and creates or updates it.
 func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, compression monitoringv1.CompressionType, exports []monitoringv1.ExportSpec) error {
-	cfg, err := r.makeCollectorConfig(ctx, spec, exports)
+	cfg, updates, err := r.makeCollectorConfig(ctx, spec, exports)
 	if err != nil {
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
@@ -354,7 +345,28 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	} else if err != nil {
 		return fmt.Errorf("update Prometheus config: %w", err)
 	}
-	return nil
+
+	// Reconcile any status updates.
+	var errs []error
+	for _, update := range updates {
+		// Copy status in case we update both spec and status. Updating one reverts the other.
+		statusUpdate := update.object.DeepCopyObject().(monitoringv1.MonitoringCRD).GetMonitoringStatus()
+		if update.spec {
+			// The status will be reverted, but our generation ID will be updated.
+			if err := r.client.Update(ctx, update.object); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if update.status {
+			// Use the object with the latest generation ID.
+			if err := patchMonitoringStatus(ctx, r.client, update.object, statusUpdate); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 type prometheusConfig struct {
@@ -364,7 +376,15 @@ type prometheusConfig struct {
 	SecretConfigs []secrets.SecretConfig `yaml:"kubernetes_secrets,omitempty"`
 }
 
-func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*prometheusConfig, error) {
+type update struct {
+	object monitoringv1.MonitoringCRD
+	spec   bool
+	status bool
+}
+
+// makeCollectorConfig returns the Prometheus configuration based on the scrape configurations, the
+// list of objects to update and any error.
+func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*prometheusConfig, []update, error) {
 	logger, _ := logr.FromContext(ctx)
 
 	cfg := &promconfig.Config{
@@ -376,12 +396,12 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	var err error
 	cfg.ScrapeConfigs, err = spec.ScrapeConfigs()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create kubelet scrape config: %w", err)
+		return nil, nil, fmt.Errorf("failed to create kubelet scrape config: %w", err)
 	}
 
 	cfg.RemoteWriteConfigs, err = makeRemoteWriteConfig(exports)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create export config: %w", err)
+		return nil, nil, fmt.Errorf("failed to create export config: %w", err)
 	}
 
 	// Generate a separate scrape job for every endpoint in every PodMonitoring.
@@ -391,14 +411,17 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		clusterNodeMons monitoringv1.ClusterNodeMonitoringList
 	)
 	if err := r.client.List(ctx, &podMons); err != nil {
-		return nil, fmt.Errorf("failed to list PodMonitorings: %w", err)
+		return nil, nil, fmt.Errorf("failed to list PodMonitorings: %w", err)
 	}
 
 	usedSecrets := monitoringv1.PrometheusSecretConfigs{}
 	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+	var updates []update
 
 	// Mark status updates in batch with single timestamp.
 	for _, pmon := range podMons.Items {
+		updateSpec := pmon.UpdateDefault()
+
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
@@ -416,17 +439,25 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		} else {
 			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
-		if pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond) {
-			r.statusUpdates = append(r.statusUpdates, &pmon)
+
+		updateStatus := pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
+		if updateSpec || updateStatus {
+			updates = append(updates, update{
+				object: &pmon,
+				spec:   updateSpec,
+				status: updateStatus,
+			})
 		}
 	}
 
 	if err := r.client.List(ctx, &clusterPodMons); err != nil {
-		return nil, fmt.Errorf("failed to list ClusterPodMonitorings: %w", err)
+		return nil, nil, fmt.Errorf("failed to list ClusterPodMonitorings: %w", err)
 	}
 
 	// Mark status updates in batch with single timestamp.
 	for _, cmon := range clusterPodMons.Items {
+		updateSpec := cmon.UpdateDefault()
+
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
@@ -444,8 +475,14 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		} else {
 			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
-		if cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond) {
-			r.statusUpdates = append(r.statusUpdates, &cmon)
+
+		updateStatus := cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
+		if updateSpec || updateStatus {
+			updates = append(updates, update{
+				object: &cmon,
+				spec:   updateSpec,
+				status: updateStatus,
+			})
 		}
 	}
 
@@ -454,7 +491,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	secretConfigs := usedSecrets.SecretConfigs()
 
 	if err := r.client.List(ctx, &clusterNodeMons); err != nil {
-		return nil, fmt.Errorf("failed to list ClusterNodeMonitorings: %w", err)
+		return nil, nil, fmt.Errorf("failed to list ClusterNodeMonitorings: %w", err)
 	}
 	// The following job names are reserved by GMP for ClusterNodeMonitoring in the
 	// gmp-system namespace. They will not be generated if kubeletScraping is enabled.
@@ -486,7 +523,10 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
 		if cnmon.Status.SetMonitoringCondition(cnmon.GetGeneration(), metav1.Now(), cond) {
-			r.statusUpdates = append(r.statusUpdates, &cnmon)
+			updates = append(updates, update{
+				object: &cnmon,
+				status: true,
+			})
 		}
 	}
 
@@ -498,7 +538,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	return &prometheusConfig{
 		Config:        *cfg,
 		SecretConfigs: secretConfigs,
-	}, nil
+	}, updates, nil
 }
 
 // makeRemoteWriteConfig generate the configs for the Prometheus remote_write feature.

@@ -100,11 +100,19 @@ func (p *PodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
 
+// Default implements admission.Defaulter.
 func (p *PodMonitoring) Default() {
+	_ = p.UpdateDefault()
+}
+
+// UpdateDefault defaults any unset fields, returning true if the object was updated.
+func (p *PodMonitoring) UpdateDefault() bool {
 	if p.Spec.TargetLabels.Metadata == nil {
 		md := []string{"pod", "container"}
 		p.Spec.TargetLabels.Metadata = &md
+		return true
 	}
+	return false
 }
 
 // PodMonitoringList is a list of PodMonitorings.
@@ -172,11 +180,19 @@ func (*ClusterPodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
 
+// Default implements admission.Defaulter.
 func (c *ClusterPodMonitoring) Default() {
+	_ = c.UpdateDefault()
+}
+
+// UpdateDefault defaults any unset fields, returning true if the object was updated.
+func (c *ClusterPodMonitoring) UpdateDefault() bool {
 	if c.Spec.TargetLabels.Metadata == nil {
 		md := []string{"namespace", "pod", "container"}
 		c.Spec.TargetLabels.Metadata = &md
+		return true
 	}
+	return false
 }
 
 // ClusterPodMonitoringList is a list of ClusterPodMonitorings.

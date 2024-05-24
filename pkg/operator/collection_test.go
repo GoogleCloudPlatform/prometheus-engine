@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -63,67 +64,514 @@ func newFakeClientBuilder() *fake.ClientBuilder {
 		WithStatusSubresource(&monitoringv1.GlobalRules{})
 }
 
-func TestCollectionStatus(t *testing.T) {
-	cases := []struct {
-		doc         string
-		wantStatus  corev1.ConditionStatus
-		wantReason  string
-		wantMessage string
-		endpoint    monitoringv1.ScrapeEndpoint
+func TestCollectionReconcile(t *testing.T) {
+	exampleObjectMeta := metav1.ObjectMeta{
+		Name:            "prom-example",
+		Namespace:       "gmp-test",
+		ResourceVersion: "1",
+	}
+	exampleTargetLabels := monitoringv1.TargetLabels{
+		Metadata: &[]string{"node"},
+	}
+	exampleEndpointStatus := []monitoringv1.ScrapeEndpointStatus{
+		{
+			Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
+			ActiveTargets:    1,
+			UnhealthyTargets: 0,
+			LastUpdateTime:   metav1.Date(2022, time.November, 1, 0, 0, 0, 0, time.UTC),
+			SampleGroups: []monitoringv1.SampleGroup{
+				{
+					SampleTargets: []monitoringv1.SampleTarget{
+						{
+							Health: "up",
+							Labels: map[model.LabelName]model.LabelValue{
+								"instance": "a",
+							},
+							LastScrapeDurationSeconds: "1.2",
+						},
+					},
+					Count: ptr.To(int32(1)),
+				},
+			},
+			CollectorsFraction: "1",
+		},
+	}
+	validScrapeEndpoints := []monitoringv1.ScrapeEndpoint{
+		{
+			Port:     intstr.FromString("metrics"),
+			Interval: "10s",
+		},
+	}
+	validScrapeNodeEndpoints := []monitoringv1.ScrapeNodeEndpoint{
+		{
+			Path:     "kubelet",
+			Interval: "10s",
+		},
+	}
+
+	testCases := []struct {
+		desc     string
+		input    monitoringv1.MonitoringCRD
+		expected monitoringv1.MonitoringCRD
 	}{
 		{
-			doc:        "collection does not overwrite the non-managed status fields",
-			wantStatus: corev1.ConditionTrue,
-			endpoint: monitoringv1.ScrapeEndpoint{
-				Port:     intstr.FromString("metrics"),
-				Interval: "10s",
+			desc: "podmonitoring: no update",
+			input: &monitoringv1.PodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.PodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+			expected: &monitoringv1.PodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.PodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
 			},
 		},
 		{
-			doc:         "status is false because endpoint is empty",
-			wantStatus:  corev1.ConditionFalse,
-			wantReason:  "ScrapeConfigError",
-			wantMessage: "generating scrape config failed for PodMonitoring endpoint",
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.doc, func(t *testing.T) {
-			statusIn := monitoringv1.PodMonitoringStatus{
-				EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
-					{
-						Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
-						ActiveTargets:    1,
-						UnhealthyTargets: 0,
-						LastUpdateTime:   metav1.Date(2022, time.November, 1, 0, 0, 0, 0, time.UTC),
-						SampleGroups: []monitoringv1.SampleGroup{
+			desc: "podmonitoring: update status: missing monitoring status",
+			input: &monitoringv1.PodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.PodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+				},
+			},
+			expected: &monitoringv1.PodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "prom-example",
+					Namespace:       "gmp-test",
+					ResourceVersion: "2",
+				},
+				Spec: monitoringv1.PodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
 							{
-								SampleTargets: []monitoringv1.SampleTarget{
-									{
-										Health: "up",
-										Labels: map[model.LabelName]model.LabelValue{
-											"instance": "a",
-										},
-										LastScrapeDurationSeconds: "1.2",
-									},
-								},
-								Count: ptr.To(int32(1)),
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
 							},
 						},
-						CollectorsFraction: "1",
 					},
 				},
-			}
+			},
+		},
+		{
+			desc: "podmonitoring: update status: empty endpoint",
+			input: &monitoringv1.PodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.PodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    []monitoringv1.ScrapeEndpoint{{}},
+				},
+			},
+			expected: &monitoringv1.PodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "prom-example",
+					Namespace:       "gmp-test",
+					ResourceVersion: "2",
+				}, Spec: monitoringv1.PodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    []monitoringv1.ScrapeEndpoint{{}},
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:    "ConfigurationCreateSuccess",
+								Status:  corev1.ConditionFalse,
+								Reason:  "ScrapeConfigError",
+								Message: "generating scrape config failed for PodMonitoring endpoint",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "podmonitoring: default spec",
+			input: &monitoringv1.PodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.PodMonitoringSpec{
+					Endpoints: validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+			expected: &monitoringv1.PodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "prom-example",
+					Namespace:       "gmp-test",
+					ResourceVersion: "2",
+				}, Spec: monitoringv1.PodMonitoringSpec{
+					TargetLabels: monitoringv1.TargetLabels{
+						Metadata: &[]string{"pod", "container"},
+					},
+					Endpoints: validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "podmonitoring: default spec and update status",
+			input: &monitoringv1.PodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.PodMonitoringSpec{
+					Endpoints: validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+				},
+			},
+			expected: &monitoringv1.PodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "prom-example",
+					Namespace:       "gmp-test",
+					ResourceVersion: "3",
+				}, Spec: monitoringv1.PodMonitoringSpec{
+					TargetLabels: monitoringv1.TargetLabels{
+						Metadata: &[]string{"pod", "container"},
+					},
+					Endpoints: validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "clusterpodmonitoring: no update",
+			input: &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.ClusterPodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+			expected: &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.ClusterPodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "clusterpodmonitoring: update status: missing monitoring status",
+			input: &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.ClusterPodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+				},
+			},
+			expected: &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "prom-example",
+					Namespace:       "gmp-test",
+					ResourceVersion: "2",
+				},
+				Spec: monitoringv1.ClusterPodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "clusterpodmonitoring: update status: empty endpoint",
+			input: &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.ClusterPodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    []monitoringv1.ScrapeEndpoint{{}},
+				},
+			},
+			expected: &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "prom-example",
+					Namespace:       "gmp-test",
+					ResourceVersion: "2",
+				}, Spec: monitoringv1.ClusterPodMonitoringSpec{
+					TargetLabels: exampleTargetLabels,
+					Endpoints:    []monitoringv1.ScrapeEndpoint{{}},
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:    "ConfigurationCreateSuccess",
+								Status:  corev1.ConditionFalse,
+								Reason:  "ScrapeConfigError",
+								Message: "generating scrape config failed for ClusterPodMonitoring endpoint",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "clusterpodmonitoring: default spec",
+			input: &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.ClusterPodMonitoringSpec{
+					Endpoints: validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+			expected: &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "prom-example",
+					Namespace:       "gmp-test",
+					ResourceVersion: "2",
+				}, Spec: monitoringv1.ClusterPodMonitoringSpec{
+					TargetLabels: monitoringv1.TargetLabels{
+						Metadata: &[]string{"namespace", "pod", "container"},
+					},
+					Endpoints: validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "clusterpodmonitoring: default spec and update status",
+			input: &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.ClusterPodMonitoringSpec{
+					Endpoints: validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+				},
+			},
+			expected: &monitoringv1.ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "prom-example",
+					Namespace:       "gmp-test",
+					ResourceVersion: "3",
+				}, Spec: monitoringv1.ClusterPodMonitoringSpec{
+					TargetLabels: monitoringv1.TargetLabels{
+						Metadata: &[]string{"namespace", "pod", "container"},
+					},
+					Endpoints: validScrapeEndpoints,
+				},
+				Status: monitoringv1.PodMonitoringStatus{
+					EndpointStatuses: exampleEndpointStatus,
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:   "ConfigurationCreateSuccess",
+								Status: corev1.ConditionTrue,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "clusternodemonitoring: no update",
+			input: &monitoringv1.ClusterNodeMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.ClusterNodeMonitoringSpec{
+					Endpoints: validScrapeNodeEndpoints,
+				},
+				Status: monitoringv1.MonitoringStatus{
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:   "ConfigurationCreateSuccess",
+							Status: corev1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expected: &monitoringv1.ClusterNodeMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.ClusterNodeMonitoringSpec{
+					Endpoints: validScrapeNodeEndpoints,
+				},
+				Status: monitoringv1.MonitoringStatus{
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:   "ConfigurationCreateSuccess",
+							Status: corev1.ConditionTrue,
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "clusternodemonitoring: update status: missing monitoring status",
+			input: &monitoringv1.ClusterNodeMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.ClusterNodeMonitoringSpec{
+					Endpoints: validScrapeNodeEndpoints,
+				},
+			},
+			expected: &monitoringv1.ClusterNodeMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "prom-example",
+					Namespace:       "gmp-test",
+					ResourceVersion: "2",
+				},
+				Spec: monitoringv1.ClusterNodeMonitoringSpec{
+					Endpoints: validScrapeNodeEndpoints,
+				},
+				Status: monitoringv1.MonitoringStatus{
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:   "ConfigurationCreateSuccess",
+							Status: corev1.ConditionTrue,
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "clusternodemonitoring: update status: empty endpoint",
+			input: &monitoringv1.ClusterNodeMonitoring{
+				ObjectMeta: exampleObjectMeta,
+				Spec: monitoringv1.ClusterNodeMonitoringSpec{
+					Endpoints: []monitoringv1.ScrapeNodeEndpoint{{}},
+				},
+			},
+			expected: &monitoringv1.ClusterNodeMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "prom-example",
+					Namespace:       "gmp-test",
+					ResourceVersion: "2",
+				}, Spec: monitoringv1.ClusterNodeMonitoringSpec{
+					Endpoints: []monitoringv1.ScrapeNodeEndpoint{{}},
+				},
+				Status: monitoringv1.MonitoringStatus{
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:    "ConfigurationCreateSuccess",
+							Status:  corev1.ConditionFalse,
+							Reason:  "ScrapeConfigError",
+							Message: "generating scrape config failed for ClusterNodeMonitoring endpoint",
+						},
+					},
+				},
+			},
+		},
+	}
 
-			statusOut := *statusIn.DeepCopy()
-			statusOut.Conditions = append(statusOut.Conditions, monitoringv1.MonitoringCondition{
-				Type:               monitoringv1.ConfigurationCreateSuccess,
-				Status:             c.wantStatus,
-				LastUpdateTime:     metav1.Time{},
-				LastTransitionTime: metav1.Time{},
-				Reason:             c.wantReason,
-				Message:            c.wantMessage,
-			})
-
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
 			logger := testr.New(t)
 			ctx := logr.NewContext(context.Background(), logger)
 			opts := Options{
@@ -136,16 +584,7 @@ func TestCollectionStatus(t *testing.T) {
 			}
 
 			kubeClient := newFakeClientBuilder().
-				WithObjects(&monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "prom-example",
-						Namespace: "gmp-test",
-					},
-					Spec: monitoringv1.PodMonitoringSpec{
-						Endpoints: []monitoringv1.ScrapeEndpoint{c.endpoint},
-					},
-					Status: statusIn,
-				}).
+				WithObjects(tc.input).
 				WithObjects(&monitoringv1.OperatorConfig{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      NameOperatorConfig,
@@ -181,24 +620,18 @@ func TestCollectionStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			var podMonitorings monitoringv1.PodMonitoringList
-			if err := kubeClient.List(ctx, &podMonitorings); err != nil {
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(tc.input), tc.input); err != nil {
 				t.Fatal(err)
 			}
-			switch amount := len(podMonitorings.Items); amount {
-			case 1:
-				status := podMonitorings.Items[0].Status
-				for i := range status.Conditions {
-					// Normalize times because we cannot predict this.
-					condition := &status.Conditions[i]
-					condition.LastUpdateTime = metav1.Time{}
-					condition.LastTransitionTime = metav1.Time{}
-				}
-				if diff := cmp.Diff(status, statusOut); diff != "" {
-					t.Fatalf("invalid PodMonitoringStatus: %s", diff)
-				}
-			default:
-				t.Fatalf("invalid PodMonitorings found: %d", amount)
+
+			for i := range tc.input.GetMonitoringStatus().Conditions {
+				// Normalize times because we cannot predict this.
+				condition := &tc.input.GetMonitoringStatus().Conditions[i]
+				condition.LastUpdateTime = metav1.Time{}
+				condition.LastTransitionTime = metav1.Time{}
+			}
+			if diff := cmp.Diff(tc.expected, tc.input); diff != "" {
+				t.Fatalf("unexpected update (-want, +got): %s", diff)
 			}
 		})
 	}
