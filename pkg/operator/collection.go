@@ -374,11 +374,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	}
 
 	var err error
-	cfg.ScrapeConfigs, err = spec.ScrapeConfigs()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kubelet scrape config: %w", err)
-	}
-
 	cfg.RemoteWriteConfigs, err = makeRemoteWriteConfig(exports)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create export config: %w", err)
