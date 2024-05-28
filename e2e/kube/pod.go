@@ -48,6 +48,29 @@ func PodLogs(ctx context.Context, restConfig *rest.Config, namespace, name, cont
 	return builder.String(), nil
 }
 
+// PodsReady filters the given pod list, returning only ready pods.
+func PodsReady(pods []corev1.Pod) []corev1.Pod {
+	var podsFiltered []corev1.Pod
+	for _, pod := range pods {
+		if isPodReady(&pod) {
+			podsFiltered = append(podsFiltered, pod)
+		}
+	}
+	return podsFiltered
+}
+
+func isPodReady(pod *corev1.Pod) bool {
+	if len(pod.Spec.Containers) != len(pod.Status.ContainerStatuses) {
+		return false
+	}
+	for _, container := range pod.Status.ContainerStatuses {
+		if !container.Ready {
+			return false
+		}
+	}
+	return true
+}
+
 func waitForPodContainerReady(ctx context.Context, kubeClient client.Client, pod *corev1.Pod, container string) error {
 	return waitForResourceReady(ctx, kubeClient, pod, func(pod *corev1.Pod) error {
 		return isPodContainerReady(pod, container)
@@ -105,4 +128,18 @@ func podByAddr(ctx context.Context, kubeClient client.Client, addr *net.TCPAddr)
 	}
 	key := client.ObjectKeyFromObject(pod)
 	return nil, "", fmt.Errorf("unable to find port %d in pod %s", addr.Port, key)
+}
+
+func podsFromSelector(ctx context.Context, kubeClient client.Client, ps *metav1.LabelSelector) ([]corev1.Pod, error) {
+	selector, err := metav1.LabelSelectorAsSelector(ps)
+	if err != nil {
+		return nil, err
+	}
+	podList := &corev1.PodList{}
+	if err := kubeClient.List(ctx, podList, &client.ListOptions{
+		LabelSelector: selector,
+	}); err != nil {
+		return nil, err
+	}
+	return podList.Items, nil
 }
