@@ -49,12 +49,14 @@ func CreateResources(ctx context.Context, kubeClient client.Client, deployOpts .
 type DeployOption func(*deployOptions)
 
 type deployOptions struct {
-	operatorNamespace string
-	publicNamespace   string
-	projectID         string
-	cluster           string
-	location          string
-	disableGCM        bool
+	operatorNamespace  string
+	publicNamespace    string
+	projectID          string
+	cluster            string
+	location           string
+	disableGCM         bool
+	gcmEndpoint        string
+	prometheusEndpoint string
 }
 
 func (opts *deployOptions) setDefaults() {
@@ -89,6 +91,18 @@ func WithMeta(projectID, cluster, location string) DeployOption {
 func WithDisableGCM(disableGCM bool) DeployOption {
 	return func(opts *deployOptions) {
 		opts.disableGCM = disableGCM
+	}
+}
+
+func WithGCMEndpoint(gcmEndpoint string) DeployOption {
+	return func(opts *deployOptions) {
+		opts.gcmEndpoint = gcmEndpoint
+	}
+}
+
+func WithPrometheusEndpoint(prometheusEndpoint string) DeployOption {
+	return func(opts *deployOptions) {
+		opts.prometheusEndpoint = prometheusEndpoint
 	}
 }
 
@@ -130,16 +144,18 @@ func resources(scheme *runtime.Scheme) ([]client.Object, error) {
 }
 
 func normalizeDeamonSets(opts *deployOptions, obj *appsv1.DaemonSet) (client.Object, error) {
-	if !opts.disableGCM {
-		return obj, nil
-	}
 	if obj.GetName() != operator.NameCollector {
 		return obj, nil
 	}
 	for i := range obj.Spec.Template.Spec.Containers {
 		container := &obj.Spec.Template.Spec.Containers[i]
 		if container.Name == operator.CollectorPrometheusContainerName {
-			container.Args = append(container.Args, "--export.debug.disable-auth")
+			if opts.disableGCM || opts.gcmEndpoint != "" {
+				container.Args = append(container.Args, "--export.debug.disable-auth")
+			}
+			if opts.gcmEndpoint != "" {
+				container.Args = append(container.Args, fmt.Sprintf("--export.endpoint=%s", opts.gcmEndpoint))
+			}
 			return obj, nil
 		}
 	}
@@ -169,15 +185,23 @@ func normalizeDeployments(opts *deployOptions, obj *appsv1.Deployment) (client.O
 			container.Args = append(container.Args, fmt.Sprintf("--public-namespace=%s", opts.publicNamespace))
 		}
 	case operator.NameRuleEvaluator:
-		if !opts.disableGCM {
-			break
-		}
 		container, err := kube.DeploymentContainer(obj, operator.RuleEvaluatorContainerName)
 		if err != nil {
 			return nil, fmt.Errorf("unable to find rule-evaluator %q container: %w", operator.RuleEvaluatorContainerName, err)
 		}
-		container.Args = append(container.Args, "--export.debug.disable-auth")
-		container.Args = append(container.Args, "--query.debug.disable-auth")
+		if opts.disableGCM || opts.gcmEndpoint != "" {
+			container.Args = append(container.Args, "--export.debug.disable-auth")
+		}
+		if opts.gcmEndpoint != "" {
+			container.Args = append(container.Args, fmt.Sprintf("--export.endpoint=%s", opts.gcmEndpoint))
+		}
+
+		if opts.disableGCM || opts.prometheusEndpoint != "" {
+			container.Args = append(container.Args, "--query.debug.disable-auth")
+		}
+		if opts.prometheusEndpoint != "" {
+			container.Args = append(container.Args, fmt.Sprintf("--query.target-url=%s", opts.prometheusEndpoint))
+		}
 	}
 	return obj, nil
 }

@@ -29,7 +29,7 @@ import (
 	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
-	monitoring_pb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
+	"cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	gax "github.com/googleapis/gax-go/v2"
@@ -511,7 +511,7 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 	e.triggerNext()
 }
 
-func sampleInRange(sample *monitoring_pb.TimeSeries, start, end time.Time) bool {
+func sampleInRange(sample *monitoringpb.TimeSeries, start, end time.Time) bool {
 	// A sample has exactly one point in the time series. The start timestamp may be unset for gauges.
 	if s := sample.Points[0].Interval.StartTime; s != nil && s.AsTime().Before(start) {
 		return false
@@ -522,7 +522,7 @@ func sampleInRange(sample *monitoring_pb.TimeSeries, start, end time.Time) bool 
 	return true
 }
 
-func (e *Exporter) enqueue(hash uint64, sample *monitoring_pb.TimeSeries) {
+func (e *Exporter) enqueue(hash uint64, sample *monitoringpb.TimeSeries) {
 	idx := hash % uint64(len(e.shards))
 	e.shards[idx].enqueue(hash, sample)
 }
@@ -863,7 +863,7 @@ type batch struct {
 	logger  log.Logger
 	maxSize uint
 
-	m       map[string][]*monitoring_pb.TimeSeries
+	m       map[string][]*monitoringpb.TimeSeries
 	shards  []*shard
 	oneFull bool
 	total   int
@@ -876,7 +876,7 @@ func newBatch(logger log.Logger, shardsCount uint, maxSize uint) *batch {
 	return &batch{
 		logger:  logger,
 		maxSize: maxSize,
-		m:       make(map[string][]*monitoring_pb.TimeSeries, 1),
+		m:       make(map[string][]*monitoringpb.TimeSeries, 1),
 		shards:  make([]*shard, 0, shardsCount/2),
 	}
 }
@@ -886,12 +886,12 @@ func (b *batch) addShard(s *shard) {
 }
 
 // add a new sample to the batch. Must only be called after full() returned false.
-func (b *batch) add(s *monitoring_pb.TimeSeries) {
+func (b *batch) add(s *monitoringpb.TimeSeries) {
 	pid := s.Resource.Labels[KeyProjectID]
 
 	l, ok := b.m[pid]
 	if !ok {
-		l = make([]*monitoring_pb.TimeSeries, 0, b.maxSize)
+		l = make([]*monitoringpb.TimeSeries, 0, b.maxSize)
 	}
 	l = append(l, s)
 	b.m[pid] = l
@@ -923,7 +923,7 @@ func (b *batch) empty() bool {
 // requests have completed and notifies the pending shards.
 func (b batch) send(
 	ctx context.Context,
-	sendOne func(context.Context, *monitoring_pb.CreateTimeSeriesRequest, ...gax.CallOption) error,
+	sendOne func(context.Context, *monitoringpb.CreateTimeSeriesRequest, ...gax.CallOption) error,
 ) {
 	// Set timeout so slow requests in the batch do not block overall progress indefinitely.
 	sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -935,7 +935,7 @@ func (b batch) send(
 	for pid, l := range b.m {
 		wg.Add(1)
 
-		go func(pid string, l []*monitoring_pb.TimeSeries) {
+		go func(pid string, l []*monitoringpb.TimeSeries) {
 			defer wg.Done()
 
 			pendingRequests.Inc()
@@ -945,7 +945,7 @@ func (b batch) send(
 
 			// We do not retry any requests due to the risk of producing a backlog
 			// that cannot be worked down, especially if large amounts of clients try to do so.
-			err := sendOne(sendCtx, &monitoring_pb.CreateTimeSeriesRequest{
+			err := sendOne(sendCtx, &monitoringpb.CreateTimeSeriesRequest{
 				Name:       fmt.Sprintf("projects/%s", pid),
 				TimeSeries: l,
 			})

@@ -20,7 +20,7 @@ endif
 ifeq ($(KIND_PERSIST), 1)
 E2E_DOCKER_ARGS += --env KIND_PERSIST=1
 endif
-E2E_DEPS:=config-reloader operator rule-evaluator go-synthetic
+E2E_DEPS:=config-reloader operator rule-evaluator go-synthetic fake-metric-service
 REGISTRY_NAME=kind-registry
 REGISTRY_PORT=5001
 KIND_PARALLEL?=5

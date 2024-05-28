@@ -120,12 +120,9 @@ func podByAddr(ctx context.Context, kubeClient client.Client, addr *net.TCPAddr)
 	if err != nil {
 		return nil, "", err
 	}
-	for _, container := range pod.Spec.Containers {
-		for _, port := range container.Ports {
-			if int(port.ContainerPort) == addr.Port {
-				return pod, container.Name, nil
-			}
-		}
+	containerIndex := podPortContainerIndex(kubeClient, pod, addr.Port)
+	if containerIndex != -1 {
+		return pod, pod.Spec.Containers[containerIndex].Name, nil
 	}
 	key := client.ObjectKeyFromObject(pod)
 	return nil, "", fmt.Errorf("unable to find port %d in pod %s", addr.Port, key)
@@ -143,4 +140,15 @@ func podsFromSelector(ctx context.Context, kubeClient client.Client, ps *metav1.
 		return nil, err
 	}
 	return podList.Items, nil
+}
+
+func podPortContainerIndex(_ client.Client, pod *corev1.Pod, port int) int {
+	for i, container := range pod.Spec.Containers {
+		for _, p := range container.Ports {
+			if int(p.ContainerPort) == port {
+				return i
+			}
+		}
+	}
+	return -1
 }

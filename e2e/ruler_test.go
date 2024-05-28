@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
@@ -85,9 +84,7 @@ func testRuleEvaluator(t *testing.T, features monitoringv1.OperatorFeatures) {
 	t.Run("rule-evaluator-configuration", testRuleEvaluatorConfiguration(ctx, kubeClient))
 
 	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, features))
-	if !skipGCM {
-		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx))
-	}
+	t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx, restConfig, kubeClient))
 }
 
 func testRuleEvaluatorDeployed(ctx context.Context, kubeClient client.Client) func(*testing.T) {
@@ -540,18 +537,7 @@ func testCreateRules(
 			t.Fatalf("failed waiting for generated rules: %s", err)
 		}
 
-		httpClient, err := kube.PortForwardClient(
-			restConfig,
-			kubeClient,
-			writerFn(func(p []byte) (n int, err error) {
-				t.Logf("portforward: info: %s", string(p))
-				return len(p), nil
-			}),
-			writerFn(func(p []byte) (n int, err error) {
-				t.Logf("portforward: error: %s", string(p))
-				return len(p), nil
-			}),
-		)
+		httpClient, err := newPortForwardClient(t, restConfig, kubeClient)
 		if err != nil {
 			t.Fatalf("failed to create port forward client: %s", err)
 		}
@@ -601,18 +587,19 @@ func testCreateRules(
 	}
 }
 
-func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
+func testValidateRuleEvaluationMetrics(ctx context.Context, restConfig *rest.Config, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 
 		// Wait for metric data to show up in Cloud Monitoring.
-		metricClient, err := gcm.NewMetricClient(ctx)
+		metricClient, err := newMetricClient(ctx, t, restConfig, kubeClient)
 		if err != nil {
 			t.Fatalf("create metric client: %s", err)
 		}
 		defer metricClient.Close()
 
-		err = wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+		err = errors.New("timed out querying time series")
+		pollErr := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 			now := time.Now()
 
 			// Validate the majority of labels being set correctly by filtering along them.
@@ -633,25 +620,32 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 					StartTime: timestamppb.New(now.Add(-10 * time.Second)),
 				},
 			})
-			series, err := iter.Next()
+			var series *gcmpb.TimeSeries
+			series, err = iter.Next()
 			if err == iterator.Done {
+				err = errors.New("no data in GCM")
 				t.Logf("no data in GCM, retrying...")
 				return false, nil
 			} else if err != nil {
 				return false, fmt.Errorf("querying metrics failed: %w", err)
 			}
 			if len(series.Points) == 0 {
-				return false, errors.New("unexpected zero points in result series")
+				err = errors.New("unexpected zero points in result series")
+				return false, err
 			}
 			// We expect exactly one result.
 			series, err = iter.Next()
 			if err != iterator.Done {
-				return false, fmt.Errorf("expected iterator to be done but series %v: %w", series, err)
+				err = fmt.Errorf("expected iterator to be done but series %v: %w", series, err)
+				return false, err
 			}
 			return true, nil
 		})
-		if err != nil {
-			t.Fatalf("waiting for rule metrics to appear in GCM failed: %s", err)
+		if pollErr != nil {
+			if wait.Interrupted(pollErr) && err != nil {
+				pollErr = err
+			}
+			t.Fatalf("waiting for rule metrics to appear in GCM failed: %s", pollErr)
 		}
 	}
 }

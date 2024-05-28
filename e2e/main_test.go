@@ -22,11 +22,17 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"testing"
 	"time"
 
+	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	"go.uber.org/zap/zapcore"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	metav1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -51,8 +57,11 @@ const (
 
 var (
 	projectID, location, cluster string
-	skipGCM                      bool
+	fakeGCM                      bool
 	pollDuration                 time.Duration
+
+	imageTag          string
+	imageRegistryPort int
 
 	gcpServiceAccount string
 )
@@ -64,10 +73,13 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&projectID, "project-id", "", "The GCP project to write metrics to.")
 	flag.StringVar(&location, "location", "", "The location of the Kubernetes cluster that's tested against.")
 	flag.StringVar(&cluster, "cluster", "", "The name of the Kubernetes cluster that's tested against.")
-	flag.BoolVar(&skipGCM, "skip-gcm", false, "Skip validating GCM ingested points.")
+	flag.BoolVar(&fakeGCM, "fake-metric-service", true, "Use a fake GCM endpoint.")
 	flag.DurationVar(&pollDuration, "duration", 3*time.Second, "How often to poll and retry for resources.")
 
 	flag.StringVar(&gcpServiceAccount, "gcp-service-account", "", "Path to GCP service account file for usage by deployed containers.")
+
+	flag.StringVar(&imageTag, "image-tag", "", "The tag to use from the local registry.")
+	flag.IntVar(&imageRegistryPort, "registry-port", -1, "The port of the local registry.")
 
 	flag.Parse()
 
@@ -75,7 +87,6 @@ func TestMain(m *testing.M) {
 }
 
 func setupCluster(ctx context.Context, t testing.TB) (client.Client, *rest.Config, error) {
-	t.Log(">>> deploying static resources")
 	restConfig, err := newRestConfig()
 	if err != nil {
 		return nil, nil, err
@@ -86,7 +97,8 @@ func setupCluster(ctx context.Context, t testing.TB) (client.Client, *rest.Confi
 		return nil, nil, err
 	}
 
-	if err := createResources(ctx, kubeClient); err != nil {
+	t.Log(">>> deploying static resources")
+	if err := createResources(ctx, kubeClient, imageTag, imageRegistryPort); err != nil {
 		return nil, nil, err
 	}
 
@@ -153,9 +165,29 @@ func newScheme() (*runtime.Scheme, error) {
 	return scheme, nil
 }
 
-func createResources(ctx context.Context, kubeClient client.Client) error {
-	if err := deploy.CreateResources(ctx, kubeClient, deploy.WithMeta(projectID, cluster, location), deploy.WithDisableGCM(skipGCM)); err != nil {
+func createResources(ctx context.Context, kubeClient client.Client, imageTag string, imageRegistryPort int) error {
+	deployOpts := []deploy.DeployOption{
+		deploy.WithMeta(projectID, cluster, location),
+	}
+	if fakeGCM {
+		if imageRegistryPort == -1 {
+			return fmt.Errorf("--registry-port must be provided with --fake-metric-service")
+		}
+		metricServiceImage := fmt.Sprintf("localhost:%d/fake-metric-service:%s", imageRegistryPort, imageTag)
+		if err := deploy.CreateFakeMetricService(ctx, kubeClient, metav1.NamespaceDefault, "metric-service", metricServiceImage); err != nil {
+			return err
+		}
+		deployOpts = append(deployOpts, deploy.WithGCMEndpoint(deploy.FakeMetricServiceEndpoint(metav1.NamespaceDefault, "metric-service")))
+		deployOpts = append(deployOpts, deploy.WithPrometheusEndpoint("http://"+deploy.FakeMetricCollectorEndpoint(operator.DefaultOperatorNamespace, "metric-collector")))
+	}
+	if err := deploy.CreateResources(ctx, kubeClient, deployOpts...); err != nil {
 		return err
+	}
+	if fakeGCM {
+		// Create once the GMP system namespace exists.
+		if err := deploy.CreateFakeMetricCollector(ctx, kubeClient, operator.DefaultOperatorNamespace, "metric-collector", deploy.FakeMetricServiceWebEndpoint(metav1.NamespaceDefault, "metric-service")); err != nil {
+			return err
+		}
 	}
 
 	if gcpServiceAccount == "" {
@@ -166,7 +198,7 @@ func createResources(ctx context.Context, kubeClient client.Client) error {
 		if err != nil {
 			return fmt.Errorf("read service account file %q: %w", gcpServiceAccount, err)
 		}
-		if err := deploy.CreateGCPSecretResources(context.Background(), kubeClient, metav1.NamespaceDefault, b); err != nil {
+		if err := deploy.CreateGCPSecretResources(ctx, kubeClient, metav1.NamespaceDefault, b); err != nil {
 			return err
 		}
 	}
@@ -186,4 +218,49 @@ func contextWithDeadline(t *testing.T) context.Context {
 	ctx, cancel := context.WithDeadline(context.Background(), deadline.Truncate(timeoutGracePeriod))
 	t.Cleanup(cancel)
 	return ctx
+}
+
+func newMetricClient(ctx context.Context, t *testing.T, restConfig *rest.Config, kubeClient client.Client) (*gcm.MetricClient, error) {
+	clientOpts := []option.ClientOption{
+		option.WithUserAgent("prometheus-engine-e2e"),
+	}
+	if fakeGCM {
+		clientOpts = append(clientOpts,
+			option.WithoutAuthentication(),
+			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
+			option.WithEndpoint(deploy.FakeMetricServiceEndpoint(metav1.NamespaceDefault, "metric-service")),
+			option.WithGRPCDialOption(grpc.WithContextDialer(func(ctx context.Context, address string) (net.Conn, error) {
+				t.Log("Forwarding address:", address)
+				conn, err := kube.PortForward(ctx, restConfig, kubeClient, address,
+					writerFn(func(p []byte) (n int, err error) {
+						t.Logf("portforward: info: %s", string(p))
+						return len(p), nil
+					}),
+					writerFn(func(p []byte) (n int, err error) {
+						t.Logf("portforward: error: %s", string(p))
+						return len(p), nil
+					}))
+				if err != nil {
+					t.Error("unable to port-forward:", err)
+				}
+				return conn, err
+			})),
+		)
+	}
+	return gcm.NewMetricClient(ctx, clientOpts...)
+}
+
+func newPortForwardClient(t *testing.T, restConfig *rest.Config, kubeClient client.Client) (*http.Client, error) {
+	return kube.PortForwardClient(
+		restConfig,
+		kubeClient,
+		writerFn(func(p []byte) (n int, err error) {
+			t.Logf("portforward: info: %s", string(p))
+			return len(p), nil
+		}),
+		writerFn(func(p []byte) (n int, err error) {
+			t.Logf("portforward: error: %s", string(p))
+			return len(p), nil
+		}),
+	)
 }
