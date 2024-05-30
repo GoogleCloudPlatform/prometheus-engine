@@ -160,7 +160,7 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(context.Con
 		Default(strconv.Itoa(export.BatchSizeMax)).UintVar(&opts.Efficiency.BatchSize)
 
 	a.Flag("export.debug.shard-count", "Number of shards that track series to send.").
-		Default(strconv.Itoa(export.BatchSizeMax)).UintVar(&opts.Efficiency.ShardCount)
+		Default(strconv.Itoa(export.DefaultShardCount)).UintVar(&opts.Efficiency.ShardCount)
 
 	a.Flag("export.debug.shard-buffer-size", "The buffer size for each individual shard. Each element in buffer (queue) consists of sample and hash.").
 		Default(strconv.Itoa(export.DefaultShardBufferSize)).UintVar(&opts.Efficiency.ShardBufferSize)
