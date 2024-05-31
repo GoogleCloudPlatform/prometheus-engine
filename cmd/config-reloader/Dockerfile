@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM google-go.pkg.dev/golang:1.22.3@sha256:efc6b824652199ede8bc25e2d5a57076e0e1ffbe90735dcbda3ee956fe33b612 as buildbase
+FROM golang:1.22.3@sha256:f43c6f049f04cbbaeb28f0aad3eea15274a7d0a7899a617d0037aec48d7ab010 as buildbase
 WORKDIR /app
 COPY go.mod go.mod
 COPY go.sum go.sum
