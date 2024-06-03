@@ -66,7 +66,7 @@ func TestTLS(t *testing.T) {
 	)
 }
 
-func TestBasicAuthPassword(t *testing.T) {
+func TestBasicAuthNoPassword(t *testing.T) {
 	ctx := contextWithDeadline(t)
 	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
