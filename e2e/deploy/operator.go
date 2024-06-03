@@ -44,6 +44,7 @@ func operatorPod(ctx context.Context, kubeClient client.Client, operatorNamespac
 	if err != nil {
 		return nil, err
 	}
+	podList = kube.PodsReady(podList)
 	if len(podList) != 1 {
 		return nil, fmt.Errorf("expected 1 pod, found %d", len(podList))
 	}
