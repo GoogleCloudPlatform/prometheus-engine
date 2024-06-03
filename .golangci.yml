@@ -18,12 +18,12 @@ linters:
     - containedctx
     - contextcheck
     - cyclop
-    - deadcode # Deprecated
     - depguard
+    - err113
     - errorlint
+    - execinquery
     - exhaustive
-    - exhaustivestruct
-    - exhaustruct # Deprecated
+    - exhaustruct
     - exportloopref
     - forbidigo
     - forcetypeassert
@@ -35,39 +35,31 @@ linters:
     - gocritic
     - gocyclo
     - godox
-    - goerr113
     - gofumpt
-    - golint # Deprecated
     - gomnd
     - gomoddirectives
     - gosec
-    - ifshort # Deprecated
     - inamedparam
-    - interfacer # Deprecated
     - ireturn
     - lll
     - maintidx
-    - maligned # Deprecated
+    - mnd
     - nestif
     - nilnil
     - nlreturn
     - noctx
     - nonamedreturns
-    - nosnakecase # Deprecated
     - nosprintfhostport
     - paralleltest
     - perfsprint
     - prealloc
     - protogetter
-    - scopelint # Deprecated
-    - structcheck # Deprecated
     - stylecheck
     - tagliatelle
     - testpackage
     - thelper
     - tparallel
     - unparam
-    - varcheck # Deprecated
     - varnamelen
     - wastedassign
     - wrapcheck

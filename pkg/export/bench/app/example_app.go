@@ -257,7 +257,7 @@ func burnCPU(ctx context.Context, ops int) error {
 		// This must be fixed work, i.e. we cannot spin for a fraction of scheduling will
 		// greatly affect how many times we spin, even without high CPU utilization.
 		//nolint:revive // Intentionally empty block
-		for i := 0; i < ops*20000000; i++ {
+		for range ops * 20000000 {
 		}
 
 		// Wait for some time inversely proportional to the input opts.

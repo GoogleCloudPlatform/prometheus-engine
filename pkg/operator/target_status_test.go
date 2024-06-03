@@ -1693,7 +1693,7 @@ func TestFetchTargets(t *testing.T) {
 					},
 				},
 			})
-			for i := 0; i < podCnt; i++ {
+			for i := range podCnt {
 				pod := &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      fmt.Sprintf("pod-%d", i),
