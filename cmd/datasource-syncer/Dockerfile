@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.21-bullseye AS buildbase
+FROM golang:1.22-bullseye AS buildbase
 WORKDIR /app
 COPY . ./
 
