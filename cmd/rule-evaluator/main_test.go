@@ -58,7 +58,7 @@ func compareWarningsEquality(w1, w2 storage.Warnings) bool {
 	if len(w1) != len(w2) {
 		return false
 	}
-	for i := 0; i < len(w1); i++ {
+	for i := range len(w1) {
 		if w1[i] != w2[i] && w1[i].Error() != w2[i].Error() {
 			return false
 		}

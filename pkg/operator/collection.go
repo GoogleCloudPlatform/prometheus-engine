@@ -480,8 +480,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			logger.Info("ClusterNodeMonitoring job %s was not applied because OperatorConfig.collector.kubeletScraping is enabled. kubeletScraping already includes the metrics in this job.", "name", cm.Name)
 			continue
 		}
-		// Reassign so we can safely get a pointer.
-		cm := cm
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,

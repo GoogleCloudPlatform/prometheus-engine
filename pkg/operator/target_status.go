@@ -247,7 +247,7 @@ func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, httpCli
 	// Must be unbounded or else we deadlock.
 	targetCh := make(chan *prometheusv1.TargetsResult)
 
-	for i := uint16(0); i < opts.TargetPollConcurrency; i++ {
+	for range opts.TargetPollConcurrency {
 		// Wrapper function so we can defer in this scope.
 		go func() {
 			defer wg.Done()
