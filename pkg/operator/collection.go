@@ -409,8 +409,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster, usedSecrets)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
-			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
-			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
@@ -418,10 +416,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 				Message: msg,
 			}
 			logger.Error(err, msg, "namespace", pmon.Namespace, "name", pmon.Name)
-			continue
+		} else {
+			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
-		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
-
 		if pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond) {
 			r.statusUpdates = append(r.statusUpdates, &pmon)
 		}
@@ -443,8 +440,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster, usedSecrets)
 		if err != nil {
 			msg := "generating scrape config failed for ClusterPodMonitoring endpoint"
-			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
-			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
@@ -452,10 +447,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 				Message: msg,
 			}
 			logger.Error(err, msg, "namespace", cmon.Namespace, "name", cmon.Name)
-			continue
+		} else {
+			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
-		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
-
 		if cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond) {
 			r.statusUpdates = append(r.statusUpdates, &cmon)
 		}
@@ -487,8 +481,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cfgs, err := cm.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for ClusterNodeMonitoring endpoint"
-			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
-			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
@@ -496,10 +488,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 				Message: msg,
 			}
 			logger.Error(err, msg, "namespace", cm.Namespace, "name", cm.Name)
-			continue
+		} else {
+			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
-		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
-
 		if cm.Status.SetMonitoringCondition(cm.GetGeneration(), metav1.Now(), cond) {
 			r.statusUpdates = append(r.statusUpdates, &cm)
 		}
