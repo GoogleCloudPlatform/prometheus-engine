@@ -131,7 +131,7 @@ Flags:
                                  ($KUBE_NAME)
       --query.project-id=""      Project ID of the Google Cloud Monitoring
                                  scoping project to evaluate rules against.
-      --query.target-url="https://monitoring.googleapis.com/v1/projects/PROJECT_ID/location/global/prometheus"  
+      --query.target-url=https://monitoring.googleapis.com/v1/projects/PROJECT_ID/location/global/prometheus  
                                  The address of the Prometheus server query
                                  endpoint. (PROJECT_ID is replaced with the
                                  --query.project-id flag.)
@@ -140,7 +140,7 @@ Flags:
                                  alert notification payload. Should point to an
                                  instance of a query frontend that accesses the
                                  same data as --query.target-url.
-      --query.credentials-file=""  
+      --query.credentials-file=<FILE>  
                                  Credentials file for OAuth2 authentication with
                                  --query.target-url.
       --[no-]query.debug.disable-auth  
