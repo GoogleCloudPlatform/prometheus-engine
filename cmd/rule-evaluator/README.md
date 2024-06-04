@@ -60,7 +60,7 @@ Flags:
       --export.credentials-file=""  
                                  Credentials file for authentication with the
                                  GCM API.
-      --export.label.project-id=EXPORT.LABEL.PROJECT-ID  
+      --export.label.project-id=""  
                                  Default project ID set for all exported data.
                                  Prefer setting the external label "project_id"
                                  in the Prometheus configuration if not using
@@ -69,13 +69,12 @@ Flags:
                                  Mode for user agent used for requests against
                                  the GCM API. Valid values are "gke", "kubectl",
                                  "on-prem", "baremetal" or "unspecified".
-      --export.label.location=EXPORT.LABEL.LOCATION  
+      --export.label.location=""  
                                  The default location set for all exported data.
                                  Prefer setting the external label "location" in
                                  the Prometheus configuration if not using the
                                  auto-discovered default.
-      --export.label.cluster=EXPORT.LABEL.CLUSTER  
-                                 The default cluster set for all scraped
+      --export.label.cluster=""  The default cluster set for all scraped
                                  targets. Prefer setting the external label
                                  "cluster" in the Prometheus configuration if
                                  not using the auto-discovered default.
@@ -101,6 +100,12 @@ Flags:
                                  The buffer size for each individual shard.
                                  Each element in buffer (queue) consists of
                                  sample and hash.
+      --export.token-url=""      The request URL to generate token that's needed
+                                 to ingest metrics to the project
+      --export.token-body=""     The request Body to generate token that's
+                                 needed to ingest metrics to the project.
+      --export.quota-project=""  The projectID of an alternative project for
+                                 quota attribution.
       --export.debug.fetch-metadata-timeout=10s  
                                  The total timeout for the initial gathering
                                  of the best-effort GCP data from the metadata
@@ -110,15 +115,6 @@ Flags:
                                  information for the user agent. This is done on
                                  startup, so make sure this work to be faster
                                  than your readiness and liveliness probes.
-      --export.token-url=EXPORT.TOKEN-URL  
-                                 The request URL to generate token that's needed
-                                 to ingest metrics to the project
-      --export.token-body=EXPORT.TOKEN-BODY  
-                                 The request Body to generate token that's
-                                 needed to ingest metrics to the project.
-      --export.quota-project=EXPORT.QUOTA-PROJECT  
-                                 The projectID of an alternative project for
-                                 quota attribution.
       --export.ha.backend=none   Which backend to use to coordinate HA pairs
                                  that both send metric data to the GCM API.
                                  Valid values are "none" or "kube"

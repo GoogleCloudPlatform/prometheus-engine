@@ -93,18 +93,14 @@ func (l *localExportWithGCM) start(t testing.TB, _ e2e.Environment) (v1.API, map
 		t.Fatalf("create Prometheus client: %s", err)
 	}
 
-	l.e, err = export.New(ctx, log.NewJSONLogger(os.Stderr), prometheus.NewRegistry(), export.ExporterOpts{
-		UserAgentEnv:     "pe-github-action-test",
-		Endpoint:         "monitoring.googleapis.com:443",
-		Compression:      "none",
-		MetricTypePrefix: export.MetricTypePrefix,
-
-		Cluster:   cluster,
-		Location:  location,
-		ProjectID: creds.ProjectID,
-
+	exporterOpts := export.ExporterOpts{
+		UserAgentEnv:        "pe-github-action-test",
+		Cluster:             cluster,
+		Location:            location,
+		ProjectID:           creds.ProjectID,
 		CredentialsFromJSON: l.gcmSA,
-	})
+	}
+	l.e, err = export.New(ctx, log.NewJSONLogger(os.Stderr), prometheus.NewRegistry(), exporterOpts, export.NopLease())
 	if err != nil {
 		t.Fatalf("create exporter: %v", err)
 	}

@@ -80,8 +80,7 @@ func main() {
 		var err error
 		defaultProjectID, err = metadata.ProjectID()
 		if err != nil {
-			//nolint:errcheck
-			level.Warn(logger).Log("msg", "Unable to detect Google Cloud project", "err", err)
+			_ = level.Warn(logger).Log("msg", "Unable to detect Google Cloud project", "err", err)
 		}
 	}
 
@@ -96,11 +95,20 @@ func main() {
 	// we reuse that constant.
 	version, err := export.Version()
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "Unable to fetch module version", "err", err)
+		_ = level.Error(logger).Log("msg", "Unable to fetch module version", "err", err)
 		os.Exit(1)
 	}
-	newExporter := exportsetup.FromFlags(a, fmt.Sprintf("rule-evaluator/%s", version))
+
+	exporterOpts := export.ExporterOpts{
+		UserAgentProduct: fmt.Sprintf("rule-evaluator/%s", version),
+	}
+	exportsetup.ExporterOptsFlags(a, &exporterOpts)
+
+	metadataOpts := exportsetup.MetadataOpts{}
+	metadataOpts.SetupFlags(a)
+
+	haOpts := exportsetup.HAOptions{}
+	haOpts.SetupFlags(a)
 
 	notifierOptions := notifier.Options{Registerer: reg}
 
@@ -131,22 +139,19 @@ func main() {
 
 	extraArgs, err := exportsetup.ExtraArgs()
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
+		_ = level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
 		a.Usage(os.Args[1:])
 		os.Exit(2)
 	}
 	if _, err := a.Parse(append(os.Args[1:], extraArgs...)); err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
+		_ = level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
 		a.Usage(os.Args[1:])
 		os.Exit(2)
 	}
 	startTime := time.Now()
 
 	if *projectID == "" {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "no --query.project-id was specified or could be derived from the environment")
+		_ = level.Error(logger).Log("msg", "no --query.project-id was specified or could be derived from the environment")
 		os.Exit(2)
 	}
 
@@ -157,8 +162,7 @@ func main() {
 		var err error
 		generatorURL, err = url.Parse(*generatorURLStr)
 		if err != nil {
-			//nolint:errcheck
-			level.Error(logger).Log("msg", "Invalid --query.generator-url", "err", err)
+			_ = level.Error(logger).Log("msg", "Invalid --query.generator-url", "err", err)
 			os.Exit(2)
 		}
 	}
@@ -166,16 +170,20 @@ func main() {
 	// Don't expand external labels on config file loading. It's a feature we like but we want to remain
 	// compatible with Prometheus and this is still an experimental feature, which we don't support.
 	if _, err := config.LoadFile(*configFile, false, false, logger); err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", fmt.Sprintf("Error loading config (--config.file=%s)", *configFile), "err", err)
+		_ = level.Error(logger).Log("msg", fmt.Sprintf("Error loading config (--config.file=%s)", *configFile), "err", err)
 		os.Exit(2)
 	}
 
-	ctxExporter := context.Background()
-	exporter, err := newExporter(ctxExporter, logger, reg)
+	ctx := context.Background()
+	metadataOpts.ExtractMetadata(logger, &exporterOpts)
+	lease, err := haOpts.NewLease(logger, reg)
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "Creating a Cloud Monitoring Exporter failed", "err", err)
+		_ = level.Error(logger).Log("msg", "Unable to setup Cloud Monitoring Exporter lease", "err", err)
+		os.Exit(1)
+	}
+	exporter, err := export.New(ctx, logger, reg, exporterOpts, lease)
+	if err != nil {
+		_ = level.Error(logger).Log("msg", "Creating a Cloud Monitoring Exporter failed", "err", err)
 		os.Exit(1)
 	}
 	destination := export.NewStorage(exporter)
@@ -198,8 +206,7 @@ func main() {
 	}
 	transport, err := apihttp.NewTransport(ctxRuleManager, http.DefaultTransport, opts...)
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "Creating proxy HTTP transport failed", "err", err)
+		_ = level.Error(logger).Log("msg", "Creating proxy HTTP transport failed", "err", err)
 		os.Exit(1)
 	}
 	roundTripper := makeInstrumentedRoundTripper(transport, reg)
@@ -208,8 +215,7 @@ func main() {
 		RoundTripper: roundTripper,
 	})
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "Error creating client", "err", err)
+		_ = level.Error(logger).Log("msg", "Error creating client", "err", err)
 		os.Exit(1)
 	}
 	v1api := v1.NewAPI(client)
@@ -217,8 +223,7 @@ func main() {
 	queryFunc := func(ctx context.Context, q string, t time.Time) (promql.Vector, error) {
 		v, warnings, err := QueryFunc(ctx, q, t, v1api)
 		if len(warnings) > 0 {
-			//nolint:errcheck
-			level.Warn(logger).Log("msg", "Querying Prometheus instance returned warnings", "warn", warnings)
+			_ = level.Warn(logger).Log("msg", "Querying Prometheus instance returned warnings", "warn", warnings)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("execute query: %w", err)
@@ -272,7 +277,7 @@ func main() {
 				for _, pat := range cfg.RuleFiles {
 					fs, err := filepath.Glob(pat)
 					if fs == nil || err != nil {
-						return fmt.Errorf("Error retrieving rule file: %s", pat)
+						return fmt.Errorf("retrieving rule file: %s", pat)
 					}
 					files = append(files, fs...)
 				}
@@ -291,8 +296,7 @@ func main() {
 
 	// Do an initial load of the configuration for all components.
 	if err := reloadConfig(*configFile, logger, configMetrics, reloaders...); err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "error loading config file.", "err", err)
+		_ = level.Error(logger).Log("msg", "error loading config file.", "err", err)
 		os.Exit(1)
 	}
 
@@ -306,8 +310,7 @@ func main() {
 			func() error {
 				select {
 				case <-term:
-					//nolint:errcheck
-					level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+					_ = level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
 				case <-cancel:
 				}
 				return nil
@@ -330,8 +333,7 @@ func main() {
 		// Notifier.
 		g.Add(func() error {
 			notificationManager.Run(discoveryManager.SyncCh())
-			//nolint:errcheck
-			level.Info(logger).Log("msg", "Notification manager stopped")
+			_ = level.Info(logger).Log("msg", "Notification manager stopped")
 			return nil
 		},
 			func(error) {
@@ -344,29 +346,25 @@ func main() {
 		g.Add(
 			func() error {
 				err := discoveryManager.Run()
-				//nolint:errcheck
-				level.Info(logger).Log("msg", "Discovery manager stopped")
+				_ = level.Info(logger).Log("msg", "Discovery manager stopped")
 				return err
 			},
 			func(error) {
-				//nolint:errcheck
-				level.Info(logger).Log("msg", "Stopping Discovery manager...")
+				_ = level.Info(logger).Log("msg", "Stopping Discovery manager...")
 				cancelDiscover()
 			},
 		)
 	}
 	{
 		// Storage Processing.
-		ctx, cancel := context.WithCancel(context.Background())
+		ctxStorage, cancelStorage := context.WithCancel(ctx)
 		g.Add(func() error {
-			err = destination.Run(ctx)
-			//nolint:errcheck
-			level.Info(logger).Log("msg", "Background processing of storage stopped")
+			err = destination.Run(ctxStorage)
+			_ = level.Info(logger).Log("msg", "Background processing of storage stopped")
 			return err
 		}, func(error) {
-			//nolint:errcheck
-			level.Info(logger).Log("msg", "Stopping background storage processing...")
-			cancel()
+			_ = level.Info(logger).Log("msg", "Stopping background storage processing...")
+			cancelStorage()
 		})
 	}
 	cwd, err := os.Getwd()
@@ -421,21 +419,18 @@ func main() {
 			}
 
 			if _, err := w.Write(data); err != nil {
-				//nolint:errcheck
-				level.Error(logger).Log("msg", "Unable to write runtime info status", "err", err)
+				_ = level.Error(logger).Log("msg", "Unable to write runtime info status", "err", err)
 			}
 		})
 		g.Add(func() error {
-			//nolint:errcheck
-			level.Info(logger).Log("msg", "Starting web server", "listen", *listenAddress)
+			_ = level.Info(logger).Log("msg", "Starting web server", "listen", *listenAddress)
 			return server.ListenAndServe()
 		}, func(error) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-			if err := server.Shutdown(ctx); err != nil {
-				//nolint:errcheck
-				level.Error(logger).Log("msg", "Server failed to shut down gracefully.")
+			ctxServer, cancelServer := context.WithTimeout(ctx, time.Minute)
+			if err := server.Shutdown(ctxServer); err != nil {
+				_ = level.Error(logger).Log("msg", "Server failed to shut down gracefully.")
 			}
-			cancel()
+			cancelServer()
 		})
 	}
 	{
@@ -449,13 +444,11 @@ func main() {
 					select {
 					case <-hup:
 						if err := reloadConfig(*configFile, logger, configMetrics, reloaders...); err != nil {
-							//nolint:errcheck
-							level.Error(logger).Log("msg", "Error reloading config", "err", err)
+							_ = level.Error(logger).Log("msg", "Error reloading config", "err", err)
 						}
 					case rc := <-reloadCh:
 						if err := reloadConfig(*configFile, logger, configMetrics, reloaders...); err != nil {
-							//nolint:errcheck
-							level.Error(logger).Log("msg", "Error reloading config", "err", err)
+							_ = level.Error(logger).Log("msg", "Error reloading config", "err", err)
 							rc <- err
 						} else {
 							rc <- nil
@@ -474,15 +467,13 @@ func main() {
 	}
 
 	// Run a test query to check status of rule evaluator.
-	_, err = queryFunc(context.Background(), "vector(1)", time.Now())
+	_, err = queryFunc(ctx, "vector(1)", time.Now())
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "Error querying Prometheus instance", "err", err)
+		_ = level.Error(logger).Log("msg", "Error querying Prometheus instance", "err", err)
 	}
 
 	if err := g.Run(); err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "Running rule evaluator failed", "err", err)
+		_ = level.Error(logger).Log("msg", "Running rule evaluator failed", "err", err)
 		os.Exit(1)
 	}
 }
@@ -575,8 +566,7 @@ func (m *configMetrics) setFailure() {
 func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rls ...reloader) (err error) {
 	start := time.Now()
 	timings := []interface{}{}
-	//nolint:errcheck
-	level.Info(logger).Log("msg", "Loading configuration file", "filename", filename)
+	_ = level.Info(logger).Log("msg", "Loading configuration file", "filename", filename)
 
 	conf, err := config.LoadFile(filename, false, false, logger)
 	if err != nil {
@@ -588,8 +578,7 @@ func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rl
 	for _, rl := range rls {
 		rstart := time.Now()
 		if err := rl.reloader(conf); err != nil {
-			//nolint:errcheck
-			level.Error(logger).Log("msg", "Failed to apply configuration", "err", err)
+			_ = level.Error(logger).Log("msg", "Failed to apply configuration", "err", err)
 			failed = true
 		}
 		timings = append(timings, rl.name, time.Since(rstart))
@@ -601,8 +590,7 @@ func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rl
 
 	metrics.setSuccess()
 	l := []interface{}{"msg", "Completed loading of configuration file", "filename", filename, "totalDuration", time.Since(start)}
-	//nolint:errcheck
-	level.Info(logger).Log(append(l, timings...)...)
+	_ = level.Info(logger).Log(append(l, timings...)...)
 	return nil
 }
 
