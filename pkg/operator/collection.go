@@ -398,10 +398,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
 
 	// Mark status updates in batch with single timestamp.
-	for _, pm := range podMons.Items {
-		// Reassign so we can safely get a pointer.
-		pmon := pm
-
+	for _, pmon := range podMons.Items {
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
@@ -429,10 +426,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	}
 
 	// Mark status updates in batch with single timestamp.
-	for _, cm := range clusterPodMons.Items {
-		// Reassign so we can safely get a pointer.
-		cmon := cm
-
+	for _, cmon := range clusterPodMons.Items {
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
@@ -469,16 +463,16 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		reservedKubeletJobName  = "gmp-kubelet-metrics"
 	)
 	// Mark status updates in batch with single timestamp.
-	for _, cm := range clusterNodeMons.Items {
-		if spec.KubeletScraping != nil && (cm.Name == reservedKubeletJobName || cm.Name == reservedCAdvisorJobName) {
-			logger.Info("ClusterNodeMonitoring job %s was not applied because OperatorConfig.collector.kubeletScraping is enabled. kubeletScraping already includes the metrics in this job.", "name", cm.Name)
+	for _, cnmon := range clusterNodeMons.Items {
+		if spec.KubeletScraping != nil && (cnmon.Name == reservedKubeletJobName || cnmon.Name == reservedCAdvisorJobName) {
+			logger.Info("ClusterNodeMonitoring job %s was not applied because OperatorConfig.collector.kubeletScraping is enabled. kubeletScraping already includes the metrics in this job.", "name", cnmon.Name)
 			continue
 		}
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := cm.ScrapeConfigs(projectID, location, cluster)
+		cfgs, err := cnmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for ClusterNodeMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{
@@ -487,12 +481,12 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 				Reason:  "ScrapeConfigError",
 				Message: msg,
 			}
-			logger.Error(err, msg, "namespace", cm.Namespace, "name", cm.Name)
+			logger.Error(err, msg, "namespace", cnmon.Namespace, "name", cnmon.Name)
 		} else {
 			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
-		if cm.Status.SetMonitoringCondition(cm.GetGeneration(), metav1.Now(), cond) {
-			r.statusUpdates = append(r.statusUpdates, &cm)
+		if cnmon.Status.SetMonitoringCondition(cnmon.GetGeneration(), metav1.Now(), cond) {
+			r.statusUpdates = append(r.statusUpdates, &cnmon)
 		}
 	}
 
