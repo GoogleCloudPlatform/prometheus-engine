@@ -127,6 +127,11 @@ type Exporter struct {
 	// A set of metrics for which we defaulted the metadata to untyped and have
 	// issued a warning about that.
 	warnedUntypedMetrics map[string]struct{}
+
+	// A lease on a time range for which the exporter send sample data.
+	// It is checked for on each batch provided to the Export method.
+	// If unset, data is always sent.
+	lease Lease
 }
 
 const (
@@ -189,11 +194,6 @@ type ExporterOpts struct {
 	// Prefix under which metrics are written to GCM.
 	MetricTypePrefix string
 
-	// A lease on a time range for which the exporter send sample data.
-	// It is checked for on each batch provided to the Export method.
-	// If unset, data is always sent.
-	Lease Lease
-
 	// Request URL and body for generating an alternative GCE token source.
 	// This allows metrics to be exported to an alternative project.
 	TokenURL  string
@@ -206,6 +206,38 @@ type ExporterOpts struct {
 	// internal data structure sizes. Only for advance users. No compatibility
 	// guarantee (might change in future).
 	Efficiency EfficiencyOpts
+}
+
+func (opts *ExporterOpts) Default() {
+	if opts.Efficiency.BatchSize == 0 {
+		opts.Efficiency.BatchSize = BatchSizeMax
+	}
+	if opts.Efficiency.ShardCount == 0 {
+		opts.Efficiency.ShardCount = DefaultShardCount
+	}
+	if opts.Efficiency.ShardBufferSize == 0 {
+		opts.Efficiency.ShardBufferSize = DefaultShardBufferSize
+	}
+
+	if opts.Endpoint == "" {
+		opts.Endpoint = "monitoring.googleapis.com:443"
+	}
+	if opts.Compression == "" {
+		opts.Compression = CompressionNone
+	}
+	if opts.MetricTypePrefix == "" {
+		opts.MetricTypePrefix = MetricTypePrefix
+	}
+	if opts.UserAgentMode == "" {
+		opts.UserAgentMode = "unspecified"
+	}
+}
+
+func (opts *ExporterOpts) Validate() error {
+	if opts.Efficiency.BatchSize > BatchSizeMax {
+		return fmt.Errorf("maximum supported batch size is %d, got %d", BatchSizeMax, opts.Efficiency.BatchSize)
+	}
+	return nil
 }
 
 // EfficiencyOpts represents exporter options that allows fine-tuning of
@@ -245,6 +277,11 @@ type Lease interface {
 	// OnLeaderChange sets a callback that is invoked when the lease leader changes.
 	// Must be called before Run.
 	OnLeaderChange(func())
+}
+
+// NopLease returns a lease that disables leasing.
+func NopLease() Lease {
+	return &alwaysLease{}
 }
 
 // alwaysLease is a lease that is always held.
@@ -310,7 +347,7 @@ func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.Metric
 }
 
 // New returns a new Cloud Monitoring Exporter.
-func New(ctx context.Context, logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Exporter, error) {
+func New(ctx context.Context, logger log.Logger, reg prometheus.Registerer, opts ExporterOpts, lease Lease) (*Exporter, error) {
 	grpc_prometheus.EnableClientHandlingTimeHistogram(
 		grpc_prometheus.WithHistogramBuckets([]float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15, 20, 30, 40, 50, 60}),
 	)
@@ -334,24 +371,12 @@ func New(ctx context.Context, logger log.Logger, reg prometheus.Registerer, opts
 		)
 	}
 
-	if opts.Efficiency.BatchSize == 0 {
-		opts.Efficiency.BatchSize = BatchSizeMax
+	opts.Default()
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
-	if opts.Efficiency.BatchSize > BatchSizeMax {
-		return nil, fmt.Errorf("maximum supported batch size is %d, got %d", BatchSizeMax, opts.Efficiency.BatchSize)
-	}
-	if opts.Efficiency.ShardCount == 0 {
-		opts.Efficiency.ShardCount = DefaultShardCount
-	}
-	if opts.Efficiency.ShardBufferSize == 0 {
-		opts.Efficiency.ShardBufferSize = DefaultShardBufferSize
-	}
-
-	if opts.MetricTypePrefix == "" {
-		opts.MetricTypePrefix = MetricTypePrefix
-	}
-	if opts.Lease == nil {
-		opts.Lease = alwaysLease{}
+	if lease == nil {
+		lease = NopLease()
 	}
 
 	metricClient, err := newMetricClient(ctx, opts)
@@ -365,12 +390,13 @@ func New(ctx context.Context, logger log.Logger, reg prometheus.Registerer, opts
 		nextc:                make(chan struct{}, 1),
 		shards:               make([]*shard, opts.Efficiency.ShardCount),
 		warnedUntypedMetrics: map[string]struct{}{},
+		lease:                lease,
 	}
 	e.seriesCache = newSeriesCache(logger, reg, opts.MetricTypePrefix, opts.Matchers)
 
 	// Whenever the lease is lost, clear the series cache so we don't start off of out-of-range
 	// reset timestamps when we gain the lease again.
-	opts.Lease.OnLeaderChange(e.seriesCache.clear)
+	lease.OnLeaderChange(e.seriesCache.clear)
 
 	for i := range e.shards {
 		e.shards[i] = newShard(opts.Efficiency.ShardBufferSize)
@@ -470,7 +496,7 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 
 	e.mtx.Lock()
 	externalLabels := e.externalLabels
-	start, end, ok := e.opts.Lease.Range()
+	start, end, ok := e.lease.Range()
 	e.mtx.Unlock()
 
 	if !ok {
@@ -634,7 +660,7 @@ func Version() (string, error) {
 func (e *Exporter) Run(ctx context.Context) error {
 	defer e.metricClient.Close()
 	go e.seriesCache.run(ctx)
-	go e.opts.Lease.Run(ctx)
+	go e.lease.Run(ctx)
 
 	timer := time.NewTimer(batchDelayMax)
 	stopTimer := func() {

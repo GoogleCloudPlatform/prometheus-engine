@@ -35,19 +35,32 @@ func TestFromFlags_NotOnGCE(t *testing.T) {
 		t.Skip("This test can't run on GCP or Cloudtop; we expect no metadata server.")
 	}
 
+	logger := log.NewLogfmtLogger(os.Stderr)
 	fake := kingpin.New("test", "test")
-	newExport := FromFlags(fake, "product")
-	// Our readines is default (3 * 10s), so ensure FromFlags is never longer than 30s.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+
+	exporterOpts := export.ExporterOpts{}
+	ExporterOptsFlags(fake, &exporterOpts)
+
+	metadataOpts := MetadataOpts{}
+	metadataOpts.SetupFlags(fake)
 
 	// Fake app invocation.
 	if _, err := fake.Parse(nil); err != nil {
 		t.Fatal(err)
 	}
 
-	// Make sure constructor does is not stuck forever.
-	_, _ = newExport(ctx, log.NewLogfmtLogger(os.Stderr), nil)
+	done := make(chan struct{}, 1)
+	go func() {
+		metadataOpts.ExtractMetadata(logger, &exporterOpts)
+		done <- struct{}{}
+	}()
+
+	// Our readiness is default (3 * 10s), so ensure ExtractMetadata is never longer than 30s.
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("timeout")
+	}
 }
 
 // Regression test for b/344740239. We ensure that even stuck metadata servers
