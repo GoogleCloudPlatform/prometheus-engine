@@ -90,130 +90,140 @@ func Global() *export.Exporter {
 	return globalExporter
 }
 
-// FromFlags returns a constructor for a new exporter that is configured through flags that are
-// registered with the given application. The constructor must be called after the flags
-// have been parsed.
-//
-// NOTE(bwplotka): This method should only setup flags, no extra logic should be done here
-// as we don't have a logger ready, and nothing was logged for the binary yet.
-// Potential risky logic can be moved to the returned function we return here.
-// See b/344740239 on how hard is to debug regressions here.
-func FromFlags(a *kingpin.Application, userAgentProduct string) func(context.Context, log.Logger, prometheus.Registerer) (*export.Exporter, error) {
-	var (
-		metadataFetchTimeout time.Duration
-		opts                 export.ExporterOpts
-	)
-	opts.UserAgentProduct = userAgentProduct
+// ExporterOptsFlags adds flags to the application, defaulting the options.
+func ExporterOptsFlags(a *kingpin.Application, opts *export.ExporterOpts) {
+	opts.Default()
 
 	a.Flag("export.disable", "Disable exporting to GCM.").
-		Default("false").BoolVar(&opts.Disable)
+		Default(strconv.FormatBool(opts.Disable)).
+		BoolVar(&opts.Disable)
 
 	a.Flag("export.endpoint", "GCM API endpoint to send metric data to.").
-		Default("monitoring.googleapis.com:443").StringVar(&opts.Endpoint)
+		Default(opts.Endpoint).
+		StringVar(&opts.Endpoint)
 
 	a.Flag("export.compression", "The compression format to use for gRPC requests ('none' or 'gzip').").
-		Default(export.CompressionNone).EnumVar(&opts.Compression, export.CompressionNone, export.CompressionGZIP)
+		Default(opts.Compression).
+		EnumVar(&opts.Compression, export.CompressionNone, export.CompressionGZIP)
 
 	a.Flag("export.credentials-file", "Credentials file for authentication with the GCM API.").
-		Default("").StringVar(&opts.CredentialsFile)
+		Default(opts.CredentialsFile).
+		StringVar(&opts.CredentialsFile)
 
-	a.Flag("export.label.project-id", fmt.Sprintf("Default project ID set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", export.KeyProjectID)).StringVar(&opts.ProjectID)
+	a.Flag("export.label.project-id", fmt.Sprintf("Default project ID set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", export.KeyProjectID)).
+		Default(opts.ProjectID).
+		StringVar(&opts.ProjectID)
 
 	a.Flag("export.user-agent-mode", fmt.Sprintf("Mode for user agent used for requests against the GCM API. Valid values are %q, %q, %q, %q or %q.", UAModeGKE, UAModeKubectl, UAModeAVMW, UAModeABM, UAModeUnspecified)).
-		Default(UAModeUnspecified).EnumVar(&opts.UserAgentMode, UAModeUnspecified, UAModeGKE, UAModeKubectl, UAModeAVMW, UAModeABM)
+		Default(opts.UserAgentMode).
+		EnumVar(&opts.UserAgentMode, UAModeUnspecified, UAModeGKE, UAModeKubectl, UAModeAVMW, UAModeABM)
 
 	// The location and cluster flag should probably not be used. On the other hand, they make it easy
 	// to populate these important values in the monitored resource without interfering with existing
 	// Prometheus configuration.
-	a.Flag("export.label.location", fmt.Sprintf("The default location set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", export.KeyLocation)).StringVar(&opts.Location)
+	a.Flag("export.label.location", fmt.Sprintf("The default location set for all exported data. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", export.KeyLocation)).
+		Default(opts.Location).
+		StringVar(&opts.Location)
 
-	a.Flag("export.label.cluster", fmt.Sprintf("The default cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", export.KeyCluster)).StringVar(&opts.Cluster)
+	a.Flag("export.label.cluster", fmt.Sprintf("The default cluster set for all scraped targets. Prefer setting the external label %q in the Prometheus configuration if not using the auto-discovered default.", export.KeyCluster)).
+		Default(opts.Cluster).
+		StringVar(&opts.Cluster)
 
 	a.Flag("export.match", `A Prometheus time series matcher. Can be repeated. Every time series must match at least one of the matchers to be exported. This flag can be used equivalently to the match[] parameter of the Prometheus federation endpoint to selectively export data. (Example: --export.match='{job="prometheus"}' --export.match='{__name__=~"job:.*"})`).
-		Default("").SetValue(&opts.Matchers)
+		Default("").
+		SetValue(&opts.Matchers)
 
 	a.Flag("export.debug.metric-prefix", "Google Cloud Monitoring metric prefix to use.").
-		Default(export.MetricTypePrefix).StringVar(&opts.MetricTypePrefix)
+		Default(opts.MetricTypePrefix).
+		StringVar(&opts.MetricTypePrefix)
 
 	a.Flag("export.debug.disable-auth", "Disable authentication (for debugging purposes).").
-		Default("false").BoolVar(&opts.DisableAuth)
+		Default(strconv.FormatBool(opts.DisableAuth)).
+		BoolVar(&opts.DisableAuth)
 
 	a.Flag("export.debug.batch-size", "Maximum number of points to send in one batch to the GCM API.").
-		Default(strconv.Itoa(export.BatchSizeMax)).UintVar(&opts.Efficiency.BatchSize)
+		Default(strconv.FormatUint(uint64(opts.Efficiency.BatchSize), 10)).
+		UintVar(&opts.Efficiency.BatchSize)
 
 	a.Flag("export.debug.shard-count", "Number of shards that track series to send.").
-		Default(strconv.Itoa(export.DefaultShardCount)).UintVar(&opts.Efficiency.ShardCount)
+		Default(strconv.FormatUint(uint64(opts.Efficiency.ShardCount), 10)).
+		UintVar(&opts.Efficiency.ShardCount)
 
 	a.Flag("export.debug.shard-buffer-size", "The buffer size for each individual shard. Each element in buffer (queue) consists of sample and hash.").
-		Default(strconv.Itoa(export.DefaultShardBufferSize)).UintVar(&opts.Efficiency.ShardBufferSize)
-
-	a.Flag("export.debug.fetch-metadata-timeout", "The total timeout for the initial gathering of the best-effort GCP data from the metadata server. This data is used for special labels required by Prometheus metrics (e.g. project id, location, cluster name), as well as information for the user agent. This is done on startup, so make sure this work to be faster than your readiness and liveliness probes.").
-		Default("10s").DurationVar(&metadataFetchTimeout)
+		Default(strconv.FormatUint(uint64(opts.Efficiency.ShardBufferSize), 10)).
+		UintVar(&opts.Efficiency.ShardBufferSize)
 
 	a.Flag("export.token-url", "The request URL to generate token that's needed to ingest metrics to the project").
+		Default(opts.TokenURL).
 		StringVar(&opts.TokenURL)
 
 	a.Flag("export.token-body", "The request Body to generate token that's needed to ingest metrics to the project.").
+		Default(opts.TokenBody).
 		StringVar(&opts.TokenBody)
 
 	a.Flag("export.quota-project", "The projectID of an alternative project for quota attribution.").
+		Default(opts.QuotaProject).
 		StringVar(&opts.QuotaProject)
+}
 
-	haBackend := a.Flag("export.ha.backend", fmt.Sprintf("Which backend to use to coordinate HA pairs that both send metric data to the GCM API. Valid values are %q or %q", HABackendNone, HABackendKubernetes)).
-		Default(HABackendNone).Enum(HABackendNone, HABackendKubernetes)
+type HAOptions struct {
+	Backend        string
+	KubeConfigFile string
+	KubeNamespace  string
+	KubeName       string
+}
 
-	kubeConfigPath := a.Flag("export.ha.kube.config", "Path to kube config file.").
-		Default("").String()
-	kubeNamespace := a.Flag("export.ha.kube.namespace", "Namespace for the HA locking resource. Must be identical across replicas. May be set through the KUBE_NAMESPACE environment variable.").
-		Default("").OverrideDefaultFromEnvar("KUBE_NAMESPACE").String()
-	kubeName := a.Flag("export.ha.kube.name", "Name for the HA locking resource. Must be identical across replicas. May be set through the KUBE_NAME environment variable.").
-		Default("").OverrideDefaultFromEnvar("KUBE_NAME").String()
+func (opts *HAOptions) Default() {
+	if opts.Backend == "" {
+		opts.Backend = HABackendNone
+	}
+}
 
-	// NOTE(bwplotka): This function will be likely performed within "getting ready" period, so before readiness is
-	// set to ready. Typical readiness can be as fast as 30s, so make sure this code timeouts faster than that.
-	return func(ctx context.Context, logger log.Logger, metrics prometheus.Registerer) (*export.Exporter, error) {
-		_ = level.Debug(logger).Log("msg", "started constructing the GCM export logic")
+// SetupFlags adds flags to the application, defaulting the options.
+func (opts *HAOptions) SetupFlags(a *kingpin.Application) {
+	opts.Default()
 
-		if metadata.OnGCE() {
-			// NOTE: OnGCE does not guarantee we will have all metadata entries or metadata
-			// server is accessible.
+	a.Flag("export.ha.backend", fmt.Sprintf("Which backend to use to coordinate HA pairs that both send metric data to the GCM API. Valid values are %q or %q", HABackendNone, HABackendKubernetes)).
+		Default(opts.Backend).
+		EnumVar(&opts.Backend, HABackendNone, HABackendKubernetes)
+	a.Flag("export.ha.kube.config", "Path to kube config file.").
+		Default(opts.KubeConfigFile).
+		StringVar(&opts.KubeConfigFile)
+	a.Flag("export.ha.kube.namespace", "Namespace for the HA locking resource. Must be identical across replicas. May be set through the KUBE_NAMESPACE environment variable.").
+		Default(opts.KubeNamespace).
+		OverrideDefaultFromEnvar("KUBE_NAMESPACE").
+		StringVar(&opts.KubeNamespace)
+	a.Flag("export.ha.kube.name", "Name for the HA locking resource. Must be identical across replicas. May be set through the KUBE_NAME environment variable.").
+		Default(opts.KubeName).
+		OverrideDefaultFromEnvar("KUBE_NAME").
+		StringVar(&opts.KubeName)
+}
 
-			_ = level.Debug(logger).Log("msg", "detected we might run on GCE node; attempting metadata server access", "timeout", metadataFetchTimeout.String())
-			// When, potentially, on GCE we attempt to populate some, unspecified option entries
-			// like project ID, cluster, location, zone and user agent from GCP metadata server.
-			//
-			// This will be used to get *some* data, if not specified override by flags, to
-			// use if labels or external label settings does not have those set. Those will
-			// be used as crucial labels for export to work against GCM's Prometheus target.
-			//
-			// Set a hard time limit due to readiness and liveliness probes during this stage.
-			mctx, cancel := context.WithTimeout(context.Background(), metadataFetchTimeout)
-			tryPopulateUnspecifiedFromMetadata(mctx, logger, &opts)
-			cancel()
-			_ = level.Debug(logger).Log("msg", "best-effort on-GCE metadata gathering finished")
+func (opts *HAOptions) NewLease(logger log.Logger, reg prometheus.Registerer) (export.Lease, error) {
+	_ = level.Debug(logger).Log("msg", "started constructing the GCM export logic")
+
+	switch opts.Backend {
+	case HABackendNone:
+		return export.NopLease(), nil
+	case HABackendKubernetes:
+		kubecfg, err := loadKubeConfig(opts.KubeConfigFile)
+		if err != nil {
+			return nil, fmt.Errorf("loading kube config failed: %w", err)
 		}
-
-		switch *haBackend {
-		case HABackendNone:
-		case HABackendKubernetes:
-			kubecfg, err := loadKubeConfig(*kubeConfigPath)
-			if err != nil {
-				return nil, fmt.Errorf("loading kube config failed: %w", err)
-			}
-			opts.Lease, err = lease.NewKubernetes(
-				logger,
-				metrics,
-				kubecfg,
-				*kubeNamespace, *kubeName,
-				&lease.Options{},
-			)
-			if err != nil {
-				return nil, fmt.Errorf("set up Kubernetes lease: %w", err)
-			}
-		default:
-			return nil, fmt.Errorf("unexpected HA backend %q", *haBackend)
+		lease, err := lease.NewKubernetes(
+			logger,
+			reg,
+			kubecfg,
+			opts.KubeNamespace,
+			opts.KubeName,
+			&lease.Options{},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("set up Kubernetes lease: %w", err)
 		}
-		return export.New(ctx, logger, metrics, opts)
+		return lease, nil
+	default:
+		return nil, fmt.Errorf("unexpected HA backend %q", opts.Backend)
 	}
 }
 
@@ -237,6 +247,46 @@ func loadKubeConfig(kubeconfigPath string) (*rest.Config, error) {
 // It can be used like `flagset.Parse(append(os.Args[1:], ExtraArgs()...))`.
 func ExtraArgs() ([]string, error) {
 	return shlex.Split(os.Getenv(ExtraArgsEnvvar))
+}
+
+type MetadataOpts struct {
+	FetchTimeout time.Duration
+}
+
+func (o *MetadataOpts) Default() {
+	if o.FetchTimeout == 0 {
+		o.FetchTimeout = time.Second * 10
+	}
+}
+
+// SetupFlags adds flags to the application, defaulting the options.
+func (o *MetadataOpts) SetupFlags(a *kingpin.Application) {
+	o.Default()
+
+	a.Flag("export.debug.fetch-metadata-timeout", "The total timeout for the initial gathering of the best-effort GCP data from the metadata server. This data is used for special labels required by Prometheus metrics (e.g. project id, location, cluster name), as well as information for the user agent. This is done on startup, so make sure this work to be faster than your readiness and liveliness probes.").
+		Default(o.FetchTimeout.String()).
+		DurationVar(&o.FetchTimeout)
+}
+
+func (o *MetadataOpts) ExtractMetadata(logger log.Logger, exporterOpts *export.ExporterOpts) {
+	if metadata.OnGCE() {
+		// NOTE: OnGCE does not guarantee we will have all metadata entries or metadata
+		// server is accessible.
+
+		_ = level.Debug(logger).Log("msg", "detected we might run on GCE node; attempting metadata server access", "timeout", o.FetchTimeout.String())
+		// When, potentially, on GCE we attempt to populate some, unspecified option entries
+		// like project ID, cluster, location, zone and user agent from GCP metadata server.
+		//
+		// This will be used to get *some* data, if not specified override by flags, to
+		// use if labels or external label settings does not have those set. Those will
+		// be used as crucial labels for export to work against GCM's Prometheus target.
+		//
+		// Set a hard time limit due to readiness and liveliness probes during this stage.
+		mctx, cancel := context.WithTimeout(context.Background(), o.FetchTimeout)
+		tryPopulateUnspecifiedFromMetadata(mctx, logger, exporterOpts)
+		cancel()
+		_ = level.Debug(logger).Log("msg", "best-effort on-GCE metadata gathering finished")
+	}
 }
 
 // tryPopulateUnspecifiedFromMetadata assumes we are in GCP, with unknown state
