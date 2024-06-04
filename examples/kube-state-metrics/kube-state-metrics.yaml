@@ -17,7 +17,7 @@ kind: StatefulSet
 metadata:
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.8.2
+    app.kubernetes.io/version: 2.12.0
   namespace: gmp-public
   name: kube-state-metrics
 spec:
@@ -30,7 +30,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: kube-state-metrics
-        app.kubernetes.io/version: 2.8.2
+        app.kubernetes.io/version: 2.12.0
     spec:
       affinity:
         nodeAffinity:
@@ -48,7 +48,7 @@ spec:
                 - linux
       containers:
       - name: kube-state-metric
-        image: k8s.gcr.io/kube-state-metrics/kube-state-metrics:v2.8.2
+        image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.12.0
         env:
         - name: POD_NAME
           valueFrom:
@@ -101,7 +101,7 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.8.2
+    app.kubernetes.io/version: 2.12.0
   namespace: gmp-public
   name: kube-state-metrics
 spec:
@@ -123,7 +123,7 @@ metadata:
   name: kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.8.2
+    app.kubernetes.io/version: 2.12.0
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -131,7 +131,7 @@ metadata:
   name: gmp-public:kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.8.2
+    app.kubernetes.io/version: 2.12.0
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -147,7 +147,7 @@ metadata:
   name: gmp-public:kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/version: 2.8.2
+    app.kubernetes.io/version: 2.12.0
 rules:
 - apiGroups:
   - ""
