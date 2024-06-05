@@ -13,10 +13,9 @@
 # limitations under the License.
 
 apiVersion: monitoring.googleapis.com/v1
-kind: PodMonitoring
+kind: ClusterPodMonitoring
 metadata:
   name: nvidia-dcgm-exporter
-  namespace: gmp-public
   labels:
     app.kubernetes.io/name: nvidia-dcgm-exporter
     app.kubernetes.io/part-of: google-cloud-managed-prometheus
@@ -27,3 +26,5 @@ spec:
   endpoints:
   - port: metrics
     interval: 30s
+  targetLabels:
+    metadata: []
