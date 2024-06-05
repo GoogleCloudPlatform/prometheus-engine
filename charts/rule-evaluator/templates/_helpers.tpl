@@ -37,8 +37,8 @@ Common labels
 app.kubernetes.io/name: {{ include "rule-evaluator.name" . }}
   {{- if .Values.commonLabels }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "rule-evaluator.name" . ) .Chart.AppVersion) .Release.Name }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "rule-evaluator.name" . ) .Values.version) .Release.Name }}
+app.kubernetes.io/version: {{ .Values.version }}
 helm.sh/chart: {{ include "rule-evaluator.chart" . }}
   {{- end }}
 {{- end }}
@@ -55,16 +55,16 @@ Template labels
 */}}
 {{- define "rule-evaluator.templateLabels" -}}
 {{- include "rule-evaluator.selectorLabels" . }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Values.version }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
 {{- define "rule-evaluator.serviceAccountName" -}}
-  {{- if .Values.serviceAccount.create }}
-    {{- default (include "rule-evaluator.fullname" .) .Values.serviceAccount.name }}
+  {{- if .Values.ruleEvaluator.serviceAccount.create }}
+    {{- default (include "rule-evaluator.fullname" .) .Values.ruleEvaluator.serviceAccount.name }}
   {{- else }}
-    {{- default "default" .Values.serviceAccount.name }}
+    {{- default "default" .Values.ruleEvaluator.serviceAccount.name }}
   {{- end }}
 {{- end }}

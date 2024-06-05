@@ -30,7 +30,7 @@ KIND_PARALLEL?=5
 DOCKER_HOST?=unix:///var/run/docker.sock
 DOCKER_VOLUME:=$(DOCKER_HOST:unix://%=%)
 
-IMAGE_REGISTRY?=gcr.io/$(PROJECT_ID)/prometheus-engine
+IMAGE_REGISTRY?=us-east4-docker.pkg.dev/$(PROJECT_ID)/prometheus-engine
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
 # If an individual test is not specified, run them all.
@@ -236,46 +236,4 @@ presubmit:   ## Regenerate all resources, build all images and run all tests.
              ## Use `CHECK=1` to fail the command if repo state is not clean
              ## after presubmit (might require committing the changes).
              ##
-presubmit: updateversions regen bin test
-
-.PHONY: updateversions
-export CURRENT_TAG = v0.9.0-gke.1
-export CURRENT_PROM_TAG = v2.45.3-gmp.1-gke.0
-export CURRENT_AM_TAG = v0.25.1-gmp.2-gke.0
-export CURRENT_RE_TAG = v0.9.0-gke.1
-export CURRENT_CONFIG_RELOADER_TAG = v0.9.0-gke.1
-#TODO(macxamin) Sync CURRENT_DATASOURCE_SYNCER_TAG with CURRENT_TAG
-export CURRENT_DATASOURCE_SYNCER_TAG = v0.10.0-gke.3
-export CURRENT_BASH_TAG = 20220419
-export LABEL_API_VERSION = 0.12.0
-updateversions: ## Modify all manifests, so it contains the expected versions.
-                ##
-                ## TODO(bwplotka): CI does not check updateversions--add that there.
-                ## Also, consider moving updateversion to hack/presubmit.sh for
-                ## consistency.
-                ##
-updateversions: $(ADDLICENSE) $(HELM) $(SED) $(YQ)
-	@echo ">> Updating prometheus-engine images in manifests to $(CURRENT_TAG)"
-	@$(YQ) -i '.images.operator.tag = strenv(CURRENT_TAG)' ./charts/operator/values.yaml
-
-	@echo ">> Updating prometheus images in manifests to $(CURRENT_PROM_TAG)"
-	@$(YQ) -i '.images.prometheus.tag = strenv(CURRENT_PROM_TAG)' ./charts/operator/values.yaml
-
-	@echo ">> Updating alertmanager images in manifests to $(CURRENT_AM_TAG)"
-	@$(YQ) -i '.images.alertmanager.tag = strenv(CURRENT_AM_TAG)' ./charts/operator/values.yaml
-
-	@echo ">> Updating rule-evaluator images in manifests to $(CURRENT_RE_TAG)"
-	@$(YQ) -i '.images.ruleEvaluator.tag = strenv(CURRENT_RE_TAG)' ./charts/operator/values.yaml
-	@$(YQ) -i '.images.ruleEvaluator.tag = strenv(CURRENT_RE_TAG)' ./charts/rule-evaluator/values.yaml
-
-	@echo ">> Updating app.kubernetes.io/version to $(LABEL_API_VERSION)"
-	@$(YQ) -i '.appVersion = strenv(LABEL_API_VERSION)' ./charts/operator/Chart.yaml
-
-	@echo ">> Updating constant in export.go to $(LABEL_API_VERSION)"
-	@$(SED) -i -r 's#	Version    = .*#	Version    = "$(LABEL_API_VERSION)"#g' pkg/export/export.go
-
-	@echo ">> Updating datasource-syncer version to $(CURRENT_DATASOURCE_SYNCER_TAG)"
-	@$(SED) -i -r 's#image: gcr.io/gke-release/prometheus-engine/datasource-syncer:.*#image: gcr.io/gke-release/prometheus-engine/datasource-syncer:$(CURRENT_DATASOURCE_SYNCER_TAG)#g' cmd/datasource-syncer/datasource-syncer.yaml
-
-	@$(HELM) template ./charts/operator > manifests/operator.yaml
-	@$(ADDLICENSE) manifests/operator.yaml
+presubmit: regen bin test

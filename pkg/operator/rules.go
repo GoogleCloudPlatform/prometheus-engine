@@ -16,26 +16,22 @@ package operator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
-	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/rules"
 )
 
 const (
@@ -207,6 +203,7 @@ func hasGlobalRules(ctx context.Context, c client.Client) (bool, error) {
 	return len(rules.Items) > 0, nil
 }
 
+// ensureRuleConfigs updates the Prometheus Rules ConfigMap.
 func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string, compression monitoringv1.CompressionType) error {
 	logger, _ := logr.FromContext(ctx)
 
@@ -239,15 +236,37 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 	if err := r.client.List(ctx, &rulesList); err != nil {
 		return fmt.Errorf("list rules: %w", err)
 	}
-	for _, rs := range rulesList.Items {
-		result, err := generateRules(&rs, projectID, location, cluster)
+
+	now := metav1.Now()
+	conditionSuccess := &monitoringv1.MonitoringCondition{
+		Type:   monitoringv1.ConfigurationCreateSuccess,
+		Status: corev1.ConditionTrue,
+	}
+	var statusUpdates []monitoringv1.MonitoringCRD
+
+	for i := range rulesList.Items {
+		rs := &rulesList.Items[i]
+		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
 		if err != nil {
-			// TODO(freinartz): update resource condition.
-			logger.Error(err, "converting rules failed", "rules_namespace", rs.Namespace, "rules_name", rs.Name)
+			msg := "generating rule config failed"
+			if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Message: msg,
+				Reason:  err.Error(),
+			}) {
+				statusUpdates = append(statusUpdates, rs)
+			}
+			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
+			continue
 		}
 		filename := fmt.Sprintf("rules__%s__%s.yaml", rs.Namespace, rs.Name)
 		if err := setConfigMapData(cm, compression, filename, result); err != nil {
 			return err
+		}
+
+		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
+			statusUpdates = append(statusUpdates, rs)
 		}
 	}
 
@@ -255,15 +274,29 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 	if err := r.client.List(ctx, &clusterRulesList); err != nil {
 		return fmt.Errorf("list cluster rules: %w", err)
 	}
-	for _, rs := range clusterRulesList.Items {
-		result, err := generateClusterRules(&rs, projectID, location, cluster)
+	for i := range clusterRulesList.Items {
+		rs := &clusterRulesList.Items[i]
+		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
 		if err != nil {
-			// TODO(freinartz): update resource condition.
-			logger.Error(err, "converting rules failed", "clusterrules_name", rs.Name)
+			msg := "generating rule config failed"
+			if rs.Status.SetMonitoringCondition(rs.Generation, now, &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Message: msg,
+				Reason:  err.Error(),
+			}) {
+				statusUpdates = append(statusUpdates, rs)
+			}
+			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
+			continue
 		}
 		filename := fmt.Sprintf("clusterrules__%s.yaml", rs.Name)
 		if err := setConfigMapData(cm, compression, filename, result); err != nil {
 			return err
+		}
+
+		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
+			statusUpdates = append(statusUpdates, rs)
 		}
 	}
 
@@ -271,15 +304,29 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 	if err := r.client.List(ctx, &globalRulesList); err != nil {
 		return fmt.Errorf("list global rules: %w", err)
 	}
-	for _, rs := range globalRulesList.Items {
-		result, err := generateGlobalRules(&rs)
+	for i := range globalRulesList.Items {
+		rs := &globalRulesList.Items[i]
+		result, err := rs.RuleGroupsConfig()
 		if err != nil {
-			// TODO(freinartz): update resource condition.
-			logger.Error(err, "converting rules failed", "globalrules_name", rs.Name)
+			msg := "generating rule config failed"
+			if rs.Status.SetMonitoringCondition(rs.Generation, now, &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Message: msg,
+				Reason:  err.Error(),
+			}) {
+				statusUpdates = append(statusUpdates, rs)
+			}
+			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
+			continue
 		}
 		filename := fmt.Sprintf("globalrules__%s.yaml", rs.Name)
 		if err := setConfigMapData(cm, compression, filename, result); err != nil {
 			return err
+		}
+
+		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
+			statusUpdates = append(statusUpdates, rs)
 		}
 	}
 
@@ -291,108 +338,13 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 	} else if err != nil {
 		return fmt.Errorf("update generated rules: %w", err)
 	}
-	return nil
-}
 
-func generateRules(apiRules *monitoringv1.Rules, projectID, location, cluster string) (string, error) {
-	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
-	if err != nil {
-		return "", fmt.Errorf("converting rules failed: %w", err)
+	var errs []error
+	for _, obj := range statusUpdates {
+		if err := patchMonitoringStatus(ctx, r.client, obj, obj.GetMonitoringStatus()); err != nil {
+			errs = append(errs, err)
+		}
 	}
-	if err := rules.Scope(&rs, map[string]string{
-		export.KeyProjectID: projectID,
-		export.KeyLocation:  location,
-		export.KeyCluster:   cluster,
-		export.KeyNamespace: apiRules.Namespace,
-	}); err != nil {
-		return "", fmt.Errorf("isolating rules failed: %w", err)
-	}
-	result, err := yaml.Marshal(rs)
-	if err != nil {
-		return "", fmt.Errorf("marshalling rules failed: %w", err)
-	}
-	return string(result), nil
-}
 
-func generateClusterRules(apiRules *monitoringv1.ClusterRules, projectID, location, cluster string) (string, error) {
-	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
-	if err != nil {
-		return "", fmt.Errorf("converting rules failed: %w", err)
-	}
-	if err := rules.Scope(&rs, map[string]string{
-		export.KeyProjectID: projectID,
-		export.KeyLocation:  location,
-		export.KeyCluster:   cluster,
-	}); err != nil {
-		return "", fmt.Errorf("isolating rules failed: %w", err)
-	}
-	result, err := yaml.Marshal(rs)
-	if err != nil {
-		return "", fmt.Errorf("marshalling rules failed: %w", err)
-	}
-	return string(result), nil
-}
-
-func generateGlobalRules(apiRules *monitoringv1.GlobalRules) (string, error) {
-	rs, err := rules.FromAPIRules(apiRules.Spec.Groups)
-	if err != nil {
-		return "", fmt.Errorf("converting rules failed: %w", err)
-	}
-	if err := rules.Scope(&rs, map[string]string{}); err != nil {
-		return "", fmt.Errorf("isolating rules failed: %w", err)
-	}
-	result, err := yaml.Marshal(rs)
-	if err != nil {
-		return "", fmt.Errorf("marshalling rules failed: %w", err)
-	}
-	return string(result), nil
-}
-
-type rulesValidator struct {
-	opts Options
-}
-
-func (v *rulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
-	_, err := generateRules(o.(*monitoringv1.Rules), "test_project", "test_location", "test_cluster")
-	return nil, err
-}
-
-func (v *rulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
-	return v.ValidateCreate(ctx, o)
-}
-
-func (v *rulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
-	return nil, nil
-}
-
-type clusterRulesValidator struct {
-	opts Options
-}
-
-func (v *clusterRulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
-	_, err := generateClusterRules(o.(*monitoringv1.ClusterRules), "test_project", "test_location", "test_cluster")
-	return nil, err
-}
-
-func (v *clusterRulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
-	return v.ValidateCreate(ctx, o)
-}
-
-func (v *clusterRulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
-	return nil, nil
-}
-
-type globalRulesValidator struct{}
-
-func (v *globalRulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
-	_, err := generateGlobalRules(o.(*monitoringv1.GlobalRules))
-	return nil, err
-}
-
-func (v *globalRulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
-	return v.ValidateCreate(ctx, o)
-}
-
-func (v *globalRulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
-	return nil, nil
+	return errors.Join(errs...)
 }

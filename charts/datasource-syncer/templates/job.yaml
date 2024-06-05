@@ -1,0 +1,49 @@
+{{- /*
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: datasource-syncer-init
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    metadata:
+      labels:
+        app: datasource-syncer-init
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      containers:
+      - name: datasource-syncer-init
+        image: {{.Values.images.datasourceSyncer.image}}:{{.Values.images.datasourceSyncer.tag}}
+        args:
+        - "--datasource-uids=$DATASOURCE_UIDS"
+        - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
+        - "--grafana-api-token=$GRAFANA_API_TOKEN"
+        - "--project-id=$PROJECT_ID"
+      restartPolicy: Never

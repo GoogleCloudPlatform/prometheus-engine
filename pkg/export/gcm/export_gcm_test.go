@@ -106,7 +106,6 @@ func TestExport_CounterReset(t *testing.T) {
 
 	// Expect what we set we want for each backend.
 	for _, b := range []promtest.Backend{export, prom} {
-		b := b
 		t.Run(b.Ref(), func(t *testing.T) {
 			t.Parallel()
 

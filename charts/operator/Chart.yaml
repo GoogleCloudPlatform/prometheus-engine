@@ -13,8 +13,7 @@
 # limitations under the License.
 
 apiVersion: v2
-name: prometheus-engine
+name: operator
 description: Google Managed Service for Prometheus (GMP) Operator
 type: application
 version: 0.1.0
-appVersion: 0.12.0

@@ -68,6 +68,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       containers:
       - name: alertmanager
         image: {{.Values.images.alertmanager.image}}:{{.Values.images.alertmanager.tag}}
@@ -99,6 +100,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       - name: config-reloader
         image: {{.Values.images.configReloader.image}}:{{.Values.images.configReloader.tag}}
         args:
@@ -129,6 +131,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       volumes:
       - name: config
         secret:

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+---
+# Source: datasource-syncer/templates/job.yaml
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -23,6 +25,20 @@ spec:
       labels:
         app: datasource-syncer-init
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
       containers:
       - name: datasource-syncer-init
         image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.10.0-gke.3
@@ -33,7 +49,7 @@ spec:
         - "--project-id=$PROJECT_ID"
       restartPolicy: Never
 ---
-
+# Source: datasource-syncer/templates/cronjob.yaml
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -47,6 +63,20 @@ spec:
           labels:
             app: datasource-syncer
         spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                    - arm64
+                    - amd64
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                    - linux
           containers:
           - name: datasource-syncer
             image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.10.0-gke.3

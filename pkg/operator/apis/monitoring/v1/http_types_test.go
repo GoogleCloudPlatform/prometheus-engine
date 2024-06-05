@@ -25,9 +25,10 @@ import (
 )
 
 type secretNamespaceTestCase struct {
+	// Is empty when testing for cluster-scoped resources.
 	monitoringNamespace string
 	secretNamespace     string
-	// expectedNamespace is empty is an error is expected.
+	// Is empty when an error is expected.
 	expectedNamespace string
 }
 
@@ -80,8 +81,14 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("namespace=%s,secret=%s", tc.monitoringNamespace, tc.secretNamespace), func(t *testing.T) {
+			// Enforcing K8s default namespace for `GetNamespace()` consistency.
+			monitoringNamespace := tc.monitoringNamespace
+			if tc.monitoringNamespace == "" {
+				monitoringNamespace = metav1.NamespaceDefault
+			}
+
 			p := &PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{Namespace: tc.monitoringNamespace},
+				ObjectMeta: metav1.ObjectMeta{Namespace: monitoringNamespace},
 			}
 
 			pool := PrometheusSecretConfigs{}
@@ -128,7 +135,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing
 func TestClusterSecretKeySelector_toPrometheusSecretRef_ClusterPodMonitoring(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		p := &ClusterPodMonitoring{
-			ObjectMeta: metav1.ObjectMeta{Namespace: "foo"},
+			ObjectMeta: metav1.ObjectMeta{},
 		}
 		pool := PrometheusSecretConfigs{}
 		var c *SecretKeySelector
@@ -147,36 +154,23 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_ClusterPodMonitoring(t *
 
 	testCases := []secretNamespaceTestCase{
 		{
-			monitoringNamespace: "",
-			secretNamespace:     "",
-			expectedNamespace:   metav1.NamespaceDefault,
+			secretNamespace:   "",
+			expectedNamespace: metav1.NamespaceDefault,
 		},
 		{
-			monitoringNamespace: metav1.NamespaceDefault,
-			secretNamespace:     "",
-			expectedNamespace:   metav1.NamespaceDefault,
+			secretNamespace:   metav1.NamespaceDefault,
+			expectedNamespace: metav1.NamespaceDefault,
 		},
 		{
-			monitoringNamespace: "",
-			secretNamespace:     metav1.NamespaceDefault,
-			expectedNamespace:   metav1.NamespaceDefault,
-		},
-		{
-			monitoringNamespace: "foo",
-			secretNamespace:     "foo",
-			expectedNamespace:   "foo",
-		},
-		{
-			monitoringNamespace: "foo",
-			secretNamespace:     "different",
-			expectedNamespace:   "different",
+			secretNamespace:   "foo",
+			expectedNamespace: "foo",
 		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("namespace=%s,secret=%s", tc.monitoringNamespace, tc.secretNamespace), func(t *testing.T) {
+		t.Run(fmt.Sprintf("secret=%s", tc.secretNamespace), func(t *testing.T) {
 			p := &ClusterPodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{Namespace: tc.monitoringNamespace},
+				ObjectMeta: metav1.ObjectMeta{},
 			}
 
 			pool := PrometheusSecretConfigs{}

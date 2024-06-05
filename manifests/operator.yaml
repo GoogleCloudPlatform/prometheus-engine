@@ -13,7 +13,7 @@
 # limitations under the License.
 
 ---
-# Source: prometheus-engine/templates/priority-class.yaml
+# Source: operator/templates/priorityclass.yaml
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
@@ -23,33 +23,33 @@ metadata:
 value: 1000000000
 description: Used for GMP collector pods.
 ---
-# Source: prometheus-engine/templates/namespace.yaml
+# Source: operator/templates/namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
   name: gmp-system
 ---
-# Source: prometheus-engine/templates/namespace.yaml
+# Source: operator/templates/namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
   name: gmp-public
 ---
-# Source: prometheus-engine/templates/service-account.yaml
+# Source: operator/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: collector
   namespace: gmp-system
 ---
-# Source: prometheus-engine/templates/service-account.yaml
+# Source: operator/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: operator
   namespace: gmp-system
 ---
-# Source: prometheus-engine/templates/role.yaml
+# Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -70,7 +70,7 @@ rules:
 - nonResourceURLs: ["/metrics"]
   verbs: ["get"]
 ---
-# Source: prometheus-engine/templates/role.yaml
+# Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -105,7 +105,7 @@ rules:
   apiGroups: ["apiextensions.k8s.io"]
   verbs: ["get"]
 ---
-# Source: prometheus-engine/templates/role.yaml
+# Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -129,7 +129,7 @@ rules:
   - gmp-operator
   verbs: ["delete"]
 ---
-# Source: prometheus-engine/templates/rolebinding.yaml
+# Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -143,7 +143,7 @@ subjects:
   namespace: gmp-system
   kind: ServiceAccount
 ---
-# Source: prometheus-engine/templates/rolebinding.yaml
+# Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -157,7 +157,7 @@ subjects:
   namespace: gmp-system
   kind: ServiceAccount
 ---
-# Source: prometheus-engine/templates/rolebinding.yaml
+# Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -171,7 +171,7 @@ subjects:
   namespace: gmp-system
   kind: ServiceAccount
 ---
-# Source: prometheus-engine/templates/role.yaml
+# Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -229,7 +229,7 @@ rules:
   apiGroups: ["autoscaling.k8s.io"]
   verbs: ["create", "delete", "get", "list", "watch"]
 ---
-# Source: prometheus-engine/templates/role.yaml
+# Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -245,7 +245,7 @@ rules:
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "list", "watch"]
 ---
-# Source: prometheus-engine/templates/rolebinding.yaml
+# Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -260,7 +260,7 @@ subjects:
   namespace: gmp-system
   kind: ServiceAccount
 ---
-# Source: prometheus-engine/templates/rolebinding.yaml
+# Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -274,7 +274,7 @@ subjects:
 - name: operator
   kind: ServiceAccount
 ---
-# Source: prometheus-engine/templates/alertmanager.yaml
+# Source: operator/templates/alertmanager.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -290,7 +290,7 @@ spec:
     targetPort: 9093
   clusterIP: None
 ---
-# Source: prometheus-engine/templates/service.yaml
+# Source: operator/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -314,7 +314,7 @@ spec:
     port: 443
     targetPort: web
 ---
-# Source: prometheus-engine/templates/collector.yaml
+# Source: operator/templates/collector.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -331,7 +331,7 @@ spec:
       labels:
         app: managed-prometheus-collector
         app.kubernetes.io/name: collector
-        app.kubernetes.io/version: 0.12.0
+        app.kubernetes.io/version: 0.13.0
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -354,6 +354,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
@@ -390,8 +391,9 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.45.3-gmp.1-gke.0
+        image: gke.gcr.io/prometheus-engine/prometheus@sha256:7473d52f4a3e563e6377f8a6183091f25192b1e0705dd0933903e800bd69b7b2
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage
@@ -399,6 +401,13 @@ spec:
         - --enable-feature=google-kubernetes-secret-provider
         - --storage.tsdb.path=/prometheus/data
         - --storage.tsdb.no-lockfile
+        # Special Google flag for force deleting all data on start. We use ephemeral storage in
+        # this manifest, but there are cases were container restart still reuses, potentially
+        # bad data (corrupted, with high cardinality causing OOMs or slow startups).
+        # Force deleting, so container restart is consistent with pod restart.
+        # NOTE: Data is likely already sent GCM, plus GCM export does not use that
+        # data on disk (WAL).
+        - --gmp.storage.delete-data-on-start
         # Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
         # the containers memory usage. We could lower it further if this becomes problematic, but
         # it the window for local data is quite convenient for debugging.
@@ -453,6 +462,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       volumes:
       - name: storage
         emptyDir: {}
@@ -490,7 +500,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
 ---
-# Source: prometheus-engine/templates/deployment.yaml
+# Source: operator/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -517,7 +527,7 @@ spec:
         app.kubernetes.io/component: operator
         app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/part-of: gmp
-        app.kubernetes.io/version: 0.12.0
+        app.kubernetes.io/version: 0.13.0
     spec:
       serviceAccountName: operator
       automountServiceAccountToken: true
@@ -550,6 +560,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
         livenessProbe:
           httpGet:
             path: /healthz
@@ -564,6 +575,9 @@ spec:
             # Default is 18081.
             port: 18081
             scheme: HTTP
+        volumeMounts:
+        - name: certs
+          mountPath: /etc/tls/private
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -593,8 +607,11 @@ spec:
         runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
+      volumes:
+      - name: certs
+        emptyDir: {}
 ---
-# Source: prometheus-engine/templates/rule-evaluator.yaml
+# Source: operator/templates/rule-evaluator.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -611,7 +628,7 @@ spec:
       labels:
         app.kubernetes.io/name: rule-evaluator
         app: managed-prometheus-rule-evaluator
-        app.kubernetes.io/version: 0.12.0
+        app.kubernetes.io/version: 0.13.0
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -634,6 +651,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
@@ -675,6 +693,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       - name: evaluator
         image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
         args:
@@ -716,6 +735,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       volumes:
       - name: config
         configMap:
@@ -763,7 +783,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
 ---
-# Source: prometheus-engine/templates/alertmanager.yaml
+# Source: operator/templates/alertmanager.yaml
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -781,7 +801,7 @@ spec:
       labels:
         app: managed-prometheus-alertmanager
         app.kubernetes.io/name: alertmanager
-        app.kubernetes.io/version: 0.12.0
+        app.kubernetes.io/version: 0.13.0
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
@@ -800,6 +820,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       containers:
       - name: alertmanager
         image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.2-gke.0
@@ -836,6 +857,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       - name: config-reloader
         image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
         args:
@@ -871,6 +893,7 @@ spec:
             drop:
             - all
           privileged: false
+          readOnlyRootFilesystem: true
       volumes:
       - name: config
         secret:
@@ -910,7 +933,7 @@ spec:
           type: RuntimeDefault
   serviceName: alertmanager
 ---
-# Source: prometheus-engine/templates/mutatingwebhookconfiguration.yaml
+# Source: operator/templates/mutatingwebhookconfiguration.yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
@@ -961,14 +984,14 @@ webhooks:
     - UPDATE
   sideEffects: None
 ---
-# Source: prometheus-engine/templates/operatorconfig.yaml
+# Source: operator/templates/operatorconfig.yaml
 apiVersion: monitoring.googleapis.com/v1
 kind: OperatorConfig
 metadata:
   name: config
   namespace: gmp-public
 ---
-# Source: prometheus-engine/templates/validatingwebhookconfiguration.yaml
+# Source: operator/templates/validatingwebhookconfiguration.yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:

@@ -16,9 +16,7 @@ package operator
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/url"
 	"path"
 	"strings"
 
@@ -37,14 +35,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // Base resource names which may be used for multiple different resource kinds
@@ -746,107 +742,4 @@ func pathForSelector(namespace string, scm *monitoringv1.SecretOrConfigMap) stri
 		return fmt.Sprintf("%s_%s_%s_%s", "secret", namespace, scm.Secret.Name, scm.Secret.Key)
 	}
 	return ""
-}
-
-func validateRules(rules *monitoringv1.RuleEvaluatorSpec) error {
-	if rules.GeneratorURL != "" {
-		if _, err := url.Parse(rules.GeneratorURL); err != nil {
-			return fmt.Errorf("failed to parse generator URL: %w", err)
-		}
-	}
-
-	if err := validateSecretKeySelector(rules.Credentials); err != nil {
-		return fmt.Errorf("invalid credentials: %w", err)
-	}
-	for i, alertManagerEndpoint := range rules.Alerting.Alertmanagers {
-		if err := validateAlertManagerEndpoint(&alertManagerEndpoint); err != nil {
-			return fmt.Errorf("invalid alert manager endpoint `%s` (index %d): %w", alertManagerEndpoint.Name, i, err)
-		}
-	}
-	return nil
-}
-
-func validateAlertManagerEndpoint(alertManagerEndpoint *monitoringv1.AlertmanagerEndpoints) error {
-	if alertManagerEndpoint.Authorization != nil {
-		if err := validateSecretKeySelector(alertManagerEndpoint.Authorization.Credentials); err != nil {
-			return fmt.Errorf("invalid authorization credentials: %w", err)
-		}
-	}
-	if alertManagerEndpoint.TLS != nil {
-		if err := validateSecretKeySelector(alertManagerEndpoint.TLS.KeySecret); err != nil {
-			return fmt.Errorf("invalid TLS key: %w", err)
-		}
-		if err := validateSecretOrConfigMap(alertManagerEndpoint.TLS.CA); err != nil {
-			return fmt.Errorf("invalid TLS CA: %w", err)
-		}
-		if err := validateSecretOrConfigMap(alertManagerEndpoint.TLS.Cert); err != nil {
-			return fmt.Errorf("invalid TLS Cert: %w", err)
-		}
-	}
-	return nil
-}
-
-func validateSecretKeySelector(secretKeySelector *corev1.SecretKeySelector) error {
-	if secretKeySelector == nil {
-		return nil
-	}
-	if secretKeySelector.LocalObjectReference.Name == "" {
-		return errors.New("missing secret key selector name")
-	}
-	return nil
-}
-
-func validateSecretOrConfigMap(secretOrConfigMap *monitoringv1.SecretOrConfigMap) error {
-	if secretOrConfigMap == nil {
-		return nil
-	}
-	if secretOrConfigMap.Secret != nil {
-		if err := validateSecretKeySelector(secretOrConfigMap.Secret); err != nil {
-			return err
-		}
-		if secretOrConfigMap.ConfigMap != nil {
-			return errors.New("SecretOrConfigMap fields are mutually exclusive")
-		}
-	}
-	return nil
-}
-
-type operatorConfigValidator struct {
-	namespace    string
-	vpaAvailable bool
-}
-
-func (v *operatorConfigValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
-	oc := o.(*monitoringv1.OperatorConfig)
-
-	if oc.Namespace != v.namespace || oc.Name != NameOperatorConfig {
-		return nil, fmt.Errorf("OperatorConfig must be in namespace %q with name %q", v.namespace, NameOperatorConfig)
-	}
-	if _, err := makeKubeletScrapeConfigs(oc.Collection.KubeletScraping); err != nil {
-		return nil, fmt.Errorf("failed to create kubelet scrape config: %w", err)
-	}
-
-	if err := validateSecretKeySelector(oc.Collection.Credentials); err != nil {
-		return nil, fmt.Errorf("invalid collection credentials: %w", err)
-	}
-	if oc.ManagedAlertmanager != nil {
-		if err := validateSecretKeySelector(oc.ManagedAlertmanager.ConfigSecret); err != nil {
-			return nil, fmt.Errorf("invalid managed alert manager config secret: %w", err)
-		}
-	}
-	if err := validateRules(&oc.Rules); err != nil {
-		return nil, fmt.Errorf("invalid rules config: %w", err)
-	}
-	if oc.Scaling.VPA.Enabled && !v.vpaAvailable {
-		return nil, fmt.Errorf("vertical pod autoscaling is not available - install vpa support and restart the operator")
-	}
-	return nil, nil
-}
-
-func (v *operatorConfigValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
-	return v.ValidateCreate(ctx, o)
-}
-
-func (v *operatorConfigValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
-	return nil, nil
 }

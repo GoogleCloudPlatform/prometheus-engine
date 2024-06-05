@@ -12,30 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-deployOperator: true
 commonLabels: false
 namespace:
   public: gmp-public
   system: gmp-system
+version: 0.13.0
 images:
-  alertmanager:
-    image: gke.gcr.io/prometheus-engine/alertmanager
-    tag: "v0.25.1-gmp.2-gke.0"
   bash:
     image: gke.gcr.io/gke-distroless/bash
-    tag: '20220419'
+    tag: "20220419" # NOTE: Has to be quoted otherwise it will be treated as a number.
+  alertmanager:
+    image: gke.gcr.io/prometheus-engine/alertmanager
+    tag: v0.25.1-gmp.2-gke.0
+  prometheus:
+    # TODO(bwplotka): Change to "v2.45.3-gmp.4-gke.0" once tags are cloned.
+    image: gke.gcr.io/prometheus-engine/prometheus@sha256
+    tag: 7473d52f4a3e563e6377f8a6183091f25192b1e0705dd0933903e800bd69b7b2
   configReloader:
     image: gke.gcr.io/prometheus-engine/config-reloader
     tag: v0.9.0-gke.1
   operator:
     image: gke.gcr.io/prometheus-engine/operator
-    tag: "v0.9.0-gke.1"
-  prometheus:
-    image: gke.gcr.io/prometheus-engine/prometheus
-    tag: "v2.45.3-gmp.1-gke.0"
+    tag: v0.9.0-gke.1
   ruleEvaluator:
     image: gke.gcr.io/prometheus-engine/rule-evaluator
     tag: v0.9.0-gke.1
+  datasourceSyncer:
+    image: gcr.io/gke-release/prometheus-engine/datasource-syncer
+    #TODO(macxamin) Sync CURRENT_DATASOURCE_SYNCER_TAG with CURRENT_TAG
+    tag: v0.10.0-gke.3
 resources:
   alertManager:
     limits:
@@ -73,6 +78,7 @@ resources:
     requests:
       cpu: 1m
       memory: 16M
+deployOperator: true
 tls:
   base64:
     ca: null
@@ -88,3 +94,9 @@ operator:
     create: true
   serviceAccount:
     create: true
+ruleEvaluator:
+  rbac:
+    create: true
+  serviceAccount:
+    create: true
+    name: rule-evaluator

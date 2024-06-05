@@ -14,7 +14,11 @@
 
 package v1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+)
 
 // Rules defines Prometheus alerting and recording rules that are scoped
 // to the namespace of the resource. Only metric data from this namespace is processed
@@ -34,6 +38,25 @@ type Rules struct {
 	// Most recently observed status of the resource.
 	// +optional
 	Status RulesStatus `json:"status"`
+}
+
+func (r *Rules) ValidateCreate() (admission.Warnings, error) {
+	_, err := r.RuleGroupsConfig("", "", "")
+	return nil, err
+}
+
+func (r *Rules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+	// Validity does not depend on state changes.
+	return r.ValidateCreate()
+}
+
+func (*Rules) ValidateDelete() (admission.Warnings, error) {
+	// Deletions are always valid.
+	return nil, nil
+}
+
+func (r *Rules) GetMonitoringStatus() *MonitoringStatus {
+	return &r.Status.MonitoringStatus
 }
 
 // RulesList is a list of Rules.
@@ -66,6 +89,25 @@ type ClusterRules struct {
 	Status RulesStatus `json:"status"`
 }
 
+func (r *ClusterRules) ValidateCreate() (admission.Warnings, error) {
+	_, err := r.RuleGroupsConfig("", "", "")
+	return nil, err
+}
+
+func (r *ClusterRules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+	// Validity does not depend on state changes.
+	return r.ValidateCreate()
+}
+
+func (*ClusterRules) ValidateDelete() (admission.Warnings, error) {
+	// Deletions are always valid.
+	return nil, nil
+}
+
+func (r *ClusterRules) GetMonitoringStatus() *MonitoringStatus {
+	return &r.Status.MonitoringStatus
+}
+
 // ClusterRulesList is a list of ClusterRules.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterRulesList struct {
@@ -93,6 +135,25 @@ type GlobalRules struct {
 	// Most recently observed status of the resource.
 	// +optional
 	Status RulesStatus `json:"status"`
+}
+
+func (r *GlobalRules) ValidateCreate() (admission.Warnings, error) {
+	_, err := r.RuleGroupsConfig()
+	return nil, err
+}
+
+func (r *GlobalRules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+	// Validity does not depend on state changes.
+	return r.ValidateCreate()
+}
+
+func (*GlobalRules) ValidateDelete() (admission.Warnings, error) {
+	// Deletions are always valid.
+	return nil, nil
+}
+
+func (r *GlobalRules) GetMonitoringStatus() *MonitoringStatus {
+	return &r.Status.MonitoringStatus
 }
 
 // GlobalRulesList is a list of GlobalRules.
@@ -143,5 +204,5 @@ type Rule struct {
 
 // RulesStatus contains status information for a Rules resource.
 type RulesStatus struct {
-	// TODO: add status information.
+	MonitoringStatus `json:",inline"`
 }

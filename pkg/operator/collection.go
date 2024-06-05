@@ -27,18 +27,13 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/common/config"
-	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
-	"github.com/prometheus/prometheus/discovery"
-	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/model/labels"
-	"github.com/prometheus/prometheus/model/relabel"
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -158,7 +153,7 @@ func patchMonitoringStatus(ctx context.Context, kubeClient client.Client, obj cl
 
 	patch := client.RawPatch(types.MergePatchType, patchBytes)
 	if err := kubeClient.Status().Patch(ctx, obj, patch); err != nil {
-		return err
+		return fmt.Errorf("patch status: %w", err)
 	}
 	return nil
 }
@@ -379,7 +374,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	}
 
 	var err error
-	cfg.ScrapeConfigs, err = makeKubeletScrapeConfigs(spec.KubeletScraping)
+	cfg.ScrapeConfigs, err = spec.ScrapeConfigs()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kubelet scrape config: %w", err)
 	}
@@ -403,10 +398,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
 
 	// Mark status updates in batch with single timestamp.
-	for _, pm := range podMons.Items {
-		// Reassign so we can safely get a pointer.
-		pmon := pm
-
+	for _, pmon := range podMons.Items {
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
@@ -414,8 +406,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster, usedSecrets)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
-			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
-			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
@@ -423,18 +413,10 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 				Message: msg,
 			}
 			logger.Error(err, msg, "namespace", pmon.Namespace, "name", pmon.Name)
-			continue
+		} else {
+			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
-		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
-
-		change, err := pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
-		if err != nil {
-			// Log an error but let operator continue to avoid getting stuck
-			// on a potential bad resource.
-			logger.Error(err, "setting podmonitoring status state", "namespace", pmon.Namespace, "name", pmon.Name)
-		}
-
-		if change {
+		if pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond) {
 			r.statusUpdates = append(r.statusUpdates, &pmon)
 		}
 	}
@@ -444,10 +426,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	}
 
 	// Mark status updates in batch with single timestamp.
-	for _, cm := range clusterPodMons.Items {
-		// Reassign so we can safely get a pointer.
-		cmon := cm
-
+	for _, cmon := range clusterPodMons.Items {
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
@@ -455,8 +434,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster, usedSecrets)
 		if err != nil {
 			msg := "generating scrape config failed for ClusterPodMonitoring endpoint"
-			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
-			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
@@ -464,18 +441,10 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 				Message: msg,
 			}
 			logger.Error(err, msg, "namespace", cmon.Namespace, "name", cmon.Name)
-			continue
+		} else {
+			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
-		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
-
-		change, err := cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
-		if err != nil {
-			// Log an error but let operator continue to avoid getting stuck
-			// on a potential bad resource.
-			logger.Error(err, "setting clusterpodmonitoring status state", "namespace", cmon.Namespace, "name", cmon.Name)
-		}
-
-		if change {
+		if cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond) {
 			r.statusUpdates = append(r.statusUpdates, &cmon)
 		}
 	}
@@ -494,42 +463,30 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		reservedKubeletJobName  = "gmp-kubelet-metrics"
 	)
 	// Mark status updates in batch with single timestamp.
-	for _, cm := range clusterNodeMons.Items {
-		if spec.KubeletScraping != nil && (cm.Name == reservedKubeletJobName || cm.Name == reservedCAdvisorJobName) {
-			logger.Info("ClusterNodeMonitoring job %s was not applied because OperatorConfig.collector.kubeletScraping is enabled. kubeletScraping already includes the metrics in this job.", "name", cm.Name)
+	for _, cnmon := range clusterNodeMons.Items {
+		if spec.KubeletScraping != nil && (cnmon.Name == reservedKubeletJobName || cnmon.Name == reservedCAdvisorJobName) {
+			logger.Info("ClusterNodeMonitoring job %s was not applied because OperatorConfig.collector.kubeletScraping is enabled. kubeletScraping already includes the metrics in this job.", "name", cnmon.Name)
 			continue
 		}
-		// Reassign so we can safely get a pointer.
-		cm := cm
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := cm.ScrapeConfigs(projectID, location, cluster)
+		cfgs, err := cnmon.ScrapeConfigs(projectID, location, cluster)
 		if err != nil {
 			msg := "generating scrape config failed for ClusterNodeMonitoring endpoint"
-			//TODO: Fix ineffectual assignment. Intended behavior is unclear.
-			//nolint:ineffassign
 			cond = &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
 				Reason:  "ScrapeConfigError",
 				Message: msg,
 			}
-			logger.Error(err, msg, "namespace", cm.Namespace, "name", cm.Name)
-			continue
+			logger.Error(err, msg, "namespace", cnmon.Namespace, "name", cnmon.Name)
+		} else {
+			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
-		cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
-
-		change, err := cm.Status.SetMonitoringCondition(cm.GetGeneration(), metav1.Now(), cond)
-		if err != nil {
-			// Log an error but let operator continue to avoid getting stuck
-			// on a potential bad resource.
-			logger.Error(err, "setting clusternodemonitoring status state", "namespace", cm.Namespace, "name", cm.Name)
-		}
-
-		if change {
-			r.statusUpdates = append(r.statusUpdates, &cm)
+		if cnmon.Status.SetMonitoringCondition(cnmon.GetGeneration(), metav1.Now(), cond) {
+			r.statusUpdates = append(r.statusUpdates, &cnmon)
 		}
 	}
 
@@ -542,30 +499,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		Config:        *cfg,
 		SecretConfigs: secretConfigs,
 	}, nil
-}
-
-type podMonitoringDefaulter struct{}
-
-func (d *podMonitoringDefaulter) Default(_ context.Context, o runtime.Object) error {
-	pm := o.(*monitoringv1.PodMonitoring)
-
-	if pm.Spec.TargetLabels.Metadata == nil {
-		md := []string{"pod", "container"}
-		pm.Spec.TargetLabels.Metadata = &md
-	}
-	return nil
-}
-
-type clusterPodMonitoringDefaulter struct{}
-
-func (d *clusterPodMonitoringDefaulter) Default(_ context.Context, o runtime.Object) error {
-	pm := o.(*monitoringv1.ClusterPodMonitoring)
-
-	if pm.Spec.TargetLabels.Metadata == nil {
-		md := []string{"namespace", "pod", "container"}
-		pm.Spec.TargetLabels.Metadata = &md
-	}
-	return nil
 }
 
 // makeRemoteWriteConfig generate the configs for the Prometheus remote_write feature.
@@ -582,102 +515,4 @@ func makeRemoteWriteConfig(exports []monitoringv1.ExportSpec) ([]*promconfig.Rem
 			})
 	}
 	return exportConfigs, nil
-}
-
-func makeKubeletScrapeConfigs(cfg *monitoringv1.KubeletScraping) ([]*promconfig.ScrapeConfig, error) {
-	if cfg == nil {
-		return nil, nil
-	}
-	discoveryCfgs := discovery.Configs{
-		&discoverykube.SDConfig{
-			HTTPClientConfig: config.DefaultHTTPClientConfig,
-			Role:             discoverykube.RoleNode,
-			// Drop all potential targets not the same node as the collector. The $(NODE_NAME) variable
-			// is interpolated by the config reloader sidecar before the config reaches the Prometheus collector.
-			// Doing it through selectors rather than relabeling should substantially reduce the client and
-			// server side load.
-			Selectors: []discoverykube.SelectorConfig{
-				{
-					Role:  discoverykube.RoleNode,
-					Field: fmt.Sprintf("metadata.name=$(%s)", monitoringv1.EnvVarNodeName),
-				},
-			},
-		},
-	}
-	clientCfg := config.HTTPClientConfig{
-		Authorization: &config.Authorization{
-			CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
-		},
-		TLSConfig: config.TLSConfig{
-			CAFile:             "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-			InsecureSkipVerify: cfg.TLSInsecureSkipVerify,
-		},
-	}
-	interval, err := prommodel.ParseDuration(cfg.Interval)
-	if err != nil {
-		return nil, fmt.Errorf("invalid scrape interval: %w", err)
-	}
-	relabelCfgs := []*relabel.Config{
-		{
-			Action:      relabel.Replace,
-			Replacement: "kubelet",
-			TargetLabel: "job",
-		},
-		{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
-			TargetLabel:  "node",
-		},
-	}
-	dropByName := func(pattern string) *relabel.Config {
-		return &relabel.Config{
-			Action:       relabel.Drop,
-			SourceLabels: prommodel.LabelNames{"__name__"},
-			Regex:        relabel.MustNewRegexp(pattern),
-		}
-	}
-	// We adopt the metric relabeling behavior of kube-prometheus as it's widely adopted and hence
-	// will meet user expectations (e.g. dropping deprecated metrics).
-	return []*promconfig.ScrapeConfig{
-		{
-			JobName:                 "kubelet/metrics",
-			ServiceDiscoveryConfigs: discoveryCfgs,
-			ScrapeInterval:          interval,
-			Scheme:                  "https",
-			MetricsPath:             "/metrics",
-			HTTPClientConfig:        clientCfg,
-			RelabelConfigs: append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Replace,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
-				TargetLabel:  "instance",
-				Replacement:  `$1:metrics`,
-			}),
-			MetricRelabelConfigs: []*relabel.Config{
-				dropByName(`kubelet_(pod_worker_latency_microseconds|pod_start_latency_microseconds|cgroup_manager_latency_microseconds|pod_worker_start_latency_microseconds|pleg_relist_latency_microseconds|pleg_relist_interval_microseconds|runtime_operations|runtime_operations_latency_microseconds|runtime_operations_errors|eviction_stats_age_microseconds|device_plugin_registration_count|device_plugin_alloc_latency_microseconds|network_plugin_operations_latency_microseconds)`),
-				dropByName(`scheduler_(e2e_scheduling_latency_microseconds|scheduling_algorithm_predicate_evaluation|scheduling_algorithm_priority_evaluation|scheduling_algorithm_preemption_evaluation|scheduling_algorithm_latency_microseconds|binding_latency_microseconds|scheduling_latency_seconds)`),
-				dropByName(`apiserver_(request_count|request_latencies|request_latencies_summary|dropped_requests|storage_data_key_generation_latencies_microseconds|storage_transformation_failures_total|storage_transformation_latencies_microseconds|proxy_tunnel_sync_latency_secs|longrunning_gauge|registered_watchers)`),
-				dropByName(`kubelet_docker_(operations|operations_latency_microseconds|operations_errors|operations_timeout)`),
-				dropByName(`reflector_(items_per_list|items_per_watch|list_duration_seconds|lists_total|short_watches_total|watch_duration_seconds|watches_total)`),
-				dropByName(`etcd_(helper_cache_hit_count|helper_cache_miss_count|helper_cache_entry_count|object_counts|request_cache_get_latencies_summary|request_cache_add_latencies_summary|request_latencies_summary)`),
-				dropByName(`transformation_(transformation_latencies_microseconds|failures_total)`),
-				dropByName(`(admission_quota_controller_adds|admission_quota_controller_depth|admission_quota_controller_longest_running_processor_microseconds|admission_quota_controller_queue_latency|admission_quota_controller_unfinished_work_seconds|admission_quota_controller_work_duration|APIServiceOpenAPIAggregationControllerQueue1_adds|APIServiceOpenAPIAggregationControllerQueue1_depth|APIServiceOpenAPIAggregationControllerQueue1_longest_running_processor_microseconds|APIServiceOpenAPIAggregationControllerQueue1_queue_latency|APIServiceOpenAPIAggregationControllerQueue1_retries|APIServiceOpenAPIAggregationControllerQueue1_unfinished_work_seconds|APIServiceOpenAPIAggregationControllerQueue1_work_duration|APIServiceRegistrationController_adds|APIServiceRegistrationController_depth|APIServiceRegistrationController_longest_running_processor_microseconds|APIServiceRegistrationController_queue_latency|APIServiceRegistrationController_retries|APIServiceRegistrationController_unfinished_work_seconds|APIServiceRegistrationController_work_duration|autoregister_adds|autoregister_depth|autoregister_longest_running_processor_microseconds|autoregister_queue_latency|autoregister_retries|autoregister_unfinished_work_seconds|autoregister_work_duration|AvailableConditionController_adds|AvailableConditionController_depth|AvailableConditionController_longest_running_processor_microseconds|AvailableConditionController_queue_latency|AvailableConditionController_retries|AvailableConditionController_unfinished_work_seconds|AvailableConditionController_work_duration|crd_autoregistration_controller_adds|crd_autoregistration_controller_depth|crd_autoregistration_controller_longest_running_processor_microseconds|crd_autoregistration_controller_queue_latency|crd_autoregistration_controller_retries|crd_autoregistration_controller_unfinished_work_seconds|crd_autoregistration_controller_work_duration|crdEstablishing_adds|crdEstablishing_depth|crdEstablishing_longest_running_processor_microseconds|crdEstablishing_queue_latency|crdEstablishing_retries|crdEstablishing_unfinished_work_seconds|crdEstablishing_work_duration|crd_finalizer_adds|crd_finalizer_depth|crd_finalizer_longest_running_processor_microseconds|crd_finalizer_queue_latency|crd_finalizer_retries|crd_finalizer_unfinished_work_seconds|crd_finalizer_work_duration|crd_naming_condition_controller_adds|crd_naming_condition_controller_depth|crd_naming_condition_controller_longest_running_processor_microseconds|crd_naming_condition_controller_queue_latency|crd_naming_condition_controller_retries|crd_naming_condition_controller_unfinished_work_seconds|crd_naming_condition_controller_work_duration|crd_openapi_controller_adds|crd_openapi_controller_depth|crd_openapi_controller_longest_running_processor_microseconds|crd_openapi_controller_queue_latency|crd_openapi_controller_retries|crd_openapi_controller_unfinished_work_seconds|crd_openapi_controller_work_duration|DiscoveryController_adds|DiscoveryController_depth|DiscoveryController_longest_running_processor_microseconds|DiscoveryController_queue_latency|DiscoveryController_retries|DiscoveryController_unfinished_work_seconds|DiscoveryController_work_duration|kubeproxy_sync_proxy_rules_latency_microseconds|non_structural_schema_condition_controller_adds|non_structural_schema_condition_controller_depth|non_structural_schema_condition_controller_longest_running_processor_microseconds|non_structural_schema_condition_controller_queue_latency|non_structural_schema_condition_controller_retries|non_structural_schema_condition_controller_unfinished_work_seconds|non_structural_schema_condition_controller_work_duration|rest_client_request_latency_seconds|storage_operation_errors_total|storage_operation_status_count)`),
-			},
-		}, {
-			JobName:                 "kubelet/cadvisor",
-			ServiceDiscoveryConfigs: discoveryCfgs,
-			ScrapeInterval:          interval,
-			Scheme:                  "https",
-			MetricsPath:             "/metrics/cadvisor",
-			HTTPClientConfig:        clientCfg,
-			RelabelConfigs: append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Replace,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
-				TargetLabel:  "instance",
-				Replacement:  `$1:cadvisor`,
-			}),
-			MetricRelabelConfigs: []*relabel.Config{
-				dropByName(`container_(network_tcp_usage_total|network_udp_usage_total|tasks_state|cpu_load_average_10s|blkio_device_usage_total|memory_failures_total)`),
-			},
-		},
-	}, nil
 }

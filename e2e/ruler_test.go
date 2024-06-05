@@ -559,7 +559,7 @@ func testCreateRules(
 		if err := kube.WaitForDeploymentReady(ctx, kubeClient, systemNamespace, operator.NameRuleEvaluator); err != nil {
 			t.Errorf("rule-evaluator is not ready: %s", err)
 			out := strings.Builder{}
-			if err := kube.Debug(ctx, restConfig, kubeClient, &appsv1.Deployment{
+			if err := kube.Debug(context.Background(), restConfig, kubeClient, &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: systemNamespace,
 					Name:      operator.NameRuleEvaluator,
@@ -719,6 +719,7 @@ func ruleEvaluatorPod(ctx context.Context, kubeClient client.Client, namespace s
 	if err != nil {
 		return nil, err
 	}
+	podList = kube.PodsReady(podList)
 	if len(podList) != 1 {
 		return nil, fmt.Errorf("expected 1 pod, found %d", len(podList))
 	}

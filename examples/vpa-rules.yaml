@@ -1,5 +1,4 @@
-{{- /*
-# Copyright 2022 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-*/}}
-{{- if .Values.serviceAccount.create -}}
-apiVersion: v1
-kind: ServiceAccount
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
 metadata:
-  name: {{ include "rule-evaluator.serviceAccountName" . }}
-  {{- if .Values.commonLabels }}
-  labels:
-    {{- include "rule-evaluator.labels" . | nindent 4 }}
-  {{- end }}
-{{- end -}}
+  name: rule-evaluator
+  namespace: gmp-system
+spec:
+  resourcePolicy:
+    containerPolicies:
+    - containerName: evaluator
+      controlledResources:
+        - memory
+      maxAllowed:
+        memory: 4Gi
+      minAllowed:
+        memory: 16Mi
+      mode: Auto
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rule-evaluator
+  updatePolicy:
+    updateMode: Auto

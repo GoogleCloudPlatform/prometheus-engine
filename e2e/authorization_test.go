@@ -29,6 +29,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -37,8 +38,8 @@ const errUnauthorized = "server returned HTTP status 401 Unauthorized"
 const errInvalidClientCredentials = "oauth2: \"invalid_client\" \"incorrect client credentials\""
 
 func TestTLS(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -46,7 +47,7 @@ func TestTLS(t *testing.T) {
 	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
 		"--tls-create-self-signed=true",
 	}))
-	authorizationTest(ctx, t, kubeClient, "tls",
+	authorizationTest(ctx, t, restConfig, kubeClient, "tls",
 		&monitoringv1.ScrapeEndpoint{
 			Scheme:   "https",
 			Port:     intstr.FromString("web"),
@@ -65,9 +66,9 @@ func TestTLS(t *testing.T) {
 	)
 }
 
-func TestBasicAuthPassword(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+func TestBasicAuthNoPassword(t *testing.T) {
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -75,7 +76,7 @@ func TestBasicAuthPassword(t *testing.T) {
 	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
 		"--basic-auth-username=user",
 	}))
-	authorizationTest(ctx, t, kubeClient, "basic-auth-no-password",
+	authorizationTest(ctx, t, restConfig, kubeClient, "basic-auth-no-password",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -93,8 +94,8 @@ func TestBasicAuthPassword(t *testing.T) {
 }
 
 func TestBasicAuthNoUsername(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -108,7 +109,7 @@ func TestBasicAuthNoUsername(t *testing.T) {
 	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
 		"--basic-auth-password=pass",
 	}))
-	authorizationTest(ctx, t, kubeClient, "basic-auth-no-username",
+	authorizationTest(ctx, t, restConfig, kubeClient, "basic-auth-no-username",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -131,8 +132,8 @@ func TestBasicAuthNoUsername(t *testing.T) {
 }
 
 func TestBasicAuth(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -147,7 +148,7 @@ func TestBasicAuth(t *testing.T) {
 		"--basic-auth-username=user",
 		"--basic-auth-password=pass",
 	}))
-	authorizationTest(ctx, t, kubeClient, "basic-auth",
+	authorizationTest(ctx, t, restConfig, kubeClient, "basic-auth",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -176,8 +177,8 @@ func TestBasicAuth(t *testing.T) {
 }
 
 func TestAuthNoCredentials(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -185,7 +186,7 @@ func TestAuthNoCredentials(t *testing.T) {
 	t.Run("patch-example-app-args", testPatchExampleAppArgs(ctx, kubeClient, []string{
 		"--auth-scheme=Bearer",
 	}))
-	authorizationTest(ctx, t, kubeClient, "auth",
+	authorizationTest(ctx, t, restConfig, kubeClient, "auth",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -203,8 +204,8 @@ func TestAuthNoCredentials(t *testing.T) {
 }
 
 func TestAuth(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -219,7 +220,7 @@ func TestAuth(t *testing.T) {
 		"--auth-scheme=Bearer",
 		"--auth-parameters=pass",
 	}))
-	authorizationTest(ctx, t, kubeClient, "auth",
+	authorizationTest(ctx, t, restConfig, kubeClient, "auth",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -245,8 +246,8 @@ func TestAuth(t *testing.T) {
 }
 
 func TestOAuth2NoSecret(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -261,7 +262,7 @@ func TestOAuth2NoSecret(t *testing.T) {
 		fmt.Sprintf("--oauth2-scopes=%s", clientScope),
 		fmt.Sprintf("--oauth2-access-token=%s", accessToken),
 	}))
-	authorizationTest(ctx, t, kubeClient, "oauth2-no-client-secret",
+	authorizationTest(ctx, t, restConfig, kubeClient, "oauth2-no-client-secret",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -281,8 +282,8 @@ func TestOAuth2NoSecret(t *testing.T) {
 }
 
 func TestOAuth2(t *testing.T) {
-	ctx := context.Background()
-	kubeClient, _, err := setupCluster(ctx, t)
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error instantiating clients. err: %s", err)
 	}
@@ -305,7 +306,7 @@ func TestOAuth2(t *testing.T) {
 		fmt.Sprintf("--oauth2-scopes=%s", clientScope),
 		fmt.Sprintf("--oauth2-access-token=%s", accessToken),
 	}))
-	authorizationTest(ctx, t, kubeClient, "oauth2",
+	authorizationTest(ctx, t, restConfig, kubeClient, "oauth2",
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
@@ -337,17 +338,17 @@ func TestOAuth2(t *testing.T) {
 	)
 }
 
-func authorizationTest(ctx context.Context, t *testing.T, kubeClient client.Client, name string, successConfig, failureConfig *monitoringv1.ScrapeEndpoint, errMsg string) {
+func authorizationTest(ctx context.Context, t *testing.T, restConfig *rest.Config, kubeClient client.Client, name string, successConfig, failureConfig *monitoringv1.ScrapeEndpoint, errMsg string) {
 	t.Run("podmonitoring", func(t *testing.T) {
-		authorizationPodMonitoringTest(ctx, t, kubeClient, name, successConfig, failureConfig, errMsg)
+		authorizationPodMonitoringTest(ctx, t, restConfig, kubeClient, name, successConfig, failureConfig, errMsg)
 	})
 	t.Run("clustermonitoring", func(t *testing.T) {
-		authorizationClusterPodMonitoringTest(ctx, t, kubeClient, name, successConfig, failureConfig, errMsg)
+		authorizationClusterPodMonitoringTest(ctx, t, restConfig, kubeClient, name, successConfig, failureConfig, errMsg)
 	})
 }
 
-func authorizationPodMonitoringTest(ctx context.Context, t *testing.T, kubeClient client.Client, name string, successConfig, failureConfig *monitoringv1.ScrapeEndpoint, errMsg string) {
-	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+func authorizationPodMonitoringTest(ctx context.Context, t *testing.T, restConfig *rest.Config, kubeClient client.Client, name string, successConfig, failureConfig *monitoringv1.ScrapeEndpoint, errMsg string) {
+	t.Run("collector-deployed", testCollectorDeployed(ctx, restConfig, kubeClient))
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 
 	pm := &monitoringv1.PodMonitoring{
@@ -387,8 +388,8 @@ func authorizationPodMonitoringTest(ctx context.Context, t *testing.T, kubeClien
 	t.Run(fmt.Sprintf("%s-podmon-failure", name), testEnsurePodMonitoringFailure(ctx, kubeClient, pmFail, errMsg))
 }
 
-func authorizationClusterPodMonitoringTest(ctx context.Context, t *testing.T, kubeClient client.Client, name string, successConfig, failureConfig *monitoringv1.ScrapeEndpoint, errMsg string) {
-	t.Run("collector-deployed", testCollectorDeployed(ctx, kubeClient))
+func authorizationClusterPodMonitoringTest(ctx context.Context, t *testing.T, restConfig *rest.Config, kubeClient client.Client, name string, successConfig, failureConfig *monitoringv1.ScrapeEndpoint, errMsg string) {
+	t.Run("collector-deployed", testCollectorDeployed(ctx, restConfig, kubeClient))
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 
 	cpm := &monitoringv1.ClusterPodMonitoring{

@@ -310,7 +310,7 @@ func newMetricClient(ctx context.Context, opts ExporterOpts) (*monitoring.Metric
 }
 
 // New returns a new Cloud Monitoring Exporter.
-func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Exporter, error) {
+func New(ctx context.Context, logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Exporter, error) {
 	grpc_prometheus.EnableClientHandlingTimeHistogram(
 		grpc_prometheus.WithHistogramBuckets([]float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15, 20, 30, 40, 50, 60}),
 	)
@@ -354,7 +354,7 @@ func New(logger log.Logger, reg prometheus.Registerer, opts ExporterOpts) (*Expo
 		opts.Lease = alwaysLease{}
 	}
 
-	metricClient, err := newMetricClient(context.Background(), opts)
+	metricClient, err := newMetricClient(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("create metric client: %w", err)
 	}
@@ -408,21 +408,30 @@ func (e *Exporter) ApplyConfig(cfg *config.Config) (err error) {
 	}
 	lset := builder.Labels()
 
-	// At this point we expect location and project ID to be set. They are effectively only a default
-	// however as they may be overridden by metric labels.
-	// In production scenarios, "location" should most likely never be overridden as it means crossing
-	// failure domains. Instead, each location should run a replica of the evaluator with the same rules.
-	if lset.Get(KeyProjectID) == "" {
-		return fmt.Errorf("no label %q set via external labels or flag", KeyProjectID)
+	// We don't need to validate if there's no scrape configs or rules, i.e. at startup.
+	hasScrapeConfigs := len(cfg.ScrapeConfigs) != 0 || len(cfg.ScrapeConfigFiles) != 0
+	hasRules := len(cfg.RuleFiles) != 0
+	if hasScrapeConfigs || hasRules {
+		// At this point we expect location and project ID to be set. They are effectively
+		// only a default however as they may be overridden by metric labels.
+		//
+		// In production scenarios, "location" should most likely never be overridden as it
+		// means crossing failure domains. Instead, each location should run a replica of
+		// the evaluator with the same rules.
+
+		if lset.Get(KeyProjectID) == "" {
+			return fmt.Errorf("no label %q set via external labels or flag", KeyProjectID)
+		}
+		if loc := lset.Get(KeyLocation); loc == "" {
+			return fmt.Errorf("no label %q set via external labels or flag", KeyLocation)
+		} else if loc == "global" {
+			return ErrLocationGlobal
+		}
+		if labels.Equal(e.externalLabels, lset) {
+			return nil
+		}
 	}
-	if loc := lset.Get(KeyLocation); loc == "" {
-		return fmt.Errorf("no label %q set via external labels or flag", KeyLocation)
-	} else if loc == "global" {
-		return ErrLocationGlobal
-	}
-	if labels.Equal(e.externalLabels, lset) {
-		return nil
-	}
+
 	// New external labels possibly invalidate the cached series conversions.
 	e.mtx.Lock()
 	e.externalLabels = lset
@@ -530,7 +539,7 @@ const (
 	ClientName = "prometheus-engine-export"
 	// mainModuleVersion is the version of the main module. Align with git tag.
 	// TODO(TheSpiritXIII): Remove with https://github.com/golang/go/issues/50603
-	mainModuleVersion = "v0.12.0-rc.0" // x-release-please-version
+	mainModuleVersion = "v0.13.0-rc.0" // x-release-please-version
 	// mainModuleName is the name of the main module. Align with go.mod.
 	mainModuleName = "github.com/GoogleCloudPlatform/prometheus-engine"
 )

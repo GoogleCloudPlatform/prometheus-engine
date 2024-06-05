@@ -49,8 +49,8 @@ func TestBatchAdd(t *testing.T) {
 	}
 	// Add 99 samples per project across 10 projects. The batch should not be full at
 	// any point and never be empty after adding the first sample.
-	for i := 0; i < 10; i++ {
-		for j := 0; j < 99; j++ {
+	for i := range 10 {
+		for range 99 {
 			if b.full() {
 				t.Fatalf("batch unexpectedly full")
 			}
@@ -86,10 +86,10 @@ func TestBatchAdd(t *testing.T) {
 func TestBatchFillFromShardsAndSend(t *testing.T) {
 	// Fill the batch from 100 shards with samples across 100 projects.
 	var shards []*shard
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		shards = append(shards, newShard(10000))
 	}
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		shards[i%100].enqueue(uint64(i), &monitoring_pb.TimeSeries{
 			Resource: &monitoredres_pb.MonitoredResource{
 				Labels: map[string]string{
@@ -308,7 +308,8 @@ func TestExporter_wrapMetadata(t *testing.T) {
 		},
 	}
 
-	e, err := New(log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
+	ctx := context.Background()
+	e, err := New(ctx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +364,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 		t.Fatalf("Creating metric client failed: %s", err)
 	}
 
-	e, err := New(log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
+	e, err := New(ctx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
 	if err != nil {
 		t.Fatalf("Creating Exporter failed: %s", err)
 	}
@@ -374,7 +375,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 	})
 
 	// Fill a single shard with samples.
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		e.Export(nil, []record.RefSample{
 			{Ref: 1, T: int64(i), V: float64(i)},
 		}, nil)

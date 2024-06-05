@@ -17,240 +17,18 @@ package operator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
-
-func TestGenerateRules(t *testing.T) {
-	var wantRules = `groups:
-    - name: test-group
-      rules:
-        - record: test_record
-          expr: test_expr{cluster="test-cluster",location="us-central1",namespace="test-namespace",project_id="123"}
-          labels:
-            cluster: test-cluster
-            location: us-central1
-            namespace: test-namespace
-            project_id: "123"
-`
-
-	tests := []struct {
-		name        string
-		apiRules    *monitoringv1.Rules
-		projectID   string
-		location    string
-		clusterName string
-		want        string
-		wantErr     bool
-	}{
-		{
-			name: "good rules",
-			apiRules: &monitoringv1.Rules{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "test-namespace",
-				},
-				Spec: monitoringv1.RulesSpec{
-					Groups: []monitoringv1.RuleGroup{
-						{
-							Name: "test-group",
-							Rules: []monitoringv1.Rule{
-								{
-									Record: "test_record",
-									Expr:   "test_expr",
-								},
-							},
-						},
-					},
-				},
-			},
-			projectID:   "123",
-			location:    "us-central1",
-			clusterName: "test-cluster",
-			want:        wantRules,
-			wantErr:     false,
-		},
-		{
-			name: "invalid rules",
-			apiRules: &monitoringv1.Rules{
-				Spec: monitoringv1.RulesSpec{
-					Groups: []monitoringv1.RuleGroup{
-						{
-							Name: "test-group",
-							Rules: []monitoringv1.Rule{
-								{
-									Record: "test_record",
-									Expr:   "test_expr{",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, err := generateRules(test.apiRules, test.projectID, test.location, test.clusterName)
-			if (err == nil && test.wantErr) || (err != nil && !test.wantErr) {
-				t.Fatalf("expected err: %v; actual %v", test.wantErr, err)
-			}
-			if got != test.want {
-				t.Errorf("expected: %v; actual %v", test.want, got)
-			}
-		})
-	}
-}
-
-func TestGenerateClusterRules(t *testing.T) {
-	var wantClusterRules = `groups:
-    - name: test-group
-      rules:
-        - record: test_record
-          expr: test_expr{cluster="test-cluster",location="us-central1",project_id="123"}
-          labels:
-            cluster: test-cluster
-            location: us-central1
-            project_id: "123"
-`
-
-	tests := []struct {
-		name        string
-		apiRules    *monitoringv1.ClusterRules
-		projectID   string
-		location    string
-		clusterName string
-		want        string
-		wantErr     bool
-	}{
-		{
-			name: "good cluster rules",
-			apiRules: &monitoringv1.ClusterRules{
-				Spec: monitoringv1.RulesSpec{
-					Groups: []monitoringv1.RuleGroup{
-						{
-							Name: "test-group",
-							Rules: []monitoringv1.Rule{
-								{
-									Record: "test_record",
-									Expr:   "test_expr",
-								},
-							},
-						},
-					},
-				},
-			},
-			projectID:   "123",
-			location:    "us-central1",
-			clusterName: "test-cluster",
-			want:        wantClusterRules,
-			wantErr:     false,
-		},
-		{
-			name: "invalid cluster rules",
-			apiRules: &monitoringv1.ClusterRules{
-				Spec: monitoringv1.RulesSpec{
-					Groups: []monitoringv1.RuleGroup{
-						{
-							Name: "test-group",
-							Rules: []monitoringv1.Rule{
-								{
-									Record: "test_record",
-									Expr:   "test_expr{",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, err := generateClusterRules(test.apiRules, test.projectID, test.location, test.clusterName)
-			if (err == nil && test.wantErr) || (err != nil && !test.wantErr) {
-				t.Fatalf("expected err: %v; actual %v", test.wantErr, err)
-			}
-			if diff := cmp.Diff(test.want, got); diff != "" {
-				t.Fatalf("unexpected result (-want, +got):\n %s", diff)
-			}
-		})
-	}
-}
-
-func TestGenerateGlobalRules(t *testing.T) {
-	var wantGlobalRules = `groups:
-    - name: test-group
-      rules:
-        - record: test_record
-          expr: test_expr
-`
-
-	tests := []struct {
-		name     string
-		apiRules *monitoringv1.GlobalRules
-		want     string
-		wantErr  bool
-	}{
-		{
-			name: "good global rules",
-			apiRules: &monitoringv1.GlobalRules{
-				Spec: monitoringv1.RulesSpec{
-					Groups: []monitoringv1.RuleGroup{
-						{
-							Name: "test-group",
-							Rules: []monitoringv1.Rule{
-								{
-									Record: "test_record",
-									Expr:   "test_expr",
-								},
-							},
-						},
-					},
-				},
-			},
-			want:    wantGlobalRules,
-			wantErr: false,
-		},
-		{
-			name: "invalid global rules",
-			apiRules: &monitoringv1.GlobalRules{
-				Spec: monitoringv1.RulesSpec{
-					Groups: []monitoringv1.RuleGroup{
-						{
-							Name: "test-group",
-							Rules: []monitoringv1.Rule{
-								{
-									Record: "test_record",
-									Expr:   "test_expr{",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got, err := generateGlobalRules(test.apiRules)
-			if (err == nil && test.wantErr) || (err != nil && !test.wantErr) {
-				t.Fatalf("expected err: %v; actual %v", test.wantErr, err)
-			}
-			if diff := cmp.Diff(test.want, got); diff != "" {
-				t.Fatalf("unexpected result (-want, +got):\n %s", diff)
-			}
-		})
-	}
-}
 
 func TestHasRules(t *testing.T) {
 	emptyRules := newFakeClientBuilder().Build()
@@ -280,6 +58,339 @@ func TestHasRules(t *testing.T) {
 			}
 			if err != nil && !tc.wantErr {
 				t.Errorf("Unexpected error: %s", err)
+			}
+		})
+	}
+}
+
+func TestRulesStatus(t *testing.T) {
+	// The fake client truncates seconds, so create a time that can't be rounded down.
+	timeDefault := metav1.NewTime(time.Date(2024, 5, 23, 1, 23, 0, 0, time.UTC))
+	timeAfter := metav1.NewTime(timeDefault.Add(time.Minute))
+	var testCases []struct {
+		obj            monitoringv1.MonitoringCRD
+		expectedStatus monitoringv1.MonitoringStatus
+	}
+
+	addTestCases := func(name string, newObj func(objectMeta metav1.ObjectMeta, spec monitoringv1.RulesSpec, status monitoringv1.RulesStatus) monitoringv1.MonitoringCRD) {
+		testCases = append(testCases, []struct {
+			obj            monitoringv1.MonitoringCRD
+			expectedStatus monitoringv1.MonitoringStatus
+		}{
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("invalid-%s-no-condition", name),
+						Generation: 2,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr{",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionFalse,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeAfter,
+							Message:            "generating rule config failed",
+						},
+					},
+				},
+			},
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("invalid-%s-outdated-condition", name),
+						Generation: 2,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr{",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 1,
+							Conditions: []monitoringv1.MonitoringCondition{
+								{
+									Type:               monitoringv1.ConfigurationCreateSuccess,
+									Status:             corev1.ConditionTrue,
+									LastUpdateTime:     timeDefault,
+									LastTransitionTime: timeDefault,
+								},
+							},
+						},
+					},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionFalse,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeAfter,
+							Message:            "generating rule config failed",
+						},
+					},
+				},
+			},
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("invalid-%s-correct-condition", name),
+						Generation: 2,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr{",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 1,
+							Conditions: []monitoringv1.MonitoringCondition{
+								{
+									Type:               monitoringv1.ConfigurationCreateSuccess,
+									Status:             corev1.ConditionFalse,
+									LastUpdateTime:     timeDefault,
+									LastTransitionTime: timeDefault,
+								},
+							},
+						},
+					},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionFalse,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeDefault,
+							Message:            "generating rule config failed",
+						},
+					},
+				},
+			},
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("valid-%s-no-condition", name),
+						Generation: 1,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 1,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionTrue,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeAfter,
+						},
+					},
+				},
+			},
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("valid-%s-outdated-condition", name),
+						Generation: 2,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 1,
+							Conditions: []monitoringv1.MonitoringCondition{
+								{
+									Type:               monitoringv1.ConfigurationCreateSuccess,
+									Status:             corev1.ConditionFalse,
+									LastUpdateTime:     timeDefault,
+									LastTransitionTime: timeDefault,
+								},
+							},
+						},
+					},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionTrue,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeAfter,
+						},
+					},
+				},
+			},
+			{
+				obj: newObj(
+					metav1.ObjectMeta{
+						Name:       fmt.Sprintf("valid-%s-correct-condition", name),
+						Generation: 2,
+					},
+					monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "test-group",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_record",
+										Expr:   "test_expr",
+									},
+								},
+							},
+						},
+					},
+					monitoringv1.RulesStatus{
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 1,
+							Conditions: []monitoringv1.MonitoringCondition{
+								{
+									Type:               monitoringv1.ConfigurationCreateSuccess,
+									Status:             corev1.ConditionTrue,
+									LastUpdateTime:     timeDefault,
+									LastTransitionTime: timeDefault,
+								},
+							},
+						},
+					},
+				),
+				expectedStatus: monitoringv1.MonitoringStatus{
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{
+						{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionTrue,
+							LastUpdateTime:     timeAfter,
+							LastTransitionTime: timeDefault,
+						},
+					},
+				},
+			},
+		}...)
+	}
+	addTestCases("namespaced-rule", func(objectMeta metav1.ObjectMeta, spec monitoringv1.RulesSpec, status monitoringv1.RulesStatus) monitoringv1.MonitoringCRD {
+		return &monitoringv1.Rules{
+			ObjectMeta: objectMeta,
+			Spec:       spec,
+			Status:     status,
+		}
+	})
+	addTestCases("cluster-rule", func(objectMeta metav1.ObjectMeta, spec monitoringv1.RulesSpec, status monitoringv1.RulesStatus) monitoringv1.MonitoringCRD {
+		return &monitoringv1.ClusterRules{
+			ObjectMeta: objectMeta,
+			Spec:       spec,
+			Status:     status,
+		}
+	})
+	addTestCases("global-rule", func(objectMeta metav1.ObjectMeta, spec monitoringv1.RulesSpec, status monitoringv1.RulesStatus) monitoringv1.MonitoringCRD {
+		return &monitoringv1.GlobalRules{
+			ObjectMeta: objectMeta,
+			Spec:       spec,
+			Status:     status,
+		}
+	})
+
+	objs := make([]client.Object, 0, len(testCases))
+	for _, tc := range testCases {
+		objs = append(objs, tc.obj)
+	}
+	kubeClient := newFakeClientBuilder().
+		WithObjects(objs...).
+		Build()
+
+	ctx := context.Background()
+	r := rulesReconciler{
+		client: kubeClient,
+	}
+
+	if err := r.ensureRuleConfigs(ctx, "", "", "", monitoringv1.CompressionNone); err != nil {
+		t.Fatal("ensure rules configs:", err)
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.obj.GetName(), func(t *testing.T) {
+			objectKey := client.ObjectKeyFromObject(tc.obj)
+			if err := kubeClient.Get(ctx, objectKey, tc.obj); err != nil {
+				t.Fatal("get obj:", err)
+			}
+
+			status := tc.obj.GetMonitoringStatus()
+			if len(status.Conditions) != 1 {
+				t.Fatalf("invalid %q conditions amount, expected 1 but got %d", objectKey, len(status.Conditions))
+			}
+			condition := &status.Conditions[0]
+			// If time changed, normalize to the "after time", since we don't mock the process time.
+			if !condition.LastTransitionTime.Equal(&timeDefault) {
+				condition.LastTransitionTime = timeAfter
+			}
+			if !condition.LastUpdateTime.Equal(&timeDefault) {
+				condition.LastUpdateTime = timeAfter
+			}
+			// The message is good enough. Don't need reason.
+			condition.Reason = ""
+
+			if diff := cmp.Diff(&tc.expectedStatus, status); diff != "" {
+				t.Errorf("expected %q condition (-want, +got): %s", objectKey, diff)
 			}
 		})
 	}

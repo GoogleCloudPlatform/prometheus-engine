@@ -62,6 +62,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.OperatorConfig">OperatorConfig</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.OperatorConfigValidator">OperatorConfigValidator</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.OperatorFeatures">OperatorFeatures</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.PodMonitoring">PodMonitoring</a>
@@ -1383,7 +1385,7 @@ monitoring resource was created successfully.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoring">ClusterNodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoring">ClusterNodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>, <a href="#monitoring.googleapis.com/v1.RulesStatus">RulesStatus</a>)
 </p>
 <div>
 <p>MonitoringStatus holds status information of a monitoring resource.</p>
@@ -1642,6 +1644,52 @@ ScalingSpec
 </td>
 <td>
 <p>Scaling contains configuration options for scaling GMP.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.OperatorConfigValidator">
+<span id="OperatorConfigValidator">OperatorConfigValidator
+</span>
+</h3>
+<div>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>Namespace</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>Name</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>VPAAvailable</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
 </td>
 </tr>
 </tbody>
@@ -2377,6 +2425,31 @@ RulesStatus
 <div>
 <p>RulesStatus contains status information for a Rules resource.</p>
 </div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>MonitoringStatus</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
+MonitoringStatus
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>MonitoringStatus</code> are embedded into this type.)
+</p>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.SampleGroup">
 <span id="SampleGroup">SampleGroup
 </span>

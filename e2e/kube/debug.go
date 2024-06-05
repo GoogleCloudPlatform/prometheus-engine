@@ -132,6 +132,8 @@ func workloadPods(ctx context.Context, kubeClient client.Client, o client.Object
 		return []corev1.Pod{*o}, nil
 	case *appsv1.Deployment:
 		return DeploymentPods(ctx, kubeClient, o.Namespace, o.Name)
+	case *appsv1.DaemonSet:
+		return DaemonSetPods(ctx, kubeClient, o.Namespace, o.Name)
 	default:
 		return nil, errors.New("invalid object type")
 	}

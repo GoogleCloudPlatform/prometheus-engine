@@ -51,8 +51,8 @@ Common labels
   {{- if .Values.commonLabels -}}
 app.kubernetes.io/name: {{ include "prometheus-engine.name" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "prometheus-engine.name" . ) .Chart.AppVersion) .Release.Name }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "prometheus-engine.name" . ) .Values.version) .Release.Name }}
+app.kubernetes.io/version: {{ .Values.version }}
 app.kubernetes.io/part-of: {{ eq .Release.Name "release-name" | ternary "gmp" .Release.Name }}
 helm.sh/chart: {{ include "prometheus-engine.chart" . }}
   {{- end }}
@@ -74,8 +74,8 @@ app.kubernetes.io/component: operator
 app.kubernetes.io/name: gmp-operator
   {{- if .Values.commonLabels }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "prometheus-engine.name" . ) .Chart.AppVersion) .Release.Name }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/instance: {{ eq .Release.Name "release-name" | ternary (printf "%s-%s" ( include "prometheus-engine.name" . ) .Values.version) .Release.Name }}
+app.kubernetes.io/version: {{ .Values.version }}
   {{- end }}
 app.kubernetes.io/part-of: {{ eq .Release.Name "release-name" | ternary "gmp" .Release.Name }}
   {{- if .Values.commonLabels }}
@@ -98,7 +98,7 @@ Operator template labels
 {{- define "prometheus-engine.operator.templateLabels" -}}
 app: managed-prometheus-operator
 {{ include "prometheus-engine.operator.selectorLabels" . }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Values.version }}
 {{- end }}
 
 {{/*
@@ -121,7 +121,7 @@ Collector template labels
 {{- define "prometheus-engine.collector.templateLabels" -}}
 app: managed-prometheus-collector
 {{ include "prometheus-engine.collector.selectorLabels" . }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Values.version }}
 {{- end }}
 
 {{/*
@@ -144,7 +144,7 @@ Rule-evaluator template labels
 {{- define "prometheus-engine.rule-evaluator.templateLabels" -}}
 {{ include "prometheus-engine.rule-evaluator.selectorLabels" . }}
 app: managed-prometheus-rule-evaluator
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Values.version }}
 {{- end }}
 
 {{/*
@@ -167,7 +167,7 @@ Alertmanager template labels
 */}}
 {{- define "prometheus-engine.alertmanager.templateLabels" -}}
 {{ include "prometheus-engine.alertmanager.selectorLabels" . }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Values.version }}
 {{- end }}
 
 {{/*
