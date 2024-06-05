@@ -178,7 +178,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, fmt.Errorf("ensure collector daemon set: %w", err)
 	}
 
-	if err := r.ensureCollectorConfig(ctx, &config.Collection, config.Features.Config.Compression, config.Exports); err != nil {
+	if err := r.ensureCollectorConfig(ctx, &config); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector config: %w", err)
 	}
 
@@ -250,18 +250,6 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 		fmt.Sprintf("--export.label.location=%q", location),
 		fmt.Sprintf("--export.label.cluster=%q", cluster),
 	}
-	// Populate export filtering from OperatorConfig.
-	for _, matcher := range spec.Filter.MatchOneOf {
-		flags = append(flags, fmt.Sprintf("--export.match=%q", matcher))
-	}
-	if spec.Credentials != nil {
-		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
-		flags = append(flags, fmt.Sprintf("--export.credentials-file=%q", p))
-	}
-
-	if len(spec.Compression) > 0 && spec.Compression != monitoringv1.CompressionNone {
-		flags = append(flags, fmt.Sprintf("--export.compression=%s", spec.Compression))
-	}
 	setContainerExtraArgs(ds.Spec.Template.Spec.Containers, CollectorPrometheusContainerName, strings.Join(flags, " "))
 
 	return r.client.Update(ctx, &ds)
@@ -327,11 +315,26 @@ func setConfigMapData(cm *corev1.ConfigMap, c monitoringv1.CompressionType, key 
 }
 
 // ensureCollectorConfig generates the collector config and creates or updates it.
-func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, compression monitoringv1.CompressionType, exports []monitoringv1.ExportSpec) error {
-	cfg, err := r.makeCollectorConfig(ctx, spec, exports)
+func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, config *monitoringv1.OperatorConfig) error {
+	cfg, err := r.makeCollectorConfig(ctx, &config.Collection, config.Exports)
 	if err != nil {
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
+
+	var credentialsFile string
+	if config.Collection.Credentials != nil {
+		credentialsFile = path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: config.Collection.Credentials}))
+	}
+	compression := config.Features.Config.Compression
+
+	cfg.GoogleCloud = &GoogleCloudConfig{
+		Export: &GoogleCloudExportConfig{
+			Compression:     string(compression),
+			CredentialsFile: credentialsFile,
+			Match:           config.Collection.Filter.MatchOneOf,
+		},
+	}
+
 	cfgEncoded, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal Prometheus config: %w", err)
@@ -357,14 +360,27 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	return nil
 }
 
-type prometheusConfig struct {
+type PrometheusConfig struct {
 	promconfig.Config `yaml:",inline"`
 
 	// Secret management. Matches our fork's configuration.
 	SecretConfigs []secrets.SecretConfig `yaml:"kubernetes_secrets,omitempty"`
+
+	// Google Cloud configuration. Matches our fork's configuration.
+	GoogleCloud *GoogleCloudConfig `yaml:"google_cloud,omitempty"`
 }
 
-func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*prometheusConfig, error) {
+type GoogleCloudConfig struct {
+	Export *GoogleCloudExportConfig `yaml:"export,omitempty"`
+}
+
+type GoogleCloudExportConfig struct {
+	Match           []string `yaml:"match,omitempty"`
+	Compression     string   `yaml:"compression,omitempty"`
+	CredentialsFile string   `yaml:"credentials,omitempty"`
+}
+
+func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*PrometheusConfig, error) {
 	logger, _ := logr.FromContext(ctx)
 
 	cfg := &promconfig.Config{
@@ -495,7 +511,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return cfg.ScrapeConfigs[i].JobName < cfg.ScrapeConfigs[j].JobName
 	})
 
-	return &prometheusConfig{
+	return &PrometheusConfig{
 		Config:        *cfg,
 		SecretConfigs: secretConfigs,
 	}, nil
