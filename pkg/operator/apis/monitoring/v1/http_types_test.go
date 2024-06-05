@@ -24,13 +24,11 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets"
 )
 
-type secretNamespacePodMonitoringTestCase struct {
+type secretNamespaceTestCase struct {
+	// Is empty when testing for cluster-scoped resources.
 	monitoringNamespace string
-	expectedNamespace   string
-}
-
-type secretNamespaceClusterPodMonitoringTestCase struct {
-	secretNamespace   string
+	secretNamespace     string
+	// Is empty when an error is expected.
 	expectedNamespace string
 }
 
@@ -54,34 +52,62 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing
 		}
 	})
 
-	testCases := []secretNamespacePodMonitoringTestCase{
+	testCases := []secretNamespaceTestCase{
 		{
 			monitoringNamespace: "",
+			secretNamespace:     "",
 			expectedNamespace:   metav1.NamespaceDefault,
 		},
 		{
 			monitoringNamespace: metav1.NamespaceDefault,
+			secretNamespace:     "",
+			expectedNamespace:   metav1.NamespaceDefault,
+		},
+		{
+			monitoringNamespace: "",
+			secretNamespace:     metav1.NamespaceDefault,
 			expectedNamespace:   metav1.NamespaceDefault,
 		},
 		{
 			monitoringNamespace: "foo",
+			secretNamespace:     "foo",
 			expectedNamespace:   "foo",
+		},
+		{
+			monitoringNamespace: "foo",
+			secretNamespace:     "different",
 		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("namespace=%s", tc.monitoringNamespace), func(t *testing.T) {
+		t.Run(fmt.Sprintf("namespace=%s,secret=%s", tc.monitoringNamespace, tc.secretNamespace), func(t *testing.T) {
+			// Enforcing K8s default namespace for `GetNamespace()` consistency.
+			monitoringNamespace := tc.monitoringNamespace
+			if tc.monitoringNamespace == "" {
+				monitoringNamespace = metav1.NamespaceDefault
+			}
+
 			p := &PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{Namespace: tc.monitoringNamespace},
+				ObjectMeta: metav1.ObjectMeta{Namespace: monitoringNamespace},
 			}
 
 			pool := PrometheusSecretConfigs{}
 			c := &SecretKeySelector{
-				Name: "secret1",
-				Key:  "key1",
+				Name:      "secret1",
+				Key:       "key1",
+				Namespace: tc.secretNamespace,
 			}
 
 			ref, err := c.toPrometheusSecretRef(p, pool)
+			if tc.expectedNamespace == "" {
+				if err == nil {
+					t.Fatal("expected failure, got nil")
+				}
+				if len(pool.SecretConfigs()) != 0 {
+					t.Fatalf("expected no configs, got %v", pool.SecretConfigs())
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("unexpected failure: %s", err)
 			}
@@ -126,7 +152,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_ClusterPodMonitoring(t *
 		}
 	})
 
-	testCases := []secretNamespaceClusterPodMonitoringTestCase{
+	testCases := []secretNamespaceTestCase{
 		{
 			secretNamespace:   "",
 			expectedNamespace: metav1.NamespaceDefault,
@@ -155,6 +181,15 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_ClusterPodMonitoring(t *
 			}
 
 			ref, err := c.toPrometheusSecretRef(p, pool)
+			if tc.expectedNamespace == "" {
+				if err == nil {
+					t.Fatal("expected failure, got nil")
+				}
+				if len(pool.SecretConfigs()) != 0 {
+					t.Fatalf("expected no configs, got %v", pool.SecretConfigs())
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("unexpected failure: %s", err)
 			}
