@@ -70,6 +70,15 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing
 		},
 		{
 			monitoringNamespace: "foo",
+			secretNamespace:     metav1.NamespaceDefault,
+		},
+		{
+			monitoringNamespace: "foo",
+			secretNamespace:     "",
+			expectedNamespace:   "foo",
+		},
+		{
+			monitoringNamespace: "foo",
 			secretNamespace:     "foo",
 			expectedNamespace:   "foo",
 		},
