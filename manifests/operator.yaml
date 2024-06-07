@@ -527,7 +527,7 @@ spec:
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.9.0-gke.1
+        image: us-east4-docker.pkg.dev/lees-gmp/prometheus-engine/operator:gmp-20242405_1404
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"

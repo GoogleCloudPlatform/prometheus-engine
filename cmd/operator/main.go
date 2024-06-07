@@ -18,7 +18,9 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -43,6 +45,19 @@ const (
 )
 
 func main() {
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	mux.HandleFunc("/debug/pprof/block", pprof.Trace)
+	mux.HandleFunc("/debug/pprof/allocs", pprof.Trace)
+	mux.HandleFunc("/debug/pprof/goroutine", pprof.Trace)
+	mux.HandleFunc("/debug/pprof/mutex", pprof.Trace)
+	go func() { log.Fatal(http.ListenAndServe("localhost:6060", mux)) }()
+
 	var (
 		defaultProjectID string
 		defaultCluster   string

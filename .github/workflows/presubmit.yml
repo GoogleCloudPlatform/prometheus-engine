@@ -96,3 +96,16 @@ jobs:
     - uses: actions/checkout@v4
     - name: Run e2e
       run: TEST_RUN=${{matrix.testrun}} make e2e
+  parca-profile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}  # Fetch the PR's code
+      - name: Profile the latest stabe version of GMP collector
+        run: |
+          ../../scripts/deploy_parca.sh https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/main/manifests/operator.yaml
+      - name: Profile the incoming change of GMP collector
+        run: |
+          ../../scripts/deploy_parca.sh ../../manifests/operator.yaml
+
