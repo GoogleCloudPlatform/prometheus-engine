@@ -343,7 +343,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240207.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -357,7 +357,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.10.0-gke.6
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -393,7 +393,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus@sha256:7473d52f4a3e563e6377f8a6183091f25192b1e0705dd0933903e800bd69b7b2
+        image: gke.gcr.io/prometheus-engine/prometheus@sha256:3115cb238c9dd9abe4f4cf8ed3daeb1e6e9ee045bf24f8614e144b3a642f3464
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage
@@ -534,7 +534,7 @@ spec:
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/operator:v0.10.0-gke.6
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
@@ -640,7 +640,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240207.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -654,7 +654,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.10.0-gke.6
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -695,7 +695,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.10.0-gke.6
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --web.listen-address=:19092
@@ -809,7 +809,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240207.00_p0
         command: ['/bin/bash', '-c', 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  - name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml']
         volumeMounts:
         - name: alertmanager-config
@@ -823,7 +823,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: alertmanager
-        image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.2-gke.0
+        image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.3-gke.0
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
@@ -859,7 +859,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.10.0-gke.6
         args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
