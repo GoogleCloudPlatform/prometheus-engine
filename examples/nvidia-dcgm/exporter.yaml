@@ -44,6 +44,7 @@ spec:
       - name: nvidia-install-dir-host
         hostPath:
           path: /home/kubernetes/bin/nvidia
+          type: Directory
       containers:
       - image: "nvcr.io/nvidia/cloud-native/dcgm:3.3.0-1-ubuntu22.04"
         command: ["nv-hostengine", "-n", "-b", "ALL"]
