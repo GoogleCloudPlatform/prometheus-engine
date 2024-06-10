@@ -43,7 +43,6 @@ const (
 )
 
 func main() {
-
 	var (
 		defaultProjectID string
 		defaultCluster   string
