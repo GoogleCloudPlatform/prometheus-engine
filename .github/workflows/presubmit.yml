@@ -104,8 +104,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}  # Fetch the PR's code
       - name: Profile the latest stabe version of GMP collector
         run: |
-          ../../scripts/deploy_parca.sh https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/v0.10.0/manifests/operator.yaml
+          ./github/scripts/deploy_parca.sh https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/v0.10.0/manifests/operator.yaml
       - name: Profile the incoming change of GMP collector
         run: |
-          ../../scripts/deploy_parca.sh ../../manifests/operator.yaml
+          ./github/scripts/deploy_parca.sh ../../manifests/operator.yaml
 
