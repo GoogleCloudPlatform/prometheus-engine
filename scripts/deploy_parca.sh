@@ -24,7 +24,7 @@ kubectl apply -f ../manifests/parca-server.yaml
 kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/v0.10.0/manifests/setup.yaml 
 kubectl apply -f $1
 
-sleep 60
+kubectl wait --for=condition=Ready deployment/gmp-operator -n gmp-system
 
 kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/v0.10.0/examples/instrumentation/go-synthetic/go-synthetic.yaml
 
@@ -34,5 +34,5 @@ kubectl -n parca port-forward service/parca 7070 &
 sleep 1800
 
 # Cleanup
-kill %1  # Terminate the background port-forward process (if used)
+kill %1  # Terminate the background port-forward process
 kubectl delete all --all --all-namespaces
