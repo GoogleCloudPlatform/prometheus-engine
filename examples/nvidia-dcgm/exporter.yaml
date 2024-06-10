@@ -91,6 +91,7 @@ spec:
       - name: nvidia-install-dir-host
         hostPath:
           path: /home/kubernetes/bin/nvidia
+          type: Directory
       - name: pod-resources
         hostPath:
           path: /var/lib/kubelet/pod-resources
