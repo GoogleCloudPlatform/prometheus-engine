@@ -39,7 +39,7 @@ require (
 	k8s.io/api v0.30.0
 	k8s.io/apiextensions-apiserver v0.29.3
 	k8s.io/apimachinery v0.30.1
-	k8s.io/autoscaler/vertical-pod-autoscaler v1.1.0
+	k8s.io/autoscaler/vertical-pod-autoscaler v1.1.2
 	k8s.io/client-go v0.29.3
 	k8s.io/code-generator v0.29.3
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
