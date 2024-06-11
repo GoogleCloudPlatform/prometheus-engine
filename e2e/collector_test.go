@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
@@ -79,9 +78,7 @@ func TestCollectorPodMonitoring(t *testing.T) {
 		},
 	}
 	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, pm))
-	if !skipGCM {
-		t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-podmon"))
-	}
+	t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, restConfig, kubeClient, "collector-podmon"))
 }
 
 func TestCollectorClusterPodMonitoring(t *testing.T) {
@@ -120,9 +117,7 @@ func TestCollectorClusterPodMonitoring(t *testing.T) {
 		},
 	}
 	t.Run("self-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, kubeClient, cpm))
-	if !skipGCM {
-		t.Run("self-clusterpodmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-cmon"))
-	}
+	t.Run("self-clusterpodmonitoring-gcm", testValidateCollectorUpMetrics(ctx, restConfig, kubeClient, "collector-cmon"))
 }
 
 func TestCollectorKubeletScraping(t *testing.T) {
@@ -138,9 +133,7 @@ func TestCollectorKubeletScraping(t *testing.T) {
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 
 	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, kubeClient))
-	if !skipGCM {
-		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, kubeClient))
-	}
+	t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, restConfig, kubeClient))
 }
 
 // testCollectorDeployed does a high-level verification on whether the
@@ -440,12 +433,12 @@ func testEnableKubeletScraping(ctx context.Context, kubeClient client.Client) fu
 
 // testValidateCollectorUpMetrics checks whether the scrape-time up metrics for all collector
 // pods can be queried from GCM.
-func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Client, job string) func(*testing.T) {
+func testValidateCollectorUpMetrics(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, job string) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 
 		// Wait for metric data to show up in Cloud Monitoring.
-		metricClient, err := gcm.NewMetricClient(ctx)
+		metricClient, err := newMetricClient(ctx, t, restConfig, kubeClient)
 		if err != nil {
 			t.Fatalf("create metric client: %s", err)
 		}
@@ -480,7 +473,7 @@ func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Clien
 						Filter: fmt.Sprintf(`
 				resource.type = "prometheus_target" AND
 				resource.labels.project_id = "%s" AND
-				resource.label.location = "%s" AND
+				resource.labels.location = "%s" AND
 				resource.labels.cluster = "%s" AND
 				resource.labels.namespace = "%s" AND
 				resource.labels.job = "%s" AND
@@ -519,12 +512,12 @@ func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Clien
 }
 
 // testCollectorScrapeKubelet verifies that kubelet metric endpoints are successfully scraped.
-func testCollectorScrapeKubelet(ctx context.Context, kubeClient client.Client) func(*testing.T) {
+func testCollectorScrapeKubelet(ctx context.Context, restConfig *rest.Config, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 
 		// Wait for metric data to show up in Cloud Monitoring.
-		metricClient, err := gcm.NewMetricClient(ctx)
+		metricClient, err := newMetricClient(ctx, t, restConfig, kubeClient)
 		if err != nil {
 			t.Fatalf("create GCM metric client: %s", err)
 		}
@@ -548,7 +541,7 @@ func testCollectorScrapeKubelet(ctx context.Context, kubeClient client.Client) f
 						Filter: fmt.Sprintf(`
 				resource.type = "prometheus_target" AND
 				resource.labels.project_id = "%s" AND
-				resource.label.location = "%s" AND
+				resource.labels.location = "%s" AND
 				resource.labels.cluster = "%s" AND
 				resource.labels.job = "kubelet" AND
 				resource.labels.instance = "%s:%s" AND

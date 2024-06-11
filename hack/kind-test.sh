@@ -23,7 +23,7 @@ GO_TEST=$1
 
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 TAG_NAME=$(date "+gmp-%Y%d%m_%H%M")
-TEST_ARGS=""
+TEST_ARGS="-image-tag=${TAG_NAME} -registry-port=${REGISTRY_PORT}"
 # Convert kind cluster name to required regex if necessary.
 # We need to ensure this name is not too long due to: https://github.com/kubernetes-sigs/kind/issues/623
 # while still unique enough to avoid dups between similar test names when trimming.
@@ -36,9 +36,6 @@ KUBECTL="kubectl --context kind-${KIND_CLUSTER}"
 GMP_CLUSTER=$TAG_NAME
 if [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
   PROJECT_ID=$(jq -r '.project_id' "${GOOGLE_APPLICATION_CREDENTIALS}")
-else
-  echo ">>> no credentials specified. running without GCM validation"
-  TEST_ARGS="${TEST_ARGS} -skip-gcm"
 fi
 TEST_ARGS="${TEST_ARGS} -project-id=${PROJECT_ID} -location=${GMP_LOCATION} -cluster=${GMP_CLUSTER}"
 
