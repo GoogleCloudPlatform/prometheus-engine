@@ -3,7 +3,7 @@ module github.com/GoogleCloudPlatform/prometheus-engine
 go 1.22.3
 
 require (
-	cloud.google.com/go/compute/metadata v0.2.3
+	cloud.google.com/go/compute/metadata v0.3.0
 	cloud.google.com/go/monitoring v1.18.0
 	github.com/ahmetb/gen-crd-api-reference-docs v0.3.0
 	github.com/alecthomas/kingpin/v2 v2.4.0
@@ -47,7 +47,6 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute v1.23.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.5.1 // indirect
