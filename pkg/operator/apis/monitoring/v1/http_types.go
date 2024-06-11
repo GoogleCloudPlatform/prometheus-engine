@@ -97,16 +97,13 @@ func (s *SecretKeySelector) toPrometheusSecretRef(m PodMonitoringCRD, pool Prome
 
 	ns := s.Namespace
 	if ns == "" {
-		ns = metav1.NamespaceDefault
-	}
-	if m.IsNamespaceScoped() {
-		monitoringNamespace := m.GetNamespace()
-		if monitoringNamespace == "" {
-			monitoringNamespace = metav1.NamespaceDefault
+		if m.IsNamespaceScoped() {
+			ns = m.GetNamespace()
+		} else {
+			ns = metav1.NamespaceDefault
 		}
-		if ns != monitoringNamespace {
-			return "", fmt.Errorf("must use namespace %q, got: %q", m.GetNamespace(), ns)
-		}
+	} else if m.IsNamespaceScoped() && ns != m.GetNamespace() {
+		return "", fmt.Errorf("must use namespace %q, got: %q", m.GetNamespace(), ns)
 	}
 
 	ref := fmt.Sprintf("%s/%s/%s", ns, s.Name, s.Key)
