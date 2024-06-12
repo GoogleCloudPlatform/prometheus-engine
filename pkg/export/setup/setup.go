@@ -168,9 +168,11 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(context.Con
 	return func(ctx context.Context, logger log.Logger, metrics prometheus.Registerer) (*export.Exporter, error) {
 		_ = level.Debug(logger).Log("msg", "started constructing the GCM export logic")
 
-		// NOTE: OnGCE() actually means "onGCP", or really any place with
-		// certain IP (of metadata server) or DNS entry available. For example on GKE.
 		if metadata.OnGCE() {
+			// NOTE: OnGCE does not guarantee we will have all metadata entries or metadata
+			// server is accessible.
+
+			_ = level.Debug(logger).Log("msg", "detected we might run on GCE node; attempting metadata server access")
 			// When, potentially, on GCE we attempt to populate some, unspecified option entries
 			// like project ID, cluster, location, zone and user agent from GCP metadata server.
 			//
@@ -182,7 +184,7 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(context.Con
 			mctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			tryPopulateUnspecifiedFromMetadata(mctx, logger, &opts)
 			cancel()
-			_ = level.Debug(logger).Log("msg", "best-effort on-GCP metadata gathering finished")
+			_ = level.Debug(logger).Log("msg", "best-effort on-GCE metadata gathering finished")
 		}
 
 		switch *haBackend {
