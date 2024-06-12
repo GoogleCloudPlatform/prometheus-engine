@@ -31,8 +31,9 @@ images:
     image: gke.gcr.io/prometheus-engine/operator
     tag: "v0.9.0-gke.1"
   prometheus:
-    image: gke.gcr.io/prometheus-engine/prometheus
-    tag: "v2.45.3-gmp.1-gke.0"
+    # TODO(bwplotka): Change to "v2.45.3-gmp.4-gke.0" once tags are cloned.
+    image: gke.gcr.io/prometheus-engine/prometheus@sha256
+    tag: 7473d52f4a3e563e6377f8a6183091f25192b1e0705dd0933903e800bd69b7b2
   ruleEvaluator:
     image: gke.gcr.io/prometheus-engine/rule-evaluator
     tag: v0.9.0-gke.1
