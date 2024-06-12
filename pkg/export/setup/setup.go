@@ -99,7 +99,10 @@ func Global() *export.Exporter {
 // Potential risky logic can be moved to the returned function we return here.
 // See b/344740239 on how hard is to debug regressions here.
 func FromFlags(a *kingpin.Application, userAgentProduct string) func(context.Context, log.Logger, prometheus.Registerer) (*export.Exporter, error) {
-	var opts export.ExporterOpts
+	var (
+		metadataFetchTimeout time.Duration
+		opts                 export.ExporterOpts
+	)
 	opts.UserAgentProduct = userAgentProduct
 
 	a.Flag("export.disable", "Disable exporting to GCM.").
@@ -144,6 +147,9 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(context.Con
 	a.Flag("export.debug.shard-buffer-size", "The buffer size for each individual shard. Each element in buffer (queue) consists of sample and hash.").
 		Default(strconv.Itoa(export.DefaultShardBufferSize)).UintVar(&opts.Efficiency.ShardBufferSize)
 
+	a.Flag("export.debug.fetch-metadata-timeout", "The total timeout for the initial gathering of the best-effort GCP data from the metadata server. This data is used for special labels required by Prometheus metrics (e.g. project id, location, cluster name), as well as information for the user agent. This is done on startup, so make sure this work to be faster than your readiness and liveliness probes.").
+		Default("10s").DurationVar(&metadataFetchTimeout)
+
 	a.Flag("export.token-url", "The request URL to generate token that's needed to ingest metrics to the project").
 		StringVar(&opts.TokenURL)
 
@@ -172,7 +178,7 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(context.Con
 			// NOTE: OnGCE does not guarantee we will have all metadata entries or metadata
 			// server is accessible.
 
-			_ = level.Debug(logger).Log("msg", "detected we might run on GCE node; attempting metadata server access")
+			_ = level.Debug(logger).Log("msg", "detected we might run on GCE node; attempting metadata server access", "timeout", metadataFetchTimeout.String())
 			// When, potentially, on GCE we attempt to populate some, unspecified option entries
 			// like project ID, cluster, location, zone and user agent from GCP metadata server.
 			//
@@ -180,8 +186,8 @@ func FromFlags(a *kingpin.Application, userAgentProduct string) func(context.Con
 			// use if labels or external label settings does not have those set. Those will
 			// be used as crucial labels for export to work against GCM's Prometheus target.
 			//
-			// NOTE: Set a 10s hard limit due to readiness and liveliness probes during this stage.
-			mctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			// Set a hard time limit due to readiness and liveliness probes during this stage.
+			mctx, cancel := context.WithTimeout(context.Background(), metadataFetchTimeout)
 			tryPopulateUnspecifiedFromMetadata(mctx, logger, &opts)
 			cancel()
 			_ = level.Debug(logger).Log("msg", "best-effort on-GCE metadata gathering finished")
