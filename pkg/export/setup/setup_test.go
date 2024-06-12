@@ -32,7 +32,7 @@ import (
 func TestFromFlags_NotOnGCE(t *testing.T) {
 	// Asserting there is actually no GCE underneath.
 	if metadata.OnGCE() {
-		t.Fatal("This test assumes we don't run on GCP")
+		t.Skip("This test can't run on GCP or Cloudtop; we expect no metadata server.")
 	}
 
 	fake := kingpin.New("test", "test")
@@ -53,11 +53,6 @@ func TestFromFlags_NotOnGCE(t *testing.T) {
 // Regression test for b/344740239. We ensure that even stuck metadata servers
 // calls will timeout correctly (we propagate context properly).
 func TestTryPopulateUnspecifiedFromMetadata(t *testing.T) {
-	// Asserting there is actually no GCE underneath.
-	if metadata.OnGCE() {
-		t.Fatal("This test assumes we don't run on GCP")
-	}
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 
