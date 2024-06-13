@@ -66,6 +66,12 @@ resources:
     requests:
       cpu: 1m
       memory: 4M
+  maxCollector:
+    limits:
+      memory: 8G
+    requests:
+      cpu: 150m
+      memory: 1G
   operator:
     limits:
       memory: 2G
