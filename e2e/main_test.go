@@ -28,18 +28,14 @@ import (
 
 	"go.uber.org/zap/zapcore"
 	metav1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/deploy"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/suite"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 )
 
@@ -71,21 +67,34 @@ func TestMain(m *testing.M) {
 
 	flag.Parse()
 
+	if projectID == "" || location == "" || cluster == "" {
+		metadata, err := suite.ExtractGKEClusterMeta()
+		if err != nil {
+			fmt.Printf("unable to extract GKE cluster: %s", err)
+			os.Exit(1)
+		}
+		if projectID == "" {
+			projectID = metadata.ProjectID
+		}
+		if location == "" {
+			location = metadata.Location
+		}
+		if cluster == "" {
+			cluster = metadata.Cluster
+		}
+	}
+
 	os.Exit(m.Run())
 }
 
 func setupCluster(ctx context.Context, t testing.TB) (client.Client, *rest.Config, error) {
-	t.Log(">>> deploying static resources")
-	restConfig, err := newRestConfig()
+	t.Log(">>> setting up cluster")
+	kubeClient, restConfig, err := suite.NewLocalClient()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	kubeClient, err := newKubeClient(restConfig)
-	if err != nil {
-		return nil, nil, err
-	}
-
+	t.Log(">>> deploying resources")
 	if err := createResources(ctx, kubeClient); err != nil {
 		return nil, nil, err
 	}
@@ -100,57 +109,6 @@ func setupCluster(ctx context.Context, t testing.TB) (client.Client, *rest.Confi
 	}
 	t.Log(">>> operator started successfully")
 	return kubeClient, restConfig, nil
-}
-
-func setRESTConfigDefaults(restConfig *rest.Config) error {
-	// https://github.com/kubernetes/client-go/issues/657
-	// https://github.com/kubernetes/client-go/issues/1159
-	// https://github.com/kubernetes/kubectl/blob/6fb6697c77304b7aaf43a520d30cb17563c69886/pkg/cmd/util/kubectl_match_version.go#L115
-	defaultGroupVersion := &schema.GroupVersion{Group: "", Version: "v1"}
-	if restConfig.GroupVersion == nil {
-		restConfig.GroupVersion = defaultGroupVersion
-	}
-	if restConfig.APIPath == "" {
-		restConfig.APIPath = "/api"
-	}
-	if restConfig.NegotiatedSerializer == nil {
-		restConfig.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
-	}
-	return rest.SetKubernetesDefaults(restConfig)
-}
-
-func newRestConfig() (*rest.Config, error) {
-	rules := clientcmd.NewDefaultClientConfigLoadingRules()
-	restConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, nil).ClientConfig()
-	if err != nil {
-		return nil, err
-	}
-	if err := setRESTConfigDefaults(restConfig); err != nil {
-		return nil, err
-	}
-	return restConfig, nil
-}
-
-func newKubeClient(restConfig *rest.Config) (client.Client, error) {
-	scheme, err := newScheme()
-	if err != nil {
-		return nil, err
-	}
-
-	return client.New(restConfig, client.Options{
-		Scheme: scheme,
-	})
-}
-
-func newScheme() (*runtime.Scheme, error) {
-	scheme, err := operator.NewScheme()
-	if err != nil {
-		return nil, err
-	}
-	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-	return scheme, nil
 }
 
 func createResources(ctx context.Context, kubeClient client.Client) error {

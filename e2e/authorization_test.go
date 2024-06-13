@@ -429,12 +429,7 @@ func authorizationClusterPodMonitoringTest(ctx context.Context, t *testing.T, re
 
 func testPatchExampleAppArgs(ctx context.Context, kubeClient client.Client, args []string) func(*testing.T) {
 	return func(t *testing.T) {
-		scheme, err := newScheme()
-		if err != nil {
-			t.Errorf("create scheme: %s", err)
-		}
-
-		deployment, service, err := deploy.SyntheticAppResources(scheme)
+		deployment, service, err := deploy.SyntheticAppResources(kubeClient.Scheme())
 		if err != nil {
 			t.Errorf("get synthetic app resources: %s", err)
 		}
