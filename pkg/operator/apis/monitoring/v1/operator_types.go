@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/url"
 
+	prommodel "github.com/prometheus/common/model"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -50,10 +51,11 @@ type OperatorConfig struct {
 }
 
 func (oc *OperatorConfig) Validate() error {
-	if _, err := oc.Collection.ScrapeConfigs(); err != nil {
-		return fmt.Errorf("failed to create kubelet scrape config: %w", err)
+	if oc.Collection.KubeletScraping != nil {
+		if _, err := prommodel.ParseDuration(oc.Collection.KubeletScraping.Interval); err != nil {
+			return fmt.Errorf("invalid scrape interval: %w", err)
+		}
 	}
-
 	if err := validateSecretKeySelector(oc.Collection.Credentials); err != nil {
 		return fmt.Errorf("invalid collection credentials: %w", err)
 	}

@@ -145,6 +145,11 @@ func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, pro
 		metricsPath = ep.Path
 	}
 
+	instanceSuffix := strings.TrimPrefix(metricsPath, "/")
+	if instanceSuffix == "" {
+		instanceSuffix = "metrics"
+	}
+
 	relabelCfgs = append(relabelCfgs,
 		&relabel.Config{
 			Action:      relabel.Replace,
@@ -159,7 +164,7 @@ func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, pro
 		&relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
-			Replacement:  fmt.Sprintf(`$1:%s`, strings.TrimPrefix(metricsPath, "/")),
+			Replacement:  fmt.Sprintf(`$1:%s`, instanceSuffix),
 			TargetLabel:  "instance",
 		},
 		// Force target labels so they cannot be overwritten by metric labels.
