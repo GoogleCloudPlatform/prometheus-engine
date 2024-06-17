@@ -127,6 +127,13 @@ spec:
                           Timeout for metrics scrapes. Must be a valid Prometheus duration.
                           Must not be larger then the scrape interval.
                         type: string
+                      tls:
+                        description: TLS configures the scrape request's TLS settings.
+                        properties:
+                          insecureSkipVerify:
+                            description: InsecureSkipVerify disables target certificate validation.
+                            type: boolean
+                        type: object
                     type: object
                   type: array
                 limits:

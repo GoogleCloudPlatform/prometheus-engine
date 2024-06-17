@@ -51,6 +51,15 @@ type ScrapeNodeEndpoint struct {
 	// instance, or __address__) are not permitted. The labelmap action is not permitted
 	// in general.
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
+	// TLS configures the scrape request's TLS settings.
+	// +optional
+	TLS *ClusterNodeTLS `json:"tls,omitempty"`
+}
+
+type ClusterNodeTLS struct {
+	// InsecureSkipVerify disables target certificate validation.
+	// +optional
+	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
 }
 
 // ClusterNodeMonitoringSpec contains specification parameters for ClusterNodeMonitoring.
@@ -204,6 +213,9 @@ func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, pro
 		TLSConfig: config.TLSConfig{
 			CAFile: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
 		},
+	}
+	if tls := ep.TLS; tls != nil {
+		httpCfg.TLSConfig.InsecureSkipVerify = tls.InsecureSkipVerify
 	}
 
 	return buildPrometheusScrapeConfig(fmt.Sprintf("%s%s", c.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, c.Spec.Limits,
