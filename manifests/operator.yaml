@@ -215,12 +215,22 @@ rules:
   resourceNames: ["rule-evaluator"]
   verbs: ["get", "patch", "update"]
 - resources:
+  - deployments/scale
+  apiGroups: ["apps"]
+  resourceNames: ["rule-evaluator"]
+  verbs: ["get", "patch", "update"]
+- resources:
   - services
   apiGroups: [""]
   resourceNames: ["alertmanager"]
   verbs: ["get", "list", "watch"]
 - resources:
   - statefulsets
+  apiGroups: ["apps"]
+  resourceNames: ["alertmanager"]
+  verbs: ["get", "patch", "update"]
+- resources:
+  - statefulsets/scale
   apiGroups: ["apps"]
   resourceNames: ["alertmanager"]
   verbs: ["get", "patch", "update"]

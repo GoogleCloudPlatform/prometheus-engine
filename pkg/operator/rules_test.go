@@ -24,8 +24,11 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
@@ -442,12 +445,13 @@ func TestScaleRuleConsumers(t *testing.T) {
 		"rule-evaluator deleted with rules": {client: ruleEvaluatorDeletedWithRules, want: 1, wantErr: false},
 	}
 
+	ctx := context.Background()
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := rulesReconciler{
-				client: tc.client,
+				client: &fakeClientWithScale{tc.client},
 			}
-			err := r.scaleRuleConsumers(context.Background())
+			err := r.scaleRuleConsumers(ctx)
 			if err != nil {
 				if !tc.wantErr {
 					t.Errorf("Unexpected error: %s", err)
@@ -456,7 +460,7 @@ func TestScaleRuleConsumers(t *testing.T) {
 			}
 
 			var alertmanager appsv1.StatefulSet
-			if err := r.client.Get(context.Background(), client.ObjectKey{Name: "alertmanager"}, &alertmanager); client.IgnoreNotFound(err) != nil {
+			if err := r.client.Get(ctx, client.ObjectKey{Name: "alertmanager"}, &alertmanager); client.IgnoreNotFound(err) != nil {
 				t.Error(err)
 			}
 			if alertmanager.Spec.Replicas != nil && *alertmanager.Spec.Replicas != tc.want {
@@ -464,7 +468,7 @@ func TestScaleRuleConsumers(t *testing.T) {
 			}
 
 			var ruleEvaluator appsv1.Deployment
-			if err := r.client.Get(context.Background(), client.ObjectKey{Name: "rule-evaluator"}, &ruleEvaluator); client.IgnoreNotFound(err) != nil {
+			if err := r.client.Get(ctx, client.ObjectKey{Name: "rule-evaluator"}, &ruleEvaluator); client.IgnoreNotFound(err) != nil {
 				t.Error(err)
 			}
 			if ruleEvaluator.Spec.Replicas != nil && *ruleEvaluator.Spec.Replicas != tc.want {
@@ -472,4 +476,158 @@ func TestScaleRuleConsumers(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TODO: Remove after https://github.com/kubernetes-sigs/controller-runtime/pull/2855
+type fakeClientWithScale struct {
+	client.Client
+}
+
+func (c *fakeClientWithScale) SubResource(subResource string) client.SubResourceClient {
+	if subResource == "scale" {
+		return &fakeScaleClient{client: c.Client}
+	}
+	return c.Client.SubResource(subResource)
+}
+
+type fakeScaleClient struct {
+	client client.Client
+}
+
+func (c *fakeScaleClient) Get(ctx context.Context, obj, subResource client.Object, _ ...client.SubResourceGetOption) error {
+	scale, isScale := subResource.(*autoscalingv1.Scale)
+	if !isScale {
+		return apierrors.NewBadRequest(fmt.Sprintf("got invalid type %t, expected Scale", subResource))
+	}
+	if err := c.client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		return err
+	}
+	scaleOut, err := extractScale(obj)
+	if err != nil {
+		return err
+	}
+	*scale = scaleOut
+	return nil
+}
+
+func (c *fakeScaleClient) Create(_ context.Context, _ client.Object, _ client.Object, _ ...client.SubResourceCreateOption) error {
+	return fmt.Errorf("fakeSubResourceWriter does not support create")
+}
+
+func (c *fakeScaleClient) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+	updateOptions := client.SubResourceUpdateOptions{}
+	updateOptions.ApplyOptions(opts)
+
+	body := obj
+	if updateOptions.SubResourceBody == nil {
+		return apierrors.NewBadRequest("expected SubResourceBody")
+	}
+	scale, isScale := updateOptions.SubResourceBody.(*autoscalingv1.Scale)
+	if !isScale {
+		return apierrors.NewBadRequest(fmt.Sprintf("got invalid type %t, expected Scale", updateOptions.SubResourceBody))
+	}
+	if err := c.client.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		return err
+	}
+	if err := applyScale(obj, scale); err != nil {
+		return err
+	}
+	return c.client.Update(ctx, body, &updateOptions.UpdateOptions)
+}
+
+func (c *fakeScaleClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+	patchOptions := client.SubResourcePatchOptions{}
+	patchOptions.ApplyOptions(opts)
+
+	body := obj
+	if patchOptions.SubResourceBody != nil {
+		body = patchOptions.SubResourceBody
+	}
+
+	return c.client.Patch(ctx, body, patch, &patchOptions.PatchOptions)
+}
+
+func extractScale(obj client.Object) (autoscalingv1.Scale, error) {
+	switch obj := obj.(type) {
+	case *appsv1.Deployment:
+		replicas := int32(1)
+		if obj.Spec.Replicas != nil {
+			replicas = *obj.Spec.Replicas
+		}
+		return autoscalingv1.Scale{
+			ObjectMeta: obj.ObjectMeta,
+			Spec: autoscalingv1.ScaleSpec{
+				Replicas: replicas,
+			},
+			Status: autoscalingv1.ScaleStatus{
+				Replicas: obj.Status.Replicas,
+				Selector: obj.Spec.Selector.String(),
+			},
+		}, nil
+	case *appsv1.ReplicaSet:
+		replicas := int32(1)
+		if obj.Spec.Replicas != nil {
+			replicas = *obj.Spec.Replicas
+		}
+		return autoscalingv1.Scale{
+			ObjectMeta: obj.ObjectMeta,
+			Spec: autoscalingv1.ScaleSpec{
+				Replicas: replicas,
+			},
+			Status: autoscalingv1.ScaleStatus{
+				Replicas: obj.Status.Replicas,
+				Selector: obj.Spec.Selector.String(),
+			},
+		}, nil
+	case *corev1.ReplicationController:
+		replicas := int32(1)
+		if obj.Spec.Replicas != nil {
+			replicas = *obj.Spec.Replicas
+		}
+		return autoscalingv1.Scale{
+			ObjectMeta: obj.ObjectMeta,
+			Spec: autoscalingv1.ScaleSpec{
+				Replicas: replicas,
+			},
+			Status: autoscalingv1.ScaleStatus{
+				Replicas: obj.Status.Replicas,
+				Selector: labels.Set(obj.Spec.Selector).String(),
+			},
+		}, nil
+	case *appsv1.StatefulSet:
+		replicas := int32(1)
+		if obj.Spec.Replicas != nil {
+			replicas = *obj.Spec.Replicas
+		}
+		return autoscalingv1.Scale{
+			ObjectMeta: obj.ObjectMeta,
+			Spec: autoscalingv1.ScaleSpec{
+				Replicas: replicas,
+			},
+			Status: autoscalingv1.ScaleStatus{
+				Replicas: obj.Status.Replicas,
+				Selector: obj.Spec.Selector.String(),
+			},
+		}, nil
+	default:
+		// TODO: CRDs https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#scale-subresource
+		return autoscalingv1.Scale{}, fmt.Errorf("unable to extract scale from type %T", obj)
+	}
+}
+
+func applyScale(obj client.Object, scale *autoscalingv1.Scale) error {
+	switch obj := obj.(type) {
+	case *appsv1.Deployment:
+		obj.Spec.Replicas = &scale.Spec.Replicas
+	case *appsv1.ReplicaSet:
+		obj.Spec.Replicas = &scale.Spec.Replicas
+	case *corev1.ReplicationController:
+		obj.Spec.Replicas = &scale.Spec.Replicas
+	case *appsv1.StatefulSet:
+		obj.Spec.Replicas = &scale.Spec.Replicas
+	default:
+		// TODO: CRDs https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#scale-subresource
+		return fmt.Errorf("unable to extract scale from type %T", obj)
+	}
+	return nil
 }
