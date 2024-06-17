@@ -24,6 +24,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoringSpec">ClusterNodeMonitoringSpec</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.ClusterNodeTLS">ClusterNodeTLS</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterPodMonitoring">ClusterPodMonitoring</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>
@@ -535,6 +537,37 @@ ScrapeLimits
 </td>
 <td>
 <p>Limits to apply at scrape time.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ClusterNodeTLS">
+<span id="ClusterNodeTLS">ClusterNodeTLS
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>)
+</p>
+<div>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>insecureSkipVerify</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>InsecureSkipVerify disables target certificate validation.</p>
 </td>
 </tr>
 </tbody>
@@ -2958,6 +2991,20 @@ Must not be larger then the scrape interval.</p>
 override protected target labels (project_id, location, cluster, namespace, job,
 instance, or <strong>address</strong>) are not permitted. The labelmap action is not permitted
 in general.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>tls</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ClusterNodeTLS">
+ClusterNodeTLS
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>TLS configures the scrape request&rsquo;s TLS settings.</p>
 </td>
 </tr>
 </tbody>
