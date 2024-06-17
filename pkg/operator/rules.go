@@ -21,6 +21,7 @@ import (
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -151,28 +152,42 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 		desiredReplicas = 1
 	}
 
-	var alertManagerStatefulSet appsv1.StatefulSet
-	if err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "alertmanager"}, &alertManagerStatefulSet); apierrors.IsNotFound(err) {
+	scaleClient := r.client.SubResource("scale")
+
+	alertManagerStatefulSet := appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: r.opts.OperatorNamespace,
+			Name:      "alertmanager",
+		},
+	}
+	alertManagerScale := autoscalingv1.Scale{}
+	if err := scaleClient.Get(ctx, &alertManagerStatefulSet, &alertManagerScale); apierrors.IsNotFound(err) {
 		msg := fmt.Sprintf("Alertmanager StatefulSet not found, cannot scale to %d. In-cluster Alertmanager will not function.", desiredReplicas)
 		logger.Error(err, msg)
 	} else if err != nil {
 		return err
-	} else if *alertManagerStatefulSet.Spec.Replicas != desiredReplicas {
-		*alertManagerStatefulSet.Spec.Replicas = desiredReplicas
-		if err := r.client.Update(ctx, &alertManagerStatefulSet); err != nil {
+	} else if alertManagerScale.Spec.Replicas != desiredReplicas {
+		alertManagerScale.Spec.Replicas = desiredReplicas
+		if err := scaleClient.Update(ctx, &alertManagerStatefulSet, client.WithSubResourceBody(&alertManagerScale)); err != nil {
 			return err
 		}
 	}
 
-	var ruleEvaluatorDeployment appsv1.Deployment
-	if err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: "rule-evaluator"}, &ruleEvaluatorDeployment); apierrors.IsNotFound(err) {
+	ruleEvaluatorDeployment := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: r.opts.OperatorNamespace,
+			Name:      "rule-evaluator",
+		},
+	}
+	ruleEvaluatorScale := autoscalingv1.Scale{}
+	if err := scaleClient.Get(ctx, &ruleEvaluatorDeployment, &ruleEvaluatorScale); apierrors.IsNotFound(err) {
 		msg := fmt.Sprintf("Rule Evaluator Deployment not found, cannot scale to %d. In-cluster Rule Evaluator will not function.", desiredReplicas)
 		logger.Error(err, msg)
 	} else if err != nil {
 		return err
-	} else if *ruleEvaluatorDeployment.Spec.Replicas != desiredReplicas {
-		*ruleEvaluatorDeployment.Spec.Replicas = desiredReplicas
-		if err := r.client.Update(ctx, &ruleEvaluatorDeployment); err != nil {
+	} else if ruleEvaluatorScale.Spec.Replicas != desiredReplicas {
+		ruleEvaluatorScale.Spec.Replicas = desiredReplicas
+		if err := scaleClient.Update(ctx, &ruleEvaluatorDeployment, client.WithSubResourceBody(&ruleEvaluatorScale)); err != nil {
 			return err
 		}
 	}
