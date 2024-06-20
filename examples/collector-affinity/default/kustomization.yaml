@@ -1,0 +1,21 @@
+# Extracts the GMP collector for the manifest.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../base
+
+patches:
+- target:
+    group: apps
+    version: v1
+    kind: DaemonSet
+    name: collector
+    namespace: gmp-system
+  patch: |
+    - op: add
+      path: /spec/template/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/-
+      value:
+        key: cloud.google.com/gke-monitoring-variant
+        operator: NotIn
+        values:
+        - MAX_THROUGHPUT

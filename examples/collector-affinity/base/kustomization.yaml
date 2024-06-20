@@ -1,0 +1,40 @@
+# Extracts the GMP collector for the manifest.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../../manifests
+
+patches:
+# Add a special label to all resources indicating deletion.
+- patch: |-
+    - op: add
+      path: /metadata/annotations/kustomize-filter
+      value: delete
+  target:
+    name: .*
+# Add special label to the DaemonSet to filter only this one.
+- patch: |-
+    - op: add
+      path: /metadata/annotations/kustomize-filter
+      value: keep
+  target:
+    group: apps
+    version: v1
+    kind: DaemonSet
+    name: collector
+    namespace: gmp-system
+# Delete all with the special label.
+- patch: |-
+    apiVersion: .*
+    kind: .*
+    metadata:
+      name: .*
+    $patch: delete
+  target:
+    annotationSelector: kustomize-filter=delete
+# Remove the special label.
+- patch: |-
+    - op: remove
+      path: /metadata/annotations/kustomize-filter
+  target:
+    name: .*
