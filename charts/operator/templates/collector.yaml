@@ -16,7 +16,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: collector
+  name: collector {{- if .Values.maxThroughput -}} -max-throughput {{- end }}
   namespace: {{.Values.namespace.system}}
   {{- if .Values.commonLabels }}
   labels:
@@ -178,6 +178,10 @@ spec:
                 operator: In
                 values:
                 - linux
+              - key: cloud.google.com/gke-monitoring-variant
+                operator: {{ ternary "In" "NotIn" .Values.maxThroughput }}
+                values:
+                - MAX_THROUGHPUT
       tolerations:
       - effect: NoExecute
         operator: Exists
