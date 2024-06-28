@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM google-go.pkg.dev/golang:1.22.2@sha256:1536be4cced81bb09091bc5a0cd931d974f533549336d8e7106a9656c7f3a5ff as buildbase
+FROM golang:1.22-bullseye@sha256:067c5c7fe6d79f900c5ebe8351166356d6e3bbfcc6f807030e89b9a929252273 AS buildbase
 WORKDIR /app
 COPY go.mod go.mod
 COPY go.sum go.sum
@@ -21,9 +21,8 @@ COPY pkg pkg
 COPY vendor vendor
 
 FROM buildbase as appbase
-RUN CGO_ENABLED=1 GOEXPERIMENT=boringcrypto \
-    go build -tags boring -mod=vendor -o operator cmd/operator/*.go
+RUN CGO_ENABLED=0 go build -mod=vendor -o operator cmd/operator/*.go
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20240307.00_p0@sha256:4f834e207f2721977094aeec4c9daee7032c5daec2083c0be97760f4306e4f88
+FROM gcr.io/distroless/static-debian11:latest
 COPY --from=appbase /app/operator /bin/operator
 ENTRYPOINT ["/bin/operator"]

@@ -28,7 +28,11 @@ const (
 	---
 	%s
 	---
-	Can you give a summary of any issues and suggestions to fix in 500 words or less in this language: %s?`
+	Provide the most possible solution in a step by step style in no more than 280 characters in this langauge: %s.
+	Write the output in the following format:
+
+	Error: {Explain error here}
+	Solution: {Step by step solution here}`
 )
 
 // contextKey is a concrete struct (as opposed to string or another built-in).
@@ -137,6 +141,7 @@ func sendAlert(alertmanagerURL string) func(http.Handler) http.Handler {
 				fmt.Printf("creating request: %s", err)
 				return
 			}
+			fmt.Printf("calling alertmanager: %s", alertmanagerURL)
 			resp, err := client.Do(req)
 			if err != nil {
 				fmt.Printf("calling alertmanager: %s", err)
@@ -166,6 +171,9 @@ func attachHints(next http.Handler) http.Handler {
 		alerts := get(r, alertsKey).(models.PostableAlerts)
 		// Assume one alert for now.
 		alert := alerts[0]
+		if len(alert.Annotations) == 0 {
+			alert.Annotations = make(models.LabelSet)
+		}
 		alert.Annotations["hint"] = hints
 		next.ServeHTTP(w, r)
 	}
@@ -188,8 +196,9 @@ func callAI(projectID, region, model, language string) func(http.Handler) http.H
 			alert := alerts[0]
 			events := get(r, eventsKey).(*corev1.EventList)
 			logs := get(r, logsKey)
-			eventsAndLogs := fmt.Sprintf("---alert details---\n%s\n---events---\n%s\n---logs---\n%s", alert, events, logs)
+			eventsAndLogs := fmt.Sprintf("---alert details---\n%s\n---events---\n%s\n---logs---\n%s", alert, events.String(), logs)
 			prompt := fmt.Sprintf(promptTemplate, eventsAndLogs, language)
+			fmt.Printf("prompt: %s", prompt)
 
 			gemini := client.GenerativeModel(model)
 			chat := gemini.StartChat()

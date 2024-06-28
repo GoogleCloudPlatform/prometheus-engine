@@ -17,3 +17,11 @@ kind: OperatorConfig
 metadata:
   namespace: gmp-public
   name: config
+features:
+  alertingHints:
+    enabled: true
+    timeout: 10s
+    cacheTTL: 10m
+    credentials:
+      name: my-vertex-gcp-service-account
+      key: service-account-credentials

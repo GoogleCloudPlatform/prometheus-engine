@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-FROM golang:1.22-bullseye AS buildbase
-
+FROM golang:1.22-bullseye@sha256:067c5c7fe6d79f900c5ebe8351166356d6e3bbfcc6f807030e89b9a929252273 AS buildbase
 # Compile the UI assets.
 FROM launcher.gcr.io/google/nodejs as assets
 # To build the UI we need a recent node version and the go toolchain.
@@ -34,7 +32,7 @@ COPY --from=assets /app/pkg/ui/static pkg/ui/static
 FROM buildbase AS appbase
 WORKDIR /app
 COPY --from=assets /app ./
-RUN CGO_ENABLED=0 GOEXPERIMENT=boringcrypto go build -tags builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
+RUN CGO_ENABLED=0 go build -tags builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
 
 FROM gcr.io/distroless/static-debian11:latest
 COPY --from=appbase /app/frontend /bin/frontend

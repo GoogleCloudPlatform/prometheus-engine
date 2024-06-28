@@ -34,6 +34,41 @@ data:
 
     rule_files:
     - "/etc/rules/*.yaml"
+    alerting:
+        alertmanagers:
+            - follow_redirects: true
+              enable_http2: true
+              proxy_url: http://proxy.default.svc:8080/proxy
+              scheme: http
+              timeout: 10s
+              api_version: v2
+              static_configs:
+                - targets:
+                    - alertmanager.gmp-system:9093
+            - follow_redirects: true
+              enable_http2: true
+              scheme: http
+              proxy_url: http://proxy.default.svc:8080/proxy
+              timeout: 10s
+              api_version: v2
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_endpoints_name]
+                  regex: alertmanager-main
+                  action: keep
+                - source_labels: [__address__]
+                  regex: (.+):\d+
+                  target_label: __address__
+                  replacement: $1:9093
+                  action: replace
+              kubernetes_sd_configs:
+                - role: endpoints
+                  kubeconfig_file: ""
+                  follow_redirects: true
+                  enable_http2: true
+                  namespaces:
+                    own_namespace: false
+                    names:
+                        - monitoring
 ---
 # Source: rule-evaluator/templates/configmaps.yaml
 apiVersion: v1
@@ -48,9 +83,7 @@ data:
     - name: example
       interval: 10s
       rules:
-      - record: job:up:sum
-        expr: sum without(instance) (up)
-      - alert: AlwaysFiring
+      - alert: AlwaysFiring3
         expr: vector(1)
 ---
 # Source: rule-evaluator/templates/role.yaml
@@ -116,7 +149,7 @@ spec:
           mountPath: /prometheus/config_out
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader@sha256:98914046d9edb82152081ff1c5d1bb621309a0ef3fcd3d4fdcb5b169b986b26a
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -153,7 +186,7 @@ spec:
             - all
           privileged: false
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.11.0-gke.3
         args:
         - "--config.file=/prometheus/config_out/config.yaml"
         - "--web.listen-address=:9092"
