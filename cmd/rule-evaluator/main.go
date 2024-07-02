@@ -67,6 +67,16 @@ import (
 
 const projectIDVar = "PROJECT_ID"
 
+var googleCloudBaseURL = urlMustParse("https://console.cloud.google.com/monitoring/metrics-explorer")
+
+func urlMustParse(s string) url.URL {
+	u, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return *u
+}
+
 func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
@@ -196,7 +206,7 @@ func main() {
 		Appendable:  destination,
 		Queryable:   externalStorage,
 		Logger:      logger,
-		NotifyFunc:  sendAlerts(notificationManager, evaluatorOpts.GeneratorURL),
+		NotifyFunc:  sendAlerts(notificationManager, exporterOpts.ProjectID, evaluatorOpts.GeneratorURL),
 		Metrics:     rules.NewGroupMetrics(reg),
 	})
 
@@ -544,7 +554,7 @@ func QueryFunc(ctx context.Context, q string, t time.Time, v1api v1.API) (parser
 }
 
 // sendAlerts returns the rules.NotifyFunc for a Notifier.
-func sendAlerts(s *notifier.Manager, externalURL *url.URL) rules.NotifyFunc {
+func sendAlerts(s *notifier.Manager, projectID string, externalURL *url.URL) rules.NotifyFunc {
 	return func(_ context.Context, expr string, alerts ...*rules.Alert) {
 		var res []*notifier.Alert
 		for _, alert := range alerts {
@@ -560,6 +570,8 @@ func sendAlerts(s *notifier.Manager, externalURL *url.URL) rules.NotifyFunc {
 			}
 			if externalURL != nil {
 				a.GeneratorURL = externalURL.String() + strutil.TableLinkForExpression(expr)
+			} else {
+				a.GeneratorURL = googleCloudLink(projectID, expr, alert.FiredAt, alert.FiredAt.Add(-time.Hour))
 			}
 			res = append(res, a)
 		}
@@ -567,6 +579,34 @@ func sendAlerts(s *notifier.Manager, externalURL *url.URL) rules.NotifyFunc {
 			s.Send(res...)
 		}
 	}
+}
+
+func googleCloudLink(projectID, expr string, endTime, startTime time.Time) string {
+	// Clone URL to avoid mutating the original.
+	url := googleCloudBaseURL
+	url.Path += ";endTime=" + endTime.Format(time.RFC3339)
+	url.Path += ";startTime=" + startTime.Format(time.RFC3339)
+
+	// These settings reflect the default on metrics explorer for majority of use-cases.
+	pageState := map[string]any{
+		"xyChart": map[string]any{
+			"dataSets": []map[string]any{
+				{
+					"prometheusQuery": expr,
+				},
+			},
+		},
+	}
+	pageStateValue, err := json.Marshal(pageState)
+	if err != nil {
+		panic(err)
+	}
+
+	values := url.Query()
+	values.Set("project", projectID)
+	values.Set("pageState", string(pageStateValue))
+	url.RawQuery = values.Encode()
+	return url.String()
 }
 
 type reloader struct {
