@@ -393,3 +393,64 @@ func TestExporter_drainBacklog(t *testing.T) {
 		t.Fatalf("got %d, want %d", got, want)
 	}
 }
+
+func TestExporter_shutdown(t *testing.T) {
+	var (
+		srv          = grpc.NewServer()
+		listener     = bufconn.Listen(1e6)
+		metricServer = &testMetricService{}
+	)
+	monitoring_pb.RegisterMetricServiceServer(srv, metricServer)
+
+	go func() { srv.Serve(listener) }()
+	defer srv.Stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}
+	metricClient, err := monitoring.NewMetricClient(ctx,
+		option.WithoutAuthentication(),
+		option.WithGRPCDialOption(grpc.WithInsecure()),
+		option.WithGRPCDialOption(grpc.WithContextDialer(bufDialer)),
+	)
+	if err != nil {
+		t.Fatalf("creating metric client failed: %s", err)
+	}
+
+	e, err := New(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
+	if err != nil {
+		t.Fatalf("Creating Exporter failed: %s", err)
+	}
+	e.metricClient = metricClient
+
+	e.SetLabelsByIDFunc(func(i storage.SeriesRef) labels.Labels {
+		return labels.FromStrings("project_id", "test", "location", "test", fmt.Sprintf("label_%d", i), "test")
+	})
+
+	exportCtx, cancelExport := context.WithCancel(context.Background())
+
+	for i := 0; i < 50; i++ {
+		e.Export(nil, []record.RefSample{
+			{Ref: 1, T: int64(i), V: float64(i)},
+		}, nil)
+	}
+	go e.Run(exportCtx)
+
+	cancelExport()
+	// Time delay is added to ensure exporter is disabled.
+	time.Sleep(50 * time.Millisecond)
+
+	// These samples will be rejected since the exporter has been cancelled.
+	for i := 0; i < 10; i++ {
+		e.Export(nil, []record.RefSample{
+			{Ref: 1, T: int64(i), V: float64(i)},
+		}, nil)
+	}
+	// Wait for exporter to finish flushing shards.
+	<-e.exitc
+	// Check that we received all samples that went in.
+	if got, want := len(metricServer.samples), 50; got != want {
+		t.Fatalf("got %d, want %d", got, want)
+	}
+}
