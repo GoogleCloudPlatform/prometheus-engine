@@ -42,7 +42,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets"
 )
@@ -234,14 +233,8 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 		return err
 	}
 
-	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
-
-	flags := []string{
-		fmt.Sprintf("--export.label.project-id=%q", projectID),
-		fmt.Sprintf("--export.label.location=%q", location),
-		fmt.Sprintf("--export.label.cluster=%q", cluster),
-	}
-	// Populate export filtering from OperatorConfig.
+	var flags []string
+	// Populate export flags for collector if necessary.
 	for _, matcher := range spec.Filter.MatchOneOf {
 		flags = append(flags, fmt.Sprintf("--export.match=%q", matcher))
 	}
@@ -256,28 +249,6 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 	setContainerExtraArgs(ds.Spec.Template.Spec.Containers, CollectorPrometheusContainerName, strings.Join(flags, " "))
 
 	return r.client.Update(ctx, &ds)
-}
-
-func resolveLabels(opts Options, externalLabels map[string]string) (projectID string, location string, cluster string) {
-	// Prioritize OperatorConfig's external labels over operator's flags
-	// to be consistent with our export layer's priorities.
-	// This is to avoid confusion if users specify a project_id, location, and
-	// cluster in the OperatorConfig's external labels but not in flags passed
-	// to the operator - since on GKE environnments, these values are autopopulated
-	// without user intervention.
-	projectID = opts.ProjectID
-	if p, ok := externalLabels[export.KeyProjectID]; ok {
-		projectID = p
-	}
-	location = opts.Location
-	if l, ok := externalLabels[export.KeyLocation]; ok {
-		location = l
-	}
-	cluster = opts.Cluster
-	if c, ok := externalLabels[export.KeyCluster]; ok {
-		cluster = c
-	}
-	return
 }
 
 func gzipData(data []byte) ([]byte, error) {
@@ -415,7 +386,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	}
 
 	usedSecrets := monitoringv1.PrometheusSecretConfigs{}
-	var projectID, location, cluster = resolveLabels(r.opts, spec.ExternalLabels)
+	projectID, location, cluster := resolveLabels(r.opts.ProjectID, r.opts.Location, r.opts.Cluster, spec.ExternalLabels)
 	var updates []update
 
 	// Mark status updates in batch with single timestamp.

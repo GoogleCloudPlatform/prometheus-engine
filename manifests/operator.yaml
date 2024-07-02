@@ -253,7 +253,7 @@ rules:
 - resources:
   - operatorconfigs
   apiGroups: ["monitoring.googleapis.com"]
-  verbs: ["get", "list", "watch"]
+  verbs: ["get", "update", "list", "watch"]
 ---
 # Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -403,7 +403,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus@sha256:7473d52f4a3e563e6377f8a6183091f25192b1e0705dd0933903e800bd69b7b2
+        image: gke.gcr.io/prometheus-engine/prometheus@sha256:01fd523f6dfa54b229b04974195632c8268fbd3d51e66ad076b5d31366210c54
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage
@@ -995,6 +995,29 @@ webhooks:
     - v1
     operations:
     - CREATE
+    - UPDATE
+  sideEffects: None
+- name: default.operatorconfigs.gmp-operator.gmp-system.monitoring.googleapis.com
+  admissionReviewVersions:
+  - v1
+  clientConfig:
+    # caBundle populated by operator.
+    service:
+      name: gmp-operator
+      namespace: gmp-system
+      port: 443
+      path: /default/monitoring.googleapis.com/v1/operatorconfigs
+  # Since this is re-applied at runtime by the operator's controllers
+  # we can safely ignore any transient issues with the webhook server.
+  failurePolicy: Ignore
+  rules:
+  - resources:
+    - operatorconfigs
+    apiGroups:
+    - monitoring.googleapis.com
+    apiVersions:
+    - v1
+    operations:
     - UPDATE
   sideEffects: None
 ---

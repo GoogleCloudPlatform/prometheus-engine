@@ -91,7 +91,7 @@ spec:
             privileged: false
             readOnlyRootFilesystem: true
         - name: prometheus
-          image: gke.gcr.io/prometheus-engine/prometheus@sha256:7473d52f4a3e563e6377f8a6183091f25192b1e0705dd0933903e800bd69b7b2
+          image: gke.gcr.io/prometheus-engine/prometheus@sha256:01fd523f6dfa54b229b04974195632c8268fbd3d51e66ad076b5d31366210c54
           args:
             - --config.file=/prometheus/config_out/config.yaml
             - --enable-feature=exemplar-storage

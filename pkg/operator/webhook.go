@@ -24,11 +24,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	arv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/cert"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -94,6 +96,14 @@ func setupAdmissionWebhooks(ctx context.Context, logger logr.Logger, kubeClient 
 	webhookServer.Register(
 		defaultPath(monitoringv1.ClusterPodMonitoringResource()),
 		admission.DefaultingWebhookFor(scheme, &monitoringv1.ClusterPodMonitoring{}),
+	)
+	webhookServer.Register(
+		defaultPath(monitoringv1.OperatorConfigResource()),
+		admission.WithCustomDefaulter(scheme, &monitoringv1.OperatorConfig{}, &operatorConfigDefaulter{
+			projectID: opts.ProjectID,
+			location:  opts.Location,
+			cluster:   opts.Cluster,
+		}),
 	)
 	return nil
 }
@@ -206,4 +216,38 @@ func continuouslySetCABundle(ctx context.Context, logger logr.Logger, kubeClient
 		case <-time.After(time.Minute):
 		}
 	}
+}
+
+type operatorConfigDefaulter struct {
+	projectID string
+	location  string
+	cluster   string
+}
+
+func (d *operatorConfigDefaulter) Default(_ context.Context, o runtime.Object) error {
+	oc := o.(*monitoringv1.OperatorConfig)
+	d.update(oc)
+	return nil
+}
+
+func (d *operatorConfigDefaulter) update(oc *monitoringv1.OperatorConfig) {
+	// Upsert projectID, location, and cluster to external labels.
+	// If not present in external labels, use the values passed to the operator.
+	// If present in external labels, this is effectively a no-op.
+	// Do this for both collection and rule-evaluator configuration.
+	var projectID, location, cluster = resolveLabels(d.projectID, d.location, d.cluster, oc.Collection.ExternalLabels)
+	if oc.Collection.ExternalLabels == nil {
+		oc.Collection.ExternalLabels = make(map[string]string)
+	}
+	oc.Collection.ExternalLabels[export.KeyProjectID] = projectID
+	oc.Collection.ExternalLabels[export.KeyLocation] = location
+	oc.Collection.ExternalLabels[export.KeyCluster] = cluster
+
+	projectID, location, cluster = resolveLabels(d.projectID, d.location, d.cluster, oc.Rules.ExternalLabels)
+	if oc.Rules.ExternalLabels == nil {
+		oc.Rules.ExternalLabels = make(map[string]string)
+	}
+	oc.Rules.ExternalLabels[export.KeyProjectID] = projectID
+	oc.Rules.ExternalLabels[export.KeyLocation] = location
+	oc.Rules.ExternalLabels[export.KeyCluster] = cluster
 }

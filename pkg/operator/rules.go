@@ -119,7 +119,7 @@ func (r *rulesReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
 
-	var projectID, location, cluster = resolveLabels(r.opts, config.Rules.ExternalLabels)
+	var projectID, location, cluster = resolveLabels(r.opts.ProjectID, r.opts.Location, r.opts.Cluster, config.Rules.ExternalLabels)
 
 	if err := r.ensureRuleConfigs(ctx, projectID, location, cluster, config.Features.Config.Compression); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure rule configmaps: %w", err)
