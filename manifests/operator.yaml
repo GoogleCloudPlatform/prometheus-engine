@@ -390,13 +390,6 @@ spec:
         - --enable-feature=google-kubernetes-secret-provider
         - --storage.tsdb.path=/prometheus/data
         - --storage.tsdb.no-lockfile
-        # Special Google flag for force deleting all data on start. We use ephemeral storage in
-        # this manifest, but there are cases were container restart still reuses, potentially
-        # bad data (corrupted, with high cardinality causing OOMs or slow startups).
-        # Force deleting, so container restart is consistent with pod restart.
-        # NOTE: Data is likely already sent GCM, plus GCM export does not use that
-        # data on disk (WAL).
-        - --gmp.storage.delete-data-on-start
         # Keep 30 minutes of data. As we are backed by an emptyDir volume, this will count towards
         # the containers memory usage. We could lower it further if this becomes problematic, but
         # it the window for local data is quite convenient for debugging.
