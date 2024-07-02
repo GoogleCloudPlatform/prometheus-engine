@@ -135,7 +135,7 @@ Flags:
                                  The address of the Prometheus server query
                                  endpoint. (PROJECT_ID is replaced with the
                                  --query.project-id flag.)
-      --query.generator-url=<URL>  
+      --query.generator-url=https://console.cloud.google.com/monitoring/metrics-explorer  
                                  The base URL used for the generator URL in the
                                  alert notification payload. Should point to an
                                  instance of a query frontend that accesses the

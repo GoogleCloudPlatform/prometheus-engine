@@ -67,6 +67,12 @@ import (
 
 const projectIDVar = "PROJECT_ID"
 
+var googleCloudBaseURL = url.URL{
+	Scheme: "https",
+	Host:   "console.cloud.google.com",
+	Path:   "/monitoring/metrics-explorer",
+}
+
 func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
@@ -405,7 +411,7 @@ func (opts *evaluatorOptions) setupFlags(a *kingpin.Application) {
 		URLVar(&opts.TargetURL)
 
 	a.Flag("query.generator-url", "The base URL used for the generator URL in the alert notification payload. Should point to an instance of a query frontend that accesses the same data as --query.target-url.").
-		PlaceHolder("<URL>").
+		Default(googleCloudBaseURL.String()).
 		URLVar(&opts.GeneratorURL)
 
 	a.Flag("query.credentials-file", "Credentials file for OAuth2 authentication with --query.target-url.").
@@ -495,7 +501,7 @@ func QueryFunc(ctx context.Context, q string, t time.Time, v1api v1.API) (parser
 }
 
 // sendAlerts returns the rules.NotifyFunc for a Notifier.
-func sendAlerts(s *notifier.Manager, externalURL *url.URL) rules.NotifyFunc {
+func sendAlerts(s *notifier.Manager, projectID string, externalURL *url.URL) rules.NotifyFunc {
 	return func(_ context.Context, expr string, alerts ...*rules.Alert) {
 		var res []*notifier.Alert
 		for _, alert := range alerts {
@@ -510,7 +516,13 @@ func sendAlerts(s *notifier.Manager, externalURL *url.URL) rules.NotifyFunc {
 				a.EndsAt = alert.ValidUntil
 			}
 			if externalURL != nil {
-				a.GeneratorURL = externalURL.String() + strutil.TableLinkForExpression(expr)
+				if externalURL.String() == googleCloudBaseURL.String() {
+					// If it's a GCM link (default), create the full URL for the alert.
+					a.GeneratorURL = googleCloudLink(projectID, expr, alert.FiredAt, alert.FiredAt.Add(-time.Hour)).String()
+				} else {
+					// Otherwise, if it was specified we assume it points to a Prometheus frontend.
+					a.GeneratorURL = externalURL.String() + strutil.TableLinkForExpression(expr)
+				}
 			}
 			res = append(res, a)
 		}
@@ -518,6 +530,44 @@ func sendAlerts(s *notifier.Manager, externalURL *url.URL) rules.NotifyFunc {
 			s.Send(res...)
 		}
 	}
+}
+
+func googleCloudLink(projectID, expr string, endTime, startTime time.Time) *url.URL {
+	// Clone URL to avoid mutating the original.
+	url := googleCloudBaseURL
+	// Note: The URL API was reverse-engineered.
+	if !endTime.IsZero() {
+		url.Path += ";endTime=" + endTime.Format(time.RFC3339)
+	}
+	if !startTime.IsZero() {
+		url.Path += ";startTime=" + startTime.Format(time.RFC3339)
+	}
+
+	values := url.Query()
+	values.Set("project", projectID)
+
+	if expr != "" {
+		// These settings reflect the default on metrics explorer for majority of use-cases.
+		pageState := map[string]any{
+			"xyChart": map[string]any{
+				"dataSets": []map[string]any{
+					{
+						"prometheusQuery": expr,
+					},
+				},
+			},
+		}
+		// Note, this also escapes the JSON.
+		pageStateValue, err := json.Marshal(pageState)
+		if err != nil {
+			panic(err)
+		}
+		values.Set("pageState", string(pageStateValue))
+	}
+
+	// Escapes the query (which may have escaped JSON).
+	url.RawQuery = values.Encode()
+	return &url
 }
 
 type reloader struct {
@@ -808,8 +858,14 @@ func newRuleEvaluator(
 	}
 	queryFunc := newQueryFunc(logger, v1api)
 
+	externalURL := evaluatorOpts.GeneratorURL
+	if externalURL != nil && externalURL.String() == googleCloudBaseURL.String() {
+		// If it's a GCM link (default), create the full URL for the alert.
+		externalURL = googleCloudLink(evaluatorOpts.ProjectID, "", time.Time{}, time.Time{})
+	}
+
 	rulesManager := rules.NewManager(&rules.ManagerOptions{
-		ExternalURL: evaluatorOpts.GeneratorURL,
+		ExternalURL: externalURL,
 		QueryFunc:   queryFunc,
 		Context:     ctx,
 		Appendable:  appendable,
@@ -817,7 +873,7 @@ func newRuleEvaluator(
 			api: v1api,
 		},
 		Logger:     logger,
-		NotifyFunc: sendAlerts(notifierManager, evaluatorOpts.GeneratorURL),
+		NotifyFunc: sendAlerts(notifierManager, evaluatorOpts.ProjectID, evaluatorOpts.GeneratorURL),
 		Metrics:    rulesMetrics,
 	})
 
