@@ -96,6 +96,42 @@ kubectl -n gmp-system port-forward --address 0.0.0.0 collector 19090
 
 Go to `http://localhost:19090/targets`.
 
+## Flags
+
+```bash mdox-exec="bash hack/format_help.sh operator"
+Usage of operator:
+  -ca-cert-base64 string
+    	The base64-encoded certificate authority.
+  -cert-dir string
+    	The directory which contains TLS certificates for webhook server. (default "/etc/tls/private")
+  -cleanup-unless-annotation-key string
+    	Clean up operator-managed workloads without the provided annotation key.
+  -cluster string
+    	Name of the cluster the operator acts on. May be left empty on GKE.
+  -kubeconfig string
+    	Paths to a kubeconfig. Only required if out-of-cluster.
+  -location string
+    	Google Cloud region or zone where your data will be stored. May be left empty on GKE.
+  -metrics-addr string
+    	Address to emit metrics on. (default ":18080")
+  -operator-namespace string
+    	Namespace in which the operator manages its resources. (default "gmp-system")
+  -probe-addr string
+    	Address to outputs probe statuses (e.g. /readyz and /healthz) (default ":18081")
+  -project-id string
+    	Project ID of the cluster. May be left empty on GKE.
+  -public-namespace string
+    	Namespace in which the operator reads user-provided resources. (default "gmp-public")
+  -tls-cert-base64 string
+    	The base64-encoded TLS certificate.
+  -tls-key-base64 string
+    	The base64-encoded TLS key.
+  -v int
+    	Logging verbosity
+  -webhook-addr string
+    	Address to listen to for incoming kube admission webhook connections. (default ":10250")
+```
+
 ## Teardown
 
 Simply stop running the operator locally and remove all manifests in the cluster

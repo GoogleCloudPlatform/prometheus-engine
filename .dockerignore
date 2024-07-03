@@ -1,4 +1,5 @@
 *
+!*.md
 !go.mod
 !go.sum
 !.bingo

@@ -35,9 +35,11 @@ FROM golang:1.22.4-bullseye AS hermetic
 COPY --from=deps /go/bin /go/bin
 ARG RUNCMD='go fmt ./...'
 WORKDIR /workspace
+
 # Separate COPY directives to take advantage of docker's build cache.
 # Least-changed dirs should go first. NOTE: When adding new directories
 # ensure .dockerignore is updated.
+COPY *.md *.md
 COPY vendor vendor
 COPY hack hack
 COPY .bingo .bingo

@@ -1,5 +1,7 @@
 # Frontend
 
+> NOTE: Consider using [datasource-syncer](../datasource-syncer) for Grafana integration.
+
 The frontend binary is a thin query frontend for Google Cloud Managed Service
 for Prometheus (GMP) that looks and feels like a regular Prometheus server.
 It primarily serves as a target URL for a Prometheus datasource in Grafana
@@ -36,6 +38,22 @@ go run main.go \
 ```
 
 Access the frontend UI in your browser at http://localhost:19090.
+
+## Flags
+
+```bash mdox-exec="bash hack/format_help.sh frontend"
+Usage of frontend:
+  -query.credentials-file string
+    	JSON-encoded credentials (service account or refresh token). Can be left empty if default credentials have sufficient permission.
+  -query.project-id string
+    	Project ID of the Google Cloud Monitoring workspace project to query.
+  -query.target-url string
+    	The URL to forward authenticated requests to. (PROJECT_ID is replaced with the --query.project-id flag.) (default "https://monitoring.googleapis.com/v1/projects/PROJECT_ID/location/global/prometheus")
+  -web.external-url string
+    	The URL under which the frontend is externally reachable (for example, if it is served via a reverse proxy). Used for generating relative and absolute links back to the frontend itself. If the URL has a path portion, it will be used to prefix served HTTP endpoints. If omitted, relevant URL components will be derived automatically.
+  -web.listen-address string
+    	Address on which to expose metrics and the query UI. (default ":19090")
+```
 
 ## Docker
 

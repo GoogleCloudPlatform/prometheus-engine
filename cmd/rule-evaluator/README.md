@@ -41,6 +41,125 @@ After a while recording rule results become visible through Prometheus Engine's 
 API (see [frontend]("../frontend/README.md") for setting up a UI) and firing alerts appear
 in the AlertManager and are routed from there.
 
+## Flags
+
+```bash mdox-exec="bash hack/format_help.sh rule-evaluator"
+usage: rule [<flags>]
+
+The Prometheus Rule Evaluator
+
+
+Flags:
+  -h, --[no-]help                Show context-sensitive help (also try
+                                 --help-long and --help-man).
+      --[no-]export.disable      Disable exporting to GCM.
+      --export.endpoint="monitoring.googleapis.com:443"  
+                                 GCM API endpoint to send metric data to.
+      --export.compression=none  The compression format to use for gRPC requests
+                                 ('none' or 'gzip').
+      --export.credentials-file=""  
+                                 Credentials file for authentication with the
+                                 GCM API.
+      --export.label.project-id=EXPORT.LABEL.PROJECT-ID  
+                                 Default project ID set for all exported data.
+                                 Prefer setting the external label "project_id"
+                                 in the Prometheus configuration if not using
+                                 the auto-discovered default.
+      --export.user-agent-mode=unspecified  
+                                 Mode for user agent used for requests against
+                                 the GCM API. Valid values are "gke", "kubectl",
+                                 "on-prem", "baremetal" or "unspecified".
+      --export.label.location=EXPORT.LABEL.LOCATION  
+                                 The default location set for all exported data.
+                                 Prefer setting the external label "location" in
+                                 the Prometheus configuration if not using the
+                                 auto-discovered default.
+      --export.label.cluster=EXPORT.LABEL.CLUSTER  
+                                 The default cluster set for all scraped
+                                 targets. Prefer setting the external label
+                                 "cluster" in the Prometheus configuration if
+                                 not using the auto-discovered default.
+      --export.match= ...        A Prometheus time series matcher. Can be
+                                 repeated. Every time series must match at
+                                 least one of the matchers to be exported.
+                                 This flag can be used equivalently to the
+                                 match[] parameter of the Prometheus federation
+                                 endpoint to selectively export data.
+                                 (Example: --export.match='{job="prometheus"}'
+                                 --export.match='{__name__=~"job:.*"})
+      --export.debug.metric-prefix="prometheus.googleapis.com"  
+                                 Google Cloud Monitoring metric prefix to use.
+      --[no-]export.debug.disable-auth  
+                                 Disable authentication (for debugging
+                                 purposes).
+      --export.debug.batch-size=200  
+                                 Maximum number of points to send in one batch
+                                 to the GCM API.
+      --export.debug.shard-count=1024  
+                                 Number of shards that track series to send.
+      --export.debug.shard-buffer-size=2048  
+                                 The buffer size for each individual shard.
+                                 Each element in buffer (queue) consists of
+                                 sample and hash.
+      --export.debug.fetch-metadata-timeout=10s  
+                                 The total timeout for the initial gathering
+                                 of the best-effort GCP data from the metadata
+                                 server. This data is used for special
+                                 labels required by Prometheus metrics (e.g.
+                                 project id, location, cluster name), as well as
+                                 information for the user agent. This is done on
+                                 startup, so make sure this work to be faster
+                                 than your readiness and liveliness probes.
+      --export.token-url=EXPORT.TOKEN-URL  
+                                 The request URL to generate token that's needed
+                                 to ingest metrics to the project
+      --export.token-body=EXPORT.TOKEN-BODY  
+                                 The request Body to generate token that's
+                                 needed to ingest metrics to the project.
+      --export.quota-project=EXPORT.QUOTA-PROJECT  
+                                 The projectID of an alternative project for
+                                 quota attribution.
+      --export.ha.backend=none   Which backend to use to coordinate HA pairs
+                                 that both send metric data to the GCM API.
+                                 Valid values are "none" or "kube"
+      --export.ha.kube.config=""  
+                                 Path to kube config file.
+      --export.ha.kube.namespace=""  
+                                 Namespace for the HA locking resource. Must be
+                                 identical across replicas. May be set through
+                                 the KUBE_NAMESPACE environment variable.
+                                 ($KUBE_NAMESPACE)
+      --export.ha.kube.name=""   Name for the HA locking resource. Must
+                                 be identical across replicas. May be set
+                                 through the KUBE_NAME environment variable.
+                                 ($KUBE_NAME)
+      --query.project-id=""      Project ID of the Google Cloud Monitoring
+                                 scoping project to evaluate rules against.
+      --query.target-url="https://monitoring.googleapis.com/v1/projects/PROJECT_ID/location/global/prometheus"  
+                                 The address of the Prometheus server query
+                                 endpoint. (PROJECT_ID is replaced with the
+                                 --query.project-id flag.)
+      --query.generator-url=<URL>  
+                                 The base URL used for the generator URL in the
+                                 alert notification payload. Should point to an
+                                 instance of a query frontend that accesses the
+                                 same data as --query.target-url.
+      --query.credentials-file=""  
+                                 Credentials file for OAuth2 authentication with
+                                 --query.target-url.
+      --[no-]query.debug.disable-auth  
+                                 Disable authentication (for debugging
+                                 purposes).
+      --web.listen-address=":9091"  
+                                 The address to listen on for HTTP requests.
+      --config.file="prometheus.yml"  
+                                 Prometheus configuration file path.
+      --alertmanager.notification-queue-capacity=10000  
+                                 The capacity of the queue for pending
+                                 Alertmanager notifications.
+
+```
+
 ## Development
 
 For development, the rule evaluator can evaluate rule queries against arbitrary other
