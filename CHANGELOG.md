@@ -2,11 +2,9 @@
 
 ## [0.11.0-rc.1](https://github.com/GoogleCloudPlatform/prometheus-engine/compare/v0.10.0-rc.1...v0.11.0-rc.1) (2024-02-16)
 
-
 ### Features
 
 * add secretless OAuth 2 support ([8194baa](https://github.com/GoogleCloudPlatform/prometheus-engine/commit/8194baae3e30dcec6b88d66ae2cc361dcb33aeef))
-
 
 ### Bug Fixes
 

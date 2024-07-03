@@ -35,6 +35,12 @@ $(HELM): $(BINGO_DIR)/helm.mod
 	@echo "(re)installing $(GOBIN)/helm-v3.14.0"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=helm.mod -o=$(GOBIN)/helm-v3.14.0 "helm.sh/helm/v3/cmd/helm"
 
+MDOX := $(GOBIN)/mdox-v0.9.0
+$(MDOX): $(BINGO_DIR)/mdox.mod
+	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
+	@echo "(re)installing $(GOBIN)/mdox-v0.9.0"
+	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=mdox.mod -o=$(GOBIN)/mdox-v0.9.0 "github.com/bwplotka/mdox"
+
 YQ := $(GOBIN)/yq-v4.40.7
 $(YQ): $(BINGO_DIR)/yq.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.

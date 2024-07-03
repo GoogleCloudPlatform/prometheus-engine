@@ -127,6 +127,7 @@ run_tests() {
 
 reformat() {
   go mod tidy && go mod vendor && go fmt ${REPO_ROOT}/...
+  ${MDOX} fmt --soft-wraps ${REPO_ROOT}/*.md ${REPO_ROOT}/cmd/**/*.md
 }
 
 exit_msg() {

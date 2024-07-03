@@ -6,7 +6,6 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ![Build status](https://github.com/GoogleCloudPlatform/prometheus-engine/actions/workflows/presubmit.yml/badge.svg)
 
-
 This repository contains various binaries and packages for client-side usage
 of Google Cloud Managed Service for Prometheus (GMP), a managed Prometheus offering on top
 of Google Cloud Monitoring (GCM).
@@ -19,13 +18,14 @@ For more documentation and to get started, go to [g.co/cloud/managedprometheus](
 * **[frontend](cmd/frontend)**: An authorizing proxy for the Prometheus-compatible query API of GMP. It additionally hosts a query UI.
 * **[operator](cmd/operator)**: A Kubernetes operator for managed metric collection for GMP.
 * **[rule-evaluator](cmd/rule-evaluator)**: A Prometheus rule evaluation engine that evaluates against GMP.
+* **[datasource-syncer](cmd/datasource-syncer)**: A cron job for periodic Oauth2 token injection to Grafana Prometheus datasource.
 
 For the fully Prometheus-compatible binary that writes ingested data into GMP/GCM,
 see [GoogleCloudPlatform/prometheus](https://github.com/GoogleCloudPlatform/prometheus).
 
 ## Docker Images
 
-Images for this repo are regularly released [in the GKE release GCR](https://console.cloud.google.com/gcr/images/gke-release/global/prometheus-engine).
+Images for this repo are regularly released [in the GKE release GCR](https://console.cloud.google.com/gcr/images/gke-release/global[main.go](cmd%2Fdatasource-syncer%2Fmain.go)/prometheus-engine).
 
 ## Development
 
@@ -39,19 +39,20 @@ recommended:
 
 Can be also installed via:
 
-  ```bash
-  gcloud components install kubectl
-  ```
+```bash
+gcloud components install kubectl
+```
 4. [`Docker`](https://docs.docker.com/get-docker/) with
    [`buildx`](https://docs.docker.com/build/architecture/#install-buildx) plugin.
 
 If you want to execute docker containers on remote machine you can run:
-  ```bash
-  gcloud alpha cloud-shell ssh --authorize-session -- -nNT -L `pwd`/docker.sock:/var/run/docker.sock
-  
-  # Then in separate terminal.
-  export DOCKER_HOST=unix://docker.sock
-  ```
+
+```bash
+gcloud alpha cloud-shell ssh --authorize-session -- -nNT -L `pwd`/docker.sock:/var/run/docker.sock
+
+# Then in separate terminal.
+export DOCKER_HOST=unix://docker.sock
+```
 
 5. For UI development or update (e.g. to resolve UI security issue), `npm` is
    required. See [pkg/ui documentation](pkg/ui/README.md) for details.
@@ -88,7 +89,7 @@ make go-synthetic
 ```
 
 Running `make bin` will build all of the above go binaries.
-  * Setting `NO_DOCKER=1` here will build all the binaries natively on the host machine.
+* Setting `NO_DOCKER=1` here will build all the binaries natively on the host machine.
 
 ### Testing
 
@@ -101,17 +102,18 @@ To run unit tests from docker container run `make test`
 #### Kubernetes End-to-end tests
 
 Running `make e2e` will run e2e tests against Kubernetes cluster:
-  * By default, it run in hermetic docker container, downloads kind, recreates
-a single node kind cluster and runs [e2e](./e2e) tests against it.
-  * To run a single test, use the `TEST_RUN` environment variable. For example, to run all collector tests, pass `TEST_RUN=TestCollector`:
-  ```bash
-  TEST_RUN=TestCollector make e2e
-  ```
+* By default, it run in hermetic docker container, downloads kind, recreates
+  a single node kind cluster and runs [e2e](./e2e) tests against it.
+* To run a single test, use the `TEST_RUN` environment variable. For example, to run all collector tests, pass `TEST_RUN=TestCollector`:
+
+```bash
+TEST_RUN=TestCollector make e2e
+```
 
 ##### Debugging
 
 In docker mode, to run a single test or debug a cluster during or after failed
-test, you can try entering shell of the `kindtest` container. Before doing so, 
+test, you can try entering shell of the `kindtest` container. Before doing so,
 run `make e2e` to setup `kind` and start a cluster.
 
 To enter shell with kind Kubernetes context, (ensure your docker socket is on
