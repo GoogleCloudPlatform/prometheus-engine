@@ -24,10 +24,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -69,11 +71,29 @@ import (
 
 const projectIDVar = "PROJECT_ID"
 
-var googleCloudBaseURL = url.URL{
-	Scheme: "https",
-	Host:   "console.cloud.google.com",
-	Path:   "/monitoring/metrics-explorer",
-}
+var (
+	googleCloudBaseURL = url.URL{
+		Scheme: "https",
+		Host:   "console.cloud.google.com",
+		Path:   "/monitoring/metrics-explorer",
+	}
+
+	queryCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "rule_evaluator_query_requests_total",
+			Help: "A counter for query requests sent to GCM.",
+		},
+		[]string{"code", "method"},
+	)
+	queryHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "rule_evaluator_query_requests_latency_seconds",
+			Help:    "Histogram of response latency of query requests sent to GCM.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"code", "method"},
+	)
+)
 
 func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
@@ -98,6 +118,8 @@ func main() {
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		grpc_prometheus.DefaultClientMetrics,
+		queryCounter,
+		queryHistogram,
 	)
 
 	// The rule-evaluator version is identical to the export library version for now, so
@@ -115,7 +137,7 @@ func main() {
 	}
 	opts.SetupFlags(a)
 
-	evaluatorOpts := evaluatorOptions{
+	defaultEvaluatorOpts := evaluatorOptions{
 		TargetURL:     Must(url.Parse(fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar))),
 		ProjectID:     defaultProjectID,
 		DisableAuth:   false,
@@ -123,7 +145,7 @@ func main() {
 		ConfigFile:    "prometheus.yml",
 		QueueCapacity: 10000,
 	}
-	evaluatorOpts.setupFlags(a)
+	defaultEvaluatorOpts.setupFlags(a)
 
 	extraArgs, err := exportsetup.ExtraArgs()
 	if err != nil {
@@ -137,7 +159,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := evaluatorOpts.validate(); err != nil {
+	if err := defaultEvaluatorOpts.validate(); err != nil {
 		_ = level.Error(logger).Log("msg", "invalid command line argument", "err", err)
 		os.Exit(1)
 	}
@@ -157,11 +179,11 @@ func main() {
 	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
 	notifierOptions := notifier.Options{
 		Registerer:    reg,
-		QueueCapacity: evaluatorOpts.QueueCapacity,
+		QueueCapacity: defaultEvaluatorOpts.QueueCapacity,
 	}
 	notificationManager := notifier.NewManager(&notifierOptions, log.With(logger, "component", "notifier"))
 	rulesMetrics := rules.NewGroupMetrics(reg)
-	ruleEvaluator, err := newRuleEvaluator(ctx, logger, reg, &evaluatorOpts, version, destination, notificationManager, rulesMetrics)
+	ruleEvaluator, err := newRuleEvaluator(ctx, logger, &defaultEvaluatorOpts, version, destination, notificationManager, rulesMetrics)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "Create rule-evaluator", "err", err)
 		os.Exit(1)
@@ -217,7 +239,24 @@ func main() {
 		}, {
 			name: "rules",
 			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
-				return ruleEvaluator.ApplyConfig(&cfg.Config)
+				// Don't modify defaults. Copy defaults and modify based on config.
+				evaluatorOpts := defaultEvaluatorOpts
+				if cfg.GoogleCloud.Query != nil {
+					if cfg.GoogleCloud.Query.CredentialsFile != "" {
+						evaluatorOpts.CredentialsFile = cfg.GoogleCloud.Query.CredentialsFile
+					}
+					if cfg.GoogleCloud.Query.GeneratorURL != "" {
+						generatorURL, err := url.Parse(cfg.GoogleCloud.Query.GeneratorURL)
+						if err != nil {
+							return fmt.Errorf("unable to parse Google Cloud generator URL: %w", err)
+						}
+						evaluatorOpts.GeneratorURL = generatorURL
+					}
+					if cfg.GoogleCloud.Query.ProjectID != "" {
+						evaluatorOpts.ProjectID = cfg.GoogleCloud.Query.ProjectID
+					}
+				}
+				return ruleEvaluator.ApplyConfig(&cfg.Config, &evaluatorOpts)
 			},
 		},
 	}
@@ -225,7 +264,7 @@ func main() {
 	configMetrics := newConfigMetrics(reg)
 
 	// Do an initial load of the configuration for all components.
-	if err := reloadConfig(evaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
+	if err := reloadConfig(defaultEvaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
 		_ = level.Error(logger).Log("msg", "error loading config file.", "err", err)
 		os.Exit(1)
 	}
@@ -300,7 +339,7 @@ func main() {
 	reloadCh := make(chan chan error)
 	{
 		// Web Server.
-		server := &http.Server{Addr: evaluatorOpts.ListenAddress}
+		server := &http.Server{Addr: defaultEvaluatorOpts.ListenAddress}
 
 		http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
 		http.HandleFunc("/-/reload", func(w http.ResponseWriter, r *http.Request) {
@@ -352,7 +391,7 @@ func main() {
 			}
 		})
 		g.Add(func() error {
-			_ = level.Info(logger).Log("msg", "Starting web server", "listen", evaluatorOpts.ListenAddress)
+			_ = level.Info(logger).Log("msg", "Starting web server", "listen", defaultEvaluatorOpts.ListenAddress)
 			return server.ListenAndServe()
 		}, func(error) {
 			ctxServer, cancelServer := context.WithTimeout(ctx, time.Minute)
@@ -372,11 +411,11 @@ func main() {
 				for {
 					select {
 					case <-hup:
-						if err := reloadConfig(evaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
+						if err := reloadConfig(defaultEvaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
 							_ = level.Error(logger).Log("msg", "Error reloading config", "err", err)
 						}
 					case rc := <-reloadCh:
-						if err := reloadConfig(evaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
+						if err := reloadConfig(defaultEvaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
 							_ = level.Error(logger).Log("msg", "Error reloading config", "err", err)
 							rc <- err
 						} else {
@@ -461,22 +500,25 @@ func (opts *evaluatorOptions) setupFlags(a *kingpin.Application) {
 }
 
 func (opts *evaluatorOptions) validate() error {
-	if opts.ProjectID == "" {
-		return errors.New("no --query.project-id was specified or could be derived from the environment")
+	contents, err := os.ReadFile(opts.ConfigFile)
+	if err != nil {
+		return fmt.Errorf("read config %q: %w", opts.ConfigFile, err)
 	}
 
-	targetURL, err := url.Parse(strings.ReplaceAll(opts.TargetURL.String(), projectIDVar, opts.ProjectID))
+	cfg, err := loadConfig(contents)
 	if err != nil {
+		return fmt.Errorf("load config %q: %w", opts.ConfigFile, err)
+	}
+
+	if opts.ProjectID == "" && cfg.GoogleCloud.Query != nil {
+		opts.ProjectID = cfg.GoogleCloud.Query.ProjectID
+	}
+
+	// Pass a placeholder project ID value "x" to ensure the URL replacement is valid.
+	if _, err := url.Parse(strings.ReplaceAll(opts.TargetURL.String(), projectIDVar, "x")); err != nil {
 		return fmt.Errorf("unable to parse --query.target-url value %q: %w", opts.TargetURL.String(), err)
 	}
-	opts.TargetURL = targetURL
 
-	// Don't expand external labels on config file loading. It's a feature we like but we want to
-	// remain compatible with Prometheus and this is still an experimental feature, which we don't
-	// support.
-	if _, err := config.LoadFile(opts.ConfigFile, false, false, log.NewNopLogger()); err != nil {
-		return fmt.Errorf("loading config %q: %w", opts.ConfigFile, err)
-	}
 	return nil
 }
 
@@ -500,7 +542,7 @@ func newAPI(ctx context.Context, opts *evaluatorOptions, version string, roundTr
 	}
 	roundTripper := roundTripperFunc(transport)
 	client, err := api.NewClient(api.Config{
-		Address:      opts.TargetURL.String(),
+		Address:      strings.ReplaceAll(opts.TargetURL.String(), projectIDVar, opts.ProjectID),
 		RoundTripper: roundTripper,
 	})
 	if err != nil {
@@ -542,8 +584,12 @@ func sendAlerts(s *notifier.Manager, projectID string, externalURL *url.URL) rul
 			}
 			if externalURL != nil {
 				if externalURL.String() == googleCloudBaseURL.String() {
-					// If it's a GCM link (default), create the full URL for the alert.
-					a.GeneratorURL = googleCloudLink(projectID, expr, alert.FiredAt, alert.FiredAt.Add(-time.Hour)).String()
+					if projectID == "" {
+						a.GeneratorURL = ""
+					} else {
+						// If it's a GCM link (default), create the full URL for the alert.
+						a.GeneratorURL = googleCloudLink(projectID, expr, alert.FiredAt, alert.FiredAt.Add(-time.Hour)).String()
+					}
 				} else {
 					// Otherwise, if it was specified we assume it points to a Prometheus frontend.
 					a.GeneratorURL = externalURL.String() + strutil.TableLinkForExpression(expr)
@@ -855,37 +901,29 @@ func (db *queryAccess) Close() error {
 
 // makeInstrumentedRoundTripper instruments the original RoundTripper with middleware to observe the request result.
 // The new RoundTripper counts the number of query requests sent to GCM and measures the latency of each request.
-func makeInstrumentedRoundTripper(transport http.RoundTripper, reg prometheus.Registerer) http.RoundTripper {
-	queryCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "rule_evaluator_query_requests_total",
-			Help: "A counter for query requests sent to GCM.",
-		},
-		[]string{"code", "method"},
-	)
-	queryHistogram := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "rule_evaluator_query_requests_latency_seconds",
-			Help:    "Histogram of response latency of query requests sent to GCM.",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"code", "method"},
-	)
-	reg.MustRegister(queryCounter, queryHistogram)
-
+func makeInstrumentedRoundTripper(transport http.RoundTripper) http.RoundTripper {
 	return promhttp.InstrumentRoundTripperCounter(queryCounter,
 		promhttp.InstrumentRoundTripperDuration(queryHistogram, transport))
 }
 
 type ruleEvaluator struct {
-	queryFunc    rules.QueryFunc
-	rulesManager *rules.Manager
+	ctx             context.Context
+	logger          log.Logger
+	version         string
+	appendable      storage.Appendable
+	notifierManager *notifier.Manager
+	rulesMetrics    *rules.Metrics
+
+	queryFunc         rules.QueryFunc
+	rulesManager      *rules.Manager
+	lastEvaluatorOpts *evaluatorOptions
+	rerunManager      bool
+	mtx               sync.Mutex
 }
 
 func newRuleEvaluator(
 	ctx context.Context,
 	logger log.Logger,
-	reg prometheus.Registerer,
 	evaluatorOpts *evaluatorOptions,
 	version string,
 	appendable storage.Appendable,
@@ -893,7 +931,7 @@ func newRuleEvaluator(
 	rulesMetrics *rules.Metrics,
 ) (*ruleEvaluator, error) {
 	v1api, err := newAPI(ctx, evaluatorOpts, version, func(rt http.RoundTripper) http.RoundTripper {
-		return makeInstrumentedRoundTripper(rt, reg)
+		return makeInstrumentedRoundTripper(rt)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("query client: %w", err)
@@ -902,8 +940,12 @@ func newRuleEvaluator(
 
 	externalURL := evaluatorOpts.GeneratorURL
 	if externalURL != nil && externalURL.String() == googleCloudBaseURL.String() {
-		// If it's a GCM link (default), create the full URL for the alert.
-		externalURL = googleCloudLink(evaluatorOpts.ProjectID, "", time.Time{}, time.Time{})
+		if evaluatorOpts.ProjectID == "" {
+			externalURL = nil
+		} else {
+			// If it's a GCM link (default), create the full URL for the alert.
+			externalURL = googleCloudLink(evaluatorOpts.ProjectID, "", time.Time{}, time.Time{})
+		}
 	}
 
 	rulesManager := rules.NewManager(&rules.ManagerOptions{
@@ -920,14 +962,72 @@ func newRuleEvaluator(
 	})
 
 	evaluator := ruleEvaluator{
-		rulesManager: rulesManager,
-		queryFunc:    queryFunc,
+		ctx:             ctx,
+		logger:          logger,
+		version:         version,
+		appendable:      appendable,
+		notifierManager: notifierManager,
+		rulesMetrics:    rulesMetrics,
+
+		rulesManager:      rulesManager,
+		queryFunc:         queryFunc,
+		lastEvaluatorOpts: evaluatorOpts,
+		rerunManager:      false,
 	}
 
 	return &evaluator, nil
 }
 
-func (e *ruleEvaluator) ApplyConfig(cfg *config.Config) error {
+func (e *ruleEvaluator) ApplyConfig(cfg *config.Config, evaluatorOpts *evaluatorOptions) error {
+	if evaluatorOpts != nil && !reflect.DeepEqual(evaluatorOpts, e.lastEvaluatorOpts) {
+		e.lastEvaluatorOpts = evaluatorOpts
+
+		v1api, err := newAPI(e.ctx, evaluatorOpts, e.version, func(rt http.RoundTripper) http.RoundTripper {
+			return makeInstrumentedRoundTripper(rt)
+		})
+		if err != nil {
+			return fmt.Errorf("query client: %w", err)
+		}
+		queryFunc := newQueryFunc(e.logger, v1api)
+
+		externalURL := evaluatorOpts.GeneratorURL
+		if externalURL != nil && externalURL.String() == googleCloudBaseURL.String() {
+			if evaluatorOpts.ProjectID == "" {
+				externalURL = nil
+			} else {
+				// If it's a GCM link (default), create the full URL for the alert.
+				externalURL = googleCloudLink(evaluatorOpts.ProjectID, "", time.Time{}, time.Time{})
+			}
+		}
+
+		rulesManager := rules.NewManager(&rules.ManagerOptions{
+			ExternalURL: externalURL,
+			QueryFunc:   queryFunc,
+			Context:     e.ctx,
+			Appendable:  e.appendable,
+			Queryable: &queryStorage{
+				api: v1api,
+			},
+			Logger:     e.logger,
+			NotifyFunc: sendAlerts(e.notifierManager, evaluatorOpts.ProjectID, evaluatorOpts.GeneratorURL),
+			Metrics:    e.rulesMetrics,
+		})
+
+		// Set new rule-manager and flag before stopping, so we can rerun with the new one.
+		e.mtx.Lock()
+		oldRuleManager := e.rulesManager
+		e.rulesManager = rulesManager
+		e.rerunManager = true
+		oldRuleManager.Stop()
+		e.queryFunc = queryFunc
+		e.mtx.Unlock()
+
+		_, err = e.Query(e.ctx, "vector(1)", time.Now())
+		if err != nil {
+			_ = level.Error(e.logger).Log("msg", "Error querying Prometheus instance", "err", err)
+		}
+	}
+
 	// Get all rule files matching the configuration paths.
 	var files []string
 	for _, pat := range cfg.RuleFiles {
@@ -951,10 +1051,26 @@ func (e *ruleEvaluator) Query(ctx context.Context, q string, t time.Time) (promq
 }
 
 func (e *ruleEvaluator) Run() {
-	e.rulesManager.Run()
+	for {
+		// Copy the rule-manager before running, so we don't hold the lock.
+		e.mtx.Lock()
+		oldRuleManager := e.rulesManager
+		e.mtx.Unlock()
+		oldRuleManager.Run()
+
+		// In case the rule-manager is updated, run the new one in this same thread.
+		e.mtx.Lock()
+		shouldRerun := !e.rerunManager
+		e.mtx.Unlock()
+		if shouldRerun {
+			break
+		}
+	}
 }
 
 func (e *ruleEvaluator) Stop() {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
 	e.rulesManager.Stop()
 }
 
