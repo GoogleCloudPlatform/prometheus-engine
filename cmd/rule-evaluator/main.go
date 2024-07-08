@@ -29,6 +29,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -521,7 +522,7 @@ func (opts *evaluatorOptions) validate() error {
 	return nil
 }
 
-func newAPI(ctx context.Context, opts *evaluatorOptions, version string, roundTripperFunc func(http.RoundTripper) http.RoundTripper) (v1.API, error) {
+func newAPI(ctx context.Context, opts *evaluatorOptions, version string) (v1.API, error) {
 	clientOpts := []option.ClientOption{
 		option.WithScopes("https://www.googleapis.com/auth/monitoring.read"),
 		option.WithUserAgent(fmt.Sprintf("rule-evaluator/%s", version)),
@@ -539,7 +540,8 @@ func newAPI(ctx context.Context, opts *evaluatorOptions, version string, roundTr
 	if err != nil {
 		return nil, err
 	}
-	roundTripper := roundTripperFunc(transport)
+	roundTripper := promhttp.InstrumentRoundTripperCounter(queryCounter,
+		promhttp.InstrumentRoundTripperDuration(queryHistogram, transport))
 	client, err := api.NewClient(api.Config{
 		Address:      strings.ReplaceAll(opts.TargetURL.String(), projectIDVar, opts.ProjectID),
 		RoundTripper: roundTripper,
@@ -899,17 +901,18 @@ func (db *queryAccess) Close() error {
 	return nil
 }
 
-// makeInstrumentedRoundTripper instruments the original RoundTripper with middleware to observe the request result.
-// The new RoundTripper counts the number of query requests sent to GCM and measures the latency of each request.
-func makeInstrumentedRoundTripper(transport http.RoundTripper) http.RoundTripper {
-	return promhttp.InstrumentRoundTripperCounter(queryCounter,
-		promhttp.InstrumentRoundTripperDuration(queryHistogram, transport))
-}
-
 type ruleEvaluator struct {
+	ctx             context.Context
+	logger          log.Logger
+	version         string
+	appendable      storage.Appendable
+	notifierManager *notifier.Manager
+	rulesMetrics    *rules.Metrics
+
 	queryFunc         rules.QueryFunc
 	rulesManager      *rules.Manager
 	lastEvaluatorOpts *evaluatorOptions
+	mtx               sync.Mutex
 }
 
 // Returns the URL that points to the rule-evaluator instance (set by the user). By default, or if
@@ -936,9 +939,7 @@ func newRuleEvaluator(
 	notifierManager *notifier.Manager,
 	rulesMetrics *rules.Metrics,
 ) (*ruleEvaluator, error) {
-	v1api, err := newAPI(ctx, evaluatorOpts, version, func(rt http.RoundTripper) http.RoundTripper {
-		return makeInstrumentedRoundTripper(rt)
-	})
+	v1api, err := newAPI(ctx, evaluatorOpts, version)
 	if err != nil {
 		return nil, fmt.Errorf("query client: %w", err)
 	}
@@ -958,6 +959,13 @@ func newRuleEvaluator(
 	})
 
 	evaluator := ruleEvaluator{
+		ctx:             ctx,
+		logger:          logger,
+		version:         version,
+		appendable:      appendable,
+		notifierManager: notifierManager,
+		rulesMetrics:    rulesMetrics,
+
 		rulesManager:      rulesManager,
 		queryFunc:         queryFunc,
 		lastEvaluatorOpts: evaluatorOpts,
@@ -968,7 +976,39 @@ func newRuleEvaluator(
 
 func (e *ruleEvaluator) ApplyConfig(cfg *config.Config, evaluatorOpts *evaluatorOptions) error {
 	if evaluatorOpts != nil && !reflect.DeepEqual(evaluatorOpts, e.lastEvaluatorOpts) {
-		return fmt.Errorf("rule-config can only be changed at startup time")
+		e.lastEvaluatorOpts = evaluatorOpts
+
+		v1api, err := newAPI(e.ctx, evaluatorOpts, e.version)
+		if err != nil {
+			return fmt.Errorf("query client: %w", err)
+		}
+		queryFunc := newQueryFunc(e.logger, v1api)
+
+		rulesManager := rules.NewManager(&rules.ManagerOptions{
+			ExternalURL: getExternalURL(evaluatorOpts.GeneratorURL, evaluatorOpts.ProjectID),
+			QueryFunc:   queryFunc,
+			Context:     e.ctx,
+			Appendable:  e.appendable,
+			Queryable: &queryStorage{
+				api: v1api,
+			},
+			Logger:     e.logger,
+			NotifyFunc: sendAlerts(e.notifierManager, evaluatorOpts.ProjectID, evaluatorOpts.GeneratorURL),
+			Metrics:    e.rulesMetrics,
+		})
+
+		// Set new rule-manager and flag before stopping, so we can rerun with the new one.
+		e.mtx.Lock()
+		oldRuleManager := e.rulesManager
+		e.rulesManager = rulesManager
+		oldRuleManager.Stop()
+		e.queryFunc = queryFunc
+		e.mtx.Unlock()
+
+		_, err = queryFunc(e.ctx, "vector(1)", time.Now())
+		if err != nil {
+			_ = level.Error(e.logger).Log("msg", "Error querying Prometheus instance", "err", err)
+		}
 	}
 
 	// Get all rule files matching the configuration paths.
@@ -990,14 +1030,31 @@ func (e *ruleEvaluator) ApplyConfig(cfg *config.Config, evaluatorOpts *evaluator
 }
 
 func (e *ruleEvaluator) Query(ctx context.Context, q string, t time.Time) (promql.Vector, error) {
-	return e.queryFunc(ctx, q, t)
+	// Copy the function in case it changes, but don't block until it completes.
+	e.mtx.Lock()
+	queryFunc := e.queryFunc
+	e.mtx.Unlock()
+	return queryFunc(ctx, q, t)
 }
 
 func (e *ruleEvaluator) Run() {
-	e.rulesManager.Run()
+	for {
+		// Copy the rule-manager before running, so we don't hold the lock.
+		e.mtx.Lock()
+		curr := e.rulesManager
+		e.mtx.Unlock()
+
+		// A nil indicates shutdown, otherwise it's a config update requiring restart.
+		if curr == nil {
+			break
+		}
+		curr.Run()
+	}
 }
 
 func (e *ruleEvaluator) Stop() {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
 	e.rulesManager.Stop()
 }
 
