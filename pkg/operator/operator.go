@@ -389,8 +389,13 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 		return fmt.Errorf("get collector DaemonSet: %w", err)
 	}
 	if _, ok := ds.Annotations[o.opts.CleanupAnnotKey]; !ok {
-		if err := o.client.Delete(ctx, &ds); client.IgnoreNotFound(err) != nil {
-			return fmt.Errorf("delete collector DaemonSet: %w", err)
+		if err := o.client.Delete(ctx, &ds); err != nil {
+			switch {
+			case apierrors.IsForbidden(err):
+				o.logger.Info("delete collector was not allowed. Please remove it manually", "err", err)
+			case !apierrors.IsNotFound(err):
+				return fmt.Errorf("cleanup collector failed: %w", err)
+			}
 		}
 	}
 
@@ -404,8 +409,13 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 		return fmt.Errorf("get rule-evaluator Deployment: %w", err)
 	}
 	if _, ok := deploy.Annotations[o.opts.CleanupAnnotKey]; !ok {
-		if err := o.client.Delete(ctx, &deploy); client.IgnoreNotFound(err) != nil {
-			return fmt.Errorf("delete rule-evaluator Deployment: %w", err)
+		if err := o.client.Delete(ctx, &deploy); err != nil {
+			switch {
+			case apierrors.IsForbidden(err):
+				o.logger.Info("delete rule-evaluator was not allowed. Please remove it manually", "err", err)
+			case !apierrors.IsNotFound(err):
+				return fmt.Errorf("cleanup rule-evaluator failed: %w", err)
+			}
 		}
 	}
 
