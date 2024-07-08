@@ -312,6 +312,12 @@ func (config *RuleEvaluatorConfig) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
+type GoogleCloudQueryConfig struct {
+	ProjectID       string `yaml:"project_id,omitempty"`
+	GeneratorURL    string `yaml:"generator_url,omitempty"`
+	CredentialsFile string `yaml:"credentials,omitempty"`
+}
+
 // makeRuleEvaluatorConfig creates the config for rule-evaluator.
 // This is stored as a Secret rather than a ConfigMap as it could contain
 // sensitive configuration information.
