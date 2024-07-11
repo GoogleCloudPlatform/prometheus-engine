@@ -2721,8 +2721,8 @@ Must not be larger than the scrape interval.</p>
 <td>
 <p>Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
 override protected target labels (project_id, location, cluster, namespace, job,
-instance, or <strong>address</strong>) are not permitted. The labelmap action is not permitted
-in general.</p>
+instance, workload_controller, workload_controller_type, or <strong>address</strong>) are not
+permitted. The labelmap action is not permitted in general.</p>
 </td>
 </tr>
 <tr>
