@@ -108,7 +108,7 @@ func (p *PodMonitoring) Default() {
 // UpdateDefault defaults any unset fields, returning true if the object was updated.
 func (p *PodMonitoring) UpdateDefault() bool {
 	if p.Spec.TargetLabels.Metadata == nil {
-		md := []string{"pod", "container"}
+		md := []string{"pod", "container", "workload_controller", "workload_controller_type"}
 		p.Spec.TargetLabels.Metadata = &md
 		return true
 	}
@@ -188,7 +188,7 @@ func (c *ClusterPodMonitoring) Default() {
 // UpdateDefault defaults any unset fields, returning true if the object was updated.
 func (c *ClusterPodMonitoring) UpdateDefault() bool {
 	if c.Spec.TargetLabels.Metadata == nil {
-		md := []string{"namespace", "pod", "container"}
+		md := []string{"namespace", "pod", "container", "workload_controller", "workload_controller_type"}
 		c.Spec.TargetLabels.Metadata = &md
 		return true
 	}
@@ -283,8 +283,8 @@ type ScrapeEndpoint struct {
 	Timeout string `json:"timeout,omitempty"`
 	// Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
 	// override protected target labels (project_id, location, cluster, namespace, job,
-	// instance, or __address__) are not permitted. The labelmap action is not permitted
-	// in general.
+	// instance, workload_controller, workload_controller_type, or __address__) are not
+	// permitted. The labelmap action is not permitted in general.
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
 	// Prometheus HTTP client configuration.
 	HTTPClientConfig `json:",inline"`
