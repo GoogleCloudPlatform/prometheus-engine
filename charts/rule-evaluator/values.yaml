@@ -17,13 +17,13 @@ gke: false
 images:
   bash:
     image: gke.gcr.io/gke-distroless/bash
-    tag: '20220419'
+    tag: "gke_distroless_20240607.00_p0"
   configReloader:
-    image: gke.gcr.io/prometheus-engine/config-reloader
-    tag: v0.9.0-gke.1
+    image: gke.gcr.io/prometheus-engine/config-reloader@sha256
+    tag: "21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e"
   ruleEvaluator:
-    image: gke.gcr.io/prometheus-engine/rule-evaluator
-    tag: v0.9.0-gke.1
+    image: gke.gcr.io/prometheus-engine/rule-evaluator@sha256
+    tag: "6ae997a8ed636da06b7a9dc7fc950b98ce91c38c135aad2dcc95d6d3dd841ee0"
 resources:
   bash:
     limits:
