@@ -17,12 +17,12 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/log"
@@ -32,6 +32,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/thanos-io/thanos/pkg/reloader"
+	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
 func main() {
@@ -79,9 +80,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set up interrupt signal handler.
-	term := make(chan os.Signal, 1)
-	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+	ctx := signals.SetupSignalHandler()
+	go func() {
+		<-ctx.Done()
+		//nolint:errcheck
+		level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+	}()
+
+	isReady := atomic.Bool{}
+	server := &http.Server{Addr: *listenAddress}
+	http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
+	http.HandleFunc("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	http.HandleFunc("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
+		if !isReady.Load() {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "config-reloader is not ready.\n")
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "config-reloader is ready.\n")
+	})
+	serverErr := make(chan error, 1)
+
+	go func() {
+		//nolint:errcheck
+		level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
+		serverErr <- server.ListenAndServe()
+	}()
 
 	// Poll ready endpoint indefinitely until it's up and running.
 	req, err := http.NewRequest(http.MethodGet, *readyURLStr, nil)
@@ -102,7 +129,7 @@ func main() {
 		level.Info(logger).Log("msg", "ensure ready-url is healthy")
 		for {
 			select {
-			case <-term:
+			case <-ctx.Done():
 				//nolint:errcheck
 				level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
 				os.Exit(0)
@@ -132,6 +159,7 @@ func main() {
 		}
 	}()
 	<-done
+	isReady.Store(true)
 
 	var cfgDirs []reloader.CfgDirOption
 	if *configDir != "" {
@@ -170,30 +198,8 @@ func main() {
 		})
 	}
 	{
-		cancel := make(chan struct{})
-		g.Add(
-			func() error {
-				select {
-				case <-term:
-					//nolint:errcheck
-					level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
-				case <-cancel:
-				}
-				return nil
-			},
-			func(error) {
-				close(cancel)
-			},
-		)
-	}
-	{
-		server := &http.Server{Addr: *listenAddress}
-		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
-
 		g.Add(func() error {
-			//nolint:errcheck
-			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
-			return server.ListenAndServe()
+			return <-serverErr
 		}, func(error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
