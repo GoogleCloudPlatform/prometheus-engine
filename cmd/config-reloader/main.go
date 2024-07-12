@@ -18,6 +18,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -73,6 +74,31 @@ func main() {
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
 
+	var cfgDirs []reloader.CfgDirOption
+	if *configDir != "" {
+		cfgDirs = append(cfgDirs, reloader.CfgDirOption{
+			Dir:       *configDir,
+			OutputDir: *configDirOutput,
+		})
+	}
+
+	newReloader := func(reg prometheus.Registerer, reloadURL *url.URL) *reloader.Reloader {
+		return reloader.New(
+			logger,
+			reg,
+			&reloader.Options{
+				ReloadURL:     reloadURL,
+				CfgFile:       *configFile,
+				CfgOutputFile: *configFileOutput,
+				CfgDirs:       cfgDirs,
+				WatchedDirs:   watchedDirs,
+				WatchInterval: 10 * time.Second,
+				RetryInterval: 5 * time.Second,
+				DelayInterval: 3 * time.Second,
+			},
+		)
+	}
+
 	reloadURL, err := url.Parse(*reloadURLStr)
 	if err != nil {
 		//nolint:errcheck
@@ -108,6 +134,26 @@ func main() {
 		//nolint:errcheck
 		level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
 		serverErr <- server.ListenAndServe()
+	}()
+
+	// We want to create an output file regardless of whether we startup successfully.
+	listenAddr, err := net.ResolveTCPAddr("tcp", *listenAddress)
+	if err != nil {
+		//nolint:errcheck
+		level.Error(logger).Log("msg", "parsing listen URL failed", "err", err)
+		os.Exit(1)
+	}
+	// Don't pass a metrics registry, because config-reloader panics when we create our second.
+	tempReloader := newReloader(nil, &url.URL{
+		Scheme: "http",
+		// Since Prometheus is not ready, we won't be able to hit the reload URL so hit itself.
+		Host: listenAddr.String(),
+		Path: "/-/healthy",
+	})
+	tempReloaderCtx, tempReloaderCancel := context.WithCancel(context.Background())
+	go func() {
+		// Ignore errors because we'll re-watch after the application is ready.
+		_ = tempReloader.Watch(tempReloaderCtx)
 	}()
 
 	// Poll ready endpoint indefinitely until it's up and running.
@@ -158,35 +204,12 @@ func main() {
 			}
 		}
 	}()
+
 	<-done
 	isReady.Store(true)
+	tempReloaderCancel()
 
-	var cfgDirs []reloader.CfgDirOption
-	if *configDir != "" {
-		cfgDirs = append(cfgDirs, reloader.CfgDirOption{
-			Dir:       *configDir,
-			OutputDir: *configDirOutput,
-		})
-	}
-
-	rel := reloader.New(
-		logger,
-		metrics,
-		&reloader.Options{
-			ReloadURL:     reloadURL,
-			CfgFile:       *configFile,
-			CfgOutputFile: *configFileOutput,
-			CfgDirs:       cfgDirs,
-			WatchedDirs:   watchedDirs,
-			// There are some reliability issues with fsnotify picking up file changes.
-			// Configure a very aggress refresh for now. The reloader will only send reload signals
-			// to Prometheus if the contents actually changed. So this should not have any practical
-			// drawbacks.
-			WatchInterval: 10 * time.Second,
-			RetryInterval: 5 * time.Second,
-			DelayInterval: 3 * time.Second,
-		},
-	)
+	rel := newReloader(metrics, reloadURL)
 
 	var g run.Group
 	{
