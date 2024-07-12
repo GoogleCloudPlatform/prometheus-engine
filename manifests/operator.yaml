@@ -334,7 +334,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240607.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -347,7 +347,7 @@ spec:
           privileged: false
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader@sha256:21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -382,7 +382,7 @@ spec:
             - all
           privileged: false
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus@sha256:7473d52f4a3e563e6377f8a6183091f25192b1e0705dd0933903e800bd69b7b2
+        image: gke.gcr.io/prometheus-engine/prometheus@sha256:8c8e35af7e2b92ac9d82ce640621c0d3aa10d7d62856681af3572d0a8fbb787b
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage
@@ -515,7 +515,7 @@ spec:
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/operator@sha256:0894c65806a6eac0b4119ee73ec8a52f6ca119960b37aded3776f3748a75d182
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
@@ -614,7 +614,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240607.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -627,7 +627,7 @@ spec:
           privileged: false
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader@sha256:21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -667,7 +667,7 @@ spec:
             - all
           privileged: false
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/rule-evaluator@sha256:6ae997a8ed636da06b7a9dc7fc950b98ce91c38c135aad2dcc95d6d3dd841ee0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --web.listen-address=:19092
@@ -780,7 +780,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240607.00_p0
         command: ['/bin/bash', '-c', 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  - name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml']
         volumeMounts:
         - name: alertmanager-config
@@ -793,7 +793,7 @@ spec:
           privileged: false
       containers:
       - name: alertmanager
-        image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.2-gke.0
+        image: gke.gcr.io/prometheus-engine/alertmanager@sha256:4311da6164f66c4097878c023d4aa5ab908641414e087ba4d5eb29b6126158bc
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
@@ -828,7 +828,7 @@ spec:
             - all
           privileged: false
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader@sha256:21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e
         args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
