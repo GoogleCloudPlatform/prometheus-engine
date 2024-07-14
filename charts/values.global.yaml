@@ -104,7 +104,7 @@ ruleEvaluator:
 alertManager:
   persistence:
     enabled: false
-    ## Define the storage class for the PVC for dynamic provisioning.
+    ## Define the storageClassName for the PVC for dynamic provisioning.
     ## if set to "none" the PVC will be created without a storage class and use the default storage class if one is specified by cluster administrators.
     storageClass: "none" 
     size: 50Mi
