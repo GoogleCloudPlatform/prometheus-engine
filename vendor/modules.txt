@@ -403,6 +403,9 @@ github.com/pmezard/go-difflib/difflib
 # github.com/prometheus/alertmanager v0.26.0
 ## explicit; go 1.18
 github.com/prometheus/alertmanager/api/v2/models
+github.com/prometheus/alertmanager/config
+github.com/prometheus/alertmanager/pkg/labels
+github.com/prometheus/alertmanager/timeinterval
 # github.com/prometheus/client_golang v1.18.0
 ## explicit; go 1.19
 github.com/prometheus/client_golang/api
