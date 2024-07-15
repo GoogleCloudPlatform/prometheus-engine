@@ -22,8 +22,8 @@ images:
     image: gke.gcr.io/gke-distroless/bash
     tag: "gke_distroless_20240607.00_p0" # NOTE: Has to be quoted otherwise it will be treated as a number.
   alertmanager:
-    image: gke.gcr.io/prometheus-engine/alertmanager@sha256
-    tag: "4311da6164f66c4097878c023d4aa5ab908641414e087ba4d5eb29b6126158bc"
+    image: gke.gcr.io/prometheus-engine/alertmanager
+    tag: "v0.25.1-gmp.8-gke.0"
   prometheus:
     # TODO(bwplotka): Change to "v2.45.3-gmp.6-gke.0" once tags are cloned.
     image: gke.gcr.io/prometheus-engine/prometheus@sha256
