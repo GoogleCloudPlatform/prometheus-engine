@@ -20,27 +20,26 @@ version: 0.13.0
 images:
   bash:
     image: gke.gcr.io/gke-distroless/bash
-    tag: "20220419" # NOTE: Has to be quoted otherwise it will be treated as a number.
+    tag: "gke_distroless_20240607.00_p0" # NOTE: Has to be quoted otherwise it will be treated as a number.
   alertmanager:
-    image: gke.gcr.io/prometheus-engine/alertmanager
-    tag: v0.25.1-gmp.2-gke.0
+    image: gke.gcr.io/prometheus-engine/alertmanager@sha256
+    tag: "4311da6164f66c4097878c023d4aa5ab908641414e087ba4d5eb29b6126158bc"
   prometheus:
     # TODO(bwplotka): Change to "v2.45.3-gmp.6-gke.0" once tags are cloned.
     image: gke.gcr.io/prometheus-engine/prometheus@sha256
-    tag: 01fd523f6dfa54b229b04974195632c8268fbd3d51e66ad076b5d31366210c54
+    tag: "8c8e35af7e2b92ac9d82ce640621c0d3aa10d7d62856681af3572d0a8fbb787b"
   configReloader:
-    image: gke.gcr.io/prometheus-engine/config-reloader
-    tag: v0.9.0-gke.1
+    image: gke.gcr.io/prometheus-engine/config-reloader@sha256
+    tag: "21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e"
   operator:
-    image: gke.gcr.io/prometheus-engine/operator
-    tag: v0.9.0-gke.1
+    image: gke.gcr.io/prometheus-engine/operator@sha256
+    tag: "0894c65806a6eac0b4119ee73ec8a52f6ca119960b37aded3776f3748a75d182"
   ruleEvaluator:
-    image: gke.gcr.io/prometheus-engine/rule-evaluator
-    tag: v0.9.0-gke.1
+    image: gke.gcr.io/prometheus-engine/rule-evaluator@sha256
+    tag: "6ae997a8ed636da06b7a9dc7fc950b98ce91c38c135aad2dcc95d6d3dd841ee0"
   datasourceSyncer:
-    image: gcr.io/gke-release/prometheus-engine/datasource-syncer
-    #TODO(macxamin) Sync CURRENT_DATASOURCE_SYNCER_TAG with CURRENT_TAG
-    tag: v0.10.0-gke.3
+    image: gcr.io/gke-release/prometheus-engine/datasource-syncer@sha256
+    tag: "f065e90e3188ee3fd858cac74a8ed326446aaed51d1f222f29ebd5f7b29d1df7"
 maxThroughput: false
 resources:
   alertManager:
