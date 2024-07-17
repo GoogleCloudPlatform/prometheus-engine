@@ -204,7 +204,7 @@ rules:
   - daemonsets
   apiGroups: ["apps"]
   resourceNames: ["collector"]
-  verbs: ["get", "list", "watch", "patch", "update"]
+  verbs: ["get", "list", "watch"]
 - resources:
   - deployments
   apiGroups: ["apps"]
