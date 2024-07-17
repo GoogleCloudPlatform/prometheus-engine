@@ -25,9 +25,8 @@ images:
     image: gke.gcr.io/prometheus-engine/alertmanager@sha256
     tag: "4311da6164f66c4097878c023d4aa5ab908641414e087ba4d5eb29b6126158bc"
   prometheus:
-    # TODO(bwplotka): Change to "v2.45.3-gmp.6-gke.0" once tags are cloned.
-    image: gke.gcr.io/prometheus-engine/prometheus@sha256
-    tag: "8c8e35af7e2b92ac9d82ce640621c0d3aa10d7d62856681af3572d0a8fbb787b"
+    image: gke.gcr.io/prometheus-engine/prometheus
+    tag: v2.45.3-gmp.9-gke.0
   configReloader:
     image: gke.gcr.io/prometheus-engine/config-reloader@sha256
     tag: "21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e"
