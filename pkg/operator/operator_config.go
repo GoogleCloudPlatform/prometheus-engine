@@ -568,18 +568,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 		logger.Error(err, "rule-evaluator Deployment does not exist")
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-
-	setContainerExtraArgs(deploy.Spec.Template.Spec.Containers, RuleEvaluatorContainerName, "")
-
-	// Support not having UPDATE permission. We will remove it in the future.
-	// See: https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1078
-	if err := r.client.Update(ctx, &deploy); !apierrors.IsForbidden(err) {
-		return err
-	}
-	return nil
+	return err
 }
 
 // makeAlertmanagerConfigs creates the alertmanager_config entries as described in

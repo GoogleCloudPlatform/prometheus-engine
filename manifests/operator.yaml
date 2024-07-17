@@ -204,12 +204,8 @@ rules:
 - resources:
   - deployments
   apiGroups: ["apps"]
-  verbs: ["list", "watch"]
-- resources:
-  - deployments
-  apiGroups: ["apps"]
   resourceNames: ["rule-evaluator"]
-  verbs: ["get", "patch", "update"]
+  verbs: ["get", "list", "watch"]
 - resources:
   - deployments/scale
   apiGroups: ["apps"]
