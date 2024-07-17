@@ -102,7 +102,7 @@ rules:
   - statefulsets
   apiGroups: ["apps"]
   resourceNames: ["alertmanager"]
-  verbs: ["get", "patch", "update"]
+  verbs: ["get", "list", "watch"]
 - resources:
   - statefulsets/scale
   apiGroups: ["apps"]
@@ -156,10 +156,6 @@ rules:
   - rules/status
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "patch", "update"]
-- resources:
-  - statefulsets
-  apiGroups: ["apps"]
-  verbs: ["get", "list", "watch"]
 - resources:
   - customresourcedefinitions
   resourceNames: ["verticalpodautoscalers.autoscaling.k8s.io"]
