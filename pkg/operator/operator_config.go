@@ -553,18 +553,7 @@ func (r *operatorConfigReconciler) ensureAlertmanagerStatefulSet(ctx context.Con
 		logger.Error(err, "Alertmanager StatefulSet does not exist")
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-
-	setContainerExtraArgs(sset.Spec.Template.Spec.Containers, AlertmanagerContainerName, "")
-
-	// Support not having UPDATE permission. We will remove it in the future.
-	// See: https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1080
-	if err := r.client.Update(ctx, &sset); !apierrors.IsForbidden(err) {
-		return err
-	}
-	return nil
+	return err
 }
 
 // ensureRuleEvaluatorDeployment reconciles the Deployment for rule-evaluator.
