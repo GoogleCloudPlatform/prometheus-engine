@@ -24,7 +24,6 @@ import (
 	"net/url"
 	"path"
 	"sort"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/common/config"
@@ -36,6 +35,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -173,7 +173,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, fmt.Errorf("ensure collector secrets: %w", err)
 	}
 	// Deploy Prometheus collector as a node agent.
-	if err := r.ensureCollectorDaemonSet(ctx, &config.Collection); err != nil {
+	if err := r.ensureCollectorDaemonSet(ctx); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector daemon set: %w", err)
 	}
 
@@ -218,7 +218,7 @@ func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec 
 }
 
 // ensureCollectorDaemonSet populates the collector DaemonSet with operator-provided values.
-func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spec *monitoringv1.CollectionSpec) error {
+func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context) error {
 	logger, _ := logr.FromContext(ctx)
 
 	var ds appsv1.DaemonSet
@@ -233,22 +233,14 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, spe
 		return err
 	}
 
-	var flags []string
-	// Populate export flags for collector if necessary.
-	for _, matcher := range spec.Filter.MatchOneOf {
-		flags = append(flags, fmt.Sprintf("--export.match=%q", matcher))
-	}
-	if spec.Credentials != nil {
-		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
-		flags = append(flags, fmt.Sprintf("--export.credentials-file=%q", p))
-	}
+	setContainerExtraArgs(ds.Spec.Template.Spec.Containers, CollectorPrometheusContainerName, "")
 
-	if len(spec.Compression) > 0 && spec.Compression != monitoringv1.CompressionNone {
-		flags = append(flags, fmt.Sprintf("--export.compression=%s", spec.Compression))
+	// Support not having UPDATE permission. We will remove it in the future.
+	// See: https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1079
+	if err := r.client.Update(ctx, &ds); !apierrors.IsForbidden(err) {
+		return err
 	}
-	setContainerExtraArgs(ds.Spec.Template.Spec.Containers, CollectorPrometheusContainerName, strings.Join(flags, " "))
-
-	return r.client.Update(ctx, &ds)
+	return nil
 }
 
 func gzipData(data []byte) ([]byte, error) {
@@ -294,6 +286,20 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	if err != nil {
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
+
+	var credentialsFile string
+	if spec.Credentials != nil {
+		credentialsFile = path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
+	}
+
+	cfg.GoogleCloud = &GoogleCloudConfig{
+		Export: &GoogleCloudExportConfig{
+			Compression:     ptr.To(string(compression)),
+			CredentialsFile: ptr.To(credentialsFile),
+			Match:           spec.Filter.MatchOneOf,
+		},
+	}
+
 	cfgEncoded, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal Prometheus config: %w", err)
@@ -345,12 +351,25 @@ type prometheusConfig struct {
 
 	// Secret management. Matches our fork's configuration.
 	SecretConfigs []secrets.SecretConfig `yaml:"kubernetes_secrets,omitempty"`
+
+	// Google Cloud configuration. Matches our fork's configuration.
+	GoogleCloud *GoogleCloudConfig `yaml:"google_cloud,omitempty"`
 }
 
 type update struct {
 	object monitoringv1.MonitoringCRD
 	spec   bool
 	status bool
+}
+
+type GoogleCloudConfig struct {
+	Export *GoogleCloudExportConfig `yaml:"export,omitempty"`
+}
+
+type GoogleCloudExportConfig struct {
+	Match           []string `yaml:"match,omitempty"`
+	Compression     *string  `yaml:"compression,omitempty"`
+	CredentialsFile *string  `yaml:"credentials,omitempty"`
 }
 
 // makeCollectorConfig returns the Prometheus configuration based on the scrape configurations, the
