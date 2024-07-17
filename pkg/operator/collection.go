@@ -229,18 +229,7 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context) err
 		logger.Error(err, "collector DaemonSet does not exist")
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-
-	setContainerExtraArgs(ds.Spec.Template.Spec.Containers, CollectorPrometheusContainerName, "")
-
-	// Support not having UPDATE permission. We will remove it in the future.
-	// See: https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1079
-	if err := r.client.Update(ctx, &ds); !apierrors.IsForbidden(err) {
-		return err
-	}
-	return nil
+	return err
 }
 
 func gzipData(data []byte) ([]byte, error) {
