@@ -36,9 +36,9 @@ import (
 	gax "github.com/googleapis/gax-go/v2"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
-	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
@@ -839,7 +839,7 @@ func MetadataFuncFromContext(ctx context.Context) (MetadataFunc, bool) {
 // It is copied to break a dependency cycle.
 type MetricMetadata struct {
 	Metric string
-	Type   textparse.MetricType
+	Type   model.MetricType
 	Help   string
 	Unit   string
 }
@@ -871,7 +871,7 @@ func (e *Exporter) wrapMetadata(f MetadataFunc) MetadataFunc {
 func gaugeMetadata(metric string) (MetricMetadata, bool) {
 	return MetricMetadata{
 		Metric: metric,
-		Type:   textparse.MetricTypeGauge,
+		Type:   model.MetricTypeGauge,
 	}, true
 }
 
@@ -880,7 +880,7 @@ func gaugeMetadata(metric string) (MetricMetadata, bool) {
 func untypedMetadata(metric string) (MetricMetadata, bool) {
 	return MetricMetadata{
 		Metric: metric,
-		Type:   textparse.MetricTypeUnknown,
+		Type:   model.MetricTypeUnknown,
 	}, true
 }
 
@@ -888,27 +888,27 @@ func untypedMetadata(metric string) (MetricMetadata, bool) {
 var internalMetricMetadata = map[string]MetricMetadata{
 	"up": {
 		Metric: "up",
-		Type:   textparse.MetricTypeGauge,
+		Type:   model.MetricTypeGauge,
 		Help:   "Up indicates whether the last target scrape was successful.",
 	},
 	"scrape_samples_scraped": {
 		Metric: "scrape_samples_scraped",
-		Type:   textparse.MetricTypeGauge,
+		Type:   model.MetricTypeGauge,
 		Help:   "How many samples were scraped during the last successful scrape.",
 	},
 	"scrape_duration_seconds": {
 		Metric: "scrape_duration_seconds",
-		Type:   textparse.MetricTypeGauge,
+		Type:   model.MetricTypeGauge,
 		Help:   "Duration of the last scrape.",
 	},
 	"scrape_samples_post_metric_relabeling": {
 		Metric: "scrape_samples_post_metric_relabeling",
-		Type:   textparse.MetricTypeGauge,
+		Type:   model.MetricTypeGauge,
 		Help:   "How many samples were ingested after relabeling.",
 	},
 	"scrape_series_added": {
 		Metric: "scrape_series_added",
-		Type:   textparse.MetricTypeGauge,
+		Type:   model.MetricTypeGauge,
 		Help:   "Number of new series added in the last scrape.",
 	},
 }

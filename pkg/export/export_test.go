@@ -27,9 +27,9 @@ import (
 	"github.com/go-kit/log"
 	"github.com/google/go-cmp/cmp"
 	gax "github.com/googleapis/gax-go/v2"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
-	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
@@ -214,7 +214,7 @@ func TestExporter_wrapMetadata(t *testing.T) {
 			desc:   "nil MetadataFunc always defaults to gauge",
 			mf:     nil,
 			metric: "some_metric",
-			want:   MetricMetadata{Metric: "some_metric", Type: textparse.MetricTypeGauge},
+			want:   MetricMetadata{Metric: "some_metric", Type: model.MetricTypeGauge},
 			wantOK: true,
 		}, {
 			desc:   "nil MetadataFunc preserves synthetic metric metadata",
@@ -222,7 +222,7 @@ func TestExporter_wrapMetadata(t *testing.T) {
 			metric: "up",
 			want: MetricMetadata{
 				Metric: "up",
-				Type:   textparse.MetricTypeGauge,
+				Type:   model.MetricTypeGauge,
 				Help:   "Up indicates whether the last target scrape was successful.",
 			},
 			wantOK: true,
@@ -231,13 +231,13 @@ func TestExporter_wrapMetadata(t *testing.T) {
 			mf: func(string) (MetricMetadata, bool) {
 				return MetricMetadata{
 					Metric: "up",
-					Type:   textparse.MetricTypeCounter,
+					Type:   model.MetricTypeCounter,
 				}, false
 			},
 			metric: "up",
 			want: MetricMetadata{
 				Metric: "up",
-				Type:   textparse.MetricTypeGauge,
+				Type:   model.MetricTypeGauge,
 				Help:   "Up indicates whether the last target scrape was successful.",
 			},
 			wantOK: true,
@@ -246,14 +246,14 @@ func TestExporter_wrapMetadata(t *testing.T) {
 			mf: func(string) (MetricMetadata, bool) {
 				return MetricMetadata{
 					Metric: "some_metric",
-					Type:   textparse.MetricTypeCounter,
+					Type:   model.MetricTypeCounter,
 					Help:   "useful help",
 				}, true
 			},
 			metric: "some_metric",
 			want: MetricMetadata{
 				Metric: "some_metric",
-				Type:   textparse.MetricTypeCounter,
+				Type:   model.MetricTypeCounter,
 				Help:   "useful help",
 			},
 			wantOK: true,
@@ -265,14 +265,14 @@ func TestExporter_wrapMetadata(t *testing.T) {
 			metric: "some_metric",
 			want: MetricMetadata{
 				Metric: "some_metric",
-				Type:   textparse.MetricTypeUnknown,
+				Type:   model.MetricTypeUnknown,
 			},
 			wantOK: true,
 		}, {
 			desc: "not found metadata returns false if base name has metadata (_sum)",
 			mf: func(m string) (MetricMetadata, bool) {
 				if m == "foo" {
-					return MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
+					return MetricMetadata{Metric: "foo", Type: model.MetricTypeSummary}, true
 				}
 				return MetricMetadata{}, false
 			},
@@ -283,7 +283,7 @@ func TestExporter_wrapMetadata(t *testing.T) {
 			desc: "not found metadata returns false if base name has metadata (_bucket)",
 			mf: func(m string) (MetricMetadata, bool) {
 				if m == "foo" {
-					return MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
+					return MetricMetadata{Metric: "foo", Type: model.MetricTypeSummary}, true
 				}
 				return MetricMetadata{}, false
 			},
@@ -294,7 +294,7 @@ func TestExporter_wrapMetadata(t *testing.T) {
 			desc: "not found metadata returns false if base name has metadata (_count)",
 			mf: func(m string) (MetricMetadata, bool) {
 				if m == "foo" {
-					return MetricMetadata{Metric: "foo", Type: textparse.MetricTypeSummary}, true
+					return MetricMetadata{Metric: "foo", Type: model.MetricTypeSummary}, true
 				}
 				return MetricMetadata{}, false
 			},

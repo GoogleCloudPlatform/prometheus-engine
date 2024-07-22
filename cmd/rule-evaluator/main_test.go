@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
+	"github.com/prometheus/prometheus/util/annotations"
 )
 
 // convert storage.SeriesSet to promql.Matrix.
@@ -54,12 +55,16 @@ func expandSeriesSet(s storage.SeriesSet) promql.Matrix {
 }
 
 // compareWarningsEquality compares two warnings.
-func compareWarningsEquality(w1, w2 storage.Warnings) bool {
+func compareWarningsEquality(w1, w2 annotations.Annotations) bool {
 	if len(w1) != len(w2) {
 		return false
 	}
-	for i := range len(w1) {
-		if w1[i] != w2[i] && w1[i].Error() != w2[i].Error() {
+	for key, val := range w1 {
+		otherVal, ok := w2[key]
+		if !ok {
+			return false
+		}
+		if val.Error() != otherVal.Error() {
 			return false
 		}
 	}
@@ -152,18 +157,19 @@ func TestSelect(t *testing.T) {
 			},
 			want: &listSeriesSet{
 				m:        promql.Matrix{},
-				warnings: storage.Warnings{errors.New("warning test")},
+				warnings: annotations.Annotations{"warning test": errors.New("warning test")},
 			},
 		},
 	}
 	for i, c := range cases {
+		ctx := context.Background()
 		t.Run(c.description, func(t *testing.T) {
 			matchers, err := labels.NewMatcher(labels.MatchEqual, model.MetricNameLabel, "testLabel")
 			if err != nil {
 				t.Errorf("Case %d: NewMatcher returned unexpected error: %s", i, err)
 			}
 
-			got := c.db.Select(false, nil, matchers)
+			got := c.db.Select(ctx, false, nil, matchers)
 			if !cmp.Equal(got.Err(), c.want.Err(), cmp.Comparer(cmpErrsEquality)) {
 				t.Errorf("Case %d: Expected error: %s, Actual error: %s", i, c.want.Err(), got.Err())
 			}

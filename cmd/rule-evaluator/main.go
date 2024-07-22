@@ -62,6 +62,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/util/annotations"
 	"github.com/prometheus/prometheus/util/strutil"
 )
 
@@ -161,7 +162,7 @@ func main() {
 	destination := export.NewStorage(exporter)
 
 	ctxDiscover, cancelDiscover := context.WithCancel(ctx)
-	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
+	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), reg, nil, discovery.Name("notify"))
 	notifierOptions := notifier.Options{
 		Registerer:    reg,
 		QueueCapacity: evaluatorOpts.QueueCapacity,
@@ -692,10 +693,10 @@ func convertModelToPromQLValue(val model.Value) (parser.Value, error) {
 }
 
 // Converting v1.Warnings to storage.Warnings.
-func convertV1WarningsToStorageWarnings(w v1.Warnings) storage.Warnings {
-	warnings := make(storage.Warnings, len(w))
-	for i, warning := range w {
-		warnings[i] = errors.New(warning)
+func convertV1WarningsToStorageWarnings(w v1.Warnings) annotations.Annotations {
+	warnings := make(annotations.Annotations, len(w))
+	for _, warning := range w {
+		warnings.Add(errors.New(warning))
 	}
 	return warnings
 }
@@ -705,7 +706,7 @@ type listSeriesSet struct {
 	m        promql.Matrix
 	idx      int
 	err      error
-	warnings storage.Warnings
+	warnings annotations.Annotations
 }
 
 // Next advances the iterator and returns true if there's data to consume.
@@ -725,7 +726,7 @@ func (ss *listSeriesSet) Err() error {
 }
 
 // Warnings returns warnings encountered while iterating.
-func (ss *listSeriesSet) Warnings() storage.Warnings {
+func (ss *listSeriesSet) Warnings() annotations.Annotations {
 	return ss.warnings
 }
 
@@ -751,10 +752,9 @@ type queryStorage struct {
 }
 
 // Querier provides querying access over time series data of a fixed time range.
-func (s *queryStorage) Querier(ctx context.Context, mint, maxt int64) (storage.Querier, error) {
+func (s *queryStorage) Querier(mint, maxt int64) (storage.Querier, error) {
 	db := &queryAccess{
 		api:   s.api,
-		ctx:   ctx,
 		mint:  mint / 1000, // divide by 1000 to convert milliseconds to seconds.
 		maxt:  maxt / 1000,
 		query: QueryFunc,
@@ -769,12 +769,11 @@ type queryAccess struct {
 	api   v1.API
 	mint  int64
 	maxt  int64
-	ctx   context.Context
 	query func(context.Context, string, time.Time, v1.API) (parser.Value, v1.Warnings, error)
 }
 
 // Select returns a set of series that matches the given label matchers and time range.
-func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ...*labels.Matcher) storage.SeriesSet {
+func (db *queryAccess) Select(ctx context.Context, sort bool, hints *storage.SelectHints, matchers ...*labels.Matcher) storage.SeriesSet {
 	if sort || hints != nil {
 		return newListSeriesSet(nil, fmt.Errorf("sorting series and select hints are not supported"), nil)
 	}
@@ -786,7 +785,7 @@ func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ..
 
 	queryExpression, filteredMatchers := convertMatchersToPromQL(matchers, duration)
 	maxt := time.Unix(db.maxt, 0)
-	v, warnings, err := db.query(db.ctx, queryExpression, maxt, db.api)
+	v, warnings, err := db.query(ctx, queryExpression, maxt, db.api)
 	if err != nil {
 		return newListSeriesSet(nil, err, warnings)
 	}
