@@ -22,8 +22,8 @@ images:
     image: gke.gcr.io/gke-distroless/bash
     tag: "20220419" # NOTE: Has to be quoted otherwise it will be treated as a number.
   alertmanager:
-    image: gke.gcr.io/prometheus-engine/alertmanager
-    tag: v0.25.1-gmp.2-gke.0
+    image: us-central1-docker.pkg.dev/gpe-test-1/dhrabovcak/alertmanager
+    tag: v0.27.0
   prometheus:
     # TODO(bwplotka): Change to "v2.45.3-gmp.6-gke.0" once tags are cloned.
     image: gke.gcr.io/prometheus-engine/prometheus@sha256

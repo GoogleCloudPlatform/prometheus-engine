@@ -837,7 +837,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: alertmanager
-        image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.2-gke.0
+        image: us-central1-docker.pkg.dev/gpe-test-1/dhrabovcak/alertmanager:v0.27.0
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
