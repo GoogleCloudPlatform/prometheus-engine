@@ -292,6 +292,7 @@ alerting:
     alertmanagers:
         - follow_redirects: true
           enable_http2: true
+          http_headers: null
           scheme: http
           timeout: 10s
           api_version: v2
@@ -307,6 +308,7 @@ alerting:
             insecure_skip_verify: false
           follow_redirects: true
           enable_http2: true
+          http_headers: null
           scheme: https
           path_prefix: /test
           timeout: 30s
@@ -325,6 +327,7 @@ alerting:
               kubeconfig_file: ""
               follow_redirects: true
               enable_http2: true
+              http_headers: null
               namespaces:
                 own_namespace: false
                 names:
