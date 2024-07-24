@@ -24,7 +24,5 @@ spec:
     metricRelabeling:
     # Ensure any changes made to the metrics are also reflected in https://cloud.google.com/kubernetes-engine/docs/how-to/cadvisor-kubelet-metrics#kubelet-pod-metrics
     - sourceLabels: [__name__]
-      regex: > 
-            kubelet_(node_name|certificate_manager_server_ttl_seconds|pleg_relist_duration_seconds|pod_worker_duration_seconds|running_containers|running_pods|runtime_operations_total)|
-            kubelet_volume_(stats_available_bytes|stats_capacity_bytes|stats_inodes_free|stats_inodes_used|stats_inodes|stats_used_bytes)
+      regex: kubelet_certificate_manager_server_ttl_seconds|kubelet_node_name|kubelet_pleg_relist_duration_seconds.*|kubelet_pod_worker_duration_seconds.*|kubelet_running_containers|kubelet_running_pods|kubelet_runtime_operations_total|kubelet_volume_stats_available_bytes|kubelet_volume_stats_capacity_bytes|kubelet_volume_stats_inodes|kubelet_volume_stats_inodes_free|kubelet_volume_stats_inodes_used|kubelet_volume_stats_used_bytes
       action: keep

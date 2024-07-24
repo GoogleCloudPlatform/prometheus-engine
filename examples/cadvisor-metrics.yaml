@@ -24,8 +24,5 @@ spec:
     metricRelabeling:
     # Ensure any changes made to the metrics are also reflected in https://cloud.google.com/kubernetes-engine/docs/how-to/cadvisor-kubelet-metrics#cadvisor-metrics
     - sourceLabels: [__name__]
-      regex: >
-        container_(cpu_cfs_periods_total|cpu_cfs_throttled_periods_total|cpu_usage_seconds_total|memory_rss|memory_working_set_bytes)|
-        container_fs_(limit_bytes|read_seconds_total|reads_bytes_total|reads_total|usage_bytes|write_seconds_total|writes_bytes_total|writes_total)|
-        container_network_(receive_bytes|receive_packets_dropped|receive_packets|transmit_bytes|transmit_packets_dropped|transmit_packets)_total
+      regex: container_cpu_cfs_periods_total|container_cpu_cfs_throttled_periods_total|container_cpu_usage_seconds_total|container_fs_limit_bytes|container_fs_read_seconds_total|container_fs_reads_bytes_total|container_fs_reads_total|container_fs_usage_bytes|container_fs_write_seconds_total|container_fs_writes_bytes_total|container_fs_writes_total|container_memory_rss|container_memory_working_set_bytes|container_network_receive_bytes_total|container_network_receive_packets_dropped_total|container_network_receive_packets_total|container_network_transmit_bytes_total|container_network_transmit_packets_dropped_total|container_network_transmit_packets_total
       action: keep
