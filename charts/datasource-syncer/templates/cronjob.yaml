@@ -18,7 +18,7 @@ kind: CronJob
 metadata:
   name: datasource-syncer
 spec:
-  schedule: "*/30 * * * *" # Run once every 30 minutes, must run at least once an hour.
+  schedule: "*/10 * * * *" # Run once every 10 minutes, must run at least once an hour.
   jobTemplate:
     spec:
       template:
