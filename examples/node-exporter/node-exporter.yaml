@@ -19,7 +19,7 @@ metadata:
   name: node-exporter
   labels:
     app.kubernetes.io/name: node-exporter
-    app.kubernetes.io/version: 1.3.1
+    app.kubernetes.io/version: 1.8.2
 spec:
   selector:
     matchLabels:
@@ -32,7 +32,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: node-exporter
-        app.kubernetes.io/version: 1.3.1
+        app.kubernetes.io/version: 1.8.2
     spec:
       affinity:
         nodeAffinity:
@@ -50,7 +50,7 @@ spec:
                 - linux
       containers:
       - name: node-exporter
-        image: quay.io/prometheus/node-exporter:v1.3.1
+        image: quay.io/prometheus/node-exporter:v1.8.2
         args:
         - --web.listen-address=:8080
         - --path.sysfs=/host/sys
