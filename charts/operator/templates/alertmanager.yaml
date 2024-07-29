@@ -137,7 +137,12 @@ spec:
         secret:
           secretName: alertmanager
       - name: alertmanager-data
+        {{- if .Values.alertManager.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: alertmanager-data
+      {{- else }}
         emptyDir: {}
+      {{- end }}
       - name: alertmanager-config
         emptyDir: {}
       affinity:
@@ -170,3 +175,23 @@ spec:
         seccompProfile:
           type: RuntimeDefault
   serviceName: alertmanager
+{{- if .Values.alertManager.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alertmanager-data
+spec:
+  accessModes:
+    {{- toYaml .Values.alertManager.persistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.alertManager.persistence.size }}
+  {{- if .Values.alertManager.persistence.storageClass }}
+  {{- if (eq "none" .Values.alertManager.persistence.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: "{{ .Values.alertManager.persistence.storageClass }}"
+  {{- end }}
+  {{- end }}
+{{- end }}
