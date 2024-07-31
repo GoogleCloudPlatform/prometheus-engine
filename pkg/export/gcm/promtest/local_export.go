@@ -38,10 +38,10 @@ import (
 	"github.com/prometheus/prometheus/tsdb/chunks"
 	"github.com/prometheus/prometheus/tsdb/record"
 	"golang.org/x/oauth2"
+	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	"github.com/go-kit/log"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/oauth2/google"
 )
 
@@ -74,7 +74,9 @@ func (l *localExportWithGCM) Ref() string { return "export-pkg-with-gcm" }
 func (l *localExportWithGCM) start(t testing.TB, _ e2e.Environment) (v1.API, map[string]string) {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(signals.SetupSignalHandler())
+	t.Cleanup(cancel)
+
 	creds, err := google.CredentialsFromJSON(ctx, l.gcmSA, gcm.DefaultAuthScopes()...)
 	if err != nil {
 		t.Fatalf("create credentials from JSON: %s", err)
@@ -100,24 +102,24 @@ func (l *localExportWithGCM) start(t testing.TB, _ e2e.Environment) (v1.API, map
 		ProjectID:           creds.ProjectID,
 		CredentialsFromJSON: l.gcmSA,
 	}
-	l.e, err = export.New(ctx, log.NewJSONLogger(os.Stderr), prometheus.NewRegistry(), exporterOpts, export.NopLease())
+	l.e, err = export.New(ctx, log.NewJSONLogger(os.Stderr), nil, exporterOpts, export.NopLease())
 	if err != nil {
 		t.Fatalf("create exporter: %v", err)
 	}
 
 	// Apply empty config, so resources labels are attached.
-	if err := l.e.ApplyConfig(&config.DefaultConfig); err != nil {
+	if err := l.e.ApplyConfig(&config.DefaultConfig, nil); err != nil {
 		t.Fatalf("apply config: %v", err)
 	}
 	l.e.SetLabelsByIDFunc(func(ref storage.SeriesRef) labels.Labels {
 		return l.labelsByRef[ref]
 	})
 
-	cancelableCtx, cancel := context.WithCancel(ctx)
-	//nolint:errcheck
-	go l.e.Run(cancelableCtx)
-	// TODO(bwplotka): Consider listening for KILL signal too.
-	t.Cleanup(cancel)
+	go func() {
+		if err := l.e.Run(); err != nil {
+			t.Logf("running exporter: %s", err)
+		}
+	}()
 
 	return v1.NewAPI(cl), map[string]string{
 		"cluster":    cluster,
@@ -136,7 +138,7 @@ func (l *localExportWithGCM) injectScrapes(t testing.TB, scrapeRecordings [][]*d
 		// for generating multi counter metrics like legacy histograms and summaries.
 
 		b := bytes.Buffer{}
-		enc := expfmt.NewEncoder(&b, expfmt.FmtProtoDelim)
+		enc := expfmt.NewEncoder(&b, expfmt.NewFormat(expfmt.TypeProtoDelim))
 		for _, mf := range mfs {
 			if err := enc.Encode(mf); err != nil {
 				t.Fatal(err)
@@ -147,7 +149,7 @@ func (l *localExportWithGCM) injectScrapes(t testing.TB, scrapeRecordings [][]*d
 				t.Fatal(err)
 			}
 		}
-		tp, err := textparse.New(b.Bytes(), string(expfmt.FmtProtoDelim), true)
+		tp, err := textparse.New(b.Bytes(), string(expfmt.NewFormat(expfmt.TypeProtoDelim)), true, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

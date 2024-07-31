@@ -716,15 +716,18 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 	want := []string{
 		`job_name: PodMonitoring/ns1/name1/web
 honor_timestamps: false
+track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 10s
 metrics_path: /metrics
+enable_compression: false
 sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
 label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
+http_headers: null
 relabel_configs:
 - target_label: project_id
   replacement: test_project
@@ -787,15 +790,18 @@ kubernetes_sd_configs:
   kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
+  http_headers: null
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
 `,
 		`job_name: PodMonitoring/ns1/name1/8080
 honor_timestamps: false
+track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 5s
 metrics_path: /prometheus
+enable_compression: false
 sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
@@ -803,6 +809,7 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
+http_headers: null
 relabel_configs:
 - target_label: project_id
   replacement: test_project
@@ -854,6 +861,7 @@ kubernetes_sd_configs:
   kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
+  http_headers: null
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
@@ -938,15 +946,18 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 	want := []string{
 		`job_name: ClusterPodMonitoring/name1/web
 honor_timestamps: false
+track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 10s
 metrics_path: /metrics
+enable_compression: false
 sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
 label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
+http_headers: null
 relabel_configs:
 - target_label: project_id
   replacement: test_project
@@ -1004,15 +1015,18 @@ kubernetes_sd_configs:
   kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
+  http_headers: null
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
 `,
 		`job_name: ClusterPodMonitoring/name1/8080
 honor_timestamps: false
+track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 5s
 metrics_path: /prometheus
+enable_compression: false
 sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
@@ -1020,6 +1034,7 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
+http_headers: null
 relabel_configs:
 - target_label: project_id
   replacement: test_project
@@ -1068,6 +1083,7 @@ kubernetes_sd_configs:
   kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
+  http_headers: null
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
