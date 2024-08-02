@@ -1173,13 +1173,30 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 		},
 		{
-			desc: "ClusterNodeMonitoring hardcoded scrape configs",
+			desc: "ClusterNodeMonitoring scrape configs - kubelet",
 			targets: []*prometheusv1.TargetsResult{
 				{
 					Active: []prometheusv1.ActiveTarget{{
 						Health:     "up",
 						LastError:  "",
-						ScrapePool: "ClusterNodeMonitoring/node-example-1/metrics",
+						ScrapePool: "ClusterNodeMonitoring/gmp-kubelet-metrics/metrics",
+						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
+							"instance": "a",
+							"node":     "node-1-default-pool-abcd1234",
+						}),
+						LastScrapeDuration: 1.2,
+					}},
+				},
+			},
+		},
+		{
+			desc: "ClusterNodeMonitoring scrape configs - cadvisor",
+			targets: []*prometheusv1.TargetsResult{
+				{
+					Active: []prometheusv1.ActiveTarget{{
+						Health:     "up",
+						LastError:  "",
+						ScrapePool: "ClusterNodeMonitoring/gmp-kubelet-cadvisor/metrics/cadvisor",
 						Labels: model.LabelSet(map[model.LabelName]model.LabelValue{
 							"instance": "a",
 							"node":     "node-1-default-pool-abcd1234",
