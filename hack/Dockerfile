@@ -26,7 +26,7 @@ RUN go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
 
 RUN go install github.com/bwplotka/bingo@v0.9.0
 COPY .bingo .bingo
-RUN bingo get
+RUN bingo -v get # TODO(bwplotka): It takes 177s in docker container with colima on Mac for me. Investigate or de-dockerize.
 
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
