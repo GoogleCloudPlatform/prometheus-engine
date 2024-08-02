@@ -163,7 +163,7 @@ func parseScrapePool(pool string) (scrapePool, error) {
 		}
 		return getClusterScopedScrapePool(pool, split), nil
 	case "ClusterNodeMonitoring":
-		if len(split) != 3 {
+		if len(split) != 3 && len(split) != 4 {
 			return scrapePool{}, fmt.Errorf("invalid ClusterNodeMonitoring scrape pool format %q", pool)
 		}
 		return getClusterScopedScrapePool(pool, split), nil
