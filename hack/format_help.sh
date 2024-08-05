@@ -24,5 +24,6 @@ REPO_ROOT=$(realpath $(dirname "${BASH_SOURCE[0]}")/..)
 BIN_PATH=$1
 
 # Print the command --help, but remove the full path (which is in tmp dir when
-# build through go run).
-go run "${REPO_ROOT}/cmd/${BIN_PATH}" --help 2>&1 >/dev/null | sed 's/^Usage of \/.*\//Usage of /'
+# build through go run) and potential debug logs because as GCE_METADATA_HOST is
+# broken for purpose for consistent defaults.
+GCE_METADATA_HOST="disabled" go run "${REPO_ROOT}/cmd/${BIN_PATH}" --help 2>&1 >/dev/null | sed 's/^Usage of \/.*\//Usage of /' | sed '/.*http:\/\/disabled\/.*/d'
