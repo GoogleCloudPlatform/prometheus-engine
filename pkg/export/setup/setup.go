@@ -173,6 +173,33 @@ func ExporterOptsFlags(a *kingpin.Application, opts *export.ExporterOpts) {
 		StringVar(&opts.QuotaProject)
 }
 
+type Opts struct {
+	ExporterOpts export.ExporterOpts
+	MetadataOpts MetadataOpts
+	HAOptions    HAOptions
+}
+
+// SetupFlags adds flags to the application, defaulting the options.
+func (opts *Opts) SetupFlags(a *kingpin.Application) {
+	ExporterOptsFlags(a, &opts.ExporterOpts)
+	opts.MetadataOpts.SetupFlags(a)
+	opts.HAOptions.SetupFlags(a)
+}
+
+func (opts *Opts) NewExporter(ctx context.Context, logger log.Logger, reg prometheus.Registerer) (*export.Exporter, error) {
+	// In case the user reset the fields, default them.
+	opts.ExporterOpts.DefaultUnsetFields()
+	opts.MetadataOpts.DefaultUnsetFields()
+	opts.HAOptions.DefaultUnsetFields()
+
+	opts.MetadataOpts.ExtractMetadata(logger, &opts.ExporterOpts)
+	lease, err := opts.HAOptions.NewLease(logger, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, fmt.Errorf("create lease: %w", err)
+	}
+	return export.New(ctx, logger, reg, opts.ExporterOpts, lease)
+}
+
 type HAOptions struct {
 	Backend        string
 	KubeConfigFile string
@@ -180,7 +207,8 @@ type HAOptions struct {
 	KubeName       string
 }
 
-func (opts *HAOptions) Default() {
+// DefaultUnsetFields defaults any zero-valued fields.
+func (opts *HAOptions) DefaultUnsetFields() {
 	if opts.Backend == "" {
 		opts.Backend = HABackendNone
 	}
@@ -188,7 +216,7 @@ func (opts *HAOptions) Default() {
 
 // SetupFlags adds flags to the application, defaulting the options.
 func (opts *HAOptions) SetupFlags(a *kingpin.Application) {
-	opts.Default()
+	opts.DefaultUnsetFields()
 
 	a.Flag("export.ha.backend", fmt.Sprintf("Which backend to use to coordinate HA pairs that both send metric data to the GCM API. Valid values are %q or %q", HABackendNone, HABackendKubernetes)).
 		Default(opts.Backend).
@@ -260,7 +288,8 @@ type MetadataOpts struct {
 	FetchTimeout time.Duration
 }
 
-func (o *MetadataOpts) Default() {
+// DefaultUnsetFields defaults any zero-valued fields.
+func (o *MetadataOpts) DefaultUnsetFields() {
 	if o.FetchTimeout == 0 {
 		o.FetchTimeout = time.Second * 10
 	}
@@ -268,7 +297,7 @@ func (o *MetadataOpts) Default() {
 
 // SetupFlags adds flags to the application, defaulting the options.
 func (o *MetadataOpts) SetupFlags(a *kingpin.Application) {
-	o.Default()
+	o.DefaultUnsetFields()
 
 	a.Flag("export.debug.fetch-metadata-timeout", "The total timeout for the initial gathering of the best-effort GCP data from the metadata server. This data is used for special labels required by Prometheus metrics (e.g. project id, location, cluster name), as well as information for the user agent. This is done on startup, so make sure this work to be faster than your readiness and liveliness probes.").
 		Default(o.FetchTimeout.String()).
