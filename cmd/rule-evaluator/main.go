@@ -106,16 +106,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	exporterOpts := export.ExporterOpts{
-		UserAgentProduct: fmt.Sprintf("rule-evaluator/%s", version),
+	opts := exportsetup.Opts{
+		ExporterOpts: export.ExporterOpts{
+			UserAgentProduct: fmt.Sprintf("rule-evaluator/%s", version),
+		},
 	}
-	exportsetup.ExporterOptsFlags(a, &exporterOpts)
-
-	metadataOpts := exportsetup.MetadataOpts{}
-	metadataOpts.SetupFlags(a)
-
-	haOpts := exportsetup.HAOptions{}
-	haOpts.SetupFlags(a)
+	opts.SetupFlags(a)
 
 	evaluatorOpts := evaluatorOptions{
 		TargetURL:     Must(url.Parse(fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar))),
@@ -147,14 +143,8 @@ func main() {
 	startTime := time.Now()
 	ctx := context.Background()
 
-	metadataOpts.ExtractMetadata(logger, &exporterOpts)
-	lease, err := haOpts.NewLease(logger, reg)
-	if err != nil {
-		_ = level.Error(logger).Log("msg", "Unable to setup Cloud Monitoring Exporter lease", "err", err)
-		os.Exit(1)
-	}
 	ctxExporter, cancelExporter := context.WithCancel(ctx)
-	exporter, err := export.New(ctxExporter, logger, reg, exporterOpts, lease)
+	exporter, err := opts.NewExporter(ctxExporter, logger, reg)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "Creating a Cloud Monitoring Exporter failed", "err", err)
 		os.Exit(1)
