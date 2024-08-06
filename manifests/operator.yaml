@@ -402,6 +402,16 @@ spec:
             - all
           privileged: false
           readOnlyRootFilesystem: true
+        livenessProbe:
+          httpGet:
+            port: 19091
+            path: /-/healthy
+            scheme: HTTP
+        readinessProbe:
+          httpGet:
+            port: 19091
+            path: /-/ready
+            scheme: HTTP
       - name: prometheus
         image: gke.gcr.io/prometheus-engine/prometheus@sha256:8c8e35af7e2b92ac9d82ce640621c0d3aa10d7d62856681af3572d0a8fbb787b
         args:
@@ -708,6 +718,16 @@ spec:
             - all
           privileged: false
           readOnlyRootFilesystem: true
+        livenessProbe:
+          httpGet:
+            port: 19093
+            path: /-/healthy
+            scheme: HTTP
+        readinessProbe:
+          httpGet:
+            port: 19093
+            path: /-/ready
+            scheme: HTTP
       - name: evaluator
         image: gke.gcr.io/prometheus-engine/rule-evaluator@sha256:6ae997a8ed636da06b7a9dc7fc950b98ce91c38c135aad2dcc95d6d3dd841ee0
         args:
@@ -908,6 +928,16 @@ spec:
             - all
           privileged: false
           readOnlyRootFilesystem: true
+        livenessProbe:
+          httpGet:
+            port: 19091
+            path: /-/healthy
+            scheme: HTTP
+        readinessProbe:
+          httpGet:
+            port: 19091
+            path: /-/ready
+            scheme: HTTP
       volumes:
       - name: config
         secret:

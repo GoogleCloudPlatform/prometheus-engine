@@ -775,7 +775,7 @@ func logsError(logs string) (string, error) {
 		}
 		data := map[string]string{}
 		if err := json.Unmarshal([]byte(line), &data); err != nil {
-			return "", fmt.Errorf("unable to unmarshal log line: %s", err)
+			return "", fmt.Errorf("unable to unmarshal log line %q: %s", line, err)
 		}
 		if data["level"] == "error" {
 			return line, nil

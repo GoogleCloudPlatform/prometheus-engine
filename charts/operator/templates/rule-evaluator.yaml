@@ -92,6 +92,16 @@ spec:
             - all
           privileged: false
           readOnlyRootFilesystem: true
+        livenessProbe:
+          httpGet:
+            port: 19093
+            path: /-/healthy
+            scheme: HTTP
+        readinessProbe:
+          httpGet:
+            port: 19093
+            path: /-/ready
+            scheme: HTTP
       - name: evaluator
         image: {{.Values.images.ruleEvaluator.image}}:{{.Values.images.ruleEvaluator.tag}}
         args:

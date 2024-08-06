@@ -87,6 +87,16 @@ spec:
             - all
           privileged: false
           readOnlyRootFilesystem: true
+        livenessProbe:
+          httpGet:
+            port: 19091
+            path: /-/healthy
+            scheme: HTTP
+        readinessProbe:
+          httpGet:
+            port: 19091
+            path: /-/ready
+            scheme: HTTP
       - name: prometheus
         image: {{.Values.images.prometheus.image}}:{{.Values.images.prometheus.tag}}
         args:
