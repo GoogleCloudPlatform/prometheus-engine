@@ -41,7 +41,6 @@ images:
     image: gcr.io/gke-release/prometheus-engine/datasource-syncer
     #TODO(macxamin) Sync CURRENT_DATASOURCE_SYNCER_TAG with CURRENT_TAG
     tag: v0.10.0-gke.3
-maxThroughput: false
 resources:
   alertManager:
     limits:
