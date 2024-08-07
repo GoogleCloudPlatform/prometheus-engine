@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
@@ -118,6 +117,8 @@ receivers:
   - name: "foobar"
 route:
   receiver: "foobar"
+google_cloud:
+  external_url: "https://alertmanager.mycompany.com/"
 `
 		secret := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -181,7 +182,6 @@ route:
 				return false, fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 			}
 
-			// Check externalURL was set on statefulset.
 			ss := appsv1.StatefulSet{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      operator.NameAlertmanager,
@@ -199,15 +199,6 @@ route:
 			for _, c := range ss.Spec.Template.Spec.Containers {
 				if c.Name != operator.AlertmanagerContainerName {
 					continue
-				}
-				// We're mainly interested in the dynamic flags but checking the entire set including
-				// the static ones is ultimately simpler.
-				wantArgs := []string{
-					fmt.Sprintf("--web.external-url=%q", "https://alertmanager.mycompany.com/"),
-				}
-
-				if diff := cmp.Diff(strings.Join(wantArgs, " "), getEnvVar(c.Env, "EXTRA_ARGS")); diff != "" {
-					return false, fmt.Errorf("unexpected flags (-want, +got): %s", diff)
 				}
 				return true, nil
 			}

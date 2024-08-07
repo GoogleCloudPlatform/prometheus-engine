@@ -22,6 +22,7 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
+	alertmanagerconfig "github.com/prometheus/alertmanager/config"
 	promcommonconfig "github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
@@ -399,6 +400,20 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 		// so that the managed AM pod doesn't crash loop.
 		logger.Info(fmt.Sprintf("alertmanager config secret not found in namespace %s: %s", pubNamespace, err.Error()))
 	} else {
+		config := alertmanagerConfig{}
+		if err := yaml.Unmarshal(b, &config); err != nil {
+			return fmt.Errorf("load alertmanager config: %w", err)
+		}
+		// Only set the value if we need to. This provides a fail-safe in case users change our
+		// Alertmanager image with their own. Otherwise, if we always set and they change the image,
+		// their Alertmanager will fail unless they have our patch.
+		if config.GoogleCloud.ExternalURL != spec.ExternalURL {
+			config.GoogleCloud.ExternalURL = spec.ExternalURL
+			b, err = yaml.Marshal(config)
+			if err != nil {
+				return fmt.Errorf("marshal alertmanager config: %w", err)
+			}
+		}
 		secret.Data[AlertmanagerConfigKey] = b
 	}
 
@@ -410,6 +425,35 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 		return fmt.Errorf("update alertmanager config secret: %w", err)
 	}
 
+	return nil
+}
+
+type alertmanagerConfig struct {
+	alertmanagerconfig.Config `yaml:",inline"`
+
+	// Google Cloud configuration. Matches our fork's configuration.
+	GoogleCloud googleCloudAlertmanagerConfig `yaml:"google_cloud,omitempty"`
+}
+
+type googleCloudAlertmanagerConfig struct {
+	ExternalURL string `yaml:"external_url,omitempty"`
+}
+
+func (config *alertmanagerConfig) UnmarshalYAML(value *yaml.Node) error {
+	// See: https://github.com/go-yaml/yaml/issues/125
+	// Since the Prometheus configuration uses a custom unmarshaler, it is unable to be
+	// unmarshal-ed unless we write our own.
+	if err := value.Decode(&config.Config); err != nil {
+		return err
+	}
+	// We must replicate the nested fields.
+	googleCloudConfig := struct {
+		GoogleCloud googleCloudAlertmanagerConfig `yaml:"google_cloud,omitempty"`
+	}{}
+	if err := value.Decode(&googleCloudConfig); err != nil {
+		return err
+	}
+	config.GoogleCloud = googleCloudConfig.GoogleCloud
 	return nil
 }
 
@@ -457,14 +501,14 @@ func (r *operatorConfigReconciler) ensureAlertmanagerStatefulSet(ctx context.Con
 		return err
 	}
 
-	var flags []string
-	if externalURL := spec.ExternalURL; externalURL != "" {
-		flags = append(flags, fmt.Sprintf("--web.external-url=%q", externalURL))
-	}
-	setContainerExtraArgs(sset.Spec.Template.Spec.Containers, AlertmanagerContainerName, strings.Join(flags, " "))
+	setContainerExtraArgs(sset.Spec.Template.Spec.Containers, AlertmanagerContainerName, "")
 
-	// Upsert alertmanager StatefulSet.
-	return r.client.Update(ctx, &sset)
+	// Support not having UPDATE permission. We will remove it in the future.
+	// See: https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1080
+	if err := r.client.Update(ctx, &sset); !apierrors.IsForbidden(err) {
+		return err
+	}
+	return nil
 }
 
 // ensureRuleEvaluatorDeployment reconciles the Deployment for rule-evaluator.
