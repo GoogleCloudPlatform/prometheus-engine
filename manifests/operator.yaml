@@ -488,10 +488,6 @@ spec:
                 operator: In
                 values:
                 - linux
-              - key: cloud.google.com/gke-monitoring-variant
-                operator: NotIn
-                values:
-                - MAX_THROUGHPUT
       tolerations:
       - effect: NoExecute
         operator: Exists
