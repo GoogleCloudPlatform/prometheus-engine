@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -196,6 +197,12 @@ func testCollectorDeployed(ctx context.Context, restConfig *rest.Config, kubeCli
 	}
 }
 
+// TODO(TheSpiritXIII): https://github.com/go-yaml/yaml/issues/125
+type PrometheusConfig struct {
+	// Google Cloud configuration. Matches our fork's configuration.
+	GoogleCloud *operator.GoogleCloudConfig `yaml:"google_cloud,omitempty"`
+}
+
 func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is configured")
@@ -225,46 +232,42 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 			t.Fatalf("update operatorconfig: %s", err)
 		}
 
-		// Keep checking the state of the collectors until they're running.
-		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			ds := appsv1.DaemonSet{
+		var err error
+		pollErr := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			configMap := corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      operator.NameCollector,
 					Namespace: operator.DefaultOperatorNamespace,
+					Name:      operator.NameCollector,
 				},
 			}
-			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&ds), &ds); err != nil {
+			if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(&configMap), &configMap); err != nil {
 				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
-				return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
+				return false, fmt.Errorf("getting collector ConfigMap failed: %w", err)
 			}
 
-			// Ensure prometheus container has expected args.
-			for _, c := range ds.Spec.Template.Spec.Containers {
-				if c.Name != operator.CollectorPrometheusContainerName {
-					continue
-				}
-
-				// We're mainly interested in the dynamic flags but checking the entire set including
-				// the static ones is ultimately simpler.
-				wantArgs := []string{
-					fmt.Sprintf("--export.match=%q", projectFilter),
-					fmt.Sprintf("--export.match=%q", locationFilter),
-					fmt.Sprintf("--export.match=%q", kubeletFilter)}
-				gotArgs := getEnvVar(c.Env, "EXTRA_ARGS")
-				for _, arg := range wantArgs {
-					if !strings.Contains(gotArgs, arg) {
-						return false, fmt.Errorf("expected arg %q not found in EXTRA_ARGS: %q", arg, gotArgs)
-					}
-				}
-
-				return true, nil
+			config := PrometheusConfig{}
+			data := configMap.Data["config.yaml"]
+			if err = yaml.Unmarshal([]byte(data), &config); err != nil {
+				return false, err
 			}
-			return false, errors.New("no container with name prometheus found")
+			if config.GoogleCloud == nil || config.GoogleCloud.Export == nil {
+				err = fmt.Errorf("unable to find Google cloud config:\n%s", data)
+				return false, nil
+			}
+			if !cmp.Equal([]string{projectFilter, locationFilter, kubeletFilter}, config.GoogleCloud.Export.Match) {
+				err = errors.New("unable to find export matchers")
+				return false, nil
+			}
+
+			return true, nil
 		})
-		if err != nil {
-			t.Fatalf("waiting for collector configuration failed: %s", err)
+		if pollErr != nil {
+			if wait.Interrupted(pollErr) {
+				pollErr = err
+			}
+			t.Fatalf("waiting for collector configuration failed: %s", pollErr)
 		}
 	}
 }

@@ -91,7 +91,7 @@ spec:
             privileged: false
             readOnlyRootFilesystem: true
         - name: prometheus
-          image: gke.gcr.io/prometheus-engine/prometheus@sha256:8c8e35af7e2b92ac9d82ce640621c0d3aa10d7d62856681af3572d0a8fbb787b
+          image: us-central1-docker.pkg.dev/gpe-test-1/dhrabovcak/prometheus:latest
           args:
             - --config.file=/prometheus/config_out/config.yaml
             - --enable-feature=exemplar-storage
