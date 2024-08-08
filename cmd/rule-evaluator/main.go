@@ -34,6 +34,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	exportsetup "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export/setup"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -44,6 +45,7 @@ import (
 	apihttp "google.golang.org/api/transport/http"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"gopkg.in/yaml.v3"
 
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -167,16 +169,45 @@ func main() {
 
 	reloaders := []reloader{
 		{
-			name:     "notify",
-			reloader: notificationManager.ApplyConfig,
+			name: "notify",
+			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
+				return notificationManager.ApplyConfig(&cfg.Config)
+			},
 		}, {
 			name: "exporter",
-			reloader: func(c *config.Config) error {
-				return destination.ApplyConfig(c, nil)
+			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
+				// Don't modify defaults. Copy defaults and modify based on config.
+				exporterOpts := opts.ExporterOpts
+				if cfg.GoogleCloud.Export != nil {
+					exportConfig := cfg.GoogleCloud.Export
+					if exportConfig.Compression != nil {
+						exporterOpts.Compression = *exportConfig.Compression
+					}
+					if exportConfig.Match != nil {
+						var selectors []labels.Selector
+						for _, match := range exportConfig.Match {
+							selector, err := parser.ParseMetricSelector(match)
+							if err != nil {
+								return fmt.Errorf("invalid metric matcher %q: %w", match, err)
+							}
+							selectors = append(selectors, selector)
+						}
+						exporterOpts.Matchers = selectors
+					}
+					if exportConfig.CredentialsFile != nil {
+						exporterOpts.CredentialsFile = *exportConfig.CredentialsFile
+					}
+
+					if err := exporterOpts.Validate(); err != nil {
+						return fmt.Errorf("unable to validate Google Cloud fields: %w", err)
+					}
+				}
+
+				return destination.ApplyConfig(&cfg.Config, &exporterOpts)
 			},
 		}, {
 			name: "notify_sd",
-			reloader: func(cfg *config.Config) error {
+			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
 				c := make(map[string]discovery.Configs)
 				for k, v := range cfg.AlertingConfig.AlertmanagerConfigs.ToMap() {
 					c[k] = v.ServiceDiscoveryConfigs
@@ -184,8 +215,10 @@ func main() {
 				return discoveryManager.ApplyConfig(c)
 			},
 		}, {
-			name:     "rules",
-			reloader: ruleEvaluator.ApplyConfig,
+			name: "rules",
+			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
+				return ruleEvaluator.ApplyConfig(&cfg.Config)
+			},
 		},
 	}
 
@@ -564,7 +597,7 @@ func googleCloudLink(projectID, expr string, endTime, startTime time.Time) *url.
 
 type reloader struct {
 	name     string
-	reloader func(*config.Config) error
+	reloader func(*operator.RuleEvaluatorConfig) error
 }
 
 // configMetrics establishes reloading metrics similar to Prometheus' built-in ones.
@@ -610,10 +643,14 @@ func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rl
 	timings := []interface{}{}
 	_ = level.Info(logger).Log("msg", "Loading configuration file", "filename", filename)
 
-	conf, err := config.LoadFile(filename, false, false, logger)
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return fmt.Errorf("read configuration (--config.file=%q): %w", filename, err)
+	}
+	conf, err := loadConfig(content)
 	if err != nil {
 		metrics.setFailure()
-		return fmt.Errorf("couldn't load configuration (--config.file=%q): %w", filename, err)
+		return fmt.Errorf("load configuration (--config.file=%q): %w", filename, err)
 	}
 
 	failed := false
@@ -634,6 +671,19 @@ func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rl
 	l := []interface{}{"msg", "Completed loading of configuration file", "filename", filename, "totalDuration", time.Since(start)}
 	_ = level.Info(logger).Log(append(l, timings...)...)
 	return nil
+}
+
+func loadConfig(content []byte) (*operator.RuleEvaluatorConfig, error) {
+	conf := &operator.RuleEvaluatorConfig{
+		Config: config.DefaultConfig,
+	}
+	// Don't expand external labels on config file loading. It's a feature we like but we
+	// want to remain compatible with Prometheus and this is still an experimental feature,
+	// which we don't support. See the Prometheus' config.LoadFile method.
+	if err := yaml.Unmarshal(content, conf); err != nil {
+		return nil, fmt.Errorf("unmarshal: %w", err)
+	}
+	return conf, nil
 }
 
 // convertMetricToLabel converts model.Metric to labels.label.
