@@ -1,0 +1,9 @@
+  # buf.gen.yaml
+  version: v1
+  plugins:
+  - plugin: go-v1.31.0
+    out: .
+    opt: paths=source_relative,Mpkg/prompb/io/prometheus/write/v2/types.proto=github.com/GoogleCloudPlatform/prometheus-engine/pkg/prompb/io/prometheus/write/v2
+  - plugin: go-vtproto-v0.6.0
+    out: .
+    opt: paths=source_relative,Mpkg/prompb/io/prometheus/write/v2/types.proto=github.com/GoogleCloudPlatform/prometheus-engine/pkg/prompb/io/prometheus/write/v2,features=marshal+unmarshal+size+pool+clone,pool=github.com/GoogleCloudPlatform/prometheus-engine/pkg/prompb/io/prometheus/write/v2.Request

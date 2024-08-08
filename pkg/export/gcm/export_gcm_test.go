@@ -113,3 +113,74 @@ func TestExport_CounterReset(t *testing.T) {
 		})
 	}
 }
+
+func TestExport(t *testing.T) {
+	const interval = 30 * time.Second
+
+	prom := promtest.Prometheus("quay.io/prometheus/prometheus:v2.47.2")
+	// TODO(bwplotka): Take upstream once https://github.com/prometheus/prometheus/pull/14395
+	// is merged. Locally built image for now.
+	promViaProxy := promtest.PrometheusViaProxyWithGCM("prometheus:v2.54-dev-prw2.0-rc.1", "prom2gcm:v0.14.0-dev1", promtest.GCMServiceAccountOrFail(t))
+	export := promtest.LocalExportWithGCM(promtest.GCMServiceAccountOrFail(t))
+
+	it := promtest.NewIngestionTest(t, []promtest.Backend{prom, promViaProxy, export})
+
+	// TODO(bwplotka): Add more metric types.
+
+	//nolint:promlinter // Test metric.
+	gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "pe_test_gauge",
+		Help: "Test gauge used by prometheus-engine export GCM acceptance tests.",
+	}, []string{"foo"})
+	var g prometheus.Gauge
+
+	//nolint:promlinter // Test metric.
+	counter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "pe_test_counter_total",
+		Help: "Test counter used by prometheus-engine export GCM acceptance tests.",
+	}, []string{"foo"})
+	var c prometheus.Counter
+
+	it.RecordScrapes(func(r prometheus.Registerer, scrape promtest.Scrape) {
+		r.MustRegister(gauge, counter)
+
+		// No metric.
+		scrape(interval)
+
+		g = gauge.WithLabelValues("bar1")
+		g.Set(124.2)
+		c = counter.WithLabelValues("bar2")
+		c.Add(200)
+
+		scrape(interval).
+			Expect(124.2, g, prom).
+			Expect(124.2, g, promViaProxy).
+			Expect(124.2, g, export).
+			Expect(200, c, prom)
+		// promViaProxy: For c nothing is expected due to Prometheus not setting CT currently.
+		// export: For c nothing is expected for GMP due to cannibalization.
+		// See https://cloud.google.com/stackdriver/docs/managed-prometheus/troubleshooting#counter-sums
+		// TODO(bwplotka): Fix with b/259261536.
+
+		g.Set(-29991.1214)
+		c.Add(10)
+
+		scrape(interval).
+			Expect(-29991.1214, g, prom).
+			Expect(-29991.1214, g, promViaProxy).
+			Expect(-29991.1214, g, export).
+			Expect(10, c, export).
+			Expect(210, c, prom)
+		// promViaProxy: For c nothing is expected due to Prometheus not setting CT currently.
+	})
+
+	// Expect what we set we want for each backend.
+	for _, b := range []promtest.Backend{export, promViaProxy, prom} {
+		t.Run(b.Ref(), func(t *testing.T) {
+			t.Parallel()
+
+			it.FatalOnUnexpectedPromQLResults(b, g, 2*time.Minute)
+			it.FatalOnUnexpectedPromQLResults(b, c, 2*time.Minute)
+		})
+	}
+}

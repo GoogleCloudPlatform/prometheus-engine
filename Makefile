@@ -237,3 +237,9 @@ presubmit:   ## Regenerate all resources, build all images and run all tests.
              ## after presubmit (might require committing the changes).
              ##
 presubmit: regen bin test
+
+.PHONY: proto
+proto: ## Regenerate Go from proto
+proto: $(BUF) $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_VTPROTO)
+	@echo ">> regenerating vendored prompb/io/prometheus/write/v2"
+	$(BUF) generate --template pkg/prompb/io/prometheus/write/v2/buf.gen.yaml --path pkg/prompb/io/prometheus/write/v2 .
