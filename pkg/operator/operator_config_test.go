@@ -22,11 +22,56 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
+	"github.com/prometheus/prometheus/config"
+	"gopkg.in/yaml.v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+func TestRuleEvaluatorConfigUnmarshal(t *testing.T) {
+	code := `
+rule_files:
+    - /etc/rules/*.yaml
+google_cloud:
+    export:
+        compression: gzip
+        credentials: credentials.json
+`
+	out := RuleEvaluatorConfig{}
+	if err := yaml.Unmarshal([]byte(code), &out); err != nil {
+		t.Fatal(err)
+	}
+
+	expected := RuleEvaluatorConfig{
+		Config: config.DefaultConfig,
+		GoogleCloud: GoogleCloudConfig{
+			Export: &GoogleCloudExportConfig{
+				Compression:     ptr.To(string(monitoringv1.CompressionGzip)),
+				CredentialsFile: ptr.To("credentials.json"),
+			},
+		},
+	}
+	expected.Config.RuleFiles = []string{"/etc/rules/*.yaml"}
+	if diff := cmp.Diff(expected, out); diff != "" {
+		t.Fatalf("unexpected config from marshaling (-want, +got): %s", diff)
+	}
+
+	// Ensure we can also marshal. Reuse the same object.
+	outBytes, err := yaml.Marshal(&out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out = RuleEvaluatorConfig{}
+	if err := yaml.Unmarshal(outBytes, &out); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(expected, out); diff != "" {
+		t.Fatalf("unexpected config after marshaling (-want, +got): %s", diff)
+	}
+}
 
 func TestEnsureOperatorConfig(t *testing.T) {
 	ctx := context.Background()
