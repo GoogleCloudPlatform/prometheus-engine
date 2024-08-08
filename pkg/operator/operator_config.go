@@ -36,6 +36,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -230,7 +231,7 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	}
 
 	// Ensure the rule-evaluator deployment and volume mounts.
-	if err := r.ensureRuleEvaluatorDeployment(ctx, &config.Rules); err != nil {
+	if err := r.ensureRuleEvaluatorDeployment(ctx); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure rule-evaluator deploy: %w", err)
 	}
 
@@ -334,15 +335,42 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 		secretData[p] = b
 	}
 
-	cfg := &promconfig.Config{
-		GlobalConfig: promconfig.GlobalConfig{
-			ExternalLabels: labels.FromMap(spec.ExternalLabels),
-		},
-		AlertingConfig: promconfig.AlertingConfig{
-			AlertmanagerConfigs: amConfigs,
-		},
-		RuleFiles: []string{path.Join(rulesDir, "*.yaml")},
+	// If no explicit project ID is set, use the one provided to the operator.
+	// On GKE the rule-evaluator can also auto-detect the cluster's project
+	// but this won't work in other Kubernetes environments.
+	queryProjectID, _, _ := resolveLabels(r.opts.ProjectID, r.opts.Location, r.opts.Cluster, spec.ExternalLabels)
+	if spec.QueryProjectID != "" {
+		queryProjectID = spec.QueryProjectID
 	}
+
+	var credentialsFile string
+	if spec.Credentials != nil {
+		credentialsFile = path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
+	}
+
+	cfg := RuleEvaluatorConfig{
+		Config: promconfig.Config{
+			GlobalConfig: promconfig.GlobalConfig{
+				ExternalLabels: labels.FromMap(spec.ExternalLabels),
+			},
+			AlertingConfig: promconfig.AlertingConfig{
+				AlertmanagerConfigs: amConfigs,
+			},
+			RuleFiles: []string{path.Join(rulesDir, "*.yaml")},
+		},
+		GoogleCloud: GoogleCloudConfig{
+			Export: &GoogleCloudExportConfig{},
+			Query: &GoogleCloudQueryConfig{
+				ProjectID:       queryProjectID,
+				GeneratorURL:    spec.GeneratorURL,
+				CredentialsFile: credentialsFile,
+			},
+		},
+	}
+	if credentialsFile != "" {
+		cfg.GoogleCloud.Export.CredentialsFile = ptr.To(credentialsFile)
+	}
+
 	cfgEncoded, err := yaml.Marshal(cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal Prometheus config: %w", err)
@@ -499,7 +527,7 @@ func (r *operatorConfigReconciler) ensureAlertmanagerStatefulSet(ctx context.Con
 }
 
 // ensureRuleEvaluatorDeployment reconciles the Deployment for rule-evaluator.
-func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Context, spec *monitoringv1.RuleEvaluatorSpec) error {
+func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Context) error {
 	logger, _ := logr.FromContext(ctx)
 
 	var deploy appsv1.Deployment
@@ -510,33 +538,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 		logger.Error(err, "rule-evaluator Deployment does not exist")
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-
-	var projectID, _, _ = resolveLabels(r.opts.ProjectID, r.opts.Location, r.opts.Cluster, spec.ExternalLabels)
-
-	// If no explicit project ID is set, use the one provided to the operator.
-	// On GKE the rule-evaluator can also auto-detect the cluster's project
-	// but this won't work in other Kubernetes environments.
-	queryProjectID := projectID
-	if spec.QueryProjectID != "" {
-		queryProjectID = spec.QueryProjectID
-	}
-	flags := []string{fmt.Sprintf("--query.project-id=%q", queryProjectID)}
-
-	if spec.Credentials != nil {
-		p := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
-		flags = append(flags, fmt.Sprintf("--export.credentials-file=%q", p))
-		flags = append(flags, fmt.Sprintf("--query.credentials-file=%q", p))
-	}
-	if spec.GeneratorURL != "" {
-		flags = append(flags, fmt.Sprintf("--query.generator-url=%q", spec.GeneratorURL))
-	}
-	setContainerExtraArgs(deploy.Spec.Template.Spec.Containers, RuleEvaluatorContainerName, strings.Join(flags, " "))
-
-	// Upsert rule-evaluator Deployment.
-	return r.client.Update(ctx, &deploy)
+	return err
 }
 
 // makeAlertmanagerConfigs creates the alertmanager_config entries as described in
