@@ -287,6 +287,31 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 	return secretData, nil
 }
 
+type RuleEvaluatorConfig struct {
+	promconfig.Config `yaml:",inline"`
+
+	// Google Cloud configuration. Matches our fork's configuration.
+	GoogleCloud GoogleCloudConfig `yaml:"google_cloud,omitempty"`
+}
+
+func (config *RuleEvaluatorConfig) UnmarshalYAML(value *yaml.Node) error {
+	// See: https://github.com/go-yaml/yaml/issues/125
+	// Since the Prometheus configuration uses a custom unmarshaler, it is unable to be
+	// unmarshal-ed unless we write our own.
+	if err := value.Decode(&config.Config); err != nil {
+		return err
+	}
+	// We must replicate the nested fields.
+	googleCloudConfig := struct {
+		GoogleCloud GoogleCloudConfig `yaml:"google_cloud,omitempty"`
+	}{}
+	if err := value.Decode(&googleCloudConfig); err != nil {
+		return err
+	}
+	config.GoogleCloud = googleCloudConfig.GoogleCloud
+	return nil
+}
+
 // makeRuleEvaluatorConfig creates the config for rule-evaluator.
 // This is stored as a Secret rather than a ConfigMap as it could contain
 // sensitive configuration information.
