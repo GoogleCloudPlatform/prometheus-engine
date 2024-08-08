@@ -347,6 +347,16 @@ type prometheusConfig struct {
 	SecretConfigs []secrets.SecretConfig `yaml:"kubernetes_secrets,omitempty"`
 }
 
+type GoogleCloudConfig struct {
+	Export *GoogleCloudExportConfig `yaml:"export,omitempty"`
+}
+
+type GoogleCloudExportConfig struct {
+	Match           []string `yaml:"match,omitempty"`
+	Compression     *string  `yaml:"compression,omitempty"`
+	CredentialsFile *string  `yaml:"credentials,omitempty"`
+}
+
 type update struct {
 	object monitoringv1.MonitoringCRD
 	spec   bool
