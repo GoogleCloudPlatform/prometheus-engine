@@ -150,45 +150,6 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient client.Clie
 		if err := kubeClient.Update(ctx, &config); err != nil {
 			t.Fatalf("update operatorconfig: %s", err)
 		}
-		// Keep checking the state of the collectors until they're running.
-		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			deploy := appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operator.NameRuleEvaluator,
-					Namespace: operator.DefaultOperatorNamespace,
-				},
-			}
-			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&deploy), &deploy); err != nil {
-				if apierrors.IsNotFound(err) {
-					return false, nil
-				}
-				return false, fmt.Errorf("getting collector DaemonSet failed: %w", err)
-			}
-
-			// Ensure evaluator container has expected args.
-			for _, c := range deploy.Spec.Template.Spec.Containers {
-				if c.Name != operator.RuleEvaluatorContainerName {
-					continue
-				}
-				// We're mainly interested in the dynamic flags but checking the entire set including
-				// the static ones is ultimately simpler.
-				wantArgs := []string{
-					fmt.Sprintf("--query.project-id=%q", projectID),
-					fmt.Sprintf("--query.generator-url=%q", "http://example.com/"),
-				}
-				gotArgs := getEnvVar(c.Env, "EXTRA_ARGS")
-				for _, arg := range wantArgs {
-					if !strings.Contains(gotArgs, arg) {
-						return false, fmt.Errorf("expected arg %q not found in EXTRA_ARGS: %q", arg, gotArgs)
-					}
-				}
-				return true, nil
-			}
-			return false, errors.New("no rule-evaluator container found")
-		})
-		if err != nil {
-			t.Fatalf("waiting for collector configuration failed: %s", err)
-		}
 	}
 }
 
@@ -331,6 +292,10 @@ alerting:
                     - monitoring
 rule_files:
     - /etc/rules/*.yaml
+google_cloud:
+    query:
+        project_id: {projectID}
+        generator_url: http://example.com/
 `),
 		}
 

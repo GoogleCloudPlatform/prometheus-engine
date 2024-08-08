@@ -614,12 +614,3 @@ func isPodMonitoringScrapeEndpointSuccess(status *monitoringv1.ScrapeEndpointSta
 	}
 	return nil
 }
-
-func getEnvVar(evs []corev1.EnvVar, key string) string {
-	for _, ev := range evs {
-		if ev.Name == key {
-			return ev.Value
-		}
-	}
-	return ""
-}
