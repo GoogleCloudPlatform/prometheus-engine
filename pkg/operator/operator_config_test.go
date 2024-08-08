@@ -38,7 +38,11 @@ rule_files:
 google_cloud:
     export:
         compression: gzip
-        credentials: credentials.json
+        credentials: credentials1.json
+    query:
+        project_id: abc123
+        generator_url: http://example.com/
+        credentials: credentials2.json
 `
 	out := RuleEvaluatorConfig{}
 	if err := yaml.Unmarshal([]byte(code), &out); err != nil {
@@ -48,9 +52,14 @@ google_cloud:
 	expected := RuleEvaluatorConfig{
 		Config: config.DefaultConfig,
 		GoogleCloud: GoogleCloudConfig{
+			Query: &GoogleCloudQueryConfig{
+				ProjectID:       "abc123",
+				GeneratorURL:    "http://example.com/",
+				CredentialsFile: "credentials2.json",
+			},
 			Export: &GoogleCloudExportConfig{
 				Compression:     ptr.To(string(monitoringv1.CompressionGzip)),
-				CredentialsFile: ptr.To("credentials.json"),
+				CredentialsFile: ptr.To("credentials1.json"),
 			},
 		},
 	}

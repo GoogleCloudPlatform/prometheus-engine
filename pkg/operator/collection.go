@@ -349,6 +349,7 @@ type prometheusConfig struct {
 
 type GoogleCloudConfig struct {
 	Export *GoogleCloudExportConfig `yaml:"export,omitempty"`
+	Query  *GoogleCloudQueryConfig  `yaml:"query,omitempty"`
 }
 
 type GoogleCloudExportConfig struct {
