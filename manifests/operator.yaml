@@ -807,6 +807,7 @@ spec:
         components.gke.io/component-name: managed_prometheus
     spec:
       priorityClassName: gmp-critical
+      automountServiceAccountToken: false
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:20220419
