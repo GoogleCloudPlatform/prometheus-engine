@@ -40,7 +40,6 @@ images:
   datasourceSyncer:
     image: gcr.io/gke-release/prometheus-engine/datasource-syncer@sha256
     tag: "f065e90e3188ee3fd858cac74a8ed326446aaed51d1f222f29ebd5f7b29d1df7"
-maxThroughput: false
 resources:
   alertManager:
     limits:
