@@ -19,24 +19,23 @@ namespace:
   system: gmp-system
 images:
   alertmanager:
-    image: gke.gcr.io/prometheus-engine/alertmanager@sha256
-    tag: "4311da6164f66c4097878c023d4aa5ab908641414e087ba4d5eb29b6126158bc"
+    image: gke.gcr.io/prometheus-engine/alertmanager
+    tag: "v0.25.1-gmp.7-gke.0@sha256:4311da6164f66c4097878c023d4aa5ab908641414e087ba4d5eb29b6126158bc"
   bash:
     image: gke.gcr.io/gke-distroless/bash
     tag: "gke_distroless_20240607.00_p0"
   configReloader:
-    image: gke.gcr.io/prometheus-engine/config-reloader@sha256
-    tag: "21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e"
+    image: gke.gcr.io/prometheus-engine/config-reloader
+    tag: "v0.12.0-gke.5@sha256:21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e"
   operator:
-    image: gke.gcr.io/prometheus-engine/operator@sha256
-    tag: "0894c65806a6eac0b4119ee73ec8a52f6ca119960b37aded3776f3748a75d182"
+    image: gke.gcr.io/prometheus-engine/operator
+    tag: "v0.12.0-gke.5@sha256:0894c65806a6eac0b4119ee73ec8a52f6ca119960b37aded3776f3748a75d182"
   prometheus:
-    # TODO(bwplotka): Change to "v2.45.3-gmp.7-gke.0" once tags are cloned.
-    image: gke.gcr.io/prometheus-engine/prometheus@sha256
-    tag: "8c8e35af7e2b92ac9d82ce640621c0d3aa10d7d62856681af3572d0a8fbb787b"
+    image: gke.gcr.io/prometheus-engine/prometheus
+    tag: "v2.45.3-gmp.7-gke.0@sha256:8c8e35af7e2b92ac9d82ce640621c0d3aa10d7d62856681af3572d0a8fbb787b"
   ruleEvaluator:
-    image: gke.gcr.io/prometheus-engine/rule-evaluator@sha256
-    tag: "6ae997a8ed636da06b7a9dc7fc950b98ce91c38c135aad2dcc95d6d3dd841ee0"
+    image: gke.gcr.io/prometheus-engine/rule-evaluator
+    tag: "v0.12.0-gke.5@sha256:6ae997a8ed636da06b7a9dc7fc950b98ce91c38c135aad2dcc95d6d3dd841ee0"
 resources:
   alertManager:
     limits:
