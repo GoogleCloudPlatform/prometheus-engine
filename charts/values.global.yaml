@@ -16,29 +16,29 @@ commonLabels: false
 namespace:
   public: gmp-public
   system: gmp-system
-version: 0.13.0
+version: 0.13.1
 images:
   bash:
     image: gke.gcr.io/gke-distroless/bash
     tag: "gke_distroless_20240607.00_p0" # NOTE: Has to be quoted otherwise it will be treated as a number.
   alertmanager:
     image: gke.gcr.io/prometheus-engine/alertmanager
-    tag: "v0.25.1-gmp.8-gke.0"
+    tag: "v0.25.1-gmp.8-gke.0@sha256:3854f01750baf1102adffb7d928522a0bd3f0f29d22c5fd659d63e0ee93bcab8"
   prometheus:
     image: gke.gcr.io/prometheus-engine/prometheus
-    tag: v2.45.3-gmp.9-gke.0
+    tag: "v2.45.3-gmp.9-gke.0@sha256:12a1ea30e057e7793982cf3c6cbcc3a18f7aaffe060b0ba59fb2da5433a40fd2"
   configReloader:
-    image: gke.gcr.io/prometheus-engine/config-reloader@sha256
-    tag: "21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e"
+    image: gke.gcr.io/prometheus-engine/config-reloader
+    tag: v0.13.1-gke.0
   operator:
-    image: gke.gcr.io/prometheus-engine/operator@sha256
-    tag: "0894c65806a6eac0b4119ee73ec8a52f6ca119960b37aded3776f3748a75d182"
+    image: gke.gcr.io/prometheus-engine/operator
+    tag: v0.13.1-gke.0
   ruleEvaluator:
-    image: gke.gcr.io/prometheus-engine/rule-evaluator@sha256
-    tag: "6ae997a8ed636da06b7a9dc7fc950b98ce91c38c135aad2dcc95d6d3dd841ee0"
+    image: gke.gcr.io/prometheus-engine/rule-evaluator
+    tag: v0.13.1-gke.0
   datasourceSyncer:
-    image: gcr.io/gke-release/prometheus-engine/datasource-syncer@sha256
-    tag: "f065e90e3188ee3fd858cac74a8ed326446aaed51d1f222f29ebd5f7b29d1df7"
+    image: gcr.io/gke-release/prometheus-engine/datasource-syncer
+    tag: v0.13.1-gke.0
 resources:
   alertManager:
     limits:
