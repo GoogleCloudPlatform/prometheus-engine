@@ -331,7 +331,7 @@ spec:
       labels:
         app: managed-prometheus-collector
         app.kubernetes.io/name: collector
-        app.kubernetes.io/version: 0.13.0
+        app.kubernetes.io/version: 0.13.1
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -357,7 +357,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.1-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -393,7 +393,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus@sha256:7473d52f4a3e563e6377f8a6183091f25192b1e0705dd0933903e800bd69b7b2
+        image: gke.gcr.io/prometheus-engine/prometheus:v2.45.3-gmp.9-gke.0@sha256:12a1ea30e057e7793982cf3c6cbcc3a18f7aaffe060b0ba59fb2da5433a40fd2
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage
@@ -527,14 +527,14 @@ spec:
         app.kubernetes.io/component: operator
         app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/part-of: gmp
-        app.kubernetes.io/version: 0.13.0
+        app.kubernetes.io/version: 0.13.1
     spec:
       serviceAccountName: operator
       automountServiceAccountToken: true
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/operator:v0.13.1-gke.0
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
@@ -628,7 +628,7 @@ spec:
       labels:
         app.kubernetes.io/name: rule-evaluator
         app: managed-prometheus-rule-evaluator
-        app.kubernetes.io/version: 0.13.0
+        app.kubernetes.io/version: 0.13.1
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -654,7 +654,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.1-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -695,7 +695,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.13.1-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --web.listen-address=:19092
@@ -801,7 +801,7 @@ spec:
       labels:
         app: managed-prometheus-alertmanager
         app.kubernetes.io/name: alertmanager
-        app.kubernetes.io/version: 0.13.0
+        app.kubernetes.io/version: 0.13.1
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
@@ -824,7 +824,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: alertmanager
-        image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.2-gke.0
+        image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.8-gke.0@sha256:3854f01750baf1102adffb7d928522a0bd3f0f29d22c5fd659d63e0ee93bcab8
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
@@ -860,7 +860,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.1-gke.0
         args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
