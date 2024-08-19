@@ -16,31 +16,29 @@ commonLabels: false
 namespace:
   public: gmp-public
   system: gmp-system
-version: 0.13.0
+version: 0.13.1
 images:
   bash:
     image: gke.gcr.io/gke-distroless/bash
     tag: "20220419" # NOTE: Has to be quoted otherwise it will be treated as a number.
   alertmanager:
     image: gke.gcr.io/prometheus-engine/alertmanager
-    tag: v0.25.1-gmp.2-gke.0
+    tag: "v0.25.1-gmp.8-gke.0@sha256:3854f01750baf1102adffb7d928522a0bd3f0f29d22c5fd659d63e0ee93bcab8"
   prometheus:
-    # TODO(bwplotka): Change to "v2.45.3-gmp.4-gke.0" once tags are cloned.
-    image: gke.gcr.io/prometheus-engine/prometheus@sha256
-    tag: 7473d52f4a3e563e6377f8a6183091f25192b1e0705dd0933903e800bd69b7b2
+    image: gke.gcr.io/prometheus-engine/prometheus
+    tag: "v2.45.3-gmp.9-gke.0@sha256:12a1ea30e057e7793982cf3c6cbcc3a18f7aaffe060b0ba59fb2da5433a40fd2"
   configReloader:
     image: gke.gcr.io/prometheus-engine/config-reloader
-    tag: v0.9.0-gke.1
+    tag: v0.13.1-gke.0
   operator:
     image: gke.gcr.io/prometheus-engine/operator
-    tag: v0.9.0-gke.1
+    tag: v0.13.1-gke.0
   ruleEvaluator:
     image: gke.gcr.io/prometheus-engine/rule-evaluator
-    tag: v0.9.0-gke.1
+    tag: v0.13.1-gke.0
   datasourceSyncer:
     image: gcr.io/gke-release/prometheus-engine/datasource-syncer
-    #TODO(macxamin) Sync CURRENT_DATASOURCE_SYNCER_TAG with CURRENT_TAG
-    tag: v0.10.0-gke.3
+    tag: v0.13.1-gke.0
 resources:
   alertManager:
     limits:
