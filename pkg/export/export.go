@@ -70,6 +70,10 @@ var (
 		Name: "gcm_export_samples_sent_total",
 		Help: "Number of exported samples sent to GCM.",
 	})
+	samplesSentErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "gcm_export_samples_sent_errors_total",
+		Help: "Number of errors encountered while sending samples to GCM",
+	}, []string{"project_id"})
 	sendIterations = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "gcm_export_send_iterations_total",
 		Help: "Number of processing iterations of the sample export send handler.",
@@ -1052,6 +1056,7 @@ func (b batch) send(
 			if err != nil {
 				//nolint:errcheck
 				level.Error(b.logger).Log("msg", "send batch", "size", len(l), "err", err)
+				samplesSentErrors.WithLabelValues(pid).Inc()
 			}
 			samplesSent.Add(float64(len(l)))
 		}(pid, l)
