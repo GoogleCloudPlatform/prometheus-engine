@@ -52,3 +52,37 @@ spec:
     interval: 30s
   - port: cfg-rel-metrics
     interval: 30s
+---
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  namespace: gmp-system
+  name: gmp-operator
+  labels:
+    app.kubernetes.io/name: gmp-operator
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gmp-operator
+  endpoints:
+  - port: metrics
+    interval: 30s
+---
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  namespace: gmp-system
+  name: alertmanager
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: google-cloud-managed-prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  endpoints:
+  - port: alertmanager
+    interval: 30s
+  - port: cfg-rel-metrics
+    interval: 30s
