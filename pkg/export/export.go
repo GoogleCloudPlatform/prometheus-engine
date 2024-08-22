@@ -71,7 +71,7 @@ var (
 		Help: "Number of exported samples sent to GCM.",
 	})
 	samplesSentErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "gcm_export_samples_sent_errors_total",
+		Name: "gcm_export_samples_send_errors_total",
 		Help: "Number of errors encountered while sending samples to GCM",
 	}, []string{"project_id"})
 	sendIterations = prometheus.NewCounter(prometheus.CounterOpts{
