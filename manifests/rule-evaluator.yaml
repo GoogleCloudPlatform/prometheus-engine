@@ -109,14 +109,14 @@ spec:
       automountServiceAccountToken: true
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240807.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.0-gke.6
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -154,7 +154,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.9.0-gke.1
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.13.0-gke.6
         args:
         - "--config.file=/prometheus/config_out/config.yaml"
         - "--web.listen-address=:9092"

@@ -41,7 +41,7 @@ spec:
                 - linux
       containers:
       - name: datasource-syncer-init
-        image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.10.0-gke.3
+        image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.13.0-gke.6
         args:
         - "--datasource-uids=$DATASOURCE_UIDS"
         - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
@@ -79,7 +79,7 @@ spec:
                     - linux
           containers:
           - name: datasource-syncer
-            image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.10.0-gke.3
+            image: gcr.io/gke-release/prometheus-engine/datasource-syncer:v0.13.0-gke.6
             args:
             - "--datasource-uids=$DATASOURCE_UIDS"
             - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
