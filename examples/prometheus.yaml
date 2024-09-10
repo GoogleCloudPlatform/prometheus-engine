@@ -95,7 +95,7 @@ spec:
                 - linux
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:20220419
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240807.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -108,7 +108,7 @@ spec:
           privileged: false
       containers:
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.41.0-gmp.5-gke.0
+        image: gke.gcr.io/prometheus-engine/prometheus:v2.45.3-gmp.9-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --storage.tsdb.path=/prometheus/data
@@ -134,7 +134,7 @@ spec:
         - name: prometheus-db
           mountPath: /prometheus/data
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.8.0-gke.4
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.0-gke.6
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
