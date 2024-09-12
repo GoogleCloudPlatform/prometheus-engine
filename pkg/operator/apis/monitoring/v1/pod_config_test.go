@@ -472,7 +472,7 @@ func TestValidatePodMonitoring(t *testing.T) {
 				},
 			},
 			tls: TargetLabels{
-				Metadata: stringSlicePtr("pod", "node", "container", "workload_controller", "workload_controller_type"),
+				Metadata: stringSlicePtr("pod", "node", "container"),
 			},
 		}, {
 			desc: "bad metadata label",
@@ -483,10 +483,10 @@ func TestValidatePodMonitoring(t *testing.T) {
 				},
 			},
 			tls: TargetLabels{
-				Metadata: stringSlicePtr("foo", "pod", "node", "container", "workload_controller", "workload_controller_type"),
+				Metadata: stringSlicePtr("foo", "pod", "node", "container"),
 			},
 			fail:        true,
-			errContains: `label "foo" not allowed, must be one of [pod container node workload_controller workload_controller_type]`,
+			errContains: `label "foo" not allowed, must be one of [pod container node]`,
 		},
 	}
 
@@ -532,7 +532,7 @@ func TestValidateClusterPodMonitoring(t *testing.T) {
 				},
 			},
 			tls: TargetLabels{
-				Metadata: stringSlicePtr("namespace", "pod", "node", "container", "workload_controller", "workload_controller_type"),
+				Metadata: stringSlicePtr("namespace", "pod", "node", "container"),
 			},
 		}, {
 			desc: "bad metadata label",
@@ -543,10 +543,10 @@ func TestValidateClusterPodMonitoring(t *testing.T) {
 				},
 			},
 			tls: TargetLabels{
-				Metadata: stringSlicePtr("namespace", "foo", "pod", "node", "container", "workload_controller", "workload_controller_type"),
+				Metadata: stringSlicePtr("namespace", "foo", "pod", "node", "container"),
 			},
 			fail:        true,
-			errContains: `label "foo" not allowed, must be one of [namespace pod container node workload_controller workload_controller_type]`,
+			errContains: `label "foo" not allowed, must be one of [namespace pod container node]`,
 		},
 	}
 

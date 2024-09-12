@@ -83,7 +83,7 @@ func (p *PodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.C
 	// for backwards compatibility and won't add any labels in that case.
 	if p.Spec.TargetLabels.Metadata != nil {
 		for _, l := range *p.Spec.TargetLabels.Metadata {
-			if allowed := []string{"pod", "container", "node", "workload_controller", "workload_controller_type"}; !containsString(allowed, l) {
+			if allowed := []string{"pod", "container", "node"}; !containsString(allowed, l) {
 				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
 			}
 			metadataLabels[l] = struct{}{}
@@ -174,7 +174,7 @@ func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*re
 		}
 	} else {
 		for _, l := range *c.Spec.TargetLabels.Metadata {
-			if allowed := []string{"namespace", "pod", "container", "node", "workload_controller", "workload_controller_type"}; !containsString(allowed, l) {
+			if allowed := []string{"namespace", "pod", "container", "node"}; !containsString(allowed, l) {
 				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
 			}
 			metadataLabels[l] = struct{}{}
@@ -362,55 +362,6 @@ func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_node_name"},
 			TargetLabel:  "node",
 		})
-	}
-	if _, ok := keys["workload_controller"]; ok {
-		res = append(res,
-			// Default to pod name
-			&relabel.Config{
-				Action:       relabel.Replace,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
-				TargetLabel:  "workload_controller",
-				Replacement:  "$1",
-			},
-			// For non-ReplicaSet and non-Job controllers
-			&relabel.Config{
-				Action:       relabel.Replace,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_name"},
-				TargetLabel:  "workload_controller",
-			},
-			// ReplicaSets will overwrite the label using the prefix if they came from Deployments
-			&relabel.Config{
-				Action:       relabel.Replace,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_kind", "__meta_kubernetes_labelpresent_pod_template_hash", "__meta_kubernetes_pod_controller_name"},
-				Regex:        relabel.MustNewRegexp("(ReplicaSet);true;(.*)-([a-z0-9]+)$"),
-				Replacement:  "$1",
-				TargetLabel:  "workload_controller",
-			},
-		)
-	}
-	if _, ok := keys["workload_controller_type"]; ok {
-		res = append(res,
-			// Default to Pod
-			&relabel.Config{
-				Action:      relabel.Replace,
-				TargetLabel: "workload_controller_type",
-				Replacement: "Pod",
-			},
-			// Capture controller type
-			&relabel.Config{
-				Action:       relabel.Replace,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_kind"},
-				TargetLabel:  "workload_controller_type",
-			},
-			// ReplicaSets with a pod-hash-template came from Deployments
-			&relabel.Config{
-				Action:       relabel.Replace,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_kind", "__meta_kubernetes_labelpresent_pod_template_hash", "__meta_kubernetes_pod_controller_name"},
-				Regex:        relabel.MustNewRegexp("(ReplicaSet);true;(.*)-([a-z0-9]+)$"),
-				Replacement:  "Deployment",
-				TargetLabel:  "workload_controller_type",
-			},
-		)
 	}
 	return res
 }
