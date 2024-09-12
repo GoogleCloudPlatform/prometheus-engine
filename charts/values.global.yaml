@@ -23,7 +23,7 @@ images:
     tag: "gke_distroless_20240607.00_p0" # NOTE: Has to be quoted otherwise it will be treated as a number.
   alertmanager:
     image: gke.gcr.io/prometheus-engine/alertmanager
-    tag: "v0.25.1-gmp.8-gke.0"
+    tag: "v0.27.0-gmp.0-gke.0"
   prometheus:
     image: gke.gcr.io/prometheus-engine/prometheus
     tag: v2.45.3-gmp.9-gke.0
