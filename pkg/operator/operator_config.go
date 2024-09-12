@@ -513,28 +513,6 @@ func (config *alertmanagerConfig) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-// setContainerExtraArgs updates EXTRA_ARG environment variable in a given
-// container. This is a pattern, only our binaries use to be able to read dynamic
-// flags. See e.g.
-// https://github.com/GoogleCloudPlatform/prometheus-engine/blob/99644a1aafa3396eef6a1858f6db74517599361f/pkg/export/setup/setup.go#L229-L228
-func setContainerExtraArgs(cs []corev1.Container, containerName string, extraArgs string) {
-	for i, c := range cs {
-		if c.Name != containerName {
-			continue
-		}
-
-		var all []corev1.EnvVar
-		// Gather all other envvars we don't plan to change.
-		for _, ev := range c.Env {
-			if ev.Name != "EXTRA_ARGS" {
-				all = append(all, ev)
-			}
-		}
-		all = append(all, corev1.EnvVar{Name: "EXTRA_ARGS", Value: extraArgs})
-		cs[i].Env = all
-	}
-}
-
 // ensureAlertmanagerStatefulSet configures the managed Alertmanager instance
 // to reflect the provided spec.
 func (r *operatorConfigReconciler) ensureAlertmanagerStatefulSet(ctx context.Context, spec *monitoringv1.ManagedAlertmanagerSpec) error {
