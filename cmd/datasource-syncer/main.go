@@ -71,13 +71,12 @@ func main() {
 
 	if *grafanaAPIToken == "" {
 		envToken := os.Getenv("GRAFANA_SERVICE_ACCOUNT_TOKEN")
-		if envToken != "" {
-			grafanaAPIToken = &envToken
-		} else {
+		if envToken == "" {
 			//nolint:errcheck
 			level.Error(logger).Log("msg", "--grafana-api-token or the environment variable GRAFANA_SERVICE_ACCOUNT_TOKEN must be set")
 			os.Exit(1)
 		}
+		grafanaAPIToken = &envToken
 	}
 	if *grafanaEndpoint == "" {
 		//nolint:errcheck
