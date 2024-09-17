@@ -262,7 +262,9 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 
 	// Determine whether VPA is installed in the cluster. If so, set up the scaling controller.
 	var vpaAvailable bool
-	clientset, err := apiextensions.NewForConfig(clientConfig)
+	coreClientConfig := rest.CopyConfig(clientConfig)
+	coreClientConfig.ContentType = runtime.ContentTypeProtobuf
+	clientset, err := apiextensions.NewForConfig(coreClientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("create clientset: %w", err)
 	}
