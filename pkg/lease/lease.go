@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -102,6 +103,7 @@ func NewKubernetes(
 
 	// Construct clients for leader election
 	config = rest.CopyConfig(config)
+	config.ContentType = runtime.ContentTypeProtobuf
 	rest.AddUserAgent(config, "leader-election")
 
 	corev1Client, err := corev1client.NewForConfig(config)

@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,6 +32,8 @@ import (
 
 // PodLogs returns the logs of the pod with the given name.
 func PodLogs(ctx context.Context, restConfig *rest.Config, namespace, name, container string) (string, error) {
+	coreConfig := rest.CopyConfig(restConfig)
+	coreConfig.ContentType = runtime.ContentTypeProtobuf
 	clientSet, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return "", err
