@@ -18,27 +18,28 @@ namespace:
   system: gmp-system
 version: 0.13.1
 images:
+  # NOTE: All tags have to be quoted otherwise they might be treated as a number.
   bash:
     image: gke.gcr.io/gke-distroless/bash
-    tag: "gke_distroless_20240607.00_p0" # NOTE: Has to be quoted otherwise it will be treated as a number.
+    tag: "gke_distroless_20240907.00_p0"
   alertmanager:
     image: gke.gcr.io/prometheus-engine/alertmanager
-    tag: "v0.25.1-gmp.8-gke.0@sha256:3854f01750baf1102adffb7d928522a0bd3f0f29d22c5fd659d63e0ee93bcab8"
+    tag: "v0.25.1-gmp.8-gke.0"
   prometheus:
     image: gke.gcr.io/prometheus-engine/prometheus
-    tag: "v2.45.3-gmp.9-gke.0@sha256:12a1ea30e057e7793982cf3c6cbcc3a18f7aaffe060b0ba59fb2da5433a40fd2"
+    tag: "v2.45.3-gmp.9-gke.0"
   configReloader:
     image: gke.gcr.io/prometheus-engine/config-reloader
-    tag: v0.13.1-gke.0
+    tag: "v0.13.1-gke.0"
   operator:
     image: gke.gcr.io/prometheus-engine/operator
-    tag: v0.13.1-gke.0
+    tag: "v0.13.1-gke.0"
   ruleEvaluator:
     image: gke.gcr.io/prometheus-engine/rule-evaluator
-    tag: v0.13.1-gke.0
+    tag: "v0.13.1-gke.0"
   datasourceSyncer:
     image: gcr.io/gke-release/prometheus-engine/datasource-syncer
-    tag: v0.13.1-gke.0
+    tag: "v0.13.1-gke.0"
 resources:
   alertManager:
     limits:
