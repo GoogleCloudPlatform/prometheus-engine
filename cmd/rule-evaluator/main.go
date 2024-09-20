@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/rule-evaluator/internal"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	exportsetup "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export/setup"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
@@ -390,6 +391,11 @@ func main() {
 				_ = level.Error(logger).Log("msg", "Unable to write runtime info status", "err", err)
 			}
 		})
+
+		// https://prometheus.io/docs/prometheus/latest/querying/api/#rules
+		apiHandler := internal.NewAPI(logger, ruleEvaluator.rulesManager)
+		http.HandleFunc("/api/v1/rules", apiHandler.HandleRulesEndpoint)
+
 		g.Add(func() error {
 			_ = level.Info(logger).Log("msg", "Starting web server", "listen", defaultEvaluatorOpts.ListenAddress)
 			return server.ListenAndServe()
