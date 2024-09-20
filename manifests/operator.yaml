@@ -345,7 +345,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240607.00_p0
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240907.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -395,7 +395,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.45.3-gmp.9-gke.0@sha256:12a1ea30e057e7793982cf3c6cbcc3a18f7aaffe060b0ba59fb2da5433a40fd2
+        image: gke.gcr.io/prometheus-engine/prometheus:v2.45.3-gmp.9-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage
@@ -642,7 +642,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240607.00_p0
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240907.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -812,7 +812,7 @@ spec:
       automountServiceAccountToken: false
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240607.00_p0
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20240907.00_p0
         command: ['/bin/bash', '-c', 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  - name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml']
         volumeMounts:
         - name: alertmanager-config
@@ -826,7 +826,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: alertmanager
-        image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.8-gke.0@sha256:3854f01750baf1102adffb7d928522a0bd3f0f29d22c5fd659d63e0ee93bcab8
+        image: gke.gcr.io/prometheus-engine/alertmanager:v0.25.1-gmp.8-gke.0
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
