@@ -18,13 +18,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
-	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	monitoring_pb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/go-kit/log"
 	"github.com/google/go-cmp/cmp"
@@ -34,7 +32,6 @@ import (
 	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
-	"google.golang.org/api/option"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	timestamp_pb "google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -531,62 +528,55 @@ func TestDisabledExporter(t *testing.T) {
 }
 
 func TestExporter_shutdown(t *testing.T) {
-	var (
-		srv          = grpc.NewServer()
-		listener     = bufconn.Listen(1e6)
-		metricServer = &testMetricService{}
-	)
-	monitoring_pb.RegisterMetricServiceServer(srv, metricServer)
+	eCtx, eCtxCancel := context.WithCancel(context.Background())
 
-	go func() { srv.Serve(listener) }()
-	defer srv.Stop()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	bufDialer := func(context.Context, string) (net.Conn, error) {
-		return listener.Dial()
-	}
-	metricClient, err := monitoring.NewMetricClient(ctx,
-		option.WithoutAuthentication(),
-		option.WithGRPCDialOption(grpc.WithInsecure()),
-		option.WithGRPCDialOption(grpc.WithContextDialer(bufDialer)),
-	)
-	if err != nil {
-		t.Fatalf("creating metric client failed: %s", err)
-	}
-
-	e, err := New(log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr)), nil, ExporterOpts{DisableAuth: true})
+	exporterOpts := ExporterOpts{DisableAuth: true}
+	exporterOpts.DefaultUnsetFields()
+	e, err := New(eCtx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, exporterOpts, NopLease())
 	if err != nil {
 		t.Fatalf("Creating Exporter failed: %s", err)
 	}
-	e.metricClient = metricClient
+	metricServer := testMetricService{}
+	e.metricClient = &metricServer
 
-	e.SetLabelsByIDFunc(func(i storage.SeriesRef) labels.Labels {
-		return labels.FromStrings("project_id", "test", "location", "test", fmt.Sprintf("label_%d", i), "test")
+	e.SetLabelsByIDFunc(func(storage.SeriesRef) labels.Labels {
+		return labels.FromStrings("project_id", "test", "location", "test")
 	})
 
-	exportCtx, cancelExport := context.WithCancel(context.Background())
+	//nolint:errcheck
+	go e.Run()
 
-	for i := 0; i < 50; i++ {
+	// Fill a single shard with samples.
+	wantSamples := 50
+	for i := range wantSamples {
 		e.Export(nil, []record.RefSample{
 			{Ref: 1, T: int64(i), V: float64(i)},
 		}, nil)
 	}
-	go e.Run(exportCtx)
 
-	cancelExport()
-	// Time delay is added to ensure exporter is disabled.
-	time.Sleep(50 * time.Millisecond)
+	// Shut down the exporter.
+	eCtxCancel()
 
-	// These samples will be rejected since the exporter has been cancelled.
-	for i := 0; i < 10; i++ {
-		e.Export(nil, []record.RefSample{
-			{Ref: 1, T: int64(i), V: float64(i)},
-		}, nil)
-	}
 	// Wait for exporter to finish flushing shards.
 	<-e.exitc
-	// Check that we received all samples that went in.
-	if got, want := len(metricServer.samples), 50; got != want {
-		t.Fatalf("got %d, want %d", got, want)
+
+	// These samples will be rejected since the exporter has been cancelled.
+	for i := range 10 {
+		e.Export(nil, []record.RefSample{
+			{Ref: 1, T: int64(i), V: float64(i)},
+		}, nil)
+	}
+
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), 2*cancelTimeout)
+	defer cancel()
+
+	pollErr := wait.PollUntilContextCancel(ctxTimeout, time.Second, false, func(_ context.Context) (bool, error) {
+		return len(metricServer.samples) == wantSamples, nil
+	})
+	if pollErr != nil {
+		if wait.Interrupted(pollErr) && err != nil {
+			pollErr = err
+		}
+		t.Fatalf("did not get samples: %s", pollErr)
 	}
 }

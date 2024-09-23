@@ -172,6 +172,8 @@ const (
 	// Time after context is cancelled that we use to flush the remaining buffered data.
 	// This avoids data loss on shutdown.
 	cancelTimeout = 15 * time.Second
+	// Time after the final shards are drained before the exporter is closed on shutdown.
+	flushTimeout = 100 * time.Millisecond
 	// Prefix for GCM metric.
 	MetricTypePrefix = "prometheus.googleapis.com"
 )
@@ -557,23 +559,9 @@ func (e *Exporter) SetLabelsByIDFunc(f func(storage.SeriesRef) labels.Labels) {
 	e.seriesCache.getLabelsByRef = f
 }
 
-// isDisabled checks if Exporter is disabled.
-func (e *Exporter) isDisabled() bool {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	return e.opts.Disable
-}
-
-// disable stops requests from being sent to Monarch.
-func (e *Exporter) disable() {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	e.opts.Disable = true
-}
-
 // Export enqueues the samples and exemplars to be written to Cloud Monitoring.
 func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemplarMap map[storage.SeriesRef]record.RefExemplar) {
-	if e.isDisabled() {
+	if e.opts.Disable {
 		gcmExportCalledWhileDisabled.Inc()
 		return
 	}
@@ -767,6 +755,11 @@ func (e *Exporter) Run() error {
 	send := func() {
 		e.mtx.RLock()
 		opts := e.opts
+		if e.metricClient == nil {
+			// Flush timeout reached, runner is shut down.
+			e.mtx.RUnlock()
+			return
+		}
 		sendFunc := e.metricClient.CreateTimeSeries
 		e.mtx.RUnlock()
 
@@ -790,9 +783,10 @@ func (e *Exporter) Run() error {
 		curBatch = newBatch(e.logger, opts.Efficiency.ShardCount, opts.Efficiency.BatchSize)
 	}
 
-	// Try to drain the remaining data before exiting or the timelimit (15 seconds) expires.
+	// Try to drain the remaining data before exiting or the time limit (15 seconds) expires.
 	// A sleep timer is added after draining the shards to ensure it has time to be sent.
 	drainShardsBeforeExiting := func() {
+		//nolint:errcheck
 		level.Info(e.logger).Log("msg", "Exiting Exporter - will attempt to send remaining data in the next 15 seconds.")
 		exitTimer := time.NewTimer(cancelTimeout)
 		drained := make(chan struct{}, 1)
@@ -803,14 +797,18 @@ func (e *Exporter) Run() error {
 				for _, shard := range e.shards {
 					_, remaining := shard.fill(curBatch)
 					totalRemaining += remaining
+					shard.mtx.Lock()
 					pending = pending || shard.pending
+					shard.mtx.Unlock()
 					if !curBatch.empty() {
 						send()
 					}
 				}
 				if totalRemaining == 0 && !pending {
-					// Wait for the final shards to send.
-					time.Sleep(100 * time.Millisecond)
+					// NOTE(ridwanmsharif): the sending of the batches happen asyncronously
+					// and we only wait for a fixed amount of time after the final batch is sent
+					// before shutting down the exporter.
+					time.Sleep(flushTimeout)
 					drained <- struct{}{}
 				}
 			}
@@ -818,6 +816,7 @@ func (e *Exporter) Run() error {
 		for {
 			select {
 			case <-exitTimer.C:
+				//nolint:errcheck
 				level.Info(e.logger).Log("msg", "Exiting Exporter - Data wasn't sent within the timeout limit.")
 				samplesDropped.WithLabelValues("Data wasn't sent within the timeout limit.")
 				return
@@ -834,11 +833,8 @@ func (e *Exporter) Run() error {
 		// This is fine once we persist data submitted via Export() but for now there may be some
 		// data loss on shutdown.
 		case <-e.ctx.Done():
-			// On Termination:
-			// 1. Stop the exporter from recieving new data.
-			// 2. Try to drain the remaining shards within the CancelTimeout.
+			// on termination, try to drain the remaining shards within the CancelTimeout.
 			// This is done to prevent data loss during a shutdown.
-			e.disable()
 			drainShardsBeforeExiting()
 			// This channel is used for unit test case.
 			e.exitc <- struct{}{}
@@ -877,7 +873,8 @@ func (e *Exporter) close() {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	if err := e.metricClient.Close(); err != nil {
-		_ = e.logger.Log("msg", "error closing metric client", "err", err)
+		//nolint:errcheck
+		e.logger.Log("msg", "error closing metric client", "err", err)
 	}
 	e.metricClient = nil
 }
