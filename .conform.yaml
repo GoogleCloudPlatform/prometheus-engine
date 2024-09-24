@@ -46,5 +46,8 @@ policies:
           - main
           - operator
           - prometheus
+          - frontend
+          - datasource-syncer
+          - config-reloader
           - rule-evaluator
-        descriptionLength: 72
+        descriptionLength: 80
