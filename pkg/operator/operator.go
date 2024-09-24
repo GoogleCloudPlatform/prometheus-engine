@@ -246,18 +246,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 				"metadata.name":      NameCollector,
 			}),
 		},
-		&appsv1.Deployment{}: {
-			Field: fields.SelectorFromSet(fields.Set{
-				"metadata.namespace": opts.OperatorNamespace,
-				"metadata.name":      NameRuleEvaluator,
-			}),
-		},
-		&appsv1.StatefulSet{}: {
-			Field: fields.SelectorFromSet(fields.Set{
-				"metadata.namespace": opts.OperatorNamespace,
-				"metadata.name":      NameAlertmanager,
-			}),
-		},
 	}
 
 	// Determine whether VPA is installed in the cluster. If so, set up the scaling controller.

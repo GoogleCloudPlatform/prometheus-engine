@@ -221,19 +221,10 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 		return reconcile.Result{}, fmt.Errorf("ensure alertmanager config secret: %w", err)
 	}
 
-	if err := r.ensureAlertmanagerStatefulSet(ctx, config.ManagedAlertmanager); err != nil {
-		return reconcile.Result{}, fmt.Errorf("ensure alertmanager statefulset: %w", err)
-	}
-
 	// Mirror the fetched secret data to where the rule-evaluator can
 	// mount and access.
 	if err := r.ensureRuleEvaluatorSecrets(ctx, secretData); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure rule-evaluator secrets: %w", err)
-	}
-
-	// Ensure the rule-evaluator deployment and volume mounts.
-	if err := r.ensureRuleEvaluatorDeployment(ctx); err != nil {
-		return reconcile.Result{}, fmt.Errorf("ensure rule-evaluator deploy: %w", err)
 	}
 
 	return reconcile.Result{}, nil
@@ -511,42 +502,6 @@ func (config *alertmanagerConfig) UnmarshalYAML(value *yaml.Node) error {
 	}
 	config.GoogleCloud = googleCloudConfig.GoogleCloud
 	return nil
-}
-
-// ensureAlertmanagerStatefulSet configures the managed Alertmanager instance
-// to reflect the provided spec.
-func (r *operatorConfigReconciler) ensureAlertmanagerStatefulSet(ctx context.Context, spec *monitoringv1.ManagedAlertmanagerSpec) error {
-	if spec == nil {
-		return nil
-	}
-
-	logger, _ := logr.FromContext(ctx)
-
-	var sset appsv1.StatefulSet
-	err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: NameAlertmanager}, &sset)
-	// Some users deliberately not want to run the alertmanager.
-	// Only emit a warning but don't cause retries
-	// as this logic gets re-triggered anyway if the StatefulSet is created later.
-	if apierrors.IsNotFound(err) {
-		logger.Error(err, "Alertmanager StatefulSet does not exist")
-		return nil
-	}
-	return err
-}
-
-// ensureRuleEvaluatorDeployment reconciles the Deployment for rule-evaluator.
-func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Context) error {
-	logger, _ := logr.FromContext(ctx)
-
-	var deploy appsv1.Deployment
-	err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: NameRuleEvaluator}, &deploy)
-	// Some users deliberately not want to run the rule-evaluator. Only emit a warning but don't cause
-	// retries as this logic gets re-triggered anyway if the Deployment is created later.
-	if apierrors.IsNotFound(err) {
-		logger.Error(err, "rule-evaluator Deployment does not exist")
-		return nil
-	}
-	return err
 }
 
 // makeAlertmanagerConfigs creates the alertmanager_config entries as described in
