@@ -15,7 +15,7 @@
 FROM golang:1.23.1-bullseye as buildbase
 
 # Compile the UI assets.
-FROM launcher.gcr.io/google/nodejs as assets
+FROM gcr.io/google-appengine/nodejs as assets
 # To build the UI we need a recent node version and the go toolchain.
 RUN install_node v17.9.0
 COPY --from=buildbase /usr/local/go /usr/local/
