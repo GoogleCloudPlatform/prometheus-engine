@@ -23,11 +23,184 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	prommodel "github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/relabel"
 	yaml "gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
+
+func applyDefaultsToRelabelConfig(rules []*relabel.Config) {
+	for i := range rules {
+		if rules[i].Action == relabel.Action("") {
+			rules[i].Action = relabel.DefaultRelabelConfig.Action
+		}
+		if rules[i].Separator == "" {
+			rules[i].Separator = relabel.DefaultRelabelConfig.Separator
+		}
+		emptyRegexp := relabel.Regexp{}
+		if rules[i].Regex == emptyRegexp {
+			rules[i].Regex = relabel.DefaultRelabelConfig.Regex
+		}
+		if rules[i].Replacement == "" {
+			rules[i].Replacement = relabel.DefaultRelabelConfig.Replacement
+		}
+	}
+}
+
+func TestTopLevelControllerRelabel(t *testing.T) {
+	rules := make([]*relabel.Config, 0, len(topLevelControllerNameRules)+len(topLevelControllerTypeRules))
+	rules = append(rules, topLevelControllerNameRules...)
+	rules = append(rules, topLevelControllerTypeRules...)
+	applyDefaultsToRelabelConfig(rules)
+
+	type test struct {
+		input    labels.Labels
+		want     labels.Labels
+		wantKeep bool
+	}
+	tests := map[string]test{
+		// Base cases
+		"Empty": {
+			input:    labels.Labels{},
+			want:     labels.Labels{},
+			wantKeep: true,
+		},
+		"Pod": {
+			input: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: ""},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: ""},
+				{Name: "__meta_kubernetes_pod_name", Value: "pod_name"},
+			},
+			want: labels.Labels{
+				{Name: "__meta_kubernetes_pod_name", Value: "pod_name"},
+			},
+			wantKeep: true,
+		},
+
+		// Controller types
+		"CronJob": {
+			input: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "Job"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-cronjob-12345678"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-cronjob-12345678-abcde"},
+			},
+			want: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "Job"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-cronjob-12345678"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-cronjob-12345678-abcde"},
+				{Name: labelTopLevelControllerName, Value: "test-cronjob"},
+				{Name: labelTopLevelControllerType, Value: "CronJob"},
+			},
+			wantKeep: true,
+		},
+		"DaemonSet": {
+			input: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "DaemonSet"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-daemonset"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-daemonset-abcde"},
+			},
+			want: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "DaemonSet"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-daemonset"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-daemonset-abcde"},
+				{Name: labelTopLevelControllerName, Value: "test-daemonset"},
+				{Name: labelTopLevelControllerType, Value: "DaemonSet"},
+			},
+			wantKeep: true,
+		},
+		"Deployment": {
+			input: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicaSet"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-deployment-1234567890"},
+				{Name: "__meta_kubernetes_pod_labelpresent_pod_template_hash", Value: "true"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-deployment-012345789-abcde"},
+			},
+			want: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicaSet"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-deployment-1234567890"},
+				{Name: "__meta_kubernetes_pod_labelpresent_pod_template_hash", Value: "true"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-deployment-012345789-abcde"},
+				{Name: labelTopLevelControllerName, Value: "test-deployment"},
+				{Name: labelTopLevelControllerType, Value: "Deployment"},
+			},
+			wantKeep: true,
+		},
+		"Job": {
+			input: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "Job"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-job"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-job-abcde"},
+			},
+			want: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "Job"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-job"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-job-abcde"},
+				{Name: labelTopLevelControllerName, Value: "test-job"},
+				{Name: labelTopLevelControllerType, Value: "Job"},
+			},
+			wantKeep: true,
+		},
+		"ReplicaSet": {
+			input: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicaSet"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-replicaset"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-replicaset-abcde"},
+			},
+			want: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicaSet"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-replicaset"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-replicaset-abcde"},
+				{Name: labelTopLevelControllerName, Value: "test-replicaset"},
+				{Name: labelTopLevelControllerType, Value: "ReplicaSet"},
+			},
+			wantKeep: true,
+		},
+		"ReplicationController": {
+			input: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicationController"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-replicationcontroller"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-replicationcontroller-abcde"},
+			},
+			want: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicationController"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-replicationcontroller"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-replicationcontroller-abcde"},
+				{Name: labelTopLevelControllerName, Value: "test-replicationcontroller"},
+				{Name: labelTopLevelControllerType, Value: "ReplicationController"},
+			},
+			wantKeep: true,
+		},
+		"StatefulSet": {
+			input: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "StatefulSet"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-statefulset"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-statefulset-1234567890"},
+			},
+			want: labels.Labels{
+				{Name: "__meta_kubernetes_pod_controller_kind", Value: "StatefulSet"},
+				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-statefulset"},
+				{Name: "__meta_kubernetes_pod_name", Value: "test-statefulset-1234567890"},
+				{Name: labelTopLevelControllerName, Value: "test-statefulset"},
+				{Name: labelTopLevelControllerType, Value: "StatefulSet"},
+			},
+			wantKeep: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			_ = tc
+			ret, keep := relabel.Process(tc.input, rules...)
+			if diff := cmp.Diff(tc.want, ret); diff != "" {
+				t.Errorf("Relabeling does not produce expected result (-want, +got).\n%s\n", diff)
+			}
+			if tc.wantKeep != keep {
+				t.Errorf("Mismatch on keep labels. Want: %t, Got: %t", tc.wantKeep, keep)
+			}
+		})
+	}
+}
 
 func TestValidatePodMonitoringCommon(t *testing.T) {
 	cases := []struct {
@@ -473,7 +646,7 @@ func TestValidatePodMonitoring(t *testing.T) {
 				},
 			},
 			tls: TargetLabels{
-				Metadata: stringSlicePtr("pod", "node", "container"),
+				Metadata: stringSlicePtr("pod", "node", "container", "top_level_controller_name", "top_level_controller_type"),
 			},
 		}, {
 			desc: "bad metadata label",
@@ -484,7 +657,7 @@ func TestValidatePodMonitoring(t *testing.T) {
 				},
 			},
 			tls: TargetLabels{
-				Metadata: stringSlicePtr("foo", "pod", "node", "container"),
+				Metadata: stringSlicePtr("foo", "pod", "node", "container", "top_level_controller_name", "top_level_controller_type"),
 			},
 			fail:        true,
 			errContains: fmt.Sprintf(`label "foo" not allowed, must be one of %v`, allowedPodMonitoringLabels),
@@ -533,7 +706,7 @@ func TestValidateClusterPodMonitoring(t *testing.T) {
 				},
 			},
 			tls: TargetLabels{
-				Metadata: stringSlicePtr("namespace", "pod", "node", "container"),
+				Metadata: stringSlicePtr("namespace", "pod", "node", "container", "top_level_controller_name", "top_level_controller_type"),
 			},
 		}, {
 			desc: "bad metadata label",
@@ -544,7 +717,7 @@ func TestValidateClusterPodMonitoring(t *testing.T) {
 				},
 			},
 			tls: TargetLabels{
-				Metadata: stringSlicePtr("namespace", "foo", "pod", "node", "container"),
+				Metadata: stringSlicePtr("namespace", "foo", "pod", "node", "container", "top_level_controller_name", "top_level_controller_type"),
 			},
 			fail:        true,
 			errContains: fmt.Sprintf(`label "foo" not allowed, must be one of %v`, allowedClusterPodMonitoringLabels),
