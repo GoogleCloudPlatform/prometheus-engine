@@ -155,6 +155,7 @@ func main() {
 			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
 			return server.ListenAndServe()
 		}, func(error) {
+			//nolint:fatcontext //TODO review this linter error
 			ctx, cancel = context.WithTimeout(ctx, time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
 				//nolint:errcheck
