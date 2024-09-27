@@ -15,6 +15,7 @@
 package v1
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -183,7 +184,7 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 				},
 			},
 			fail:        true,
-			errContains: `regex (cluster|location|cluster|namespace|job|instance|__address__) would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
+			errContains: fmt.Sprintf(`regex (cluster|location|cluster|namespace|job|instance|__address__) would drop at least one of the protected labels %v`, protectedLabels),
 		}, {
 			desc: "metric relabeling: protected labeldrop",
 			eps: []ScrapeEndpoint{
@@ -199,7 +200,7 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 				},
 			},
 			fail:        true,
-			errContains: `regex n?amespace would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
+			errContains: fmt.Sprintf(`regex n?amespace would drop at least one of the protected labels %v`, protectedLabels),
 		}, {
 			desc: "metric relabeling: labeldrop default regex",
 			eps: []ScrapeEndpoint{
@@ -214,7 +215,7 @@ func TestValidatePodMonitoringCommon(t *testing.T) {
 				},
 			},
 			fail:        true,
-			errContains: `regex  would drop at least one of the protected labels project_id, location, cluster, namespace, job, instance, __address__`,
+			errContains: fmt.Sprintf(`regex  would drop at least one of the protected labels %v`, protectedLabels),
 		}, {
 			desc: "metric relabeling: labelkeep default regex",
 			eps: []ScrapeEndpoint{
@@ -486,7 +487,7 @@ func TestValidatePodMonitoring(t *testing.T) {
 				Metadata: stringSlicePtr("foo", "pod", "node", "container"),
 			},
 			fail:        true,
-			errContains: `label "foo" not allowed, must be one of [pod container node]`,
+			errContains: fmt.Sprintf(`label "foo" not allowed, must be one of %v`, allowedPodMonitoringLabels),
 		},
 	}
 
@@ -546,7 +547,7 @@ func TestValidateClusterPodMonitoring(t *testing.T) {
 				Metadata: stringSlicePtr("namespace", "foo", "pod", "node", "container"),
 			},
 			fail:        true,
-			errContains: `label "foo" not allowed, must be one of [namespace pod container node]`,
+			errContains: fmt.Sprintf(`label "foo" not allowed, must be one of %v`, allowedClusterPodMonitoringLabels),
 		},
 	}
 
