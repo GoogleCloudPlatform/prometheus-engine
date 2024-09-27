@@ -17,6 +17,8 @@ package v1
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
@@ -28,23 +30,107 @@ import (
 	"github.com/prometheus/prometheus/model/relabel"
 )
 
+const (
+	labelCluster   = "cluster"
+	labelLocation  = "location"
+	labelProjectID = "project_id"
+
+	labelContainer              = "container"
+	labelNamespace              = "namespace"
+	labelNode                   = "node"
+	labelPod                    = "pod"
+	labelTopLevelControllerName = "top_level_controller_name"
+	labelTopLevelControllerType = "top_level_controller_type"
+)
+
+var (
+	allowedClusterPodMonitoringLabel = map[string]bool{
+		labelContainer:              true,
+		labelNamespace:              true,
+		labelNode:                   true,
+		labelPod:                    true,
+		labelTopLevelControllerName: true,
+		labelTopLevelControllerType: true,
+	}
+	allowedClusterPodMonitoringLabels = slices.Sorted(maps.Keys(allowedClusterPodMonitoringLabel))
+
+	allowedPodMonitoringLabel = map[string]bool{
+		labelContainer:              true,
+		labelNode:                   true,
+		labelPod:                    true,
+		labelTopLevelControllerName: true,
+		labelTopLevelControllerType: true,
+	}
+	allowedPodMonitoringLabels = slices.Sorted(maps.Keys(allowedClusterPodMonitoringLabel))
+
+	topLevelControllerNameRules = []*relabel.Config{
+		// First, capture the controller name from the pod manifest.
+		{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_name"},
+			TargetLabel:  labelTopLevelControllerName,
+		},
+		// If the controller kind is a ReplicaSet and it has a pod template hash, it belongs to a deployment.
+		// The name of the deployment is the name of the ReplicaSet with the hash truncated.
+		{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_kind", "__meta_kubernetes_pod_labelpresent_pod_template_hash", "__meta_kubernetes_pod_controller_name"},
+			Regex:        relabel.MustNewRegexp("ReplicaSet;true;(.+)-[a-z0-9]+"),
+			TargetLabel:  labelTopLevelControllerName,
+		},
+		// If the controller kind is Job and it has a 8-digit numeric suffix (i.e. timestamp), assume the Job was created by a CronJob.
+		// The name of the deployment is the name of the Job with the timestamp truncated.
+		{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_kind", "__meta_kubernetes_pod_controller_name"},
+			Regex:        relabel.MustNewRegexp("Job;(.+)-\\d{8}$"),
+			TargetLabel:  labelTopLevelControllerName,
+		},
+	}
+
+	topLevelControllerTypeRules = []*relabel.Config{
+		// First, capture the controller name from the pod manifest.
+		{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_kind"},
+			TargetLabel:  labelTopLevelControllerType,
+		},
+		// If the controller kind is a ReplicaSet and it has a pod template hash, it belongs to a deployment.
+		{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_kind", "__meta_kubernetes_pod_labelpresent_pod_template_hash", "__meta_kubernetes_pod_controller_name"},
+			Regex:        relabel.MustNewRegexp("ReplicaSet;true;(.+)-[a-z0-9]+"),
+			TargetLabel:  labelTopLevelControllerType,
+			Replacement:  "Deployment",
+		},
+		// If the controller kind is Job and it has a 8-digit numeric suffix (i.e. timestamp), assume the Job was created by a CronJob.
+		{
+			Action:       relabel.Replace,
+			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_controller_kind", "__meta_kubernetes_pod_controller_name"},
+			Regex:        relabel.MustNewRegexp("Job;(.+)-\\d{8}$"),
+			TargetLabel:  labelTopLevelControllerType,
+			Replacement:  "CronJob",
+		},
+	}
+)
+
 // ScrapeConfigs generates Prometheus scrape configs for the PodMonitoring.
 func (p *PodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
 	relabelCfgs := []*relabel.Config{
 		// Force target labels, so they cannot be overwritten by metric labels.
 		{
 			Action:      relabel.Replace,
-			TargetLabel: "project_id",
+			TargetLabel: labelProjectID,
 			Replacement: projectID,
 		},
 		{
 			Action:      relabel.Replace,
-			TargetLabel: "location",
+			TargetLabel: labelLocation,
 			Replacement: location,
 		},
 		{
 			Action:      relabel.Replace,
-			TargetLabel: "cluster",
+			TargetLabel: labelCluster,
 			Replacement: cluster,
 		},
 	}
@@ -78,15 +164,15 @@ func (p *PodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.C
 	}
 	relabelCfgs = append(relabelCfgs, selectors...)
 
-	metadataLabels := map[string]struct{}{}
+	metadataLabels := make(map[string]bool)
 	// The metadata list must be always set in general but we allow the null case
 	// for backwards compatibility and won't add any labels in that case.
 	if p.Spec.TargetLabels.Metadata != nil {
 		for _, l := range *p.Spec.TargetLabels.Metadata {
-			if allowed := []string{"pod", "container", "node"}; !containsString(allowed, l) {
-				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
+			if !allowedPodMonitoringLabel[l] {
+				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowedPodMonitoringLabels)
 			}
-			metadataLabels[l] = struct{}{}
+			metadataLabels[l] = true
 		}
 	}
 	relabelCfgs = append(relabelCfgs, relabelingsForMetadata(metadataLabels)...)
@@ -95,7 +181,7 @@ func (p *PodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.C
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
 		Action:       relabel.Replace,
 		SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
-		TargetLabel:  "namespace",
+		TargetLabel:  labelNamespace,
 	})
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
 		Action:      relabel.Replace,
@@ -128,17 +214,17 @@ func (c *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string
 		// Force target labels, so they cannot be overwritten by metric labels.
 		{
 			Action:      relabel.Replace,
-			TargetLabel: "project_id",
+			TargetLabel: labelProjectID,
 			Replacement: projectID,
 		},
 		{
 			Action:      relabel.Replace,
-			TargetLabel: "location",
+			TargetLabel: labelLocation,
 			Replacement: location,
 		},
 		{
 			Action:      relabel.Replace,
-			TargetLabel: "cluster",
+			TargetLabel: labelCluster,
 			Replacement: cluster,
 		},
 	}
@@ -165,19 +251,19 @@ func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*re
 	}
 	relabelCfgs = append(relabelCfgs, selectors...)
 
-	metadataLabels := map[string]struct{}{}
+	metadataLabels := make(map[string]bool)
 	// The metadata list must be always set in general but we allow the null case
 	// for backwards compatibility. In that case we must always add the namespace label.
 	if c.Spec.TargetLabels.Metadata == nil {
-		metadataLabels = map[string]struct{}{
-			"namespace": {},
+		metadataLabels = map[string]bool{
+			labelNamespace: true,
 		}
 	} else {
 		for _, l := range *c.Spec.TargetLabels.Metadata {
-			if allowed := []string{"namespace", "pod", "container", "node"}; !containsString(allowed, l) {
-				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowed)
+			if !allowedClusterPodMonitoringLabel[l] {
+				return nil, fmt.Errorf("metadata label %q not allowed, must be one of %v", l, allowedClusterPodMonitoringLabels)
 			}
-			metadataLabels[l] = struct{}{}
+			metadataLabels[l] = true
 		}
 	}
 	relabelCfgs = append(relabelCfgs, relabelingsForMetadata(metadataLabels)...)
@@ -297,7 +383,7 @@ func endpointScrapeConfig(
 		// First, drop the container label even if it was added before.
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action: relabel.LabelDrop,
-			Regex:  relabel.MustNewRegexp("container"),
+			Regex:  relabel.MustNewRegexp(labelContainer),
 		})
 		// Then, rewrite the instance and __address__ for each candidate to the same values.
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
@@ -334,34 +420,40 @@ func endpointScrapeConfig(
 	return buildPrometheusScrapeConfig(fmt.Sprintf("%s/%s", id, &ep.Port), discoveryCfgs, httpCfg, relabelCfgs, limits, ep)
 }
 
-func relabelingsForMetadata(keys map[string]struct{}) (res []*relabel.Config) {
-	if _, ok := keys["namespace"]; ok {
+func relabelingsForMetadata(keys map[string]bool) (res []*relabel.Config) {
+	if keys[labelNamespace] {
 		res = append(res, &relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_namespace"},
-			TargetLabel:  "namespace",
+			TargetLabel:  labelNamespace,
 		})
 	}
-	if _, ok := keys["pod"]; ok {
+	if keys[labelPod] {
 		res = append(res, &relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_name"},
-			TargetLabel:  "pod",
+			TargetLabel:  labelPod,
 		})
 	}
-	if _, ok := keys["container"]; ok {
+	if keys[labelContainer] {
 		res = append(res, &relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_container_name"},
-			TargetLabel:  "container",
+			TargetLabel:  labelContainer,
 		})
 	}
-	if _, ok := keys["node"]; ok {
+	if keys[labelNode] {
 		res = append(res, &relabel.Config{
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_pod_node_name"},
-			TargetLabel:  "node",
+			TargetLabel:  labelNode,
 		})
+	}
+	if keys[labelTopLevelControllerName] {
+		res = append(res, topLevelControllerNameRules...)
+	}
+	if keys[labelTopLevelControllerType] {
+		res = append(res, topLevelControllerTypeRules...)
 	}
 	return res
 }
@@ -401,18 +493,18 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 	// Default action is "replace" per https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config.
 	case relabel.Replace, relabel.HashMod, "":
 		// These actions write into the target label and it must not be a protected one.
-		if isProtectedLabel(r.TargetLabel) {
+		if protectedLabel[r.TargetLabel] {
 			return nil, fmt.Errorf("cannot relabel with action %q onto protected label %q", r.Action, r.TargetLabel)
 		}
 	case relabel.LabelDrop:
 		if matchesAnyProtectedLabel(re) {
-			return nil, fmt.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
+			return nil, fmt.Errorf("regex %s would drop at least one of the protected labels %v", r.Regex, protectedLabels)
 		}
 	case relabel.LabelKeep:
 		// Keep drops all labels that don't match the regex. So all protected labels must
 		// match keep.
 		if !matchesAllProtectedLabels(re) {
-			return nil, fmt.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, strings.Join(protectedLabels, ", "))
+			return nil, fmt.Errorf("regex %s would drop at least one of the protected labels %s", r.Regex, protectedLabels)
 		}
 	case relabel.LabelMap:
 		// It is difficult to prove for certain that labelmap does not override a protected label.
@@ -429,22 +521,21 @@ func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
 	return rcfg, nil
 }
 
-var protectedLabels = []string{
-	export.KeyProjectID,
-	export.KeyLocation,
-	export.KeyCluster,
-	export.KeyNamespace,
-	export.KeyJob,
-	export.KeyInstance,
-	"__address__",
-}
-
-func isProtectedLabel(s string) bool {
-	return containsString(protectedLabels, s)
-}
+var (
+	protectedLabel = map[string]bool{
+		export.KeyProjectID: true,
+		export.KeyLocation:  true,
+		export.KeyCluster:   true,
+		export.KeyNamespace: true,
+		export.KeyJob:       true,
+		export.KeyInstance:  true,
+		"__address__":       true,
+	}
+	protectedLabels = slices.Sorted(maps.Keys(protectedLabel))
+)
 
 func matchesAnyProtectedLabel(re relabel.Regexp) bool {
-	for _, pl := range protectedLabels {
+	for pl := range protectedLabel {
 		if re.MatchString(pl) {
 			return true
 		}
@@ -453,21 +544,12 @@ func matchesAnyProtectedLabel(re relabel.Regexp) bool {
 }
 
 func matchesAllProtectedLabels(re relabel.Regexp) bool {
-	for _, pl := range protectedLabels {
+	for pl := range protectedLabel {
 		if !re.MatchString(pl) {
 			return false
 		}
 	}
 	return true
-}
-
-func containsString(ss []string, s string) bool {
-	for _, x := range ss {
-		if s == x {
-			return true
-		}
-	}
-	return false
 }
 
 // labelMappingRelabelConfigs generates relabel configs using a provided mapping and resource prefix.

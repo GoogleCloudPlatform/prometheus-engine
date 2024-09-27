@@ -246,7 +246,7 @@ func TestCollectionReconcile(t *testing.T) {
 					ResourceVersion: "2",
 				}, Spec: monitoringv1.PodMonitoringSpec{
 					TargetLabels: monitoringv1.TargetLabels{
-						Metadata: &[]string{"pod", "container"},
+						Metadata: &[]string{"pod", "container", "top_level_controller_name", "top_level_controller_type"},
 					},
 					Endpoints: validScrapeEndpoints,
 				},
@@ -281,7 +281,7 @@ func TestCollectionReconcile(t *testing.T) {
 					ResourceVersion: "3",
 				}, Spec: monitoringv1.PodMonitoringSpec{
 					TargetLabels: monitoringv1.TargetLabels{
-						Metadata: &[]string{"pod", "container"},
+						Metadata: &[]string{"pod", "container", "top_level_controller_name", "top_level_controller_type"},
 					},
 					Endpoints: validScrapeEndpoints,
 				},
@@ -430,7 +430,7 @@ func TestCollectionReconcile(t *testing.T) {
 					ResourceVersion: "2",
 				}, Spec: monitoringv1.ClusterPodMonitoringSpec{
 					TargetLabels: monitoringv1.TargetLabels{
-						Metadata: &[]string{"namespace", "pod", "container"},
+						Metadata: &[]string{"namespace", "pod", "container", "top_level_controller_name", "top_level_controller_type"},
 					},
 					Endpoints: validScrapeEndpoints,
 				},
@@ -465,7 +465,7 @@ func TestCollectionReconcile(t *testing.T) {
 					ResourceVersion: "3",
 				}, Spec: monitoringv1.ClusterPodMonitoringSpec{
 					TargetLabels: monitoringv1.TargetLabels{
-						Metadata: &[]string{"namespace", "pod", "container"},
+						Metadata: &[]string{"namespace", "pod", "container", "top_level_controller_name", "top_level_controller_type"},
 					},
 					Endpoints: validScrapeEndpoints,
 				},
