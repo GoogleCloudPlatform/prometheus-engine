@@ -2721,8 +2721,8 @@ Must not be larger than the scrape interval.</p>
 <td>
 <p>Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
 override protected target labels (project_id, location, cluster, namespace, job,
-instance, or <strong>address</strong>) are not permitted. The labelmap action is not permitted
-in general.</p>
+instance, top_level_controller, top_level_controller_type, or <strong>address</strong>) are
+not permitted. The labelmap action is not permitted in general.</p>
 </td>
 </tr>
 <tr>
@@ -3398,7 +3398,8 @@ See MinVersion in <a href="https://pkg.go.dev/crypto/tls#Config">https://pkg.go.
 Permitted keys are <code>pod</code>, <code>container</code>, and <code>node</code> for PodMonitoring and
 <code>pod</code>, <code>container</code>, <code>node</code>, and <code>namespace</code> for ClusterPodMonitoring. The <code>container</code>
 label is only populated if the scrape port is referenced by name.
-Defaults to [pod, container] for PodMonitoring and [namespace, pod, container]
+Defaults to [pod, container, top_level_controller_name, top_level_controller_type] for
+PodMonitoring and [namespace, pod, container, top_level_controller_name, top_level_controller_type]
 for ClusterPodMonitoring.
 If set to null, it will be interpreted as the empty list for PodMonitoring
 and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
