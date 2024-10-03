@@ -17,10 +17,13 @@ package internal
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/prometheus/rules"
+	apiv1 "github.com/prometheus/prometheus/web/api/v1"
 )
 
 type errorType string
@@ -57,19 +60,20 @@ type response struct {
 	Infos     []string    `json:"infos,omitempty"`
 }
 
-// RuleGroupsRetriever RulesRetriever provides a list of active rules.
-type RuleGroupsRetriever interface {
+// RuleRetriever provides a list of active rules.
+type RuleRetriever interface {
 	RuleGroups() []*rules.Group
+	AlertingRules() []*rules.AlertingRule
 }
 
 // API provides an HTTP API singleton for handling http endpoints in the rule evaluator.
 type API struct {
-	rulesManager RuleGroupsRetriever
+	rulesManager RuleRetriever
 	logger       log.Logger
 }
 
 // NewAPI creates a new API instance.
-func NewAPI(logger log.Logger, rulesManager RuleGroupsRetriever) *API {
+func NewAPI(logger log.Logger, rulesManager RuleRetriever) *API {
 	return &API{
 		rulesManager: rulesManager,
 		logger:       logger,
@@ -109,4 +113,26 @@ func (api *API) writeError(w http.ResponseWriter, errType errorType, errMsg stri
 		ErrorType: errType,
 		Error:     errMsg,
 	})
+}
+
+// alertsToAPIAlerts converts a slice of rules.Alert to a slice of apiv1.Alert.
+func alertsToAPIAlerts(alerts []*rules.Alert) []*apiv1.Alert {
+	apiAlerts := make([]*apiv1.Alert, 0, len(alerts))
+	for _, ruleAlert := range alerts {
+		var keepFiringSince *time.Time
+		if !ruleAlert.KeepFiringSince.IsZero() {
+			keepFiringSince = &ruleAlert.KeepFiringSince
+		}
+
+		apiAlerts = append(apiAlerts, &apiv1.Alert{
+			Labels:          ruleAlert.Labels,
+			Annotations:     ruleAlert.Annotations,
+			State:           ruleAlert.State.String(),
+			ActiveAt:        &ruleAlert.ActiveAt,
+			KeepFiringSince: keepFiringSince,
+			Value:           strconv.FormatFloat(ruleAlert.Value, 'e', -1, 64),
+		})
+	}
+
+	return apiAlerts
 }

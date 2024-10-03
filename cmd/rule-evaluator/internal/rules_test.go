@@ -32,11 +32,16 @@ import (
 )
 
 type RuleGroupsRetrieverMock struct {
-	RuleGroupsFunc func() []*rules.Group
+	RuleGroupsFunc    func() []*rules.Group
+	AlertingRulesFunc func() []*rules.AlertingRule
 }
 
 func (r RuleGroupsRetrieverMock) RuleGroups() []*rules.Group {
 	return r.RuleGroupsFunc()
+}
+
+func (r RuleGroupsRetrieverMock) AlertingRules() []*rules.AlertingRule {
+	return r.AlertingRulesFunc()
 }
 
 func TestAPI_HandleRulesEndpoint(t *testing.T) {
@@ -557,101 +562,4 @@ func Test_alertingRuleToAPIRule(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, alertingRuleToAPIRule(rule, false))
-}
-
-func Test_rulesAlertsToAPIAlerts(t *testing.T) {
-	t.Parallel()
-	location, _ := time.LoadLocation("Europe/Stockholm")
-	activeAt := time.Date(1998, time.February, 1, 2, 3, 4, 567, location)
-	keepFiringSince := activeAt.Add(-time.Hour)
-
-	tests := []struct {
-		name        string
-		rulesAlerts []*rules.Alert
-		want        []*apiv1.Alert
-	}{
-		{
-			name:        "empty rules alerts",
-			rulesAlerts: []*rules.Alert{},
-			want:        []*apiv1.Alert{},
-		},
-		{
-			name: "happy path with two alerts",
-			rulesAlerts: []*rules.Alert{
-				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
-					State:           rules.StateFiring,
-					ActiveAt:        activeAt,
-					KeepFiringSince: keepFiringSince,
-					Value:           1.23,
-				},
-				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
-					State:           rules.StatePending,
-					ActiveAt:        activeAt,
-					KeepFiringSince: keepFiringSince,
-					Value:           1234234.24,
-				},
-			},
-			want: []*apiv1.Alert{
-				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
-					State:           "firing",
-					ActiveAt:        &activeAt,
-					KeepFiringSince: &keepFiringSince,
-					Value:           "1.23e+00",
-				},
-				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
-					State:           rules.StatePending.String(),
-					ActiveAt:        &activeAt,
-					KeepFiringSince: &keepFiringSince,
-					Value:           "1.23423424e+06",
-				},
-			},
-		},
-		{
-			name: "handlesZeroTime",
-			rulesAlerts: []*rules.Alert{
-				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
-					State:           rules.StateFiring,
-					ActiveAt:        activeAt,
-					KeepFiringSince: time.Time{},
-					Value:           1.23,
-				},
-			},
-			want: []*apiv1.Alert{
-				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
-					State:           "firing",
-					ActiveAt:        &activeAt,
-					KeepFiringSince: nil,
-					Value:           "1.23e+00",
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		tt := tt //nolint:copyloopvar // parallel test
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result := alertsToAPIAlerts(tt.rulesAlerts)
-			assert.Len(t, result, len(tt.want))
-			for i := range result {
-				assert.Equal(t, tt.want[i].Labels, result[i].Labels)
-				assert.Equal(t, tt.want[i].Annotations, result[i].Annotations)
-				assert.Equal(t, tt.want[i].State, result[i].State)
-				assert.Equal(t, tt.want[i].ActiveAt, result[i].ActiveAt)
-				assert.Equal(t, tt.want[i].KeepFiringSince, result[i].KeepFiringSince)
-				assert.Equal(t, tt.want[i].Value, result[i].Value)
-			}
-		})
-	}
 }
