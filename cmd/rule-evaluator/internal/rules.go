@@ -18,9 +18,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/prometheus/rules"
@@ -210,26 +208,4 @@ func alertingRuleToAPIRule(rule *rules.AlertingRule, shouldExcludeAlertsFromAler
 		LastEvaluation: rule.GetEvaluationTimestamp(),
 		Type:           ruleKindAlerting,
 	}
-}
-
-// alertsToAPIAlerts converts a slice of rules.Alert to a slice of apiv1.Alert.
-func alertsToAPIAlerts(alerts []*rules.Alert) []*apiv1.Alert {
-	apiAlerts := make([]*apiv1.Alert, len(alerts))
-	for i, ruleAlert := range alerts {
-		var keepFiringSince *time.Time
-		if !ruleAlert.KeepFiringSince.IsZero() {
-			keepFiringSince = &ruleAlert.KeepFiringSince
-		}
-
-		apiAlerts[i] = &apiv1.Alert{
-			Labels:          ruleAlert.Labels,
-			Annotations:     ruleAlert.Annotations,
-			State:           ruleAlert.State.String(),
-			ActiveAt:        &ruleAlert.ActiveAt,
-			KeepFiringSince: keepFiringSince,
-			Value:           strconv.FormatFloat(ruleAlert.Value, 'e', -1, 64),
-		}
-	}
-
-	return apiAlerts
 }

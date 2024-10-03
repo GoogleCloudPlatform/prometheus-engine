@@ -395,6 +395,7 @@ func main() {
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#rules
 		apiHandler := internal.NewAPI(logger, ruleEvaluator.rulesManager)
 		http.HandleFunc("/api/v1/rules", apiHandler.HandleRulesEndpoint)
+		http.HandleFunc("/api/v1/alerts", apiHandler.HandleAlertsEndpoint)
 
 		g.Add(func() error {
 			_ = level.Info(logger).Log("msg", "Starting web server", "listen", defaultEvaluatorOpts.ListenAddress)
