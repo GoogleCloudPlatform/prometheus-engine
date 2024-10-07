@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.23.1-bullseye as buildbase
+FROM golang:1.23.2-bullseye as buildbase
 
 # Compile the UI assets.
 FROM gcr.io/google-appengine/nodejs as assets
