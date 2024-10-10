@@ -13,6 +13,7 @@
 !e2e
 !third_party
 !vendor
+!internal
 pkg/ui/build
 pkg/ui/assets_vfsdata.go
 **/Dockerfile

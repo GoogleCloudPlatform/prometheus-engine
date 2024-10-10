@@ -52,6 +52,7 @@ COPY charts charts
 COPY doc doc
 COPY pkg pkg
 COPY e2e e2e
+COPY internal internal
 
 # Init a dummy git repo so we can check if generated code changes via
 # git diff.
