@@ -292,6 +292,20 @@ spec:
     targetPort: 9093
   clusterIP: None
 ---
+# Source: operator/templates/rule-evaluator.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rule-evaluator
+  namespace: gmp-system
+spec:
+  selector:
+      app.kubernetes.io/name: rule-evaluator
+  ports:
+    - name: rule-evaluator
+      port: 19092
+      targetPort: 19092
+---
 # Source: operator/templates/service.yaml
 apiVersion: v1
 kind: Service

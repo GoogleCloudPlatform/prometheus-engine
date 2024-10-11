@@ -29,11 +29,13 @@ import (
 
 	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/client_golang/api"
 	prometheus "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	appsv1 "k8s.io/api/apps/v1"
@@ -45,8 +47,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/cert"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 )
 
 const configReloaderContainerName = "config-reloader"
@@ -88,6 +88,7 @@ func testRuleEvaluator(t *testing.T, features monitoringv1.OperatorFeatures) {
 	if !skipGCM {
 		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx))
 	}
+	t.Run("rules-service", testRuleEvaluatorService(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace))
 }
 
 func testRuleEvaluatorDeployed(ctx context.Context, kubeClient client.Client) func(*testing.T) {
@@ -322,6 +323,75 @@ google_cloud:
 		if err != nil {
 			t.Fatalf("failed waiting for generated rule-evaluator config: %s", err)
 		}
+	}
+}
+
+func createPortForwardClient(t *testing.T, restConfig *rest.Config, kubeClient client.Client) (*http.Client, error) {
+	return kube.PortForwardClient(
+		restConfig,
+		kubeClient,
+		writerFn(func(p []byte) (n int, err error) {
+			t.Logf("portforward: info: %s", string(p))
+			return len(p), nil
+		}),
+		writerFn(func(p []byte) (n int, err error) {
+			t.Logf("portforward: error: %s", string(p))
+			return len(p), nil
+		}),
+	)
+}
+
+func testRuleEvaluatorService(
+	ctx context.Context,
+	restConfig *rest.Config,
+	kubeClient client.Client,
+	systemNamespace string,
+) func(*testing.T) {
+	return func(t *testing.T) {
+		var svc corev1.Service
+
+		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+			if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rule-evaluator"}, &svc); err != nil {
+				return false, err
+			}
+			return true, nil
+		})
+		require.NoError(t, err)
+
+		require.Len(t, svc.Spec.Ports, 1)
+		require.Equal(t, int32(19092), svc.Spec.Ports[0].Port)
+		require.Equal(t, int32(19092), svc.Spec.Ports[0].TargetPort.IntVal)
+
+		var endpoints corev1.Endpoints
+
+		err = wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+			if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rule-evaluator"}, &endpoints); err != nil {
+				return false, err
+			}
+			return true, nil
+		})
+		require.NoError(t, err)
+
+		require.Len(t, endpoints.Subsets, 1)
+		require.Len(t, endpoints.Subsets[0].Addresses, 1)
+		address := endpoints.Subsets[0].Addresses[0].IP
+
+		require.Len(t, endpoints.Subsets[0].Ports, 1)
+		port := endpoints.Subsets[0].Ports[0].Port
+
+		httpClient, err := createPortForwardClient(t, restConfig, kubeClient)
+		require.NoError(t, err, "failed to create port forward client")
+
+		err = wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+			_, err = getRules(ctx, httpClient, address, port)
+			if err != nil {
+				return false, fmt.Errorf("unable to get rules: %s", err)
+			}
+
+			return true, nil
+		})
+
+		require.NoError(t, err, "fetching rules failed, expected success, got error: %s", err)
 	}
 }
 
@@ -730,6 +800,24 @@ func getRuntimeInfo(ctx context.Context, httpClient *http.Client, pod *corev1.Po
 	}
 
 	return &runtimeInfo, nil
+}
+
+func getRules(ctx context.Context, httpClient *http.Client, address string, port int32) (*prometheus.RulesResult, error) {
+	client, err := api.NewClient(api.Config{
+		Address: fmt.Sprintf("http://%s:%d", address, port),
+		Client:  httpClient,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("unable to create prometheus API client: %s", err)
+	}
+
+	v1api := prometheus.NewAPI(client)
+	rules, err := v1api.Rules(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get rules: %s", err)
+	}
+
+	return &rules, nil
 }
 
 func logsError(logs string) (string, error) {
