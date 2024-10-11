@@ -34,6 +34,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/frontend/internal"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/ui"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
@@ -42,8 +44,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
-
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/ui"
 )
 
 const projectIDVar = "PROJECT_ID"
@@ -65,6 +65,8 @@ var (
 
 	targetURLStr = flag.String("query.target-url", fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar),
 		fmt.Sprintf("The URL to forward authenticated requests to. (%s is replaced with the --query.project-id flag.)", projectIDVar))
+
+	rulesEvaluatorURLsStr = flag.String("rules.target-urls", "http://rule-evaluator.gmp-system.svc.cluster.local:19092", "Comma separated lists of URLs to forward requests to the rules evaluators.")
 )
 
 func main() {
@@ -98,6 +100,17 @@ func main() {
 		//nolint:errcheck
 		level.Error(logger).Log("msg", "parsing external URL failed", "err", err)
 		os.Exit(1)
+	}
+
+	var rulesEvaluatorURLs []url.URL
+	for _, rulesEvaluatorURLStr := range strings.Split(*rulesEvaluatorURLsStr, ",") {
+		rulesEvaluatorURL, err := url.Parse(strings.TrimSpace(rulesEvaluatorURLStr))
+		if err != nil || rulesEvaluatorURL == nil {
+			_ = level.Error(logger).Log("msg", "parsing rules evaluator URL failed", "err", err)
+			os.Exit(1)
+		}
+
+		rulesEvaluatorURLs = append(rulesEvaluatorURLs, *rulesEvaluatorURL)
 	}
 
 	var g run.Group
@@ -135,8 +148,14 @@ func main() {
 			os.Exit(1)
 		}
 
+		l := log.With(logger, "component", "rule-evaluator-forwarder")
+		ruleEvaluatorCli := internal.NewRuleEvaluatorClient(&http.Client{Timeout: 30 * time.Second})
+		rulesForwarder := internal.NewRuleEvaluatorForwarder(l, rulesEvaluatorURLs, ruleEvaluatorCli)
+
 		server := &http.Server{Addr: *listenAddress}
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
+		http.Handle("/api/v1/rules", rulesForwarder.ForwardToRuleEvaluatorsRulesEndpoint())
+		http.Handle("/api/v1/alerts", rulesForwarder.ForwardToRuleEvaluatorsAlertsEndpoint())
 		http.Handle("/api/", authenticate(forward(logger, targetURL, transport)))
 
 		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
