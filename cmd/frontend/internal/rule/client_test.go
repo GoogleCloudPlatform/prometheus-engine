@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package rule
 
 import (
 	"context"
@@ -34,7 +34,7 @@ func (m *mockClient) Do(req *http.Request) (*http.Response, error) {
 	return m.DoFunc(req)
 }
 
-func TestRuleEvaluatorClient_callRuleEvaluator(t *testing.T) {
+func TestClient_call(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
@@ -42,7 +42,8 @@ func TestRuleEvaluatorClient_callRuleEvaluator(t *testing.T) {
 		endpoint    string
 		queryString string
 	}
-	tests := []struct {
+
+	for _, tt := range []struct {
 		name    string
 		client  httpClient
 		args    args
@@ -90,13 +91,12 @@ func TestRuleEvaluatorClient_callRuleEvaluator(t *testing.T) {
 			},
 			wantErr: context.Canceled,
 		},
-	}
-	for _, tt := range tests {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			r := NewRuleEvaluatorClient(tt.client)
-			got, err := r.callRuleEvaluator(context.Background(), tt.args.baseURL, tt.args.endpoint, tt.args.queryString)
+			r := newClient(tt.client)
+			got, err := r.call(context.Background(), tt.args.baseURL, tt.args.endpoint, tt.args.queryString)
 
 			require.ErrorIs(t, err, tt.wantErr)
 			require.Equal(t, tt.want, string(got))
@@ -104,10 +104,10 @@ func TestRuleEvaluatorClient_callRuleEvaluator(t *testing.T) {
 	}
 }
 
-func TestRuleEvaluatorClient_Alerts(t *testing.T) {
+func TestClient_Alerts(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	for _, tt := range []struct {
 		name        string
 		client      httpClient
 		baseURL     url.URL
@@ -152,10 +152,9 @@ func TestRuleEvaluatorClient_Alerts(t *testing.T) {
 			},
 			wantErr: true,
 		},
-	}
-	for _, tt := range tests {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewRuleEvaluatorClient(tt.client)
+			r := newClient(tt.client)
 			got, err := r.Alerts(context.Background(), tt.baseURL, tt.queryString)
 
 			require.Equal(t, tt.wantErr, err != nil)
@@ -164,10 +163,10 @@ func TestRuleEvaluatorClient_Alerts(t *testing.T) {
 	}
 }
 
-func TestRuleEvaluatorClient_Rules(t *testing.T) {
+func TestClient_Rules(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	for _, tt := range []struct {
 		name        string
 		client      httpClient
 		baseURL     url.URL
@@ -212,10 +211,9 @@ func TestRuleEvaluatorClient_Rules(t *testing.T) {
 			},
 			wantErr: true,
 		},
-	}
-	for _, tt := range tests {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewRuleEvaluatorClient(tt.client)
+			r := newClient(tt.client)
 			got, err := r.RuleGroups(context.Background(), tt.baseURL, tt.queryString)
 
 			require.Equal(t, tt.wantErr, err != nil)

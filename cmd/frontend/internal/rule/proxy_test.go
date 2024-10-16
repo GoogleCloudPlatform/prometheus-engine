@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package rule
 
 import (
 	"context"
@@ -47,10 +47,12 @@ func (m *mockRetriever) RuleGroups(ctx context.Context, baseURL url.URL, querySt
 	return m.RuleGroupsFunc(ctx, baseURL, queryString)
 }
 
-func TestRuleEvaluatorForwarder_handleError(t *testing.T) {
+func TestProxy_handleError(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	dummyRequest, _ := http.NewRequest(http.MethodGet, "http://localhost/path", nil)
+
+	for _, tt := range []struct {
 		name          string
 		err           error
 		wantStatus    int
@@ -74,16 +76,13 @@ func TestRuleEvaluatorForwarder_handleError(t *testing.T) {
 			wantStatus:    http.StatusInternalServerError,
 			wantErrorType: string(promapi.ErrorInternal),
 		},
-	}
-
-	dummyRequest, _ := http.NewRequest(http.MethodGet, "http://localhost/path", nil)
-	for _, tt := range tests {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			recorder := httptest.NewRecorder()
-			r := NewRuleEvaluatorForwarder(log.NewNopLogger(), nil, nil)
-			r.handleError(recorder, dummyRequest, tt.err)
+			p := NewProxy(log.NewNopLogger(), nil, nil)
+			p.handleError(recorder, dummyRequest, tt.err)
 
 			require.Equal(t, tt.wantStatus, recorder.Code)
 
@@ -95,7 +94,7 @@ func TestRuleEvaluatorForwarder_handleError(t *testing.T) {
 	}
 }
 
-func Test_parallelCallRuleEvaluatorAlertsReturnSuccess(t *testing.T) {
+func TestFanoutForward_AlertsReturnSuccess(t *testing.T) {
 	t.Parallel()
 
 	mockCli := &mockClient{
@@ -106,7 +105,7 @@ func Test_parallelCallRuleEvaluatorAlertsReturnSuccess(t *testing.T) {
 			}, nil
 		},
 	}
-	retriever := NewRuleEvaluatorClient(mockCli)
+	retriever := newClient(mockCli)
 
 	activeAt1, _ := time.Parse(time.RFC3339Nano, "2011-11-11T11:11:11.111122223Z")
 	activeAt2, _ := time.Parse(time.RFC3339Nano, "2022-02-22T22:22:22.999977773Z")
@@ -150,7 +149,7 @@ func Test_parallelCallRuleEvaluatorAlertsReturnSuccess(t *testing.T) {
 		{Scheme: "https", Host: "localhost:8081", Path: ""},
 	}
 
-	alerts, err := parallelCallRuleEvaluator(context.Background(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
+	alerts, err := fanoutForward(context.Background(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
 		return retriever.Alerts(ctx, u, s)
 	})
 
@@ -159,7 +158,7 @@ func Test_parallelCallRuleEvaluatorAlertsReturnSuccess(t *testing.T) {
 	require.Equal(t, expected, alerts)
 }
 
-func Test_parallelCallRuleEvaluatorAlertsTwoReturnSuccessWithOneOfTwoBrokenClients(t *testing.T) {
+func TestFanoutForward_AlertsTwoReturnSuccessWithOneOfTwoBrokenClients(t *testing.T) {
 	t.Parallel()
 
 	retrieverUrls := []url.URL{
@@ -178,7 +177,7 @@ func Test_parallelCallRuleEvaluatorAlertsTwoReturnSuccessWithOneOfTwoBrokenClien
 			}, nil
 		},
 	}
-	retriever := NewRuleEvaluatorClient(mockCli)
+	retriever := newClient(mockCli)
 
 	activeAt1, _ := time.Parse(time.RFC3339Nano, "2011-11-11T11:11:11.111122223Z")
 	activeAt2, _ := time.Parse(time.RFC3339Nano, "2022-02-22T22:22:22.999977773Z")
@@ -200,7 +199,7 @@ func Test_parallelCallRuleEvaluatorAlertsTwoReturnSuccessWithOneOfTwoBrokenClien
 			KeepFiringSince: nil,
 		},
 	}
-	alerts, err := parallelCallRuleEvaluator(context.Background(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
+	alerts, err := fanoutForward(context.Background(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
 		return retriever.Alerts(ctx, u, s)
 	})
 
@@ -209,7 +208,7 @@ func Test_parallelCallRuleEvaluatorAlertsTwoReturnSuccessWithOneOfTwoBrokenClien
 	require.Equal(t, expected, alerts)
 }
 
-func Test_parallelCallRuleEvaluatorAlertsTwoReturnErrorIfAllClientsFail(t *testing.T) {
+func TestFanoutForward_AlertsTwoReturnErrorIfAllClientsFail(t *testing.T) {
 	t.Parallel()
 
 	retrieverUrls := []url.URL{
@@ -222,24 +221,24 @@ func Test_parallelCallRuleEvaluatorAlertsTwoReturnErrorIfAllClientsFail(t *testi
 			return nil, errors.New("some error")
 		},
 	}
-	retriever := NewRuleEvaluatorClient(mockCli)
-	alerts, err := parallelCallRuleEvaluator(context.Background(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
+	retriever := newClient(mockCli)
+	alerts, err := fanoutForward(context.Background(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
 		return retriever.Alerts(ctx, u, s)
 	})
 
 	require.Nil(t, alerts)
-	require.ErrorIs(t, err, errAllRuleEvaluatorsFailed)
+	require.ErrorIs(t, err, errAllEndpointsFailed)
 }
 
-func TestRuleEvaluatorForwarder_ForwardToRuleEvaluatorsAlertsEndpoint(t *testing.T) {
+func TestProxy_Alerts(t *testing.T) {
 	t.Parallel()
 
 	activeAt1, _ := time.Parse(time.RFC3339Nano, "2011-11-11T11:11:11.111122223Z")
 	activeAt2, _ := time.Parse(time.RFC3339Nano, "2022-02-22T22:22:22.999977773Z")
-	tests := []struct {
+	for _, tt := range []struct {
 		name                  string
 		ruleEvaluatorBaseURLs []url.URL
-		ruleRetriever         RuleRetriever
+		ruleRetriever         retriever
 		wantStatus            int
 		wantBody              string
 	}{
@@ -292,21 +291,17 @@ func TestRuleEvaluatorForwarder_ForwardToRuleEvaluatorsAlertsEndpoint(t *testing
 			wantStatus: http.StatusOK,
 			wantBody:   `{"status":"success","data":{"alerts":[{"labels":{"labelKey1":"labelVal1"},"annotations":{"annoKey1":"AnnoVal1"},"state":"firing","activeAt":"2011-11-11T11:11:11.111122223Z","value":"1e+00"},{"labels":{"labelKey2":"labelVal2"},"annotations":{"annoKey2":"AnnoVal2"},"state":"firing","activeAt":"2022-02-22T22:22:22.999977773Z","value":"2e+00"}]}}`,
 		},
-	}
-	for _, tt := range tests {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &RuleEvaluatorForwarder{
-				logger:                log.NewNopLogger(),
-				ruleEvaluatorBaseURLs: tt.ruleEvaluatorBaseURLs,
-				ruleRetriever:         tt.ruleRetriever,
+			r := &Proxy{
+				logger:    log.NewNopLogger(),
+				endpoints: tt.ruleEvaluatorBaseURLs,
+				client:    tt.ruleRetriever,
 			}
-
-			handleFunc := r.ForwardToRuleEvaluatorsAlertsEndpoint()
-			require.NotNil(t, handleFunc)
 
 			req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
 			w := httptest.NewRecorder()
-			handleFunc(w, req)
+			r.Alerts(w, req)
 
 			require.Equal(t, tt.wantStatus, w.Code)
 			require.JSONEq(t, tt.wantBody, w.Body.String(), fmt.Sprintf("expected: %s, got: %s", tt.wantBody, w.Body.String()))
@@ -314,13 +309,13 @@ func TestRuleEvaluatorForwarder_ForwardToRuleEvaluatorsAlertsEndpoint(t *testing
 	}
 }
 
-func TestRuleEvaluatorForwarder_ForwardToRuleEvaluatorsRulesEndpoint(t *testing.T) {
+func TestProxy_RuleGroups(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name                  string
 		ruleEvaluatorBaseURLs []url.URL
-		ruleRetriever         RuleRetriever
+		ruleRetriever         retriever
 		wantStatus            int
 		wantBody              string
 	}{
@@ -367,18 +362,15 @@ func TestRuleEvaluatorForwarder_ForwardToRuleEvaluatorsRulesEndpoint(t *testing.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &RuleEvaluatorForwarder{
-				logger:                log.NewNopLogger(),
-				ruleEvaluatorBaseURLs: tt.ruleEvaluatorBaseURLs,
-				ruleRetriever:         tt.ruleRetriever,
+			r := &Proxy{
+				logger:    log.NewNopLogger(),
+				endpoints: tt.ruleEvaluatorBaseURLs,
+				client:    tt.ruleRetriever,
 			}
-
-			handleFunc := r.ForwardToRuleEvaluatorsRulesEndpoint()
-			require.NotNil(t, handleFunc)
 
 			req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
 			w := httptest.NewRecorder()
-			handleFunc(w, req)
+			r.RuleGroups(w, req)
 
 			require.Equal(t, tt.wantStatus, w.Code)
 			require.JSONEq(t, tt.wantBody, w.Body.String(), fmt.Sprintf("expected: %s, got: %s", tt.wantBody, w.Body.String()))

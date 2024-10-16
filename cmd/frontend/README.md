@@ -52,7 +52,7 @@ Usage of frontend:
   -query.target-url string
     	The URL to forward authenticated requests to. (PROJECT_ID is replaced with the --query.project-id flag.) (default "https://monitoring.googleapis.com/v1/projects/PROJECT_ID/location/global/prometheus")
   -rules.target-urls string
-    	Comma separated lists of URLs to forward requests to the rules evaluators. (default "http://rule-evaluator.gmp-system.svc.cluster.local:19092")
+    	Comma separated lists of URLs that support HTTP Prometheus Alert and Rules APIs (/api/v1/alerts, /api/v1/rules), e.g. GMP rule-evaluator. NOTE: Results are merged as-is, no sorting and deduplication is done. (default "http://rule-evaluator.gmp-system.svc.cluster.local:19092")
   -web.external-url string
     	The URL under which the frontend is externally reachable (for example, if it is served via a reverse proxy). Used for generating relative and absolute links back to the frontend itself. If the URL has a path portion, it will be used to prefix served HTTP endpoints. If omitted, relevant URL components will be derived automatically.
   -web.listen-address string
