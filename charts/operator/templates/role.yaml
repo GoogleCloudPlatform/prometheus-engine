@@ -83,7 +83,7 @@ rules:
   - deployments
   apiGroups: ["apps"]
   resourceNames: ["rule-evaluator"]
-  verbs: ["get", "list", "watch"]
+  verbs: ["get", "list"]
 - resources:
   - deployments/scale
   apiGroups: ["apps"]
@@ -98,7 +98,7 @@ rules:
   - statefulsets
   apiGroups: ["apps"]
   resourceNames: ["alertmanager"]
-  verbs: ["get", "list", "watch"]
+  verbs: ["get", "list"]
 - resources:
   - statefulsets/scale
   apiGroups: ["apps"]
