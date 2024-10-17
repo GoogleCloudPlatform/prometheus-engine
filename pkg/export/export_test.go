@@ -526,3 +526,57 @@ func TestDisabledExporter(t *testing.T) {
 	// Allow samples to be sent to the void. If we don't panic, we're good.
 	time.Sleep(batchDelayMax)
 }
+
+func TestExporter_shutdown(t *testing.T) {
+	eCtx, eCtxCancel := context.WithCancel(context.Background())
+
+	exporterOpts := ExporterOpts{DisableAuth: true}
+	exporterOpts.DefaultUnsetFields()
+	e, err := New(eCtx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, exporterOpts, NopLease())
+	if err != nil {
+		t.Fatalf("Creating Exporter failed: %s", err)
+	}
+	metricServer := testMetricService{}
+	e.metricClient = &metricServer
+
+	e.SetLabelsByIDFunc(func(storage.SeriesRef) labels.Labels {
+		return labels.FromStrings("project_id", "test", "location", "test")
+	})
+
+	//nolint:errcheck
+	go e.Run()
+
+	// Fill a single shard with samples.
+	wantSamples := 50
+	for i := range wantSamples {
+		e.Export(nil, []record.RefSample{
+			{Ref: 1, T: int64(i), V: float64(i)},
+		}, nil)
+	}
+
+	// Shut down the exporter.
+	eCtxCancel()
+
+	// Wait for exporter to finish flushing shards.
+	<-e.exitc
+
+	// These samples will be rejected since the exporter has been cancelled.
+	for i := range 10 {
+		e.Export(nil, []record.RefSample{
+			{Ref: 1, T: int64(i), V: float64(i)},
+		}, nil)
+	}
+
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), 2*cancelTimeout)
+	defer cancel()
+
+	pollErr := wait.PollUntilContextCancel(ctxTimeout, time.Second, false, func(_ context.Context) (bool, error) {
+		return len(metricServer.samples) == wantSamples, nil
+	})
+	if pollErr != nil {
+		if wait.Interrupted(pollErr) && err != nil {
+			pollErr = err
+		}
+		t.Fatalf("did not get samples: %s", pollErr)
+	}
+}
