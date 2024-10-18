@@ -35,6 +35,8 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/frontend/internal/rule"
+	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/ui"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -112,6 +114,12 @@ func main() {
 		ruleEndpointURLs = append(ruleEndpointURLs, *ruleEndpointURL)
 	}
 
+	version, err := export.Version()
+	if err != nil {
+		_ = level.Error(logger).Log("msg", "Unable to fetch module version", "err", err)
+		os.Exit(1)
+	}
+
 	var g run.Group
 	{
 		term := make(chan os.Signal, 1)
@@ -154,8 +162,11 @@ func main() {
 		)
 
 		server := &http.Server{Addr: *listenAddress}
+		buildInfoHandler := http.HandlerFunc(promapi.BuildinfoHandlerFunc(log.With(logger, "component", "buildinfo-handler"), "frontend", version))
+		http.Handle("/api/v1/status/buildinfo", buildInfoHandler)
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
 		http.Handle("/api/v1/rules", http.HandlerFunc(ruleProxy.RuleGroups))
+		http.Handle("/api/v1/rules/", http.NotFoundHandler())
 		http.Handle("/api/v1/alerts", http.HandlerFunc(ruleProxy.Alerts))
 		http.Handle("/api/", authenticate(forward(logger, targetURL, transport)))
 
