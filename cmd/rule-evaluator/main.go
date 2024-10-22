@@ -35,6 +35,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/rule-evaluator/internal"
+	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	exportsetup "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export/setup"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
@@ -392,9 +393,16 @@ func main() {
 			}
 		})
 
+		// https://prometheus.io/docs/prometheus/latest/querying/api/#build-information
+		buildInfoHandler := promapi.BuildinfoHandlerFunc(log.With(logger, "handler", "buildinfo"), "rule-evaluator", version)
+		http.HandleFunc("/api/v1/status/buildinfo", buildInfoHandler)
+
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#rules
 		apiHandler := internal.NewAPI(logger, ruleEvaluator.rulesManager)
 		http.HandleFunc("/api/v1/rules", apiHandler.HandleRulesEndpoint)
+		http.HandleFunc("/api/v1/rules/", http.NotFound)
+
+		// https://prometheus.io/docs/prometheus/latest/querying/api/#alerts
 		http.HandleFunc("/api/v1/alerts", apiHandler.HandleAlertsEndpoint)
 
 		g.Add(func() error {

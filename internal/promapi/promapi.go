@@ -92,7 +92,7 @@ func writeResponse[T RulesResponseData | AlertsResponseData | GenericResponseDat
 }
 
 // WriteSuccessResponse writes a successful Response to the given responseWriter w.
-func WriteSuccessResponse[T RulesResponseData | AlertsResponseData](logger log.Logger, w http.ResponseWriter, httpResponseCode int, endpointURI string, responseData T) {
+func WriteSuccessResponse[T RulesResponseData | AlertsResponseData | promapiv1.PrometheusVersion](logger log.Logger, w http.ResponseWriter, httpResponseCode int, endpointURI string, responseData T) {
 	writeResponse(logger, w, httpResponseCode, endpointURI, Response[T]{
 		Status: statusSuccess,
 		Data:   responseData,
