@@ -45,6 +45,8 @@ Access the frontend UI in your browser at http://localhost:19090.
 
 ```bash mdox-exec="bash hack/format_help.sh frontend"
 Usage of frontend:
+  -log.level string
+    	The level of logging. Can be one of 'debug', 'info', 'warn', 'error' (default "info")
   -query.credentials-file string
     	JSON-encoded credentials (service account or refresh token). Can be left empty if default credentials have sufficient permission.
   -query.project-id string

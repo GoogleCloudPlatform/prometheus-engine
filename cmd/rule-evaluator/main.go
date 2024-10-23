@@ -102,6 +102,9 @@ func main() {
 	logger = log.With(logger, "caller", log.DefaultCaller)
 
 	a := kingpin.New("rule", "The Prometheus Rule Evaluator")
+	logLevel := a.Flag("log.level",
+		"The level of logging. Can be one of 'debug', 'info', 'warn', 'error'").Default(
+		"info").Enum("debug", "info", "warn", "error")
 
 	a.HelpFlag.Short('h')
 
@@ -158,6 +161,16 @@ func main() {
 		_ = level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
 		a.Usage(os.Args[1:])
 		os.Exit(2)
+	}
+	switch strings.ToLower(*logLevel) {
+	case "debug":
+		logger = level.NewFilter(logger, level.AllowDebug())
+	case "warn":
+		logger = level.NewFilter(logger, level.AllowWarn())
+	case "error":
+		logger = level.NewFilter(logger, level.AllowError())
+	default:
+		logger = level.NewFilter(logger, level.AllowInfo())
 	}
 
 	if err := defaultEvaluatorOpts.validate(); err != nil {
