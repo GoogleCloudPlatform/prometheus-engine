@@ -52,7 +52,7 @@ The Prometheus Rule Evaluator
 Flags:
   -h, --[no-]help                Show context-sensitive help (also try
                                  --help-long and --help-man).
-      --log.level=info           The level of logging
+      --log.level=info           The level of logging. Can be one of 'debug', 'info', 'warn', 'error'
       --[no-]export.disable      Disable exporting to GCM.
       --export.endpoint="monitoring.googleapis.com:443"  
                                  GCM API endpoint to send metric data to.
