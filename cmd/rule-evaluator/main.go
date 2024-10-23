@@ -102,7 +102,7 @@ func main() {
 	logger = log.With(logger, "caller", log.DefaultCaller)
 
 	a := kingpin.New("rule", "The Prometheus Rule Evaluator")
-	logLevel := a.Flag("log-level", "The level of logging").Default("info").Enum("debug", "info", "warn", "error")
+	logLevel := a.Flag("log.level", "The level of logging").Default("info").Enum("debug", "info", "warn", "error")
 
 	a.HelpFlag.Short('h')
 
