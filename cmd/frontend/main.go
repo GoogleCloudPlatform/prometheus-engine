@@ -88,6 +88,7 @@ func main() {
 	case "info":
 		logger = level.NewFilter(logger, level.AllowInfo())
 	default:
+		//nolint:errcheck
 		level.Error(logger).Log("msg",
 			"--log.level can only be one of 'debug', 'info', 'warn', 'error'")
 		os.Exit(1)
