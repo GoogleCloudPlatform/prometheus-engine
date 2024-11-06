@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.23.2@sha256:adee809c2d0009a4199a11a1b2618990b244c6515149fe609e2788ddf164bd10 as buildbase
+FROM golang:1.23.2@sha256:adee809c2d0009a4199a11a1b2618990b244c6515149fe609e2788ddf164bd10 AS buildbase
 WORKDIR /app
 COPY go.mod go.mod
 COPY go.sum go.sum
@@ -20,7 +20,7 @@ COPY cmd cmd
 COPY pkg pkg
 COPY vendor vendor
 
-FROM buildbase as appbase
+FROM buildbase AS appbase
 RUN CGO_ENABLED=1 GOEXPERIMENT=boringcrypto \
     go build -tags boring -mod=vendor -o config-reloader cmd/config-reloader/*.go
 
