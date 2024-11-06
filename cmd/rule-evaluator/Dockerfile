@@ -12,18 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.23.2@sha256:adee809c2d0009a4199a11a1b2618990b244c6515149fe609e2788ddf164bd10 as buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.2@sha256:335533a0cbaa2e5b0dc038ac7023418ac68c3bb22b8828fc354088bb0340019b AS buildbase
+ARG TARGETOS
+ARG TAGETARCH
 WORKDIR /app
 COPY go.mod go.mod
 COPY go.sum go.sum
+COPY vendor vendor
 COPY cmd cmd
 COPY pkg pkg
-COPY vendor vendor
+COPY internal internal
 
-FROM buildbase as appbase
-RUN CGO_ENABLED=1 GOEXPERIMENT=boringcrypto \
-    go build -tags boring -mod=vendor -o rule-evaluator cmd/rule-evaluator/*.go
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+      apt install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+      CC=aarch64-linux-gnu-gcc; \
+    fi && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
+      go build -tags boring -mod=vendor -o rule-evaluator -ldflags='-linkmode=external -extldflags=-static' cmd/rule-evaluator/*.go
 
 FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20240307.00_p0@sha256:4f834e207f2721977094aeec4c9daee7032c5daec2083c0be97760f4306e4f88
-COPY --from=appbase /app/rule-evaluator /bin/rule-evaluator
+COPY --from=buildbase /app/rule-evaluator /bin/rule-evaluator
 ENTRYPOINT ["/bin/rule-evaluator"]

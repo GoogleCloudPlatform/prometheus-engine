@@ -14,7 +14,7 @@
 
 # deps builds binaries in an isolated environment to avoid
 # funkiness in the hermetic build.
-FROM golang:1.23.2-bullseye as deps
+FROM google-go.pkg.dev/golang:1.23.2@sha256:335533a0cbaa2e5b0dc038ac7023418ac68c3bb22b8828fc354088bb0340019b AS deps
 WORKDIR /workspace
 # Have to clone and install this as the go.mod uses replace directives.
 # RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
@@ -30,7 +30,7 @@ RUN bingo -v get # TODO(bwplotka): It takes 177s in docker container with colima
 
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
-FROM golang:1.23.2-bullseye AS hermetic
+FROM google-go.pkg.dev/golang:1.23.2@sha256:335533a0cbaa2e5b0dc038ac7023418ac68c3bb22b8828fc354088bb0340019b AS hermetic
 
 COPY --from=deps /go/bin /go/bin
 ARG RUNCMD='go fmt ./...'
@@ -75,9 +75,9 @@ COPY --from=hermetic /workspace/e2e e2e
 COPY --from=hermetic /workspace/vendor vendor.tmp
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
-FROM golang:1.23.2-bullseye as buildbase
-FROM docker:27.2-cli as docker
-FROM debian:stable-slim as kindtest
+FROM google-go.pkg.dev/golang:1.23.2@sha256:335533a0cbaa2e5b0dc038ac7023418ac68c3bb22b8828fc354088bb0340019b AS buildbase
+FROM docker:27.2-cli AS docker
+FROM debian:stable-slim AS kindtest
 
 WORKDIR /build
 
