@@ -14,7 +14,7 @@
 
 # deps builds binaries in an isolated environment to avoid
 # funkiness in the hermetic build.
-FROM golang:1.23.5-bullseye as deps
+FROM google-go.pkg.dev/golang:1.23.6@sha256:ca93722bc2549978ca5041d80da3bd8fd64b1e6ca773d778cdc74cb2fc767f4b AS deps
 WORKDIR /workspace
 # Have to clone and install this as the go.mod uses replace directives.
 # RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
@@ -30,7 +30,8 @@ RUN bingo -v get # TODO(bwplotka): It takes 177s in docker container with colima
 
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
-FROM golang:1.23.5-bullseye AS hermetic
+FROM google-go.pkg.dev/golang:1.23.6@sha256:ca93722bc2549978ca5041d80da3bd8fd64b1e6ca773d778cdc74cb2fc767f4b AS hermetic
+
 
 COPY --from=deps /go/bin /go/bin
 ARG RUNCMD='go fmt ./...'
@@ -52,6 +53,7 @@ COPY charts charts
 COPY doc doc
 COPY pkg pkg
 COPY e2e e2e
+COPY internal internal
 
 # Init a dummy git repo so we can check if generated code changes via
 # git diff.
@@ -62,7 +64,7 @@ RUN echo ${RUNCMD} | sh && echo 'done'
 
 # sync is used to copy all auto-generated files to a different context.
 # Usually this is used to mirror the changes back to the host machine.
-FROM scratch as sync
+FROM scratch AS sync
 COPY --from=hermetic /workspace/go.mod go.mod
 COPY --from=hermetic /workspace/go.sum go.sum
 COPY --from=hermetic /workspace/cmd cmd
@@ -74,9 +76,9 @@ COPY --from=hermetic /workspace/e2e e2e
 COPY --from=hermetic /workspace/vendor vendor.tmp
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
-FROM golang:1.23.5-bullseye as buildbase
-FROM docker:27.5-cli as docker
-FROM debian:stable-slim as kindtest
+FROM google-go.pkg.dev/golang:1.23.6@sha256:ca93722bc2549978ca5041d80da3bd8fd64b1e6ca773d778cdc74cb2fc767f4b AS buildbase
+FROM docker:27.2-cli AS docker
+FROM debian:stable-slim AS kindtest
 
 WORKDIR /build
 
