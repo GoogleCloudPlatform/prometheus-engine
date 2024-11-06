@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO(bwplotka): Move to 1.23 once ARM QEMU building is fixed https://github.com/golang/go/issues/68976
-FROM golang:1.23.5@sha256:8c10f21bec412f08f73aa7b97ca5ac5f28a39d8a88030ad8a339fd0a781d72b4 AS buildbase
+FROM google-go.pkg.dev/golang:1.23.6@sha256:ca93722bc2549978ca5041d80da3bd8fd64b1e6ca773d778cdc74cb2fc767f4b AS buildbase
 
 # Compile the UI assets.
-FROM launcher.gcr.io/google/nodejs as assets
+FROM gcr.io/google-appengine/nodejs AS assets
 # To build the UI we need a recent node version and the go toolchain.
 RUN install_node v17.9.0
 COPY --from=buildbase /usr/local/go /usr/local/
@@ -26,7 +25,7 @@ RUN pkg/ui/build.sh
 
 # sync is used to copy all auto-generated files to a different context.
 # Usually this is used to mirror the changes back to the host machine.
-FROM scratch as sync
+FROM scratch AS sync
 COPY --from=assets /app/pkg/ui/embed.go pkg/ui/embed.go
 COPY --from=assets /app/pkg/ui/static pkg/ui/static
 

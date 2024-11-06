@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO(bwplotka): Move to 1.23 once ARM QEMU building is fixed https://github.com/golang/go/issues/68976
-FROM golang:1.22.7@sha256:4594271250150c1a322ed749abfd218e1a8c6eb1ade90872e325a664412e2037 AS buildbase
+FROM google-go.pkg.dev/golang:1.23.6@sha256:ca93722bc2549978ca5041d80da3bd8fd64b1e6ca773d778cdc74cb2fc767f4b AS buildbase
 WORKDIR /app
 COPY . ./
 
-FROM buildbase as appbase
+FROM buildbase AS appbase
 
 RUN CGO_ENABLED=0 GOEXPERIMENT=boringcrypto go build -o go-synthetic ./examples/instrumentation/go-synthetic
 

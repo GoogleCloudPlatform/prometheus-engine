@@ -12,19 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO(bwplotka): Move to 1.23 once ARM QEMU building is fixed https://github.com/golang/go/issues/68976
-FROM golang:1.23.5@sha256:8c10f21bec412f08f73aa7b97ca5ac5f28a39d8a88030ad8a339fd0a781d72b4 AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.6@sha256:ca93722bc2549978ca5041d80da3bd8fd64b1e6ca773d778cdc74cb2fc767f4b AS buildbase
+ARG TARGETOS
+ARG TAGETARCH
 WORKDIR /app
 COPY go.mod go.mod
 COPY go.sum go.sum
+COPY vendor vendor
 COPY cmd cmd
 COPY pkg pkg
-COPY vendor vendor
+COPY internal internal
 
-FROM buildbase as appbase
-RUN CGO_ENABLED=1 GOEXPERIMENT=boringcrypto \
-    go build -tags boring -mod=vendor -o rule-evaluator cmd/rule-evaluator/*.go
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+      apt install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+      CC=aarch64-linux-gnu-gcc; \
+    fi && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
+      go build -tags boring -mod=vendor -o rule-evaluator -ldflags='-linkmode=external -extldflags=-static' cmd/rule-evaluator/*.go
 
 FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20240307.00_p0@sha256:4f834e207f2721977094aeec4c9daee7032c5daec2083c0be97760f4306e4f88
-COPY --from=appbase /app/rule-evaluator /bin/rule-evaluator
+COPY --from=buildbase /app/rule-evaluator /bin/rule-evaluator
 ENTRYPOINT ["/bin/rule-evaluator"]
