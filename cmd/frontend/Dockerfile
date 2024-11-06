@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.23.2-bullseye as buildbase
+FROM golang:1.23.2-bullseye AS buildbase
 
 # Compile the UI assets.
-FROM gcr.io/google-appengine/nodejs as assets
+FROM gcr.io/google-appengine/nodejs AS assets
 # To build the UI we need a recent node version and the go toolchain.
 RUN install_node v17.9.0
 COPY --from=buildbase /usr/local/go /usr/local/
@@ -25,7 +25,7 @@ RUN pkg/ui/build.sh
 
 # sync is used to copy all auto-generated files to a different context.
 # Usually this is used to mirror the changes back to the host machine.
-FROM scratch as sync
+FROM scratch AS sync
 COPY --from=assets /app/pkg/ui/embed.go pkg/ui/embed.go
 COPY --from=assets /app/pkg/ui/static pkg/ui/static
 

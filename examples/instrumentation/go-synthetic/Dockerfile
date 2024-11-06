@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.23.1-bullseye as buildbase
+FROM golang:1.23.1-bullseye AS buildbase
 WORKDIR /app
 COPY . ./
 
-FROM buildbase as appbase
+FROM buildbase AS appbase
 
 RUN CGO_ENABLED=0 GOEXPERIMENT=boringcrypto go build -o go-synthetic ./examples/instrumentation/go-synthetic
 

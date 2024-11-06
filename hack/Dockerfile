@@ -14,7 +14,7 @@
 
 # deps builds binaries in an isolated environment to avoid
 # funkiness in the hermetic build.
-FROM golang:1.23.2-bullseye as deps
+FROM golang:1.23.2-bullseye AS deps
 WORKDIR /workspace
 # Have to clone and install this as the go.mod uses replace directives.
 # RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
@@ -63,7 +63,7 @@ RUN echo ${RUNCMD} | sh && echo 'done'
 
 # sync is used to copy all auto-generated files to a different context.
 # Usually this is used to mirror the changes back to the host machine.
-FROM scratch as sync
+FROM scratch AS sync
 COPY --from=hermetic /workspace/go.mod go.mod
 COPY --from=hermetic /workspace/go.sum go.sum
 COPY --from=hermetic /workspace/cmd cmd
@@ -75,9 +75,9 @@ COPY --from=hermetic /workspace/e2e e2e
 COPY --from=hermetic /workspace/vendor vendor.tmp
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
-FROM golang:1.23.2-bullseye as buildbase
-FROM docker:27.2-cli as docker
-FROM debian:stable-slim as kindtest
+FROM golang:1.23.2-bullseye AS buildbase
+FROM docker:27.2-cli AS docker
+FROM debian:stable-slim AS kindtest
 
 WORKDIR /build
 
