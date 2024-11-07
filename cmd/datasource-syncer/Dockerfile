@@ -24,9 +24,9 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
       CC=aarch64-linux-gnu-gcc; \
     fi && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
-      go build -tags boring -mod=vendor -o datasource-syncer -ldflags='-linkmode=external -extldflags=-static' cmd/datasource-syncer/*.go
+      go build -tags boring -mod=vendor -o datasource-syncer cmd/datasource-syncer/*.go
 
-FROM gcr.io/distroless/static-debian11:latest
+FROM gcr.io/distroless/base-nossl-debian12:nonroot
 COPY --from=buildbase /app/datasource-syncer /bin/datasource-syncer
 ENTRYPOINT ["/bin/datasource-syncer"]
 

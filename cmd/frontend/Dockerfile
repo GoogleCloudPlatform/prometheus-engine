@@ -12,29 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.2@sha256:335533a0cbaa2e5b0dc038ac7023418ac68c3bb22b8828fc354088bb0340019b AS buildbase
-
 # Compile the UI assets.
-FROM gcr.io/google-appengine/nodejs as assets
-# To build the UI we need a recent node version and the go toolchain.
-RUN install_node v17.9.0
-COPY --from=buildbase /usr/local/go /usr/local/
+FROM --platform=$BUILDPLATFORM docker.io/node:22.11.0-bookworm@sha256:de4c8be8232b7081d8846360d73ce6dbff33c6636f2259cd14d82c0de1ac3ff2 AS assets
+WORKDIR /app
+COPY --from=docker.io/golang:1.23.3-bookwork@sha256:0e3377d7a71c1fcb31cdc3215292712e83baec44e4792aeaa75e503cfcae16ec /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
 COPY . /app
 RUN pkg/ui/build.sh
 
 # sync is used to copy all auto-generated files to a different context.
 # Usually this is used to mirror the changes back to the host machine.
-FROM scratch as sync
+FROM scratch AS sync
 COPY --from=assets /app/pkg/ui/embed.go pkg/ui/embed.go
 COPY --from=assets /app/pkg/ui/static pkg/ui/static
 
 # Build the actual Go binary.
-FROM buildbase AS appbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.2@sha256:335533a0cbaa2e5b0dc038ac7023418ac68c3bb22b8828fc354088bb0340019b AS buildbase
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /app
 COPY --from=assets /app ./
-RUN CGO_ENABLED=0 GOEXPERIMENT=boringcrypto go build -tags builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+      apt install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+      CC=aarch64-linux-gnu-gcc; \
+    fi && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
+      go build -tags boring,builtinassets -mod=vendor -o frontend cmd/frontend/*.go
 
-FROM gcr.io/distroless/static-debian11:latest
-COPY --from=appbase /app/frontend /bin/frontend
+FROM gcr.io/distroless/base-nossl-debian12:nonroot
+COPY --from=buildbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]
