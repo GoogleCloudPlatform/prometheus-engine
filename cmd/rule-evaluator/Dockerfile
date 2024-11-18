@@ -14,7 +14,7 @@
 
 FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.2@sha256:335533a0cbaa2e5b0dc038ac7023418ac68c3bb22b8828fc354088bb0340019b AS buildbase
 ARG TARGETOS
-ARG TAGETARCH
+ARG TARGETARCH
 WORKDIR /app
 COPY go.mod go.mod
 COPY go.sum go.sum
