@@ -26,8 +26,8 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
       CC=aarch64-linux-gnu-gcc; \
     fi && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
-      go build -tags boring -mod=vendor -o go-synthetic -ldflags='-linkmode=external -extldflags=-static' ./examples/instrumentation/go-synthetic
+      go build -tags boring -mod=vendor -o go-synthetic ./examples/instrumentation/go-synthetic
 
-FROM gcr.io/distroless/static-debian11:latest
+FROM gcr.io/distroless/base-nossl-debian12:nonroot
 COPY --from=appbase /app/go-synthetic /bin/go-synthetic
 ENTRYPOINT ["/bin/go-synthetic"]
