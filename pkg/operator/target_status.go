@@ -128,7 +128,26 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer, httpC
 	return nil
 }
 
-// shouldPoll verifies if polling collectors is configured or necessary.
+func getPodMonitoringCRDs(ctx context.Context, kubeClient client.Client) ([]monitoringv1.PodMonitoringCRD, error) {
+	combinedList := []monitoringv1.PodMonitoringCRD{}
+	var podMonitoringList monitoringv1.PodMonitoringList
+	if err := kubeClient.List(ctx, &podMonitoringList); err != nil {
+		return nil, err
+	}
+	for _, pm := range podMonitoringList.Items {
+		combinedList = append(combinedList, &pm)
+	}
+	var clusterPodMonitoringList monitoringv1.ClusterPodMonitoringList
+	if err := kubeClient.List(ctx, &clusterPodMonitoringList); err != nil {
+		return nil, err
+	}
+	for _, pm := range clusterPodMonitoringList.Items {
+		combinedList = append(combinedList, &pm)
+	}
+	return combinedList, nil
+}
+
+// shouldPoll verifies if polling collectors is configured.
 func shouldPoll(ctx context.Context, cfgNamespacedName types.NamespacedName, kubeClient client.Client) (bool, error) {
 	// Check if target status is enabled.
 	var config monitoringv1.OperatorConfig
@@ -140,19 +159,6 @@ func shouldPoll(ctx context.Context, cfgNamespacedName types.NamespacedName, kub
 	}
 	if !config.Features.TargetStatus.Enabled {
 		return false, nil
-	}
-
-	// No need to poll if there's no PodMonitorings.
-	var podMonitoringList monitoringv1.PodMonitoringList
-	if err := kubeClient.List(ctx, &podMonitoringList); err != nil {
-		return false, err
-	} else if len(podMonitoringList.Items) == 0 {
-		var clusterPodMonitoringList monitoringv1.ClusterPodMonitoringList
-		if err := kubeClient.List(ctx, &clusterPodMonitoringList); err != nil {
-			return false, err
-		} else if len(clusterPodMonitoringList.Items) == 0 {
-			return false, nil
-		}
 	}
 	return true, nil
 }
@@ -196,12 +202,19 @@ func (r *targetStatusReconciler) Reconcile(ctx context.Context, _ reconcile.Requ
 
 // pollAndUpdate fetches and updates the target status in each collector pod.
 func pollAndUpdate(ctx context.Context, logger logr.Logger, opts Options, httpClient *http.Client, getTarget getTargetFn, kubeClient client.Client) error {
+	podMonitorings, err := getPodMonitoringCRDs(ctx, kubeClient)
+	if err != nil {
+		return err
+	} else if len(podMonitorings) == 0 {
+		// Nothing to poll
+		return nil
+	}
 	targets, err := fetchTargets(ctx, logger, opts, httpClient, getTarget, kubeClient)
 	if err != nil {
 		return err
 	}
 
-	return updateTargetStatus(ctx, logger, kubeClient, targets)
+	return updateTargetStatus(ctx, logger, kubeClient, targets, podMonitorings)
 }
 
 // fetchTargets retrieves the Prometheus targets using the given target function
@@ -307,13 +320,14 @@ func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, obj
 
 // updateTargetStatus populates the status object of each pod using the given
 // Prometheus targets.
-func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient client.Client, targets []*prometheusv1.TargetsResult) error {
+func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient client.Client, targets []*prometheusv1.TargetsResult, podMonitorings []monitoringv1.PodMonitoringCRD) error {
 	endpointMap, err := buildEndpointStatuses(targets)
 	if err != nil {
 		return err
 	}
 
 	var errs []error
+	hasEndpoints := map[string]bool{}
 	for job, endpointStatuses := range endpointMap {
 		pm, err := getObjectByScrapeJobKey(job)
 		if err != nil {
@@ -324,6 +338,7 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 			// Skip hard-coded jobs which we do not patch.
 			continue
 		}
+		hasEndpoints[pm.GetName()] = true
 		pm.GetPodMonitoringStatus().EndpointStatuses = endpointStatuses
 
 		if err := patchPodMonitoringStatus(ctx, kubeClient, pm, pm.GetPodMonitoringStatus()); err != nil {
@@ -332,6 +347,19 @@ func updateTargetStatus(ctx context.Context, logger logr.Logger, kubeClient clie
 			// as we should continue patching all statuses before exiting.
 			errs = append(errs, err)
 			logger.Error(err, "patching status", "job", job, "gvk", pm.GetObjectKind().GroupVersionKind())
+		}
+	}
+
+	// Any pod monitorings that exist but dont have endpoints should also be updated
+	for _, pm := range podMonitorings {
+		_, exists := hasEndpoints[pm.GetName()]
+		if !exists {
+			pm.GetPodMonitoringStatus().EndpointStatuses = []monitoringv1.ScrapeEndpointStatus{}
+			if err := patchPodMonitoringStatus(ctx, kubeClient, pm, pm.GetPodMonitoringStatus()); err != nil {
+				// Same reasoning as above for error handling
+				errs = append(errs, err)
+				logger.Error(err, "patching empty status", "pm", pm.GetName(), "gvk", pm.GetObjectKind().GroupVersionKind())
+			}
 		}
 	}
 
