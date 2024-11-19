@@ -35,6 +35,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/rule-evaluator/internal"
+	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	exportsetup "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export/setup"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
@@ -102,6 +103,9 @@ func main() {
 	logger = log.With(logger, "caller", log.DefaultCaller)
 
 	a := kingpin.New("rule", "The Prometheus Rule Evaluator")
+	logLevel := a.Flag("log.level",
+		"The level of logging. Can be one of 'debug', 'info', 'warn', 'error'").Default(
+		"info").Enum("debug", "info", "warn", "error")
 
 	a.HelpFlag.Short('h')
 
@@ -158,6 +162,16 @@ func main() {
 		_ = level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
 		a.Usage(os.Args[1:])
 		os.Exit(2)
+	}
+	switch strings.ToLower(*logLevel) {
+	case "debug":
+		logger = level.NewFilter(logger, level.AllowDebug())
+	case "warn":
+		logger = level.NewFilter(logger, level.AllowWarn())
+	case "error":
+		logger = level.NewFilter(logger, level.AllowError())
+	default:
+		logger = level.NewFilter(logger, level.AllowInfo())
 	}
 
 	if err := defaultEvaluatorOpts.validate(); err != nil {
@@ -392,9 +406,16 @@ func main() {
 			}
 		})
 
+		// https://prometheus.io/docs/prometheus/latest/querying/api/#build-information
+		buildInfoHandler := promapi.BuildinfoHandlerFunc(log.With(logger, "handler", "buildinfo"), "rule-evaluator", version)
+		http.HandleFunc("/api/v1/status/buildinfo", buildInfoHandler)
+
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#rules
 		apiHandler := internal.NewAPI(logger, ruleEvaluator.rulesManager)
 		http.HandleFunc("/api/v1/rules", apiHandler.HandleRulesEndpoint)
+		http.HandleFunc("/api/v1/rules/", http.NotFound)
+
+		// https://prometheus.io/docs/prometheus/latest/querying/api/#alerts
 		http.HandleFunc("/api/v1/alerts", apiHandler.HandleAlertsEndpoint)
 
 		g.Add(func() error {

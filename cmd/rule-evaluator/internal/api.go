@@ -82,6 +82,7 @@ func NewAPI(logger log.Logger, rulesManager RuleRetriever) *API {
 
 func (api *API) writeResponse(w http.ResponseWriter, httpResponseCode int, endpointURI string, resp response) {
 	logger := log.With(api.logger, "endpointURI", endpointURI, "intendedStatusCode", httpResponseCode)
+	w.Header().Set("Content-Type", "application/json")
 
 	jsonResponse, err := json.Marshal(resp)
 	if err != nil {

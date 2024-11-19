@@ -175,3 +175,20 @@ spec:
         runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rule-evaluator
+  namespace: {{.Values.namespace.system}}
+  {{- if .Values.commonLabels }}
+  labels:
+    {{- include "prometheus-engine.rule-evaluator.labels" . | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+      {{- include "prometheus-engine.rule-evaluator.selectorLabels" . | nindent 6 }}
+  ports:
+    - name: rule-evaluator
+      port: 19092
+      targetPort: 19092

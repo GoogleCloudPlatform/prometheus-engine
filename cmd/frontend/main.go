@@ -34,6 +34,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/frontend/internal/rule"
+	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/ui"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
@@ -42,8 +46,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
-
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/ui"
 )
 
 const projectIDVar = "PROJECT_ID"
@@ -65,6 +67,11 @@ var (
 
 	targetURLStr = flag.String("query.target-url", fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar),
 		fmt.Sprintf("The URL to forward authenticated requests to. (%s is replaced with the --query.project-id flag.)", projectIDVar))
+
+	ruleEndpointURLStrings = flag.String("rules.target-urls", "http://rule-evaluator.gmp-system.svc.cluster.local:19092", "Comma separated lists of URLs that support HTTP Prometheus Alert and Rules APIs (/api/v1/alerts, /api/v1/rules), e.g. GMP rule-evaluator. NOTE: Results are merged as-is, no sorting and deduplication is done.")
+
+	logLevel = flag.String("log.level", "info",
+		"The level of logging. Can be one of 'debug', 'info', 'warn', 'error'")
 )
 
 func main() {
@@ -73,6 +80,21 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "caller", log.DefaultCaller)
+	switch strings.ToLower(*logLevel) {
+	case "debug":
+		logger = level.NewFilter(logger, level.AllowDebug())
+	case "warn":
+		logger = level.NewFilter(logger, level.AllowWarn())
+	case "error":
+		logger = level.NewFilter(logger, level.AllowError())
+	case "info":
+		logger = level.NewFilter(logger, level.AllowInfo())
+	default:
+		//nolint:errcheck
+		level.Error(logger).Log("msg",
+			"--log.level can only be one of 'debug', 'info', 'warn', 'error'")
+		os.Exit(1)
+	}
 
 	metrics := prometheus.NewRegistry()
 	metrics.MustRegister(
@@ -97,6 +119,22 @@ func main() {
 	if err != nil {
 		//nolint:errcheck
 		level.Error(logger).Log("msg", "parsing external URL failed", "err", err)
+		os.Exit(1)
+	}
+
+	var ruleEndpointURLs []url.URL
+	for _, ruleEndpointURLStr := range strings.Split(*ruleEndpointURLStrings, ",") {
+		ruleEndpointURL, err := url.Parse(strings.TrimSpace(ruleEndpointURLStr))
+		if err != nil || ruleEndpointURL == nil {
+			_ = level.Error(logger).Log("msg", "parsing rule endpoint URL failed", "err", err, "url", strings.TrimSpace(ruleEndpointURLStr))
+			os.Exit(1)
+		}
+		ruleEndpointURLs = append(ruleEndpointURLs, *ruleEndpointURL)
+	}
+
+	version, err := export.Version()
+	if err != nil {
+		_ = level.Error(logger).Log("msg", "Unable to fetch module version", "err", err)
 		os.Exit(1)
 	}
 
@@ -135,8 +173,19 @@ func main() {
 			os.Exit(1)
 		}
 
+		ruleProxy := rule.NewProxy(
+			log.With(logger, "component", "rule-proxy"),
+			&http.Client{Timeout: 30 * time.Second},
+			ruleEndpointURLs,
+		)
+
 		server := &http.Server{Addr: *listenAddress}
+		buildInfoHandler := http.HandlerFunc(promapi.BuildinfoHandlerFunc(log.With(logger, "component", "buildinfo-handler"), "frontend", version))
+		http.Handle("/api/v1/status/buildinfo", buildInfoHandler)
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
+		http.Handle("/api/v1/rules", http.HandlerFunc(ruleProxy.RuleGroups))
+		http.Handle("/api/v1/rules/", http.NotFoundHandler())
+		http.Handle("/api/v1/alerts", http.HandlerFunc(ruleProxy.Alerts))
 		http.Handle("/api/", authenticate(forward(logger, targetURL, transport)))
 
 		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {

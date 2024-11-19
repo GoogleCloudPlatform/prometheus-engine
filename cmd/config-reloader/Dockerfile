@@ -12,18 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.23.2@sha256:adee809c2d0009a4199a11a1b2618990b244c6515149fe609e2788ddf164bd10 as buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.3@sha256:f8bb4c6a38de63ba747378332bed2bcc1dfef11cc5b5087de78105793dfcda01 AS buildbase
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /app
 COPY go.mod go.mod
 COPY go.sum go.sum
+COPY vendor vendor
 COPY cmd cmd
 COPY pkg pkg
-COPY vendor vendor
 
-FROM buildbase as appbase
-RUN CGO_ENABLED=1 GOEXPERIMENT=boringcrypto \
-    go build -tags boring -mod=vendor -o config-reloader cmd/config-reloader/*.go
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+      apt install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+      CC=aarch64-linux-gnu-gcc; \
+    fi && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
+      go build -tags boring -mod=vendor -o config-reloader cmd/config-reloader/*.go
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20240307.00_p0@sha256:4f834e207f2721977094aeec4c9daee7032c5daec2083c0be97760f4306e4f88
-COPY --from=appbase /app/config-reloader /bin/config-reloader
+FROM gcr.io/distroless/base-nossl-debian12:nonroot
+COPY --from=buildbase /app/config-reloader /bin/config-reloader
 ENTRYPOINT ["/bin/config-reloader"]
