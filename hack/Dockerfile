@@ -76,7 +76,7 @@ COPY --from=hermetic /workspace/vendor vendor.tmp
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
 FROM google-go.pkg.dev/golang:1.23.4@sha256:c419d4a81d5a735d9f480f8e848e07514e63ef2afed162abc571e85dd8cac882 AS buildbase
-FROM docker:27.2-cli AS docker
+FROM docker:27.4-cli AS docker
 FROM debian:stable-slim AS kindtest
 
 WORKDIR /build
