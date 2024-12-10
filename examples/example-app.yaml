@@ -43,6 +43,7 @@ spec:
                 values:
                 - linux
       containers:
+      # Instrumentation source: https://github.com/nilebox/prometheus-example-app
       - image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
         name: prom-example
         ports:
@@ -52,3 +53,7 @@ spec:
         - "/main"
         - "--process-metrics"
         - "--go-metrics"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
