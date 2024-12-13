@@ -46,9 +46,9 @@ var (
 	counterCount = flag.Int("counter-count", -1, "Number of unique instances per counter metric.")
 	summaryCount = flag.Int("summary-count", -1, "Number of unique instances per summary metric.")
 
-	omStateSetCount       = flag.Int("om-stateset-count", -1, "Number of OpenMetrics StateSet metrics (https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
-	omInfoCount           = flag.Int("om-info-count", -1, "Number of OpenMetrics Info metrics (https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
-	omGaugeHistogramCount = flag.Int("om-gaugehistogram-count", -1, "Number of OpenMetrics GaugeHistogram metrics (https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
+	omStateSetCount       = flag.Int("om-stateset-count", -1, "Number of OpenMetrics StateSet metrics (https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
+	omInfoCount           = flag.Int("om-info-count", -1, "Number of OpenMetrics Info metrics (https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
+	omGaugeHistogramCount = flag.Int("om-gaugehistogram-count", -1, "Number of OpenMetrics GaugeHistogram metrics (https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
 
 	exemplarSampling = flag.Float64("exemplar-sampling", 0.1, "Fraction of observations to include exemplars on histograms.")
 )
