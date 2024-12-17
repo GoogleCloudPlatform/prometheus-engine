@@ -45,11 +45,26 @@ import (
 )
 
 type updateTargetStatusTestCase struct {
-	desc                  string
-	targets               []*prometheusv1.TargetsResult
-	podMonitorings        []monitoringv1.PodMonitoring
-	clusterPodMonitorings []monitoringv1.ClusterPodMonitoring
-	expErr                func(err error) bool
+	desc                    string
+	targets                 []*prometheusv1.TargetsResult
+	podMonitorings          []monitoringv1.PodMonitoring
+	initializeStatus        []monitoringv1.PodMonitoringStatus
+	clusterPodMonitorings   []monitoringv1.ClusterPodMonitoring
+	initializeClusterStatus []monitoringv1.PodMonitoringStatus
+	expErr                  func(err error) bool
+}
+
+func (tc *updateTargetStatusTestCase) getPodMonitoringCRDs() []monitoringv1.PodMonitoringCRD {
+	var combinedList []monitoringv1.PodMonitoringCRD
+
+	for _, pm := range tc.podMonitorings {
+		combinedList = append(combinedList, &pm)
+	}
+
+	for _, pm := range tc.clusterPodMonitorings {
+		combinedList = append(combinedList, &pm)
+	}
+	return combinedList
 }
 
 // Given a list of test cases on PodMonitoring, creates a new list containing
@@ -84,6 +99,7 @@ func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase
 			}
 			clusterTargets = append(clusterTargets, targetClusterPodMonitoring)
 		}
+
 		for _, pm := range tc.podMonitorings {
 			pmCopy := pm.DeepCopy()
 			cpm := monitoringv1.ClusterPodMonitoring{
@@ -103,26 +119,41 @@ func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase
 			}
 			clusterPodMonitorings = append(clusterPodMonitorings, cpm)
 		}
+
+		initializeClusterStatus := make([]monitoringv1.PodMonitoringStatus, 0, len(tc.initializeStatus))
+		for _, status := range tc.initializeStatus {
+			statusCopy := status.DeepCopy()
+
+			for idx, status := range statusCopy.EndpointStatuses {
+				statusCopy.EndpointStatuses[idx].Name = podMonitoringScrapePoolToClusterPodMonitoringScrapePool(status.Name)
+			}
+			initializeClusterStatus = append(initializeClusterStatus, *statusCopy)
+		}
+
 		dataPodMonitorings := updateTargetStatusTestCase{
-			desc:           tc.desc + "-pod-monitoring",
-			targets:        tc.targets,
-			podMonitorings: tc.podMonitorings,
-			expErr:         tc.expErr,
+			desc:             tc.desc + "-pod-monitoring",
+			targets:          tc.targets,
+			podMonitorings:   tc.podMonitorings,
+			initializeStatus: tc.initializeStatus,
+			expErr:           tc.expErr,
 		}
 		dataFinal = append(dataFinal, dataPodMonitorings)
 		dataClusterPodMonitorings := updateTargetStatusTestCase{
-			desc:                  tc.desc + "-cluster-pod-monitoring",
-			targets:               clusterTargets,
-			clusterPodMonitorings: clusterPodMonitorings,
-			expErr:                tc.expErr,
+			desc:                    tc.desc + "-cluster-pod-monitoring",
+			targets:                 clusterTargets,
+			clusterPodMonitorings:   clusterPodMonitorings,
+			initializeClusterStatus: initializeClusterStatus,
+			expErr:                  tc.expErr,
 		}
 		prometheusTargetsBoth := append(tc.targets, clusterTargets...)
 		dataBoth := updateTargetStatusTestCase{
-			desc:                  tc.desc + "-both",
-			targets:               prometheusTargetsBoth,
-			podMonitorings:        tc.podMonitorings,
-			clusterPodMonitorings: clusterPodMonitorings,
-			expErr:                tc.expErr,
+			desc:                    tc.desc + "-both",
+			targets:                 prometheusTargetsBoth,
+			podMonitorings:          tc.podMonitorings,
+			initializeStatus:        tc.initializeStatus,
+			clusterPodMonitorings:   clusterPodMonitorings,
+			initializeClusterStatus: initializeClusterStatus,
+			expErr:                  tc.expErr,
 		}
 		dataFinal = append(dataFinal, dataClusterPodMonitorings)
 		dataFinal = append(dataFinal, dataBoth)
@@ -1225,27 +1256,100 @@ func TestUpdateTargetStatus(t *testing.T) {
 				return err.Error() == "unknown scrape kind \"unknown\""
 			},
 		},
+		// No targets, with PodMonitoring config.
+		{
+			desc: "no-targets-no-match",
+			podMonitorings: []monitoringv1.PodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Spec:       monitoringv1.PodMonitoringSpec{},
+
+					Status: monitoringv1.PodMonitoringStatus{
+						MonitoringStatus: monitoringv1.MonitoringStatus{
+							ObservedGeneration: 2,
+							Conditions: []monitoringv1.MonitoringCondition{{
+								Type:               monitoringv1.ConfigurationCreateSuccess,
+								Status:             corev1.ConditionTrue,
+								LastUpdateTime:     metav1.Time{},
+								LastTransitionTime: metav1.Time{},
+								Reason:             "",
+								Message:            "",
+							}},
+						},
+					},
+				},
+			},
+			initializeStatus: []monitoringv1.PodMonitoringStatus{
+				{
+					MonitoringStatus: monitoringv1.MonitoringStatus{
+						ObservedGeneration: 2,
+						Conditions: []monitoringv1.MonitoringCondition{{
+							Type:               monitoringv1.ConfigurationCreateSuccess,
+							Status:             corev1.ConditionTrue,
+							LastUpdateTime:     metav1.Time{},
+							LastTransitionTime: metav1.Time{},
+							Reason:             "",
+							Message:            "",
+						}},
+					},
+					EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
+						{
+							Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
+							ActiveTargets:    1,
+							UnhealthyTargets: 0,
+							LastUpdateTime:   date,
+							SampleGroups: []monitoringv1.SampleGroup{
+								{
+									SampleTargets: []monitoringv1.SampleTarget{
+										{
+											Health: "up",
+											Labels: map[model.LabelName]model.LabelValue{
+												"instance": "a",
+											},
+											LastScrapeDurationSeconds: "1.2",
+										},
+									},
+									Count: ptr.To(int32(1)),
+								},
+							},
+							CollectorsFraction: "1",
+						},
+					},
+				},
+			},
+		},
 	})
 
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("target-status-conversion-%s", testCase.desc), func(t *testing.T) {
 			clientBuilder := newFakeClientBuilder()
-			for _, podMonitoring := range testCase.podMonitorings {
+			for i, podMonitoring := range testCase.podMonitorings {
 				pmCopy := podMonitoring.DeepCopy()
-				pmCopy.GetPodMonitoringStatus().EndpointStatuses = nil
+				if len(testCase.initializeStatus) > 0 {
+					pmCopy.Status = testCase.initializeStatus[i]
+				} else {
+					pmCopy.GetPodMonitoringStatus().EndpointStatuses = nil
+				}
 				clientBuilder.WithObjects(pmCopy)
 			}
-			for _, clusterPodMonitoring := range testCase.clusterPodMonitorings {
+			for i, clusterPodMonitoring := range testCase.clusterPodMonitorings {
 				pmCopy := clusterPodMonitoring.DeepCopy()
-				pmCopy.GetPodMonitoringStatus().EndpointStatuses = nil
+				if len(testCase.initializeClusterStatus) > 0 {
+					pmCopy.Status = testCase.initializeClusterStatus[i]
+				} else {
+					pmCopy.GetPodMonitoringStatus().EndpointStatuses = nil
+				}
 				clientBuilder.WithObjects(pmCopy)
 			}
 
 			kubeClient := clientBuilder.Build()
 
-			err := updateTargetStatus(context.Background(), testr.New(t), kubeClient, testCase.targets)
+			// fetchTargets(ctx, logger, opts, nil, targetFetchFromMap(prometheusTargetMap), kubeClient)
+			err := updateTargetStatus(context.Background(), testr.New(t), kubeClient, testCase.targets, testCase.getPodMonitoringCRDs())
 			if err != nil && (testCase.expErr == nil || !testCase.expErr(err)) {
 				t.Fatalf("unexpected error updating target status: %s", err)
+			} else if err == nil && (testCase.expErr != nil) {
+				t.Fatalf("expected error missing when updating target status")
 			}
 
 			for _, podMonitoring := range testCase.podMonitorings {
@@ -1601,24 +1705,6 @@ func TestShouldPoll(t *testing.T) {
 			},
 			should: false,
 			expErr: true,
-		},
-		{
-			desc: "should not poll targets - no podmonitorings",
-			objs: []client.Object{
-				&monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
-					Features: monitoringv1.OperatorFeatures{
-						TargetStatus: monitoringv1.TargetStatusSpec{
-							Enabled: true,
-						},
-					},
-				},
-			},
-			should: false,
-			expErr: false,
 		},
 		{
 			desc: "should not poll targets - disabled",
