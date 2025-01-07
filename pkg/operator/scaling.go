@@ -36,7 +36,10 @@ import (
 )
 
 const (
-	collectorVPAName = "collector"
+	alertmanagerVPAName  = "alertmanager"
+	collectorVPAName     = "collector"
+	operatorVPAName      = "gmp-operator"
+	ruleEvaluatorVPAName = "rule-evaluator"
 )
 
 type scalingReconciler struct {
@@ -96,14 +99,53 @@ func (r *scalingReconciler) Reconcile(ctx context.Context, req reconcile.Request
 }
 
 func applyVPA(ctx context.Context, c client.Client, namespace string) error {
-	vpa := autoscalingv1.VerticalPodAutoscaler{
+	alertmanagerVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      alertmanagerVPAName,
+		},
+	}
+	if _, err := controllerutil.CreateOrUpdate(ctx, c, &alertmanagerVPA, func() error {
+		alertmanagerVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
+			TargetRef: &autoscaling.CrossVersionObjectReference{
+				APIVersion: "apps/v1",
+				Kind:       "StatefulSet",
+				Name:       alertmanagerVPAName,
+			},
+			UpdatePolicy: &autoscalingv1.PodUpdatePolicy{
+				MinReplicas: ptr.To(int32(1)),
+				UpdateMode:  ptr.To(autoscalingv1.UpdateModeAuto),
+			},
+			ResourcePolicy: &autoscalingv1.PodResourcePolicy{
+				ContainerPolicies: []autoscalingv1.ContainerResourcePolicy{
+					{
+						ContainerName: "alertmanager",
+						Mode:          ptr.To(autoscalingv1.ContainerScalingModeAuto),
+						MinAllowed: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("1m"),
+							corev1.ResourceMemory: resource.MustParse("16Mi"),
+						},
+					},
+					{
+						ContainerName: "config-reloader",
+						Mode:          ptr.To(autoscalingv1.ContainerScalingModeOff),
+					},
+				},
+			},
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	collectorVPA := autoscalingv1.VerticalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      collectorVPAName,
 		},
 	}
-	if _, err := controllerutil.CreateOrUpdate(ctx, c, &vpa, func() error {
-		vpa.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
+	if _, err := controllerutil.CreateOrUpdate(ctx, c, &collectorVPA, func() error {
+		collectorVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
 			TargetRef: &autoscaling.CrossVersionObjectReference{
 				APIVersion: "apps/v1",
 				Kind:       "DaemonSet",
@@ -118,6 +160,7 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 						ContainerName: "prometheus",
 						Mode:          ptr.To(autoscalingv1.ContainerScalingModeAuto),
 						MinAllowed: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("4m"),
 							corev1.ResourceMemory: resource.MustParse("32Mi"),
 						},
 					},
@@ -132,18 +175,124 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 	}); err != nil {
 		return err
 	}
+
+	operatorVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      operatorVPAName,
+		},
+	}
+	if _, err := controllerutil.CreateOrUpdate(ctx, c, &operatorVPA, func() error {
+		collectorVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
+			TargetRef: &autoscaling.CrossVersionObjectReference{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       operatorVPAName,
+			},
+			UpdatePolicy: &autoscalingv1.PodUpdatePolicy{
+				MinReplicas: ptr.To(int32(1)),
+				UpdateMode:  ptr.To(autoscalingv1.UpdateModeAuto),
+			},
+			ResourcePolicy: &autoscalingv1.PodResourcePolicy{
+				ContainerPolicies: []autoscalingv1.ContainerResourcePolicy{
+					{
+						ContainerName: "operator",
+						Mode:          ptr.To(autoscalingv1.ContainerScalingModeAuto),
+						MinAllowed: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("1m"),
+							corev1.ResourceMemory: resource.MustParse("16Mi"),
+						},
+					},
+				},
+			},
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	ruleEvaluatorVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      ruleEvaluatorVPAName,
+		},
+	}
+	if _, err := controllerutil.CreateOrUpdate(ctx, c, &ruleEvaluatorVPA, func() error {
+		collectorVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
+			TargetRef: &autoscaling.CrossVersionObjectReference{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       ruleEvaluatorVPAName,
+			},
+			UpdatePolicy: &autoscalingv1.PodUpdatePolicy{
+				MinReplicas: ptr.To(int32(1)),
+				UpdateMode:  ptr.To(autoscalingv1.UpdateModeAuto),
+			},
+			ResourcePolicy: &autoscalingv1.PodResourcePolicy{
+				ContainerPolicies: []autoscalingv1.ContainerResourcePolicy{
+					{
+						ContainerName: "evaluator",
+						Mode:          ptr.To(autoscalingv1.ContainerScalingModeAuto),
+						MinAllowed: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("1m"),
+							corev1.ResourceMemory: resource.MustParse("16Mi"),
+						},
+					},
+					{
+						ContainerName: "config-reloader",
+						Mode:          ptr.To(autoscalingv1.ContainerScalingModeOff),
+					},
+				},
+			},
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func deleteVPA(ctx context.Context, c client.Writer, namespace string) error {
-	vpa := autoscalingv1.VerticalPodAutoscaler{
+	alertmanagerVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      alertmanagerVPAName,
+			Namespace: namespace,
+		},
+	}
+	if err := c.Delete(ctx, &alertmanagerVPA); client.IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	collectorVPA := autoscalingv1.VerticalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      collectorVPAName,
 			Namespace: namespace,
 		},
 	}
-	if err := c.Delete(ctx, &vpa); client.IgnoreNotFound(err) != nil {
+	if err := c.Delete(ctx, &collectorVPA); client.IgnoreNotFound(err) != nil {
 		return err
 	}
+
+	operatorVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      operatorVPAName,
+			Namespace: namespace,
+		},
+	}
+	if err := c.Delete(ctx, &operatorVPA); client.IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	ruleEvaluatorVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ruleEvaluatorVPAName,
+			Namespace: namespace,
+		},
+	}
+	if err := c.Delete(ctx, &ruleEvaluatorVPA); client.IgnoreNotFound(err) != nil {
+		return err
+	}
+
 	return nil
 }

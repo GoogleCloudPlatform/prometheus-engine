@@ -3479,7 +3479,7 @@ bool
 </em>
 </td>
 <td>
-<p>Enabled configures whether the operator configures Vertical Pod Autoscaling for the collector pods.
+<p>Enabled configures whether the operator configures Vertical Pod Autoscaling for GMP workloads.
 In GKE, installing Vertical Pod Autoscaling requires a cluster restart, and therefore it also results in an operator restart.
 In other environments, the operator may need to be restarted to enable VPA to run the following check again and watch for the objects.</p>
 </td>
