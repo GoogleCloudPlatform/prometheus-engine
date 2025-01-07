@@ -21,7 +21,6 @@ linters:
     - depguard
     - err113
     - errorlint
-    - execinquery
     - exhaustive
     - exhaustruct
     - exportloopref
@@ -36,7 +35,6 @@ linters:
     - gocyclo
     - godox
     - gofumpt
-    - gomnd
     - gomoddirectives
     - gosec
     - inamedparam

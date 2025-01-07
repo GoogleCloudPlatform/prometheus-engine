@@ -48,11 +48,7 @@ func readKeyAndCertFiles(dir string, t *testing.T) ([]byte, []byte) {
 }
 
 func TestEnsureCertsExplicit(t *testing.T) {
-	dir, err := os.MkdirTemp("", "test_ensure_certs")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	for _, tc := range []struct {
 		desc         string
@@ -136,11 +132,7 @@ func TestEnsureCertsExplicit(t *testing.T) {
 }
 
 func TestEnsureCertsSelfSigned(t *testing.T) {
-	dir, err := os.MkdirTemp("", "test_ensure_certs")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	t.Run("self generate keys/cert", func(t *testing.T) {
 		caBundle, err := ensureCerts("test-ns", dir, "", "", "")
@@ -403,11 +395,7 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 			}
 			kubeClient := fake.NewFakeClient(objs...)
 
-			dir, err := os.MkdirTemp("", tc.dir)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.RemoveAll(dir)
+			dir := t.TempDir()
 			webhookServer := &webhook.DefaultServer{
 				Options: webhook.Options{
 					CertDir: dir,

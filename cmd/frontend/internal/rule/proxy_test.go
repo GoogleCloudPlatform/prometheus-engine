@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -304,7 +303,7 @@ func TestProxy_Alerts(t *testing.T) {
 			r.Alerts(w, req)
 
 			require.Equal(t, tt.wantStatus, w.Code)
-			require.JSONEq(t, tt.wantBody, w.Body.String(), fmt.Sprintf("expected: %s, got: %s", tt.wantBody, w.Body.String()))
+			require.JSONEqf(t, tt.wantBody, w.Body.String(), "expected: %s, got: %s", tt.wantBody, w.Body.String())
 		})
 	}
 }
@@ -373,7 +372,7 @@ func TestProxy_RuleGroups(t *testing.T) {
 			r.RuleGroups(w, req)
 
 			require.Equal(t, tt.wantStatus, w.Code)
-			require.JSONEq(t, tt.wantBody, w.Body.String(), fmt.Sprintf("expected: %s, got: %s", tt.wantBody, w.Body.String()))
+			require.JSONEqf(t, tt.wantBody, w.Body.String(), "expected: %s, got: %s", tt.wantBody, w.Body.String())
 		})
 	}
 }
