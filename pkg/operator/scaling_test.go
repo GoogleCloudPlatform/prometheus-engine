@@ -28,9 +28,24 @@ import (
 )
 
 func TestApplyVPA(t *testing.T) {
-	vpa := autoscalingv1.VerticalPodAutoscaler{
+	alertmanagerVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: alertmanagerVPAName,
+		},
+	}
+	collectorVPA := autoscalingv1.VerticalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: collectorVPAName,
+		},
+	}
+	operatorVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: operatorVPAName,
+		},
+	}
+	ruleEvaluatorVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ruleEvaluatorVPAName,
 		},
 	}
 
@@ -59,7 +74,7 @@ func TestApplyVPA(t *testing.T) {
 			wantErr: true,
 		},
 		"update": {
-			c: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&vpa).Build(),
+			c: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&alertmanagerVPA, &collectorVPA, &operatorVPA, &ruleEvaluatorVPA).Build(),
 		},
 	}
 
@@ -74,16 +89,42 @@ func TestApplyVPA(t *testing.T) {
 			case err != nil && tc.wantErr:
 				// Ok
 			case err == nil && !tc.wantErr:
-				// Ok
+				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: alertmanagerVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
+					t.Error(err)
+				}
+				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: collectorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
+					t.Error(err)
+				}
+				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: operatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
+					t.Error(err)
+				}
+				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: ruleEvaluatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
+					t.Error(err)
+				}
 			}
 		})
 	}
 }
 
 func TestDeleteVPA(t *testing.T) {
-	vpa := autoscalingv1.VerticalPodAutoscaler{
+	alertmanagerVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: alertmanagerVPAName,
+		},
+	}
+	collectorVPA := autoscalingv1.VerticalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: collectorVPAName,
+		},
+	}
+	operatorVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: operatorVPAName,
+		},
+	}
+	ruleEvaluatorVPA := autoscalingv1.VerticalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ruleEvaluatorVPAName,
 		},
 	}
 
@@ -113,7 +154,7 @@ func TestDeleteVPA(t *testing.T) {
 			c: fake.NewClientBuilder().WithScheme(scheme).WithInterceptorFuncs(deleteInterceptorWithNotFoundError).Build(),
 		},
 		"ok": {
-			c: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&vpa).Build(),
+			c: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&alertmanagerVPA, &collectorVPA, &operatorVPA, &ruleEvaluatorVPA).Build(),
 		},
 		"err": {
 			c:       fake.NewClientBuilder().WithScheme(scheme).WithInterceptorFuncs(deleteInterceptorWithError).Build(),
@@ -132,7 +173,18 @@ func TestDeleteVPA(t *testing.T) {
 			case err != nil && tc.wantErr:
 				// Ok
 			case err == nil && !tc.wantErr:
-				// Ok
+				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: alertmanagerVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
+					t.Errorf("expected not found, got %s", err)
+				}
+				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: collectorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
+					t.Errorf("expected not found, got %s", err)
+				}
+				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: operatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
+					t.Errorf("expected not found, got %s", err)
+				}
+				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: ruleEvaluatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
+					t.Errorf("expected not found, got %s", err)
+				}
 			}
 		})
 	}
