@@ -179,6 +179,8 @@ spec:
                 values:
                 - linux
       tolerations:
+      - key: "components.gke.io/gke-managed-components"
+        operator: "Exists"
       - effect: NoExecute
         operator: Exists
       - effect: NoSchedule
