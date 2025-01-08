@@ -237,3 +237,8 @@ presubmit:   ## Regenerate all resources, build all images and run all tests.
              ## after presubmit (might require committing the changes).
              ##
 presubmit: regen bin test
+
+
+.PHONY: checkimages
+checkimages:
+	./hack/checkimages.sh
