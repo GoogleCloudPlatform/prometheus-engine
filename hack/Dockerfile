@@ -100,7 +100,7 @@ RUN install -o root -g root -m 07555 jq /usr/local/bin/jq \
   && rm jq
 
 # Install kind.
-RUN curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+RUN curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.26.0/kind-linux-amd64
 RUN install -o root -g root -m 0755 kind /usr/local/bin/kind \
   && rm kind
 
