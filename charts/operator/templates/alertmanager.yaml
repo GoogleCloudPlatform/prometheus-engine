@@ -156,6 +156,8 @@ spec:
                 values:
                 - linux
       tolerations:
+      - key: "components.gke.io/gke-managed-components"
+        operator: "Exists"
       - value: "amd64"
         effect: "NoSchedule"
         key: "kubernetes.io/arch"
