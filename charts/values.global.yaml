@@ -16,7 +16,7 @@ commonLabels: false
 namespace:
   public: gmp-public
   system: gmp-system
-version: 0.14.0
+version: 0.15.0
 images:
   # NOTE: All tags have to be quoted otherwise they might be treated as a number.
   bash:
@@ -38,7 +38,7 @@ images:
     image: gke.gcr.io/prometheus-engine/rule-evaluator
     tag: "v0.15.0-gke.12"
   datasourceSyncer:
-    image: gcr.io/gke-release/prometheus-engine/datasource-syncer
+    image: gke.gcr.io/prometheus-engine/datasource-syncer
     tag: "v0.15.0-gke.12"
 resources:
   alertManager:
