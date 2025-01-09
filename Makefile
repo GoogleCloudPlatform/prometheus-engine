@@ -239,6 +239,6 @@ presubmit:   ## Regenerate all resources, build all images and run all tests.
 presubmit: regen bin test
 
 
-.PHONY: checkimages
-checkimages:
-	./hack/checkimages.sh
+.PHONY: check-images
+check-images: $(YQ)
+	./hack/check-images.sh
