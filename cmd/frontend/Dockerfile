@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-FROM golang:1.22-bullseye@sha256:067c5c7fe6d79f900c5ebe8351166356d6e3bbfcc6f807030e89b9a929252273 AS buildbase
+FROM golang:1.23-bullseye@sha256:6d4cbf0b3900afa3e4460ca995b6c351370ce8d2d44b7a964dc521ab640e1a88 AS buildbase
 
 # Compile the UI assets.
 FROM launcher.gcr.io/google/nodejs as assets
