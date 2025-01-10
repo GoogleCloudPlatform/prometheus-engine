@@ -14,7 +14,7 @@
 
 # deps builds binaries in an isolated environment to avoid
 # funkiness in the hermetic build.
-FROM golang:1.22-bullseye@sha256:067c5c7fe6d79f900c5ebe8351166356d6e3bbfcc6f807030e89b9a929252273 AS deps
+FROM golang:1.23-bullseye@sha256:6d4cbf0b3900afa3e4460ca995b6c351370ce8d2d44b7a964dc521ab640e1a88 AS deps
 WORKDIR /workspace
 # Have to clone and install this as the go.mod uses replace directives.
 # RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
@@ -29,7 +29,7 @@ RUN bingo get
 
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
-FROM golang:1.22-bullseye AS hermetic
+FROM golang:1.23-bullseye AS hermetic
 
 COPY --from=deps /go/bin /go/bin
 ARG RUNCMD='go fmt ./...'
@@ -72,7 +72,7 @@ COPY --from=hermetic /workspace/pkg/operator/generated pkg/operator/generated.tm
 COPY --from=hermetic /workspace/vendor vendor.tmp
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
-FROM golang:1.22-bullseye as buildbase
+FROM golang:1.23-bullseye as buildbase
 FROM docker:25.0-cli as docker
 FROM debian:stable-slim as kindtest
 
