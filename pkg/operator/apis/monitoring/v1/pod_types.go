@@ -51,6 +51,12 @@ type PodMonitoringCRD interface {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:validation:XValidation:rule="self.spec.endpoints.all(e, !has(e.authorization) || !has(e.authorization.credentials) || !has(e.authorization.credentials.secret) || !has(e.authorization.credentials.secret.__namespace__))",message="Namespace not allowed on PodMonitoring secret references.",reason="FieldValueForbidden"
+// +kubebuilder:validation:XValidation:rule="self.spec.endpoints.all(e, !has(e.basicAuth) || !has(e.basicAuth.password) || !has(e.basicAuth.password.secret) || !has(e.basicAuth.password.secret.__namespace__))",message="Namespace not allowed on PodMonitoring secret references.",reason="FieldValueForbidden"
+// +kubebuilder:validation:XValidation:rule="self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.ca) || !has(e.tls.ca.secret) || !has(e.tls.ca.secret.__namespace__))",message="Namespace not allowed on PodMonitoring secret references.",reason="FieldValueForbidden"
+// +kubebuilder:validation:XValidation:rule="self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.cert) || !has(e.tls.cert.secret) || !has(e.tls.cert.secret.__namespace__))",message="Namespace not allowed on PodMonitoring secret references.",reason="FieldValueForbidden"
+// +kubebuilder:validation:XValidation:rule="self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.key) || !has(e.tls.key.secret) || !has(e.tls.key.secret.__namespace__))",message="Namespace not allowed on PodMonitoring secret references.",reason="FieldValueForbidden"
+// +kubebuilder:validation:XValidation:rule="self.spec.endpoints.all(e, !has(e.oauth2) || !has(e.oauth2.clientSecret) || !has(e.oauth2.clientSecret.secret) || !has(e.oauth2.clientSecret.secret.__namespace__))",message="Namespace not allowed on PodMonitoring secret references.",reason="FieldValueForbidden"
 type PodMonitoring struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

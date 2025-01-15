@@ -66,11 +66,8 @@ combine() {
 update_crdgen() {
   echo ">>> regenerating CRD yamls"
 
-  # TODO(TheSpiritXIII): Replace once merged: https://github.com/kubernetes-sigs/controller-tools/pull/878
-  which controller-gen || go install github.com/TheSpiritXIII/controller-tools/cmd/controller-gen@v0.14.1-gmp
-
   API_DIR=${REPO_ROOT}/pkg/operator/apis/...
-  controller-gen crd paths=./${API_DIR} output:crd:dir=${CRD_DIR}
+  ${CONTROLLER_GEN} crd paths=./${API_DIR} output:crd:dir=${CRD_DIR}
 
   CRD_YAMLS=$(find ${CRD_DIR} -iname '*.yaml' | sort)
   for i in $CRD_YAMLS; do
@@ -86,7 +83,7 @@ update_crdgen() {
 update_docgen() {
   echo ">>> generating API documentation"
   mkdir -p doc
-  gen-crd-api-reference-docs \
+  ${GEN_CRD_API_REFERENCE_DOCS} \
     -config "./hack/gen-crd/config.json" \
     -template-dir "./hack/gen-crd" \
     -api-dir "./pkg/operator/apis/monitoring/v1" \

@@ -16,13 +16,6 @@
 # funkiness in the hermetic build.
 FROM google-go.pkg.dev/golang:1.23.4@sha256:c419d4a81d5a735d9f480f8e848e07514e63ef2afed162abc571e85dd8cac882 AS deps
 WORKDIR /workspace
-# Have to clone and install this as the go.mod uses replace directives.
-# RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
-#   && cd prometheus-operator \
-#   && go install ./cmd/po-docgen
-# TODO(TheSpiritXIII): Replace once merged: https://github.com/kubernetes-sigs/controller-tools/pull/878
-RUN go install github.com/TheSpiritXIII/controller-tools/cmd/controller-gen@v0.14.1-gmp
-RUN go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
 
 RUN go install github.com/bwplotka/bingo@v0.9.0
 COPY .bingo .bingo

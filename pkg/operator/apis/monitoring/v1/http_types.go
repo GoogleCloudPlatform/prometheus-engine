@@ -57,7 +57,6 @@ type SecretKeySelector struct {
 	// Namespace of the secret to select from.
 	// If empty the parent resource namespace will be chosen.
 	// +optional
-	// +kubebuilder:field:scope=Cluster
 	Namespace string `json:"namespace,omitempty"`
 }
 
