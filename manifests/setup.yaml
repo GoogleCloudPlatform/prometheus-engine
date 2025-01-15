@@ -17,7 +17,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.1-gmp
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: clusternodemonitorings.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -263,7 +263,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.1-gmp
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: clusterpodmonitorings.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -452,7 +452,6 @@ spec:
                             description: |-
                               ProxyURL is the HTTP proxy server to use to connect to the targets.
 
-
                               Encoded passwords are not supported.
                             type: string
                           scopes:
@@ -539,7 +538,6 @@ spec:
                                   MaxVersion is the maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
                                   TLS12 (TLS 1.2), TLS13 (TLS 1.3).
 
-
                                   If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                                   See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                                 type: string
@@ -547,7 +545,6 @@ spec:
                                 description: |-
                                   MinVersion is the minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
                                   TLS12 (TLS 1.2), TLS13 (TLS 1.3).
-
 
                                   If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                                   See MinVersion in https://pkg.go.dev/crypto/tls#Config.
@@ -582,7 +579,6 @@ spec:
                       proxyUrl:
                         description: |-
                           ProxyURL is the HTTP proxy server to use to connect to the targets.
-
 
                           Encoded passwords are not supported.
                         type: string
@@ -673,7 +669,6 @@ spec:
                               MaxVersion is the maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
                               TLS12 (TLS 1.2), TLS13 (TLS 1.3).
 
-
                               If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                               See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                             type: string
@@ -681,7 +676,6 @@ spec:
                             description: |-
                               MinVersion is the minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
                               TLS12 (TLS 1.2), TLS13 (TLS 1.3).
-
 
                               If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                               See MinVersion in https://pkg.go.dev/crypto/tls#Config.
@@ -1206,7 +1200,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.1-gmp
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: clusterrules.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -1464,7 +1458,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.1-gmp
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: globalrules.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -1720,7 +1714,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.1-gmp
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: operatorconfigs.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -1769,7 +1763,6 @@ spec:
                       description: |-
                         Name of the referent.
                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Add other useful fields. apiVersion, kind, uid?
                       type: string
                     optional:
                       description: Specify whether the Secret or its key must be defined
@@ -1879,7 +1872,6 @@ spec:
                       description: |-
                         Name of the referent.
                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Add other useful fields. apiVersion, kind, uid?
                       type: string
                     optional:
                       description: Specify whether the Secret or its key must be defined
@@ -1895,7 +1887,6 @@ spec:
                     links back to Alertmanager itself. If the URL has a path portion, it will be used to
                     prefix all HTTP endpoints served by Alertmanager, otherwise relevant URL components will
                     be derived automatically.
-
 
                     If no URL is provided, Alertmanager will point to the Google Cloud Metric Explorer page.
                   type: string
@@ -1933,7 +1924,6 @@ spec:
                                     description: |-
                                       Name of the referent.
                                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind, uid?
                                     type: string
                                   optional:
                                     description: Specify whether the Secret or its key must be defined
@@ -1985,7 +1975,6 @@ spec:
                                         description: |-
                                           Name of the referent.
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                          TODO: Add other useful fields. apiVersion, kind, uid?
                                         type: string
                                       optional:
                                         description: Specify whether the ConfigMap or its key must be defined
@@ -2004,7 +1993,6 @@ spec:
                                         description: |-
                                           Name of the referent.
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                          TODO: Add other useful fields. apiVersion, kind, uid?
                                         type: string
                                       optional:
                                         description: Specify whether the Secret or its key must be defined
@@ -2027,7 +2015,6 @@ spec:
                                         description: |-
                                           Name of the referent.
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                          TODO: Add other useful fields. apiVersion, kind, uid?
                                         type: string
                                       optional:
                                         description: Specify whether the ConfigMap or its key must be defined
@@ -2046,7 +2033,6 @@ spec:
                                         description: |-
                                           Name of the referent.
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                          TODO: Add other useful fields. apiVersion, kind, uid?
                                         type: string
                                       optional:
                                         description: Specify whether the Secret or its key must be defined
@@ -2069,7 +2055,6 @@ spec:
                                     description: |-
                                       Name of the referent.
                                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind, uid?
                                     type: string
                                   optional:
                                     description: Specify whether the Secret or its key must be defined
@@ -2117,7 +2102,6 @@ spec:
                       description: |-
                         Name of the referent.
                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Add other useful fields. apiVersion, kind, uid?
                       type: string
                     optional:
                       description: Specify whether the Secret or its key must be defined
@@ -2194,7 +2178,6 @@ spec:
                       description: |-
                         Name of the referent.
                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Add other useful fields. apiVersion, kind, uid?
                       type: string
                     optional:
                       description: Specify whether the Secret or its key must be defined
@@ -2266,7 +2249,6 @@ spec:
                                     description: |-
                                       Name of the referent.
                                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind, uid?
                                     type: string
                                   optional:
                                     description: Specify whether the Secret or its key must be defined
@@ -2318,7 +2300,6 @@ spec:
                                         description: |-
                                           Name of the referent.
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                          TODO: Add other useful fields. apiVersion, kind, uid?
                                         type: string
                                       optional:
                                         description: Specify whether the ConfigMap or its key must be defined
@@ -2337,7 +2318,6 @@ spec:
                                         description: |-
                                           Name of the referent.
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                          TODO: Add other useful fields. apiVersion, kind, uid?
                                         type: string
                                       optional:
                                         description: Specify whether the Secret or its key must be defined
@@ -2360,7 +2340,6 @@ spec:
                                         description: |-
                                           Name of the referent.
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                          TODO: Add other useful fields. apiVersion, kind, uid?
                                         type: string
                                       optional:
                                         description: Specify whether the ConfigMap or its key must be defined
@@ -2379,7 +2358,6 @@ spec:
                                         description: |-
                                           Name of the referent.
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                          TODO: Add other useful fields. apiVersion, kind, uid?
                                         type: string
                                       optional:
                                         description: Specify whether the Secret or its key must be defined
@@ -2402,7 +2380,6 @@ spec:
                                     description: |-
                                       Name of the referent.
                                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind, uid?
                                     type: string
                                   optional:
                                     description: Specify whether the Secret or its key must be defined
@@ -2438,7 +2415,6 @@ spec:
                       description: |-
                         Name of the referent.
                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Add other useful fields. apiVersion, kind, uid?
                       type: string
                     optional:
                       description: Specify whether the Secret or its key must be defined
@@ -2470,7 +2446,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.1-gmp
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: podmonitorings.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -2530,6 +2506,11 @@ spec:
                                   name:
                                     description: Name of the secret to select from.
                                     type: string
+                                  namespace:
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                    type: string
                                 required:
                                   - key
                                   - name
@@ -2555,6 +2536,11 @@ spec:
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
+                                    type: string
+                                  namespace:
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
                                     type: string
                                 required:
                                   - key
@@ -2630,6 +2616,11 @@ spec:
                                   name:
                                     description: Name of the secret to select from.
                                     type: string
+                                  namespace:
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                    type: string
                                 required:
                                   - key
                                   - name
@@ -2643,7 +2634,6 @@ spec:
                           proxyUrl:
                             description: |-
                               ProxyURL is the HTTP proxy server to use to connect to the targets.
-
 
                               Encoded passwords are not supported.
                             type: string
@@ -2669,6 +2659,11 @@ spec:
                                       name:
                                         description: Name of the secret to select from.
                                         type: string
+                                      namespace:
+                                        description: |-
+                                          Namespace of the secret to select from.
+                                          If empty the parent resource namespace will be chosen.
+                                        type: string
                                     required:
                                       - key
                                       - name
@@ -2685,6 +2680,11 @@ spec:
                                         type: string
                                       name:
                                         description: Name of the secret to select from.
+                                        type: string
+                                      namespace:
+                                        description: |-
+                                          Namespace of the secret to select from.
+                                          If empty the parent resource namespace will be chosen.
                                         type: string
                                     required:
                                       - key
@@ -2706,6 +2706,11 @@ spec:
                                       name:
                                         description: Name of the secret to select from.
                                         type: string
+                                      namespace:
+                                        description: |-
+                                          Namespace of the secret to select from.
+                                          If empty the parent resource namespace will be chosen.
+                                        type: string
                                     required:
                                       - key
                                       - name
@@ -2716,7 +2721,6 @@ spec:
                                   MaxVersion is the maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
                                   TLS12 (TLS 1.2), TLS13 (TLS 1.3).
 
-
                                   If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                                   See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                                 type: string
@@ -2724,7 +2728,6 @@ spec:
                                 description: |-
                                   MinVersion is the minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
                                   TLS12 (TLS 1.2), TLS13 (TLS 1.3).
-
 
                                   If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                                   See MinVersion in https://pkg.go.dev/crypto/tls#Config.
@@ -2760,7 +2763,6 @@ spec:
                         description: |-
                           ProxyURL is the HTTP proxy server to use to connect to the targets.
 
-
                           Encoded passwords are not supported.
                         type: string
                       scheme:
@@ -2788,6 +2790,11 @@ spec:
                                   name:
                                     description: Name of the secret to select from.
                                     type: string
+                                  namespace:
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                    type: string
                                 required:
                                   - key
                                   - name
@@ -2804,6 +2811,11 @@ spec:
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
+                                    type: string
+                                  namespace:
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
                                     type: string
                                 required:
                                   - key
@@ -2825,6 +2837,11 @@ spec:
                                   name:
                                     description: Name of the secret to select from.
                                     type: string
+                                  namespace:
+                                    description: |-
+                                      Namespace of the secret to select from.
+                                      If empty the parent resource namespace will be chosen.
+                                    type: string
                                 required:
                                   - key
                                   - name
@@ -2835,7 +2852,6 @@ spec:
                               MaxVersion is the maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
                               TLS12 (TLS 1.2), TLS13 (TLS 1.3).
 
-
                               If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                               See MinVersion in https://pkg.go.dev/crypto/tls#Config.
                             type: string
@@ -2843,7 +2859,6 @@ spec:
                             description: |-
                               MinVersion is the minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
                               TLS12 (TLS 1.2), TLS13 (TLS 1.3).
-
 
                               If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                               See MinVersion in https://pkg.go.dev/crypto/tls#Config.
@@ -3084,6 +3099,25 @@ spec:
           required:
             - spec
           type: object
+          x-kubernetes-validations:
+            - message: Namespace not allowed on PodMonitoring secret references.
+              reason: FieldValueForbidden
+              rule: self.spec.endpoints.all(e, !has(e.authorization) || !has(e.authorization.credentials) || !has(e.authorization.credentials.secret) || !has(e.authorization.credentials.secret.__namespace__))
+            - message: Namespace not allowed on PodMonitoring secret references.
+              reason: FieldValueForbidden
+              rule: self.spec.endpoints.all(e, !has(e.basicAuth) || !has(e.basicAuth.password) || !has(e.basicAuth.password.secret) || !has(e.basicAuth.password.secret.__namespace__))
+            - message: Namespace not allowed on PodMonitoring secret references.
+              reason: FieldValueForbidden
+              rule: self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.ca) || !has(e.tls.ca.secret) || !has(e.tls.ca.secret.__namespace__))
+            - message: Namespace not allowed on PodMonitoring secret references.
+              reason: FieldValueForbidden
+              rule: self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.cert) || !has(e.tls.cert.secret) || !has(e.tls.cert.secret.__namespace__))
+            - message: Namespace not allowed on PodMonitoring secret references.
+              reason: FieldValueForbidden
+              rule: self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.key) || !has(e.tls.key.secret) || !has(e.tls.key.secret.__namespace__))
+            - message: Namespace not allowed on PodMonitoring secret references.
+              reason: FieldValueForbidden
+              rule: self.spec.endpoints.all(e, !has(e.oauth2) || !has(e.oauth2.clientSecret) || !has(e.oauth2.clientSecret.secret) || !has(e.oauth2.clientSecret.secret.__namespace__))
       served: true
       storage: true
       subresources:
@@ -3363,7 +3397,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.1-gmp
+    controller-gen.kubebuilder.io/version: v0.17.1
   name: rules.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
