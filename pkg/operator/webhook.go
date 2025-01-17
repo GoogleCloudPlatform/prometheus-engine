@@ -90,14 +90,6 @@ func setupAdmissionWebhooks(ctx context.Context, logger logr.Logger, kubeClient 
 	)
 	// Defaulting webhooks.
 	webhookServer.Register(
-		defaultPath(monitoringv1.PodMonitoringResource()),
-		admission.DefaultingWebhookFor(scheme, &monitoringv1.PodMonitoring{}),
-	)
-	webhookServer.Register(
-		defaultPath(monitoringv1.ClusterPodMonitoringResource()),
-		admission.DefaultingWebhookFor(scheme, &monitoringv1.ClusterPodMonitoring{}),
-	)
-	webhookServer.Register(
 		defaultPath(monitoringv1.OperatorConfigResource()),
 		admission.WithCustomDefaulter(scheme, &monitoringv1.OperatorConfig{}, &operatorConfigDefaulter{
 			projectID: opts.ProjectID,

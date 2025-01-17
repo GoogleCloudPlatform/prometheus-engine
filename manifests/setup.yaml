@@ -775,6 +775,13 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 targetLabels:
+                  default:
+                    metadata:
+                      - namespace
+                      - pod
+                      - container
+                      - top_level_controller_name
+                      - top_level_controller_type
                   description: |-
                     Labels to add to the Prometheus target for discovered endpoints.
                     The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
@@ -2954,6 +2961,12 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 targetLabels:
+                  default:
+                    metadata:
+                      - pod
+                      - container
+                      - top_level_controller_name
+                      - top_level_controller_type
                   description: |-
                     Labels to add to the Prometheus target for discovered endpoints.
                     The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`

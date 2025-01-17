@@ -400,8 +400,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	// Mark status updates in batch with single timestamp.
 	for _, pmon := range podMons.Items {
-		updateSpec := pmon.UpdateDefault()
-
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
@@ -421,10 +419,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 
 		updateStatus := pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
-		if updateSpec || updateStatus {
+		if updateStatus {
 			updates = append(updates, update{
 				object: &pmon,
-				spec:   updateSpec,
 				status: updateStatus,
 			})
 		}
@@ -436,8 +433,6 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	// Mark status updates in batch with single timestamp.
 	for _, cmon := range clusterPodMons.Items {
-		updateSpec := cmon.UpdateDefault()
-
 		cond := &monitoringv1.MonitoringCondition{
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
@@ -457,10 +452,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 
 		updateStatus := cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
-		if updateSpec || updateStatus {
+		if updateStatus {
 			updates = append(updates, update{
 				object: &cmon,
-				spec:   updateSpec,
 				status: updateStatus,
 			})
 		}
