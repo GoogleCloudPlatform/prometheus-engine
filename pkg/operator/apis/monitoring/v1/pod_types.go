@@ -15,7 +15,6 @@
 package v1
 
 import (
-	"errors"
 	"fmt"
 
 	prommodel "github.com/prometheus/common/model"
@@ -89,9 +88,6 @@ func (p *PodMonitoring) GetMonitoringStatus() *MonitoringStatus {
 }
 
 func (p *PodMonitoring) ValidateCreate() (admission.Warnings, error) {
-	if len(p.Spec.Endpoints) == 0 {
-		return nil, errors.New("at least one endpoint is required")
-	}
 	_, err := p.scrapeConfigs([]*relabel.Config{}, nil)
 	return nil, err
 }
@@ -169,9 +165,6 @@ func (c *ClusterPodMonitoring) GetMonitoringStatus() *MonitoringStatus {
 }
 
 func (c *ClusterPodMonitoring) ValidateCreate() (admission.Warnings, error) {
-	if len(c.Spec.Endpoints) == 0 {
-		return nil, errors.New("at least one endpoint is required")
-	}
 	_, err := c.scrapeConfigs([]*relabel.Config{}, nil)
 	return nil, err
 }
@@ -215,6 +208,7 @@ type PodMonitoringSpec struct {
 	// configuration.
 	Selector metav1.LabelSelector `json:"selector"`
 	// The endpoints to scrape on the selected pods.
+	// +kubebuilder:validation:MinItems=1
 	Endpoints []ScrapeEndpoint `json:"endpoints"`
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
@@ -250,6 +244,7 @@ type ClusterPodMonitoringSpec struct {
 	// configuration.
 	Selector metav1.LabelSelector `json:"selector"`
 	// The endpoints to scrape on the selected pods.
+	// +kubebuilder:validation:MinItems=1
 	Endpoints []ScrapeEndpoint `json:"endpoints"`
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
