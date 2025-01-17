@@ -106,21 +106,6 @@ func (p *PodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
 
-// Default implements admission.Defaulter.
-func (p *PodMonitoring) Default() {
-	_ = p.UpdateDefault()
-}
-
-// UpdateDefault defaults any unset fields, returning true if the object was updated.
-func (p *PodMonitoring) UpdateDefault() bool {
-	if p.Spec.TargetLabels.Metadata == nil {
-		md := []string{"pod", "container", "top_level_controller_name", "top_level_controller_type"}
-		p.Spec.TargetLabels.Metadata = &md
-		return true
-	}
-	return false
-}
-
 // PodMonitoringList is a list of PodMonitorings.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PodMonitoringList struct {
@@ -186,21 +171,6 @@ func (*ClusterPodMonitoring) ValidateDelete() (admission.Warnings, error) {
 	return nil, nil
 }
 
-// Default implements admission.Defaulter.
-func (c *ClusterPodMonitoring) Default() {
-	_ = c.UpdateDefault()
-}
-
-// UpdateDefault defaults any unset fields, returning true if the object was updated.
-func (c *ClusterPodMonitoring) UpdateDefault() bool {
-	if c.Spec.TargetLabels.Metadata == nil {
-		md := []string{"namespace", "pod", "container", "top_level_controller_name", "top_level_controller_type"}
-		c.Spec.TargetLabels.Metadata = &md
-		return true
-	}
-	return false
-}
-
 // ClusterPodMonitoringList is a list of ClusterPodMonitorings.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterPodMonitoringList struct {
@@ -219,6 +189,7 @@ type PodMonitoringSpec struct {
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
 	// if the scraped pod is controlled by a DaemonSet.
+	//+kubebuilder:default={metadata:{pod,container,top_level_controller_name,top_level_controller_type}}
 	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
@@ -254,6 +225,7 @@ type ClusterPodMonitoringSpec struct {
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
 	// if the scraped pod is controlled by a DaemonSet.
+	//+kubebuilder:default={metadata:{namespace,pod,container,top_level_controller_name,top_level_controller_type}}
 	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
