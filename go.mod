@@ -5,7 +5,6 @@ go 1.23.1
 require (
 	cloud.google.com/go/compute/metadata v0.3.0
 	cloud.google.com/go/monitoring v1.18.0
-	github.com/ahmetb/gen-crd-api-reference-docs v0.3.0
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/efficientgo/e2e v0.14.1-0.20230710114240-c316eb95ae5b
 	github.com/go-kit/log v0.2.1
@@ -42,7 +41,6 @@ require (
 	k8s.io/apimachinery v0.30.2
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
 	k8s.io/client-go v0.29.3
-	k8s.io/code-generator v0.30.2
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 	sigs.k8s.io/controller-runtime v0.17.3
 )
@@ -111,7 +109,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	go.mongodb.org/mongo-driver v1.13.1 // indirect
@@ -131,16 +128,12 @@ require (
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/term v0.27.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20240125205218-1f4bbc51befe // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240205150955-31a09d347014 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/component-base v0.29.3 // indirect
-	k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01 // indirect
-	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
-	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
