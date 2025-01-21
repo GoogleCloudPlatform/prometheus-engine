@@ -64,6 +64,15 @@ type Manager interface {
 	// election was configured.
 	Elected() <-chan struct{}
 
+	// AddMetricsServerExtraHandler adds an extra handler served on path to the http server that serves metrics.
+	// Might be useful to register some diagnostic endpoints e.g. pprof.
+	//
+	// Note that these endpoints are meant to be sensitive and shouldn't be exposed publicly.
+	//
+	// If the simple path -> handler mapping offered here is not enough,
+	// a new http server/listener should be added as Runnable to the manager via Add method.
+	AddMetricsServerExtraHandler(path string, handler http.Handler) error
+
 	// AddHealthzCheck allows you to add Healthz checker
 	AddHealthzCheck(name string, check healthz.Checker) error
 
@@ -380,6 +389,7 @@ func New(config *rest.Config, options Options) (Manager, error) {
 			LeaderElectionResourceLock: options.LeaderElectionResourceLock,
 			LeaderElectionID:           options.LeaderElectionID,
 			LeaderElectionNamespace:    options.LeaderElectionNamespace,
+			RenewDeadline:              *options.RenewDeadline,
 		})
 		if err != nil {
 			return nil, err
