@@ -27,7 +27,7 @@ COPY --from=assets /app/pkg/ui/embed.go pkg/ui/embed.go
 COPY --from=assets /app/pkg/ui/static pkg/ui/static
 
 # Build the actual Go binary.
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.4@sha256:c419d4a81d5a735d9f480f8e848e07514e63ef2afed162abc571e85dd8cac882 AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.5@sha256:ae5399149210a73ea34a8cb1f4812947b72da9f1d8b5463abb92c63e6826e838 AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
