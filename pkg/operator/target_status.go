@@ -107,9 +107,9 @@ func setupTargetStatusPoller(op *Operator, registry prometheus.Registerer, httpC
 				return false
 			})),
 		).
-		WatchesRawSource(&source.Channel{
-			Source: ch,
-		}, &handler.EnqueueRequestForObject{}).
+		WatchesRawSource(
+			source.Channel(ch, &handler.EnqueueRequestForObject{}),
+		).
 		Complete(reconciler)
 	if err != nil {
 		return fmt.Errorf("create target status controller: %w", err)
