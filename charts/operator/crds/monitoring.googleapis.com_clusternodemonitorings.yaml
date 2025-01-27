@@ -79,6 +79,18 @@ spec:
                           action:
                             description: Action to perform based on regex matching.
                               Defaults to 'replace'.
+                            enum:
+                            - replace
+                            - lowercase
+                            - uppercase
+                            - keep
+                            - drop
+                            - keepequal
+                            - dropequal
+                            - hashmod
+                            - labeldrop
+                            - labelkeep
+                            format: relabel_action
                             type: string
                           modulus:
                             description: Modulus to take of the hash of the source
@@ -104,12 +116,16 @@ spec:
                               using the configured separator and matched against the configured regular expression
                               for the replace, keep, and drop actions.
                             items:
+                              format: labelname
+                              pattern: '[a-zA-Z_][a-zA-Z0-9_]*'
                               type: string
                             type: array
                           targetLabel:
                             description: |-
                               Label to which the resulting value is written in a replace action.
                               It is mandatory for replace actions. Regex capture groups are available.
+                            format: labelname
+                            pattern: '[a-zA-Z_][a-zA-Z0-9_]*'
                             type: string
                         type: object
                       type: array
