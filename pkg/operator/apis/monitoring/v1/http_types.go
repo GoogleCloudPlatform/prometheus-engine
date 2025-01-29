@@ -161,6 +161,7 @@ func (c *BasicAuth) ToPrometheusConfig(m PodMonitoringCRD, pool PrometheusSecret
 }
 
 // TLS specifies TLS configuration used for HTTP requests.
+// +kubebuilder:validation:XValidation:rule=has(self.cert) == has(self.key),message="client cert and client key must be provided together, when either is provided"
 type TLS struct {
 	// ServerName is used to verify the hostname for the targets.
 	// +optional
