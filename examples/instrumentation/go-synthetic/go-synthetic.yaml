@@ -34,6 +34,11 @@ spec:
         - "--listen-address=:8080"
         - "--cpu-burn-ops=75"
         - "--memory-ballast-mbs=1024"
+        - "--histogram-count=2"      
+        - "--native-histogram-count=1" 
+        - "--gauge-count=2"
+        - "--counter-count=2"
+        - "--summary-count=2"
         env:
         # Needed when using --tls-create-self-signed
         - name: POD_IP
