@@ -64,14 +64,14 @@ func TestSampleBuilder(t *testing.T) {
 	})
 
 	cases := []struct {
-		doc        string
-		metadata   MetadataFunc
-		series     seriesMap
-		samples    [][]record.RefSample
-		exemplars  []map[storage.SeriesRef]record.RefExemplar
-		matchers   Matchers
-		wantSeries []*monitoring_pb.TimeSeries
-		wantFail   bool
+		doc                  string
+		metadata             MetadataFunc
+		series               seriesMap
+		samples              [][]record.RefSample
+		exemplars            []map[storage.SeriesRef]record.RefExemplar
+		matchers             Matchers
+		wantSeries           []*monitoring_pb.TimeSeries
+		wantFailOnLastSample bool
 	}{
 		{
 			doc: "convert gauge",
@@ -1278,6 +1278,42 @@ func TestSampleBuilder(t *testing.T) {
 			},
 		},
 		{
+			// Regression test for b/387200417.
+			doc: "histogram with conversion error for boundaries",
+			metadata: testMetadataFunc(metricMetadataMap{
+				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+			}),
+			series: seriesMap{
+				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
+				2: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_count"),
+				3: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "0.5"),
+				4: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "0.50000000000000001"),
+				5: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "1"),
+				6: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "1.0"),
+				7: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_bucket", "le", "+Inf"),
+			},
+			samples: [][]record.RefSample{
+				{
+					{Ref: 3, T: 1000, V: 1},  // 0.5
+					{Ref: 4, T: 1000, V: 1},  // 0.50000000000000001
+					{Ref: 5, T: 1000, V: 5},  // 1
+					{Ref: 6, T: 1000, V: 5},  // 1.0
+					{Ref: 7, T: 1000, V: 10}, // +Inf
+					{Ref: 1, T: 1000, V: 8},  // sum
+					{Ref: 2, T: 1000, V: 10}, // count
+				}, {
+					{Ref: 3, T: 2000, V: 2},   // 0.5
+					{Ref: 4, T: 2000, V: 2},   // 0.50000000000000001
+					{Ref: 5, T: 2000, V: 6},   // 1
+					{Ref: 6, T: 2000, V: 6},   // 1.0
+					{Ref: 7, T: 2000, V: 11},  // +Inf
+					{Ref: 1, T: 2000, V: 9.5}, // sum
+					{Ref: 2, T: 2000, V: 11},  // count
+				},
+			},
+			wantFailOnLastSample: true,
+		},
+		{
 			doc: "convert histogram with exemplars",
 			metadata: testMetadataFunc(metricMetadataMap{
 				"metric1":         {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
@@ -1497,14 +1533,13 @@ func TestSampleBuilder(t *testing.T) {
 						exemplars = c.exemplars[i]
 					}
 					out, tail, err := b.next(c.metadata, externalLabels, batch, exemplars)
-					if err == nil && c.wantFail {
-						t.Fatal("expected error but got none")
-					}
-					if err != nil && !c.wantFail {
-						t.Fatalf("unexpected error: %s", err)
-					}
-					if err != nil {
+					if c.wantFailOnLastSample && len(c.samples) == i+1 {
+						if err == nil {
+							t.Fatal("expected error but got none")
+						}
 						break
+					} else if err != nil {
+						t.Fatalf("unexpected error: %s %d", err, i)
 					}
 					if len(tail) >= len(batch) {
 						t.Fatalf("no sample was consumed")

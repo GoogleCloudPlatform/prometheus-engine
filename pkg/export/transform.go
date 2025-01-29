@@ -304,12 +304,22 @@ func (d *distribution) build(lset labels.Labels) (*distribution_pb.Distribution,
 	}
 
 	for i, bound := range d.bounds {
+		if i > 0 && prevBound == bound {
+			// Bounds has to be higher than the previous one.
+			// Rarely, but the same bounds can occur due to string to float imprecision
+			// or invalid representations of the same float e.g. 1 vs 1.0.
+			// GCM API rejects those, so reject them early.
+			prometheusSamplesDiscarded.WithLabelValues("duplicate-bucket-boundary").Add(float64(d.inputSampleCount()))
+			err := fmt.Errorf("invalid histogram with duplicates bounds (le label value) %s: count=%f, sum=%f, dev=%f, index=%d, bucketBound=%f, bucketPrevBound=%f",
+				lset, d.count, d.sum, dev, i, bound, prevBound)
+			return nil, err
+		}
+
 		if math.IsInf(bound, 1) {
 			bound = prevBound
 		} else {
 			bounds = append(bounds, bound)
 		}
-
 		val := d.values[i] - prevVal
 		// val should never be negative and it most likely indicates a bug or a data race in a scraped
 		// metrics endpoint.
