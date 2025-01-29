@@ -585,6 +585,9 @@ spec:
                                 description: ServerName is used to verify the hostname for the targets.
                                 type: string
                             type: object
+                            x-kubernetes-validations:
+                              - message: client cert and client key must be provided together, when either is provided
+                                rule: has(self.cert) == has(self.key)
                           tokenURL:
                             description: TokenURL is the URL to fetch the token from.
                             type: string
@@ -721,6 +724,9 @@ spec:
                             description: ServerName is used to verify the hostname for the targets.
                             type: string
                         type: object
+                        x-kubernetes-validations:
+                          - message: client cert and client key must be provided together, when either is provided
+                            rule: has(self.cert) == has(self.key)
                     required:
                       - port
                     type: object
@@ -2880,6 +2886,9 @@ spec:
                                 description: ServerName is used to verify the hostname for the targets.
                                 type: string
                             type: object
+                            x-kubernetes-validations:
+                              - message: client cert and client key must be provided together, when either is provided
+                                rule: has(self.cert) == has(self.key)
                           tokenURL:
                             description: TokenURL is the URL to fetch the token from.
                             type: string
@@ -3016,6 +3025,9 @@ spec:
                             description: ServerName is used to verify the hostname for the targets.
                             type: string
                         type: object
+                        x-kubernetes-validations:
+                          - message: client cert and client key must be provided together, when either is provided
+                            rule: has(self.cert) == has(self.key)
                     required:
                       - port
                     type: object
