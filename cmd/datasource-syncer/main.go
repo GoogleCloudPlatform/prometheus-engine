@@ -63,10 +63,15 @@ func main() {
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "caller", log.DefaultCaller)
 
-	if len(*datasourceUIDList) == 0 {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "--datasource-uid must be set")
-		os.Exit(1)
+	if *datasourceUIDList == "" {
+		envDatasourceUIDs := os.Getenv("DATASOURCE_UIDS")
+		if envDatasourceUIDs == "" {
+			//nolint:errcheck
+			level.Error(logger).Log("msg", "--datasource-uid must be set")
+			os.Exit(1)
+		}
+
+		datasourceUIDList = &envDatasourceUIDs
 	}
 
 	if *grafanaAPIToken == "" {
@@ -76,18 +81,30 @@ func main() {
 			level.Error(logger).Log("msg", "--grafana-api-token or the environment variable GRAFANA_SERVICE_ACCOUNT_TOKEN must be set")
 			os.Exit(1)
 		}
+
 		grafanaAPIToken = &envToken
 	}
+
 	if *grafanaEndpoint == "" {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "--grafana-api-endpoint must be set")
-		os.Exit(1)
+		envEndpoint := os.Getenv("GRAFANA_API_ENDPOINT")
+		if envEndpoint == "" {
+			//nolint:errcheck
+			level.Error(logger).Log("msg", "--grafana-api-endpoint must be set")
+			os.Exit(1)
+		}
+
+		grafanaEndpoint = &envEndpoint
 	}
 
 	if *projectID == "" {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "--project-id must be set")
-		os.Exit(1)
+		envProjectID := os.Getenv("PROJECT_ID")
+		if envProjectID == "" {
+			//nolint:errcheck
+			level.Error(logger).Log("msg", "--project-id must be set")
+			os.Exit(1)
+		}
+
+		projectID = &envProjectID
 	}
 
 	client, err := getTLSClient(*certFile, *keyFile, *caFile, *insecureSkipVerify)
