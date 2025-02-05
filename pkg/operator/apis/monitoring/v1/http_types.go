@@ -118,6 +118,7 @@ func (s *SecretKeySelector) toPrometheusSecretRef(m PodMonitoringCRD, pool Prome
 type Auth struct {
 	// Type is the authentication type. Defaults to Bearer.
 	// Basic will cause an error, as the BasicAuth object should be used instead.
+	// +kubebuilder:validation:XValidation:rule="self != 'Basic'",message="authorization type cannot be set to \"basic\", use \"basic_auth\" instead"
 	// +optional
 	Type string `json:"type,omitempty"`
 	// Credentials uses the secret as the credentials (token) for the authentication header.
@@ -174,6 +175,7 @@ type TLS struct {
 	//
 	// If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
 	// See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+	// +kubebuilder:validation:Enum=TLS10;TLS11;TLS12;TLS13
 	// +optional
 	MinVersion string `json:"minVersion,omitempty"`
 	// MaxVersion is the maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
@@ -181,6 +183,7 @@ type TLS struct {
 	//
 	// If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
 	// See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+	// +kubebuilder:validation:Enum=TLS10;TLS11;TLS12;TLS13
 	// +optional
 	MaxVersion string `json:"maxVersion,omitempty"`
 
@@ -302,6 +305,8 @@ type ProxyConfig struct {
 	//
 	// Encoded passwords are not supported.
 	// +optional
+	// +kubebuilder:validation:MaxLength=2000
+	// +kubebuilder:validation:XValidation:rule="isURL(self) && !self.matches('@')"
 	ProxyURL string `json:"proxyUrl,omitempty"`
 
 	// TODO(TheSpiritXIII): Consider adding further fields for Proxy configuration, similar to https://prometheus.io/docs/prometheus/latest/configuration/configuration/#oauth2
@@ -324,6 +329,7 @@ func (c *ProxyConfig) ToPrometheusConfig() (config.URL, error) {
 }
 
 // HTTPClientConfig stores HTTP-client configurations.
+// +kubebuilder:validation:XValidation:rule="((has(self.authorization) ? 1 : 0) + (has(self.basicAuth) ? 1 : 0) + (has(self.oauth2) ? 1 : 0)) <= 1"
 type HTTPClientConfig struct {
 	// Authorization is the HTTP authorization credentials for the targets.
 	// +optional

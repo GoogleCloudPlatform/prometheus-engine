@@ -23,11 +23,11 @@ $(ADDLICENSE): $(BINGO_DIR)/addlicense.mod
 	@echo "(re)installing $(GOBIN)/addlicense-v1.1.1"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.1.1 "github.com/google/addlicense"
 
-CONTROLLER_GEN := $(GOBIN)/controller-gen-v0.17.1
+CONTROLLER_GEN := $(GOBIN)/controller-gen-v0.17.1-0.20250103184936-50893dee96da
 $(CONTROLLER_GEN): $(BINGO_DIR)/controller-gen.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/controller-gen-v0.17.1"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=controller-gen.mod -o=$(GOBIN)/controller-gen-v0.17.1 "sigs.k8s.io/controller-tools/cmd/controller-gen"
+	@echo "(re)installing $(GOBIN)/controller-gen-v0.17.1-0.20250103184936-50893dee96da"
+	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=controller-gen.mod -o=$(GOBIN)/controller-gen-v0.17.1-0.20250103184936-50893dee96da "sigs.k8s.io/controller-tools/cmd/controller-gen"
 
 GEN_CRD_API_REFERENCE_DOCS := $(GOBIN)/gen-crd-api-reference-docs-v0.3.0
 $(GEN_CRD_API_REFERENCE_DOCS): $(BINGO_DIR)/gen-crd-api-reference-docs.mod

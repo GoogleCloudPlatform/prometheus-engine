@@ -15,7 +15,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
+    controller-gen.kubebuilder.io/version: v0.17.1-0.20250103184936-50893dee96da
   name: podmonitorings.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -95,6 +95,10 @@ spec:
                             Type is the authentication type. Defaults to Bearer.
                             Basic will cause an error, as the BasicAuth object should be used instead.
                           type: string
+                          x-kubernetes-validations:
+                          - message: authorization type cannot be set to "basic",
+                              use "basic_auth" instead
+                            rule: self != 'Basic'
                       type: object
                     basicAuth:
                       description: BasicAuth is the HTTP basic authentication credentials
@@ -132,7 +136,6 @@ spec:
                       description: Interval at which to scrape metrics. Must be a
                         valid Prometheus duration.
                       format: duration
-                      pattern: ^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$
                       type: string
                     metricRelabeling:
                       description: |-
@@ -158,7 +161,6 @@ spec:
                             - hashmod
                             - labeldrop
                             - labelkeep
-                            format: relabel_action
                             type: string
                           modulus:
                             description: Modulus to take of the hash of the source
@@ -168,7 +170,14 @@ spec:
                           regex:
                             description: Regular expression against which the extracted
                               value is matched. Defaults to '(.*)'.
+                            maxLength: 100
                             type: string
+                            x-kubernetes-validations:
+                            - rule: '!''project_id''.matches(self) && !''location''.matches(self)
+                                && !''cluster''.matches(self) && !''namespace''.matches(self)
+                                && !''instance''.matches(self) && !''top_level_controller''.matches(self)
+                                && !''top_level_controller_type''.matches(self) &&
+                                !''__address__''.matches(self) && !''cluster''.matches(self)'
                           replacement:
                             description: |-
                               Replacement value against which a regex replace is performed if the
@@ -184,18 +193,29 @@ spec:
                               using the configured separator and matched against the configured regular expression
                               for the replace, keep, and drop actions.
                             items:
-                              format: labelname
-                              pattern: '[a-zA-Z_][a-zA-Z0-9_]*'
+                              pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                               type: string
+                            maxItems: 100
                             type: array
                           targetLabel:
                             description: |-
                               Label to which the resulting value is written in a replace action.
                               It is mandatory for replace actions. Regex capture groups are available.
-                            format: labelname
-                            pattern: '[a-zA-Z_][a-zA-Z0-9_]*'
+                            pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                             type: string
+                            x-kubernetes-validations:
+                            - messageExpression: '''cannot relabel onto protected
+                                label "%s"''.format([self])'
+                              rule: self != 'project_id' && self != 'location' &&
+                                self != 'cluster' && self != 'namespace' && self !=
+                                'job' && self != 'instance' && self != 'top_level_controller'
+                                && self != 'top_level_controller_type' && self !=
+                                '__address__'
                         type: object
+                        x-kubernetes-validations:
+                        - rule: '!has(self.action) ||  self.action != ''labeldrop''
+                            || has(self.regex)'
+                      maxItems: 50
                       type: array
                     oauth2:
                       description: OAuth2 is the OAuth2 client credentials used to
@@ -240,7 +260,10 @@ spec:
                             ProxyURL is the HTTP proxy server to use to connect to the targets.
 
                             Encoded passwords are not supported.
+                          maxLength: 2000
                           type: string
+                          x-kubernetes-validations:
+                          - rule: isURL(self) && !self.matches('@')
                         scopes:
                           description: Scopes represents the scopes for the token
                             request.
@@ -337,6 +360,11 @@ spec:
 
                                 If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                                 See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+                              enum:
+                              - TLS10
+                              - TLS11
+                              - TLS12
+                              - TLS13
                               type: string
                             minVersion:
                               description: |-
@@ -345,6 +373,11 @@ spec:
 
                                 If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                                 See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+                              enum:
+                              - TLS10
+                              - TLS11
+                              - TLS12
+                              - TLS13
                               type: string
                             serverName:
                               description: ServerName is used to verify the hostname
@@ -377,13 +410,22 @@ spec:
                         Name or number of the port to scrape.
                         The container metadata label is only populated if the port is referenced by name
                         because port numbers are not unique across containers.
+                      maxLength: 253
+                      minLength: 1
+                      pattern: ^[a-z0-9]([a-z0-9-]{0,251}[a-z0-9])?$
                       x-kubernetes-int-or-string: true
+                      x-kubernetes-validations:
+                      - message: Port is required
+                        rule: self != 0
                     proxyUrl:
                       description: |-
                         ProxyURL is the HTTP proxy server to use to connect to the targets.
 
                         Encoded passwords are not supported.
+                      maxLength: 2000
                       type: string
+                      x-kubernetes-validations:
+                      - rule: isURL(self) && !self.matches('@')
                     scheme:
                       description: Protocol scheme to use to scrape.
                       enum:
@@ -395,7 +437,6 @@ spec:
                         Timeout for metrics scrapes. Must be a valid Prometheus duration.
                         Must not be larger than the scrape interval.
                       format: duration
-                      pattern: ^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$
                       type: string
                     tls:
                       description: TLS configures the scrape request's TLS settings.
@@ -487,6 +528,11 @@ spec:
 
                             If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                             See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+                          enum:
+                          - TLS10
+                          - TLS11
+                          - TLS12
+                          - TLS13
                           type: string
                         minVersion:
                           description: |-
@@ -495,6 +541,11 @@ spec:
 
                             If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
                             See MinVersion in https://pkg.go.dev/crypto/tls#Config.
+                          enum:
+                          - TLS10
+                          - TLS11
+                          - TLS12
+                          - TLS13
                           type: string
                         serverName:
                           description: ServerName is used to verify the hostname for
@@ -506,13 +557,16 @@ spec:
                           when either is provided
                         rule: has(self.cert) == has(self.key)
                   required:
+                  - interval
                   - port
                   type: object
                   x-kubernetes-validations:
-                  - messageExpression: '''"scrape timeout " + self.timeout + "must
-                      not be greater than scrape interval" + self.interval'''
-                    rule: '!has(self.interval) || !has(self.timeout) || self.interval
-                      <= self.timeout'
+                  - messageExpression: '''scrape timeout (%s) must not be greater
+                      than scrape interval (%s)''.format([self.timeout, self.interval])'
+                    rule: '!has(self.timeout) || self.timeout <= self.interval'
+                  - rule: '((has(self.authorization) ? 1 : 0) + (has(self.basicAuth)
+                      ? 1 : 0) + (has(self.oauth2) ? 1 : 0)) <= 1'
+                maxItems: 100
                 minItems: 1
                 type: array
               filterRunning:
@@ -620,19 +674,25 @@ spec:
                       properties:
                         from:
                           description: Kubernetes resource label to remap.
-                          format: labelname
-                          pattern: '[a-zA-Z_][a-zA-Z0-9_]*'
+                          pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                           type: string
                         to:
                           description: |-
                             Remapped Prometheus target label.
                             Defaults to the same name as `From`.
-                          format: labelname
-                          pattern: '[a-zA-Z_][a-zA-Z0-9_]*'
+                          pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                           type: string
+                          x-kubernetes-validations:
+                          - messageExpression: '''cannot relabel onto protected label
+                              "%s"''.format([self])'
+                            rule: self != 'project_id' && self != 'location' && self
+                              != 'cluster' && self != 'namespace' && self != 'job'
+                              && self != 'instance' && self != 'top_level_controller'
+                              && self != 'top_level_controller_type' && self != '__address__'
                       required:
                       - from
                       type: object
+                    maxItems: 100
                     type: array
                   metadata:
                     description: |-
