@@ -179,6 +179,7 @@ type PodMonitoringSpec struct {
 	Selector metav1.LabelSelector `json:"selector"`
 	// The endpoints to scrape on the selected pods.
 	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=100
 	Endpoints []ScrapeEndpoint `json:"endpoints"`
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
@@ -216,6 +217,7 @@ type ClusterPodMonitoringSpec struct {
 	Selector metav1.LabelSelector `json:"selector"`
 	// The endpoints to scrape on the selected pods.
 	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=100
 	Endpoints []ScrapeEndpoint `json:"endpoints"`
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
@@ -236,12 +238,18 @@ type ClusterPodMonitoringSpec struct {
 }
 
 // ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
-// +kubebuilder:validation:XValidation:rule="!has(self.interval) || !has(self.timeout) || self.interval <= self.timeout",messageExpression='"scrape timeout " + self.timeout + "must not be greater than scrape interval" + self.interval'
+// +kubebuilder:validation:XValidation:rule="!has(self.timeout) || self.timeout <= self.interval",messageExpression="'scrape timeout (%s) must not be greater than scrape interval (%s)'.format([self.timeout, self.interval])"
 type ScrapeEndpoint struct {
 	// Name or number of the port to scrape.
 	// The container metadata label is only populated if the port is referenced by name
 	// because port numbers are not unique across containers.
-	Port intstr.IntOrString `json:"port"`
+	// +kubebuilder:validation:XIntOrString
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern="^[a-z0-9]([a-z0-9-]{0,251}[a-z0-9])?$"
+	// +kubebuilder:validation:XValidation:rule="self != 0",message="Port is required"
+	// +required
+	Port intstr.IntOrString `json:"port,omitempty"`
 	// Protocol scheme to use to scrape.
 	// +kubebuilder:validation:Enum=http;https
 	Scheme string `json:"scheme,omitempty"`
@@ -251,17 +259,17 @@ type ScrapeEndpoint struct {
 	Params map[string][]string `json:"params,omitempty"`
 	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
 	// +kubebuilder:validation:Format=duration
-	// +kubebuilder:validation:Pattern="^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$"
-	Interval string `json:"interval,omitempty"`
+	// +required
+	Interval string `json:"interval"`
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
 	// Must not be larger than the scrape interval.
 	// +kubebuilder:validation:Format=duration
-	// +kubebuilder:validation:Pattern="^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$"
 	Timeout string `json:"timeout,omitempty"`
 	// Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
 	// override protected target labels (project_id, location, cluster, namespace, job,
 	// instance, top_level_controller, top_level_controller_type, or __address__) are
 	// not permitted. The labelmap action is not permitted in general.
+	// +kubebuilder:validation:MaxItems=50
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
 	// Prometheus HTTP client configuration.
 	HTTPClientConfig `json:",inline"`
@@ -284,6 +292,7 @@ type TargetLabels struct {
 	Metadata *[]string `json:"metadata,omitempty"`
 	// Labels to transfer from the Kubernetes Pod to Prometheus target labels.
 	// Mappings are applied in order.
+	// +kubebuilder:validation:MaxItems=100
 	FromPod []LabelMapping `json:"fromPod,omitempty"`
 }
 
@@ -291,33 +300,36 @@ type TargetLabels struct {
 // onto a Prometheus target.
 type LabelMapping struct {
 	// Kubernetes resource label to remap.
-	// +kubebuilder:validation:Format=labelname
-	// +kubebuilder:validation:Pattern=[a-zA-Z_][a-zA-Z0-9_]*
+	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
 	From string `json:"from"`
 	// Remapped Prometheus target label.
 	// Defaults to the same name as `From`.
-	// +kubebuilder:validation:Format=labelname
-	// +kubebuilder:validation:Pattern=[a-zA-Z_][a-zA-Z0-9_]*
+	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
+	// +kubebuilder:validation:MaxLength:100
+	// +kubebuilder:validation:XValidation:rule="self != 'project_id' && self != 'location' && self != 'cluster' && self != 'namespace' && self != 'job' && self != 'instance' && self != 'top_level_controller' && self != 'top_level_controller_type' && self != '__address__'",messageExpression="'cannot relabel onto protected label \"%s\"'.format([self])"
 	To string `json:"to,omitempty"`
 }
 
 // RelabelingRule defines a single Prometheus relabeling rule.
+// +kubebuilder:validation:XValidation:rule="!has(self.action) ||  self.action != 'labeldrop' || has(self.regex)"
 type RelabelingRule struct {
 	// The source labels select values from existing labels. Their content is concatenated
 	// using the configured separator and matched against the configured regular expression
 	// for the replace, keep, and drop actions.
-	// +kubebuilder:validation:items:Format=labelname
-	// +kubebuilder:validation:items:Pattern=[a-zA-Z_][a-zA-Z0-9_]*
+	// +kubebuilder:validation:MaxItems=100
+	// +kubebuilder:validation:items:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
 	SourceLabels []string `json:"sourceLabels,omitempty"`
 	// Separator placed between concatenated source label values. Defaults to ';'.
 	Separator string `json:"separator,omitempty"`
 	// Label to which the resulting value is written in a replace action.
 	// It is mandatory for replace actions. Regex capture groups are available.
-	// +kubebuilder:validation:Format=labelname
-	// +kubebuilder:validation:Pattern=[a-zA-Z_][a-zA-Z0-9_]*
+	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
+	// +kubebuilder:validation:MaxLength:100
+	// +kubebuilder:validation:XValidation:rule="self != 'project_id' && self != 'location' && self != 'cluster' && self != 'namespace' && self != 'job' && self != 'instance' && self != 'top_level_controller' && self != 'top_level_controller_type' && self != '__address__'",messageExpression="'cannot relabel onto protected label \"%s\"'.format([self])"
 	TargetLabel string `json:"targetLabel,omitempty"`
 	// Regular expression against which the extracted value is matched. Defaults to '(.*)'.
-	// +kubebuilder:validation:format=regex
+	// +kubebuilder:validation:MaxLength=100
+	// +kubebuilder:validation:XValidation:rule="!'project_id'.matches(self) && !'location'.matches(self) && !'cluster'.matches(self) && !'namespace'.matches(self) && !'instance'.matches(self) && !'top_level_controller'.matches(self) && !'top_level_controller_type'.matches(self) && !'__address__'.matches(self) && !'cluster'.matches(self)"
 	Regex string `json:"regex,omitempty"`
 	// Modulus to take of the hash of the source label values.
 	Modulus uint64 `json:"modulus,omitempty"`
@@ -325,7 +337,6 @@ type RelabelingRule struct {
 	// regular expression matches. Regex capture groups are available. Defaults to '$1'.
 	Replacement string `json:"replacement,omitempty"`
 	// Action to perform based on regex matching. Defaults to 'replace'.
-	// +kubebuilder:validation:Format=relabel_action
 	// +kubebuilder:validation:Enum=replace;lowercase;uppercase;keep;drop;keepequal;dropequal;hashmod;labeldrop;labelkeep
 	Action string `json:"action,omitempty"`
 }

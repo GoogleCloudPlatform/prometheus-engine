@@ -15,7 +15,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
+    controller-gen.kubebuilder.io/version: v0.17.1-0.20250103184936-50893dee96da
   name: clusternodemonitorings.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -90,7 +90,6 @@ spec:
                             - hashmod
                             - labeldrop
                             - labelkeep
-                            format: relabel_action
                             type: string
                           modulus:
                             description: Modulus to take of the hash of the source
@@ -100,7 +99,14 @@ spec:
                           regex:
                             description: Regular expression against which the extracted
                               value is matched. Defaults to '(.*)'.
+                            maxLength: 100
                             type: string
+                            x-kubernetes-validations:
+                            - rule: '!''project_id''.matches(self) && !''location''.matches(self)
+                                && !''cluster''.matches(self) && !''namespace''.matches(self)
+                                && !''instance''.matches(self) && !''top_level_controller''.matches(self)
+                                && !''top_level_controller_type''.matches(self) &&
+                                !''__address__''.matches(self) && !''cluster''.matches(self)'
                           replacement:
                             description: |-
                               Replacement value against which a regex replace is performed if the
@@ -116,18 +122,29 @@ spec:
                               using the configured separator and matched against the configured regular expression
                               for the replace, keep, and drop actions.
                             items:
-                              format: labelname
-                              pattern: '[a-zA-Z_][a-zA-Z0-9_]*'
+                              pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                               type: string
+                            maxItems: 100
                             type: array
                           targetLabel:
                             description: |-
                               Label to which the resulting value is written in a replace action.
                               It is mandatory for replace actions. Regex capture groups are available.
-                            format: labelname
-                            pattern: '[a-zA-Z_][a-zA-Z0-9_]*'
+                            pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                             type: string
+                            x-kubernetes-validations:
+                            - messageExpression: '''cannot relabel onto protected
+                                label "%s"''.format([self])'
+                              rule: self != 'project_id' && self != 'location' &&
+                                self != 'cluster' && self != 'namespace' && self !=
+                                'job' && self != 'instance' && self != 'top_level_controller'
+                                && self != 'top_level_controller_type' && self !=
+                                '__address__'
                         type: object
+                        x-kubernetes-validations:
+                        - rule: '!has(self.action) ||  self.action != ''labeldrop''
+                            || has(self.regex)'
+                      maxItems: 50
                       type: array
                     params:
                       additionalProperties:
@@ -156,6 +173,8 @@ spec:
                           type: boolean
                       type: object
                   type: object
+                maxItems: 100
+                minItems: 1
                 type: array
               limits:
                 description: Limits to apply at scrape time.

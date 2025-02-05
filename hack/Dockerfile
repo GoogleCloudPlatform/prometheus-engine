@@ -85,7 +85,7 @@ RUN apt update
 RUN apt install -y curl
 
 # Install kubectl, jq.
-RUN curl -Lo ./kubectl https://dl.k8s.io/release/v1.27.0/bin/linux/amd64/kubectl
+RUN curl -Lo ./kubectl https://dl.k8s.io/release/v1.32.1/bin/linux/amd64/kubectl
 RUN install -o root -g root -m 07555 kubectl /usr/local/bin/kubectl \
   && rm kubectl
 RUN curl -Lo ./jq https://github.com/jqlang/jq/releases/download/jq-1.7/jq-linux-amd64
