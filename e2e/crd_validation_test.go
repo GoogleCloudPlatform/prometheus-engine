@@ -34,32 +34,31 @@ func createKindCluster(t *testing.T) client.Client {
 
 	t.Helper()
 
-	// Add a randomized suffix to the test cluster name to reduce collisions
+	// Add a randomized suffix to the test cluster name to reduce collisions.
 	clusterName := fmt.Sprintf("crd-test-%s", rand.String(6))
 
 	tmp := t.TempDir()
 	kubeconfigPath := filepath.Join(tmp, "kubeconfig")
 
-	// Create a cluster with a randomized name, and save the kubeconfig in a temporary directory scoped to this test
+	// Create a cluster with a randomized name, and save the kubeconfig in a temporary directory scoped to this test.
 	createClusterOutput, err := exec.CommandContext(ctx, "kind", "create", "cluster", "--name", clusterName, "--kubeconfig", kubeconfigPath).CombinedOutput()
 	if err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
 	t.Logf("%s\n", createClusterOutput)
 
-	// After the cluster has been created successfully, enqueue deletion of the cluster when the test concludes
 	t.Cleanup(cleanupKindCluster(t, clusterName))
 
-	// Apply GMP CRDs
+	// Apply GMP CRDs.
 	applyCRDsOutput, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", "../manifests/setup.yaml").CombinedOutput()
 	if err != nil {
 		t.Fatalf("%s\b%v", applyCRDsOutput, err)
 	}
 	t.Logf("%s\n", applyCRDsOutput)
 
-	// Wait for CRDs to be created - there seems to be race condition without this wait
+	// Wait for CRDs to be created - there seems to be race condition without this wait.
 	if _, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfigPath, "wait", "customresourcedefinition.apiextensions.k8s.io/clusternodemonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/clusterpodmonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/clusterrules.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/globalrules.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/operatorconfigs.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/podmonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/rules.monitoring.googleapis.com", "--for=create").CombinedOutput(); err != nil {
-		t.Fatalf("%v", err)
+		t.Fatal(err)
 	}
 
 	// Load the test cluster kubeconfig
@@ -86,7 +85,7 @@ func cleanupKindCluster(t *testing.T, clusterName string) func() {
 	}
 }
 
-func TestPodMonitoringValidation(t *testing.T) {
+func TestCRDValidation(t *testing.T) {
 	ctx := context.Background()
 
 	t.Parallel()
@@ -94,626 +93,731 @@ func TestPodMonitoringValidation(t *testing.T) {
 	c := createKindCluster(t)
 
 	type test struct {
-		pm      *monitoringv1.PodMonitoring
+		obj     client.Object
 		wantErr bool
 	}
-	tests := map[string]test{
-		"empty": {
-			pm:      &monitoringv1.PodMonitoring{},
-			wantErr: true,
-		},
-		"minimal": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "minimal",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-						},
-					},
-				},
-			},
-		},
-		"port missing": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "port-missing",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"scrape interval missing": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "scrape-interval-missing",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Port: intstr.FromString("metrics"),
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"scrape interval malformed": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "scrape-interval-malformed",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "foo",
-							Port:     intstr.FromString("metrics"),
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"scrape timeout malformed": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "scrape-timeout-malformed",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Timeout:  "foo",
-							Port:     intstr.FromString("metrics"),
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"scrape timeout greater than interval": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "scrape-timeout-greater-than-interval",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Timeout:  "5m",
-							Port:     intstr.FromString("metrics"),
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"remapping onto prometheus_target label": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "remapping-onto-prometheus-target-label",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-						},
-					},
-					TargetLabels: monitoringv1.TargetLabels{
-						FromPod: []monitoringv1.LabelMapping{
-							{From: "key-1", To: "cluster"},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"remapping onto bad label name": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "remapping-onto-bad-label-name",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-						},
-					},
-					TargetLabels: monitoringv1.TargetLabels{
-						FromPod: []monitoringv1.LabelMapping{
-							{From: "key1", To: "foo-bar"},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"metric relabeling: labelmap forbidden": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "labelmap-forbidden",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							MetricRelabeling: []monitoringv1.RelabelingRule{
-								{
-									SourceLabels: []string{"foo", "bar"},
-									Action:       "labelmap",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"metric relabeling: protected replace label": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "protected-replace-label",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							MetricRelabeling: []monitoringv1.RelabelingRule{
-								{
-									Action:      "replace",
-									TargetLabel: "project_id",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"metric relabeling: protected labelkeep": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "protected-labelkeep",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							MetricRelabeling: []monitoringv1.RelabelingRule{
-								{
-									Action: "labelkeep",
-									Regex:  "(cluster|location|namespace|job|instance|__address__)",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"metric relabeling: protected labeldrop": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "protected-labeldrop",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							MetricRelabeling: []monitoringv1.RelabelingRule{
-								{
-									Action: "labeldrop",
-									Regex:  "n?amespace",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"metric relabeling: labeldrop default regex": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "labeldrop-default-regex",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							MetricRelabeling: []monitoringv1.RelabelingRule{
-								{
-									Action: "labeldrop",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"metric relabeling: labelkeep default regex": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "labelkeep-default-regex",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							MetricRelabeling: []monitoringv1.RelabelingRule{
-								{
-									Action: "labelkeep",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		"metric relabeling: empty action is valid and defaults to replace": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "empty-action-valid",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							MetricRelabeling: []monitoringv1.RelabelingRule{
-								{
-									SourceLabels: []string{"foo"},
-									TargetLabel:  "bar",
-									Replacement:  "baz",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		"invalid URL": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "invalid-url",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								ProxyConfig: monitoringv1.ProxyConfig{
-									ProxyURL: "_:_",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"proxy URL with password": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "proxy-url-with-password",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								ProxyConfig: monitoringv1.ProxyConfig{
-									ProxyURL: "http://user:password@foo.bar/",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"metadata labels empty": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "metadata-labels-empty",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-						},
-					},
-					TargetLabels: monitoringv1.TargetLabels{
-						Metadata: &[]string{},
-					},
-				},
-			},
-		},
-		"TLS setting invalid": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "tls-setting-invalid",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								TLS: &monitoringv1.TLS{
-									MinVersion: "TLS09",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"TLS setting valid": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "proxy-url-with-password",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								TLS: &monitoringv1.TLS{
-									MinVersion: "TLS13",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		"authentication basic header": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "authentication-basic-header",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								Authorization: &monitoringv1.Auth{
-									Type: "Basic",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"basic auth and authorization header": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "authentication-basic-header",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								Authorization: &monitoringv1.Auth{
-									Type: "Bearer",
-								},
-								BasicAuth: &monitoringv1.BasicAuth{
-									Username: "xyz",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"authorization header and oauth2": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "authentication-basic-header",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								Authorization: &monitoringv1.Auth{
-									Type: "Bearer",
-								},
-								OAuth2: &monitoringv1.OAuth2{
-									ClientID: "xyz",
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"client cert only": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "client-cert-only",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								OAuth2: &monitoringv1.OAuth2{
-									TLS: &monitoringv1.TLS{
-										Cert: &monitoringv1.SecretSelector{
-											Secret: &monitoringv1.SecretKeySelector{
-												Name: "test",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"client key only": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "client-key-only",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								OAuth2: &monitoringv1.OAuth2{
-									TLS: &monitoringv1.TLS{
-										Key: &monitoringv1.SecretSelector{
-											Secret: &monitoringv1.SecretKeySelector{
-												Name: "test",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"client cert/key pair": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "client-cert-key-pair",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								OAuth2: &monitoringv1.OAuth2{
-									TLS: &monitoringv1.TLS{
-										Cert: &monitoringv1.SecretSelector{
-											Secret: &monitoringv1.SecretKeySelector{
-												Name: "test",
-											},
-										},
-										Key: &monitoringv1.SecretSelector{
-											Secret: &monitoringv1.SecretKeySelector{
-												Name: "test",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		"namespace on secret reference": {
-			pm: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "namespace-on-secret-references",
-					Namespace: "default",
-				},
-				Spec: monitoringv1.PodMonitoringSpec{
-					Endpoints: []monitoringv1.ScrapeEndpoint{
-						{
-							Interval: "1m",
-							Port:     intstr.FromString("metrics"),
-							HTTPClientConfig: monitoringv1.HTTPClientConfig{
-								OAuth2: &monitoringv1.OAuth2{
-									ClientSecret: &monitoringv1.SecretSelector{
-										Secret: &monitoringv1.SecretKeySelector{
-											Name:      "test",
-											Namespace: "hack",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-	}
 
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			err := c.Create(ctx, tc.pm)
-			switch {
-			case err == nil && !tc.wantErr:
-				// OK
-			case err != nil && !tc.wantErr:
-				t.Errorf("Unexpected error: %v", err)
-			case err == nil && tc.wantErr:
-				t.Errorf("Want error, but got none")
-			case err != nil && tc.wantErr:
-				t.Log(err)
-				// OK
-			}
-		})
+	run := func(t *testing.T, tests map[string]test) {
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				err := c.Create(ctx, tc.obj)
+				switch {
+				case err == nil && !tc.wantErr:
+					// OK
+				case err != nil && !tc.wantErr:
+					t.Errorf("Unexpected error: %v", err)
+				case err == nil && tc.wantErr:
+					t.Errorf("Want error, but got none")
+				case err != nil && tc.wantErr:
+					t.Log(err)
+					// OK
+				}
+			})
+		}
 	}
+	t.Run("ClusterNodeMonitoring", func(t *testing.T) {
+		tests := map[string]test{
+			"scrape interval missing": {
+				obj: &monitoringv1.ClusterNodeMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "scrape-interval-missing",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.ClusterNodeMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeNodeEndpoint{
+							{},
+						},
+					},
+				},
+			},
+			"scrape interval malformed": {
+				obj: &monitoringv1.ClusterNodeMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "scrape-interval-malformed",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.ClusterNodeMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeNodeEndpoint{
+							{
+								Interval: "foo",
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"scrape timeout malformed": {
+				obj: &monitoringv1.ClusterNodeMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "scrape-timeout-malformed",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.ClusterNodeMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeNodeEndpoint{
+							{
+								Interval: "1m",
+								Timeout:  "foo",
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"scrape timeout greater than interval": {
+				obj: &monitoringv1.ClusterNodeMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "scrape-timeout-greater-than-interval",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.ClusterNodeMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeNodeEndpoint{
+							{
+								Interval: "1m",
+								Timeout:  "5m",
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+		}
+		run(t, tests)
+	})
+
+	t.Run("ClusterPodMonitoring", func(t *testing.T) {
+		tests := map[string]test{
+			"namespace on secret reference": {
+				obj: &monitoringv1.ClusterPodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "namespace-on-secret-references",
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									OAuth2: &monitoringv1.OAuth2{
+										ClientSecret: &monitoringv1.SecretSelector{
+											Secret: &monitoringv1.SecretKeySelector{
+												Name:      "test",
+												Namespace: "hack",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		run(t, tests)
+	})
+
+	t.Run("PodMonitoring", func(t *testing.T) {
+		tests := map[string]test{
+			"empty": {
+				obj:     &monitoringv1.PodMonitoring{},
+				wantErr: true,
+			},
+			"minimal": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "minimal",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+					},
+				},
+			},
+			"port missing": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "port-missing",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"scrape interval missing": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "scrape-interval-missing",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port: intstr.FromString("metrics"),
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"scrape interval malformed": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "scrape-interval-malformed",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "foo",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"scrape timeout malformed": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "scrape-timeout-malformed",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Timeout:  "foo",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"scrape timeout greater than interval": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "scrape-timeout-greater-than-interval",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Timeout:  "5m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"remapping onto prometheus_target label": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "remapping-onto-prometheus-target-label",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.TargetLabels{
+							FromPod: []monitoringv1.LabelMapping{
+								{From: "key-1", To: "cluster"},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"remapping onto bad label name": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "remapping-onto-bad-label-name",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.TargetLabels{
+							FromPod: []monitoringv1.LabelMapping{
+								{From: "key1", To: "foo-bar"},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"metric relabeling: labelmap forbidden": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "labelmap-forbidden",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										SourceLabels: []string{"foo", "bar"},
+										Action:       "labelmap",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"metric relabeling: protected replace label": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "protected-replace-label",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										Action:      "replace",
+										TargetLabel: "project_id",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"metric relabeling: protected labelkeep": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "protected-labelkeep",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										Action: "labelkeep",
+										Regex:  "(cluster|location|namespace|job|instance|__address__)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"metric relabeling: protected labeldrop": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "protected-labeldrop",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										Action: "labeldrop",
+										Regex:  "n?amespace",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"metric relabeling: labeldrop default regex": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "labeldrop-default-regex",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										Action: "labeldrop",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"metric relabeling: labelkeep default regex": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "labelkeep-default-regex",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										Action: "labelkeep",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"metric relabeling: empty action is valid and defaults to replace": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "empty-action-valid",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										SourceLabels: []string{"foo"},
+										TargetLabel:  "bar",
+										Replacement:  "baz",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"invalid URL": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "invalid-url",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									ProxyConfig: monitoringv1.ProxyConfig{
+										ProxyURL: "_:_",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"proxy URL with password": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "proxy-url-with-password",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									ProxyConfig: monitoringv1.ProxyConfig{
+										ProxyURL: "http://user:password@foo.bar/",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"metadata labels empty": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "metadata-labels-empty",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.TargetLabels{
+							Metadata: &[]string{},
+						},
+					},
+				},
+			},
+			"TLS setting invalid": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "tls-setting-invalid",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									TLS: &monitoringv1.TLS{
+										MinVersion: "TLS09",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"TLS setting valid": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "proxy-url-with-password",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									TLS: &monitoringv1.TLS{
+										MinVersion: "TLS13",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"authentication basic header": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "authentication-basic-header",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									Authorization: &monitoringv1.Auth{
+										Type: "Basic",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"basic auth and authorization header": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "authentication-basic-header",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									Authorization: &monitoringv1.Auth{
+										Type: "Bearer",
+									},
+									BasicAuth: &monitoringv1.BasicAuth{
+										Username: "xyz",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"authorization header and oauth2": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "authentication-basic-header",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									Authorization: &monitoringv1.Auth{
+										Type: "Bearer",
+									},
+									OAuth2: &monitoringv1.OAuth2{
+										ClientID: "xyz",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"client cert only": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "client-cert-only",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									OAuth2: &monitoringv1.OAuth2{
+										TLS: &monitoringv1.TLS{
+											Cert: &monitoringv1.SecretSelector{
+												Secret: &monitoringv1.SecretKeySelector{
+													Name: "test",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"client key only": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "client-key-only",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									OAuth2: &monitoringv1.OAuth2{
+										TLS: &monitoringv1.TLS{
+											Key: &monitoringv1.SecretSelector{
+												Secret: &monitoringv1.SecretKeySelector{
+													Name: "test",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"client cert/key pair": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "client-cert-key-pair",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									OAuth2: &monitoringv1.OAuth2{
+										TLS: &monitoringv1.TLS{
+											Cert: &monitoringv1.SecretSelector{
+												Secret: &monitoringv1.SecretKeySelector{
+													Name: "test",
+												},
+											},
+											Key: &monitoringv1.SecretSelector{
+												Secret: &monitoringv1.SecretKeySelector{
+													Name: "test",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"namespace on secret reference": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "namespace-on-secret-references",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									OAuth2: &monitoringv1.OAuth2{
+										ClientSecret: &monitoringv1.SecretSelector{
+											Secret: &monitoringv1.SecretKeySelector{
+												Name:      "test",
+												Namespace: "hack",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+		}
+		run(t, tests)
+	})
 }

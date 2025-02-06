@@ -32,19 +32,23 @@ import (
 
 // ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape.
 // It contains all the fields used in the ScrapeEndpoint except for port and HTTPClientConfig.
+// +kubebuilder:validation:XValidation:rule="!has(self.timeout) || self.timeout <= self.interval",messageExpression="'scrape timeout (%s) must not be greater than scrape interval (%s)'.format([self.timeout, self.interval])"
 type ScrapeNodeEndpoint struct {
 	// Protocol scheme to use to scrape.
+	// +kubebuilder:validation:Enum=http;https
 	Scheme string `json:"scheme,omitempty"`
 	// HTTP path to scrape metrics from. Defaults to "/metrics".
 	Path string `json:"path,omitempty"`
 	// HTTP GET params to use when scraping.
 	Params map[string][]string `json:"params,omitempty"`
 	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
-	// +kubebuilder:validation:Pattern="^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$"
+	// +kubebuilder:validation:Format=duration
 	// +kubebuilder:default="1m"
+	// +required
 	Interval string `json:"interval,omitempty"`
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
 	// Must not be larger then the scrape interval.
+	// +kubebuilder:validation:Format=duration
 	Timeout string `json:"timeout,omitempty"`
 	// Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
 	// override protected target labels (project_id, location, cluster, namespace, job,
