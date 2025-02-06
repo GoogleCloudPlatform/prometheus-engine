@@ -242,3 +242,7 @@ presubmit: regen bin test
 .PHONY: check-images
 check-images: $(YQ)
 	./hack/check-images.sh
+
+.PHONY: bump-go
+bump-go:
+	./hack/bump-go.sh
