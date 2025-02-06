@@ -65,7 +65,7 @@ spec:
                       interval:
                         default: 1m
                         description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
-                        pattern: ^((([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?|0)$
+                        format: duration
                         type: string
                       metricRelabeling:
                         description: |-
@@ -144,11 +144,15 @@ spec:
                         type: string
                       scheme:
                         description: Protocol scheme to use to scrape.
+                        enum:
+                          - http
+                          - https
                         type: string
                       timeout:
                         description: |-
                           Timeout for metrics scrapes. Must be a valid Prometheus duration.
                           Must not be larger then the scrape interval.
+                        format: duration
                         type: string
                       tls:
                         description: TLS configures the scrape request's TLS settings.
@@ -157,7 +161,12 @@ spec:
                             description: InsecureSkipVerify disables target certificate validation.
                             type: boolean
                         type: object
+                    required:
+                      - interval
                     type: object
+                    x-kubernetes-validations:
+                      - messageExpression: '''scrape timeout (%s) must not be greater than scrape interval (%s)''.format([self.timeout, self.interval])'
+                        rule: '!has(self.timeout) || self.timeout <= self.interval'
                   maxItems: 100
                   minItems: 1
                   type: array
