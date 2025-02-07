@@ -39,5 +39,5 @@ func resolveLabels(defaultProjectID, defaultLocation, defaultCluster string, ext
 	if cluster, ok = externalLabels[export.KeyCluster]; !ok {
 		cluster = defaultCluster
 	}
-	return
+	return projectID, location, cluster
 }
