@@ -21,7 +21,6 @@ COPY go.sum go.sum
 COPY vendor vendor
 COPY cmd cmd
 COPY pkg pkg
-COPY internal internal
 
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
       apt install -y --no-install-recommends \
