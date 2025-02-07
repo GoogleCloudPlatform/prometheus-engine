@@ -30,7 +30,7 @@ func (n noopBackend) Ref() string {
 }
 
 func (n noopBackend) start(testing.TB, e2e.Environment) (api v1.API, extraLset map[string]string) {
-	return
+	return api, extraLset
 }
 
 func (n noopBackend) injectScrapes(testing.TB, [][]*dto.MetricFamily, time.Duration) {
