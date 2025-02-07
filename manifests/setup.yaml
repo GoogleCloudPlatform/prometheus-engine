@@ -96,10 +96,17 @@ spec:
                               type: integer
                             regex:
                               description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
-                              maxLength: 100
+                              maxLength: 500
                               type: string
                               x-kubernetes-validations:
-                                - rule: '!''project_id''.matches(self) && !''location''.matches(self) && !''cluster''.matches(self) && !''namespace''.matches(self) && !''instance''.matches(self) && !''top_level_controller''.matches(self) && !''top_level_controller_type''.matches(self) && !''__address__''.matches(self) && !''cluster''.matches(self)'
+                                - rule: '''project_id''.matches(self) == false'
+                                - rule: '''location''.matches(self) == false'
+                                - rule: '''cluster''.matches(self) == false'
+                                - rule: '''namespace''.matches(self) == false'
+                                - rule: '''instance''.matches(self) == false'
+                                - rule: '''top_level_controller''.matches(self) == false'
+                                - rule: '''top_level_controller_type''.matches(self) == false'
+                                - rule: '''__address__''.matches(self) == false'
                             replacement:
                               description: |-
                                 Replacement value against which a regex replace is performed if the
@@ -130,7 +137,7 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - rule: '!has(self.action) ||  self.action != ''labeldrop'' || has(self.regex)'
-                        maxItems: 50
+                        maxItems: 100
                         type: array
                       params:
                         additionalProperties:
@@ -167,7 +174,7 @@ spec:
                     x-kubernetes-validations:
                       - messageExpression: '''scrape timeout (%s) must not be greater than scrape interval (%s)''.format([self.timeout, self.interval])'
                         rule: '!has(self.timeout) || self.timeout <= self.interval'
-                  maxItems: 100
+                  maxItems: 10
                   minItems: 1
                   type: array
                 limits:
@@ -438,10 +445,17 @@ spec:
                               type: integer
                             regex:
                               description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
-                              maxLength: 100
+                              maxLength: 500
                               type: string
                               x-kubernetes-validations:
-                                - rule: '!''project_id''.matches(self) && !''location''.matches(self) && !''cluster''.matches(self) && !''namespace''.matches(self) && !''instance''.matches(self) && !''top_level_controller''.matches(self) && !''top_level_controller_type''.matches(self) && !''__address__''.matches(self) && !''cluster''.matches(self)'
+                                - rule: '''project_id''.matches(self) == false'
+                                - rule: '''location''.matches(self) == false'
+                                - rule: '''cluster''.matches(self) == false'
+                                - rule: '''namespace''.matches(self) == false'
+                                - rule: '''instance''.matches(self) == false'
+                                - rule: '''top_level_controller''.matches(self) == false'
+                                - rule: '''top_level_controller_type''.matches(self) == false'
+                                - rule: '''__address__''.matches(self) == false'
                             replacement:
                               description: |-
                                 Replacement value against which a regex replace is performed if the
@@ -472,7 +486,7 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - rule: '!has(self.action) ||  self.action != ''labeldrop'' || has(self.regex)'
-                        maxItems: 50
+                        maxItems: 100
                         type: array
                       oauth2:
                         description: OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.
@@ -793,7 +807,7 @@ spec:
                       - messageExpression: '''scrape timeout (%s) must not be greater than scrape interval (%s)''.format([self.timeout, self.interval])'
                         rule: '!has(self.timeout) || self.timeout <= self.interval'
                       - rule: '((has(self.authorization) ? 1 : 0) + (has(self.basicAuth) ? 1 : 0) + (has(self.oauth2) ? 1 : 0)) <= 1'
-                  maxItems: 100
+                  maxItems: 10
                   minItems: 1
                   type: array
                 filterRunning:
@@ -2784,10 +2798,17 @@ spec:
                               type: integer
                             regex:
                               description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
-                              maxLength: 100
+                              maxLength: 500
                               type: string
                               x-kubernetes-validations:
-                                - rule: '!''project_id''.matches(self) && !''location''.matches(self) && !''cluster''.matches(self) && !''namespace''.matches(self) && !''instance''.matches(self) && !''top_level_controller''.matches(self) && !''top_level_controller_type''.matches(self) && !''__address__''.matches(self) && !''cluster''.matches(self)'
+                                - rule: '''project_id''.matches(self) == false'
+                                - rule: '''location''.matches(self) == false'
+                                - rule: '''cluster''.matches(self) == false'
+                                - rule: '''namespace''.matches(self) == false'
+                                - rule: '''instance''.matches(self) == false'
+                                - rule: '''top_level_controller''.matches(self) == false'
+                                - rule: '''top_level_controller_type''.matches(self) == false'
+                                - rule: '''__address__''.matches(self) == false'
                             replacement:
                               description: |-
                                 Replacement value against which a regex replace is performed if the
@@ -2818,7 +2839,7 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - rule: '!has(self.action) ||  self.action != ''labeldrop'' || has(self.regex)'
-                        maxItems: 50
+                        maxItems: 100
                         type: array
                       oauth2:
                         description: OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.
@@ -3139,7 +3160,7 @@ spec:
                       - messageExpression: '''scrape timeout (%s) must not be greater than scrape interval (%s)''.format([self.timeout, self.interval])'
                         rule: '!has(self.timeout) || self.timeout <= self.interval'
                       - rule: '((has(self.authorization) ? 1 : 0) + (has(self.basicAuth) ? 1 : 0) + (has(self.oauth2) ? 1 : 0)) <= 1'
-                  maxItems: 100
+                  maxItems: 10
                   minItems: 1
                   type: array
                 filterRunning:
