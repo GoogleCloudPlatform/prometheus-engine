@@ -1225,7 +1225,7 @@ func TestSampleBuilder(t *testing.T) {
 					{Ref: 1, T: 1000, V: 10}, // count
 					{Ref: 2, T: 1000, V: 3},  // sum
 				}, {
-					{Ref: 3, T: 2000, V: 13}, //+Inf
+					{Ref: 3, T: 2000, V: 13}, // +Inf
 					{Ref: 4, T: 2000, V: 7},  // 1
 					{Ref: 6, T: 2000, V: 0},  // 0.1
 					{Ref: 5, T: 2000, V: 1},  // 0.5
