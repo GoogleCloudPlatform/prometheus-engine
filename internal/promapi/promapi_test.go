@@ -178,7 +178,6 @@ func TestWriteErrorResponse(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			WriteError(log.NewNopLogger(), recorder, tt.errType, tt.errMsg, tt.httpResponseCode, "")
 
-			//require.JSONEq(t, tt.wantBody, recorder.Body.String())
 			require.Equal(t, tt.wantBody, recorder.Body.String())
 			require.Equal(t, tt.wantStatus, recorder.Code)
 		})
