@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.6@sha256:ca93722bc2549978ca5041d80da3bd8fd64b1e6ca773d778cdc74cb2fc767f4b AS buildbase
-
 # Compile the UI assets.
-FROM gcr.io/google-appengine/nodejs AS assets
-# To build the UI we need a recent node version and the go toolchain.
-RUN install_node v22.13.1
-COPY --from=buildbase /usr/local/go /usr/local/
+FROM --platform=$BUILDPLATFORM docker.io/node:23.6.0-bookworm@sha256:8ec46835f28cc572d67820fc56a6c5ab7d08c6e9b690ae6941aad462943e152e AS assets
+WORKDIR /app
+COPY --from=docker.io/golang:1.23.6-bookwork@sha256:441f59f8a2104b99320e1f5aaf59a81baabbc36c81f4e792d5715ef09dd29355 /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
 COPY . /app
 RUN pkg/ui/build.sh
@@ -30,7 +27,7 @@ COPY --from=assets /app/pkg/ui/embed.go pkg/ui/embed.go
 COPY --from=assets /app/pkg/ui/static pkg/ui/static
 
 # Build the actual Go binary.
-FROM buildbase AS appbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.6@sha256:ca93722bc2549978ca5041d80da3bd8fd64b1e6ca773d778cdc74cb2fc767f4b AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
@@ -41,8 +38,8 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
       CC=aarch64-linux-gnu-gcc; \
     fi && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
-      go build -tags boring,builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
+      go build -tags boring,builtinassets -mod=vendor -o frontend cmd/frontend/*.go
 
 FROM gcr.io/distroless/base-nossl-debian12:nonroot
-COPY --from=appbase /app/frontend /bin/frontend
+COPY --from=buildbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]
