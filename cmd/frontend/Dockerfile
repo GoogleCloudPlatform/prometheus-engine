@@ -17,7 +17,7 @@ FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.23.6@sha256:ca93722bc2
 # Compile the UI assets.
 FROM gcr.io/google-appengine/nodejs AS assets
 # To build the UI we need a recent node version and the go toolchain.
-RUN install_node v17.9.0
+RUN install_node v22.13.1
 COPY --from=buildbase /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
 COPY . /app
