@@ -54,7 +54,7 @@ type ScrapeNodeEndpoint struct {
 	// override protected target labels (project_id, location, cluster, namespace, job,
 	// instance, or __address__) are not permitted. The labelmap action is not permitted
 	// in general.
-	// +kubebuilder:validation:MaxItems=50
+	// +kubebuilder:validation:MaxItems=100
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
 	// TLS configures the scrape request's TLS settings.
 	// +optional
@@ -74,7 +74,7 @@ type ClusterNodeMonitoringSpec struct {
 	Selector metav1.LabelSelector `json:"selector,omitempty"`
 	// The endpoints to scrape on the selected nodes.
 	// +kubebuilder:validation:MinItems=1
-	// +kubebuilder:validation:MaxItems=100
+	// +kubebuilder:validation:MaxItems=10
 	Endpoints []ScrapeNodeEndpoint `json:"endpoints"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
