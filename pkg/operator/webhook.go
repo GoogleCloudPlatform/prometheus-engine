@@ -57,10 +57,6 @@ func setupAdmissionWebhooks(ctx context.Context, logger logr.Logger, kubeClient 
 
 	// Validating webhooks.
 	webhookServer.Register(
-		validatePath(monitoringv1.ClusterNodeMonitoringResource()),
-		admission.ValidatingWebhookFor(scheme, &monitoringv1.ClusterNodeMonitoring{}),
-	)
-	webhookServer.Register(
 		validatePath(monitoringv1.OperatorConfigResource()),
 		admission.WithCustomValidator(scheme, &monitoringv1.OperatorConfig{}, &monitoringv1.OperatorConfigValidator{
 			Namespace:    opts.PublicNamespace,

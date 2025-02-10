@@ -15,7 +15,6 @@
 package v1
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -26,8 +25,6 @@ import (
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/model/relabel"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // ScrapeNodeEndpoint specifies a Prometheus metrics endpoint on a node to scrape.
@@ -116,26 +113,6 @@ func (c *ClusterNodeMonitoring) GetEndpoints() []ScrapeNodeEndpoint {
 
 func (c *ClusterNodeMonitoring) GetMonitoringStatus() *MonitoringStatus {
 	return &c.Status
-}
-
-func (c *ClusterNodeMonitoring) ValidateCreate() (admission.Warnings, error) {
-	if len(c.Spec.Endpoints) == 0 {
-		return nil, errors.New("at least one endpoint is required")
-	}
-	// TODO(freinartz): extract validator into dedicated object (like defaulter). For now using
-	// example values has no adverse effects.
-	_, err := c.ScrapeConfigs("test_project", "test_location", "test_cluster")
-	return nil, err
-}
-
-func (c *ClusterNodeMonitoring) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
-	// Validity does not depend on state changes.
-	return c.ValidateCreate()
-}
-
-func (*ClusterNodeMonitoring) ValidateDelete() (admission.Warnings, error) {
-	// Deletions are always valid.
-	return nil, nil
 }
 
 func (c *ClusterNodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {

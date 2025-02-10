@@ -15,100 +15,12 @@
 package v1
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	yaml "gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-func TestValidateClusterNodeMonitoring(t *testing.T) {
-	cases := []struct {
-		desc        string
-		pm          ClusterNodeMonitoringSpec
-		eps         []ScrapeNodeEndpoint
-		fail        bool
-		errContains string
-	}{
-		{
-			desc: "OK metadata labels",
-			eps: []ScrapeNodeEndpoint{
-				{
-					Interval: "10s",
-				},
-			},
-		},
-		{
-			desc: "Scrape interval missing",
-			eps: []ScrapeNodeEndpoint{
-				{},
-			},
-			fail:        true,
-			errContains: "empty duration string",
-		},
-		{
-			desc: "scrape interval malformed",
-			eps: []ScrapeNodeEndpoint{
-				{
-					Interval: "foo",
-				},
-			},
-			fail:        true,
-			errContains: "invalid scrape interval: not a valid duration string",
-		},
-		{
-			desc: "scrape timeout greater than interval",
-			eps: []ScrapeNodeEndpoint{
-				{
-					Interval: "1s",
-					Timeout:  "2s",
-				},
-			},
-			fail:        true,
-			errContains: "scrape timeout 2s must not be greater than scrape interval 1s",
-		},
-		{
-			// Regression test for https://github.com/GoogleCloudPlatform/prometheus-engine/issues/479
-			desc: "Duplicated job name",
-			eps: []ScrapeNodeEndpoint{
-				{
-					Interval: "10s",
-				},
-				{
-					Interval: "10000ms",
-				},
-			},
-			fail:        true,
-			errContains: "/r1/metrics for endpoints with index 0 and 1;consider creating a separate custom resource (PodMonitoring, etc.) for endpoints that share the same resource name, namespace and port name",
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.desc+"", func(t *testing.T) {
-			nm := &ClusterNodeMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "r1",
-				},
-				Spec: ClusterNodeMonitoringSpec{
-					Endpoints: c.eps,
-				},
-			}
-			_, err := nm.ValidateCreate()
-			t.Log(err)
-
-			if err == nil && c.fail {
-				t.Fatalf("expected failure but passed")
-			}
-			if err != nil && !c.fail {
-				t.Fatalf("unexpected failure: %s", err)
-			}
-			if err != nil && c.fail && !strings.Contains(err.Error(), c.errContains) {
-				t.Fatalf("expected error to contain %q but got %q", c.errContains, err)
-			}
-		})
-	}
-}
 
 func TestClusterNodeMonitoring_ScrapeConfig(t *testing.T) {
 	// Generate YAML for one complex scrape config and make sure everything

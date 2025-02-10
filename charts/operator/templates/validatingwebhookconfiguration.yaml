@@ -22,28 +22,6 @@ metadata:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
   {{- end }}
 webhooks:
-- name: validate.clusternodemonitorings.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
-  - v1
-  clientConfig:
-    # caBundle populated by operator.
-    service:
-      name: gmp-operator
-      namespace: {{.Values.namespace.system}}
-      port: 443
-      path: /validate/monitoring.googleapis.com/v1/clusternodemonitorings
-  failurePolicy: Fail
-  rules:
-  - resources:
-    - clusternodemonitorings
-    apiGroups:
-    - monitoring.googleapis.com
-    apiVersions:
-    - v1
-    operations:
-    - CREATE
-    - UPDATE
-  sideEffects: None
 - name: validate.rules.gmp-operator.gmp-system.monitoring.googleapis.com
   admissionReviewVersions:
   - v1
