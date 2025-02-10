@@ -18,11 +18,8 @@ import (
 	"fmt"
 
 	prommodel "github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/model/relabel"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // PodMonitoringCRD represents a Kubernetes CRD that monitors Pod endpoints.
@@ -87,21 +84,6 @@ func (p *PodMonitoring) GetMonitoringStatus() *MonitoringStatus {
 	return &p.Status.MonitoringStatus
 }
 
-func (p *PodMonitoring) ValidateCreate() (admission.Warnings, error) {
-	_, err := p.scrapeConfigs([]*relabel.Config{}, nil)
-	return nil, err
-}
-
-func (p *PodMonitoring) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
-	// Validity does not depend on state changes.
-	return p.ValidateCreate()
-}
-
-func (p *PodMonitoring) ValidateDelete() (admission.Warnings, error) {
-	// Deletions are always valid.
-	return nil, nil
-}
-
 // PodMonitoringList is a list of PodMonitorings.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PodMonitoringList struct {
@@ -147,21 +129,6 @@ func (c *ClusterPodMonitoring) GetPodMonitoringStatus() *PodMonitoringStatus {
 
 func (c *ClusterPodMonitoring) GetMonitoringStatus() *MonitoringStatus {
 	return &c.Status.MonitoringStatus
-}
-
-func (c *ClusterPodMonitoring) ValidateCreate() (admission.Warnings, error) {
-	_, err := c.scrapeConfigs([]*relabel.Config{}, nil)
-	return nil, err
-}
-
-func (c *ClusterPodMonitoring) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
-	// Validity does not depend on state changes.
-	return c.ValidateCreate()
-}
-
-func (*ClusterPodMonitoring) ValidateDelete() (admission.Warnings, error) {
-	// Deletions are always valid.
-	return nil, nil
 }
 
 // ClusterPodMonitoringList is a list of ClusterPodMonitorings.
