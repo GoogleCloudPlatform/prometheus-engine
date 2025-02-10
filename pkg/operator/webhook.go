@@ -57,14 +57,6 @@ func setupAdmissionWebhooks(ctx context.Context, logger logr.Logger, kubeClient 
 
 	// Validating webhooks.
 	webhookServer.Register(
-		validatePath(monitoringv1.PodMonitoringResource()),
-		admission.ValidatingWebhookFor(scheme, &monitoringv1.PodMonitoring{}),
-	)
-	webhookServer.Register(
-		validatePath(monitoringv1.ClusterPodMonitoringResource()),
-		admission.ValidatingWebhookFor(scheme, &monitoringv1.ClusterPodMonitoring{}),
-	)
-	webhookServer.Register(
 		validatePath(monitoringv1.ClusterNodeMonitoringResource()),
 		admission.ValidatingWebhookFor(scheme, &monitoringv1.ClusterNodeMonitoring{}),
 	)
