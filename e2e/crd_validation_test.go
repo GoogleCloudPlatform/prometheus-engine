@@ -56,18 +56,32 @@ func createKindCluster(t *testing.T) client.Client {
 	}
 	t.Logf("%s\n", applyCRDsOutput)
 
+	// Create Public namespace for OperatorConfig.
+	applyPublicNamespaceOutput, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfigPath, "create", "namespace", "gmp-public").CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s\b%v", applyPublicNamespaceOutput, err)
+	}
+	t.Logf("%s\n", applyPublicNamespaceOutput)
+
+	// Apply Validating Admission Policy.
+	applyValidatingAdmissionOutput, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", "../charts/operator/templates/validating-admission-policy.yaml").CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s\b%v", applyValidatingAdmissionOutput, err)
+	}
+	t.Logf("%s\n", applyValidatingAdmissionOutput)
+
 	// Wait for CRDs to be created - there seems to be race condition without this wait.
 	if _, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfigPath, "wait", "customresourcedefinition.apiextensions.k8s.io/clusternodemonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/clusterpodmonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/clusterrules.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/globalrules.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/operatorconfigs.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/podmonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/rules.monitoring.googleapis.com", "--for=create").CombinedOutput(); err != nil {
 		t.Fatal(err)
 	}
 
-	// Load the test cluster kubeconfig
+	// Load the test cluster kubeconfig.
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 
-	// Create a client for the test cluster
+	// Create a client for the test cluster.
 	c, err := newKubeClient(config)
 	if err != nil {
 		t.Error(err)
@@ -208,6 +222,42 @@ func TestCRDValidation(t *testing.T) {
 								},
 							},
 						},
+					},
+				},
+			},
+		}
+		run(t, tests)
+	})
+
+	t.Run("OperatorConfig", func(t *testing.T) {
+		tests := map[string]test{
+			"empty": {
+				obj:     &monitoringv1.OperatorConfig{},
+				wantErr: true,
+			},
+			"invalid name": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "invalid-name",
+						Namespace: "gmp-public",
+					},
+				},
+				wantErr: true,
+			},
+			"invalid namespace": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "invalid-namespace",
+					},
+				},
+				wantErr: true,
+			},
+			"minimal": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
 					},
 				},
 			},
