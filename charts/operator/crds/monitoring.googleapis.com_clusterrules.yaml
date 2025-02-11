@@ -64,8 +64,10 @@ spec:
                     https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                   properties:
                     interval:
+                      default: 1m
                       description: The interval at which to evaluate the rules. Must
                         be a valid Prometheus duration.
+                      format: duration
                       type: string
                     name:
                       description: The name of the rule group.
@@ -82,6 +84,7 @@ spec:
                             description: |-
                               Name of the alert to evaluate the expression as.
                               Only one of `record` and `alert` must be set.
+                            pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                             type: string
                           annotations:
                             additionalProperties:
@@ -97,6 +100,7 @@ spec:
                             description: |-
                               The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
                               Only valid if `alert` is set.
+                            format: duration
                             type: string
                           labels:
                             additionalProperties:
@@ -108,13 +112,20 @@ spec:
                             description: |-
                               Record the result of the expression to this metric name.
                               Only one of `record` and `alert` must be set.
+                            pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                             type: string
                         required:
                         - expr
                         type: object
+                        x-kubernetes-validations:
+                        - message: Must set exactly one of Record or Alert
+                          rule: '(has(self.record) ? 1 : 0) + (has(self.alert) ? 1
+                            : 0) == 1'
+                        - message: Annotations are only allowed for alerting rules
+                          rule: '!has(self.annotations) || has(self.alert)'
+                      minItems: 1
                       type: array
                   required:
-                  - interval
                   - name
                   - rules
                   type: object
