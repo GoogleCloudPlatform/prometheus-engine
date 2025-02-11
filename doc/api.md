@@ -2335,6 +2335,7 @@ string
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>The interval at which to evaluate the rules. Must be a valid Prometheus duration.</p>
 </td>
 </tr>
