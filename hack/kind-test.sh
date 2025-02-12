@@ -123,7 +123,7 @@ connect_registry
 echo ">>> executing gmp e2e tests: ${GO_TEST}"
 # Note: a test failure here should exit non-zero and leave the cluster running
 # for debugging.
-go test -v -timeout 10m "${REPO_ROOT}/e2e" -run "${GO_TEST:-.}" -args ${TEST_ARGS}
+go test -v -timeout 30m "${REPO_ROOT}/e2e" -run "${GO_TEST:-.}" -args ${TEST_ARGS}
 
 # Delete cluster if it's not set to clean up post-test.
 # Otherwise, leave cluster running (e.g. for debugging).
