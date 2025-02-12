@@ -176,6 +176,8 @@ type RuleGroup struct {
 	// The name of the rule group.
 	Name string `json:"name"`
 	// The interval at which to evaluate the rules. Must be a valid Prometheus duration.
+	// +kubebuilder:validation:Format=duration
+	// +optional
 	Interval string `json:"interval"`
 	// A list of rules that are executed sequentially as part of this group.
 	Rules []Rule `json:"rules"`
@@ -183,17 +185,21 @@ type RuleGroup struct {
 
 // Rule is a single rule in the Prometheus format:
 // https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
+// +kubebuilder:validation:XValidation:rule="(has(self.record) ? 1 : 0) + (has(self.alert) ? 1 : 0) == 1",message="Must set exactly one of Record or Alert"
 type Rule struct {
 	// Record the result of the expression to this metric name.
 	// Only one of `record` and `alert` must be set.
+	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
 	Record string `json:"record,omitempty"`
 	// Name of the alert to evaluate the expression as.
 	// Only one of `record` and `alert` must be set.
+	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
 	Alert string `json:"alert,omitempty"`
 	// The PromQL expression to evaluate.
 	Expr string `json:"expr"`
 	// The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
 	// Only valid if `alert` is set.
+	// +kubebuilder:validation:Format=duration
 	For string `json:"for,omitempty"`
 	// A set of labels to attach to the result of the query expression.
 	Labels map[string]string `json:"labels,omitempty"`
