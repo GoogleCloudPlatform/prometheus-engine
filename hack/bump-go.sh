@@ -13,10 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+source .bingo/variables.env
+
+# Bump Go images
 REPO=google-go.pkg.dev/golang
-TAG=$(crane ls ${REPO} | tail -n1)
+TAG=$(crane ls ${REPO} | sort -V | tail -n1)
 DIGEST=$(crane digest "${REPO}:${TAG}")
 IMAGE="${REPO}:${TAG}@${DIGEST}"
 echo "$IMAGE"
 find ./cmd ./examples ./hack -name Dockerfile -exec \
   sed -E "s#google-go\.pkg\.dev/golang:[0-9]+\.[0-9]+\.[0-9+][^@ ]*(@sha256:[0-9a-f]+)?#${IMAGE}#g" -i {} \;
+
+# Bump golangci-lint
+bingo get golangci-lint@latest
+LINTER_REPO=docker.io/golangci/golangci-lint
+LINTER_TAG=$(crane ls ${LINTER_REPO} | grep --invert-match "-" | sort -V | tail -n1)
+echo "${LINTER_REPO}:${LINTER_TAG}"
+${YQ} -i ".jobs[\"golangci-lint\"].steps[2].with.version = \"${LINTER_TAG}\"" .github/workflows/presubmit.yml

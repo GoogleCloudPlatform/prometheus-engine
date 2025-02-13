@@ -300,7 +300,7 @@ func (l *wrappedLock) update(ler resourcelock.LeaderElectionRecord, err error) {
 	l.end = ler.RenewTime.Time.Add(time.Duration(ler.LeaseDurationSeconds) * time.Second)
 }
 
-func (l *wrappedLock) lastRange() (time.Time, time.Time) {
+func (l *wrappedLock) lastRange() (start time.Time, end time.Time) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 	return l.start, l.end

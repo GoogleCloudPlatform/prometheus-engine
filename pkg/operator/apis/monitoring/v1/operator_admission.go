@@ -16,6 +16,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,7 +36,7 @@ func (v *OperatorConfigValidator) ValidateCreate(_ context.Context, o runtime.Ob
 		return nil, fmt.Errorf("OperatorConfig must be in namespace %q with name %q", v.Namespace, v.Name)
 	}
 	if oc.Scaling.VPA.Enabled && !v.VPAAvailable {
-		return nil, fmt.Errorf("vertical pod autoscaling is not available - install vpa support and restart the operator")
+		return nil, errors.New("vertical pod autoscaling is not available - install vpa support and restart the operator")
 	}
 	return nil, oc.Validate()
 }

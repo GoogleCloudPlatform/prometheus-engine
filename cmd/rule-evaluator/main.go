@@ -896,7 +896,7 @@ type queryAccess struct {
 // Select returns a set of series that matches the given label matchers and time range.
 func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ...*labels.Matcher) storage.SeriesSet {
 	if sort || hints != nil {
-		return newListSeriesSet(nil, fmt.Errorf("sorting series and select hints are not supported"), nil)
+		return newListSeriesSet(nil, errors.New("sorting series and select hints are not supported"), nil)
 	}
 
 	duration := db.maxt - db.mint

@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
-func readKeyAndCertFiles(dir string, t *testing.T) ([]byte, []byte) {
+func readKeyAndCertFiles(dir string, t *testing.T) (cert []byte, key []byte) {
 	outCert, err := os.ReadFile(path.Join(dir, "tls.crt"))
 	if err != nil {
 		t.Fatalf("error reading from cert file: %v", err)

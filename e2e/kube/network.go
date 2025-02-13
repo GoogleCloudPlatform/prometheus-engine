@@ -20,6 +20,7 @@ package kube
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -138,7 +139,7 @@ func PortForwardClient(restConfig *rest.Config, kubeClient client.Client, out, e
 					}, nil
 				case <-stopCh:
 					closeForwarder()
-					return nil, fmt.Errorf("port forwarding stopped unexpectedly")
+					return nil, errors.New("port forwarding stopped unexpectedly")
 				case err := <-errCh:
 					closeForwarder()
 					return nil, fmt.Errorf("port forwarding failed: %w", err)

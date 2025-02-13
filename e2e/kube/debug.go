@@ -55,7 +55,7 @@ func Events(ctx context.Context, kubeClient client.Client, gvk schema.GroupVersi
 func Debug(ctx context.Context, restConfig *rest.Config, kubeClient client.Client, o client.Object, out io.Writer) error {
 	gvk, err := apiutil.GVKForObject(o, kubeClient.Scheme())
 	if err != nil {
-		return fmt.Errorf("unable to get GVK")
+		return errors.New("unable to get GVK")
 	}
 
 	namespace := o.GetNamespace()

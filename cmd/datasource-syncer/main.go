@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -213,7 +214,7 @@ func buildUpdateDataSourceRequest(dataSource grafana.DataSource, token string) (
 		httpHeaderValue = "httpHeaderValue"
 	)
 	if dataSource.Type != "prometheus" {
-		return nil, fmt.Errorf("datasource type is not prometheus")
+		return nil, errors.New("datasource type is not prometheus")
 	}
 	if *gcmEndpointOverride != "" {
 		dataSource.URL = *gcmEndpointOverride
@@ -280,7 +281,7 @@ func buildUpdateDataSourceRequest(dataSource grafana.DataSource, token string) (
 
 func getTLSClient(certFile, keyFile, caFile string, insecureSkipVerify bool) (*http.Client, error) {
 	if (certFile != "" || keyFile != "") && (certFile == "" || keyFile == "") {
-		return nil, fmt.Errorf("--tls-cert and tls-key must both be set or unset")
+		return nil, errors.New("--tls-cert and tls-key must both be set or unset")
 	}
 
 	if certFile == "" && keyFile == "" && caFile == "" && !insecureSkipVerify {

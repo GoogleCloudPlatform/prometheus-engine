@@ -511,7 +511,7 @@ func (c *fakeScaleClient) Get(ctx context.Context, obj, subResource client.Objec
 }
 
 func (c *fakeScaleClient) Create(_ context.Context, _ client.Object, _ client.Object, _ ...client.SubResourceCreateOption) error {
-	return fmt.Errorf("fakeSubResourceWriter does not support create")
+	return errors.New("fakeSubResourceWriter does not support create")
 }
 
 func (c *fakeScaleClient) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
