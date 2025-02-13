@@ -23,7 +23,6 @@ linters:
     - errorlint
     - exhaustive
     - exhaustruct
-    - exportloopref
     - forbidigo
     - forcetypeassert
     - funlen
@@ -54,6 +53,7 @@ linters:
     - protogetter
     - stylecheck
     - tagliatelle
+    - tenv
     - testpackage
     - thelper
     - tparallel

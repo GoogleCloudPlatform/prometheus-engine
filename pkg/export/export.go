@@ -306,7 +306,7 @@ func NopLease() Lease {
 // alwaysLease is a lease that is always held.
 type alwaysLease struct{}
 
-func (alwaysLease) Range() (time.Time, time.Time, bool) {
+func (alwaysLease) Range() (start time.Time, end time.Time, ok bool) {
 	return time.UnixMilli(math.MinInt64), time.UnixMilli(math.MaxInt64), true
 }
 
@@ -671,7 +671,7 @@ func Version() (string, error) {
 
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
-		return "", fmt.Errorf("unable to retrieve build info")
+		return "", errors.New("unable to retrieve build info")
 	}
 
 	if bi.Main.Path == mainModuleName {

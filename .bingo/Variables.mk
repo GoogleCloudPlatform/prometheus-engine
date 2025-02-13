@@ -35,11 +35,11 @@ $(GEN_CRD_API_REFERENCE_DOCS): $(BINGO_DIR)/gen-crd-api-reference-docs.mod
 	@echo "(re)installing $(GOBIN)/gen-crd-api-reference-docs-v0.3.0"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=gen-crd-api-reference-docs.mod -o=$(GOBIN)/gen-crd-api-reference-docs-v0.3.0 "github.com/ahmetb/gen-crd-api-reference-docs"
 
-GOLANGCI_LINT := $(GOBIN)/golangci-lint-v1.63.4
+GOLANGCI_LINT := $(GOBIN)/golangci-lint-v1.64.4
 $(GOLANGCI_LINT): $(BINGO_DIR)/golangci-lint.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/golangci-lint-v1.63.4"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=golangci-lint.mod -o=$(GOBIN)/golangci-lint-v1.63.4 "github.com/golangci/golangci-lint/cmd/golangci-lint"
+	@echo "(re)installing $(GOBIN)/golangci-lint-v1.64.4"
+	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=golangci-lint.mod -o=$(GOBIN)/golangci-lint-v1.64.4 "github.com/golangci/golangci-lint/cmd/golangci-lint"
 
 HELM := $(GOBIN)/helm-v3.14.0
 $(HELM): $(BINGO_DIR)/helm.mod
