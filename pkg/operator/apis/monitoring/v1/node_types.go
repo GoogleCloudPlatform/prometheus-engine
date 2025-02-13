@@ -51,7 +51,7 @@ type ScrapeNodeEndpoint struct {
 	// override protected target labels (project_id, location, cluster, namespace, job,
 	// instance, or __address__) are not permitted. The labelmap action is not permitted
 	// in general.
-	// +kubebuilder:validation:MaxItems=100
+	// +kubebuilder:validation:MaxItems=250
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
 	// TLS configures the scrape request's TLS settings.
 	// +optional
