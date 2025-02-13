@@ -236,7 +236,7 @@ type ScrapeEndpoint struct {
 	// override protected target labels (project_id, location, cluster, namespace, job,
 	// instance, top_level_controller, top_level_controller_type, or __address__) are
 	// not permitted. The labelmap action is not permitted in general.
-	// +kubebuilder:validation:MaxItems=100
+	// +kubebuilder:validation:MaxItems=250
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
 	// Prometheus HTTP client configuration.
 	HTTPClientConfig `json:",inline"`
@@ -295,15 +295,7 @@ type RelabelingRule struct {
 	// +kubebuilder:validation:XValidation:rule="self != 'project_id' && self != 'location' && self != 'cluster' && self != 'namespace' && self != 'job' && self != 'instance' && self != 'top_level_controller' && self != 'top_level_controller_type' && self != '__address__'",messageExpression="'cannot relabel onto protected label \"%s\"'.format([self])"
 	TargetLabel string `json:"targetLabel,omitempty"`
 	// Regular expression against which the extracted value is matched. Defaults to '(.*)'.
-	// +kubebuilder:validation:MaxLength=500
-	// +kubebuilder:validation:XValidation:rule='project_id'.matches(self) == false
-	// +kubebuilder:validation:XValidation:rule='location'.matches(self) == false
-	// +kubebuilder:validation:XValidation:rule='cluster'.matches(self) == false
-	// +kubebuilder:validation:XValidation:rule='namespace'.matches(self) == false
-	// +kubebuilder:validation:XValidation:rule='instance'.matches(self) == false
-	// +kubebuilder:validation:XValidation:rule='top_level_controller'.matches(self) == false
-	// +kubebuilder:validation:XValidation:rule='top_level_controller_type'.matches(self) == false
-	// +kubebuilder:validation:XValidation:rule='__address__'.matches(self) == false
+	// +kubebuilder:validation:MaxLength=10000
 	Regex string `json:"regex,omitempty"`
 	// Modulus to take of the hash of the source label values.
 	Modulus uint64 `json:"modulus,omitempty"`

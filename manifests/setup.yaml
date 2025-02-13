@@ -96,17 +96,8 @@ spec:
                               type: integer
                             regex:
                               description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
-                              maxLength: 500
+                              maxLength: 10000
                               type: string
-                              x-kubernetes-validations:
-                                - rule: '''project_id''.matches(self) == false'
-                                - rule: '''location''.matches(self) == false'
-                                - rule: '''cluster''.matches(self) == false'
-                                - rule: '''namespace''.matches(self) == false'
-                                - rule: '''instance''.matches(self) == false'
-                                - rule: '''top_level_controller''.matches(self) == false'
-                                - rule: '''top_level_controller_type''.matches(self) == false'
-                                - rule: '''__address__''.matches(self) == false'
                             replacement:
                               description: |-
                                 Replacement value against which a regex replace is performed if the
@@ -137,7 +128,7 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - rule: '!has(self.action) ||  self.action != ''labeldrop'' || has(self.regex)'
-                        maxItems: 100
+                        maxItems: 250
                         type: array
                       params:
                         additionalProperties:
@@ -445,17 +436,8 @@ spec:
                               type: integer
                             regex:
                               description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
-                              maxLength: 500
+                              maxLength: 10000
                               type: string
-                              x-kubernetes-validations:
-                                - rule: '''project_id''.matches(self) == false'
-                                - rule: '''location''.matches(self) == false'
-                                - rule: '''cluster''.matches(self) == false'
-                                - rule: '''namespace''.matches(self) == false'
-                                - rule: '''instance''.matches(self) == false'
-                                - rule: '''top_level_controller''.matches(self) == false'
-                                - rule: '''top_level_controller_type''.matches(self) == false'
-                                - rule: '''__address__''.matches(self) == false'
                             replacement:
                               description: |-
                                 Replacement value against which a regex replace is performed if the
@@ -486,7 +468,7 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - rule: '!has(self.action) ||  self.action != ''labeldrop'' || has(self.regex)'
-                        maxItems: 100
+                        maxItems: 250
                         type: array
                       oauth2:
                         description: OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.
@@ -2798,17 +2780,8 @@ spec:
                               type: integer
                             regex:
                               description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
-                              maxLength: 500
+                              maxLength: 10000
                               type: string
-                              x-kubernetes-validations:
-                                - rule: '''project_id''.matches(self) == false'
-                                - rule: '''location''.matches(self) == false'
-                                - rule: '''cluster''.matches(self) == false'
-                                - rule: '''namespace''.matches(self) == false'
-                                - rule: '''instance''.matches(self) == false'
-                                - rule: '''top_level_controller''.matches(self) == false'
-                                - rule: '''top_level_controller_type''.matches(self) == false'
-                                - rule: '''__address__''.matches(self) == false'
                             replacement:
                               description: |-
                                 Replacement value against which a regex replace is performed if the
@@ -2839,7 +2812,7 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - rule: '!has(self.action) ||  self.action != ''labeldrop'' || has(self.regex)'
-                        maxItems: 100
+                        maxItems: 250
                         type: array
                       oauth2:
                         description: OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.

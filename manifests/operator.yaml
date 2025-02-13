@@ -1028,11 +1028,51 @@ spec:
 ---
 # Source: operator/templates/validating-admission-policy.yaml
 apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "protected-labels.monitoring.googleapis.com"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   ["monitoring.googleapis.com"]
+      apiVersions: ["*"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["clusternodemonitorings", "clusterpodmonitorings", "podmonitorings"]
+  validations:
+    - expression: "object.spec.endpoints.all(e, !has(e.metricRelabeling) || e.metricRelabeling.all(m, !has(m.regex) || 'project_id'.matches(m.regex) == false))"
+      message: "Relabeling rule regex would match protected label: \"project_id\""
+    - expression: "object.spec.endpoints.all(e, !has(e.metricRelabeling) || e.metricRelabeling.all(m, !has(m.regex) || 'location'.matches(m.regex) == false))"
+      message: "Relabeling rule regex would match protected label: \"location\""
+    - expression: "object.spec.endpoints.all(e, !has(e.metricRelabeling) || e.metricRelabeling.all(m, !has(m.regex) || 'cluster'.matches(m.regex) == false))"
+      message: "Relabeling rule regex would match protected label: \"cluster\""
+    - expression: "object.spec.endpoints.all(e, !has(e.metricRelabeling) || e.metricRelabeling.all(m, !has(m.regex) || 'namespace'.matches(m.regex) == false))"
+      message: "Relabeling rule regex would match protected label: \"namespace\""
+    - expression: "object.spec.endpoints.all(e, !has(e.metricRelabeling) || e.metricRelabeling.all(m, !has(m.regex) || 'instance'.matches(m.regex) == false))"
+      message: "Relabeling rule regex would match protected label: \"instance\""
+    - expression: "object.spec.endpoints.all(e, !has(e.metricRelabeling) || e.metricRelabeling.all(m, !has(m.regex) || 'top_level_controller'.matches(m.regex) == false))"
+      message: "Relabeling rule regex would match protected label: \"top_level_controller\""
+    - expression: "object.spec.endpoints.all(e, !has(e.metricRelabeling) || e.metricRelabeling.all(m, !has(m.regex) || 'top_level_controller_type'.matches(m.regex) == false))"
+      message: "Relabeling rule regex would match protected label: \"top_level_controller_type\""
+    - expression: "object.spec.endpoints.all(e, !has(e.metricRelabeling) || e.metricRelabeling.all(m, !has(m.regex) || '__address__'.matches(m.regex) == false))"
+      message: "Relabeling rule regex would match protected label: \"__address__\""
+---
+# Source: operator/templates/validating-admission-policy.yaml
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
 metadata:
   name: "operatorconfigs.monitoring.googleapis.com"
 spec:
   policyName: "operatorconfigs.monitoring.googleapis.com"
+  validationActions: [Deny]
+---
+# Source: operator/templates/validating-admission-policy.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "protected-labels.monitoring.googleapis.com"
+spec:
+  policyName: "protected-labels.monitoring.googleapis.com"
   validationActions: [Deny]
 ---
 # Source: operator/templates/validatingwebhookconfiguration.yaml
