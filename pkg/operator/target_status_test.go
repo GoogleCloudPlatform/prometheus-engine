@@ -1345,7 +1345,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			kubeClient := clientBuilder.Build()
 
 			// fetchTargets(ctx, logger, opts, nil, targetFetchFromMap(prometheusTargetMap), kubeClient)
-			err := updateTargetStatus(context.Background(), testr.New(t), kubeClient, testCase.targets, testCase.getPodMonitoringCRDs())
+			err := updateTargetStatus(t.Context(), testr.New(t), kubeClient, testCase.targets, testCase.getPodMonitoringCRDs())
 			if err != nil && (testCase.expErr == nil || !testCase.expErr(err)) {
 				t.Fatalf("unexpected error updating target status: %s", err)
 			} else if err == nil && (testCase.expErr != nil) {
@@ -1354,7 +1354,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 
 			for _, podMonitoring := range testCase.podMonitorings {
 				var after monitoringv1.PodMonitoring
-				if err := kubeClient.Get(context.Background(), types.NamespacedName{
+				if err := kubeClient.Get(t.Context(), types.NamespacedName{
 					Namespace: podMonitoring.GetNamespace(),
 					Name:      podMonitoring.GetName(),
 				}, &after); err != nil {
@@ -1368,7 +1368,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 
 			for _, clusterPodMonitoring := range testCase.clusterPodMonitorings {
 				var after monitoringv1.ClusterPodMonitoring
-				if err := kubeClient.Get(context.Background(), types.NamespacedName{
+				if err := kubeClient.Get(t.Context(), types.NamespacedName{
 					Name: clusterPodMonitoring.GetName(),
 				}, &after); err != nil {
 					t.Fatal("Unable to find ClusterPodMonitoring:", clusterPodMonitoring.GetKey(), err)
@@ -1394,7 +1394,6 @@ func normalizeEndpointStatuses(endpointStatuses []monitoringv1.ScrapeEndpointSta
 
 // Test that polling propagates all the way through and only on ticks.
 func TestPolling(t *testing.T) {
-	ctx := context.Background()
 	logger := testr.New(t)
 	opts := Options{
 		ProjectID:             "test-proj",
@@ -1498,7 +1497,7 @@ func TestPolling(t *testing.T) {
 	expectStatus := func(t *testing.T, description string, expected []monitoringv1.ScrapeEndpointStatus) {
 		// Must poll because status is updated via other thread.
 		var err error
-		if pollErr := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 2*time.Second, true, func(ctx context.Context) (bool, error) {
+		if pollErr := wait.PollUntilContextTimeout(t.Context(), 100*time.Millisecond, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 			var podMonitorings monitoringv1.PodMonitoringList
 			if err := kubeClient.List(ctx, &podMonitorings); err != nil {
 				return false, err
@@ -1537,7 +1536,7 @@ func TestPolling(t *testing.T) {
 			Object: &appsv1.DaemonSet{},
 		}
 		for range ch {
-			if _, err := reconciler.Reconcile(ctx, reconcile.Request{}); err != nil {
+			if _, err := reconciler.Reconcile(t.Context(), reconcile.Request{}); err != nil {
 				t.Errorf("error reconciling: %s", err)
 			}
 		}
@@ -1732,14 +1731,13 @@ func TestShouldPoll(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		ctx := context.Background()
 		nn := types.NamespacedName{
 			Name:      "config",
 			Namespace: "gmp-public",
 		}
 		kubeClient := newFakeClientBuilder().WithObjects(tc.objs...).Build()
 		t.Run(tc.desc, func(t *testing.T) {
-			should, err := shouldPoll(ctx, nn, kubeClient)
+			should, err := shouldPoll(t.Context(), nn, kubeClient)
 			if err != nil && !tc.expErr {
 				t.Errorf("unexpected shouldPoll error: %s", err)
 			}
@@ -1752,7 +1750,6 @@ func TestShouldPoll(t *testing.T) {
 
 // Tests that for pod, targets are fetched correctly (concurrently).
 func TestFetchTargets(t *testing.T) {
-	ctx := context.Background()
 	logger := testr.New(t)
 	concurrency := uint16(4)
 	opts := Options{
@@ -1836,7 +1833,7 @@ func TestFetchTargets(t *testing.T) {
 
 			kubeClient := kubeClientBuilder.Build()
 
-			targets, err := fetchTargets(ctx, logger, opts, nil, targetFetchFromMap(prometheusTargetMap), kubeClient)
+			targets, err := fetchTargets(t.Context(), logger, opts, nil, targetFetchFromMap(prometheusTargetMap), kubeClient)
 			if err != nil {
 				t.Fatal("Unable to fetch targets", err)
 			}

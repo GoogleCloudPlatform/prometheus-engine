@@ -55,7 +55,7 @@ func TestHasRules(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := hasRules(context.Background(), tc.client)
+			got, err := hasRules(t.Context(), tc.client)
 			if got != tc.want {
 				t.Errorf("want: %t, got: %t", tc.want, got)
 			}
@@ -361,19 +361,18 @@ func TestRulesStatus(t *testing.T) {
 		WithObjects(objs...).
 		Build()
 
-	ctx := context.Background()
 	r := rulesReconciler{
 		client: kubeClient,
 	}
 
-	if err := r.ensureRuleConfigs(ctx, "", "", "", monitoringv1.CompressionNone); err != nil {
+	if err := r.ensureRuleConfigs(t.Context(), "", "", "", monitoringv1.CompressionNone); err != nil {
 		t.Fatal("ensure rules configs:", err)
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.obj.GetName(), func(t *testing.T) {
 			objectKey := client.ObjectKeyFromObject(tc.obj)
-			if err := kubeClient.Get(ctx, objectKey, tc.obj); err != nil {
+			if err := kubeClient.Get(t.Context(), objectKey, tc.obj); err != nil {
 				t.Fatal("get obj:", err)
 			}
 
@@ -445,13 +444,12 @@ func TestScaleRuleConsumers(t *testing.T) {
 		"rule-evaluator deleted with rules": {client: ruleEvaluatorDeletedWithRules, want: 1, wantErr: false},
 	}
 
-	ctx := context.Background()
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := rulesReconciler{
 				client: &fakeClientWithScale{tc.client},
 			}
-			err := r.scaleRuleConsumers(ctx)
+			err := r.scaleRuleConsumers(t.Context())
 			if err != nil {
 				if !tc.wantErr {
 					t.Errorf("Unexpected error: %s", err)
@@ -460,7 +458,7 @@ func TestScaleRuleConsumers(t *testing.T) {
 			}
 
 			var alertmanager appsv1.StatefulSet
-			if err := r.client.Get(ctx, client.ObjectKey{Name: "alertmanager"}, &alertmanager); client.IgnoreNotFound(err) != nil {
+			if err := r.client.Get(t.Context(), client.ObjectKey{Name: "alertmanager"}, &alertmanager); client.IgnoreNotFound(err) != nil {
 				t.Error(err)
 			}
 			if alertmanager.Spec.Replicas != nil && *alertmanager.Spec.Replicas != tc.want {
@@ -468,7 +466,7 @@ func TestScaleRuleConsumers(t *testing.T) {
 			}
 
 			var ruleEvaluator appsv1.Deployment
-			if err := r.client.Get(ctx, client.ObjectKey{Name: "rule-evaluator"}, &ruleEvaluator); client.IgnoreNotFound(err) != nil {
+			if err := r.client.Get(t.Context(), client.ObjectKey{Name: "rule-evaluator"}, &ruleEvaluator); client.IgnoreNotFound(err) != nil {
 				t.Error(err)
 			}
 			if ruleEvaluator.Spec.Replicas != nil && *ruleEvaluator.Spec.Replicas != tc.want {

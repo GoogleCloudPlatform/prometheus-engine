@@ -171,7 +171,7 @@ func (p *promBackend) injectScrapes(t testing.TB, scrapeRecordings [][]*dto.Metr
 	p.g.plannedScrapes = scrapeRecordings
 	p.g.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	t.Cleanup(cancel)
 
 	if err := runutil.RetryWithLog(log.NewJSONLogger(os.Stderr), 10*time.Second, ctx.Done(), func() error {

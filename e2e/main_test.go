@@ -180,10 +180,10 @@ func contextWithDeadline(t *testing.T) context.Context {
 
 	deadline, ok := t.Deadline()
 	if !ok {
-		return context.Background()
+		return t.Context()
 	}
 
-	ctx, cancel := context.WithDeadline(context.Background(), deadline.Truncate(timeoutGracePeriod))
+	ctx, cancel := context.WithDeadline(t.Context(), deadline.Truncate(timeoutGracePeriod))
 	t.Cleanup(cancel)
 	return ctx
 }

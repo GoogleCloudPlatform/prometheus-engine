@@ -155,8 +155,6 @@ func TestEnsureCertsSelfSigned(t *testing.T) {
 }
 
 func TestWebhookCABundleUpdate(t *testing.T) {
-	ctx := context.Background()
-
 	testCases := []struct {
 		desc              string
 		dir               string
@@ -178,23 +176,23 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 				for i := range objs {
 					switch obj := objs[i].(type) {
 					case *arv1.MutatingWebhookConfiguration:
-						if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+						if err := kubeClient.Get(t.Context(), client.ObjectKeyFromObject(obj), obj); err != nil {
 							t.Fatal(err)
 						}
 						for _, clientConfig := range clientConfigsFromMutatingWebhook(obj) {
 							clientConfig.CABundle = nil
 						}
-						if err := kubeClient.Update(ctx, obj); err != nil {
+						if err := kubeClient.Update(t.Context(), obj); err != nil {
 							t.Fatal(err)
 						}
 					case *arv1.ValidatingWebhookConfiguration:
-						if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+						if err := kubeClient.Get(t.Context(), client.ObjectKeyFromObject(obj), obj); err != nil {
 							t.Fatal(err)
 						}
 						for _, clientConfig := range clientConfigsFromValidatingWebhook(obj) {
 							clientConfig.CABundle = nil
 						}
-						if err := kubeClient.Update(ctx, obj); err != nil {
+						if err := kubeClient.Update(t.Context(), obj); err != nil {
 							t.Fatal(err)
 						}
 					}
@@ -214,23 +212,23 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 				for i := range objs {
 					switch obj := objs[i].(type) {
 					case *arv1.MutatingWebhookConfiguration:
-						if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+						if err := kubeClient.Get(t.Context(), client.ObjectKeyFromObject(obj), obj); err != nil {
 							t.Fatal(err)
 						}
 						for _, clientConfig := range clientConfigsFromMutatingWebhook(obj) {
 							clientConfig.CABundle = []byte("abc123")
 						}
-						if err := kubeClient.Update(ctx, obj); err != nil {
+						if err := kubeClient.Update(t.Context(), obj); err != nil {
 							t.Fatal(err)
 						}
 					case *arv1.ValidatingWebhookConfiguration:
-						if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+						if err := kubeClient.Get(t.Context(), client.ObjectKeyFromObject(obj), obj); err != nil {
 							t.Fatal(err)
 						}
 						for _, clientConfig := range clientConfigsFromValidatingWebhook(obj) {
 							clientConfig.CABundle = []byte("abc123")
 						}
-						if err := kubeClient.Update(ctx, obj); err != nil {
+						if err := kubeClient.Update(t.Context(), obj); err != nil {
 							t.Fatal(err)
 						}
 					}
@@ -251,31 +249,31 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 				for i := range objs {
 					switch obj := objs[i].(type) {
 					case *arv1.MutatingWebhookConfiguration:
-						if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+						if err := kubeClient.Get(t.Context(), client.ObjectKeyFromObject(obj), obj); err != nil {
 							t.Fatal(err)
 						}
 						for _, clientConfig := range clientConfigsFromMutatingWebhook(obj) {
 							clientConfig.CABundle = nil
 						}
-						if err := kubeClient.Delete(ctx, obj); err != nil {
+						if err := kubeClient.Delete(t.Context(), obj); err != nil {
 							t.Fatal(err)
 						}
 						obj.ResourceVersion = ""
-						if err := kubeClient.Create(ctx, obj); err != nil {
+						if err := kubeClient.Create(t.Context(), obj); err != nil {
 							t.Fatal(err)
 						}
 					case *arv1.ValidatingWebhookConfiguration:
-						if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+						if err := kubeClient.Get(t.Context(), client.ObjectKeyFromObject(obj), obj); err != nil {
 							t.Fatal(err)
 						}
 						for _, clientConfig := range clientConfigsFromValidatingWebhook(obj) {
 							clientConfig.CABundle = nil
 						}
-						if err := kubeClient.Delete(ctx, obj); err != nil {
+						if err := kubeClient.Delete(t.Context(), obj); err != nil {
 							t.Fatal(err)
 						}
 						obj.ResourceVersion = ""
-						if err := kubeClient.Create(ctx, obj); err != nil {
+						if err := kubeClient.Create(t.Context(), obj); err != nil {
 							t.Fatal(err)
 						}
 					}
@@ -295,23 +293,23 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 				for i := range objs {
 					switch obj := objs[i].(type) {
 					case *arv1.MutatingWebhookConfiguration:
-						if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+						if err := kubeClient.Get(t.Context(), client.ObjectKeyFromObject(obj), obj); err != nil {
 							t.Fatal(err)
 						}
 						for _, clientConfig := range clientConfigsFromMutatingWebhook(obj) {
 							clientConfig.CABundle = caBundle
 						}
-						if err := kubeClient.Update(ctx, obj); err != nil {
+						if err := kubeClient.Update(t.Context(), obj); err != nil {
 							t.Fatal(err)
 						}
 					case *arv1.ValidatingWebhookConfiguration:
-						if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+						if err := kubeClient.Get(t.Context(), client.ObjectKeyFromObject(obj), obj); err != nil {
 							t.Fatal(err)
 						}
 						for _, clientConfig := range clientConfigsFromValidatingWebhook(obj) {
 							clientConfig.CABundle = caBundle
 						}
-						if err := kubeClient.Update(ctx, obj); err != nil {
+						if err := kubeClient.Update(t.Context(), obj); err != nil {
 							t.Fatal(err)
 						}
 					}
@@ -402,12 +400,12 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 				},
 			}
 
-			if err := setupAdmissionWebhooks(ctx, logr.Discard(), kubeClient, webhookServer, &opts, false); err != nil {
+			if err := setupAdmissionWebhooks(t.Context(), logr.Discard(), kubeClient, webhookServer, &opts, false); err != nil {
 				t.Fatal(err)
 			}
 
 			validateCABundles := func(managedCABundle, unmanagedCABundle []byte) {
-				if err := wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
+				if err := wait.PollUntilContextCancel(t.Context(), 3*time.Second, true, func(ctx context.Context) (bool, error) {
 					mutatingWebhook := arv1.MutatingWebhookConfiguration{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: name,

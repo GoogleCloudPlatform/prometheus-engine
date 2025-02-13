@@ -17,7 +17,6 @@ package operator
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -417,7 +416,7 @@ func TestCollectionReconcile(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			logger := testr.New(t)
-			ctx := logr.NewContext(context.Background(), logger)
+			ctx := logr.NewContext(t.Context(), logger)
 			opts := Options{
 				ProjectID: "test-proj",
 				Location:  "test-loc",

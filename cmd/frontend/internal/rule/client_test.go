@@ -96,7 +96,7 @@ func TestClient_call(t *testing.T) {
 			t.Parallel()
 
 			r := newClient(tt.client)
-			got, err := r.call(context.Background(), tt.args.baseURL, tt.args.endpoint, tt.args.queryString)
+			got, err := r.call(t.Context(), tt.args.baseURL, tt.args.endpoint, tt.args.queryString)
 
 			require.ErrorIs(t, err, tt.wantErr)
 			require.Equal(t, tt.want, string(got))
@@ -155,7 +155,7 @@ func TestClient_Alerts(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			r := newClient(tt.client)
-			got, err := r.Alerts(context.Background(), tt.baseURL, tt.queryString)
+			got, err := r.Alerts(t.Context(), tt.baseURL, tt.queryString)
 
 			require.Equal(t, tt.wantErr, err != nil)
 			require.Equal(t, tt.want, got)
@@ -214,7 +214,7 @@ func TestClient_Rules(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			r := newClient(tt.client)
-			got, err := r.RuleGroups(context.Background(), tt.baseURL, tt.queryString)
+			got, err := r.RuleGroups(t.Context(), tt.baseURL, tt.queryString)
 
 			require.Equal(t, tt.wantErr, err != nil)
 			require.Equal(t, tt.want, got)
