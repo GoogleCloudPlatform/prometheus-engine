@@ -116,7 +116,7 @@ func TestBatchFillFromShardsAndSend(t *testing.T) {
 		mtx.Unlock()
 		return nil
 	}
-	b.send(context.Background(), sendOne)
+	b.send(t.Context(), sendOne)
 
 	if want := 10000; receivedSamples != want {
 		t.Fatalf("unexpected number of received samples (want=%d, got=%d)", want, receivedSamples)
@@ -304,10 +304,9 @@ func TestExporter_wrapMetadata(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
 	exporterOpts := ExporterOpts{DisableAuth: true}
 	exporterOpts.DefaultUnsetFields()
-	e, err := New(ctx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, exporterOpts, NopLease())
+	e, err := New(t.Context(), log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, exporterOpts, NopLease())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,11 +343,9 @@ func (srv *testMetricService) clear() {
 }
 
 func TestExporter_drainBacklog(t *testing.T) {
-	ctx := context.Background()
-
 	exporterOpts := ExporterOpts{DisableAuth: true}
 	exporterOpts.DefaultUnsetFields()
-	e, err := New(ctx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, exporterOpts, NopLease())
+	e, err := New(t.Context(), log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, exporterOpts, NopLease())
 	if err != nil {
 		t.Fatalf("Creating Exporter failed: %s", err)
 	}
@@ -372,7 +369,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 	// As our samples are all for the same series, each batch can only contain a single sample.
 	// The exporter waits for the batch delay duration before sending it.
 	// We sleep for an appropriate multiple of it to allow it to drain the shard.
-	ctxTimeout, cancel := context.WithTimeout(ctx, 60*batchDelayMax)
+	ctxTimeout, cancel := context.WithTimeout(t.Context(), 60*batchDelayMax)
 	defer cancel()
 
 	pollErr := wait.PollUntilContextCancel(ctxTimeout, batchDelayMax, false, func(_ context.Context) (bool, error) {
@@ -392,7 +389,7 @@ func TestExporter_drainBacklog(t *testing.T) {
 }
 
 func TestApplyConfig(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	defer cancel()
 
 	exporterOpts := ExporterOpts{DisableAuth: true}
@@ -491,18 +488,17 @@ func TestDisabledExporter(t *testing.T) {
 	// environment, we instead set invalid an invalid credential path to emulate no credentials.
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "does-not-exist.json")
 
-	ctx := context.Background()
 	exporterOpts := ExporterOpts{}
 	exporterOpts.DefaultUnsetFields()
 
 	// The default exporter will look for authentication.
-	if _, err := New(ctx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, exporterOpts, NopLease()); err == nil {
+	if _, err := New(t.Context(), log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, exporterOpts, NopLease()); err == nil {
 		t.Fatal("Expected error but got none")
 	}
 
 	// When we disable the exporter, it doesn't matter if we have credentials or not.
 	exporterOpts.Disable = true
-	e, err := New(ctx, log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, exporterOpts, NopLease())
+	e, err := New(t.Context(), log.NewJSONLogger(log.NewSyncWriter(os.Stderr)), nil, exporterOpts, NopLease())
 	if err != nil {
 		t.Fatalf("Run exporter: %s", err)
 	}

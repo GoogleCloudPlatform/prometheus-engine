@@ -15,7 +15,6 @@
 package e2e
 
 import (
-	"context"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -30,8 +29,6 @@ import (
 )
 
 func createKindCluster(t *testing.T) client.Client {
-	ctx := context.Background()
-
 	t.Helper()
 
 	// Add a randomized suffix to the test cluster name to reduce collisions.
@@ -41,7 +38,7 @@ func createKindCluster(t *testing.T) client.Client {
 	kubeconfigPath := filepath.Join(tmp, "kubeconfig")
 
 	// Create a cluster with a randomized name, and save the kubeconfig in a temporary directory scoped to this test.
-	createClusterOutput, err := exec.CommandContext(ctx, "kind", "create", "cluster", "--name", clusterName, "--kubeconfig", kubeconfigPath).CombinedOutput()
+	createClusterOutput, err := exec.CommandContext(t.Context(), "kind", "create", "cluster", "--name", clusterName, "--kubeconfig", kubeconfigPath).CombinedOutput()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,28 +47,28 @@ func createKindCluster(t *testing.T) client.Client {
 	t.Cleanup(cleanupKindCluster(t, clusterName))
 
 	// Apply GMP CRDs.
-	applyCRDsOutput, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", "../manifests/setup.yaml").CombinedOutput()
+	applyCRDsOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", "../manifests/setup.yaml").CombinedOutput()
 	if err != nil {
 		t.Fatalf("%s\b%v", applyCRDsOutput, err)
 	}
 	t.Logf("%s\n", applyCRDsOutput)
 
 	// Create Public namespace for OperatorConfig.
-	applyPublicNamespaceOutput, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfigPath, "create", "namespace", "gmp-public").CombinedOutput()
+	applyPublicNamespaceOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "create", "namespace", "gmp-public").CombinedOutput()
 	if err != nil {
 		t.Fatalf("%s\b%v", applyPublicNamespaceOutput, err)
 	}
 	t.Logf("%s\n", applyPublicNamespaceOutput)
 
 	// Apply Validating Admission Policy.
-	applyValidatingAdmissionOutput, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", "../charts/operator/templates/validating-admission-policy.yaml").CombinedOutput()
+	applyValidatingAdmissionOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", "../charts/operator/templates/validating-admission-policy.yaml").CombinedOutput()
 	if err != nil {
 		t.Fatalf("%s\b%v", applyValidatingAdmissionOutput, err)
 	}
 	t.Logf("%s\n", applyValidatingAdmissionOutput)
 
 	// Wait for CRDs to be created - there seems to be race condition without this wait.
-	if _, err := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfigPath, "wait", "customresourcedefinition.apiextensions.k8s.io/clusternodemonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/clusterpodmonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/clusterrules.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/globalrules.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/operatorconfigs.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/podmonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/rules.monitoring.googleapis.com", "--for=create").CombinedOutput(); err != nil {
+	if _, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "wait", "customresourcedefinition.apiextensions.k8s.io/clusternodemonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/clusterpodmonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/clusterrules.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/globalrules.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/operatorconfigs.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/podmonitorings.monitoring.googleapis.com", "customresourcedefinition.apiextensions.k8s.io/rules.monitoring.googleapis.com", "--for=create").CombinedOutput(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -100,8 +97,6 @@ func cleanupKindCluster(t *testing.T, clusterName string) func() {
 }
 
 func TestCRDValidation(t *testing.T) {
-	ctx := context.Background()
-
 	t.Parallel()
 
 	c := createKindCluster(t)
@@ -114,7 +109,7 @@ func TestCRDValidation(t *testing.T) {
 	run := func(t *testing.T, tests map[string]test) {
 		for name, tc := range tests {
 			t.Run(name, func(t *testing.T) {
-				err := c.Create(ctx, tc.obj)
+				err := c.Create(t.Context(), tc.obj)
 				switch {
 				case err == nil && !tc.wantErr:
 					// OK

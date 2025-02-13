@@ -15,7 +15,6 @@
 package operator
 
 import (
-	"context"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
@@ -83,7 +82,6 @@ google_cloud:
 }
 
 func TestEnsureOperatorConfig(t *testing.T) {
-	ctx := context.Background()
 	logger := logr.Discard()
 	operatorOpts := Options{
 		ProjectID: "test-project",
@@ -225,7 +223,7 @@ func TestEnsureOperatorConfig(t *testing.T) {
 			kubeClient := clientBuilder.Build()
 
 			reconciler := newOperatorConfigReconciler(kubeClient, operatorOpts)
-			operatorConfig, err := reconciler.ensureOperatorConfig(ctx, logger, reconcile.Request{
+			operatorConfig, err := reconciler.ensureOperatorConfig(t.Context(), logger, reconcile.Request{
 				NamespacedName: types.NamespacedName{
 					Namespace: DefaultPublicNamespace,
 					Name:      NameOperatorConfig,
@@ -245,7 +243,7 @@ func TestEnsureOperatorConfig(t *testing.T) {
 			// Make sure the object is updated in case of defaulting.
 			if tc.existing != nil {
 				existingLatest := monitoringv1.OperatorConfig{}
-				if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(tc.existing), &existingLatest); err != nil {
+				if err := kubeClient.Get(t.Context(), client.ObjectKeyFromObject(tc.existing), &existingLatest); err != nil {
 					t.Fatalf("get operator config: %s", err)
 				}
 

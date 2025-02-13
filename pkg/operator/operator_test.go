@@ -15,7 +15,6 @@
 package operator
 
 import (
-	"context"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -100,7 +99,6 @@ func TestCleanupOldResources(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			ctx := context.Background()
 			ds := &appsv1.DaemonSet{
 				ObjectMeta: v1.ObjectMeta{
 					Name:        NameCollector,
@@ -130,13 +128,13 @@ func TestCleanupOldResources(t *testing.T) {
 				opts:   opts,
 				client: cl,
 			}
-			if err := op.cleanupOldResources(ctx); err != nil {
+			if err := op.cleanupOldResources(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 
 			// Check if collector DaemonSet was preserved.
 			var gotDS appsv1.DaemonSet
-			dsErr := cl.Get(ctx, client.ObjectKey{
+			dsErr := cl.Get(t.Context(), client.ObjectKey{
 				Name:      NameCollector,
 				Namespace: "gmp-system",
 			}, &gotDS)
@@ -150,7 +148,7 @@ func TestCleanupOldResources(t *testing.T) {
 
 			// Check if rule-evaluator Deployment was preserved.
 			var gotDeploy appsv1.Deployment
-			deployErr := cl.Get(ctx, client.ObjectKey{
+			deployErr := cl.Get(t.Context(), client.ObjectKey{
 				Name:      NameRuleEvaluator,
 				Namespace: "gmp-system",
 			}, &gotDeploy)

@@ -189,7 +189,7 @@ func testCollectorDeployed(ctx context.Context, restConfig *rest.Config, kubeCli
 		if err != nil {
 			t.Errorf("collector DaemonSet is not ready: %s", err)
 			out := strings.Builder{}
-			if err := kube.Debug(context.Background(), restConfig, kubeClient, &ds, &out); err != nil {
+			if err := kube.Debug(t.Context(), restConfig, kubeClient, &ds, &out); err != nil {
 				t.Fatalf("unable to debug: %s", err)
 			}
 			t.Fatalf("debug:\n%s", out.String())

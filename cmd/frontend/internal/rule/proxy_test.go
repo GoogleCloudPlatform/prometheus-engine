@@ -148,7 +148,7 @@ func TestFanoutForward_AlertsReturnSuccess(t *testing.T) {
 		{Scheme: "https", Host: "localhost:8081", Path: ""},
 	}
 
-	alerts, err := fanoutForward(context.Background(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
+	alerts, err := fanoutForward(t.Context(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
 		return retriever.Alerts(ctx, u, s)
 	})
 
@@ -198,7 +198,7 @@ func TestFanoutForward_AlertsTwoReturnSuccessWithOneOfTwoBrokenClients(t *testin
 			KeepFiringSince: nil,
 		},
 	}
-	alerts, err := fanoutForward(context.Background(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
+	alerts, err := fanoutForward(t.Context(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
 		return retriever.Alerts(ctx, u, s)
 	})
 
@@ -221,7 +221,7 @@ func TestFanoutForward_AlertsTwoReturnErrorIfAllClientsFail(t *testing.T) {
 		},
 	}
 	retriever := newClient(mockCli)
-	alerts, err := fanoutForward(context.Background(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
+	alerts, err := fanoutForward(t.Context(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
 		return retriever.Alerts(ctx, u, s)
 	})
 

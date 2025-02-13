@@ -79,14 +79,14 @@ func TestTryPopulateUnspecifiedFromMetadata(t *testing.T) {
 	})
 
 	// Main "readiness" like timeout that we have to be faster than.
-	testCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	testCtx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	// Inject metadata URL for our server (does not matter if 404).
 	t.Setenv("GCE_METADATA_HOST", s.Listener.Addr().String())
 
 	// We expect this to finish sooner.
-	ctx, cancel2 := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel2 := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel2()
 	opts := export.ExporterOpts{}
 	tryPopulateUnspecifiedFromMetadata(ctx, log.NewLogfmtLogger(os.Stderr), &opts)

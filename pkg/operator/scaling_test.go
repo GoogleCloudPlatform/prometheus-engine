@@ -80,7 +80,7 @@ func TestApplyVPA(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := applyVPA(context.TODO(), tc.c, "")
+			err := applyVPA(t.Context(), tc.c, "")
 			switch {
 			case err != nil && !tc.wantErr:
 				t.Errorf("unexpected error: %v", err)
@@ -89,16 +89,16 @@ func TestApplyVPA(t *testing.T) {
 			case err != nil && tc.wantErr:
 				// Ok
 			case err == nil && !tc.wantErr:
-				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: alertmanagerVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
+				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: alertmanagerVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
 					t.Error(err)
 				}
-				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: collectorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
+				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: collectorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
 					t.Error(err)
 				}
-				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: operatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
+				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: operatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
 					t.Error(err)
 				}
-				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: ruleEvaluatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
+				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: ruleEvaluatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
 					t.Error(err)
 				}
 			}
@@ -164,7 +164,7 @@ func TestDeleteVPA(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := deleteVPA(context.TODO(), tc.c, "")
+			err := deleteVPA(t.Context(), tc.c, "")
 			switch {
 			case err != nil && !tc.wantErr:
 				t.Errorf("unexpected error: %v", err)
@@ -173,16 +173,16 @@ func TestDeleteVPA(t *testing.T) {
 			case err != nil && tc.wantErr:
 				// Ok
 			case err == nil && !tc.wantErr:
-				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: alertmanagerVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
+				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: alertmanagerVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
 					t.Errorf("expected not found, got %s", err)
 				}
-				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: collectorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
+				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: collectorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
 					t.Errorf("expected not found, got %s", err)
 				}
-				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: operatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
+				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: operatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
 					t.Errorf("expected not found, got %s", err)
 				}
-				if err := tc.c.Get(context.TODO(), client.ObjectKey{Name: ruleEvaluatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
+				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: ruleEvaluatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
 					t.Errorf("expected not found, got %s", err)
 				}
 			}
