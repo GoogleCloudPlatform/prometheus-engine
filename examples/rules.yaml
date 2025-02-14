@@ -22,7 +22,7 @@ metadata:
 spec:
   groups:
   - name: example
-    interval: 30s
+    interval: ""
     rules:
     - record: job:up:sum
       expr: sum without(instance) (up)
