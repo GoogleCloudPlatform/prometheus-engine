@@ -865,4 +865,75 @@ func TestCRDValidation(t *testing.T) {
 		}
 		run(t, tests)
 	})
+	t.Run("Rules", func(t *testing.T) {
+		tests := map[string]test{
+			"minimal": {
+				obj: &monitoringv1.Rules{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "minimal",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"invalid-annotation": {
+				obj: &monitoringv1.Rules{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "invalid-annotation",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Annotations: map[string]string{
+											"test": "annotation",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"valid-annotation": {
+				obj: &monitoringv1.Rules{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "valid-annotation",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Rules: []monitoringv1.Rule{
+									{
+										Alert: "test",
+										Annotations: map[string]string{
+											"test": "annotation",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+		}
+		run(t, tests)
+	})
 }
