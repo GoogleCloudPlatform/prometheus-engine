@@ -73,7 +73,7 @@ COPY --from=hermetic /workspace/vendor vendor.tmp
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
 FROM golang:1.24.0-bullseye as buildbase
-FROM docker:27.5-cli as docker
+FROM docker:28.0-cli as docker
 FROM debian:stable-slim as kindtest
 
 WORKDIR /build
