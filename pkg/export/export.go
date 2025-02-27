@@ -921,7 +921,7 @@ func (b *batch) empty() bool {
 
 // send the accumulated samples to their respective projects. It returns once all
 // requests have completed and notifies the pending shards.
-func (b batch) send(
+func (b *batch) send(
 	ctx context.Context,
 	sendOne func(context.Context, *monitoring_pb.CreateTimeSeriesRequest, ...gax.CallOption) error,
 ) {
