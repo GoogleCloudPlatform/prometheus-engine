@@ -357,7 +357,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.1-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.2-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -534,7 +534,7 @@ spec:
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.13.1-gke.0
+        image: gke.gcr.io/prometheus-engine/operator:v0.13.2-gke.0
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
@@ -654,7 +654,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.1-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.2-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -695,7 +695,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.13.1-gke.0
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.13.2-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --web.listen-address=:19092
@@ -860,7 +860,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.1-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.13.2-gke.0
         args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
