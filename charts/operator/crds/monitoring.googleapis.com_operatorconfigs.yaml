@@ -15,7 +15,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
+    controller-gen.kubebuilder.io/version: v0.14.1-gmp
   name: operatorconfigs.monitoring.googleapis.com
 spec:
   group: monitoring.googleapis.com
@@ -66,6 +66,7 @@ spec:
                     description: |-
                       Name of the referent.
                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
                     type: string
                   optional:
                     description: Specify whether the Secret or its key must be defined
@@ -180,6 +181,7 @@ spec:
                     description: |-
                       Name of the referent.
                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
                     type: string
                   optional:
                     description: Specify whether the Secret or its key must be defined
@@ -195,6 +197,7 @@ spec:
                   links back to Alertmanager itself. If the URL has a path portion, it will be used to
                   prefix all HTTP endpoints served by Alertmanager, otherwise relevant URL components will
                   be derived automatically.
+
 
                   If no URL is provided, Alertmanager will point to the Google Cloud Metric Explorer page.
                 type: string
@@ -236,6 +239,7 @@ spec:
                                   description: |-
                                     Name of the referent.
                                     More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    TODO: Add other useful fields. apiVersion, kind, uid?
                                   type: string
                                 optional:
                                   description: Specify whether the Secret or its key
@@ -292,6 +296,7 @@ spec:
                                       description: |-
                                         Name of the referent.
                                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                       type: string
                                     optional:
                                       description: Specify whether the ConfigMap or
@@ -313,6 +318,7 @@ spec:
                                       description: |-
                                         Name of the referent.
                                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                       type: string
                                     optional:
                                       description: Specify whether the Secret or its
@@ -338,6 +344,7 @@ spec:
                                       description: |-
                                         Name of the referent.
                                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                       type: string
                                     optional:
                                       description: Specify whether the ConfigMap or
@@ -359,6 +366,7 @@ spec:
                                       description: |-
                                         Name of the referent.
                                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                       type: string
                                     optional:
                                       description: Specify whether the Secret or its
@@ -384,6 +392,7 @@ spec:
                                   description: |-
                                     Name of the referent.
                                     More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    TODO: Add other useful fields. apiVersion, kind, uid?
                                   type: string
                                 optional:
                                   description: Specify whether the Secret or its key
@@ -433,6 +442,7 @@ spec:
                     description: |-
                       Name of the referent.
                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
                     type: string
                   optional:
                     description: Specify whether the Secret or its key must be defined
@@ -511,6 +521,7 @@ spec:
                     description: |-
                       Name of the referent.
                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
                     type: string
                   optional:
                     description: Specify whether the Secret or its key must be defined
@@ -587,6 +598,7 @@ spec:
                                   description: |-
                                     Name of the referent.
                                     More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    TODO: Add other useful fields. apiVersion, kind, uid?
                                   type: string
                                 optional:
                                   description: Specify whether the Secret or its key
@@ -643,6 +655,7 @@ spec:
                                       description: |-
                                         Name of the referent.
                                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                       type: string
                                     optional:
                                       description: Specify whether the ConfigMap or
@@ -664,6 +677,7 @@ spec:
                                       description: |-
                                         Name of the referent.
                                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                       type: string
                                     optional:
                                       description: Specify whether the Secret or its
@@ -689,6 +703,7 @@ spec:
                                       description: |-
                                         Name of the referent.
                                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                       type: string
                                     optional:
                                       description: Specify whether the ConfigMap or
@@ -710,6 +725,7 @@ spec:
                                       description: |-
                                         Name of the referent.
                                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion, kind, uid?
                                       type: string
                                     optional:
                                       description: Specify whether the Secret or its
@@ -735,6 +751,7 @@ spec:
                                   description: |-
                                     Name of the referent.
                                     More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    TODO: Add other useful fields. apiVersion, kind, uid?
                                   type: string
                                 optional:
                                   description: Specify whether the Secret or its key
@@ -772,6 +789,7 @@ spec:
                     description: |-
                       Name of the referent.
                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
                     type: string
                   optional:
                     description: Specify whether the Secret or its key must be defined
