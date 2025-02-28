@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.24.0-bullseye as buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.24.0@sha256:f0ed15de6a2c1d1e595b8b3dfaf2dc6af66a38c1891591c4903bd3e1b2e76518 AS buildbase
 
 # Compile the UI assets.
-FROM launcher.gcr.io/google/nodejs as assets
+FROM --platform=$BUILDPLATFORM gcr.io/google-appengine/nodejs AS assets
 # To build the UI we need a recent node version and the go toolchain.
 RUN install_node v17.9.0
 COPY --from=buildbase /usr/local/go /usr/local/
@@ -25,16 +25,24 @@ RUN pkg/ui/build.sh
 
 # sync is used to copy all auto-generated files to a different context.
 # Usually this is used to mirror the changes back to the host machine.
-FROM scratch as sync
+FROM scratch AS sync
 COPY --from=assets /app/pkg/ui/embed.go pkg/ui/embed.go
 COPY --from=assets /app/pkg/ui/static pkg/ui/static
 
 # Build the actual Go binary.
 FROM buildbase AS appbase
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /app
 COPY --from=assets /app ./
-RUN CGO_ENABLED=0 GOEXPERIMENT=boringcrypto go build -tags builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+      apt install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+      CC=aarch64-linux-gnu-gcc; \
+    fi && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
+      go build -tags boring,builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
 
-FROM gcr.io/distroless/static-debian11:latest
+FROM gcr.io/distroless/base-nossl-debian12:nonroot
 COPY --from=appbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]
