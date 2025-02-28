@@ -23,7 +23,7 @@ images:
     tag: "v0.12.0-gke.5@sha256:21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e"
   ruleEvaluator:
     image: gke.gcr.io/prometheus-engine/rule-evaluator
-    tag: "v0.12.0-gke.5@sha256:6ae997a8ed636da06b7a9dc7fc950b98ce91c38c135aad2dcc95d6d3dd841ee0"
+    tag: "v0.9.0-gke.1"
 resources:
   bash:
     limits:
