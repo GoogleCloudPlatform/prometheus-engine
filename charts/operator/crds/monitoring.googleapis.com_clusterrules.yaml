@@ -84,7 +84,6 @@ spec:
                             description: |-
                               Name of the alert to evaluate the expression as.
                               Only one of `record` and `alert` must be set.
-                            pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                             type: string
                           annotations:
                             additionalProperties:
@@ -112,7 +111,7 @@ spec:
                             description: |-
                               Record the result of the expression to this metric name.
                               Only one of `record` and `alert` must be set.
-                            pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+                            pattern: ^[a-zA-Z_:][a-zA-Z0-9_:]*$
                             type: string
                         required:
                         - expr

@@ -191,11 +191,10 @@ type RuleGroup struct {
 type Rule struct {
 	// Record the result of the expression to this metric name.
 	// Only one of `record` and `alert` must be set.
-	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
+	// +kubebuilder:validation:Pattern="^[a-zA-Z_:][a-zA-Z0-9_:]*$"
 	Record string `json:"record,omitempty"`
 	// Name of the alert to evaluate the expression as.
 	// Only one of `record` and `alert` must be set.
-	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
 	Alert string `json:"alert,omitempty"`
 	// The PromQL expression to evaluate.
 	Expr string `json:"expr"`
