@@ -867,10 +867,30 @@ func TestCRDValidation(t *testing.T) {
 	})
 	t.Run("Rules", func(t *testing.T) {
 		tests := map[string]test{
-			"minimal": {
+			"minimal-alerting": {
 				obj: &monitoringv1.Rules{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "minimal",
+						Name:      "minimal-alerting",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Rules: []monitoringv1.Rule{
+									{
+										Alert: "Any-characters:Allowed!?#@",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"minimal-recording": {
+				obj: &monitoringv1.Rules{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "minimal-recording",
 						Namespace: "default",
 					},
 					Spec: monitoringv1.RulesSpec{
@@ -927,6 +947,46 @@ func TestCRDValidation(t *testing.T) {
 					},
 				},
 				wantErr: true,
+			},
+			"invalid-rule-name-dash": {
+				obj: &monitoringv1.Rules{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "invalid-rule-name-dash",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "dashes-not-allowed",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"valid-rule-name-colon": {
+				obj: &monitoringv1.Rules{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "valid-rule-name-colon",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "colon:allowed",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
 			},
 			"invalid-annotation": {
 				obj: &monitoringv1.Rules{
