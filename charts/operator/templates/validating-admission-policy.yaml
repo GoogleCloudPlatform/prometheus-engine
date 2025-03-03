@@ -73,3 +73,30 @@ metadata:
 spec:
   policyName: "protected-labels.monitoring.googleapis.com"
   validationActions: [Deny]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "unique-ports.monitoring.googleapis.com"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   ["monitoring.googleapis.com"]
+      apiVersions: ["*"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["clusterpodmonitorings", "podmonitorings"]
+  variables:
+    - name: "ports"
+      expression: "object.spec.endpoints.map(e, e.port)"
+  validations:
+    - expression: "variables.ports.all(p, variables.ports.exists_one(ep, ep == p))"
+      message: "Ports must be unique across all endpoints"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "unique-ports.monitoring.googleapis.com"
+spec:
+  policyName: "unique-ports.monitoring.googleapis.com"
+  validationActions: [Deny]

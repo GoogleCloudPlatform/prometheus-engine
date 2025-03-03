@@ -298,6 +298,27 @@ func TestCRDValidation(t *testing.T) {
 				},
 				wantErr: true,
 			},
+			"duplicate port": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "duplicate-port",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
 			"scrape interval missing": {
 				obj: &monitoringv1.PodMonitoring{
 					ObjectMeta: metav1.ObjectMeta{
@@ -410,6 +431,69 @@ func TestCRDValidation(t *testing.T) {
 					},
 				},
 				wantErr: true,
+			},
+			"metric relabeling: valid": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "relabeling-valid",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval:         "1m",
+								Port:             intstr.FromString("metrics1"),
+								MetricRelabeling: generateRelabelingRules(250),
+							},
+							{
+								Interval:         "30s",
+								Port:             intstr.FromString("metrics2"),
+								MetricRelabeling: generateRelabelingRules(10),
+							},
+							{
+								Interval:         "3h",
+								Port:             intstr.FromString("metrics3"),
+								MetricRelabeling: generateRelabelingRules(10),
+							},
+							{
+								Interval:         "24h",
+								Port:             intstr.FromString("metrics4"),
+								MetricRelabeling: generateRelabelingRules(10),
+							},
+							{
+								Interval:         "168h",
+								Port:             intstr.FromString("metrics5"),
+								MetricRelabeling: generateRelabelingRules(10),
+							},
+							{
+								Interval:         "8766h",
+								Port:             intstr.FromString("metrics6"),
+								MetricRelabeling: generateRelabelingRules(10),
+							},
+							{
+								Interval:         "123456ms",
+								Port:             intstr.FromString("metrics7"),
+								MetricRelabeling: generateRelabelingRules(10),
+							},
+							{
+								Interval:         "90s",
+								Port:             intstr.FromString("metrics8"),
+								MetricRelabeling: generateRelabelingRules(10),
+							},
+							{
+								Interval:         "1m30s",
+								Port:             intstr.FromString("metrics9"),
+								MetricRelabeling: generateRelabelingRules(10),
+							},
+							{
+								Interval:         "1m10s25ms",
+								Port:             intstr.FromString("metrics10"),
+								MetricRelabeling: generateRelabelingRules(10),
+							},
+						},
+					},
+				},
+				wantErr: false,
 			},
 			"metric relabeling: labelmap forbidden": {
 				obj: &monitoringv1.PodMonitoring{
@@ -1076,4 +1160,17 @@ func TestCRDValidation(t *testing.T) {
 		}
 		run(t, tests)
 	})
+}
+
+func generateRelabelingRules(n uint) []monitoringv1.RelabelingRule {
+	rules := make([]monitoringv1.RelabelingRule, n)
+	actions := []string{"replace", "lowercase", "uppercase", "keep", "drop", "keepequal", "dropequal", "hashmod", "labeldrop", "labelkeep"}
+
+	for i := range rules {
+		rules[i] = monitoringv1.RelabelingRule{
+			Regex:  rand.String(rand.Intn(1_000)),
+			Action: actions[rand.Intn(len(actions))],
+		}
+	}
+	return rules
 }
