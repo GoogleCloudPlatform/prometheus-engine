@@ -14,7 +14,7 @@
 
 # deps builds binaries in an isolated environment to avoid
 # funkiness in the hermetic build.
-FROM golang:1.24-bullseye@sha256:cf29cafe674ad5e637311148fb7933f67c4e8cafa79ce066aad0e7aa708fc287 AS deps
+FROM golang:1.24-bullseye@sha256:f44db136b8d4822a059d9b6256be67bd233a19d39a88c46b1023efe3d848931b AS deps
 WORKDIR /workspace
 # Have to clone and install this as the go.mod uses replace directives.
 # RUN git clone --depth 1 --branch v0.53.1 https://github.com/prometheus-operator/prometheus-operator  \
