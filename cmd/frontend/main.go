@@ -21,6 +21,7 @@ package main
 
 import (
 	"context"
+	"crypto/fips140"
 	"errors"
 	"flag"
 	"fmt"
@@ -80,6 +81,12 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "caller", log.DefaultCaller)
+
+	if !fips140.Enabled() {
+		_ = logger.Log("msg", "FIPS mode not enabled")
+		os.Exit(1)
+	}
+
 	switch strings.ToLower(*logLevel) {
 	case "debug":
 		logger = level.NewFilter(logger, level.AllowDebug())
