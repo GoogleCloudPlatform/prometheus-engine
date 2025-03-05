@@ -21,6 +21,7 @@ package main
 
 import (
 	"context"
+	"crypto/fips140"
 	"errors"
 	"flag"
 	"fmt"
@@ -75,6 +76,27 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "caller", log.DefaultCaller)
+
+	if !fips140.Enabled() {
+		_ = logger.Log("msg", "FIPS mode not enabled")
+		os.Exit(1)
+	}
+
+	switch strings.ToLower(*logLevel) {
+	case "debug":
+		logger = level.NewFilter(logger, level.AllowDebug())
+	case "warn":
+		logger = level.NewFilter(logger, level.AllowWarn())
+	case "error":
+		logger = level.NewFilter(logger, level.AllowError())
+	case "info":
+		logger = level.NewFilter(logger, level.AllowInfo())
+	default:
+		//nolint:errcheck
+		level.Error(logger).Log("msg",
+			"--log.level can only be one of 'debug', 'info', 'warn', 'error'")
+		os.Exit(1)
+	}
 
 	metrics := prometheus.NewRegistry()
 	metrics.MustRegister(

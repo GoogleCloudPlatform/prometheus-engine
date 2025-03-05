@@ -20,14 +20,13 @@ COPY . ./
 
 FROM buildbase as appbase
 
-RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
-      apt install -y --no-install-recommends \
-        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
-      CC=aarch64-linux-gnu-gcc; \
-    fi && \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
-      go build -tags boring -mod=vendor -o go-synthetic ./examples/instrumentation/go-synthetic
+ENV GOEXPERIMENT=noboringcrypto
+ENV CGO_ENABLED=0
+ENV GOFIPS140=latest
+ENV GOOS=${TARGETOS}
+ENV GOARCH=${TARGETARCH}
+RUN go build -mod=vendor -o go-synthetic ./examples/instrumentation/go-synthetic
 
-FROM gcr.io/distroless/base-nossl-debian12:nonroot
+FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=appbase /app/go-synthetic /bin/go-synthetic
 ENTRYPOINT ["/bin/go-synthetic"]
