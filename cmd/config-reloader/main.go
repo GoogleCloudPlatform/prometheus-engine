@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -57,12 +56,12 @@ func main() {
 	flag.Parse()
 
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
+	logger = logger.With("ts", log.DefaultTimestampUTC)
+	logger = logger.With("caller", log.DefaultCaller)
 
 	if *configDirOutput != "" && *configDir == "" {
 		//nolint:errcheck
-		level.Error(logger).Log("msg", "config-dir-output specified without config-dir")
+		logger.Error("config-dir-output specified without config-dir")
 		os.Exit(1)
 	}
 
@@ -75,7 +74,7 @@ func main() {
 	reloadURL, err := url.Parse(*reloadURLStr)
 	if err != nil {
 		//nolint:errcheck
-		level.Error(logger).Log("msg", "parsing reloader URL failed", "err", err)
+		logger.Error("parsing reloader URL failed", "err", err)
 		os.Exit(1)
 	}
 
@@ -87,7 +86,7 @@ func main() {
 	req, err := http.NewRequest(http.MethodGet, *readyURLStr, nil)
 	if err != nil {
 		//nolint:errcheck
-		level.Error(logger).Log("msg", "creating request", "err", err)
+		logger.Error("creating request", "err", err)
 		os.Exit(1)
 	}
 
@@ -99,19 +98,19 @@ func main() {
 
 	go func() {
 		//nolint:errcheck
-		level.Info(logger).Log("msg", "ensure ready-url is healthy")
+		logger.Info("ensure ready-url is healthy")
 		for {
 			select {
 			case <-term:
 				//nolint:errcheck
-				level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+				logger.Info("received SIGTERM, exiting gracefully...")
 				os.Exit(0)
 			case <-ticker.C:
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
 					if acceptableNoConnectionErrors <= 0 {
 						//nolint:errcheck
-						level.Error(logger).Log("msg", "polling ready-url", "err", err, "no-connection-threshold", *readyProbingNoConnectionThreshold)
+						logger.Error("polling ready-url", "err", err, "no-connection-threshold", *readyProbingNoConnectionThreshold)
 						os.Exit(1)
 					}
 					acceptableNoConnectionErrors--
@@ -119,11 +118,11 @@ func main() {
 				}
 				if err := resp.Body.Close(); err != nil {
 					//nolint:errcheck
-					level.Warn(logger).Log("msg", "unable to close response body", "err", err)
+					logger.Warn("unable to close response body", "err", err)
 				}
 				if resp.StatusCode == http.StatusOK {
 					//nolint:errcheck
-					level.Info(logger).Log("msg", "ready-url is healthy")
+					logger.Info("ready-url is healthy")
 					ticker.Stop()
 					done <- true
 					return
@@ -176,7 +175,7 @@ func main() {
 				select {
 				case <-term:
 					//nolint:errcheck
-					level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+					logger.Info("received SIGTERM, exiting gracefully...")
 				case <-cancel:
 				}
 				return nil
@@ -192,13 +191,13 @@ func main() {
 
 		g.Add(func() error {
 			//nolint:errcheck
-			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
+			logger.Info("Starting web server for metrics", "listen", *listenAddress)
 			return server.ListenAndServe()
 		}, func(error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
 				//nolint:errcheck
-				level.Error(logger).Log("msg", "Server failed to shut down gracefully.")
+				logger.Error("Server failed to shut down gracefully.")
 			}
 			cancel()
 		})
@@ -206,7 +205,7 @@ func main() {
 
 	if err := g.Run(); err != nil {
 		//nolint:errcheck
-		level.Error(logger).Log("msg", "running reloader failed", "err", err)
+		logger.Error("running reloader failed", "err", err)
 		os.Exit(1)
 	}
 }

@@ -21,17 +21,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	grafana "github.com/grafana/grafana-api-golang-client"
 	"github.com/hashicorp/go-cleanhttp"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"github.com/prometheus/common/promslog"
 )
 
 var (
@@ -60,41 +60,34 @@ var (
 func main() {
 	flag.Parse()
 
-	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
+	logger := promslog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{AddSource: true}))
 
 	if len(*datasourceUIDList) == 0 {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "--datasource-uid must be set")
+		logger.Error("--datasource-uid must be set")
 		os.Exit(1)
 	}
 
 	if *grafanaAPIToken == "" {
 		envToken := os.Getenv("GRAFANA_SERVICE_ACCOUNT_TOKEN")
 		if envToken == "" {
-			//nolint:errcheck
-			level.Error(logger).Log("msg", "--grafana-api-token or the environment variable GRAFANA_SERVICE_ACCOUNT_TOKEN must be set")
+			logger.Error("--grafana-api-token or the environment variable GRAFANA_SERVICE_ACCOUNT_TOKEN must be set")
 			os.Exit(1)
 		}
 		grafanaAPIToken = &envToken
 	}
 	if *grafanaEndpoint == "" {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "--grafana-api-endpoint must be set")
+		logger.Error("--grafana-api-endpoint must be set")
 		os.Exit(1)
 	}
 
 	if *projectID == "" {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "--project-id must be set")
+		logger.Error("--project-id must be set")
 		os.Exit(1)
 	}
 
 	client, err := getTLSClient(*certFile, *keyFile, *caFile, *insecureSkipVerify)
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "couldn't create client", "err", err)
+		logger.Error("couldn't create client", "err", err)
 		os.Exit(1)
 	}
 
@@ -103,15 +96,13 @@ func main() {
 		Client: client,
 	})
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "couldn't create grafana client", "err", err)
+		logger.Error("couldn't create grafana client", "err", err)
 		os.Exit(1)
 	}
 
 	token, err := getOAuth2Token(*credentialsFile)
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "couldn't get Google OAuth2 token", "err", err)
+		logger.Error("couldn't get Google OAuth2 token", "err", err)
 		os.Exit(1)
 	}
 
@@ -127,35 +118,30 @@ func main() {
 		dataSource, err := grafanaClient.DataSourceByUID(datasourceUID)
 		if err != nil {
 			dsErrors = append(dsErrors, datasourceUID)
-			//nolint:errcheck
-			level.Error(logger).Log("msg", fmt.Sprintf("error fetching data source config of data source uid: %s", datasourceUID), "err", err)
+			logger.Error(fmt.Sprintf("error fetching data source config of data source uid: %s", datasourceUID), "err", err)
 			continue
 		}
 
 		dataSource, err = buildUpdateDataSourceRequest(*dataSource, token)
 		if err != nil {
 			dsErrors = append(dsErrors, datasourceUID)
-			//nolint:errcheck
-			level.Error(logger).Log("msg", fmt.Sprintf("couldn't build data source update request for data source uid: %s", datasourceUID), "err", err)
+			logger.Error(fmt.Sprintf("couldn't build data source update request for data source uid: %s", datasourceUID), "err", err)
 			continue
 		}
 
 		err = grafanaClient.UpdateDataSourceByUID(dataSource)
 		if err != nil {
 			dsErrors = append(dsErrors, datasourceUID)
-			//nolint:errcheck
-			level.Error(logger).Log("msg", fmt.Sprintf("couldn't send update data source request to data source id: %s", datasourceUID), "err", err)
+			logger.Error(fmt.Sprintf("couldn't send update data source request to data source id: %s", datasourceUID), "err", err)
 			continue
 		}
 		dsSuccessfullyUpdated = append(dsSuccessfullyUpdated, datasourceUID)
 	}
 	if len(dsSuccessfullyUpdated) != 0 {
-		//nolint:errcheck
-		level.Info(logger).Log("msg", fmt.Sprintf("Updated Grafana data source uids: %s", dsSuccessfullyUpdated))
+		logger.Info(fmt.Sprintf("Updated Grafana data source uids: %s", dsSuccessfullyUpdated))
 	}
 	if len(dsErrors) != 0 {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", fmt.Sprintf("Failed to update Grafana data source uids: %s", dsErrors))
+		logger.Error(fmt.Sprintf("Failed to update Grafana data source uids: %s", dsErrors))
 		os.Exit(1)
 	}
 }

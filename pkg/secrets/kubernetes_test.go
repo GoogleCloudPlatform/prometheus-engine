@@ -543,7 +543,7 @@ func TestProvider(t *testing.T) {
 		)
 
 		t.Run(tc.description, func(t *testing.T) {
-			provider := newWatchProvider(t.Context(), log.NewNopLogger(), c)
+			provider := newWatchProvider(t.Context(), promslog.NewNopLogger(), c)
 
 			tc.test(t.Context(), t, c, provider)
 			require.True(t, provider.isClean())
@@ -559,7 +559,7 @@ func TestProvider(t *testing.T) {
 
 		parentCtx := t.Context()
 		ctx, cancel := context.WithCancel(parentCtx)
-		provider := newWatchProvider(ctx, log.NewNopLogger(), c)
+		provider := newWatchProvider(ctx, promslog.NewNopLogger(), c)
 
 		key := typeBinary.entries[0].key
 		providerSecret, err := provider.Add(toSecretConfig(typeBinary.secret, key))
@@ -597,7 +597,7 @@ func TestProvider(t *testing.T) {
 			return true, w, err
 		})
 
-		provider := newWatchProvider(t.Context(), log.NewNopLogger(), proxyClient)
+		provider := newWatchProvider(t.Context(), promslog.NewNopLogger(), proxyClient)
 
 		key := typeBinary.entries[0].key
 		providerSecret, err := provider.Add(toSecretConfig(typeBinary.secret, key))
@@ -645,7 +645,7 @@ func TestProvider(t *testing.T) {
 			return false, nil, nil
 		})
 
-		provider := newWatchProvider(t.Context(), log.NewNopLogger(), c)
+		provider := newWatchProvider(t.Context(), promslog.NewNopLogger(), c)
 
 		key := typeBinary.entries[0].key
 		providerSecret, err := provider.Add(toSecretConfig(typeBinary.secret, key))
@@ -706,7 +706,7 @@ func TestProvider(t *testing.T) {
 			return true, w, err
 		})
 
-		provider := newWatchProvider(t.Context(), log.NewNopLogger(), proxyClient)
+		provider := newWatchProvider(t.Context(), promslog.NewNopLogger(), proxyClient)
 
 		key := typeBinary.entries[0].key
 		providerSecret, err := provider.Add(toSecretConfig(typeBinary.secret, key))

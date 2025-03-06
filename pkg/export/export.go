@@ -120,7 +120,7 @@ type metricServiceClient interface {
 
 // Exporter converts Prometheus samples into Cloud Monitoring samples and exports them.
 type Exporter struct {
-	logger log.Logger
+	logger *slog.Logger
 	ctx    context.Context
 	opts   ExporterOpts
 
@@ -374,13 +374,13 @@ func defaultNewMetricClient(ctx context.Context, opts ExporterOpts) (metricServi
 }
 
 // New returns a new Cloud Monitoring Exporter.
-func New(ctx context.Context, logger log.Logger, reg prometheus.Registerer, opts ExporterOpts, lease Lease) (*Exporter, error) {
+func New(ctx context.Context, logger *slog.Logger, reg prometheus.Registerer, opts ExporterOpts, lease Lease) (*Exporter, error) {
 	grpc_prometheus.EnableClientHandlingTimeHistogram(
 		grpc_prometheus.WithHistogramBuckets([]float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15, 20, 30, 40, 50, 60}),
 	)
 
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = promslog.NewNopLogger()
 	}
 	if reg != nil {
 		reg.MustRegister(
@@ -581,7 +581,7 @@ func (e *Exporter) Export(metadata MetadataFunc, batch []record.RefSample, exemp
 		samples, batch, err = builder.next(metadata, externalLabels, batch, exemplarMap)
 		if err != nil {
 			//nolint:errcheck
-			level.Debug(e.logger).Log("msg", "building sample failed", "err", err)
+			e.logger.Debug("building sample failed", "err", err)
 			continue
 		}
 		for _, s := range samples {
@@ -955,7 +955,7 @@ func (e *Exporter) withUntypedDefaultMetadata(f MetadataFunc) MetadataFunc {
 
 		if _, ok := e.warnedUntypedMetrics[metric]; !ok {
 			//nolint:errcheck
-			level.Warn(e.logger).Log("msg", "no metadata found, defaulting to untyped metric", "metric_name", metric)
+			e.logger.Warn("no metadata found, defaulting to untyped metric", "metric_name", metric)
 			e.warnedUntypedMetrics[metric] = struct{}{}
 		}
 		return untypedMetadata(metric)
@@ -965,7 +965,7 @@ func (e *Exporter) withUntypedDefaultMetadata(f MetadataFunc) MetadataFunc {
 // batch accumulates a batch of samples to be sent to GCM. Once the batch is full
 // it must be sent and cannot be used anymore after that.
 type batch struct {
-	logger  log.Logger
+	logger  *slog.Logger
 	maxSize uint
 
 	m       map[string][]*monitoring_pb.TimeSeries
@@ -974,9 +974,9 @@ type batch struct {
 	total   int
 }
 
-func newBatch(logger log.Logger, shardsCount uint, maxSize uint) *batch {
+func newBatch(logger *slog.Logger, shardsCount uint, maxSize uint) *batch {
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = promslog.NewNopLogger()
 	}
 	return &batch{
 		logger:  logger,
@@ -1056,7 +1056,7 @@ func (b *batch) send(
 			})
 			if err != nil {
 				//nolint:errcheck
-				level.Error(b.logger).Log("msg", "send batch", "size", len(l), "err", err)
+				b.logger.Error("send batch", "size", len(l), "err", err)
 				samplesSendErrors.WithLabelValues(pid).Inc()
 			}
 			samplesSent.Add(float64(len(l)))

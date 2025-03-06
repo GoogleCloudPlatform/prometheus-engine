@@ -17,11 +17,11 @@ package secrets
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/go-kit/log"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,7 +53,7 @@ type secretWatcher struct {
 	done     bool
 }
 
-func newWatcher(ctx context.Context, logger log.Logger, client kubernetes.Interface, config *KubernetesSecretConfig) (*secretWatcher, error) {
+func newWatcher(ctx context.Context, logger *slog.Logger, client kubernetes.Interface, config *KubernetesSecretConfig) (*secretWatcher, error) {
 	watcher := &secretWatcher{
 		refCount: 1,
 		done:     false,
@@ -93,7 +93,7 @@ func newWatcher(ctx context.Context, logger log.Logger, client kubernetes.Interf
 	return watcher, nil
 }
 
-func (w *secretWatcher) update(logger log.Logger, e watch.Event) {
+func (w *secretWatcher) update(logger *slog.Logger, e watch.Event) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -149,7 +149,7 @@ func (w *secretWatcher) start(ctx context.Context, client kubernetes.Interface, 
 
 // tryRestart restarts the secret watch indefinitely until it succeeds or the context is
 // cancelled and returns true if the watcher is still running.
-func (w *secretWatcher) tryRestart(ctx context.Context, logger log.Logger, client kubernetes.Interface, config *KubernetesSecretConfig) bool {
+func (w *secretWatcher) tryRestart(ctx context.Context, logger *slog.Logger, client kubernetes.Interface, config *KubernetesSecretConfig) bool {
 	// If the application shutdown, we don't care about cleanup.
 	if ctx.Err() != nil {
 		w.mu.Lock()
@@ -219,10 +219,10 @@ type watchProvider struct {
 	ctx                context.Context
 	client             kubernetes.Interface
 	secretKeyToWatcher map[string]*secretWatcher
-	logger             log.Logger
+	logger             *slog.Logger
 }
 
-func newWatchProvider(ctx context.Context, logger log.Logger, client kubernetes.Interface) *watchProvider {
+func newWatchProvider(ctx context.Context, logger *slog.Logger, client kubernetes.Interface) *watchProvider {
 	return &watchProvider{
 		ctx:                ctx,
 		client:             client,

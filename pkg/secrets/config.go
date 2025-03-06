@@ -16,8 +16,7 @@ package secrets
 
 import (
 	"context"
-
-	"github.com/go-kit/log"
+	"log/slog"
 )
 
 // Secret represents a sensitive value.
@@ -36,5 +35,5 @@ func (fn *SecretFn) Fetch(ctx context.Context) (string, error) {
 
 // ProviderOptions provides options for a Provider.
 type ProviderOptions struct {
-	Logger log.Logger
+	Logger *slog.Logger
 }

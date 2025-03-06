@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -99,8 +100,8 @@ var (
 
 func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
+	logger = logger.With("ts", log.DefaultTimestampUTC)
+	logger = logger.With("caller", log.DefaultCaller)
 
 	a := kingpin.New("rule", "The Prometheus Rule Evaluator")
 	logLevel := a.Flag("log.level",
@@ -114,7 +115,7 @@ func main() {
 		var err error
 		defaultProjectID, err = metadata.ProjectID()
 		if err != nil {
-			_ = level.Warn(logger).Log("msg", "Unable to detect Google Cloud project", "err", err)
+			_ = logger.Warn("Unable to detect Google Cloud project", "err", err)
 		}
 	}
 
@@ -131,7 +132,7 @@ func main() {
 	// we reuse that constant.
 	version, err := export.Version()
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Unable to fetch module version", "err", err)
+		_ = logger.Error("Unable to fetch module version", "err", err)
 		os.Exit(1)
 	}
 
@@ -154,12 +155,12 @@ func main() {
 
 	extraArgs, err := exportsetup.ExtraArgs()
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
+		_ = logger.Error("Error parsing commandline arguments", "err", err)
 		a.Usage(os.Args[1:])
 		os.Exit(2)
 	}
 	if _, err := a.Parse(append(os.Args[1:], extraArgs...)); err != nil {
-		_ = level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
+		_ = logger.Error("Error parsing commandline arguments", "err", err)
 		a.Usage(os.Args[1:])
 		os.Exit(2)
 	}
@@ -175,7 +176,7 @@ func main() {
 	}
 
 	if err := defaultEvaluatorOpts.validate(); err != nil {
-		_ = level.Error(logger).Log("msg", "invalid command line argument", "err", err)
+		_ = logger.Error("invalid command line argument", "err", err)
 		os.Exit(1)
 	}
 
@@ -185,22 +186,22 @@ func main() {
 	ctxExporter, cancelExporter := context.WithCancel(ctx)
 	exporter, err := opts.NewExporter(ctxExporter, logger, reg)
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Creating a Cloud Monitoring Exporter failed", "err", err)
+		_ = logger.Error("Creating a Cloud Monitoring Exporter failed", "err", err)
 		os.Exit(1)
 	}
 	destination := export.NewStorage(exporter)
 
 	ctxDiscover, cancelDiscover := context.WithCancel(ctx)
-	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
+	discoveryManager := discovery.NewManager(ctxDiscover, logger.With("component", "discovery manager notify"), discovery.Name("notify"))
 	notifierOptions := notifier.Options{
 		Registerer:    reg,
 		QueueCapacity: defaultEvaluatorOpts.QueueCapacity,
 	}
-	notificationManager := notifier.NewManager(&notifierOptions, log.With(logger, "component", "notifier"))
+	notificationManager := notifier.NewManager(&notifierOptions, logger.With("component", "notifier"))
 	rulesMetrics := rules.NewGroupMetrics(reg)
 	ruleEvaluator, err := newRuleEvaluator(ctx, logger, &defaultEvaluatorOpts, version, destination, notificationManager, rulesMetrics)
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Create rule-evaluator", "err", err)
+		_ = logger.Error("Create rule-evaluator", "err", err)
 		os.Exit(1)
 	}
 
@@ -280,7 +281,7 @@ func main() {
 
 	// Do an initial load of the configuration for all components.
 	if err := reloadConfig(defaultEvaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
-		_ = level.Error(logger).Log("msg", "error loading config file.", "err", err)
+		_ = logger.Error("error loading config file.", "err", err)
 		os.Exit(1)
 	}
 
@@ -294,7 +295,7 @@ func main() {
 			func() error {
 				select {
 				case <-term:
-					_ = level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+					_ = logger.Info("received SIGTERM, exiting gracefully...")
 				case <-cancel:
 				}
 				return nil
@@ -317,7 +318,7 @@ func main() {
 		// Notifier.
 		g.Add(func() error {
 			notificationManager.Run(discoveryManager.SyncCh())
-			_ = level.Info(logger).Log("msg", "Notification manager stopped")
+			_ = logger.Info("Notification manager stopped")
 			return nil
 		},
 			func(error) {
@@ -330,11 +331,11 @@ func main() {
 		g.Add(
 			func() error {
 				err := discoveryManager.Run()
-				_ = level.Info(logger).Log("msg", "Discovery manager stopped")
+				_ = logger.Info("Discovery manager stopped")
 				return err
 			},
 			func(error) {
-				_ = level.Info(logger).Log("msg", "Stopping Discovery manager...")
+				_ = logger.Info("Stopping Discovery manager...")
 				cancelDiscover()
 			},
 		)
@@ -343,10 +344,10 @@ func main() {
 		// Storage Processing.
 		g.Add(func() error {
 			err = destination.Run()
-			_ = level.Info(logger).Log("msg", "Background processing of storage stopped")
+			_ = logger.Info("Background processing of storage stopped")
 			return err
 		}, func(error) {
-			_ = level.Info(logger).Log("msg", "Stopping background storage processing...")
+			_ = logger.Info("Stopping background storage processing...")
 			cancelExporter()
 		})
 	}
@@ -402,12 +403,12 @@ func main() {
 			}
 
 			if _, err := w.Write(data); err != nil {
-				_ = level.Error(logger).Log("msg", "Unable to write runtime info status", "err", err)
+				_ = logger.Error("Unable to write runtime info status", "err", err)
 			}
 		})
 
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#build-information
-		buildInfoHandler := promapi.BuildinfoHandlerFunc(log.With(logger, "handler", "buildinfo"), "rule-evaluator", version)
+		buildInfoHandler := promapi.BuildinfoHandlerFunc(logger.With("handler", "buildinfo"), "rule-evaluator", version)
 		http.HandleFunc("/api/v1/status/buildinfo", buildInfoHandler)
 
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#rules
@@ -419,12 +420,12 @@ func main() {
 		http.HandleFunc("/api/v1/alerts", apiHandler.HandleAlertsEndpoint)
 
 		g.Add(func() error {
-			_ = level.Info(logger).Log("msg", "Starting web server", "listen", defaultEvaluatorOpts.ListenAddress)
+			_ = logger.Info("Starting web server", "listen", defaultEvaluatorOpts.ListenAddress)
 			return server.ListenAndServe()
 		}, func(error) {
 			ctxServer, cancelServer := context.WithTimeout(ctx, time.Minute)
 			if err := server.Shutdown(ctxServer); err != nil {
-				_ = level.Error(logger).Log("msg", "Server failed to shut down gracefully.")
+				_ = logger.Error("Server failed to shut down gracefully.")
 			}
 			cancelServer()
 		})
@@ -440,11 +441,11 @@ func main() {
 					select {
 					case <-hup:
 						if err := reloadConfig(defaultEvaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
-							_ = level.Error(logger).Log("msg", "Error reloading config", "err", err)
+							_ = logger.Error("Error reloading config", "err", err)
 						}
 					case rc := <-reloadCh:
 						if err := reloadConfig(defaultEvaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
-							_ = level.Error(logger).Log("msg", "Error reloading config", "err", err)
+							_ = logger.Error("Error reloading config", "err", err)
 							rc <- err
 						} else {
 							rc <- nil
@@ -465,11 +466,11 @@ func main() {
 	// Run a test query to check status of rule evaluator.
 	_, err = ruleEvaluator.Query(ctx, "vector(1)", time.Now())
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Error querying Prometheus instance", "err", err)
+		_ = logger.Error("Error querying Prometheus instance", "err", err)
 	}
 
 	if err := g.Run(); err != nil {
-		_ = level.Error(logger).Log("msg", "Running rule evaluator failed", "err", err)
+		_ = logger.Error("Running rule evaluator failed", "err", err)
 		os.Exit(1)
 	}
 }
@@ -714,10 +715,10 @@ func (m *configMetrics) setFailure() {
 }
 
 // reloadConfig applies the configuration files.
-func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rls ...reloader) (err error) {
+func reloadConfig(filename string, logger *slog.Logger, metrics *configMetrics, rls ...reloader) (err error) {
 	start := time.Now()
 	timings := []interface{}{}
-	_ = level.Info(logger).Log("msg", "Loading configuration file", "filename", filename)
+	_ = logger.Info("Loading configuration file", "filename", filename)
 
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -733,7 +734,7 @@ func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rl
 	for _, rl := range rls {
 		rstart := time.Now()
 		if err := rl.reloader(conf); err != nil {
-			_ = level.Error(logger).Log("msg", "Failed to apply configuration", "err", err)
+			_ = logger.Error("Failed to apply configuration", "err", err)
 			failed = true
 		}
 		timings = append(timings, rl.name, time.Since(rstart))
@@ -931,7 +932,7 @@ func (db *queryAccess) Close() error {
 
 type ruleEvaluator struct {
 	ctx             context.Context
-	logger          log.Logger
+	logger          *slog.Logger
 	version         string
 	appendable      storage.Appendable
 	notifierManager *notifier.Manager
@@ -960,7 +961,7 @@ func getExternalURL(generatorURL *url.URL, projectID string) *url.URL {
 
 func newRuleEvaluator(
 	ctx context.Context,
-	logger log.Logger,
+	logger *slog.Logger,
 	evaluatorOpts *evaluatorOptions,
 	version string,
 	appendable storage.Appendable,
@@ -1035,7 +1036,7 @@ func (e *ruleEvaluator) ApplyConfig(cfg *config.Config, evaluatorOpts *evaluator
 
 		_, err = queryFunc(e.ctx, "vector(1)", time.Now())
 		if err != nil {
-			_ = level.Error(e.logger).Log("msg", "Error querying Prometheus instance", "err", err)
+			_ = e.logger.Error("Error querying Prometheus instance", "err", err)
 		}
 	}
 
@@ -1086,11 +1087,11 @@ func (e *ruleEvaluator) Stop() {
 	e.rulesManager.Stop()
 }
 
-func newQueryFunc(logger log.Logger, v1api v1.API) rules.QueryFunc {
+func newQueryFunc(logger *slog.Logger, v1api v1.API) rules.QueryFunc {
 	return func(ctx context.Context, q string, t time.Time) (promql.Vector, error) {
 		v, warnings, err := QueryFunc(ctx, q, t, v1api)
 		if len(warnings) > 0 {
-			_ = level.Warn(logger).Log("msg", "Querying Prometheus instance returned warnings", "warn", warnings)
+			_ = logger.Warn("Querying Prometheus instance returned warnings", "warn", warnings)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("execute query: %w", err)

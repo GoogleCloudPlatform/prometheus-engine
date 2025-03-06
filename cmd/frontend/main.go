@@ -25,6 +25,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -78,8 +79,8 @@ func main() {
 	flag.Parse()
 
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
+	logger = logger.With("ts", log.DefaultTimestampUTC)
+	logger = logger.With("caller", log.DefaultCaller)
 	switch strings.ToLower(*logLevel) {
 	case "debug":
 		logger = level.NewFilter(logger, level.AllowDebug())
@@ -104,21 +105,21 @@ func main() {
 
 	if *projectID == "" {
 		//nolint:errcheck
-		level.Error(logger).Log("msg", "--query.project-id must be set")
+		logger.Error("--query.project-id must be set")
 		os.Exit(1)
 	}
 
 	targetURL, err := url.Parse(strings.ReplaceAll(*targetURLStr, projectIDVar, *projectID))
 	if err != nil {
 		//nolint:errcheck
-		level.Error(logger).Log("msg", "parsing target URL failed", "err", err)
+		logger.Error("parsing target URL failed", "err", err)
 		os.Exit(1)
 	}
 
 	externalURL, err := url.Parse(*externalURLStr)
 	if err != nil {
 		//nolint:errcheck
-		level.Error(logger).Log("msg", "parsing external URL failed", "err", err)
+		logger.Error("parsing external URL failed", "err", err)
 		os.Exit(1)
 	}
 
@@ -126,7 +127,7 @@ func main() {
 	for _, ruleEndpointURLStr := range strings.Split(*ruleEndpointURLStrings, ",") {
 		ruleEndpointURL, err := url.Parse(strings.TrimSpace(ruleEndpointURLStr))
 		if err != nil || ruleEndpointURL == nil {
-			_ = level.Error(logger).Log("msg", "parsing rule endpoint URL failed", "err", err, "url", strings.TrimSpace(ruleEndpointURLStr))
+			_ = logger.Error("parsing rule endpoint URL failed", "err", err, "url", strings.TrimSpace(ruleEndpointURLStr))
 			os.Exit(1)
 		}
 		ruleEndpointURLs = append(ruleEndpointURLs, *ruleEndpointURL)
@@ -134,7 +135,7 @@ func main() {
 
 	version, err := export.Version()
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Unable to fetch module version", "err", err)
+		_ = logger.Error("Unable to fetch module version", "err", err)
 		os.Exit(1)
 	}
 
@@ -149,7 +150,7 @@ func main() {
 				select {
 				case <-term:
 					//nolint:errcheck
-					level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+					logger.Info("received SIGTERM, exiting gracefully...")
 				case <-cancel:
 				}
 				return nil
@@ -169,18 +170,18 @@ func main() {
 		transport, err := apihttp.NewTransport(ctx, http.DefaultTransport, opts...)
 		if err != nil {
 			//nolint:errcheck
-			level.Error(logger).Log("msg", "create proxy HTTP transport", "err", err)
+			logger.Error("create proxy HTTP transport", "err", err)
 			os.Exit(1)
 		}
 
 		ruleProxy := rule.NewProxy(
-			log.With(logger, "component", "rule-proxy"),
+			logger.With("component", "rule-proxy"),
 			&http.Client{Timeout: 30 * time.Second},
 			ruleEndpointURLs,
 		)
 
 		server := &http.Server{Addr: *listenAddress}
-		buildInfoHandler := http.HandlerFunc(promapi.BuildinfoHandlerFunc(log.With(logger, "component", "buildinfo-handler"), "frontend", version))
+		buildInfoHandler := http.HandlerFunc(promapi.BuildinfoHandlerFunc(logger.With("component", "buildinfo-handler"), "frontend", version))
 		http.Handle("/api/v1/status/buildinfo", buildInfoHandler)
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
 		http.Handle("/api/v1/rules", http.HandlerFunc(ruleProxy.RuleGroups))
@@ -201,14 +202,14 @@ func main() {
 
 		g.Add(func() error {
 			//nolint:errcheck
-			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
+			logger.Info("Starting web server for metrics", "listen", *listenAddress)
 			return server.ListenAndServe()
 		}, func(error) {
 			//nolint:fatcontext //TODO review this linter error
 			ctx, cancel = context.WithTimeout(ctx, time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
 				//nolint:errcheck
-				level.Error(logger).Log("msg", "Server failed to shut down gracefully")
+				logger.Error("Server failed to shut down gracefully")
 			}
 			cancel()
 		})
@@ -216,7 +217,7 @@ func main() {
 
 	if err := g.Run(); err != nil {
 		//nolint:errcheck
-		level.Error(logger).Log("msg", "running reloader failed", "err", err)
+		logger.Error("running reloader failed", "err", err)
 		os.Exit(1)
 	}
 }
@@ -242,7 +243,7 @@ func authenticate(next http.Handler) http.Handler {
 	})
 }
 
-func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) http.Handler {
+func forward(logger *slog.Logger, target *url.URL, transport http.RoundTripper) http.Handler {
 	client := http.Client{Transport: transport}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -265,7 +266,7 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 		newReq, err := http.NewRequestWithContext(req.Context(), method, u.String(), req.Body)
 		if err != nil {
 			//nolint:errcheck
-			level.Warn(logger).Log("msg", "creating request failed", "err", err)
+			logger.Warn("creating request failed", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -275,10 +276,10 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 		if err != nil {
 			//nolint:errcheck
 			if errors.Is(err, context.Canceled) {
-				level.Warn(logger).Log("msg", "request to GCM was canceled by the caller of frontend. If a program made the request, consider increasing the timeout", "err", err)
+				logger.Warn("request to GCM was canceled by the caller of frontend. If a program made the request, consider increasing the timeout", "err", err)
 				w.WriteHeader(http.StatusBadRequest)
 			} else {
-				level.Warn(logger).Log("msg", "requesting GCM failed", "err", err)
+				logger.Warn("requesting GCM failed", "err", err)
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 			return
@@ -290,7 +291,7 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 		defer resp.Body.Close()
 		if _, err := io.Copy(w, resp.Body); err != nil {
 			//nolint:errcheck
-			level.Warn(logger).Log("msg", "copying response body failed", "err", err)
+			logger.Warn("copying response body failed", "err", err)
 			return
 		}
 	})

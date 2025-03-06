@@ -93,7 +93,7 @@ func TestAPI_HandleRulesEndpoint(t *testing.T) {
 
 			api := &API{
 				rulesManager: RuleGroupsRetrieverMock{RuleGroupsFunc: func() []*rules.Group { return tt.rules }},
-				logger:       log.NewNopLogger(),
+				logger:       promslog.NewNopLogger(),
 			}
 			w := httptest.NewRecorder()
 			api.HandleRulesEndpoint(w, tt.req)
@@ -242,7 +242,7 @@ func TestAPI_groupsToAPIGroups(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api := &API{logger: log.NewNopLogger()}
+			api := &API{logger: promslog.NewNopLogger()}
 			result := api.groupsToAPIGroups(tt.args.groups, nil, tt.args.fileFilters, tt.args.groupFilters, true, true, false)
 			assert.Len(t, result, len(tt.want))
 			for i := range result {
@@ -297,8 +297,8 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 					Rules: []rules.Rule{
 						rules.NewRecordingRule("test-recording-1", &parser.NumberLiteral{Val: 11}, []labels.Label{{Name: "foo", Value: "bar"}}),
 						rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{{Name: "bar", Value: "baz"}}),
-						rules.NewAlertingRule("test-alert-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9090"}}, []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}}, nil, "", false, log.NewNopLogger()),
-						rules.NewAlertingRule("test-alert-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9091"}}, []labels.Label{{Name: "summary", Value: "Test alert 2"}, {Name: "description", Value: "This is a test alert 2"}}, nil, "", false, log.NewNopLogger()),
+						rules.NewAlertingRule("test-alert-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9090"}}, []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}}, nil, "", false, promslog.NewNopLogger()),
+						rules.NewAlertingRule("test-alert-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9091"}}, []labels.Label{{Name: "summary", Value: "Test alert 2"}, {Name: "description", Value: "This is a test alert 2"}}, nil, "", false, promslog.NewNopLogger()),
 					},
 				}),
 				ruleFilters:                       []string{},
@@ -356,9 +356,9 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 						rules.NewRecordingRule("test-1", &parser.NumberLiteral{Val: 11}, []labels.Label{{Name: "foo", Value: "bar"}}),
 						rules.NewRecordingRule("test-2", &parser.NumberLiteral{Val: 22}, []labels.Label{{Name: "bar", Value: "baz"}}),
 						rules.NewRecordingRule("test-3", &parser.NumberLiteral{Val: 22}, []labels.Label{{Name: "baz", Value: "quo"}}),
-						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, nil, nil, nil, "", false, log.NewNopLogger()),
-						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, nil, nil, nil, "", false, log.NewNopLogger()),
-						rules.NewAlertingRule("test-3", &parser.NumberLiteral{Val: 55}, time.Hour*3, time.Hour*4, nil, nil, nil, "", false, log.NewNopLogger()),
+						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, nil, nil, nil, "", false, promslog.NewNopLogger()),
+						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, nil, nil, nil, "", false, promslog.NewNopLogger()),
+						rules.NewAlertingRule("test-3", &parser.NumberLiteral{Val: 55}, time.Hour*3, time.Hour*4, nil, nil, nil, "", false, promslog.NewNopLogger()),
 					},
 				}),
 				ruleFilters:                       []string{"test-2"},
@@ -405,8 +405,8 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 					Rules: []rules.Rule{
 						rules.NewRecordingRule("test-1", &parser.NumberLiteral{Val: 11}, []labels.Label{{Name: "foo", Value: "bar"}}),
 						rules.NewRecordingRule("test-2", &parser.NumberLiteral{Val: 22}, []labels.Label{{Name: "bar", Value: "baz"}}),
-						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, nil, nil, nil, "", false, log.NewNopLogger()),
-						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, nil, nil, nil, "", false, log.NewNopLogger()),
+						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, nil, nil, nil, "", false, promslog.NewNopLogger()),
+						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, nil, nil, nil, "", false, promslog.NewNopLogger()),
 					},
 				}),
 				ruleFilters:                       []string{},
@@ -439,8 +439,8 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 					Rules: []rules.Rule{
 						rules.NewRecordingRule("test-1", &parser.NumberLiteral{Val: 11}, []labels.Label{{Name: "foo", Value: "bar"}}),
 						rules.NewRecordingRule("test-2", &parser.NumberLiteral{Val: 22}, []labels.Label{{Name: "bar", Value: "baz"}}),
-						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, 0, 0, nil, nil, nil, "", false, log.NewNopLogger()),
-						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, 0, 0, nil, nil, nil, "", false, log.NewNopLogger()),
+						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, 0, 0, nil, nil, nil, "", false, promslog.NewNopLogger()),
+						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, 0, 0, nil, nil, nil, "", false, promslog.NewNopLogger()),
 					},
 				}),
 				ruleFilters:                       []string{},
@@ -483,7 +483,7 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 		tt := tt //nolint:copyloopvar // parallel test
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			api := &API{logger: log.NewNopLogger()}
+			api := &API{logger: promslog.NewNopLogger()}
 			result := api.groupToAPIGroup(tt.args.group, tt.args.ruleFilters, tt.args.shouldReturnAlertRules, tt.args.shouldReturnRecordingRules, tt.args.shouldExcludeAlertsFromAlertRules)
 			// deep Eval
 			assert.Equal(t, tt.want.Name, result.Name)
@@ -538,7 +538,7 @@ func Test_alertingRuleToAPIRule(t *testing.T) {
 		time.Hour*2,
 		[]labels.Label{{Name: "instance", Value: "localhost:9090"}},
 		[]labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
-		nil, "", false, log.NewNopLogger(),
+		nil, "", false, promslog.NewNopLogger(),
 	)
 	rule.SetHealth(rules.HealthGood)
 	rule.SetLastError(fmt.Errorf("error for %s", "test-alert-1"))

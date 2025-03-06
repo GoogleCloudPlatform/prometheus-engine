@@ -80,7 +80,7 @@ func TestProxy_handleError(t *testing.T) {
 			t.Parallel()
 
 			recorder := httptest.NewRecorder()
-			p := NewProxy(log.NewNopLogger(), nil, nil)
+			p := NewProxy(promslog.NewNopLogger(), nil, nil)
 			p.handleError(recorder, dummyRequest, tt.err)
 
 			require.Equal(t, tt.wantStatus, recorder.Code)
@@ -148,7 +148,7 @@ func TestFanoutForward_AlertsReturnSuccess(t *testing.T) {
 		{Scheme: "https", Host: "localhost:8081", Path: ""},
 	}
 
-	alerts, err := fanoutForward(t.Context(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
+	alerts, err := fanoutForward(t.Context(), promslog.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
 		return retriever.Alerts(ctx, u, s)
 	})
 
@@ -198,7 +198,7 @@ func TestFanoutForward_AlertsTwoReturnSuccessWithOneOfTwoBrokenClients(t *testin
 			KeepFiringSince: nil,
 		},
 	}
-	alerts, err := fanoutForward(t.Context(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
+	alerts, err := fanoutForward(t.Context(), promslog.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
 		return retriever.Alerts(ctx, u, s)
 	})
 
@@ -221,7 +221,7 @@ func TestFanoutForward_AlertsTwoReturnErrorIfAllClientsFail(t *testing.T) {
 		},
 	}
 	retriever := newClient(mockCli)
-	alerts, err := fanoutForward(t.Context(), log.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
+	alerts, err := fanoutForward(t.Context(), promslog.NewNopLogger(), retrieverUrls, "?qkey=qval", func(ctx context.Context, u url.URL, s string) ([]*promapiv1.Alert, error) {
 		return retriever.Alerts(ctx, u, s)
 	})
 
@@ -293,7 +293,7 @@ func TestProxy_Alerts(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &Proxy{
-				logger:    log.NewNopLogger(),
+				logger:    promslog.NewNopLogger(),
 				endpoints: tt.ruleEvaluatorBaseURLs,
 				client:    tt.ruleRetriever,
 			}
@@ -362,7 +362,7 @@ func TestProxy_RuleGroups(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &Proxy{
-				logger:    log.NewNopLogger(),
+				logger:    promslog.NewNopLogger(),
 				endpoints: tt.ruleEvaluatorBaseURLs,
 				client:    tt.ruleRetriever,
 			}

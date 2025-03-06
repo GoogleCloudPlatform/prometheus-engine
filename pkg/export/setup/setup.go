@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -29,8 +30,6 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/lease"
 	kingpin "github.com/alecthomas/kingpin/v2"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/google/shlex"
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/client-go/rest"
@@ -186,7 +185,7 @@ func (opts *Opts) SetupFlags(a *kingpin.Application) {
 	opts.HAOptions.SetupFlags(a)
 }
 
-func (opts *Opts) NewExporter(ctx context.Context, logger log.Logger, reg prometheus.Registerer) (*export.Exporter, error) {
+func (opts *Opts) NewExporter(ctx context.Context, logger *slog.Logger, reg prometheus.Registerer) (*export.Exporter, error) {
 	// In case the user reset the fields, default them.
 	opts.ExporterOpts.DefaultUnsetFields()
 	opts.MetadataOpts.DefaultUnsetFields()
@@ -234,8 +233,8 @@ func (opts *HAOptions) SetupFlags(a *kingpin.Application) {
 		StringVar(&opts.KubeName)
 }
 
-func (opts *HAOptions) NewLease(logger log.Logger, reg prometheus.Registerer) (export.Lease, error) {
-	_ = level.Debug(logger).Log("msg", "started constructing the GCM export logic")
+func (opts *HAOptions) NewLease(logger *slog.Logger, reg prometheus.Registerer) (export.Lease, error) {
+	_ = logger.Debug("started constructing the GCM export logic")
 
 	switch opts.Backend {
 	case HABackendNone:
@@ -304,12 +303,12 @@ func (o *MetadataOpts) SetupFlags(a *kingpin.Application) {
 		DurationVar(&o.FetchTimeout)
 }
 
-func (o *MetadataOpts) ExtractMetadata(logger log.Logger, exporterOpts *export.ExporterOpts) {
+func (o *MetadataOpts) ExtractMetadata(logger *slog.Logger, exporterOpts *export.ExporterOpts) {
 	if metadata.OnGCE() {
 		// NOTE: OnGCE does not guarantee we will have all metadata entries or metadata
 		// server is accessible.
 
-		_ = level.Debug(logger).Log("msg", "detected we might run on GCE node; attempting metadata server access", "timeout", o.FetchTimeout.String())
+		_ = logger.Debug("detected we might run on GCE node; attempting metadata server access", "timeout", o.FetchTimeout.String())
 		// When, potentially, on GCE we attempt to populate some, unspecified option entries
 		// like project ID, cluster, location, zone and user agent from GCP metadata server.
 		//
@@ -321,7 +320,7 @@ func (o *MetadataOpts) ExtractMetadata(logger log.Logger, exporterOpts *export.E
 		mctx, cancel := context.WithTimeout(context.Background(), o.FetchTimeout)
 		tryPopulateUnspecifiedFromMetadata(mctx, logger, exporterOpts)
 		cancel()
-		_ = level.Debug(logger).Log("msg", "best-effort on-GCE metadata gathering finished")
+		_ = logger.Debug("best-effort on-GCE metadata gathering finished")
 	}
 }
 
@@ -330,7 +329,7 @@ func (o *MetadataOpts) ExtractMetadata(logger log.Logger, exporterOpts *export.E
 // is not accessible on GCP, because it was disabled (404 errors), or not accessible
 // (connection refused, slow network, e.g. sandbox + metadata disabled)
 // it's a noop. Make sure to pass context with a timeout.
-func tryPopulateUnspecifiedFromMetadata(ctx context.Context, logger log.Logger, opts *export.ExporterOpts) {
+func tryPopulateUnspecifiedFromMetadata(ctx context.Context, logger *slog.Logger, opts *export.ExporterOpts) {
 	const (
 		projectIDPath       = "project/project-id"
 		clusterNamePath     = "instance/attributes/cluster-name"
@@ -344,7 +343,7 @@ func tryPopulateUnspecifiedFromMetadata(ctx context.Context, logger log.Logger, 
 	// Mimick metadata.InstanceAttributeValue("cluster-name") but with context.
 	gkeClusterName, err := c.GetWithContext(ctx, clusterNamePath)
 	if err != nil {
-		_ = level.Debug(logger).Log("msg", "fetching entry from GCP metadata server failed; skipping", "key", clusterNamePath, "err", err)
+		_ = logger.Debug("fetching entry from GCP metadata server failed; skipping", "key", clusterNamePath, "err", err)
 	} else if gkeClusterName != "" {
 		env = UAEnvGKE
 		if opts.Cluster == "" {
@@ -356,7 +355,7 @@ func tryPopulateUnspecifiedFromMetadata(ctx context.Context, logger log.Logger, 
 		// Mimick metadata.ProjectID() but with context.
 		projectID, err := c.GetWithContext(ctx, projectIDPath)
 		if err != nil {
-			_ = level.Debug(logger).Log("msg", "fetching entry from GCP metadata server failed; skipping", "key", projectIDPath, "err", err)
+			_ = logger.Debug("fetching entry from GCP metadata server failed; skipping", "key", projectIDPath, "err", err)
 		} else {
 			opts.ProjectID = strings.TrimSpace(projectID)
 		}
@@ -376,10 +375,10 @@ func tryPopulateUnspecifiedFromMetadata(ctx context.Context, logger log.Logger, 
 		// Mimick metadata.InstanceAttributeValue("cluster-location") but with context.
 		loc, err := c.GetWithContext(ctx, clusterLocationPath)
 		if err != nil {
-			_ = level.Debug(logger).Log("msg", "fetching entry from GCP metadata server failed; falling back to zone", "key", clusterLocationPath, "err", err)
+			_ = logger.Debug("fetching entry from GCP metadata server failed; falling back to zone", "key", clusterLocationPath, "err", err)
 			zone, err := c.GetWithContext(ctx, zonePath)
 			if err != nil {
-				_ = level.Debug(logger).Log("msg", "fetching entry from GCP metadata server failed; skipping", "key", zonePath, "err", err)
+				_ = logger.Debug("fetching entry from GCP metadata server failed; skipping", "key", zonePath, "err", err)
 			} else {
 				zone = strings.TrimSpace(zone)
 				// zone is of the form "projects/<projNum>/zones/<zoneName>".

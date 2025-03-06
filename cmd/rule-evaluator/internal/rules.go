@@ -20,7 +20,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/prometheus/rules"
 	apiv1 "github.com/prometheus/prometheus/web/api/v1"
 )
@@ -147,7 +146,7 @@ func (api *API) groupToAPIGroup(group *rules.Group, ruleFilters []string, should
 			apiGroupRules = append(apiGroupRules, recordingRuleToAPIRule(rule))
 		default:
 			err := fmt.Errorf("alert rule %s is of unknown type %T", rule.Name(), rule)
-			_ = level.Warn(api.logger).Log("msg", "failed to convert rule to API rule", "err", err)
+			_ = api.logger.Warn("failed to convert rule to API rule", "err", err)
 			continue // ignore faulty rules - this should not break the endpoint.
 		}
 	}

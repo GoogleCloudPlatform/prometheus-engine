@@ -43,7 +43,7 @@ import (
 // It can garbage collect obsolete entries based on the most recent WAL checkpoint.
 // Implements seriesGetter.
 type seriesCache struct {
-	logger log.Logger
+	logger *slog.Logger
 	now    func() time.Time
 	pool   *pool
 
@@ -133,13 +133,13 @@ func (e *seriesCacheEntry) setNextRefresh() {
 }
 
 func newSeriesCache(
-	logger log.Logger,
+	logger *slog.Logger,
 	reg prometheus.Registerer,
 	metricTypePrefix string,
 	matchers Matchers,
 ) *seriesCache {
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = promslog.NewNopLogger()
 	}
 	return &seriesCache{
 		logger:           logger,
@@ -163,7 +163,7 @@ func (c *seriesCache) run(ctx context.Context) {
 			if err := c.garbageCollect(10 * time.Minute); err != nil {
 				//nolint:errcheck
 				//nolint:errcheck
-				level.Error(c.logger).Log("msg", "garbage collection failed", "err", err)
+				c.logger.Error("garbage collection failed", "err", err)
 			}
 		}
 	}
@@ -221,7 +221,7 @@ func (c *seriesCache) garbageCollect(delay time.Duration) error {
 		i++
 	}
 	//nolint:errcheck
-	level.Info(c.logger).Log("msg", "garbage collection completed", "took", time.Since(start), "seriesPurged", i)
+	c.logger.Info("garbage collection completed", "took", time.Since(start), "seriesPurged", i)
 
 	return nil
 }
@@ -243,7 +243,7 @@ func (c *seriesCache) get(s record.RefSample, externalLabels labels.Labels, meta
 	if e.shouldRefresh() {
 		if err := c.populate(ref, e, externalLabels, metadata); err != nil {
 			//nolint:errcheck
-			level.Debug(c.logger).Log("msg", "populating series failed", "ref", s.Ref, "err", err)
+			c.logger.Debug("populating series failed", "ref", s.Ref, "err", err)
 		}
 		e.setNextRefresh()
 	}

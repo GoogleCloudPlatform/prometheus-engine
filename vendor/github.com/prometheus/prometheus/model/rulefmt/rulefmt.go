@@ -27,6 +27,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/prometheus/prometheus/model/timestamp"
+	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/template"
 )
@@ -173,17 +174,11 @@ func (r *RuleNode) Validate() (nodes []WrappedError) {
 		})
 	}
 	if r.Record.Value == "" && r.Alert.Value == "" {
-		if r.Record.Value == "0" {
-			nodes = append(nodes, WrappedError{
-				err:  fmt.Errorf("one of 'record' or 'alert' must be set"),
-				node: &r.Alert,
-			})
-		} else {
-			nodes = append(nodes, WrappedError{
-				err:  fmt.Errorf("one of 'record' or 'alert' must be set"),
-				node: &r.Record,
-			})
-		}
+		nodes = append(nodes, WrappedError{
+			err:     fmt.Errorf("one of 'record' or 'alert' must be set"),
+			node:    &r.Record,
+			nodeAlt: &r.Alert,
+		})
 	}
 
 	if r.Expr.Value == "" {
@@ -262,7 +257,7 @@ func testTemplateParsing(rl *RuleNode) (errs []error) {
 	}
 
 	// Trying to parse templates.
-	tmplData := template.AlertTemplateData(map[string]string{}, map[string]string{}, "", 0)
+	tmplData := template.AlertTemplateData(map[string]string{}, map[string]string{}, "", promql.Sample{})
 	defs := []string{
 		"{{$labels := .Labels}}",
 		"{{$externalLabels := .ExternalLabels}}",

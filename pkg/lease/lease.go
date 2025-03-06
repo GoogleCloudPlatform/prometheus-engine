@@ -49,7 +49,7 @@ var (
 // to gracefully fail open by extending the lease of the most recent lease holder.
 // This is done in best-effort manner.
 type Lease struct {
-	logger log.Logger
+	logger *slog.Logger
 	opts   Options
 
 	lock           *wrappedLock
@@ -85,7 +85,7 @@ type Options struct {
 }
 
 func NewKubernetes(
-	logger log.Logger,
+	logger *slog.Logger,
 	metrics prometheus.Registerer,
 	config *rest.Config,
 	namespace, name string,
@@ -127,13 +127,13 @@ func NewKubernetes(
 }
 
 func New(
-	logger log.Logger,
+	logger *slog.Logger,
 	metrics prometheus.Registerer,
 	lock resourcelock.Interface,
 	opts *Options,
 ) (*Lease, error) {
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = promslog.NewNopLogger()
 	}
 	if opts == nil {
 		opts = &Options{}

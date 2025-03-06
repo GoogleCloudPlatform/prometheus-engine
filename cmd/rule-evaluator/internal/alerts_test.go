@@ -36,12 +36,12 @@ func TestAPI_HandleAlertsEndpoint(t *testing.T) {
 		rulesManager: RuleGroupsRetrieverMock{
 			AlertingRulesFunc: func() []*rules.AlertingRule {
 				return []*rules.AlertingRule{
-					rules.NewAlertingRule("test-alert-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9090"}}, []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}}, nil, "", false, log.NewNopLogger()),
-					rules.NewAlertingRule("test-alert-2", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9090"}}, []labels.Label{{Name: "summary", Value: "Test alert 2"}, {Name: "description", Value: "This is another test alert"}}, nil, "", false, log.NewNopLogger()),
+					rules.NewAlertingRule("test-alert-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9090"}}, []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}}, nil, "", false, promslog.NewNopLogger()),
+					rules.NewAlertingRule("test-alert-2", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9090"}}, []labels.Label{{Name: "summary", Value: "Test alert 2"}, {Name: "description", Value: "This is another test alert"}}, nil, "", false, promslog.NewNopLogger()),
 				}
 			},
 		},
-		logger: log.NewNopLogger(),
+		logger: promslog.NewNopLogger(),
 	}
 	w := httptest.NewRecorder()
 
