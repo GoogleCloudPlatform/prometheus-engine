@@ -1168,7 +1168,7 @@ func generateRelabelingRules(n uint) []monitoringv1.RelabelingRule {
 
 	for i := range rules {
 		rules[i] = monitoringv1.RelabelingRule{
-			Regex:  rand.String(rand.Intn(1_000)),
+			Regex:  rand.String(1000),
 			Action: actions[rand.Intn(len(actions))],
 		}
 	}
