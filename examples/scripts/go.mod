@@ -1,6 +1,6 @@
 module github.com/GoogleCloudPlatform/prometheus-engine/scripts
 
-go 1.20
+go 1.23.0
 
 require (
 	cloud.google.com/go/monitoring v1.16.3

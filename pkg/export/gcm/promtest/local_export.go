@@ -139,7 +139,7 @@ func (l *localExportWithGCM) injectScrapes(t testing.TB, scrapeRecordings [][]*d
 		// for generating multi counter metrics like legacy histograms and summaries.
 
 		b := bytes.Buffer{}
-		enc := expfmt.NewEncoder(&b, expfmt.FmtProtoDelim)
+		enc := expfmt.NewEncoder(&b, expfmt.NewFormat(expfmt.TypeProtoDelim))
 		for _, mf := range mfs {
 			if err := enc.Encode(mf); err != nil {
 				t.Fatal(err)
@@ -150,7 +150,7 @@ func (l *localExportWithGCM) injectScrapes(t testing.TB, scrapeRecordings [][]*d
 				t.Fatal(err)
 			}
 		}
-		tp, err := textparse.New(b.Bytes(), string(expfmt.FmtProtoDelim), true)
+		tp, err := textparse.New(b.Bytes(), string(expfmt.NewFormat(expfmt.TypeProtoDelim)), true)
 		if err != nil {
 			t.Fatal(err)
 		}
