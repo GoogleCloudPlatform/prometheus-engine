@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Compile the UI assets.
-FROM --platform=$BUILDPLATFORM docker.io/node:23.9.0-bookworm@sha256:c29271c7f2b4788fe9b90a7506d790dc8f2ff46132e1b70e71bf0c0679c8451c AS assets
+FROM --platform=$BUILDPLATFORM docker.io/node:23.10.0-bookworm@sha256:d9c4faa499980250c2c889bc96dcc31ae75e09de6bb0a3f6d59c529c09b2a137 AS assets
 WORKDIR /app
 COPY --from=docker.io/golang:1.23.3-bookwork@sha256:0e3377d7a71c1fcb31cdc3215292712e83baec44e4792aeaa75e503cfcae16ec /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
