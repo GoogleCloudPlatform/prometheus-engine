@@ -174,7 +174,4 @@ replace (
 	// Go modules keeps resetting the version to a random unversioned commit.
 	// So this is required for unknown reasons.
 	github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.45.2
-	// See: https://github.com/prometheus/prometheus/issues/12649
-	// We can remove it after upgrading to Prometheus 2.48+.
-	golang.org/x/exp => golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 )
