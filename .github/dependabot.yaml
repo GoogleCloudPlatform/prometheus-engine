@@ -29,6 +29,10 @@ updates:
     prefix: fix
     prefix-development: chore
     include: scope
+  groups:
+    docker:
+      patterns:
+        - "*"
 - package-ecosystem: gomod
   directory: /
   schedule:
@@ -66,6 +70,10 @@ updates:
     prefix: fix
     prefix-development: chore
     include: scope
+  groups:
+    docker:
+      patterns:
+        - "*"
   target-branch: release/0.16
 - package-ecosystem: gomod
   directory: /
@@ -105,6 +113,10 @@ updates:
     prefix: fix
     prefix-development: chore
     include: scope
+  groups:
+    docker:
+      patterns:
+        - "*"
   target-branch: release/0.15
 - package-ecosystem: gomod
   directory: /
@@ -144,6 +156,10 @@ updates:
     prefix: fix
     prefix-development: chore
     include: scope
+  groups:
+    docker:
+      patterns:
+        - "*"
   target-branch: release/0.14
 - package-ecosystem: gomod
   directory: /
@@ -183,6 +199,10 @@ updates:
     prefix: fix
     prefix-development: chore
     include: scope
+  groups:
+    docker:
+      patterns:
+        - "*"
   target-branch: release/0.13
 - package-ecosystem: gomod
   directory: /
@@ -222,6 +242,10 @@ updates:
     prefix: fix
     prefix-development: chore
     include: scope
+  groups:
+    docker:
+      patterns:
+        - "*"
   target-branch: release/0.12
 - package-ecosystem: gomod
   directory: /
@@ -261,6 +285,10 @@ updates:
     prefix: fix
     prefix-development: chore
     include: scope
+  groups:
+    docker:
+      patterns:
+        - "*"
   target-branch: release/0.11
 - package-ecosystem: gomod
   directory: /
