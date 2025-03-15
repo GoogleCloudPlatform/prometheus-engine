@@ -43,7 +43,7 @@ spec:
                 - linux
       containers:
       - name: frontend
-        image: gke.gcr.io/prometheus-engine/frontend:v0.15.0-gke.8
+        image: us-east4-docker.pkg.dev/gpe-test-1/prometheus-engine/frontend:gmp-20251403_2346
         args:
         - "--web.listen-address=:9090"
         - "--query.project-id=$PROJECT_ID"

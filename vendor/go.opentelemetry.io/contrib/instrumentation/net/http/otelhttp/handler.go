@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package otelhttp // import "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
@@ -108,23 +97,23 @@ func handleErr(err error) {
 func (h *middleware) createMeasures() {
 	var err error
 	h.requestBytesCounter, err = h.meter.Int64Counter(
-		RequestContentLength,
+		serverRequestSize,
 		metric.WithUnit("By"),
-		metric.WithDescription("Measures the size of HTTP request content length (uncompressed)"),
+		metric.WithDescription("Measures the size of HTTP request messages."),
 	)
 	handleErr(err)
 
 	h.responseBytesCounter, err = h.meter.Int64Counter(
-		ResponseContentLength,
+		serverResponseSize,
 		metric.WithUnit("By"),
-		metric.WithDescription("Measures the size of HTTP response content length (uncompressed)"),
+		metric.WithDescription("Measures the size of HTTP response messages."),
 	)
 	handleErr(err)
 
 	h.serverLatencyMeasure, err = h.meter.Float64Histogram(
-		ServerLatency,
+		serverDuration,
 		metric.WithUnit("ms"),
-		metric.WithDescription("Measures the duration of HTTP request handling"),
+		metric.WithDescription("Measures the duration of inbound HTTP requests."),
 	)
 	handleErr(err)
 }
@@ -224,7 +213,7 @@ func (h *middleware) serveHTTP(w http.ResponseWriter, r *http.Request, next http
 
 	next.ServeHTTP(w, r.WithContext(ctx))
 
-	setAfterServeAttributes(span, bw.read, rww.written, rww.statusCode, bw.err, rww.err)
+	setAfterServeAttributes(span, bw.read.Load(), rww.written, rww.statusCode, bw.err, rww.err)
 
 	// Add metrics
 	attributes := append(labeler.Get(), semconvutil.HTTPServerRequestMetrics(h.server, r)...)
@@ -232,7 +221,7 @@ func (h *middleware) serveHTTP(w http.ResponseWriter, r *http.Request, next http
 		attributes = append(attributes, semconv.HTTPStatusCode(rww.statusCode))
 	}
 	o := metric.WithAttributes(attributes...)
-	h.requestBytesCounter.Add(ctx, bw.read, o)
+	h.requestBytesCounter.Add(ctx, bw.read.Load(), o)
 	h.responseBytesCounter.Add(ctx, rww.written, o)
 
 	// Use floating point division here for higher precision (instead of Millisecond method).
