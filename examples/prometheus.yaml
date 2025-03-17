@@ -134,7 +134,7 @@ spec:
         - name: prometheus-db
           mountPath: /prometheus/data
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.12.0-gke.5
+        image: us-east4-docker.pkg.dev/gpe-test-1/prometheus-engine/config-reloader:gmp-20251403_2347
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml

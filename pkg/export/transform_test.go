@@ -21,8 +21,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
-	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
@@ -76,7 +76,7 @@ func TestSampleBuilder(t *testing.T) {
 		{
 			doc: "convert gauge",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeGauge, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeGauge, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
@@ -144,7 +144,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "convert untyped",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeUnknown, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeUnknown, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
@@ -241,7 +241,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "convert counter (Prometheus format metadata key)",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1_total": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+				"metric1_total": {Type: model.MetricTypeCounter, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
@@ -345,7 +345,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "convert counter - skip duplicates (OpenMetrics format metadata key)",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeCounter, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
@@ -456,7 +456,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "convert counter - skip on previous timestamp",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1_total": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+				"metric1_total": {Type: model.MetricTypeCounter, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
@@ -472,7 +472,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "convert summary",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeSummary, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeSummary, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
@@ -608,7 +608,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "convert summary - skip counter duplicates",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeSummary, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeSummary, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
@@ -717,8 +717,8 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "convert histogram",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1":         {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
-				"metric1_a_count": {Type: textparse.MetricTypeGauge, Help: "metric1_a_count help text"},
+				"metric1":         {Type: model.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1_a_count": {Type: model.MetricTypeGauge, Help: "metric1_a_count help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
@@ -899,7 +899,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "histogram with 0 buckets is ignored",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeHistogram, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
@@ -923,7 +923,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "histogram with only Inf buckets is ignored",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeHistogram, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
@@ -950,7 +950,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "histogram NaN sum",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeHistogram, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
@@ -1017,7 +1017,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "histogram NaN count",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeHistogram, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
@@ -1094,7 +1094,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "filter with matchers",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeGauge, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeGauge, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1", "k1", "v1"),
@@ -1206,7 +1206,7 @@ func TestSampleBuilder(t *testing.T) {
 		}, {
 			doc: "histogram is not in-order",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeHistogram, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
@@ -1281,7 +1281,7 @@ func TestSampleBuilder(t *testing.T) {
 			// Regression test for b/387200417.
 			doc: "histogram with conversion error for boundaries",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1": {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1": {Type: model.MetricTypeHistogram, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
@@ -1316,8 +1316,8 @@ func TestSampleBuilder(t *testing.T) {
 		{
 			doc: "convert histogram with exemplars",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1":         {Type: textparse.MetricTypeHistogram, Help: "metric1 help text"},
-				"metric1_a_count": {Type: textparse.MetricTypeGauge, Help: "metric1_a_count help text"},
+				"metric1":         {Type: model.MetricTypeHistogram, Help: "metric1 help text"},
+				"metric1_a_count": {Type: model.MetricTypeGauge, Help: "metric1_a_count help text"},
 			}),
 			series: seriesMap{
 				1: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_sum"),
@@ -1460,7 +1460,7 @@ func TestSampleBuilder(t *testing.T) {
 		{
 			doc: "convert counter with exemplars (exemplars should be dropped)",
 			metadata: testMetadataFunc(metricMetadataMap{
-				"metric1_total": {Type: textparse.MetricTypeCounter, Help: "metric1 help text"},
+				"metric1_total": {Type: model.MetricTypeCounter, Help: "metric1 help text"},
 			}),
 			series: seriesMap{
 				123: labels.FromStrings("job", "job1", "instance", "instance1", "__name__", "metric1_total", "k1", "v1"),
