@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -94,6 +95,241 @@ func cleanupKindCluster(t *testing.T, clusterName string) func() {
 			t.Log(err.Error())
 		}
 	}
+}
+
+func TestCRDDefaulting(t *testing.T) {
+	t.Parallel()
+
+	c := createKindCluster(t)
+
+	type cpmTest struct {
+		obj  *monitoringv1.ClusterPodMonitoring
+		want *monitoringv1.ClusterPodMonitoring
+	}
+	runCPM := func(t *testing.T, tests map[string]cpmTest) {
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				if err := c.Create(t.Context(), tc.obj); err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+
+				err := c.Get(
+					t.Context(),
+					client.ObjectKeyFromObject(tc.obj),
+					tc.obj,
+				)
+
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+
+				if diff := cmp.Diff(tc.want.Spec, tc.obj.Spec); diff != "" {
+					t.Errorf("diff -want +got:\n%s", diff)
+				}
+			})
+		}
+	}
+
+	type pmTest struct {
+		obj  *monitoringv1.PodMonitoring
+		want *monitoringv1.PodMonitoring
+	}
+	runPM := func(t *testing.T, tests map[string]pmTest) {
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				if err := c.Create(t.Context(), tc.obj); err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+
+				err := c.Get(
+					t.Context(),
+					client.ObjectKeyFromObject(tc.obj),
+					tc.obj,
+				)
+
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+
+				if diff := cmp.Diff(tc.want.Spec, tc.obj.Spec); diff != "" {
+					t.Errorf("diff -want +got:\n%s", diff)
+				}
+			})
+		}
+	}
+
+	t.Run("ClusterPodMonitoring", func(t *testing.T) {
+		tests := map[string]cpmTest{
+			"TargetLabels/default": {
+				obj: &monitoringv1.ClusterPodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "default",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+					},
+				},
+				want: &monitoringv1.ClusterPodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "default",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.ClusterTargetLabels{
+							Metadata: &[]string{"container", "namespace", "pod", "top_level_controller_name", "top_level_controller_type"},
+						},
+					},
+				},
+			},
+			"TargetLabels/nondefault": {
+				obj: &monitoringv1.ClusterPodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "nondefault",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.ClusterTargetLabels{
+							FromPod: []monitoringv1.LabelMapping{
+								{
+									From: "from",
+									To:   "to",
+								},
+							},
+						},
+					},
+				},
+				want: &monitoringv1.ClusterPodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "nondefault",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.ClusterTargetLabels{
+							Metadata: &[]string{"container", "namespace", "pod", "top_level_controller_name", "top_level_controller_type"},
+							FromPod: []monitoringv1.LabelMapping{
+								{
+									From: "from",
+									To:   "to",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		runCPM(t, tests)
+	})
+
+	t.Run("PodMonitoring", func(t *testing.T) {
+		tests := map[string]pmTest{
+			"TargetLabels/default": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "default",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+					},
+				},
+				want: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "default",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.TargetLabels{
+							Metadata: &[]string{"container", "pod", "top_level_controller_name", "top_level_controller_type"},
+						},
+					},
+				},
+			},
+			"TargetLabels/nondefault": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "nondefault",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.TargetLabels{
+							FromPod: []monitoringv1.LabelMapping{
+								{
+									From: "from",
+									To:   "to",
+								},
+							},
+						},
+					},
+				},
+				want: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "nondefault",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.TargetLabels{
+							Metadata: &[]string{"container", "pod", "top_level_controller_name", "top_level_controller_type"},
+							FromPod: []monitoringv1.LabelMapping{
+								{
+									From: "from",
+									To:   "to",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		runPM(t, tests)
+	})
 }
 
 func TestCRDValidation(t *testing.T) {
