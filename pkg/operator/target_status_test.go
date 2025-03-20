@@ -107,10 +107,13 @@ func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase
 					Name: pmCopy.Name,
 				},
 				Spec: monitoringv1.ClusterPodMonitoringSpec{
-					Selector:     pmCopy.Spec.Selector,
-					Endpoints:    pmCopy.Spec.Endpoints,
-					TargetLabels: pmCopy.Spec.TargetLabels,
-					Limits:       pmCopy.Spec.Limits,
+					Selector:  pmCopy.Spec.Selector,
+					Endpoints: pmCopy.Spec.Endpoints,
+					TargetLabels: monitoringv1.ClusterTargetLabels{
+						Metadata: pmCopy.Spec.TargetLabels.Metadata,
+						FromPod:  pmCopy.Spec.TargetLabels.FromPod,
+					},
+					Limits: pmCopy.Spec.Limits,
 				},
 				Status: pmCopy.Status,
 			}

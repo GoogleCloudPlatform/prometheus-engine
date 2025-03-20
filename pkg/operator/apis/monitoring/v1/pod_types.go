@@ -151,7 +151,6 @@ type PodMonitoringSpec struct {
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
 	// if the scraped pod is controlled by a DaemonSet.
-	// +kubebuilder:default={metadata:{pod,container,top_level_controller_name,top_level_controller_type}}
 	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
@@ -189,8 +188,7 @@ type ClusterPodMonitoringSpec struct {
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
 	// if the scraped pod is controlled by a DaemonSet.
-	// +kubebuilder:default={metadata:{namespace,pod,container,top_level_controller_name,top_level_controller_type}}
-	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
+	TargetLabels ClusterTargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
 	// FilterRunning will drop any pods that are in the "Failed" or "Succeeded"
@@ -245,17 +243,34 @@ type ScrapeEndpoint struct {
 // TargetLabels configures labels for the discovered Prometheus targets.
 type TargetLabels struct {
 	// Pod metadata labels that are set on all scraped targets.
-	// Permitted keys are `pod`, `container`, and `node` for PodMonitoring and
-	// `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. The `container`
+	// Permitted keys are `container`, `node`, `pod`, `top_level_controller_name`,
+	// and `top_level_controller_type`. The `container`
 	// label is only populated if the scrape port is referenced by name.
-	// Defaults to [pod, container, top_level_controller_name, top_level_controller_type] for
-	// PodMonitoring and [namespace, pod, container, top_level_controller_name, top_level_controller_type]
-	// for ClusterPodMonitoring.
-	// If set to null, it will be interpreted as the empty list for PodMonitoring
-	// and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
-	// only.
-	// +kubebuilder:validation:items:Enum=pod;container;node;namespace;top_level_controller_name;top_level_controller_type
+	// Defaults to [container, pod, top_level_controller_name, top_level_controller_type].
+	// If set to null, it will be interpreted as the empty list.
+	// This is for backwards-compatibility only.
+	// +kubebuilder:validation:items:Enum=container;node;pod;top_level_controller_name;top_level_controller_type
 	// +listType=set
+	// +kubebuilder:default=container;pod;top_level_controller_name;top_level_controller_type
+	Metadata *[]string `json:"metadata,omitempty"`
+	// Labels to transfer from the Kubernetes Pod to Prometheus target labels.
+	// Mappings are applied in order.
+	// +kubebuilder:validation:MaxItems=100
+	FromPod []LabelMapping `json:"fromPod,omitempty"`
+}
+
+// ClusterTargetLabels configures labels for the discovered Prometheus targets.
+type ClusterTargetLabels struct {
+	// Pod metadata labels that are set on all scraped targets.
+	// Permitted keys are `container`, `namespace`, `node`, `pod`,
+	// `top_level_controller_name` and `top_level_controller_type`. The `container`
+	// label is only populated if the scrape port is referenced by name.
+	// Defaults to [container, namespace, pod, top_level_controller_name, top_level_controller_type].
+	// If set to null, it will be interpreted as  [namespace]. This is for backwards-compatibility
+	// only.
+	// +kubebuilder:validation:items:Enum=container;namespace;node;pod;top_level_controller_name;top_level_controller_type
+	// +listType=set
+	// +kubebuilder:default=container;namespace;pod;top_level_controller_name;top_level_controller_type
 	Metadata *[]string `json:"metadata,omitempty"`
 	// Labels to transfer from the Kubernetes Pod to Prometheus target labels.
 	// Mappings are applied in order.

@@ -646,12 +646,6 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               targetLabels:
-                default:
-                  metadata:
-                  - pod
-                  - container
-                  - top_level_controller_name
-                  - top_level_controller_type
                 description: |-
                   Labels to add to the Prometheus target for discovered endpoints.
                   The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
@@ -689,23 +683,24 @@ spec:
                     maxItems: 100
                     type: array
                   metadata:
+                    default:
+                    - container
+                    - pod
+                    - top_level_controller_name
+                    - top_level_controller_type
                     description: |-
                       Pod metadata labels that are set on all scraped targets.
-                      Permitted keys are `pod`, `container`, and `node` for PodMonitoring and
-                      `pod`, `container`, `node`, and `namespace` for ClusterPodMonitoring. The `container`
+                      Permitted keys are `container`, `node`, `pod`, `top_level_controller_name`,
+                      and `top_level_controller_type`. The `container`
                       label is only populated if the scrape port is referenced by name.
-                      Defaults to [pod, container, top_level_controller_name, top_level_controller_type] for
-                      PodMonitoring and [namespace, pod, container, top_level_controller_name, top_level_controller_type]
-                      for ClusterPodMonitoring.
-                      If set to null, it will be interpreted as the empty list for PodMonitoring
-                      and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
-                      only.
+                      Defaults to [container, pod, top_level_controller_name, top_level_controller_type].
+                      If set to null, it will be interpreted as the empty list.
+                      This is for backwards-compatibility only.
                     items:
                       enum:
-                      - pod
                       - container
                       - node
-                      - namespace
+                      - pod
                       - top_level_controller_name
                       - top_level_controller_type
                       type: string
