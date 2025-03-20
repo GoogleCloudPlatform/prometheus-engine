@@ -32,6 +32,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterRules">ClusterRules</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.ClusterTargetLabels">ClusterTargetLabels</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.CollectionSpec">CollectionSpec</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.CompressionType">CompressionType</a>
@@ -681,8 +683,8 @@ configuration.</p>
 <td>
 <code>targetLabels</code><br/>
 <em>
-<a href="#monitoring.googleapis.com/v1.TargetLabels">
-TargetLabels
+<a href="#monitoring.googleapis.com/v1.ClusterTargetLabels">
+ClusterTargetLabels
 </a>
 </em>
 </td>
@@ -783,6 +785,57 @@ RulesStatus
 <td>
 <em>(Optional)</em>
 <p>Most recently observed status of the resource.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ClusterTargetLabels">
+<span id="ClusterTargetLabels">ClusterTargetLabels
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>)
+</p>
+<div>
+<p>ClusterTargetLabels configures labels for the discovered Prometheus targets.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>metadata</code><br/>
+<em>
+[]string
+</em>
+</td>
+<td>
+<p>Pod metadata labels that are set on all scraped targets.
+Permitted keys are <code>container</code>, <code>namespace</code>, <code>node</code>, <code>pod</code>,
+<code>top_level_controller_name</code> and <code>top_level_controller_type</code>. The <code>container</code>
+label is only populated if the scrape port is referenced by name.
+Defaults to [container, namespace, pod, top_level_controller_name, top_level_controller_type].
+If set to null, it will be interpreted as  [namespace]. This is for backwards-compatibility
+only.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>fromPod</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.LabelMapping">
+[]LabelMapping
+</a>
+</em>
+</td>
+<td>
+<p>Labels to transfer from the Kubernetes Pod to Prometheus target labels.
+Mappings are applied in order.</p>
 </td>
 </tr>
 </tbody>
@@ -1197,7 +1250,7 @@ This can be useful for clusters provisioned with kubeadm.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.TargetLabels">TargetLabels</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterTargetLabels">ClusterTargetLabels</a>, <a href="#monitoring.googleapis.com/v1.TargetLabels">TargetLabels</a>)
 </p>
 <div>
 <p>LabelMapping specifies how to transfer a label from a Kubernetes resource
@@ -3373,7 +3426,7 @@ See MinVersion in <a href="https://pkg.go.dev/crypto/tls#Config">https://pkg.go.
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterPodMonitoringSpec">ClusterPodMonitoringSpec</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringSpec">PodMonitoringSpec</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.PodMonitoringSpec">PodMonitoringSpec</a>)
 </p>
 <div>
 <p>TargetLabels configures labels for the discovered Prometheus targets.</p>
@@ -3395,15 +3448,12 @@ See MinVersion in <a href="https://pkg.go.dev/crypto/tls#Config">https://pkg.go.
 </td>
 <td>
 <p>Pod metadata labels that are set on all scraped targets.
-Permitted keys are <code>pod</code>, <code>container</code>, and <code>node</code> for PodMonitoring and
-<code>pod</code>, <code>container</code>, <code>node</code>, and <code>namespace</code> for ClusterPodMonitoring. The <code>container</code>
+Permitted keys are <code>container</code>, <code>node</code>, <code>pod</code>, <code>top_level_controller_name</code>,
+and <code>top_level_controller_type</code>. The <code>container</code>
 label is only populated if the scrape port is referenced by name.
-Defaults to [pod, container, top_level_controller_name, top_level_controller_type] for
-PodMonitoring and [namespace, pod, container, top_level_controller_name, top_level_controller_type]
-for ClusterPodMonitoring.
-If set to null, it will be interpreted as the empty list for PodMonitoring
-and to [namespace] for ClusterPodMonitoring. This is for backwards-compatibility
-only.</p>
+Defaults to [container, pod, top_level_controller_name, top_level_controller_type].
+If set to null, it will be interpreted as the empty list.
+This is for backwards-compatibility only.</p>
 </td>
 </tr>
 <tr>

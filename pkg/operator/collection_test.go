@@ -69,6 +69,9 @@ func TestCollectionReconcile(t *testing.T) {
 		Namespace:       "gmp-test",
 		ResourceVersion: "1",
 	}
+	exampleClusterTargetLabels := monitoringv1.ClusterTargetLabels{
+		Metadata: &[]string{"node"},
+	}
 	exampleTargetLabels := monitoringv1.TargetLabels{
 		Metadata: &[]string{"node"},
 	}
@@ -224,7 +227,7 @@ func TestCollectionReconcile(t *testing.T) {
 			input: &monitoringv1.ClusterPodMonitoring{
 				ObjectMeta: exampleObjectMeta,
 				Spec: monitoringv1.ClusterPodMonitoringSpec{
-					TargetLabels: exampleTargetLabels,
+					TargetLabels: exampleClusterTargetLabels,
 					Endpoints:    validScrapeEndpoints,
 				},
 				Status: monitoringv1.PodMonitoringStatus{
@@ -242,7 +245,7 @@ func TestCollectionReconcile(t *testing.T) {
 			expected: &monitoringv1.ClusterPodMonitoring{
 				ObjectMeta: exampleObjectMeta,
 				Spec: monitoringv1.ClusterPodMonitoringSpec{
-					TargetLabels: exampleTargetLabels,
+					TargetLabels: exampleClusterTargetLabels,
 					Endpoints:    validScrapeEndpoints,
 				},
 				Status: monitoringv1.PodMonitoringStatus{
@@ -263,7 +266,7 @@ func TestCollectionReconcile(t *testing.T) {
 			input: &monitoringv1.ClusterPodMonitoring{
 				ObjectMeta: exampleObjectMeta,
 				Spec: monitoringv1.ClusterPodMonitoringSpec{
-					TargetLabels: exampleTargetLabels,
+					TargetLabels: exampleClusterTargetLabels,
 					Endpoints:    validScrapeEndpoints,
 				},
 				Status: monitoringv1.PodMonitoringStatus{
@@ -277,7 +280,7 @@ func TestCollectionReconcile(t *testing.T) {
 					ResourceVersion: "2",
 				},
 				Spec: monitoringv1.ClusterPodMonitoringSpec{
-					TargetLabels: exampleTargetLabels,
+					TargetLabels: exampleClusterTargetLabels,
 					Endpoints:    validScrapeEndpoints,
 				},
 				Status: monitoringv1.PodMonitoringStatus{
@@ -298,7 +301,7 @@ func TestCollectionReconcile(t *testing.T) {
 			input: &monitoringv1.ClusterPodMonitoring{
 				ObjectMeta: exampleObjectMeta,
 				Spec: monitoringv1.ClusterPodMonitoringSpec{
-					TargetLabels: exampleTargetLabels,
+					TargetLabels: exampleClusterTargetLabels,
 					Endpoints:    []monitoringv1.ScrapeEndpoint{{}},
 				},
 			},
@@ -308,7 +311,7 @@ func TestCollectionReconcile(t *testing.T) {
 					Namespace:       "gmp-test",
 					ResourceVersion: "2",
 				}, Spec: monitoringv1.ClusterPodMonitoringSpec{
-					TargetLabels: exampleTargetLabels,
+					TargetLabels: exampleClusterTargetLabels,
 					Endpoints:    []monitoringv1.ScrapeEndpoint{{}},
 				},
 				Status: monitoringv1.PodMonitoringStatus{

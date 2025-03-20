@@ -37,6 +37,27 @@ warn() {
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 CRD_DIR=${REPO_ROOT}/charts/operator/crds
 
+codegen_diff() {
+  git fetch https://github.com/GoogleCloudPlatform/prometheus-engine
+  git merge-base --is-ancestor FETCH_HEAD HEAD || warn "Current commit is not a descendent of main branch. Consider rebasing."
+  APIS_DIR=$(git rev-parse --show-toplevel)/pkg/operator/apis
+  git diff -s --exit-code FETCH_HEAD -- "${APIS_DIR}"
+}
+update_codegen() {
+  echo ">>> regenerating CRD k8s go code"
+  # Refresh vendored dependencies to ensure script is found.
+  go mod vendor
+  # Idempotently regenerate by deleting current resources.
+  rm -rf "$REPO_ROOT/pkg/operator/generated"
+  CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${REPO_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
+
+  # shellcheck source=../vendor/k8s.io/code-generator/kube_codegen.sh
+  source "${CODEGEN_PKG}/kube_codegen.sh"
+  kube::codegen::gen_helpers \
+    --boilerplate "${REPO_ROOT}"/hack/boilerplate.go.txt \
+    pkg/operator/apis
+}
+
 combine() {
   SOURCE_DIR=$1
   DEST_YAML=$2
