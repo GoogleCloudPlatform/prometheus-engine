@@ -530,7 +530,7 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 					},
 				},
 			},
-			TargetLabels: TargetLabels{
+			TargetLabels: ClusterTargetLabels{
 				FromPod: []LabelMapping{
 					{From: "key1", To: "key2"},
 					{From: "key3"},
