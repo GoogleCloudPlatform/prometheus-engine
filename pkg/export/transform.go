@@ -528,13 +528,14 @@ func buildExemplarAttachments(lset labels.Labels) []*anypb.Any {
 	var attachments []*anypb.Any
 	droppedLabels := make(map[string]string)
 	lset.Range(func(label labels.Label) {
-		if label.Name == projectIDLabel {
+		switch label.Name {
+		case projectIDLabel:
 			projectID = label.Value
-		} else if label.Name == spanIDLabel {
+		case spanIDLabel:
 			spanID = label.Value
-		} else if label.Name == traceIDLabel {
+		case traceIDLabel:
 			traceID = label.Value
-		} else {
+		default:
 			droppedLabels[label.Name] = label.Value
 		}
 	})

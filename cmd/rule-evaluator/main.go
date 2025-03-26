@@ -99,6 +99,8 @@ var (
 )
 
 func main() {
+	ctx := context.Background()
+
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "caller", log.DefaultCaller)
@@ -118,7 +120,7 @@ func main() {
 	var defaultProjectID string
 	if metadata.OnGCE() {
 		var err error
-		defaultProjectID, err = metadata.ProjectID()
+		defaultProjectID, err = metadata.ProjectIDWithContext(ctx)
 		if err != nil {
 			_ = level.Warn(logger).Log("msg", "Unable to detect Google Cloud project", "err", err)
 		}
@@ -186,7 +188,6 @@ func main() {
 	}
 
 	startTime := time.Now()
-	ctx := context.Background()
 
 	ctxExporter, cancelExporter := context.WithCancel(ctx)
 	exporter, err := opts.NewExporter(ctxExporter, logger, reg)
@@ -596,7 +597,7 @@ type response struct {
 func QueryFunc(ctx context.Context, q string, t time.Time, v1api v1.API) (parser.Value, v1.Warnings, error) {
 	results, warnings, err := v1api.Query(ctx, q, t)
 	if err != nil {
-		return nil, warnings, fmt.Errorf("Error querying Prometheus: %w", err)
+		return nil, warnings, fmt.Errorf("error querying Prometheus: %w", err)
 	}
 	v, err := convertModelToPromQLValue(results)
 	return v, warnings, err
@@ -813,7 +814,7 @@ func convertModelToPromQLValue(val model.Value) (parser.Value, error) {
 		return v, nil
 
 	default:
-		return nil, fmt.Errorf("Expected Prometheus results of type matrix or vector. Actual results type: %v", val.Type())
+		return nil, fmt.Errorf("expected Prometheus results of type matrix or vector. actual results type: %v", val.Type())
 	}
 }
 
@@ -919,7 +920,7 @@ func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ..
 
 	m, ok := v.(promql.Matrix)
 	if !ok {
-		return newListSeriesSet(nil, fmt.Errorf("Error querying Prometheus, Expected type matrix response. Actual type %v", v.Type()), nil)
+		return newListSeriesSet(nil, fmt.Errorf("error querying Prometheus, expected type matrix response. actual type %v", v.Type()), nil)
 	}
 	// TODO(maxamin) GCM returns label names and values that are not in matchers.
 	// Ensure results from query are equivalent to the requested matchers because

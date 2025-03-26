@@ -16,12 +16,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"io"
 	"log"
-	"math/rand"
+	mathrand "math/rand"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -46,8 +46,11 @@ var (
 	counterCount = flag.Int("counter-count", -1, "Number of unique instances per counter metric.")
 	summaryCount = flag.Int("summary-count", -1, "Number of unique instances per summary metric.")
 
-	omStateSetCount       = flag.Int("om-stateset-count", -1, "Number of OpenMetrics StateSet metrics (https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
-	omInfoCount           = flag.Int("om-info-count", -1, "Number of OpenMetrics Info metrics (https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
+	//nolint:unused
+	omStateSetCount = flag.Int("om-stateset-count", -1, "Number of OpenMetrics StateSet metrics (https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
+	//nolint:unused
+	omInfoCount = flag.Int("om-info-count", -1, "Number of OpenMetrics Info metrics (https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
+	//nolint:unused
 	omGaugeHistogramCount = flag.Int("om-gaugehistogram-count", -1, "Number of OpenMetrics GaugeHistogram metrics (https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
 
 	exemplarSampling = flag.Float64("exemplar-sampling", 0.1, "Fraction of observations to include exemplars on histograms.")
@@ -88,12 +91,14 @@ var (
 	metricIncomingRequestsPending = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "example_incoming_requests_pending",
+			Help: "The number of pending incoming requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestsPending = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "example_outgoing_requests_pending",
+			Help: "The number of pending outgoing requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
@@ -101,46 +106,56 @@ var (
 	metricIncomingRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "example_incoming_requests_total",
+			Help: "The total number of incoming requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "example_outgoing_requests_total",
+			Help: "The total number of outgoing requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricIncomingRequestErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "example_incoming_request_errors_total",
+			Help: "The number of errors on incoming requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "example_outgoing_request_errors_total1",
+			Name: "example_outgoing_request_errors_total",
+			Help: "The number of errors on outgoing requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 
 	metricIncomingRequestDurationHistogram = prometheus.NewHistogramVec(
+		//nolint:promlinter // Histogram included in metric name to disambiguate from native histogram.
 		prometheus.HistogramOpts{
 			Name:    "example_histogram_incoming_request_duration",
+			Help:    "Duration ranges of incoming requests.",
 			Buckets: prometheus.LinearBuckets(0, 100, 8),
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestDurationHistogram = prometheus.NewHistogramVec(
+		//nolint:promlinter // Histogram included in metric name to disambiguate from native histogram.
 		prometheus.HistogramOpts{
 			Name:    "example_histogram_outgoing_request_duration",
+			Help:    "Duration ranges of outgoing requests.",
 			Buckets: prometheus.LinearBuckets(0, 100, 8),
 		},
 		[]string{"status", "method", "path"},
 	)
 
 	metricIncomingRequestDurationNativeHistogram = prometheus.NewHistogramVec(
+		//nolint:promlinter // Native histogram included in metric name to disambiguate from histogram.
 		prometheus.HistogramOpts{
 			Name:                            "example_native_histogram_incoming_request_duration",
+			Help:                            "Duration ranges of incoming requests.",
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  150,
 			NativeHistogramMinResetDuration: time.Hour,
@@ -148,8 +163,10 @@ var (
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestDurationNativeHistogram = prometheus.NewHistogramVec(
+		//nolint:promlinter // Native histogram included in metric name to disambiguate from histogram.
 		prometheus.HistogramOpts{
 			Name:                            "example_native_histogram_outgoing_request_duration",
+			Help:                            "Duration ranges of outgoing requests.",
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  150,
 			NativeHistogramMinResetDuration: time.Hour,
@@ -158,21 +175,25 @@ var (
 	)
 
 	metricIncomingRequestDurationSummary = prometheus.NewSummaryVec(
+		//nolint:promlinter // Summary included in metric name to disambiguate from histograms.
 		prometheus.SummaryOpts{
 			Name: "example_summary_incoming_request_duration",
+			Help: "Duration of incoming requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 	metricOutgoingRequestDurationSummary = prometheus.NewSummaryVec(
+		//nolint:promlinter // Summary included in metric name to disambiguate from histograms.
 		prometheus.SummaryOpts{
 			Name: "example_summary_outgoing_request_duration",
+			Help: "Duration of outgoing requests.",
 		},
 		[]string{"status", "method", "path"},
 	)
 )
 
 func main() {
-	httpClientConfig := newHttpClientConfigFromFlags()
+	httpClientConfig := newHTTPClientConfigFromFlags()
 	flag.Parse()
 
 	if err := httpClientConfig.validate(); err != nil {
@@ -217,7 +238,7 @@ func main() {
 				}
 				return nil
 			},
-			func(err error) {
+			func(error) {
 				close(cancel)
 			},
 		)
@@ -249,9 +270,9 @@ func main() {
 			}
 			log.Printf("Starting server on %q\n", *addr)
 			return server.ListenAndServe()
-		}, func(err error) {
+		}, func(error) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-			server.Shutdown(ctx)
+			_ = server.Shutdown(ctx)
 			cancel()
 		})
 	}
@@ -261,7 +282,7 @@ func main() {
 			func() error {
 				return burnCPU(ctx, *cpuBurnOps)
 			},
-			func(err error) {
+			func(error) {
 				cancel()
 			},
 		)
@@ -272,7 +293,7 @@ func main() {
 			func() error {
 				return updateMetrics(ctx)
 			},
-			func(err error) {
+			func(error) {
 				cancel()
 			},
 		)
@@ -288,7 +309,7 @@ func main() {
 func allocateMemoryBallast(buf *[]byte, sz int) {
 	// Fill memory ballast. Fill it with random values so it results in actual memory usage.
 	*buf = make([]byte, sz)
-	_, err := io.ReadFull(rand.New(rand.NewSource(0)), *buf)
+	_, err := rand.Read(*buf)
 	if err != nil {
 		panic(err)
 	}
@@ -300,7 +321,8 @@ func burnCPU(ctx context.Context, ops int) error {
 		// Burn some CPU proportional to the input ops.
 		// This must be fixed work, i.e. we cannot spin for a fraction of scheduling will
 		// greatly affect how many times we spin, even without high CPU utilization.
-		for i := 0; i < ops*20000000; i++ {
+		//nolint:revive // Intentionally empty block.
+		for range ops * 20000000 {
 		}
 
 		// Wait for some time inversely proportional to the input opts.
@@ -317,9 +339,9 @@ func burnCPU(ctx context.Context, ops int) error {
 
 // newTraceIDs generates random trace and span ID strings that conform to the
 // open telemetry spec: https://github.com/open-telemetry/opentelemetry-specification/blob/v1.18.0/specification/overview.md#spancontext.
-func newTraceIDs(traceBytes, spanBytes []byte) (string, string) {
-	rand.Read(traceBytes)
-	rand.Read(spanBytes)
+func newTraceIDs(traceBytes, spanBytes []byte) (traceID string, spanID string) {
+	_, _ = rand.Read(traceBytes)
+	_, _ = rand.Read(spanBytes)
 	return hex.EncodeToString(traceBytes), hex.EncodeToString(spanBytes)
 }
 
@@ -335,49 +357,50 @@ func updateMetrics(ctx context.Context) error {
 			return nil
 		case <-time.After(100 * time.Millisecond):
 			forNumInstances(*gaugeCount, func(labels prometheus.Labels) {
-				metricIncomingRequestsPending.With(labels).Set(float64(rand.Intn(200)))
-				metricOutgoingRequestsPending.With(labels).Set(float64(rand.Intn(200)))
+				metricIncomingRequestsPending.With(labels).Set(float64(mathrand.Intn(200)))
+				metricOutgoingRequestsPending.With(labels).Set(float64(mathrand.Intn(200)))
 			})
 			forNumInstances(*counterCount, func(labels prometheus.Labels) {
-				metricIncomingRequests.With(labels).Add(float64(rand.Intn(200)))
-				metricOutgoingRequests.With(labels).Add(float64(rand.Intn(100)))
-				metricIncomingRequestErrors.With(labels).Add(float64(rand.Intn(15)))
-				metricOutgoingRequestErrors.With(labels).Add(float64(rand.Intn(5)))
+				metricIncomingRequests.With(labels).Add(float64(mathrand.Intn(200)))
+				metricOutgoingRequests.With(labels).Add(float64(mathrand.Intn(100)))
+				metricIncomingRequestErrors.With(labels).Add(float64(mathrand.Intn(15)))
+				metricOutgoingRequestErrors.With(labels).Add(float64(mathrand.Intn(5)))
 			})
 			forNumInstances(*histogramCount, func(labels prometheus.Labels) {
 				// Record exemplar with histogram depending on sampling fraction.
-				samp := rand.Uint64()
+				samp := mathrand.Uint64()
 				thresh := uint64(*exemplarSampling * (1 << 63))
 				if samp < thresh {
 					traceID, spanID := newTraceIDs(traceBytes, spanBytes)
 					exemplar := prometheus.Labels{"trace_id": traceID, "span_id": spanID, "project_id": projectID}
-					metricIncomingRequestDurationHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(rand.NormFloat64()*300+500, exemplar)
+					metricIncomingRequestDurationHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(mathrand.NormFloat64()*300+500, exemplar)
 				} else {
-					metricIncomingRequestDurationHistogram.With(labels).Observe(rand.NormFloat64()*300 + 500)
+					metricIncomingRequestDurationHistogram.With(labels).Observe(mathrand.NormFloat64()*300 + 500)
 				}
-				metricOutgoingRequestDurationHistogram.With(labels).Observe(rand.NormFloat64()*200 + 300)
+				metricOutgoingRequestDurationHistogram.With(labels).Observe(mathrand.NormFloat64()*200 + 300)
 			})
 			forNumInstances(*nativeHistogramCount, func(labels prometheus.Labels) {
 				// Record exemplar with native histogram depending on sampling fraction.
-				samp := rand.Uint64()
+				samp := mathrand.Uint64()
 				thresh := uint64(*exemplarSampling * (1 << 63))
 				if samp < thresh {
 					traceID, spanID := newTraceIDs(traceBytes, spanBytes)
 					exemplar := prometheus.Labels{"trace_id": traceID, "span_id": spanID, "project_id": projectID}
-					metricIncomingRequestDurationNativeHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(rand.NormFloat64()*300+500, exemplar)
+					metricIncomingRequestDurationNativeHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(mathrand.NormFloat64()*300+500, exemplar)
 				} else {
-					metricIncomingRequestDurationNativeHistogram.With(labels).Observe(rand.NormFloat64()*300 + 500)
+					metricIncomingRequestDurationNativeHistogram.With(labels).Observe(mathrand.NormFloat64()*300 + 500)
 				}
-				metricOutgoingRequestDurationNativeHistogram.With(labels).Observe(rand.NormFloat64()*200 + 300)
+				metricOutgoingRequestDurationNativeHistogram.With(labels).Observe(mathrand.NormFloat64()*200 + 300)
 			})
 			forNumInstances(*summaryCount, func(labels prometheus.Labels) {
-				metricIncomingRequestDurationSummary.With(labels).Observe(rand.NormFloat64()*300 + 500)
-				metricOutgoingRequestDurationSummary.With(labels).Observe(rand.NormFloat64()*200 + 300)
+				metricIncomingRequestDurationSummary.With(labels).Observe(mathrand.NormFloat64()*300 + 500)
+				metricOutgoingRequestDurationSummary.With(labels).Observe(mathrand.NormFloat64()*200 + 300)
 			})
 		}
 	}
 }
 
+//nolint:unused
 type omCollector struct {
 	// TODO(bwplotka): Add om custom types.
 }

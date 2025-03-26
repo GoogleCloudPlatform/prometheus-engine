@@ -297,7 +297,7 @@ func (l *wrappedLock) update(ler resourcelock.LeaderElectionRecord, err error) {
 	defer l.mtx.Unlock()
 
 	l.start = ler.AcquireTime.Time
-	l.end = ler.RenewTime.Time.Add(time.Duration(ler.LeaseDurationSeconds) * time.Second)
+	l.end = ler.RenewTime.Add(time.Duration(ler.LeaseDurationSeconds) * time.Second)
 }
 
 func (l *wrappedLock) lastRange() (start time.Time, end time.Time) {

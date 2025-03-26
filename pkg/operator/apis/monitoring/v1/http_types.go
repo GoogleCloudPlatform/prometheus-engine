@@ -288,7 +288,7 @@ func (c *OAuth2) ToPrometheusConfig(m PodMonitoringCRD, pool PrometheusSecretCon
 			oauth2.TLSConfig = *tlsConfig
 		}
 	}
-	if c.ProxyConfig.ProxyURL != "" {
+	if c.ProxyURL != "" {
 		proxyConfig, err := c.ProxyConfig.ToPrometheusConfig()
 		if err != nil {
 			errs = append(errs, fmt.Errorf("OAuth2 proxy config: %w", err))
@@ -382,7 +382,7 @@ func (c *HTTPClientConfig) ToPrometheusConfig(m PodMonitoringCRD, pool Prometheu
 			clientConfig.OAuth2 = oauth2
 		}
 	}
-	if c.ProxyConfig.ProxyURL != "" {
+	if c.ProxyURL != "" {
 		proxyConfig, err := c.ProxyConfig.ToPrometheusConfig()
 		if err != nil {
 			errs = append(errs, err)

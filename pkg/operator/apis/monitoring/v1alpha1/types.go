@@ -16,7 +16,6 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -60,7 +59,7 @@ type RuleEvaluatorSpec struct {
 	// to which rule results are written.
 	// Within GKE, this can typically be left empty if the compute default
 	// service account has the required permissions.
-	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
+	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
 // CollectionSpec specifies how the operator configures collection of metric data.
@@ -76,7 +75,7 @@ type CollectionSpec struct {
 	// data is written.
 	// Within GKE, this can typically be left empty if the compute default
 	// service account has the required permissions.
-	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
+	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
 // ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
@@ -125,7 +124,7 @@ type Authorization struct {
 	// error
 	Type string `json:"type,omitempty"`
 	// The secret's key that contains the credentials of the request
-	Credentials *v1.SecretKeySelector `json:"credentials,omitempty"`
+	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
 // SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
@@ -135,7 +134,7 @@ type TLSConfig struct {
 	// Struct containing the client cert file for the targets.
 	Cert *SecretOrConfigMap `json:"cert,omitempty"`
 	// Secret containing the client key file for the targets.
-	KeySecret *v1.SecretKeySelector `json:"keySecret,omitempty"`
+	KeySecret *corev1.SecretKeySelector `json:"keySecret,omitempty"`
 	// Used to verify the hostname for the targets.
 	ServerName string `json:"serverName,omitempty"`
 	// Disable target certificate validation.
@@ -146,9 +145,9 @@ type TLSConfig struct {
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#secretorconfigmap
 type SecretOrConfigMap struct {
 	// Secret containing data to use for the targets.
-	Secret *v1.SecretKeySelector `json:"secret,omitempty"`
+	Secret *corev1.SecretKeySelector `json:"secret,omitempty"`
 	// ConfigMap containing data to use for the targets.
-	ConfigMap *v1.ConfigMapKeySelector `json:"configMap,omitempty"`
+	ConfigMap *corev1.ConfigMapKeySelector `json:"configMap,omitempty"`
 }
 
 // PodMonitoring defines monitoring for a set of pods.

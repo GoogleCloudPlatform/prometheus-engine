@@ -69,10 +69,10 @@ const ExtraArgsEnvvar = "EXTRA_ARGS"
 // in our fork to propagate it.
 var globalExporter *export.Exporter
 
-var ErrLocationGlobal = errors.New("Location must be set to a named Google Cloud " +
-	"region and cannot be set to \"global\". Please choose the " +
+var ErrLocationGlobal = errors.New("location must be set to a named Google Cloud " +
+	"region and cannot be set to \"global\". please choose the " +
 	"Google Cloud region that is physically nearest to your cluster. " +
-	"See https://www.cloudinfrastructuremap.com/")
+	"see https://www.cloudinfrastructuremap.com/")
 
 // SetGlobal sets the global instance of the GCM exporter.
 func SetGlobal(exporter *export.Exporter) (err error) {

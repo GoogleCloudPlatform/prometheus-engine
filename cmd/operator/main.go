@@ -44,6 +44,8 @@ const (
 )
 
 func main() {
+	ctx := context.Background()
+
 	var (
 		defaultProjectID string
 		defaultCluster   string
@@ -52,11 +54,11 @@ func main() {
 	errList := []error{}
 	if metadata.OnGCE() {
 		var err error
-		defaultProjectID, err = metadata.ProjectID()
+		defaultProjectID, err = metadata.ProjectIDWithContext(ctx)
 		errList = append(errList, err)
-		defaultCluster, err = metadata.InstanceAttributeValue("cluster-name")
+		defaultCluster, err = metadata.InstanceAttributeValueWithContext(ctx, "cluster-name")
 		errList = append(errList, err)
-		defaultLocation, err = metadata.InstanceAttributeValue("cluster-location")
+		defaultLocation, err = metadata.InstanceAttributeValueWithContext(ctx, "cluster-location")
 		errList = append(errList, err)
 	}
 	var (

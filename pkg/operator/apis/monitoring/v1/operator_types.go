@@ -125,7 +125,7 @@ func validateSecretKeySelector(secretKeySelector *corev1.SecretKeySelector) erro
 	if secretKeySelector == nil {
 		return nil
 	}
-	if secretKeySelector.LocalObjectReference.Name == "" {
+	if secretKeySelector.Name == "" {
 		return errors.New("missing secret key selector name")
 	}
 	return nil
