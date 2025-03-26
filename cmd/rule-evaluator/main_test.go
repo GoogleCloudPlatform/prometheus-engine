@@ -138,7 +138,7 @@ func TestSelect(t *testing.T) {
 			},
 			want: &listSeriesSet{
 				m:   promql.Matrix{},
-				err: errors.New("Error querying Prometheus, Expected type matrix response. Actual type vector"),
+				err: errors.New("error querying Prometheus, expected type matrix response. actual type vector"),
 			},
 		},
 		{

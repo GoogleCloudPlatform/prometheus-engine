@@ -62,7 +62,7 @@ google_cloud:
 			},
 		},
 	}
-	expected.Config.RuleFiles = []string{"/etc/rules/*.yaml"}
+	expected.RuleFiles = []string{"/etc/rules/*.yaml"}
 	if diff := cmp.Diff(expected, out); diff != "" {
 		t.Fatalf("unexpected config from marshaling (-want, +got): %s", diff)
 	}

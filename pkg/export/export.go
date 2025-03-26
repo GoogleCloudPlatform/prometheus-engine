@@ -107,10 +107,10 @@ var (
 		// Limit buckets to 200, which is the real-world batch size for GCM.
 		Buckets: []float64{1, 2, 5, 10, 20, 50, 100, 150, 200},
 	})
-	ErrLocationGlobal = errors.New("Location must be set to a named Google Cloud " +
-		"region and cannot be set to \"global\". Please choose the " +
+	ErrLocationGlobal = errors.New("location must be set to a named Google Cloud " +
+		"region and cannot be set to \"global\". please choose the " +
 		"Google Cloud region that is physically nearest to your cluster. " +
-		"See https://www.cloudinfrastructuremap.com/")
+		"see https://www.cloudinfrastructuremap.com/")
 )
 
 type metricServiceClient interface {
@@ -524,12 +524,14 @@ func validateLabelSet(lset labels.Labels) error {
 	// In production scenarios, "location" should most likely never be overridden as it
 	// means crossing failure domains. Instead, each location should run a replica of the
 	// evaluator with the same rules.
-	if loc := lset.Get(KeyLocation); loc == "" {
+	switch loc := lset.Get(KeyLocation); loc {
+	case "":
 		return fmt.Errorf("no label %q set via external labels or flag", KeyLocation)
-	} else if loc == "global" {
+	case "global":
 		return ErrLocationGlobal
+	default:
+		return nil
 	}
-	return nil
 }
 
 // SetLabelsByIDFunc injects a function that can be used to retrieve a label set

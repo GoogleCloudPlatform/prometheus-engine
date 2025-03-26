@@ -328,7 +328,7 @@ func (c *oauth2Config) validate() error {
 	if c.accessToken == "" {
 		builder := strings.Builder{}
 		builder.Grow(defaultOAuth2TokenLength)
-		for i := 0; i < builder.Cap(); i++ {
+		for range builder.Cap() {
 			builder.WriteByte(oauth2TokenCharset[rand.Intn(len(oauth2TokenCharset))])
 		}
 		c.accessToken = builder.String()
@@ -346,7 +346,7 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 
 		if err := r.ParseForm(); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(oauthTokenErrorResponse("server_error", "unable to parse form contents"))
+			_, _ = w.Write(oauthTokenErrorResponse("server_error", "unable to parse form contents"))
 		}
 
 		grantType := r.Form.Get("grant_type")
@@ -355,13 +355,13 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 		scopes := r.Form.Get("scope")
 		if grantType != "client_credentials" {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write(oauthTokenErrorResponse("unsupported_grant_type", fmt.Sprintf("received %q", grantType)))
+			_, _ = w.Write(oauthTokenErrorResponse("unsupported_grant_type", fmt.Sprintf("received %q", grantType)))
 			return
 		}
 
 		if clientID != c.clientID || clientSecret != c.clientSecret {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write(oauthTokenErrorResponse("invalid_client", "incorrect client credentials"))
+			_, _ = w.Write(oauthTokenErrorResponse("invalid_client", "incorrect client credentials"))
 			return
 		}
 
@@ -372,13 +372,13 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 			sort.Strings(requestedScopes)
 			if !cmp.Equal(requestedScopes, requiredScopes) {
 				w.WriteHeader(http.StatusUnauthorized)
-				w.Write(oauthTokenErrorResponse("invalid_scope", fmt.Sprintf("expected %q, received %q", c.scopes, scopes)))
+				_, _ = w.Write(oauthTokenErrorResponse("invalid_scope", fmt.Sprintf("expected %q, received %q", c.scopes, scopes)))
 				return
 			}
 		}
 
 		response := fmt.Sprintf("{\n\t\"access_token\": %q,\n\t\"token_type\": %q\n}\n", c.accessToken, "bearer")
-		w.Write([]byte(response))
+		_, _ = w.Write([]byte(response))
 	})
 }
 
@@ -393,7 +393,7 @@ type httpClientConfig struct {
 	oauth2    *oauth2Config
 }
 
-func newHttpClientConfigFromFlags() *httpClientConfig {
+func newHTTPClientConfigFromFlags() *httpClientConfig {
 	return &httpClientConfig{
 		tls:       newTLSConfigFromFlags(),
 		basicAuth: newBasicAuthConfigFromFlags(),

@@ -82,9 +82,9 @@ conform:
 	docker run --rm -v ${PWD}:/src -w /src ghcr.io/siderolabs/conform:v0.1.0-alpha.27 enforce
 
 .PHONY: lint
-lint: $(GOLANGCI_LINT)
+lint:
 	@echo ">> linting code"
-	$(GOLANGCI_LINT) run --verbose --timeout 5m
+	go tool golangci-lint run --verbose --timeout 5m
 
 $(GOCMDS):   ## Build go binary from cmd/ (e.g. 'operator').
              ## The following env variables configure the build, and are mutually exclusive:

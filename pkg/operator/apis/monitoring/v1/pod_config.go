@@ -409,7 +409,7 @@ func endpointScrapeConfig(
 	}
 	relabelCfgs = append(relabelCfgs, pCfgs...)
 
-	httpCfg, err := ep.HTTPClientConfig.ToPrometheusConfig(m, pool)
+	httpCfg, err := ep.ToPrometheusConfig(m, pool)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse or invalid Prometheus HTTP client config: %w", err)
 	}
