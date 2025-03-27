@@ -13,20 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source .bingo/variables.env
-
 # Bump Go images
-REPO=google-go.pkg.dev/golang
-TAG=$(crane ls ${REPO} | sort -V | tail -n1)
-DIGEST=$(crane digest "${REPO}:${TAG}")
-IMAGE="${REPO}:${TAG}@${DIGEST}"
-echo "$IMAGE"
+GOLANG_REPO=google-go.pkg.dev/golang
+GOLANG_TAG=$(go tool gcrane ls ${GOLANG_REPO} --json | jq --raw-output '.tags[]' | sort -V | tail -n1)
+GOLANG_DIGEST=$(crane digest "${GOLANG_REPO}:${GOLANG_TAG}")
+GOLANG_REF="${GOLANG_REPO}:${GOLANG_TAG}@${GOLANG_DIGEST}"
+echo "${GOLANG_REF}"
 find ./cmd ./examples ./hack -name Dockerfile -exec \
-  sed -E "s#google-go\.pkg\.dev/golang:[0-9]+\.[0-9]+\.[0-9+][^@ ]*(@sha256:[0-9a-f]+)?#${IMAGE}#g" -i {} \;
+  sed -E "s#google-go\.pkg\.dev/golang:([0-9]+\.[0-9]+\.[0-9+][^@ ]*)?(@sha256:[0-9a-f]+)?#${GOLANG_REF}#g" -i {} \;
 
 # Bump golangci-lint
-bingo get golangci-lint@latest
-LINTER_REPO=docker.io/golangci/golangci-lint
-LINTER_TAG=$(crane ls ${LINTER_REPO} | grep --invert-match "-" | sort -V | tail -n1)
-echo "${LINTER_REPO}:${LINTER_TAG}"
-${YQ} -i ".jobs[\"golangci-lint\"].steps[2].with.version = \"${LINTER_TAG}\"" .github/workflows/presubmit.yml
+go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+LINTER_TAG=$(go list -mod=readonly -m github.com/golangci/golangci-lint/v2 | awk '{print $2}')
+echo "golangci-lint@${LINTER_TAG}"
+go tool yq -i ".jobs[\"golangci-lint\"].steps[2].with.version = \"${LINTER_TAG}\"" .github/workflows/presubmit.yml

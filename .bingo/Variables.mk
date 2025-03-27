@@ -17,12 +17,6 @@ GO     ?= $(shell which go)
 #	@echo "Running addlicense"
 #	@$(ADDLICENSE) <flags/args..>
 #
-ADDLICENSE := $(GOBIN)/addlicense-v1.1.1
-$(ADDLICENSE): $(BINGO_DIR)/addlicense.mod
-	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/addlicense-v1.1.1"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.1.1 "github.com/google/addlicense"
-
 CONTROLLER_GEN := $(GOBIN)/controller-gen-v0.17.1-0.20250103184936-50893dee96da
 $(CONTROLLER_GEN): $(BINGO_DIR)/controller-gen.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
@@ -46,10 +40,4 @@ $(MDOX): $(BINGO_DIR)/mdox.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
 	@echo "(re)installing $(GOBIN)/mdox-v0.9.0"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=mdox.mod -o=$(GOBIN)/mdox-v0.9.0 "github.com/bwplotka/mdox"
-
-YQ := $(GOBIN)/yq-v4.40.7
-$(YQ): $(BINGO_DIR)/yq.mod
-	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/yq-v4.40.7"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=yq.mod -o=$(GOBIN)/yq-v4.40.7 "github.com/mikefarah/yq/v4"
 
