@@ -15,6 +15,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -25,11 +26,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/alertmanager/matchers/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
 )
@@ -49,23 +50,10 @@ func init() {
 // Secret is a string that must not be revealed on marshaling.
 type Secret string
 
-// MarshalYAML implements the yaml.Marshaler interface for Secret.
-func (s Secret) MarshalYAML() (interface{}, error) {
-	if s != "" {
-		return secretToken, nil
-	}
-	return nil, nil
-}
-
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Secret.
 func (s *Secret) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain Secret
 	return unmarshal((*plain)(s))
-}
-
-// MarshalJSON implements the json.Marshaler interface for Secret.
-func (s Secret) MarshalJSON() ([]byte, error) {
-	return json.Marshal(secretToken)
 }
 
 // URL is a custom type that represents an HTTP or HTTPS URL and allows validation at configuration load time.
@@ -129,7 +117,7 @@ type SecretURL URL
 // MarshalYAML implements the yaml.Marshaler interface for SecretURL.
 func (s SecretURL) MarshalYAML() (interface{}, error) {
 	if s.URL != nil {
-		return secretToken, nil
+		return s.String(), nil
 	}
 	return nil, nil
 }
@@ -152,7 +140,7 @@ func (s *SecretURL) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // MarshalJSON implements the json.Marshaler interface for SecretURL.
 func (s SecretURL) MarshalJSON() ([]byte, error) {
-	return json.Marshal(secretToken)
+	return json.Marshal(s.String())
 }
 
 // UnmarshalJSON implements the json.Marshaler interface for SecretURL.
@@ -306,6 +294,8 @@ type Config struct {
 	// Deprecated. Remove before v1.0 release.
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 	TimeIntervals     []TimeInterval     `yaml:"time_intervals,omitempty" json:"time_intervals,omitempty"`
+
+	GoogleCloud GoogleCloudConfig `yaml:"google_cloud,omitempty" json:"google_cloud,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
@@ -584,7 +574,29 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		tiNames[mt.Name] = struct{}{}
 	}
 
+	if c.GoogleCloud.ExternalURL != nil {
+		if err := ExternalURLNormalize(c.GoogleCloud.ExternalURL.URL); err != nil {
+			return err
+		}
+	}
+
 	return checkTimeInterval(c.Route, tiNames)
+}
+
+// ExternalURLNormalize normalizes the external URL, validating the scheme
+// and ensuring there's no trailing slash.
+func ExternalURLNormalize(u *url.URL) error {
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("%q: invalid %q scheme, only 'http' and 'https' are supported", u.String(), u.Scheme)
+	}
+
+	ppref := strings.TrimRight(u.Path, "/")
+	if ppref != "" && !strings.HasPrefix(ppref, "/") {
+		ppref = "/" + ppref
+	}
+	u.Path = ppref
+
+	return nil
 }
 
 // checkReceiver returns an error if a node in the routing tree
@@ -688,7 +700,7 @@ func (hp *HostPort) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if hp.Port == "" {
-		return errors.Errorf("address %q: port cannot be empty", s)
+		return fmt.Errorf("address %q: port cannot be empty", s)
 	}
 	return nil
 }
@@ -710,7 +722,7 @@ func (hp *HostPort) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if hp.Port == "" {
-		return errors.Errorf("address %q: port cannot be empty", s)
+		return fmt.Errorf("address %q: port cannot be empty", s)
 	}
 	return nil
 }
@@ -766,6 +778,10 @@ type GlobalConfig struct {
 	WebexAPIURL          *URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
 }
 
+type GoogleCloudConfig struct {
+	ExternalURL *URL `yaml:"external_url,omitempty" json:"external_url,omitempty"`
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface for GlobalConfig.
 func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultGlobalConfig()
@@ -813,7 +829,7 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			r.GroupByAll = true
 		} else {
 			labelName := model.LabelName(l)
-			if !labelName.IsValid() {
+			if !compat.IsValidLabelName(labelName) {
 				return fmt.Errorf("invalid label name %q in group_by list", l)
 			}
 			r.GroupBy = append(r.GroupBy, labelName)
@@ -907,7 +923,7 @@ type Receiver struct {
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WebexConfigs     []*WebexConfig     `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
-	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"teams_configs,omitempty"`
+	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
@@ -1005,7 +1021,7 @@ func (m *Matchers) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	for _, line := range lines {
-		pm, err := labels.ParseMatchers(line)
+		pm, err := compat.Matchers(line, "config")
 		if err != nil {
 			return err
 		}
@@ -1031,7 +1047,7 @@ func (m *Matchers) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	for _, line := range lines {
-		pm, err := labels.ParseMatchers(line)
+		pm, err := compat.Matchers(line, "config")
 		if err != nil {
 			return err
 		}

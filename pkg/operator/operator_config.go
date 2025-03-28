@@ -22,7 +22,6 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
-	alertmanagerconfig "github.com/prometheus/alertmanager/config"
 	promcommonconfig "github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
@@ -485,10 +484,10 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 }
 
 type alertmanagerConfig struct {
-	alertmanagerconfig.Config `yaml:",inline"`
+	Config AlertmanagerConfig `yaml:",inline"`
 
 	// Google Cloud configuration. Matches our fork's configuration.
-	GoogleCloud googleCloudAlertmanagerConfig `yaml:"google_cloud,omitempty"`
+	GoogleCloud googleCloudAlertmanagerConfig `yaml:"-"`
 }
 
 type googleCloudAlertmanagerConfig struct {

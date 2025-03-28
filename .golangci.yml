@@ -54,12 +54,16 @@ linters:
     - perfsprint
     - prealloc
     - protogetter
+    - recvcheck
+    - revive
     - stylecheck
+    - tagalign
     - tagliatelle
     - testpackage
     - thelper
     - tparallel
     - unparam
+    - usetesting
     - varnamelen
     - wastedassign
     - wrapcheck

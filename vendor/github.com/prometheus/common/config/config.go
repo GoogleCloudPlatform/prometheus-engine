@@ -30,7 +30,7 @@ type Secret string
 // MarshalYAML implements the yaml.Marshaler interface for Secrets.
 func (s Secret) MarshalYAML() (interface{}, error) {
 	if s != "" {
-		return secretToken, nil
+		return string(s), nil
 	}
 	return nil, nil
 }
@@ -46,7 +46,7 @@ func (s Secret) MarshalJSON() ([]byte, error) {
 	if len(s) == 0 {
 		return json.Marshal("")
 	}
-	return json.Marshal(secretToken)
+	return json.Marshal(s)
 }
 
 type Header map[string][]Secret

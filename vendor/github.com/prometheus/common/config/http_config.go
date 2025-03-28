@@ -1092,11 +1092,11 @@ func (c *TLSConfig) Validate() error {
 }
 
 func (c *TLSConfig) usingClientCert() bool {
-	return len(c.Cert) > 0 || len(c.CertFile) > 0 || len(c.CARef) > 0
+	return len(c.Cert) > 0 || len(c.CertFile) > 0 || len(c.CertRef) > 0
 }
 
 func (c *TLSConfig) usingClientKey() bool {
-	return len(c.Key) > 0 || len(c.KeyFile) > 0 || len(c.CARef) > 0
+	return len(c.Key) > 0 || len(c.KeyFile) > 0 || len(c.KeyRef) > 0
 }
 
 func (c *TLSConfig) roundTripperSettings(secretManager SecretManager) (TLSRoundTripperSettings, error) {

@@ -23,7 +23,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/prometheus/config"
-	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -272,12 +271,12 @@ func TestEnsureAlertmanagerConfigSecret(t *testing.T) {
 		PublicNamespace:   DefaultPublicNamespace,
 		OperatorNamespace: DefaultOperatorNamespace,
 	}
-	for _, tcase := range []struct {
+	for _, tc := range []struct {
 		name                          string
 		operatorConfigManagedAMExtURL string
 		amConfig                      string
 
-		expectedAmConfig string
+		wantAmConfig string
 	}{
 		{
 			name: "with secret; no external url",
@@ -294,7 +293,7 @@ receivers:
         type: 'Bearer'
         credentials: 'SUPER IMPORTANT SECRET'
 `,
-			expectedAmConfig: `
+			wantAmConfig: `
 route:
   receiver: "slack"
 receivers:
@@ -328,7 +327,7 @@ receivers:
         type: 'Bearer'
         credentials: 'SUPER IMPORTANT SECRET'
 `,
-			expectedAmConfig: `
+			wantAmConfig: `
 google_cloud:
   # Must be exactly the same value as in OperatorConfig.managedAlertmanager.externalURL,
   # so buggy re-encoding is skipped until the 0.14.3 bugfix is rolled.
@@ -363,22 +362,38 @@ receivers:
         type: 'Bearer'
         credentials: 'SUPER IMPORTANT SECRET'
 `,
-			expectedAmConfig: `
-route:
-  receiver: "slack"
+			wantAmConfig: `route:
+    receiver: slack
+    continue: false
 receivers:
-- name: "slack"
-  slack_configs:
-  - channel: '#some_channel'
-    api_url: https://slack.com/api/chat.postMessage
-    http_config:
-      authorization:
-        type: 'Bearer'
-        credentials: 'SUPER IMPORTANT SECRET'
+    - name: slack
+      slack_configs:
+        - send_resolved: false
+          http_config:
+            authorization:
+                type: Bearer
+                credentials: SUPER IMPORTANT SECRET
+            follow_redirects: true
+            enable_http2: true
+          api_url: https://slack.com/api/chat.postMessage
+          channel: '#some_channel'
+          username: '{{ template "slack.default.username" . }}'
+          color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+          title: '{{ template "slack.default.title" . }}'
+          title_link: '{{ template "slack.default.titlelink" . }}'
+          pretext: '{{ template "slack.default.pretext" . }}'
+          text: '{{ template "slack.default.text" . }}'
+          short_fields: false
+          footer: '{{ template "slack.default.footer" . }}'
+          fallback: '{{ template "slack.default.fallback" . }}'
+          callback_id: '{{ template "slack.default.callbackid" . }}'
+          icon_emoji: '{{ template "slack.default.iconemoji" . }}'
+          icon_url: '{{ template "slack.default.iconurl" . }}'
+          link_names: false
 `,
 		},
 	} {
-		t.Run(tcase.name, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			operatorConfig := &monitoringv1.OperatorConfig{
 				ObjectMeta: v1.ObjectMeta{
 					Namespace: DefaultPublicNamespace,
@@ -391,7 +406,7 @@ receivers:
 						},
 						Key: AlertmanagerConfigKey,
 					},
-					ExternalURL: tcase.operatorConfigManagedAMExtURL,
+					ExternalURL: tc.operatorConfigManagedAMExtURL,
 				},
 			}
 			amSecret := &corev1.Secret{
@@ -401,23 +416,28 @@ receivers:
 					Annotations: componentAnnotations(),
 					Labels:      alertmanagerLabels(),
 				},
-				Data: map[string][]byte{AlertmanagerConfigKey: []byte(tcase.amConfig)},
+				Data: map[string][]byte{AlertmanagerConfigKey: []byte(tc.amConfig)},
 			}
 
-			ctx := context.Background()
 			fakeClient := newFakeClientBuilder().WithObjects(
 				operatorConfig.DeepCopy(),
 				amSecret.DeepCopy(),
 			)
 			kubeClient := fakeClient.Build()
 			reconciler := newOperatorConfigReconciler(kubeClient, operatorOpts)
-			require.NoError(t, reconciler.ensureAlertmanagerConfigSecret(ctx, operatorConfig.ManagedAlertmanager))
+			if err := reconciler.ensureAlertmanagerConfigSecret(t.Context(), operatorConfig.ManagedAlertmanager); err != nil {
+				t.Error(err)
+			}
 
 			// Get output secret from gmp-system.
-			b, err := getSecretKeyBytes(ctx, kubeClient, DefaultOperatorNamespace, operatorConfig.ManagedAlertmanager.ConfigSecret)
-			require.NoError(t, err)
+			b, err := getSecretKeyBytes(t.Context(), kubeClient, DefaultOperatorNamespace, operatorConfig.ManagedAlertmanager.ConfigSecret)
+			if err != nil {
+				t.Error(err)
+			}
 
-			require.Equal(t, tcase.expectedAmConfig, string(b))
+			if diff := cmp.Diff(tc.wantAmConfig, string(b)); diff != "" {
+				t.Errorf("-wamt +got: %s", diff)
+			}
 		})
 	}
 }
