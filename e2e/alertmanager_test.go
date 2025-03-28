@@ -41,7 +41,58 @@ func TestAlertmanager(t *testing.T) {
 	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, monitoringv1.OperatorFeatures{}))
 
 	t.Run("alertmanager-deployed", testAlertmanagerDeployed(ctx, kubeClient))
-	t.Run("alertmanager-operatorconfig", testAlertmanagerOperatorConfig(ctx, kubeClient))
+	t.Run("alertmanager-operatorconfig", func(t *testing.T) {
+		t.Run("passthrough", func(_ *testing.T) {
+			// In this case user provided configuration already has Google custom field
+			// google_cloud.external_url equal to what's desired in OperatorConfig
+			// which causes Operator to skip re-encoding.
+			alertmanagerConfig := `
+google_cloud:
+	# The same value as in OperatorConfig causing re-encoding to be skipped.
+  external_url: "https://alertmanager.mycompany.com/"
+receivers:
+  - name: "foobar"
+route:
+  receiver: "foobar"
+receivers:
+- name: 'slack'
+  slack_configs:
+  - channel: '#some_channel'
+    api_url: https://slack.com/api/chat.postMessage
+    http_config:
+      authorization:
+        type: 'Bearer'
+        credentials: 'SUPER IMPORTANT SECRET'
+`
+			testAlertmanagerOperatorConfig(ctx, kubeClient, alertmanagerConfig, alertmanagerConfig)
+		})
+		// Regression for https://github.com/GoogleCloudPlatform/prometheus-engine/issues/1550
+		t.Run("reencode", func(_ *testing.T) {
+			// In this case user provided configuration already has Google custom field
+			// google_cloud.external_url equal to what's desired in OperatorConfig
+			// which causes Operator to skip re-encoding.
+			alertmanagerConfig := `
+google_cloud:
+	# The same value as in OperatorConfig causing re-encoding to be skipped.
+  external_url: "https://alertmanager.mycompany.com/"
+receivers:
+  - name: "foobar"
+route:
+  receiver: "foobar"
+receivers:
+- name: 'slack'
+  slack_configs:
+  - channel: '#some_channel'
+    api_url: https://slack.com/api/chat.postMessage
+    http_config:
+      authorization:
+        type: 'Bearer'
+        credentials: 'SUPER IMPORTANT SECRET'
+`
+			expectedAlertmanagerConfig := `TBD`
+			testAlertmanagerOperatorConfig(ctx, kubeClient, alertmanagerConfig, expectedAlertmanagerConfig)
+		})
+	})
 }
 
 func testAlertmanagerDeployed(ctx context.Context, kubeClient client.Client) func(*testing.T) {
@@ -107,19 +158,11 @@ func testAlertmanagerDeployed(ctx context.Context, kubeClient client.Client) fun
 	}
 }
 
-func testAlertmanagerOperatorConfig(ctx context.Context, kubeClient client.Client) func(*testing.T) {
+func testAlertmanagerOperatorConfig(ctx context.Context, kubeClient client.Client, alertmanagerConfig, expectedAlertmanagerConfig string) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking alertmanager is configured")
 
 		// Provision custom Alertmanager secret.
-		alertmanagerConfig := `
-receivers:
-  - name: "foobar"
-route:
-  receiver: "foobar"
-google_cloud:
-  external_url: "https://alertmanager.mycompany.com/"
-`
 		secret := corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-secret-name",
@@ -178,7 +221,7 @@ google_cloud:
 			}
 
 			// Grab data from public secret and compare.
-			if diff := cmp.Diff([]byte(alertmanagerConfig), bytes); diff != "" {
+			if diff := cmp.Diff([]byte(expectedAlertmanagerConfig), bytes); diff != "" {
 				return false, fmt.Errorf("unexpected configuration (-want, +got): %s", diff)
 			}
 
