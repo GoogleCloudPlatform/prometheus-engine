@@ -300,7 +300,7 @@ func testEnsurePodMonitoringStatus(ctx context.Context, kubeClient client.Client
 			// This is not a perfect check as it's possible the get call returns before the operator
 			// would sync again, however it can serve as a valuable guardrail in case sporadic test
 			// failures start happening due to update cycles.
-			if size := len(pm.Status.Conditions); size > 1 {
+			if size := len(pm.Status.Conditions); size != 1 {
 				return false, fmt.Errorf("status conditions should be of length 1, but got: %d", size)
 			}
 			// Ensure podmonitoring status shows created configuration.
@@ -357,7 +357,7 @@ func testEnsureClusterPodMonitoringStatus(ctx context.Context, kubeClient client
 			// This is not a perfect check as it's possible the get call returns before the operator
 			// would sync again, however it can serve as a valuable guardrail in case sporadic test
 			// failures start happening due to update cycles.
-			if size := len(cpm.Status.Conditions); size > 1 {
+			if size := len(cpm.Status.Conditions); size != 1 {
 				return false, fmt.Errorf("status conditions should be of length 1, but got: %d", size)
 			}
 

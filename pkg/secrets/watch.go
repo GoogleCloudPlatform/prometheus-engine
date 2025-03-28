@@ -116,15 +116,15 @@ func (w *secretWatcher) secret(config *KubernetesSecretConfig) Secret {
 		w.mu.Lock()
 		defer w.mu.Unlock()
 		if w.s == nil {
-			return "", errNotFound(config.Namespace, config.Name)
+			return "", errNotFound(config.Key)
 		}
 		return getValue(w.s, config.Key)
 	})
 	return &fn
 }
 
-func errNotFound(namespace, name string) error {
-	return fmt.Errorf("secret %s/%s not found or forbidden", namespace, name)
+func errNotFound(key string) error {
+	return fmt.Errorf("secret / does not contain key: %s", key)
 }
 
 // start creates the secret watch and returns true if the watch is running.
@@ -259,7 +259,7 @@ func (p *watchProvider) Update(configBefore, configAfter *KubernetesSecretConfig
 		val := p.secretKeyToWatcher[objKeyAfter.String()]
 		if val == nil {
 			// Highly unlikely occurrence.
-			return nil, errNotFound(configAfter.Namespace, configAfter.Name)
+			return nil, errNotFound(configAfter.Key)
 		}
 		return val.secret(configAfter), nil
 	}
