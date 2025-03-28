@@ -22,7 +22,10 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/prometheus/config"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -254,6 +257,165 @@ func TestEnsureOperatorConfig(t *testing.T) {
 					t.Fatalf("operator config expected update: %s", diff)
 				}
 			}
+		})
+	}
+}
+
+// Regression against https://github.com/GoogleCloudPlatform/prometheus-engine/issues/1550
+func TestEnsureAlertmanagerConfigSecret(t *testing.T) {
+	operatorOpts := Options{
+		ProjectID:         "test-project",
+		Location:          "us-central1-c",
+		Cluster:           "test-cluster",
+		PublicNamespace:   DefaultPublicNamespace,
+		OperatorNamespace: DefaultOperatorNamespace,
+	}
+	for _, tcase := range []struct {
+		name                          string
+		operatorConfigManagedAMExtURL string
+		amConfig                      string
+
+		expectedAmConfig string
+	}{
+		{
+			name: "with secret; no external url",
+			amConfig: `
+route:
+  receiver: "slack"
+receivers:
+- name: "slack"
+  slack_configs:
+  - channel: '#some_channel'
+    api_url: https://slack.com/api/chat.postMessage
+    http_config:
+      authorization:
+        type: 'Bearer'
+        credentials: 'SUPER IMPORTANT SECRET'
+`,
+			expectedAmConfig: `
+route:
+  receiver: "slack"
+receivers:
+- name: "slack"
+  slack_configs:
+  - channel: '#some_channel'
+    api_url: https://slack.com/api/chat.postMessage
+    http_config:
+      authorization:
+        type: 'Bearer'
+        credentials: 'SUPER IMPORTANT SECRET'
+`,
+		},
+		{
+			name:                          "with secret; set external url with the same values",
+			operatorConfigManagedAMExtURL: "https://alertmanager.mycompany.com/",
+			amConfig: `
+google_cloud:
+  # Must be exactly the same value as in OperatorConfig.managedAlertmanager.externalURL,
+  # so buggy re-encoding is skipped until the 0.14.3 bugfix is rolled.
+  external_url: "https://alertmanager.mycompany.com/"
+route:
+  receiver: "slack"
+receivers:
+- name: "slack"
+  slack_configs:
+  - channel: '#some_channel'
+    api_url: https://slack.com/api/chat.postMessage
+    http_config:
+      authorization:
+        type: 'Bearer'
+        credentials: 'SUPER IMPORTANT SECRET'
+`,
+			expectedAmConfig: `
+google_cloud:
+  # Must be exactly the same value as in OperatorConfig.managedAlertmanager.externalURL,
+  # so buggy re-encoding is skipped until the 0.14.3 bugfix is rolled.
+  external_url: "https://alertmanager.mycompany.com/"
+route:
+  receiver: "slack"
+receivers:
+- name: "slack"
+  slack_configs:
+  - channel: '#some_channel'
+    api_url: https://slack.com/api/chat.postMessage
+    http_config:
+      authorization:
+        type: 'Bearer'
+        credentials: 'SUPER IMPORTANT SECRET'
+`,
+		},
+		// This is expected to fail until https://github.com/GoogleCloudPlatform/prometheus-engine/issues/1550 is fixed.
+		{
+			name:                          "with secret; external url set in operator config, but not in am yaml",
+			operatorConfigManagedAMExtURL: "https://alertmanager.mycompany.com/",
+			amConfig: `
+route:
+  receiver: "slack"
+receivers:
+- name: "slack"
+  slack_configs:
+  - channel: '#some_channel'
+    api_url: https://slack.com/api/chat.postMessage
+    http_config:
+      authorization:
+        type: 'Bearer'
+        credentials: 'SUPER IMPORTANT SECRET'
+`,
+			expectedAmConfig: `
+route:
+  receiver: "slack"
+receivers:
+- name: "slack"
+  slack_configs:
+  - channel: '#some_channel'
+    api_url: https://slack.com/api/chat.postMessage
+    http_config:
+      authorization:
+        type: 'Bearer'
+        credentials: 'SUPER IMPORTANT SECRET'
+`,
+		},
+	} {
+		t.Run(tcase.name, func(t *testing.T) {
+			operatorConfig := &monitoringv1.OperatorConfig{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: DefaultPublicNamespace,
+					Name:      NameOperatorConfig,
+				},
+				ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+					ConfigSecret: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: AlertmanagerSecretName,
+						},
+						Key: AlertmanagerConfigKey,
+					},
+					ExternalURL: tcase.operatorConfigManagedAMExtURL,
+				},
+			}
+			amSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        AlertmanagerSecretName,
+					Namespace:   DefaultPublicNamespace,
+					Annotations: componentAnnotations(),
+					Labels:      alertmanagerLabels(),
+				},
+				Data: map[string][]byte{AlertmanagerConfigKey: []byte(tcase.amConfig)},
+			}
+
+			ctx := context.Background()
+			fakeClient := newFakeClientBuilder().WithObjects(
+				operatorConfig.DeepCopy(),
+				amSecret.DeepCopy(),
+			)
+			kubeClient := fakeClient.Build()
+			reconciler := newOperatorConfigReconciler(kubeClient, operatorOpts)
+			require.NoError(t, reconciler.ensureAlertmanagerConfigSecret(ctx, operatorConfig.ManagedAlertmanager))
+
+			// Get output secret from gmp-system.
+			b, err := getSecretKeyBytes(ctx, kubeClient, DefaultOperatorNamespace, operatorConfig.ManagedAlertmanager.ConfigSecret)
+			require.NoError(t, err)
+
+			require.Equal(t, tcase.expectedAmConfig, string(b))
 		})
 	}
 }
