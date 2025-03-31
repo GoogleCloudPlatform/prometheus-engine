@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -261,7 +260,7 @@ func TestEnsureOperatorConfig(t *testing.T) {
 	}
 }
 
-// Regression against https://github.com/GoogleCloudPlatform/prometheus-engine/issues/1550
+// Regression against https://github.com/GoogleCloudPlatform/prometheus-engine/issues/1550.
 func TestEnsureAlertmanagerConfigSecret(t *testing.T) {
 	operatorOpts := Options{
 		ProjectID:         "test-project",
@@ -344,7 +343,6 @@ receivers:
         credentials: 'SUPER IMPORTANT SECRET'
 `,
 		},
-		// This is expected to fail until https://github.com/GoogleCloudPlatform/prometheus-engine/issues/1550 is fixed.
 		{
 			name:                          "with secret; external url set in operator config, but not in am yaml",
 			operatorConfigManagedAMExtURL: "https://alertmanager.mycompany.com/",
@@ -361,18 +359,19 @@ receivers:
         type: 'Bearer'
         credentials: 'SUPER IMPORTANT SECRET'
 `,
-			expectedAmConfig: `
-route:
-  receiver: "slack"
+			expectedAmConfig: `google_cloud:
+    external_url: https://alertmanager.mycompany.com/
 receivers:
-- name: "slack"
-  slack_configs:
-  - channel: '#some_channel'
-    api_url: https://slack.com/api/chat.postMessage
-    http_config:
-      authorization:
-        type: 'Bearer'
-        credentials: 'SUPER IMPORTANT SECRET'
+    - name: slack
+      slack_configs:
+        - api_url: https://slack.com/api/chat.postMessage
+          channel: '#some_channel'
+          http_config:
+            authorization:
+                credentials: SUPER IMPORTANT SECRET
+                type: Bearer
+route:
+    receiver: slack
 `,
 		},
 	} {
@@ -393,7 +392,7 @@ receivers:
 				},
 			}
 			amSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
+				ObjectMeta: v1.ObjectMeta{
 					Name:        AlertmanagerSecretName,
 					Namespace:   DefaultPublicNamespace,
 					Annotations: componentAnnotations(),
@@ -402,7 +401,7 @@ receivers:
 				Data: map[string][]byte{AlertmanagerConfigKey: []byte(tcase.amConfig)},
 			}
 
-			ctx := context.Background()
+			ctx := t.Context()
 			fakeClient := newFakeClientBuilder().WithObjects(
 				operatorConfig.DeepCopy(),
 				amSecret.DeepCopy(),

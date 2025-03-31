@@ -460,12 +460,16 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 		if err := yaml.Unmarshal(b, &config); err != nil {
 			return fmt.Errorf("load alertmanager config: %w", err)
 		}
+
 		// Only set the value if we need to. This provides a fail-safe in case users change our
 		// Alertmanager image with their own. Otherwise, if we always set and they change the image,
 		// their Alertmanager will fail unless they have our patch.
 		if config.GoogleCloud.ExternalURL != spec.ExternalURL {
 			config.GoogleCloud.ExternalURL = spec.ExternalURL
-			b, err = yaml.Marshal(config)
+
+			// NOTE: We can't use direct marshal on alertmanagerConfig because of
+			// secret redaction logic, not customizable in old versions.
+			b, err = alertmanagerConfigMarshal(b, spec)
 			if err != nil {
 				return fmt.Errorf("marshal alertmanager config: %w", err)
 			}
@@ -480,8 +484,21 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 	} else if err != nil {
 		return fmt.Errorf("update alertmanager config secret: %w", err)
 	}
-
 	return nil
+}
+
+func alertmanagerConfigMarshal(userConfig []byte, overrideSpec *monitoringv1.ManagedAlertmanagerSpec) ([]byte, error) {
+	inter := map[string]any{}
+
+	if err := yaml.Unmarshal(userConfig, inter); err != nil {
+		return nil, err
+	}
+
+	delete(inter, "google_cloud")
+
+	inter["google_cloud"] = googleCloudAlertmanagerConfig{ExternalURL: overrideSpec.ExternalURL}
+
+	return yaml.Marshal(inter)
 }
 
 type alertmanagerConfig struct {
