@@ -15,14 +15,8 @@
 package v1
 
 import (
-	"net/url"
-
-	"github.com/alecthomas/units"
-	"github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
-	"github.com/prometheus/prometheus/model/relabel"
 )
 
 type Config struct {
@@ -40,31 +34,9 @@ type Config struct {
 }
 
 type ScrapeConfig struct {
-	JobName                        string                      `yaml:"job_name"`
-	HonorLabels                    bool                        `yaml:"honor_labels,omitempty"`
-	HonorTimestamps                bool                        `yaml:"honor_timestamps"`
-	TrackTimestampsStaleness       bool                        `yaml:"-"`
-	Params                         url.Values                  `yaml:"params,omitempty"`
-	ScrapeInterval                 model.Duration              `yaml:"scrape_interval,omitempty"`
-	ScrapeTimeout                  model.Duration              `yaml:"scrape_timeout,omitempty"`
-	ScrapeProtocols                []promconfig.ScrapeProtocol `yaml:"scrape_protocols,omitempty"`
-	ScrapeClassicHistograms        bool                        `yaml:"scrape_classic_histograms,omitempty"`
-	MetricsPath                    string                      `yaml:"metrics_path,omitempty"`
-	Scheme                         string                      `yaml:"scheme,omitempty"`
-	EnableCompression              bool                        `yaml:"-"`
-	BodySizeLimit                  units.Base2Bytes            `yaml:"body_size_limit,omitempty"`
-	SampleLimit                    uint                        `yaml:"sample_limit,omitempty"`
-	TargetLimit                    uint                        `yaml:"target_limit,omitempty"`
-	LabelLimit                     uint                        `yaml:"label_limit,omitempty"`
-	LabelNameLengthLimit           uint                        `yaml:"label_name_length_limit,omitempty"`
-	LabelValueLengthLimit          uint                        `yaml:"label_value_length_limit,omitempty"`
-	NativeHistogramBucketLimit     uint                        `yaml:"native_histogram_bucket_limit,omitempty"`
-	NativeHistogramMinBucketFactor float64                     `yaml:"native_histogram_min_bucket_factor,omitempty"`
-	KeepDroppedTargets             uint                        `yaml:"keep_dropped_targets,omitempty"`
-	ServiceDiscoveryConfigs        discovery.Configs           `yaml:"kubernetes_sd_configs,omitempty"`
-	HTTPClientConfig               config.HTTPClientConfig     `yaml:",inline"`
-	RelabelConfigs                 []*relabel.Config           `yaml:"relabel_configs,omitempty"`
-	MetricRelabelConfigs           []*relabel.Config           `yaml:"metric_relabel_configs,omitempty"`
+	promconfig.ScrapeConfig  `yaml:",inline"`
+	TrackTimestampsStaleness bool `yaml:"-"`
+	EnableCompression        bool `yaml:"-"`
 }
 
 // MarshalYAML implements the yaml.Marshaler interface.

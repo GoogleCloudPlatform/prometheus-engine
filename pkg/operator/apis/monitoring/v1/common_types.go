@@ -25,7 +25,7 @@ import (
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	"github.com/prometheus/prometheus/model/relabel"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -143,16 +143,18 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 	scrapeCfg := &ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
-		JobName:                 jobName,
-		ServiceDiscoveryConfigs: discoverCfgs,
-		MetricsPath:             metricsPath,
-		Scheme:                  ep.Scheme,
-		Params:                  ep.Params,
-		HTTPClientConfig:        httpCfg,
-		ScrapeInterval:          interval,
-		ScrapeTimeout:           timeout,
-		RelabelConfigs:          relabelCfgs,
-		MetricRelabelConfigs:    metricRelabelCfgs,
+		ScrapeConfig: promconfig.ScrapeConfig{
+			JobName:                 jobName,
+			ServiceDiscoveryConfigs: discoverCfgs,
+			MetricsPath:             metricsPath,
+			Scheme:                  ep.Scheme,
+			Params:                  ep.Params,
+			HTTPClientConfig:        httpCfg,
+			ScrapeInterval:          interval,
+			ScrapeTimeout:           timeout,
+			RelabelConfigs:          relabelCfgs,
+			MetricRelabelConfigs:    metricRelabelCfgs,
+		},
 	}
 	if limits != nil {
 		scrapeCfg.SampleLimit = uint(limits.Samples)
