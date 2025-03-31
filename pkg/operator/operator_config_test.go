@@ -263,7 +263,7 @@ func TestEnsureOperatorConfig(t *testing.T) {
 	}
 }
 
-// Regression against https://github.com/GoogleCloudPlatform/prometheus-engine/issues/1550
+// Regression against https://github.com/GoogleCloudPlatform/prometheus-engine/issues/1550.
 func TestEnsureAlertmanagerConfigSecret(t *testing.T) {
 	operatorOpts := Options{
 		ProjectID:         "test-project",
@@ -346,7 +346,6 @@ receivers:
         credentials: 'SUPER IMPORTANT SECRET'
 `,
 		},
-		// This is expected to fail until https://github.com/GoogleCloudPlatform/prometheus-engine/issues/1550 is fixed.
 		{
 			name:                          "with secret; external url set in operator config, but not in am yaml",
 			operatorConfigManagedAMExtURL: "https://alertmanager.mycompany.com/",
@@ -363,18 +362,19 @@ receivers:
         type: 'Bearer'
         credentials: 'SUPER IMPORTANT SECRET'
 `,
-			expectedAmConfig: `
-route:
-  receiver: "slack"
+			expectedAmConfig: `google_cloud:
+    external_url: https://alertmanager.mycompany.com/
 receivers:
-- name: "slack"
-  slack_configs:
-  - channel: '#some_channel'
-    api_url: https://slack.com/api/chat.postMessage
-    http_config:
-      authorization:
-        type: 'Bearer'
-        credentials: 'SUPER IMPORTANT SECRET'
+    - name: slack
+      slack_configs:
+        - api_url: https://slack.com/api/chat.postMessage
+          channel: '#some_channel'
+          http_config:
+            authorization:
+                credentials: SUPER IMPORTANT SECRET
+                type: Bearer
+route:
+    receiver: slack
 `,
 		},
 	} {
