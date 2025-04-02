@@ -16,30 +16,30 @@ commonLabels: false
 namespace:
   public: gmp-public
   system: gmp-system
-version: 0.14.1
+version: 0.14.3
 images:
   # NOTE: All tags have to be quoted otherwise they might be treated as a number.
   bash:
     image: gke.gcr.io/gke-distroless/bash
-    tag: "gke_distroless_20240907.00_p0"
+    tag: gke_distroless_20240907.00_p0
   alertmanager:
     image: gke.gcr.io/prometheus-engine/alertmanager
-    tag: "v0.27.0-gmp.2-gke.0"
+    tag: v0.27.0-gmp.2-gke.0
   prometheus:
     image: gke.gcr.io/prometheus-engine/prometheus
-    tag: "v2.45.3-gmp.10-gke.0"
+    tag: v2.45.3-gmp.10-gke.0
   configReloader:
     image: gke.gcr.io/prometheus-engine/config-reloader
-    tag: "v0.14.1-gke.0"
+    tag: v0.14.3-gke.0
   operator:
     image: gke.gcr.io/prometheus-engine/operator
-    tag: "v0.14.1-gke.0"
+    tag: v0.14.3-gke.0
   ruleEvaluator:
     image: gke.gcr.io/prometheus-engine/rule-evaluator
-    tag: "v0.14.1-gke.0"
+    tag: v0.14.3-gke.0
   datasourceSyncer:
     image: gcr.io/gke-release/prometheus-engine/datasource-syncer
-    tag: "v0.14.1-gke.0"
+    tag: v0.14.3-gke.0
 resources:
   alertManager:
     limits:
@@ -80,9 +80,9 @@ resources:
 deployOperator: true
 tls:
   base64:
-    ca: null
-    cert: null
-    key: null
+    ca:
+    cert:
+    key:
 collector:
   rbac:
     create: true
