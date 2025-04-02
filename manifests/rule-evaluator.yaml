@@ -103,7 +103,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: rule-evaluator
-        app.kubernetes.io/version: 0.14.1
+        app.kubernetes.io/version: 0.14.3
     spec:
       serviceAccountName: rule-evaluator
       automountServiceAccountToken: true
@@ -116,7 +116,7 @@ spec:
           mountPath: /prometheus/config_out
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.14.1-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.14.3-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -154,7 +154,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.14.1-gke.0
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.14.3-gke.0
         args:
         - "--config.file=/prometheus/config_out/config.yaml"
         - "--web.listen-address=:9092"
