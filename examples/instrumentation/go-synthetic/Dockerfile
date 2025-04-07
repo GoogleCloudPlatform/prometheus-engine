@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.24-bullseye@sha256:3c669c8fed069d80d199073b806243c4bf79ad117b797b96f18177ad9c521cff AS buildbase
+FROM golang:1.24-bullseye@sha256:d1e5c3fc751d2c55bd3af9450d68c77db1ab562880020021b30ea3a5c40540e7 AS buildbase
 WORKDIR /app
 COPY . ./
 
