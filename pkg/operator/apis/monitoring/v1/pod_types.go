@@ -282,7 +282,6 @@ type ClusterTargetLabels struct {
 // onto a Prometheus target.
 type LabelMapping struct {
 	// Kubernetes resource label to remap.
-	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
 	From string `json:"from"`
 	// Remapped Prometheus target label.
 	// Defaults to the same name as `From`.
