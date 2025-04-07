@@ -1309,6 +1309,57 @@ func TestCRDValidation(t *testing.T) {
 				},
 				wantErr: true,
 			},
+			"TargetLabels/from-kubernetes-labels": {
+				obj: &monitoringv1.ClusterPodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "from-kubernetes-labels",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.ClusterTargetLabels{
+							FromPod: []monitoringv1.LabelMapping{
+								{
+									From: "app.kubernetes.io/name",
+									To:   "k8s_app_name",
+								},
+								{
+									From: "app.kubernetes.io/instance",
+									To:   "k8s_instance",
+								},
+							},
+						},
+					},
+				},
+			},
+			"TargetLabels/empty-to": {
+				obj: &monitoringv1.ClusterPodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "empty-to",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+							},
+						},
+						TargetLabels: monitoringv1.ClusterTargetLabels{
+							FromPod: []monitoringv1.LabelMapping{
+								{
+									From: "empty-to",
+								},
+							},
+						},
+					},
+				},
+			},
 		}
 		run(t, tests)
 	})
