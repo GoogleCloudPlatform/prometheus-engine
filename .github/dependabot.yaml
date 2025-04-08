@@ -65,7 +65,7 @@ updates:
     - /examples/instrumentation/go-synthetic
     - /hack
   ignore:
-    - dependency-name: "gcr.io/gke-release/prometheus-engine/*:*"
+    - dependency-name: "gke-release/prometheus-engine/*"
       versions: [ ">=0.17.0" ]
   schedule:
     interval: weekly
@@ -111,7 +111,7 @@ updates:
     - /examples/instrumentation/go-synthetic
     - /hack
   ignore:
-    - dependency-name: "gcr.io/gke-release/prometheus-engine/*:*"
+    - dependency-name: "gke-release/prometheus-engine/*"
       versions: [ ">=0.16.0" ]
   schedule:
     interval: weekly
@@ -157,7 +157,7 @@ updates:
     - /examples/instrumentation/go-synthetic
     - /hack
   ignore:
-    - dependency-name: "gcr.io/gke-release/prometheus-engine/*:*"
+    - dependency-name: "gke-release/prometheus-engine/*"
       versions: [ ">=0.15.0" ]
   schedule:
     interval: weekly
@@ -203,7 +203,7 @@ updates:
     - /examples/instrumentation/go-synthetic
     - /hack
   ignore:
-    - dependency-name: "gcr.io/gke-release/prometheus-engine/*:*"
+    - dependency-name: "gke-release/prometheus-engine/*"
       versions: [ ">=0.14.0" ]
   schedule:
     interval: weekly
@@ -249,7 +249,7 @@ updates:
     - /examples/instrumentation/go-synthetic
     - /hack
   ignore:
-    - dependency-name: "gcr.io/gke-release/prometheus-engine/*:*"
+    - dependency-name: "gke-release/prometheus-engine/*"
       versions: [ ">=0.13.0" ]
   schedule:
     interval: weekly
@@ -295,7 +295,7 @@ updates:
     - /examples/instrumentation/go-synthetic
     - /hack
   ignore:
-    - dependency-name: "gcr.io/gke-release/prometheus-engine/*:*"
+    - dependency-name: "gke-release/prometheus-engine/*"
       versions: [ ">=0.12.0" ]
   schedule:
     interval: weekly
