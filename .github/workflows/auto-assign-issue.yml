@@ -24,7 +24,9 @@ jobs:
     steps:
     - name: Auto-assign issue
       uses: pozil/auto-assign-issue@v1
+   
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
+        repo-token: ${{secrets2.GITHUB_TOKEN}}
         assignees: ${{ secrets.DEFAULT_ISSUE_ASSIGNEE }}
         abortIfPreviousAssignees: true
