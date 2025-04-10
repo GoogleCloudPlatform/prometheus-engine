@@ -25,10 +25,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -40,13 +40,6 @@ const (
 )
 
 func setupRulesControllers(op *Operator) error {
-	// The singleton OperatorConfig is the request object we reconcile against.
-	objRequest := reconcile.Request{
-		NamespacedName: types.NamespacedName{
-			Namespace: op.opts.PublicNamespace,
-			Name:      NameOperatorConfig,
-		},
-	}
 	// Default OperatorConfig filter.
 	objFilterOperatorConfig := namespacedNamePredicate{
 		namespace: op.opts.PublicNamespace,
@@ -72,20 +65,20 @@ func setupRulesControllers(op *Operator) error {
 		// Any update to a Rules object requires re-generating the config.
 		Watches(
 			&monitoringv1.GlobalRules{},
-			enqueueConst(objRequest),
+			handler.TypedFuncs[client.Object, reconcile.Request]{},
 		).
 		Watches(
 			&monitoringv1.ClusterRules{},
-			enqueueConst(objRequest),
+			handler.TypedFuncs[client.Object, reconcile.Request]{},
 		).
 		Watches(
 			&monitoringv1.Rules{},
-			enqueueConst(objRequest),
+			handler.TypedFuncs[client.Object, reconcile.Request]{},
 		).
 		// The configuration we generate for the rule-evaluator.
 		Watches(
 			&corev1.ConfigMap{},
-			enqueueConst(objRequest),
+			handler.TypedFuncs[client.Object, reconcile.Request]{},
 			builder.WithPredicates(objFilterRulesGenerated),
 		).
 		Complete(newRulesReconciler(op.manager.GetClient(), op.opts))

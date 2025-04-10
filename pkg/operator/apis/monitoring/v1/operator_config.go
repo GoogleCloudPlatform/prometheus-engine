@@ -19,13 +19,12 @@ import (
 
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
-	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/model/relabel"
 )
 
-func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
+func (c *CollectionSpec) ScrapeConfigs() ([]*ScrapeConfig, error) {
 	if c.KubeletScraping == nil {
 		return nil, nil
 	}
@@ -80,7 +79,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 	}
 	// We adopt the metric relabeling behavior of kube-prometheus as it's widely adopted and hence
 	// will meet user expectations (e.g. dropping deprecated metrics).
-	return []*promconfig.ScrapeConfig{
+	return []*ScrapeConfig{
 		{
 			JobName:                 "kubelet/metrics",
 			ServiceDiscoveryConfigs: discoveryCfgs,

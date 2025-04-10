@@ -111,7 +111,7 @@ func relabelingsForSelector(selector metav1.LabelSelector, crd interface{}) ([]*
 }
 
 // buildPrometheusScrapeConfig builds a Prometheus scrape configuration for a given endpoint.
-func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs, httpCfg config.HTTPClientConfig, relabelCfgs []*relabel.Config, limits *ScrapeLimits, ep ScrapeEndpoint) (*promconfig.ScrapeConfig, error) {
+func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs, httpCfg config.HTTPClientConfig, relabelCfgs []*relabel.Config, limits *ScrapeLimits, ep ScrapeEndpoint) (*ScrapeConfig, error) {
 	interval, err := prommodel.ParseDuration(ep.Interval)
 	if err != nil {
 		return nil, fmt.Errorf("invalid scrape interval: %w", err)
@@ -140,7 +140,7 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 		metricRelabelCfgs = append(metricRelabelCfgs, rcfg)
 	}
 
-	scrapeCfg := &promconfig.ScrapeConfig{
+	scrapeCfg := &ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
 		JobName:                 jobName,
@@ -184,7 +184,7 @@ func sanitizeLabelName(name string) prommodel.LabelName {
 
 // validateDistinctJobNames returns error if any job name duplicates.
 // This would also result in an error on Prometheus server config parsing.
-func validateDistinctJobNames(jobs []*promconfig.ScrapeConfig) error {
+func validateDistinctJobNames(jobs []*ScrapeConfig) error {
 	jobToIndex := map[string]int{}
 	for i, job := range jobs {
 		if dup, ok := jobToIndex[job.JobName]; ok {

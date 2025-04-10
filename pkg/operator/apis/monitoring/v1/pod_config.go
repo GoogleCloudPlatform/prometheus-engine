@@ -24,7 +24,6 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
-	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/model/relabel"
@@ -115,7 +114,7 @@ var (
 )
 
 // ScrapeConfigs generates Prometheus scrape configs for the PodMonitoring.
-func (p *PodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
+func (p *PodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs) (res []*ScrapeConfig, err error) {
 	relabelCfgs := []*relabel.Config{
 		// Force target labels, so they cannot be overwritten by metric labels.
 		{
@@ -138,7 +137,7 @@ func (p *PodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool 
 }
 
 // ScrapeConfigs generates Prometheus scrape configs for the PodMonitoring.
-func (p *PodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
+func (p *PodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (res []*ScrapeConfig, err error) {
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
 		// Filter targets by namespace of the PodMonitoring configuration.
 		Action:       relabel.Keep,
@@ -156,7 +155,7 @@ func (p *PodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool Promet
 	return res, validateDistinctJobNames(res)
 }
 
-func (p *PodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (*promconfig.ScrapeConfig, error) {
+func (p *PodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (*ScrapeConfig, error) {
 	// Filter targets that belong to selected pods.
 	selectors, err := relabelingsForSelector(p.Spec.Selector, p)
 	if err != nil {
@@ -209,7 +208,7 @@ func (p *PodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.C
 }
 
 // ScrapeConfigs generates Prometheus scrape configs for the PodMonitoring.
-func (c *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
+func (c *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs) (res []*ScrapeConfig, err error) {
 	relabelCfgs := []*relabel.Config{
 		// Force target labels, so they cannot be overwritten by metric labels.
 		{
@@ -231,7 +230,7 @@ func (c *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string
 	return c.scrapeConfigs(relabelCfgs, pool)
 }
 
-func (c *ClusterPodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
+func (c *ClusterPodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (res []*ScrapeConfig, err error) {
 	for i := range c.Spec.Endpoints {
 		// Each scrape endpoint has its own relabel config so make sure we copy the array.
 		c, err := c.endpointScrapeConfig(i, append([]*relabel.Config(nil), relabelCfgs...), pool)
@@ -243,7 +242,7 @@ func (c *ClusterPodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool
 	return res, validateDistinctJobNames(res)
 }
 
-func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (*promconfig.ScrapeConfig, error) {
+func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (*ScrapeConfig, error) {
 	// Filter targets that belong to selected pods.
 	selectors, err := relabelingsForSelector(c.Spec.Selector, c)
 	if err != nil {
@@ -300,7 +299,7 @@ func endpointScrapeConfig(
 	podLabels []LabelMapping,
 	limits *ScrapeLimits,
 	pool PrometheusSecretConfigs,
-) (*promconfig.ScrapeConfig, error) {
+) (*ScrapeConfig, error) {
 	id := m.GetKey()
 	// Configure how Prometheus talks to the Kubernetes API server to discover targets.
 	// This configuration is the same for all scrape jobs (esp. selectors).

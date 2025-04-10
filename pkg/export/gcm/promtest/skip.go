@@ -39,5 +39,5 @@ func (n noopBackend) injectScrapes(testing.TB, [][]*dto.MetricFamily, time.Durat
 // NoopBackend creates noop backend, useful when you want to skip one backend for
 // local debugging purpose without changing test significantly.
 //
-//nolint:revive // Intentional unexported return
+//nolint:all // Intentional unexported return
 func NoopBackend() noopBackend { return noopBackend{} }

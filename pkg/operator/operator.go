@@ -453,18 +453,18 @@ func (o namespacedNamePredicate) Generic(e event.GenericEvent) bool {
 // enqueueConst always enqueues the same request regardless of the event.
 type enqueueConst reconcile.Request
 
-func (e enqueueConst) Create(_ context.Context, _ event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Create(_ context.Context, _ event.TypedCreateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Update(_ context.Context, _ event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Update(_ context.Context, _ event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Delete(_ context.Context, _ event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Delete(_ context.Context, _ event.TypedDeleteEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Generic(_ context.Context, _ event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Generic(_ context.Context, _ event.TypedGenericEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	q.Add(reconcile.Request(e))
 }

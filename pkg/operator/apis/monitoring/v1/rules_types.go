@@ -15,6 +15,8 @@
 package v1
 
 import (
+	"context"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -40,17 +42,19 @@ type Rules struct {
 	Status RulesStatus `json:"status"`
 }
 
-func (r *Rules) ValidateCreate() (admission.Warnings, error) {
-	_, err := r.RuleGroupsConfig("", "", "")
+type RulesCustomValidator struct{}
+
+func (r *RulesCustomValidator) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
+	_, err := obj.(*Rules).RuleGroupsConfig("", "", "")
 	return nil, err
 }
 
-func (r *Rules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+func (r *RulesCustomValidator) ValidateUpdate(ctx context.Context, _, newObj runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
-	return r.ValidateCreate()
+	return r.ValidateCreate(ctx, newObj)
 }
 
-func (*Rules) ValidateDelete() (admission.Warnings, error) {
+func (*RulesCustomValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
 	// Deletions are always valid.
 	return nil, nil
 }
@@ -89,17 +93,19 @@ type ClusterRules struct {
 	Status RulesStatus `json:"status"`
 }
 
-func (r *ClusterRules) ValidateCreate() (admission.Warnings, error) {
-	_, err := r.RuleGroupsConfig("", "", "")
+type ClusterRulesCustomValidator struct{}
+
+func (r *ClusterRulesCustomValidator) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
+	_, err := obj.(*ClusterRules).RuleGroupsConfig("", "", "")
 	return nil, err
 }
 
-func (r *ClusterRules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+func (r *ClusterRulesCustomValidator) ValidateUpdate(ctx context.Context, _, newObj runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
-	return r.ValidateCreate()
+	return r.ValidateCreate(ctx, newObj)
 }
 
-func (*ClusterRules) ValidateDelete() (admission.Warnings, error) {
+func (*ClusterRulesCustomValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
 	// Deletions are always valid.
 	return nil, nil
 }
@@ -137,17 +143,19 @@ type GlobalRules struct {
 	Status RulesStatus `json:"status"`
 }
 
-func (r *GlobalRules) ValidateCreate() (admission.Warnings, error) {
-	_, err := r.RuleGroupsConfig()
+type GlobalRulesCustomValidator struct{}
+
+func (r *GlobalRulesCustomValidator) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
+	_, err := obj.(*GlobalRules).RuleGroupsConfig()
 	return nil, err
 }
 
-func (r *GlobalRules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+func (r *GlobalRulesCustomValidator) ValidateUpdate(ctx context.Context, _, newObj runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
-	return r.ValidateCreate()
+	return r.ValidateCreate(ctx, newObj)
 }
 
-func (*GlobalRules) ValidateDelete() (admission.Warnings, error) {
+func (*GlobalRulesCustomValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
 	// Deletions are always valid.
 	return nil, nil
 }

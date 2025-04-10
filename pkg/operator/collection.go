@@ -336,7 +336,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 }
 
 type prometheusConfig struct {
-	promconfig.Config `yaml:",inline"`
+	monitoringv1.Config `yaml:",inline"`
 
 	// Secret management. Matches our fork's configuration.
 	SecretConfigs []secrets.SecretConfig `yaml:"kubernetes_secrets,omitempty"`
@@ -367,7 +367,7 @@ type GoogleCloudExportConfig struct {
 func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*prometheusConfig, []update, error) {
 	logger, _ := logr.FromContext(ctx)
 
-	cfg := &promconfig.Config{
+	cfg := &monitoringv1.Config{
 		GlobalConfig: promconfig.GlobalConfig{
 			ExternalLabels: labels.FromMap(spec.ExternalLabels),
 		},

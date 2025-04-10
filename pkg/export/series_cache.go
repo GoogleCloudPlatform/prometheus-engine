@@ -29,8 +29,8 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
-	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
 
@@ -387,7 +387,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 	}
 	// Handle label modifications for histograms early so we don't build the label map twice.
 	// We have to remove the 'le' label which defines the bucket boundary.
-	if metadata.Type == textparse.MetricTypeHistogram {
+	if metadata.Type == model.MetricTypeHistogram {
 		metricLabelsBuilder := labels.NewBuilder(metricLabels)
 		metricLabelsBuilder.Del(labels.BucketLabel)
 		metricLabels = metricLabelsBuilder.Labels()
@@ -405,19 +405,19 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 	var protos cachedProtos
 
 	switch metadata.Type {
-	case textparse.MetricTypeCounter:
+	case model.MetricTypeCounter:
 		protos.cumulative = newSeries(
 			c.getMetricType(metricName, gcmMetricSuffixCounter, gcmMetricSuffixNone),
 			metric_pb.MetricDescriptor_CUMULATIVE,
 			metric_pb.MetricDescriptor_DOUBLE)
 
-	case textparse.MetricTypeGauge:
+	case model.MetricTypeGauge:
 		protos.gauge = newSeries(
 			c.getMetricType(metricName, gcmMetricSuffixGauge, gcmMetricSuffixNone),
 			metric_pb.MetricDescriptor_GAUGE,
 			metric_pb.MetricDescriptor_DOUBLE)
 
-	case textparse.MetricTypeUnknown:
+	case model.MetricTypeUnknown:
 		protos.gauge = newSeries(
 			c.getMetricType(metricName, gcmMetricSuffixUnknown, gcmMetricSuffixNone),
 			metric_pb.MetricDescriptor_GAUGE,
@@ -427,7 +427,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 			metric_pb.MetricDescriptor_CUMULATIVE,
 			metric_pb.MetricDescriptor_DOUBLE)
 
-	case textparse.MetricTypeSummary:
+	case model.MetricTypeSummary:
 		switch suffix {
 		case metricSuffixSum:
 			protos.cumulative = newSeries(
@@ -451,7 +451,7 @@ func (c *seriesCache) populate(ref storage.SeriesRef, entry *seriesCacheEntry, e
 			return fmt.Errorf("unexpected metric name suffix %q for metric %q", suffix, metricName)
 		}
 
-	case textparse.MetricTypeHistogram:
+	case model.MetricTypeHistogram:
 		protos.cumulative = newSeries(
 			c.getMetricType(baseMetricName, gcmMetricSuffixHistogram, gcmMetricSuffixNone),
 			metric_pb.MetricDescriptor_CUMULATIVE,

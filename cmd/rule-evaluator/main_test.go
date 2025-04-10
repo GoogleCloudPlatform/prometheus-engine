@@ -1,5 +1,17 @@
-// Copyright 2022 Google LLC
+// Copyright 2025 Google LLC
 //
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -29,6 +41,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
+	"github.com/prometheus/prometheus/util/annotations"
 )
 
 // convert storage.SeriesSet to promql.Matrix.
@@ -54,7 +67,7 @@ func expandSeriesSet(s storage.SeriesSet) promql.Matrix {
 }
 
 // compareWarningsEquality compares two warnings.
-func compareWarningsEquality(w1, w2 storage.Warnings) bool {
+func compareWarningsEquality(w1, w2 annotations.Annotations) bool {
 	if len(w1) != len(w2) {
 		return false
 	}
@@ -152,7 +165,7 @@ func TestSelect(t *testing.T) {
 			},
 			want: &listSeriesSet{
 				m:        promql.Matrix{},
-				warnings: storage.Warnings{errors.New("warning test")},
+				warnings: annotations.Annotations{"warning test": errors.New("warning test")},
 			},
 		},
 	}
@@ -163,7 +176,7 @@ func TestSelect(t *testing.T) {
 				t.Errorf("Case %d: NewMatcher returned unexpected error: %s", i, err)
 			}
 
-			got := c.db.Select(false, nil, matchers)
+			got := c.db.Select(t.Context(), false, nil, matchers)
 			if !cmp.Equal(got.Err(), c.want.Err(), cmp.Comparer(cmpErrsEquality)) {
 				t.Errorf("Case %d: Expected error: %s, Actual error: %s", i, c.want.Err(), got.Err())
 			}

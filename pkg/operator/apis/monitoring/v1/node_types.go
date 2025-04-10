@@ -20,7 +20,6 @@ import (
 
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
-	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/model/relabel"
@@ -115,7 +114,7 @@ func (c *ClusterNodeMonitoring) GetMonitoringStatus() *MonitoringStatus {
 	return &c.Status
 }
 
-func (c *ClusterNodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
+func (c *ClusterNodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*ScrapeConfig, err error) {
 	for i, ep := range c.Spec.Endpoints {
 		sc, err := c.endpointScrapeConfig(&ep, projectID, location, cluster)
 		if err != nil {
@@ -126,7 +125,7 @@ func (c *ClusterNodeMonitoring) ScrapeConfigs(projectID, location, cluster strin
 	return res, validateDistinctJobNames(res)
 }
 
-func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID, location, cluster string) (*ScrapeConfig, error) {
 	// Filter targets that belong to selected nodes.
 	relabelCfgs, err := relabelingsForSelector(c.Spec.Selector, c)
 	if err != nil {

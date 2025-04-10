@@ -32,11 +32,15 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterRules">ClusterRules</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.ClusterRulesCustomValidator">ClusterRulesCustomValidator</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.ClusterTargetLabels">ClusterTargetLabels</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.CollectionSpec">CollectionSpec</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.CompressionType">CompressionType</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.Config">Config</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ConfigSpec">ConfigSpec</a>
 </li><li>
@@ -45,6 +49,8 @@ Resource Types:
 <a href="#monitoring.googleapis.com/v1.ExportSpec">ExportSpec</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.GlobalRules">GlobalRules</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.GlobalRulesCustomValidator">GlobalRulesCustomValidator</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.HTTPClientConfig">HTTPClientConfig</a>
 </li><li>
@@ -92,6 +98,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.Rules">Rules</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.RulesCustomValidator">RulesCustomValidator</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.RulesSpec">RulesSpec</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.RulesStatus">RulesStatus</a>
@@ -101,6 +109,8 @@ Resource Types:
 <a href="#monitoring.googleapis.com/v1.SampleTarget">SampleTarget</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ScalingSpec">ScalingSpec</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.ScrapeConfig">ScrapeConfig</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>
 </li><li>
@@ -789,6 +799,12 @@ RulesStatus
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.ClusterRulesCustomValidator">
+<span id="ClusterRulesCustomValidator">ClusterRulesCustomValidator
+</span>
+</h3>
+<div>
+</div>
 <h3 id="monitoring.googleapis.com/v1.ClusterTargetLabels">
 <span id="ClusterTargetLabels">ClusterTargetLabels
 </span>
@@ -951,6 +967,125 @@ CompressionType
 <td></td>
 </tr></tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.Config">
+<span id="Config">Config
+</span>
+</h3>
+<div>
+<p>This object is forked to enable a different ScrapeConfig below.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>GlobalConfig</code><br/>
+<em>
+github.com/prometheus/prometheus/config.GlobalConfig
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>Runtime</code><br/>
+<em>
+github.com/prometheus/prometheus/config.RuntimeConfig
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>AlertingConfig</code><br/>
+<em>
+github.com/prometheus/prometheus/config.AlertingConfig
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>RuleFiles</code><br/>
+<em>
+[]string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>ScrapeConfigFiles</code><br/>
+<em>
+[]string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>ScrapeConfigs</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.*./pkg/operator/apis/monitoring/v1.ScrapeConfig">
+[]*./pkg/operator/apis/monitoring/v1.ScrapeConfig
+</a>
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>StorageConfig</code><br/>
+<em>
+github.com/prometheus/prometheus/config.StorageConfig
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>TracingConfig</code><br/>
+<em>
+github.com/prometheus/prometheus/config.TracingConfig
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>RemoteWriteConfigs</code><br/>
+<em>
+[]*github.com/prometheus/prometheus/config.RemoteWriteConfig
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>RemoteReadConfigs</code><br/>
+<em>
+[]*github.com/prometheus/prometheus/config.RemoteReadConfig
+</em>
+</td>
+<td>
+</td>
+</tr>
+</tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.ConfigSpec">
 <span id="ConfigSpec">ConfigSpec
 </span>
@@ -1111,6 +1246,12 @@ RulesStatus
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.GlobalRulesCustomValidator">
+<span id="GlobalRulesCustomValidator">GlobalRulesCustomValidator
+</span>
+</h3>
+<div>
+</div>
 <h3 id="monitoring.googleapis.com/v1.HTTPClientConfig">
 <span id="HTTPClientConfig">HTTPClientConfig
 </span>
@@ -2468,6 +2609,12 @@ RulesStatus
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.RulesCustomValidator">
+<span id="RulesCustomValidator">RulesCustomValidator
+</span>
+</h3>
+<div>
+</div>
 <h3 id="monitoring.googleapis.com/v1.RulesSpec">
 <span id="RulesSpec">RulesSpec
 </span>
@@ -2668,6 +2815,276 @@ string
 <a href="#monitoring.googleapis.com/v1.VPASpec">
 VPASpec
 </a>
+</em>
+</td>
+<td>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.ScrapeConfig">
+<span id="ScrapeConfig">ScrapeConfig
+</span>
+</h3>
+<div>
+<p>This object is temporarily forked to prevent the TrackTimestampsStaleness
+and EnableCompression fields from being output, to allow for backwards
+compatibility with Prometheus 2.45. This should be removed when
+GoogleCloudPlatform/prometheus is upgraded to v2.53+.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>JobName</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>HonorLabels</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>HonorTimestamps</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>TrackTimestampsStaleness</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>Params</code><br/>
+<em>
+net/url.Values
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>ScrapeInterval</code><br/>
+<em>
+github.com/prometheus/common/model.Duration
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>ScrapeTimeout</code><br/>
+<em>
+github.com/prometheus/common/model.Duration
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>ScrapeProtocols</code><br/>
+<em>
+[]github.com/prometheus/prometheus/config.ScrapeProtocol
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>ScrapeClassicHistograms</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>MetricsPath</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>Scheme</code><br/>
+<em>
+string
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>EnableCompression</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>BodySizeLimit</code><br/>
+<em>
+github.com/alecthomas/units.Base2Bytes
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>SampleLimit</code><br/>
+<em>
+uint
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>TargetLimit</code><br/>
+<em>
+uint
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>LabelLimit</code><br/>
+<em>
+uint
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>LabelNameLengthLimit</code><br/>
+<em>
+uint
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>LabelValueLengthLimit</code><br/>
+<em>
+uint
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>NativeHistogramBucketLimit</code><br/>
+<em>
+uint
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>NativeHistogramMinBucketFactor</code><br/>
+<em>
+float64
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>KeepDroppedTargets</code><br/>
+<em>
+uint
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>ServiceDiscoveryConfigs</code><br/>
+<em>
+github.com/prometheus/prometheus/discovery.Configs
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>HTTPClientConfig</code><br/>
+<em>
+github.com/prometheus/common/config.HTTPClientConfig
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>RelabelConfigs</code><br/>
+<em>
+[]*github.com/prometheus/prometheus/model/relabel.Config
+</em>
+</td>
+<td>
+</td>
+</tr>
+<tr>
+<td>
+<code>MetricRelabelConfigs</code><br/>
+<em>
+[]*github.com/prometheus/prometheus/model/relabel.Config
 </em>
 </td>
 <td>
