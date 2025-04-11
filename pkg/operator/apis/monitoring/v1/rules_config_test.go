@@ -18,9 +18,9 @@ import (
 	"testing"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	"github.com/goccy/go-yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/prometheus/model/rulefmt"
-	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -455,7 +455,7 @@ func TestScope(t *testing.T) {
             l1: v1
             l2: v2
 `
-	got, err := yaml.Marshal(groups)
+	got, err := yaml.MarshalWithOptions(groups, yaml.OmitEmpty())
 	if err != nil {
 		t.Fatal(err)
 	}

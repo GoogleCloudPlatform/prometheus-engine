@@ -17,8 +17,8 @@ package v1
 import (
 	"testing"
 
+	"github.com/goccy/go-yaml"
 	"github.com/google/go-cmp/cmp"
-	yaml "gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -79,7 +79,7 @@ func TestClusterNodeMonitoring_ScrapeConfig(t *testing.T) {
 	var got []string
 
 	for _, sc := range scrapeCfgs {
-		b, err := yaml.Marshal(sc)
+		b, err := yaml.MarshalWithOptions(sc, yaml.OmitEmpty())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -87,7 +87,6 @@ func TestClusterNodeMonitoring_ScrapeConfig(t *testing.T) {
 	}
 	want := []string{
 		`job_name: ClusterNodeMonitoring/kubelet/cadvisor/metrics
-honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 10s
 metrics_path: /cadvisor/metrics
@@ -100,9 +99,6 @@ authorization:
   credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
 tls_config:
   ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-  insecure_skip_verify: false
-follow_redirects: false
-enable_http2: false
 relabel_configs:
 - source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
   regex: linux
@@ -139,7 +135,6 @@ metric_relabel_configs:
   action: keep
 kubernetes_sd_configs:
 - role: node
-  kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
   selectors:
@@ -147,7 +142,6 @@ kubernetes_sd_configs:
     field: metadata.name=$(NODE_NAME)
 `,
 		`job_name: ClusterNodeMonitoring/kubelet/metrics
-honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 5s
 metrics_path: /metrics
@@ -160,9 +154,6 @@ authorization:
   credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
 tls_config:
   ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-  insecure_skip_verify: false
-follow_redirects: false
-enable_http2: false
 relabel_configs:
 - source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
   regex: linux
@@ -188,7 +179,6 @@ relabel_configs:
   action: replace
 kubernetes_sd_configs:
 - role: node
-  kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
   selectors:

@@ -20,12 +20,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/goccy/go-yaml"
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	"github.com/prometheus/prometheus/model/relabel"
-	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -111,7 +111,7 @@ func relabelingsForSelector(selector metav1.LabelSelector, crd interface{}) ([]*
 }
 
 // buildPrometheusScrapeConfig builds a Prometheus scrape configuration for a given endpoint.
-func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs, httpCfg config.HTTPClientConfig, relabelCfgs []*relabel.Config, limits *ScrapeLimits, ep ScrapeEndpoint) (*ScrapeConfig, error) {
+func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs, httpCfg config.HTTPClientConfig, relabelCfgs []*relabel.Config, limits *ScrapeLimits, ep ScrapeEndpoint) (*promconfig.ScrapeConfig, error) {
 	interval, err := prommodel.ParseDuration(ep.Interval)
 	if err != nil {
 		return nil, fmt.Errorf("invalid scrape interval: %w", err)
@@ -140,7 +140,7 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 		metricRelabelCfgs = append(metricRelabelCfgs, rcfg)
 	}
 
-	scrapeCfg := &ScrapeConfig{
+	scrapeCfg := &promconfig.ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
 		JobName:                 jobName,
@@ -164,7 +164,7 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 	// validation logic in the UnmarshalYAML methods. To keep things reasonable we don't re-validate
 	// everything and simply do a final marshal-unmarshal cycle at the end to run all validation
 	// upstream provides at the end of this method.
-	b, err := yaml.Marshal(scrapeCfg)
+	b, err := yaml.MarshalWithOptions(scrapeCfg, yaml.OmitEmpty())
 	if err != nil {
 		return nil, fmt.Errorf("scrape config cannot be marshalled: %w", err)
 	}
@@ -184,7 +184,7 @@ func sanitizeLabelName(name string) prommodel.LabelName {
 
 // validateDistinctJobNames returns error if any job name duplicates.
 // This would also result in an error on Prometheus server config parsing.
-func validateDistinctJobNames(jobs []*ScrapeConfig) error {
+func validateDistinctJobNames(jobs []*promconfig.ScrapeConfig) error {
 	jobToIndex := map[string]int{}
 	for i, job := range jobs {
 		if dup, ok := jobToIndex[job.JobName]; ok {

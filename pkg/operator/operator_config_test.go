@@ -22,7 +22,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/prometheus/config"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3" // TODO(bwplotka): Replace with "github.com/goccy/go-yaml" and yaml.OmitEmpty option.
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"

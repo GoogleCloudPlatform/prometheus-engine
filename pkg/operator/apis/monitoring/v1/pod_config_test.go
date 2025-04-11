@@ -18,12 +18,12 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/goccy/go-yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	prommodel "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/relabel"
-	yaml "gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -329,7 +329,7 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 	var got []string
 
 	for _, sc := range scrapeCfgs {
-		b, err := yaml.Marshal(sc)
+		b, err := yaml.MarshalWithOptions(sc, yaml.OmitEmpty())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -337,7 +337,6 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 	}
 	want := []string{
 		`job_name: PodMonitoring/ns1/name1/web
-honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 10s
 metrics_path: /metrics
@@ -406,7 +405,6 @@ metric_relabel_configs:
   action: keep
 kubernetes_sd_configs:
 - role: pod
-  kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
   selectors:
@@ -414,7 +412,6 @@ kubernetes_sd_configs:
     field: spec.nodeName=$(NODE_NAME)
 `,
 		`job_name: PodMonitoring/ns1/name1/8080
-honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 5s
 metrics_path: /prometheus
@@ -473,7 +470,6 @@ relabel_configs:
   action: replace
 kubernetes_sd_configs:
 - role: pod
-  kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
   selectors:
@@ -551,7 +547,7 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 	var got []string
 
 	for _, sc := range scrapeCfgs {
-		b, err := yaml.Marshal(sc)
+		b, err := yaml.MarshalWithOptions(sc, yaml.OmitEmpty())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -559,7 +555,6 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 	}
 	want := []string{
 		`job_name: ClusterPodMonitoring/name1/web
-honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 10s
 metrics_path: /metrics
@@ -623,7 +618,6 @@ metric_relabel_configs:
   action: keep
 kubernetes_sd_configs:
 - role: pod
-  kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
   selectors:
@@ -631,7 +625,6 @@ kubernetes_sd_configs:
     field: spec.nodeName=$(NODE_NAME)
 `,
 		`job_name: ClusterPodMonitoring/name1/8080
-honor_timestamps: false
 scrape_interval: 10s
 scrape_timeout: 5s
 metrics_path: /prometheus
@@ -687,7 +680,6 @@ relabel_configs:
   action: replace
 kubernetes_sd_configs:
 - role: pod
-  kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
   selectors:

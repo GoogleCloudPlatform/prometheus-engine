@@ -26,10 +26,10 @@ import (
 	"sort"
 
 	"github.com/go-logr/logr"
+	"github.com/goccy/go-yaml"
 	"github.com/prometheus/common/config"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
-	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -289,7 +289,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 		},
 	}
 
-	cfgEncoded, err := yaml.Marshal(cfg)
+	cfgEncoded, err := yaml.MarshalWithOptions(cfg, yaml.OmitEmpty())
 	if err != nil {
 		return fmt.Errorf("marshal Prometheus config: %w", err)
 	}
@@ -336,7 +336,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 }
 
 type prometheusConfig struct {
-	monitoringv1.Config `yaml:",inline"`
+	promconfig.Config `yaml:",inline"`
 
 	// Secret management. Matches our fork's configuration.
 	SecretConfigs []secrets.SecretConfig `yaml:"kubernetes_secrets,omitempty"`
@@ -367,7 +367,7 @@ type GoogleCloudExportConfig struct {
 func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*prometheusConfig, []update, error) {
 	logger, _ := logr.FromContext(ctx)
 
-	cfg := &monitoringv1.Config{
+	cfg := &promconfig.Config{
 		GlobalConfig: promconfig.GlobalConfig{
 			ExternalLabels: labels.FromMap(spec.ExternalLabels),
 		},
