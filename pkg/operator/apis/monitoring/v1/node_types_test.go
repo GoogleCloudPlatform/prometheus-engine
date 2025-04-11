@@ -17,8 +17,8 @@ package v1
 import (
 	"testing"
 
+	"github.com/goccy/go-yaml"
 	"github.com/google/go-cmp/cmp"
-	yaml "gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -79,7 +79,7 @@ func TestClusterNodeMonitoring_ScrapeConfig(t *testing.T) {
 	var got []string
 
 	for _, sc := range scrapeCfgs {
-		b, err := yaml.Marshal(sc)
+		b, err := yaml.MarshalWithOptions(sc, yaml.OmitEmpty())
 		if err != nil {
 			t.Fatal(err)
 		}
