@@ -24,6 +24,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
@@ -74,7 +76,7 @@ type OpenMetricsParser struct {
 	builder labels.ScratchBuilder
 	series  []byte
 	text    []byte
-	mtype   MetricType
+	mtype   model.MetricType
 	val     float64
 	ts      int64
 	hasTS   bool
@@ -126,7 +128,7 @@ func (p *OpenMetricsParser) Help() ([]byte, []byte) {
 // Type returns the metric name and type in the current entry.
 // Must only be called after Next returned a type entry.
 // The returned byte slices become invalid after the next call to Next.
-func (p *OpenMetricsParser) Type() ([]byte, MetricType) {
+func (p *OpenMetricsParser) Type() ([]byte, model.MetricType) {
 	return p.l.b[p.offsets[0]:p.offsets[1]], p.mtype
 }
 
@@ -134,7 +136,6 @@ func (p *OpenMetricsParser) Type() ([]byte, MetricType) {
 // Must only be called after Next returned a unit entry.
 // The returned byte slices become invalid after the next call to Next.
 func (p *OpenMetricsParser) Unit() ([]byte, []byte) {
-	// The Prometheus format does not have units.
 	return p.l.b[p.offsets[0]:p.offsets[1]], p.text
 }
 
@@ -174,8 +175,10 @@ func (p *OpenMetricsParser) Metric(l *labels.Labels) string {
 	return s
 }
 
-// Exemplar writes the exemplar of the current sample into the passed
-// exemplar. It returns the whether an exemplar exists.
+// Exemplar writes the exemplar of the current sample into the passed exemplar.
+// It returns whether an exemplar exists. As OpenMetrics only ever has one
+// exemplar per sample, every call after the first (for the same sample) will
+// always return false.
 func (p *OpenMetricsParser) Exemplar(e *exemplar.Exemplar) bool {
 	if len(p.exemplar) == 0 {
 		return false
@@ -204,7 +207,15 @@ func (p *OpenMetricsParser) Exemplar(e *exemplar.Exemplar) bool {
 	p.builder.Sort()
 	e.Labels = p.builder.Labels()
 
+	// Wipe exemplar so that future calls return false.
+	p.exemplar = p.exemplar[:0]
 	return true
+}
+
+// CreatedTimestamp returns nil as it's not implemented yet.
+// TODO(bwplotka): https://github.com/prometheus/prometheus/issues/12980
+func (p *OpenMetricsParser) CreatedTimestamp() *int64 {
+	return nil
 }
 
 // nextToken returns the next token from the openMetricsLexer.
@@ -262,21 +273,21 @@ func (p *OpenMetricsParser) Next() (Entry, error) {
 		case tType:
 			switch s := yoloString(p.text); s {
 			case "counter":
-				p.mtype = MetricTypeCounter
+				p.mtype = model.MetricTypeCounter
 			case "gauge":
-				p.mtype = MetricTypeGauge
+				p.mtype = model.MetricTypeGauge
 			case "histogram":
-				p.mtype = MetricTypeHistogram
+				p.mtype = model.MetricTypeHistogram
 			case "gaugehistogram":
-				p.mtype = MetricTypeGaugeHistogram
+				p.mtype = model.MetricTypeGaugeHistogram
 			case "summary":
-				p.mtype = MetricTypeSummary
+				p.mtype = model.MetricTypeSummary
 			case "info":
-				p.mtype = MetricTypeInfo
+				p.mtype = model.MetricTypeInfo
 			case "stateset":
-				p.mtype = MetricTypeStateset
+				p.mtype = model.MetricTypeStateset
 			case "unknown":
-				p.mtype = MetricTypeUnknown
+				p.mtype = model.MetricTypeUnknown
 			default:
 				return EntryInvalid, fmt.Errorf("invalid metric type %q", s)
 			}
@@ -334,7 +345,7 @@ func (p *OpenMetricsParser) Next() (Entry, error) {
 			var ts float64
 			// A float is enough to hold what we need for millisecond resolution.
 			if ts, err = parseFloat(yoloString(p.l.buf()[1:])); err != nil {
-				return EntryInvalid, fmt.Errorf("%v while parsing: %q", err, p.l.b[p.start:p.l.i])
+				return EntryInvalid, fmt.Errorf("%w while parsing: %q", err, p.l.b[p.start:p.l.i])
 			}
 			if math.IsNaN(ts) || math.IsInf(ts, 0) {
 				return EntryInvalid, fmt.Errorf("invalid timestamp %f", ts)
@@ -387,7 +398,7 @@ func (p *OpenMetricsParser) parseComment() error {
 		var ts float64
 		// A float is enough to hold what we need for millisecond resolution.
 		if ts, err = parseFloat(yoloString(p.l.buf()[1:])); err != nil {
-			return fmt.Errorf("%v while parsing: %q", err, p.l.b[p.start:p.l.i])
+			return fmt.Errorf("%w while parsing: %q", err, p.l.b[p.start:p.l.i])
 		}
 		if math.IsNaN(ts) || math.IsInf(ts, 0) {
 			return fmt.Errorf("invalid exemplar timestamp %f", ts)
@@ -457,7 +468,7 @@ func (p *OpenMetricsParser) getFloatValue(t token, after string) (float64, error
 	}
 	val, err := parseFloat(yoloString(p.l.buf()[1:]))
 	if err != nil {
-		return 0, fmt.Errorf("%v while parsing: %q", err, p.l.b[p.start:p.l.i])
+		return 0, fmt.Errorf("%w while parsing: %q", err, p.l.b[p.start:p.l.i])
 	}
 	// Ensure canonical NaN value.
 	if math.IsNaN(p.exemplarVal) {
