@@ -15,6 +15,9 @@
 package v1
 
 import (
+	"context"
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -40,18 +43,30 @@ type Rules struct {
 	Status RulesStatus `json:"status"`
 }
 
-func (r *Rules) ValidateCreate() (admission.Warnings, error) {
-	_, err := r.RuleGroupsConfig("", "", "")
-	return nil, err
+// RulesValidator supports all types of rules.
+type RulesValidator struct{}
+
+func (v *RulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
+	switch r := o.(type) {
+	case *Rules:
+		_, err := r.RuleGroupsConfig("", "", "")
+		return nil, err
+	case *ClusterRules:
+		_, err := r.RuleGroupsConfig("", "", "")
+		return nil, err
+	case *GlobalRules:
+		_, err := r.RuleGroupsConfig()
+		return nil, err
+	default:
+		return nil, fmt.Errorf("unsupported object to validate %T", o)
+	}
 }
 
-func (r *Rules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
-	// Validity does not depend on state changes.
-	return r.ValidateCreate()
+func (v *RulesValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
+	return v.ValidateCreate(ctx, o)
 }
 
-func (*Rules) ValidateDelete() (admission.Warnings, error) {
-	// Deletions are always valid.
+func (v *RulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
 
@@ -89,21 +104,6 @@ type ClusterRules struct {
 	Status RulesStatus `json:"status"`
 }
 
-func (r *ClusterRules) ValidateCreate() (admission.Warnings, error) {
-	_, err := r.RuleGroupsConfig("", "", "")
-	return nil, err
-}
-
-func (r *ClusterRules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
-	// Validity does not depend on state changes.
-	return r.ValidateCreate()
-}
-
-func (*ClusterRules) ValidateDelete() (admission.Warnings, error) {
-	// Deletions are always valid.
-	return nil, nil
-}
-
 func (r *ClusterRules) GetMonitoringStatus() *MonitoringStatus {
 	return &r.Status.MonitoringStatus
 }
@@ -135,21 +135,6 @@ type GlobalRules struct {
 	// Most recently observed status of the resource.
 	// +optional
 	Status RulesStatus `json:"status"`
-}
-
-func (r *GlobalRules) ValidateCreate() (admission.Warnings, error) {
-	_, err := r.RuleGroupsConfig()
-	return nil, err
-}
-
-func (r *GlobalRules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
-	// Validity does not depend on state changes.
-	return r.ValidateCreate()
-}
-
-func (*GlobalRules) ValidateDelete() (admission.Warnings, error) {
-	// Deletions are always valid.
-	return nil, nil
 }
 
 func (r *GlobalRules) GetMonitoringStatus() *MonitoringStatus {

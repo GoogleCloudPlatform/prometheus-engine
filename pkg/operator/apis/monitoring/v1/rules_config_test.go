@@ -134,7 +134,7 @@ func TestGenerateRules(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := test.apiRules.ValidateCreate()
+			_, err := (&RulesValidator{}).ValidateCreate(t.Context(), test.apiRules)
 			if (err == nil && test.wantErr) || (err != nil && !test.wantErr) {
 				t.Fatalf("expected err: %v; actual %v", test.wantErr, err)
 			}
@@ -267,7 +267,7 @@ func TestGenerateClusterRules(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := test.apiRules.ValidateCreate()
+			_, err := (&RulesValidator{}).ValidateCreate(t.Context(), test.apiRules)
 			if (err == nil && test.wantErr) || (err != nil && !test.wantErr) {
 				t.Fatalf("expected err: %v; actual %v", test.wantErr, err)
 			}
@@ -396,7 +396,7 @@ func TestGenerateGlobalRules(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := test.apiRules.ValidateCreate()
+			_, err := (&RulesValidator{}).ValidateCreate(t.Context(), test.apiRules)
 			if (err == nil && test.wantErr) || (err != nil && !test.wantErr) {
 				t.Fatalf("expected err: %v; actual %v", test.wantErr, err)
 			}

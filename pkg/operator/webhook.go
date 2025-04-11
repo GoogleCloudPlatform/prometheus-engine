@@ -66,15 +66,15 @@ func setupAdmissionWebhooks(ctx context.Context, logger logr.Logger, kubeClient 
 	)
 	webhookServer.Register(
 		validatePath(monitoringv1.RulesResource()),
-		admission.ValidatingWebhookFor(scheme, &monitoringv1.Rules{}),
+		admission.WithCustomValidator(scheme, &monitoringv1.Rules{}, &monitoringv1.RulesValidator{}),
 	)
 	webhookServer.Register(
 		validatePath(monitoringv1.ClusterRulesResource()),
-		admission.ValidatingWebhookFor(scheme, &monitoringv1.ClusterRules{}),
+		admission.WithCustomValidator(scheme, &monitoringv1.ClusterRules{}, &monitoringv1.RulesValidator{}),
 	)
 	webhookServer.Register(
 		validatePath(monitoringv1.GlobalRulesResource()),
-		admission.ValidatingWebhookFor(scheme, &monitoringv1.GlobalRules{}),
+		admission.WithCustomValidator(scheme, &monitoringv1.GlobalRules{}, &monitoringv1.RulesValidator{}),
 	)
 	// Defaulting webhooks.
 	webhookServer.Register(
