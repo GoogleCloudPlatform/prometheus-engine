@@ -20,12 +20,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/goccy/go-yaml"
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	"github.com/prometheus/prometheus/model/relabel"
-	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -164,7 +164,7 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 	// validation logic in the UnmarshalYAML methods. To keep things reasonable we don't re-validate
 	// everything and simply do a final marshal-unmarshal cycle at the end to run all validation
 	// upstream provides at the end of this method.
-	b, err := yaml.Marshal(scrapeCfg)
+	b, err := yaml.MarshalWithOptions(scrapeCfg, yaml.OmitEmpty())
 	if err != nil {
 		return nil, fmt.Errorf("scrape config cannot be marshalled: %w", err)
 	}

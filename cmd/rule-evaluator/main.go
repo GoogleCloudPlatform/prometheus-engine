@@ -69,6 +69,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/util/annotations"
 	"github.com/prometheus/prometheus/util/strutil"
 )
 
@@ -197,8 +198,14 @@ func main() {
 	}
 	destination := export.NewStorage(exporter)
 
+	sdMetrics, err := discovery.CreateAndRegisterSDMetrics(prometheus.DefaultRegisterer)
+	if err != nil {
+		_ = level.Error(logger).Log("msg", "failed to register service discovery metrics", "err", err)
+		os.Exit(1)
+	}
+
 	ctxDiscover, cancelDiscover := context.WithCancel(ctx)
-	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
+	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), prometheus.DefaultRegisterer, sdMetrics, discovery.Name("notify"))
 	notifierOptions := notifier.Options{
 		Registerer:    reg,
 		QueueCapacity: defaultEvaluatorOpts.QueueCapacity,
@@ -818,11 +825,11 @@ func convertModelToPromQLValue(val model.Value) (parser.Value, error) {
 	}
 }
 
-// Converting v1.Warnings to storage.Warnings.
-func convertV1WarningsToStorageWarnings(w v1.Warnings) storage.Warnings {
-	warnings := make(storage.Warnings, len(w))
-	for i, warning := range w {
-		warnings[i] = errors.New(warning)
+// Converting v1.Warnings to annotations.Annotations.
+func convertV1WarningsToStorageWarnings(w v1.Warnings) annotations.Annotations {
+	warnings := make(annotations.Annotations, len(w))
+	for _, warning := range w {
+		warnings[warning] = errors.New(warning)
 	}
 	return warnings
 }
@@ -832,7 +839,7 @@ type listSeriesSet struct {
 	m        promql.Matrix
 	idx      int
 	err      error
-	warnings storage.Warnings
+	warnings annotations.Annotations
 }
 
 // Next advances the iterator and returns true if there's data to consume.
@@ -852,7 +859,7 @@ func (ss *listSeriesSet) Err() error {
 }
 
 // Warnings returns warnings encountered while iterating.
-func (ss *listSeriesSet) Warnings() storage.Warnings {
+func (ss *listSeriesSet) Warnings() annotations.Annotations {
 	return ss.warnings
 }
 
@@ -878,10 +885,9 @@ type queryStorage struct {
 }
 
 // Querier provides querying access over time series data of a fixed time range.
-func (s *queryStorage) Querier(ctx context.Context, mint, maxt int64) (storage.Querier, error) {
+func (s *queryStorage) Querier(mint, maxt int64) (storage.Querier, error) {
 	db := &queryAccess{
 		api:   s.api,
-		ctx:   ctx,
 		mint:  mint / 1000, // divide by 1000 to convert milliseconds to seconds.
 		maxt:  maxt / 1000,
 		query: QueryFunc,
@@ -901,7 +907,7 @@ type queryAccess struct {
 }
 
 // Select returns a set of series that matches the given label matchers and time range.
-func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ...*labels.Matcher) storage.SeriesSet {
+func (db *queryAccess) Select(_ context.Context, sort bool, hints *storage.SelectHints, matchers ...*labels.Matcher) storage.SeriesSet {
 	if sort || hints != nil {
 		return newListSeriesSet(nil, errors.New("sorting series and select hints are not supported"), nil)
 	}

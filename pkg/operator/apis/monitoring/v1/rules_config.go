@@ -18,11 +18,11 @@ import (
 	"fmt"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	"github.com/goccy/go-yaml"
 	model "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"github.com/prometheus/prometheus/promql/parser"
-	"gopkg.in/yaml.v3"
 )
 
 func (r *Rules) RuleGroupsConfig(projectID, location, cluster string) (string, error) {
@@ -101,7 +101,7 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 		result.Groups = append(result.Groups, group)
 	}
 	// Do a marshal/unmarshal cycle to run the upstream validation.
-	b, err := yaml.Marshal(result)
+	b, err := yaml.MarshalWithOptions(result, yaml.OmitEmpty())
 	if err != nil {
 		return result, err
 	}

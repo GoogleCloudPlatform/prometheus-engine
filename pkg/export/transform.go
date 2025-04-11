@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
-	"github.com/prometheus/prometheus/model/textparse"
 	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
@@ -136,7 +136,7 @@ func (b *sampleBuilder) next(metadata MetadataFunc, externalLabels labels.Labels
 			value          *monitoring_pb.TypedValue
 			resetTimestamp int64
 		)
-		if entry.metadata.Type == textparse.MetricTypeHistogram {
+		if entry.metadata.Type == model.MetricTypeHistogram {
 			// Consume a set of series as a single distribution sample.
 
 			// We pass in the original lset for matching since Prometheus's target label must
