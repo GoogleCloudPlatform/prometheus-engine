@@ -44,6 +44,8 @@ linters:
     - nilnil
     - nlreturn
     - noctx
+    # TODO(bwplotka): Remove once https://github.com/golangci/golangci-lint/issues/3228 is fixed.
+    - nolintlint
     - nonamedreturns
     - nosprintfhostport
     - paralleltest

@@ -17,7 +17,9 @@ package internal
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -134,6 +136,16 @@ func alertsToAPIAlerts(alerts []*rules.Alert) []*apiv1.Alert {
 			Value:           strconv.FormatFloat(ruleAlert.Value, 'e', -1, 64),
 		})
 	}
-
+	// Sort for testability.
+	sort.Slice(apiAlerts, func(i, j int) bool {
+		a, b := apiAlerts[i].Labels.Hash(), apiAlerts[j].Labels.Hash()
+		if a == b {
+			a, b = apiAlerts[i].Annotations.Hash(), apiAlerts[j].Annotations.Hash()
+		}
+		if a == b {
+			return strings.Compare(apiAlerts[i].State, apiAlerts[j].State) < 0 // firing before pending.
+		}
+		return a >= b
+	})
 	return apiAlerts
 }
