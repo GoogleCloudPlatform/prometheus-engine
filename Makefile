@@ -155,7 +155,7 @@ test:        ## Run unit tests. Setting NO_DOCKER=1 runs test on host machine.
              ##
 	@echo ">> running unit tests"
 ifeq ($(NO_DOCKER), 1)
-	go test `go list ./... | grep -v e2e | grep -v export/bench | grep -v export/gcm`
+	go test `go list ./... | grep -v e2e | grep -v export/bench | grep -v internal/promqle2etest`
 else
 	# TODO(TheSpiritXIII): Temporary env variables part of `export.go` unit tests.
 	$(call docker_build, -f ./hack/Dockerfile --target sync -o . -t gmp/hermetic \
@@ -168,7 +168,7 @@ GCM_SECRET?=
 test-export-gcm:  ## Run export unit tests that will use GCM if GCM_SECRET is present.
                   ## TODO(b/306337101): Move to cloud build.
 ifneq ($(GCM_SECRET),)
-	TEST_TAG=false go test -v ./pkg/export/gcm
+	TEST_TAG=false go test -v ./internal/promqle2etest/
 else
 	@echo "Secret not provided, skipping!"
 endif
