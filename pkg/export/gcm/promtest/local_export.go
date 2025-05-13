@@ -30,6 +30,7 @@ import (
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
@@ -180,7 +181,10 @@ func (l *localExportWithGCM) injectScrapes(t testing.TB, scrapeRecordings [][]*d
 
 			switch et {
 			case textparse.EntryType:
-				_, currMeta.Type = tp.Type()
+				_, currType := tp.Type()
+				// TODO(pintohutch): this conversion is a temporary hack until
+				// we bump prometheus to bring in: https://github.com/prometheus/common/commit/445c21097872f2b117863ee4667c32075a8a5291
+				currMeta.Type = model.MetricType(string(currType))
 				continue
 			case textparse.EntryHelp:
 				mName, mHelp := tp.Help()
