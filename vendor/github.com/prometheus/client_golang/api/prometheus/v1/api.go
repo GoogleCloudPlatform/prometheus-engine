@@ -475,9 +475,9 @@ type API interface {
 	// Flags returns the flag values that Prometheus was launched with.
 	Flags(ctx context.Context) (FlagsResult, error)
 	// LabelNames returns the unique label names present in the block in sorted order by given time range and matchers.
-	LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) ([]string, Warnings, error)
+	LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time) ([]string, Warnings, error)
 	// LabelValues performs a query for the values of the given label, time range and matchers.
-	LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time, opts ...Option) (model.LabelValues, Warnings, error)
+	LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time) (model.LabelValues, Warnings, error)
 	// Query performs a query for the given time.
 	Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error)
 	// QueryRange performs a query for the given range.
@@ -489,7 +489,7 @@ type API interface {
 	// Runtimeinfo returns the various runtime information properties about the Prometheus server.
 	Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error)
 	// Series finds series by label matchers.
-	Series(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) ([]model.LabelSet, Warnings, error)
+	Series(ctx context.Context, matches []string, startTime, endTime time.Time) ([]model.LabelSet, Warnings, error)
 	// Snapshot creates a snapshot of all current data into snapshots/<datetime>-<rand>
 	// under the TSDB's data directory and returns the directory as response.
 	Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, error)
@@ -502,7 +502,7 @@ type API interface {
 	// Metadata returns metadata about metrics currently scraped by the metric name.
 	Metadata(ctx context.Context, metric, limit string) (map[string][]Metadata, error)
 	// TSDB returns the cardinality statistics.
-	TSDB(ctx context.Context, opts ...Option) (TSDBResult, error)
+	TSDB(ctx context.Context) (TSDBResult, error)
 	// WalReplay returns the current replay status of the wal.
 	WalReplay(ctx context.Context) (WalReplayStatus, error)
 }
@@ -1024,10 +1024,9 @@ func (h *httpAPI) Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error) {
 	return res, err
 }
 
-func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) ([]string, Warnings, error) {
+func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time) ([]string, Warnings, error) {
 	u := h.client.URL(epLabels, nil)
-	q := addOptionalURLParams(u.Query(), opts)
-
+	q := u.Query()
 	if !startTime.IsZero() {
 		q.Set("start", formatTime(startTime))
 	}
@@ -1047,10 +1046,9 @@ func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, e
 	return labelNames, w, err
 }
 
-func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time, opts ...Option) (model.LabelValues, Warnings, error) {
+func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time) (model.LabelValues, Warnings, error) {
 	u := h.client.URL(epLabelValues, map[string]string{"name": label})
-	q := addOptionalURLParams(u.Query(), opts)
-
+	q := u.Query()
 	if !startTime.IsZero() {
 		q.Set("start", formatTime(startTime))
 	}
@@ -1076,19 +1074,8 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []strin
 	return labelValues, w, err
 }
 
-// StatsValue is a type for `stats` query parameter.
-type StatsValue string
-
-// AllStatsValue is the query parameter value to return all the query statistics.
-const (
-	AllStatsValue StatsValue = "all"
-)
-
 type apiOptions struct {
-	timeout       time.Duration
-	lookbackDelta time.Duration
-	stats         StatsValue
-	limit         uint64
+	timeout time.Duration
 }
 
 type Option func(c *apiOptions)
@@ -1101,60 +1088,19 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithLookbackDelta can be used to provide an optional query lookback delta for Query and QueryRange.
-// This URL variable is not documented on Prometheus HTTP API.
-// https://github.com/prometheus/prometheus/blob/e04913aea2792a5c8bc7b3130c389ca1b027dd9b/promql/engine.go#L162-L167
-func WithLookbackDelta(lookbackDelta time.Duration) Option {
-	return func(o *apiOptions) {
-		o.lookbackDelta = lookbackDelta
-	}
-}
+func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error) {
+	u := h.client.URL(epQuery, nil)
+	q := u.Query()
 
-// WithStats can be used to provide an optional per step stats for Query and QueryRange.
-// This URL variable is not documented on Prometheus HTTP API.
-// https://github.com/prometheus/prometheus/blob/e04913aea2792a5c8bc7b3130c389ca1b027dd9b/promql/engine.go#L162-L167
-func WithStats(stats StatsValue) Option {
-	return func(o *apiOptions) {
-		o.stats = stats
-	}
-}
-
-// WithLimit provides an optional maximum number of returned entries for APIs that support limit parameter
-// e.g. https://prometheus.io/docs/prometheus/latest/querying/api/#instant-querie:~:text=%3A%20End%20timestamp.-,limit%3D%3Cnumber%3E,-%3A%20Maximum%20number%20of
-func WithLimit(limit uint64) Option {
-	return func(o *apiOptions) {
-		o.limit = limit
-	}
-}
-
-func addOptionalURLParams(q url.Values, opts []Option) url.Values {
 	opt := &apiOptions{}
 	for _, o := range opts {
 		o(opt)
 	}
 
-	if opt.timeout > 0 {
-		q.Set("timeout", opt.timeout.String())
+	d := opt.timeout
+	if d > 0 {
+		q.Set("timeout", d.String())
 	}
-
-	if opt.lookbackDelta > 0 {
-		q.Set("lookback_delta", opt.lookbackDelta.String())
-	}
-
-	if opt.stats != "" {
-		q.Set("stats", string(opt.stats))
-	}
-
-	if opt.limit > 0 {
-		q.Set("limit", strconv.FormatUint(opt.limit, 10))
-	}
-
-	return q
-}
-
-func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error) {
-	u := h.client.URL(epQuery, nil)
-	q := addOptionalURLParams(u.Query(), opts)
 
 	q.Set("query", query)
 	if !ts.IsZero() {
@@ -1172,12 +1118,22 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ..
 
 func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ...Option) (model.Value, Warnings, error) {
 	u := h.client.URL(epQueryRange, nil)
-	q := addOptionalURLParams(u.Query(), opts)
+	q := u.Query()
 
 	q.Set("query", query)
 	q.Set("start", formatTime(r.Start))
 	q.Set("end", formatTime(r.End))
 	q.Set("step", strconv.FormatFloat(r.Step.Seconds(), 'f', -1, 64))
+
+	opt := &apiOptions{}
+	for _, o := range opts {
+		o(opt)
+	}
+
+	d := opt.timeout
+	if d > 0 {
+		q.Set("timeout", d.String())
+	}
 
 	_, body, warnings, err := h.client.DoGetFallback(ctx, u, q)
 	if err != nil {
@@ -1185,12 +1141,13 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ..
 	}
 
 	var qres queryResult
+
 	return qres.v, warnings, json.Unmarshal(body, &qres)
 }
 
-func (h *httpAPI) Series(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) ([]model.LabelSet, Warnings, error) {
+func (h *httpAPI) Series(ctx context.Context, matches []string, startTime, endTime time.Time) ([]model.LabelSet, Warnings, error) {
 	u := h.client.URL(epSeries, nil)
-	q := addOptionalURLParams(u.Query(), opts)
+	q := u.Query()
 
 	for _, m := range matches {
 		q.Add("match[]", m)
@@ -1209,7 +1166,8 @@ func (h *httpAPI) Series(ctx context.Context, matches []string, startTime, endTi
 	}
 
 	var mset []model.LabelSet
-	return mset, warnings, json.Unmarshal(body, &mset)
+	err = json.Unmarshal(body, &mset)
+	return mset, warnings, err
 }
 
 func (h *httpAPI) Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, error) {
@@ -1320,10 +1278,8 @@ func (h *httpAPI) Metadata(ctx context.Context, metric, limit string) (map[strin
 	return res, err
 }
 
-func (h *httpAPI) TSDB(ctx context.Context, opts ...Option) (TSDBResult, error) {
+func (h *httpAPI) TSDB(ctx context.Context) (TSDBResult, error) {
 	u := h.client.URL(epTSDB, nil)
-	q := addOptionalURLParams(u.Query(), opts)
-	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
