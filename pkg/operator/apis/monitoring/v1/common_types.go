@@ -153,6 +153,7 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 		ScrapeTimeout:           timeout,
 		RelabelConfigs:          relabelCfgs,
 		MetricRelabelConfigs:    metricRelabelCfgs,
+		EnableCompression:       true,
 	}
 	if limits != nil {
 		scrapeCfg.SampleLimit = uint(limits.Samples)
