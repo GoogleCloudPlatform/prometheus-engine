@@ -13,7 +13,7 @@
 # limitations under the License.
 
 apiVersion: monitoring.googleapis.com/v1
-kind: PodMonitoring
+kind: ClusterPodMonitoring
 metadata:
   name: inference-optimized-gateway-monitoring
   labels:
@@ -25,6 +25,13 @@ spec:
     scheme: http
     interval: 5s
     path: /metrics
+    authorization:
+      type: Bearer
+      credentials:
+        secret:
+          name: inference-gateway-sa-metrics-reader-secret
+          key: token
+          namespace: default
   selector:
     matchLabels:
       app: inference-gateway-ext-proc
