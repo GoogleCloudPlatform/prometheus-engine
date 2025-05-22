@@ -16,9 +16,10 @@ package config
 import (
 	"crypto/md5"
 	"encoding/binary"
-	"log/slog"
 	"sync"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -26,7 +27,7 @@ import (
 // single configuration.
 type Coordinator struct {
 	configFilePath string
-	logger         *slog.Logger
+	logger         log.Logger
 
 	// Protects config and subscribers
 	mutex       sync.Mutex
@@ -41,7 +42,7 @@ type Coordinator struct {
 // NewCoordinator returns a new coordinator with the given configuration file
 // path. It does not yet load the configuration from file. This is done in
 // `Reload()`.
-func NewCoordinator(configFilePath string, r prometheus.Registerer, l *slog.Logger) *Coordinator {
+func NewCoordinator(configFilePath string, r prometheus.Registerer, l log.Logger) *Coordinator {
 	c := &Coordinator{
 		configFilePath: configFilePath,
 		logger:         l,
@@ -55,7 +56,7 @@ func NewCoordinator(configFilePath string, r prometheus.Registerer, l *slog.Logg
 func (c *Coordinator) registerMetrics(r prometheus.Registerer) {
 	configHash := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_config_hash",
-		Help: "Hash of the currently loaded alertmanager configuration. Note that this is not a cryptographically strong hash.",
+		Help: "Hash of the currently loaded alertmanager configuration.",
 	})
 	configSuccess := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "alertmanager_config_last_reload_successful",
@@ -109,27 +110,27 @@ func (c *Coordinator) Reload() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	c.logger.Info(
-		"Loading configuration file",
+	level.Info(c.logger).Log(
+		"msg", "Loading configuration file",
 		"file", c.configFilePath,
 	)
 	if err := c.loadFromFile(); err != nil {
-		c.logger.Error(
-			"Loading configuration file failed",
+		level.Error(c.logger).Log(
+			"msg", "Loading configuration file failed",
 			"file", c.configFilePath,
 			"err", err,
 		)
 		c.configSuccessMetric.Set(0)
 		return err
 	}
-	c.logger.Info(
-		"Completed loading of configuration file",
+	level.Info(c.logger).Log(
+		"msg", "Completed loading of configuration file",
 		"file", c.configFilePath,
 	)
 
 	if err := c.notifySubscribers(); err != nil {
-		c.logger.Error(
-			"one or more config change subscribers failed to apply new config",
+		c.logger.Log(
+			"msg", "one or more config change subscribers failed to apply new config",
 			"file", c.configFilePath,
 			"err", err,
 		)
