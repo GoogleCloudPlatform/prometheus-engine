@@ -27,7 +27,7 @@ images:
     tag: v0.27.0-gmp.3-gke.0
   prometheus:
     image: gke.gcr.io/prometheus-engine/prometheus
-    tag: v2.45.3-gmp.11-gke.0
+    tag: v2.53.4-gmp.0-gke.1
   configReloader:
     image: gke.gcr.io/prometheus-engine/config-reloader
     tag: v0.15.3-gke.0
