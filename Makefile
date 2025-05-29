@@ -49,8 +49,9 @@ define update_manifests
 	find manifests examples -type f -name "*.yaml" -exec sed -i "s#image: .*/$(1):.*#image: ${IMAGE_REGISTRY}/$(1):${TAG_NAME}#g" {} \;
 endef
 
+CACHE_FROM_ARG := $(if $(strip $(CACHE_IMAGE_FROM)),--cache-from $(CACHE_IMAGE_FROM),)
 define docker_build
-	DOCKER_BUILDKIT=1 docker build --label "part-of=gmp" $(1)
+	DOCKER_BUILDKIT=1 docker build --label "part-of=gmp" $(CACHE_FROM_ARG) $(1)
 endef
 
 define docker_tag_push
