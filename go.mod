@@ -18,10 +18,10 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/oklog/run v1.1.0
 	github.com/oklog/ulid v1.3.1
-	github.com/prometheus/alertmanager v0.28.1
-	github.com/prometheus/client_golang v1.22.0
+	github.com/prometheus/alertmanager v0.27.0
+	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.62.0
+	github.com/prometheus/common v0.54.0
 	github.com/prometheus/common/assets v0.2.0
 	github.com/prometheus/prometheus v1.8.2-0.20211119115433-692a54649ed7
 	github.com/stretchr/testify v1.10.0
@@ -247,7 +247,6 @@ require (
 	github.com/polyfloyd/go-errorlint v1.7.1 // indirect
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/prometheus/sigv4 v0.1.0 // indirect
 	github.com/quasilyte/go-ruleguard v0.4.4 // indirect
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22 // indirect
 	github.com/quasilyte/gogrep v0.5.0 // indirect
