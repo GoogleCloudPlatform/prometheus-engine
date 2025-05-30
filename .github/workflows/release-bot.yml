@@ -25,7 +25,7 @@ on:
         type: string
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/gmp-hermetic
+  IMAGE_NAME: googlecloudplatform/gmp/hermetic-build
   BRANCH_NAME: ${{ inputs.branch_name }} 
 concurrency: 
   group: ${{inputs.branch_name}}
