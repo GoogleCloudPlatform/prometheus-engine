@@ -19,6 +19,7 @@ import (
 	"crypto/fips140"
 	"errors"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -55,11 +56,17 @@ func main() {
 	if metadata.OnGCE() {
 		var err error
 		defaultProjectID, err = metadata.ProjectIDWithContext(ctx)
-		errList = append(errList, err)
+		if err != nil {
+			errList = append(errList, fmt.Errorf("getting project ID: %w", err))
+		}
 		defaultCluster, err = metadata.InstanceAttributeValueWithContext(ctx, "cluster-name")
-		errList = append(errList, err)
+		if err != nil {
+			errList = append(errList, fmt.Errorf("getting cluster name: %w", err))
+		}
 		defaultLocation, err = metadata.InstanceAttributeValueWithContext(ctx, "cluster-location")
-		errList = append(errList, err)
+		if err != nil {
+			errList = append(errList, fmt.Errorf("getting cluster location: %w", err))
+		}
 	}
 	var (
 		logVerbosity      = flag.Int("v", 0, "Logging verbosity")
@@ -92,6 +99,7 @@ func main() {
 	ctrl.SetLogger(logger)
 	if err := errors.Join(errList...); err != nil {
 		logger.Error(err, "unable to fetch Google Cloud metadata")
+		os.Exit(1)
 	}
 
 	if !fips140.Enabled() {
