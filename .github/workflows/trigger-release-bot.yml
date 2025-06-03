@@ -17,7 +17,7 @@ on:
     branches:
       - 'release/*'
 jobs:
-  call-workflow-passing-data:
+  release-bot:
     permissions:
       contents: write
       pull-requests: write
