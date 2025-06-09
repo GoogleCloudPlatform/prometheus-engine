@@ -110,11 +110,12 @@ func TestCollectionReconcile(t *testing.T) {
 			Interval: "10s",
 		},
 	}
-
+	exampleCollectorConfigMapWithoutScrapeConfig := "global: {}\ngoogle_cloud:\n    export: {}\n"
 	testCases := []struct {
-		desc     string
-		input    monitoringv1.MonitoringCRD
-		expected monitoringv1.MonitoringCRD
+		desc                       string
+		input                      monitoringv1.MonitoringCRD
+		expected                   monitoringv1.MonitoringCRD
+		expectedCollectorConfigMap *string
 	}{
 		{
 			desc: "podmonitoring: no update",
@@ -413,6 +414,7 @@ func TestCollectionReconcile(t *testing.T) {
 					},
 				},
 			},
+			expectedCollectorConfigMap: &exampleCollectorConfigMapWithoutScrapeConfig,
 		},
 	}
 
@@ -464,6 +466,21 @@ func TestCollectionReconcile(t *testing.T) {
 				},
 			}); err != nil {
 				t.Fatal(err)
+			}
+
+			if tc.expectedCollectorConfigMap != nil {
+				collectorConfigMap := &corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: opts.OperatorNamespace,
+						Name:      NameCollector,
+					},
+				}
+				if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(collectorConfigMap), collectorConfigMap); err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(*tc.expectedCollectorConfigMap, collectorConfigMap.Data["config.yaml"]); diff != "" {
+					t.Fatalf("unexpected collector configmap (-want, +got): %s", diff)
+				}
 			}
 
 			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(tc.input), tc.input); err != nil {
