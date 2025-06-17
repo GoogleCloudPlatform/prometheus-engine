@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	// AlertNameLabel is the name of the label containing the alert's name.
+	// AlertNameLabel is the name of the label containing the an alert's name.
 	AlertNameLabel = "alertname"
 
 	// ExportedLabelPrefix is the prefix to prepend to the label names present in
@@ -122,8 +122,7 @@ func (ln LabelName) IsValidLegacy() bool {
 		return false
 	}
 	for i, b := range ln {
-		// TODO: Apply De Morgan's law. Make sure there are tests for this.
-		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) { //nolint:staticcheck
+		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9' && i > 0)) {
 			return false
 		}
 	}
