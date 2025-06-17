@@ -30,16 +30,16 @@ images:
     tag: v2.45.3-gmp.9-gke.0
   configReloader:
     image: gke.gcr.io/prometheus-engine/config-reloader
-    tag: v0.16.1-gke.0
+    tag: v0.16.1-gke.1
   operator:
     image: gke.gcr.io/prometheus-engine/operator
-    tag: v0.16.1-gke.0
+    tag: v0.16.1-gke.1
   ruleEvaluator:
     image: gke.gcr.io/prometheus-engine/rule-evaluator
-    tag: v0.16.1-gke.0
+    tag: v0.16.1-gke.1
   datasourceSyncer:
     image: gke.gcr.io/prometheus-engine/datasource-syncer
-    tag: v0.16.1-gke.0
+    tag: v0.16.1-gke.1
 resources:
   alertManager:
     limits:
