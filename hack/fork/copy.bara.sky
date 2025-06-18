@@ -1,0 +1,24 @@
+url = "https://github.com/prometheus/prometheus.git"
+
+# https://github.com/google/copybara/blob/master/docs/reference.md#coreworkflow
+core.workflow(
+    name = "default",
+    origin = git.origin(
+        url = url,
+        ref = "v2.53.4",
+    ),
+    # https://github.com/google/copybara/blob/master/docs/reference.md#git.destination
+    destination = git.destination(
+        url = "file:///fork_repo",
+        fetch = "hack/v2.53.4",
+        push = "hack/v2.53.4",
+    ),
+    # Copy everything but don't remove a README_INTERNAL.txt file if it exists.
+    destination_files = glob(["**"]), #, exclude = ["README_INTERNAL.txt"]),
+    mode = "ITERATIVE", # maintain git history
+
+    authoring = authoring.pass_thru("Default email <default@default.com>"),
+    #transformations = [
+	  #  core.move("", "third_party/copybara"),
+  	#],
+)
