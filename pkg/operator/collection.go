@@ -276,17 +276,17 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
 
-	var credentialsFile string
-	if spec.Credentials != nil {
-		credentialsFile = path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
-	}
-
 	cfg.GoogleCloud = &GoogleCloudConfig{
 		Export: &GoogleCloudExportConfig{
-			Compression:     ptr.To(string(compression)),
-			CredentialsFile: ptr.To(credentialsFile),
-			Match:           spec.Filter.MatchOneOf,
+			Match: spec.Filter.MatchOneOf,
 		},
+	}
+	if string(compression) != "" {
+		cfg.GoogleCloud.Export.Compression = ptr.To(string(compression))
+	}
+	if spec.Credentials != nil {
+		credentialsFile := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
+		cfg.GoogleCloud.Export.CredentialsFile = ptr.To(credentialsFile)
 	}
 
 	cfgEncoded, err := yaml.Marshal(cfg)
