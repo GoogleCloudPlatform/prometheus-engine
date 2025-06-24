@@ -46,6 +46,7 @@ COPY doc doc
 COPY pkg pkg
 COPY e2e e2e
 COPY internal internal
+COPY collector collector
 
 # Init a dummy git repo so we can check if generated code changes via
 # git diff.

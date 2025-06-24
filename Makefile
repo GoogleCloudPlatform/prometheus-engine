@@ -169,7 +169,7 @@ GCM_SECRET?=
 test-export-gcm:  ## Run export unit tests that will use GCM if GCM_SECRET is present.
                   ## TODO(b/306337101): Move to cloud build.
 ifneq ($(GCM_SECRET),)
-	TEST_TAG=false go test -v ./pkg/export/gcm
+	cd ./collector && TEST_TAG=false go test -v ./export/gcm
 else
 	@echo "Secret not provided, skipping!"
 endif

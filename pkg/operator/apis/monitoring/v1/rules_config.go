@@ -17,7 +17,7 @@ package v1
 import (
 	"fmt"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	"github.com/GoogleCloudPlatform/prometheus-engine/collector/export"
 	model "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/rulefmt"

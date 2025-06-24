@@ -24,6 +24,7 @@ COPY vendor* vendor
 COPY cmd cmd
 COPY pkg pkg
 COPY internal internal
+COPY collector collector
 
 ENV GOEXPERIMENT=noboringcrypto
 ENV CGO_ENABLED=0
