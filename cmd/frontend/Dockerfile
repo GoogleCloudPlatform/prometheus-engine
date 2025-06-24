@@ -41,7 +41,7 @@ ENV CGO_ENABLED=0
 ENV GOFIPS140=latest
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-RUN go build -tags builtinassets -mod=vendor -o frontend ./cmd/frontend/*.go
+RUN go build -tags builtinassets -o frontend ./cmd/frontend/*.go
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=appbase /app/frontend /bin/frontend

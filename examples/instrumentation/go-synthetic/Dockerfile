@@ -25,7 +25,7 @@ ENV CGO_ENABLED=0
 ENV GOFIPS140=latest
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-RUN go build -mod=vendor -o go-synthetic ./examples/instrumentation/go-synthetic
+RUN go build -o go-synthetic ./examples/instrumentation/go-synthetic
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=appbase /app/go-synthetic /bin/go-synthetic
