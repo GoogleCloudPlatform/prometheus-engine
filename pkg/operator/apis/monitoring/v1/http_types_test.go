@@ -18,10 +18,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/collector/secrets"
 	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets"
 )
 
 type secretNamespaceTestCase struct {

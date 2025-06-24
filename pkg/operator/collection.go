@@ -42,8 +42,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/collector/secrets"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets"
 )
 
 func setupCollectionControllers(op *Operator) error {

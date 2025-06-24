@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	"github.com/GoogleCloudPlatform/prometheus-engine/collector/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	arv1 "k8s.io/api/admissionregistration/v1"
