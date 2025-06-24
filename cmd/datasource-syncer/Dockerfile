@@ -16,14 +16,19 @@ FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.24.4@sha256:747649f495
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
-COPY . ./
+COPY go.mod go.mod
+COPY go.sum go.sum
+# Copy the Go vendor directory only if it exists. Vendor folder will automatically
+# cause 'go build' to use -mod=vendor flag (otherwise -mod=mod is used).
+COPY vendor* vendor
+COPY cmd cmd
 
 ENV GOEXPERIMENT=noboringcrypto
 ENV CGO_ENABLED=0
 ENV GOFIPS140=latest
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-RUN go build -mod=vendor -o datasource-syncer cmd/datasource-syncer/*.go
+RUN go build -o datasource-syncer cmd/datasource-syncer/*.go
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=buildbase /app/datasource-syncer /bin/datasource-syncer

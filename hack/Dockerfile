@@ -33,7 +33,7 @@ WORKDIR /workspace
 # Least-changed dirs should go first. NOTE: When adding new directories
 # ensure .dockerignore is updated.
 COPY *.md *.md
-COPY vendor vendor
+COPY vendor* vendor
 COPY hack hack
 COPY .bingo .bingo
 COPY go.mod go.mod
@@ -65,7 +65,6 @@ COPY --from=hermetic /workspace/examples examples
 COPY --from=hermetic /workspace/manifests manifests
 COPY --from=hermetic /workspace/charts charts
 COPY --from=hermetic /workspace/e2e e2e
-COPY --from=hermetic /workspace/vendor vendor.tmp
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
 FROM google-go.pkg.dev/golang:1.24.3@sha256:5d2e3331f2ea940f316408b516badb01b146c918abe6941e3154c4704ba50140 AS buildbase
@@ -102,7 +101,7 @@ COPY examples examples
 COPY cmd cmd
 COPY manifests manifests
 COPY charts charts
-COPY vendor vendor
+COPY vendor* vendor
 COPY pkg pkg
 COPY e2e e2e
 COPY hack hack

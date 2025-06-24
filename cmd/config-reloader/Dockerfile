@@ -18,16 +18,17 @@ ARG TARGETARCH
 WORKDIR /app
 COPY go.mod go.mod
 COPY go.sum go.sum
-COPY vendor vendor
+# Copy the Go vendor directory only if it exists. Vendor folder will automatically
+# cause 'go build' to use -mod=vendor flag (otherwise -mod=mod is used).
+COPY vendor* vendor
 COPY cmd cmd
-COPY pkg pkg
 
 ENV GOEXPERIMENT=noboringcrypto
 ENV CGO_ENABLED=0
 ENV GOFIPS140=latest
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-RUN go build -mod=vendor -o config-reloader cmd/config-reloader/*.go
+RUN go build -o config-reloader cmd/config-reloader/*.go
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=buildbase /app/config-reloader /bin/config-reloader
