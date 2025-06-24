@@ -36,9 +36,9 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/rule-evaluator/internal"
+	"github.com/GoogleCloudPlatform/prometheus-engine/collector/export"
+	exportsetup "github.com/GoogleCloudPlatform/prometheus-engine/collector/export/setup"
 	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
-	exportsetup "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export/setup"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"

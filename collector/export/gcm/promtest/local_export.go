@@ -41,7 +41,7 @@ import (
 	"golang.org/x/oauth2"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	"github.com/GoogleCloudPlatform/prometheus-engine/collector/export"
 	"github.com/go-kit/log"
 	"golang.org/x/oauth2/google"
 )
