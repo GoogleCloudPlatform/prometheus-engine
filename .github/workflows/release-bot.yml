@@ -135,7 +135,8 @@ jobs:
         id: prepare
         working-directory: ./main_branch
         run: |
-          go run ./hack/prepare_rc ${{ env.BRANCH_NAME }} ../release_branch
+          alias yq=go tool yq
+          go run ./hack/prepare_rc -branch ${{ env.BRANCH_NAME }} -dir ../release_branch
       - name: Regen files
         working-directory: ./release_branch
         # Workflows can't edit workflows. Better to create PR and let tests fail.
