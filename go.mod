@@ -337,6 +337,8 @@ require (
 )
 
 replace (
+	// Bump unitl we upgrade Prometheus deps.
+	github.com/prometheus/common => github.com/prometheus/common v0.61.0
 	// Go modules keeps resetting the version to a random unversioned commit.
 	// So this is required for unknown reasons.
 	github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.45.2
