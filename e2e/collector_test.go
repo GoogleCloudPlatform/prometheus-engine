@@ -200,12 +200,6 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 	return func(t *testing.T) {
 		t.Log("checking collector is configured")
 
-		// Add some export filters.
-		projectFilter := fmt.Sprintf("{project_id='%s'}", projectID)
-		locationFilter := fmt.Sprintf("{location=~'%s$'}", location)
-		// TODO(pintohutch): remove once we've fixed: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/728.
-		kubeletFilter := "{job='kubelet'}"
-
 		config := monitoringv1.OperatorConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      operator.NameOperatorConfig,
@@ -217,13 +211,11 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 		}
 
 		// Test propagation of the custom options.
-		config.Collection.Filter = monitoringv1.ExportFilters{
-			MatchOneOf: []string{projectFilter, locationFilter, kubeletFilter},
-		}
 		config.Collection.Compression = monitoringv1.CompressionGzip
 		config.Collection.ExternalLabels = map[string]string{
 			"external_key": "external_val",
 		}
+		config.Collection.Filter.MatchOneOf = []string{"does not matter, this option should be ignored"}
 
 		// Update OperatorConfig.
 		if err := kubeClient.Update(ctx, &config); err != nil {
@@ -248,10 +240,6 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 google_cloud:
     export:
         compression: gzip
-        match:
-            - '{project_id=''{projectID}''}'
-            - '{location=~''{location}$''}'
-            - '{job=''kubelet''}'
 `),
 		}
 

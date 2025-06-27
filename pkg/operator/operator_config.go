@@ -169,7 +169,6 @@ func setupOperatorConfigControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterAlertManagerSecret)).
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
-
 	if err != nil {
 		return fmt.Errorf("operator-config controller: %w", err)
 	}
@@ -257,6 +256,13 @@ func (r *operatorConfigReconciler) ensureOperatorConfig(ctx context.Context, log
 	} else if err != nil {
 		return nil, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
+
+	if exists && len(config.Collection.Filter.MatchOneOf) > 0 {
+		// Deprecation warning, see rationales for the deprecation in
+		// https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1688
+		logger.Error(nil, "WARN: OperatorConfig.collection.filter.matchOneOf was used, but its a noop and deprecated. See https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics for alternatives.")
+	}
+
 	defaulter := &operatorConfigDefaulter{
 		projectID: r.opts.ProjectID,
 		location:  r.opts.Location,
@@ -399,7 +405,7 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 	}
 
 	// Set defaults on public namespace secret.
-	var sel = &corev1.SecretKeySelector{
+	sel := &corev1.SecretKeySelector{
 		LocalObjectReference: corev1.LocalObjectReference{
 			Name: AlertmanagerPublicSecretName,
 		},

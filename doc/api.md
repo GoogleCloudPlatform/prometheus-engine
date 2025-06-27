@@ -937,6 +937,7 @@ CompressionType
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.CollectionSpec">CollectionSpec</a>, <a href="#monitoring.googleapis.com/v1.ConfigSpec">ConfigSpec</a>)
 </p>
 <div>
+<p>CompressionType represents compression type used e.g. for network requests.</p>
 </div>
 <table>
 <thead>
@@ -1012,10 +1013,10 @@ ClusterPodMonitoring, PodMonitoring, GlobalRules, ClusterRules, and/or Rules.</p
 </em>
 </td>
 <td>
-<p>A list of Prometheus time series matchers. Every time series must match at least one
-of the matchers to be exported. This field can be used equivalently to the match[]
-parameter of the Prometheus federation endpoint to selectively export data.
-Example: <code>[&quot;{job!='foobar'}&quot;, &quot;{__name__!~'container_foo.*|container_bar.*'}&quot;]</code></p>
+<p>DEPRECATED: From the 0.14 GMP version, this functionality is no longer implemented.
+Specifying this field has no effect, other than a warning message.
+See <a href="https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics">https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics</a> for alternatives.
+TODO: Add a native CRD deprecation when possible, see: <a href="https://github.com/kubernetes/kubernetes/issues/131817">https://github.com/kubernetes/kubernetes/issues/131817</a></p>
 </td>
 </tr>
 </tbody>

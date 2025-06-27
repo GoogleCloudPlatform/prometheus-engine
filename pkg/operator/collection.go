@@ -274,9 +274,9 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
 
-	// NOTE(bwplotka): Match logic will be removed in https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1688
-	// nolint:staticcheck
-	cfg.GoogleCloud.Export.Match = spec.Filter.MatchOneOf
+	// NOTE(bwplotka): cfg.GoogleCloud.Export.Match is deprecated (and not working),
+	// since 0.14, so we don't set this config field anymore.
+
 	if string(spec.Compression) != "" {
 		cfg.GoogleCloud.Export.Compression = string(spec.Compression)
 	}
