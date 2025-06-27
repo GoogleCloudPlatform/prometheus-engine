@@ -14,7 +14,7 @@
 
 package operator
 
-import "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+import "github.com/GoogleCloudPlatform/prometheus-engine/collector/export"
 
 // resolveLabels compares the project, location, and cluster labels used by the operator
 // against those in externalLabels. If any are found in the latter, they take precedence.

@@ -19,10 +19,9 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/collector/secrets"
 	"github.com/prometheus/common/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets"
 )
 
 // SecretSelector references a secret from a secret provider e.g. Kubernetes Secret. Only one

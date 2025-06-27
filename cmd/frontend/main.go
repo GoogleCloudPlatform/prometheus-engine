@@ -36,8 +36,8 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/frontend/internal/rule"
+	"github.com/GoogleCloudPlatform/prometheus-engine/collector/export"
 	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/ui"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"

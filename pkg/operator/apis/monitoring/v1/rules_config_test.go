@@ -17,7 +17,7 @@ package v1
 import (
 	"testing"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
+	"github.com/GoogleCloudPlatform/prometheus-engine/collector/export"
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"gopkg.in/yaml.v3"
