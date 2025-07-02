@@ -1,9 +1,8 @@
 ## Charts
 
-This directory contains helm charts we maintain only for templating purposes. 
-
-They are not meant to be used directly for the installation/upgrade/deploy, they
-can change anytime.
+> IMPORTANT: This directory contains helm charts we maintain only for templating purposes. 
+> They are not designed to be "imported" (used directly for the installation/upgrade/deploy); they
+are not tested for this use and can change anytime.
 
 ### Usage
 
