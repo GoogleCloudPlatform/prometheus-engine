@@ -46,7 +46,7 @@ func TestAPI_HandleAlertsEndpoint(t *testing.T) {
 		ts, _ := time.Parse(time.RFC3339Nano, "2025-04-11T14:03:59.791816+01:00")
 		// AlertingRule does not allow injecting active alerts, so we use Eval with a fake querier
 		// that always return 2 series, which will cause alerting rule to contain 2 active alerts.
-		_, err := a.Eval(t.Context(), ts, func(context.Context, string, time.Time) (promql.Vector, error) {
+		_, err := a.Eval(t.Context(), 0*time.Second, ts, func(context.Context, string, time.Time) (promql.Vector, error) {
 			return promql.Vector{
 				promql.Sample{T: timestamp.FromTime(ts), F: 10, Metric: labels.FromStrings("foo", "bar")},
 				promql.Sample{T: timestamp.FromTime(ts), F: 11, Metric: labels.FromStrings("foo", "bar2")},

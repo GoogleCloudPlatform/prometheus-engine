@@ -166,7 +166,7 @@ func TestSelect(t *testing.T) {
 				t.Errorf("Case %d: NewMatcher returned unexpected error: %s", i, err)
 			}
 
-			got := c.db.Select(context.Background(), false, nil, matchers)
+			got := c.db.Select(t.Context(), false, nil, matchers)
 			if !cmp.Equal(got.Err(), c.want.Err(), cmp.Comparer(cmpErrsEquality)) {
 				t.Errorf("Case %d: Expected error: %s, Actual error: %s", i, c.want.Err(), got.Err())
 			}

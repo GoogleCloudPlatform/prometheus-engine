@@ -349,7 +349,6 @@ label_name_length_limit: 3
 label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
-http_headers: null
 relabel_configs:
 - target_label: project_id
   replacement: test_project
@@ -412,7 +411,6 @@ kubernetes_sd_configs:
   kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
-  http_headers: null
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
@@ -431,7 +429,6 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
-http_headers: null
 relabel_configs:
 - target_label: project_id
   replacement: test_project
@@ -483,7 +480,6 @@ kubernetes_sd_configs:
   kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
-  http_headers: null
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
@@ -579,7 +575,6 @@ label_name_length_limit: 3
 label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
-http_headers: null
 relabel_configs:
 - target_label: project_id
   replacement: test_project
@@ -637,7 +632,6 @@ kubernetes_sd_configs:
   kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
-  http_headers: null
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
@@ -656,7 +650,6 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
-http_headers: null
 relabel_configs:
 - target_label: project_id
   replacement: test_project
@@ -705,7 +698,6 @@ kubernetes_sd_configs:
   kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
-  http_headers: null
   selectors:
   - role: pod
     field: spec.nodeName=$(NODE_NAME)
