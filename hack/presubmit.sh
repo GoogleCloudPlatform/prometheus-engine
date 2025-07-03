@@ -45,11 +45,9 @@ codegen_diff() {
 }
 update_codegen() {
   echo ">>> regenerating CRD k8s go code"
-  # Refresh vendored dependencies to ensure script is found.
-  go mod vendor
   # Idempotently regenerate by deleting current resources.
   rm -rf "$REPO_ROOT/pkg/operator/generated"
-  CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${REPO_ROOT}"; ls -d -1 ./vendor/k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
+  CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${REPO_ROOT}"; go list -m -f '{{.Dir}}' k8s.io/code-generator 2>/dev/null || echo ../code-generator)}
 
   # shellcheck source=../vendor/k8s.io/code-generator/kube_codegen.sh
   source "${CODEGEN_PKG}/kube_codegen.sh"
@@ -119,7 +117,7 @@ run_tests() {
 }
 
 reformat() {
-  go mod tidy && go mod vendor && go fmt ${REPO_ROOT}/...
+  go mod tidy && go fmt ${REPO_ROOT}/...
   ${MDOX} fmt --soft-wraps ${REPO_ROOT}/*.md ${REPO_ROOT}/cmd/**/*.md
 }
 

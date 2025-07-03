@@ -105,7 +105,6 @@ tls_config:
   insecure_skip_verify: false
 follow_redirects: false
 enable_http2: false
-http_headers: null
 relabel_configs:
 - source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
   regex: linux
@@ -145,7 +144,6 @@ kubernetes_sd_configs:
   kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
-  http_headers: null
   selectors:
   - role: node
     field: metadata.name=$(NODE_NAME)
@@ -169,7 +167,6 @@ tls_config:
   insecure_skip_verify: false
 follow_redirects: false
 enable_http2: false
-http_headers: null
 relabel_configs:
 - source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
   regex: linux
@@ -198,7 +195,6 @@ kubernetes_sd_configs:
   kubeconfig_file: ""
   follow_redirects: true
   enable_http2: true
-  http_headers: null
   selectors:
   - role: node
     field: metadata.name=$(NODE_NAME)
