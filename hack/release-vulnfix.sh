@@ -107,14 +107,10 @@ if [[ "${PROJECT}" == "prometheus-engine" ]]; then
 fi
 release-lib::idemp::git_commit_amend_match "${msg}"
 
-# Anything to push?
-if [[ "$(git rev-parse HEAD)" != "$(git fetch && git rev-parse "origin/${PR_BRANCH}")" ]]; then
-  # TODO: Potentially use ghclient for PR ops
+if release-lib::needs_push; then
   if release-lib::confirm "About to FORCE git push from ${DIR} to origin/${PR_BRANCH}; are you sure?"; then
-      # TODO: Consider using leasing to check for stales etc
-      git push --force origin "${PR_BRANCH}"
-  fi
+       git push --force origin "${PR_BRANCH}"
+   fi
 else
-  echo "⚠️ Nothing to do; no vulnerabilities and nothing to commit"
   exit 1
 fi

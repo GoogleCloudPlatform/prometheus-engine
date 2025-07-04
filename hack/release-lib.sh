@@ -225,3 +225,36 @@ release-lib::git_commit_amend_match() {
     git commit -sm "${message}"
   fi
 }
+
+release-lib::needs_push() {
+  if [[ -z "${BRANCH}" ]]; then
+    echo "❌  BRANCH environment variable is not set." >&2
+    usage
+    exit 1
+  fi
+  if [[ -z "${PR_BRANCH}" ]]; then
+    echo "❌  PR_BRANCH environment variable is not set." >&2
+    usage
+    exit 1
+  fi
+
+  if upstream_head=$(git fetch && git rev-parse "origin/${PR_BRANCH}"); then
+    if [[ "$(git rev-parse HEAD)" == "${upstream_head}" ]]; then
+      echo "⚠️ Nothing to push; all up to date"
+      return 1
+    fi
+    git --no-pager log "${upstream_head}"...HEAD
+    return 0
+  fi
+  # Likely "origin/${PR_BRANCH}" does not exists yet, so definitely something to
+  # push (full PR_BRANCH). Assuming the PR_BRANCH will be proposed to be merged to
+  # BRANCH, so showing a full diff vs BRANCH.
+  if upstream_base_head=$(git fetch && git rev-parse "origin/${BRANCH}"); then
+    if [[ "$(git rev-parse HEAD)" == "${upstream_base_head}" ]]; then
+      echo "⚠️ Nothing to push, even vs the BRANCH; did you expect that?"
+      return 1
+    fi
+    git --no-pager log "${upstream_base_head}"...HEAD
+    return 0
+  fi
+}
