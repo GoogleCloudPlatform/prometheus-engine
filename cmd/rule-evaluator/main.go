@@ -69,6 +69,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/util/annotations"
 	"github.com/prometheus/prometheus/util/strutil"
 )
 
@@ -135,6 +136,12 @@ func main() {
 		queryHistogram,
 	)
 
+	sdMetrics, err := discovery.CreateAndRegisterSDMetrics(reg)
+	if err != nil {
+		_ = level.Error(logger).Log("msg", "failed to register service discovery metrics", "err", err)
+		os.Exit(1)
+	}
+
 	// The rule-evaluator version is identical to the export library version for now, so
 	// we reuse that constant.
 	version, err := export.Version()
@@ -198,7 +205,7 @@ func main() {
 	destination := export.NewStorage(exporter)
 
 	ctxDiscover, cancelDiscover := context.WithCancel(ctx)
-	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), discovery.Name("notify"))
+	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), reg, sdMetrics, discovery.Name("notify"))
 	notifierOptions := notifier.Options{
 		Registerer:    reg,
 		QueueCapacity: defaultEvaluatorOpts.QueueCapacity,
@@ -818,13 +825,13 @@ func convertModelToPromQLValue(val model.Value) (parser.Value, error) {
 	}
 }
 
-// Converting v1.Warnings to storage.Warnings.
-func convertV1WarningsToStorageWarnings(w v1.Warnings) storage.Warnings {
-	warnings := make(storage.Warnings, len(w))
-	for i, warning := range w {
-		warnings[i] = errors.New(warning)
+// Converting v1.Warnings to annotations.Annotations.
+func convertV1WarningsToAnnotations(w v1.Warnings) annotations.Annotations {
+	a := annotations.New()
+	for _, warning := range w {
+		a.Add(errors.New(warning))
 	}
-	return warnings
+	return *a
 }
 
 // listSeriesSet implements the storage.SeriesSet interface on top a list of listSeries.
@@ -832,7 +839,7 @@ type listSeriesSet struct {
 	m        promql.Matrix
 	idx      int
 	err      error
-	warnings storage.Warnings
+	warnings annotations.Annotations
 }
 
 // Next advances the iterator and returns true if there's data to consume.
@@ -852,12 +859,12 @@ func (ss *listSeriesSet) Err() error {
 }
 
 // Warnings returns warnings encountered while iterating.
-func (ss *listSeriesSet) Warnings() storage.Warnings {
+func (ss *listSeriesSet) Warnings() annotations.Annotations {
 	return ss.warnings
 }
 
 func newListSeriesSet(v promql.Matrix, err error, w v1.Warnings) *listSeriesSet {
-	return &listSeriesSet{m: v, idx: -1, err: err, warnings: convertV1WarningsToStorageWarnings(w)}
+	return &listSeriesSet{m: v, idx: -1, err: err, warnings: convertV1WarningsToAnnotations(w)}
 }
 
 // convertMatchersToPromQL converts []*labels.Matcher to a PromQL query.
@@ -878,10 +885,9 @@ type queryStorage struct {
 }
 
 // Querier provides querying access over time series data of a fixed time range.
-func (s *queryStorage) Querier(ctx context.Context, mint, maxt int64) (storage.Querier, error) {
+func (s *queryStorage) Querier(mint, maxt int64) (storage.Querier, error) {
 	db := &queryAccess{
 		api:   s.api,
-		ctx:   ctx,
 		mint:  mint / 1000, // divide by 1000 to convert milliseconds to seconds.
 		maxt:  maxt / 1000,
 		query: QueryFunc,
@@ -896,12 +902,11 @@ type queryAccess struct {
 	api   v1.API
 	mint  int64
 	maxt  int64
-	ctx   context.Context
 	query func(context.Context, string, time.Time, v1.API) (parser.Value, v1.Warnings, error)
 }
 
 // Select returns a set of series that matches the given label matchers and time range.
-func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ...*labels.Matcher) storage.SeriesSet {
+func (db *queryAccess) Select(ctx context.Context, sort bool, hints *storage.SelectHints, matchers ...*labels.Matcher) storage.SeriesSet {
 	if sort || hints != nil {
 		return newListSeriesSet(nil, errors.New("sorting series and select hints are not supported"), nil)
 	}
@@ -913,7 +918,7 @@ func (db *queryAccess) Select(sort bool, hints *storage.SelectHints, matchers ..
 
 	queryExpression, filteredMatchers := convertMatchersToPromQL(matchers, duration)
 	maxt := time.Unix(db.maxt, 0)
-	v, warnings, err := db.query(db.ctx, queryExpression, maxt, db.api)
+	v, warnings, err := db.query(ctx, queryExpression, maxt, db.api)
 	if err != nil {
 		return newListSeriesSet(nil, err, warnings)
 	}

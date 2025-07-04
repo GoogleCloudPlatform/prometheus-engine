@@ -338,9 +338,11 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 	want := []string{
 		`job_name: PodMonitoring/ns1/name1/web
 honor_timestamps: false
+track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 10s
 metrics_path: /metrics
+enable_compression: true
 sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
@@ -415,9 +417,11 @@ kubernetes_sd_configs:
 `,
 		`job_name: PodMonitoring/ns1/name1/8080
 honor_timestamps: false
+track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 5s
 metrics_path: /prometheus
+enable_compression: true
 sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
@@ -560,9 +564,11 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 	want := []string{
 		`job_name: ClusterPodMonitoring/name1/web
 honor_timestamps: false
+track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 10s
 metrics_path: /metrics
+enable_compression: true
 sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
@@ -632,9 +638,11 @@ kubernetes_sd_configs:
 `,
 		`job_name: ClusterPodMonitoring/name1/8080
 honor_timestamps: false
+track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 5s
 metrics_path: /prometheus
+enable_compression: true
 sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3

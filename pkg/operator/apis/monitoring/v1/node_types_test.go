@@ -88,10 +88,12 @@ func TestClusterNodeMonitoring_ScrapeConfig(t *testing.T) {
 	want := []string{
 		`job_name: ClusterNodeMonitoring/kubelet/cadvisor/metrics
 honor_timestamps: false
+track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 10s
 metrics_path: /cadvisor/metrics
 scheme: https
+enable_compression: true
 sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3
@@ -148,10 +150,12 @@ kubernetes_sd_configs:
 `,
 		`job_name: ClusterNodeMonitoring/kubelet/metrics
 honor_timestamps: false
+track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 5s
 metrics_path: /metrics
 scheme: https
+enable_compression: true
 sample_limit: 1
 label_limit: 2
 label_name_length_limit: 3

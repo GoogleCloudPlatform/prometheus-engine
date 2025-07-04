@@ -147,7 +147,6 @@ ifeq ($(CHECK), 1)
 else
 	$(call docker_build, -f ./hack/Dockerfile --target sync -o . -t gmp/sync \
 		--build-arg RUNCMD='./hack/presubmit.sh all' .)
-	rm -rf vendor && mv vendor.tmp vendor
 	go tool addlicense -ignore 'third_party/**' -ignore 'vendor/**' .
 endif
 
@@ -161,7 +160,6 @@ else
 	# TODO(TheSpiritXIII): Temporary env variables part of `export.go` unit tests.
 	$(call docker_build, -f ./hack/Dockerfile --target sync -o . -t gmp/hermetic \
 		--build-arg RUNCMD='GIT_TAG="$(shell git describe --tags --abbrev=0)" TEST_TAG=true ./hack/presubmit.sh test' .)
-	rm -rf vendor.tmp
 endif
 
 GCM_SECRET?=

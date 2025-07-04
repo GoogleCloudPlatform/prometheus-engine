@@ -25,7 +25,8 @@ check_image() {
   TAG=$2
   GMP_VERSIONED=${3:-false}
 
-  LATEST=$(docker run gcr.io/go-containerregistry/crane ls "${IMAGE}" | grep "^v[0-9]" | sort -V | tail -1)
+  # Find the latest, while filtering out knowingly broken tags e.g. 0.16 stream.
+  LATEST=$(docker run gcr.io/go-containerregistry/crane ls "${IMAGE}" | grep "^v[0-9]" | grep -v "0.16" | sort -V | tail -1)
 
   if [[ $GMP_VERSIONED = true && ! "$TAG" =~ ^v${VERSION}.*$ ]]; then
     printf "GMP Version is %q, but tag %q of %q does not match\n" "$VERSION" "$TAG" "$IMAGE" && exit 1
