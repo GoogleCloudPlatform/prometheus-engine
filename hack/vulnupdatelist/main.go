@@ -48,7 +48,7 @@ type UpdateList struct {
 func (u UpdateList) String() string {
 	fixedVersion := "???"
 	if u.FixedVersion != nil {
-		fixedVersion = u.FixedVersion.String()
+		fixedVersion = "v" + u.FixedVersion.String()
 	}
 	if u.AdditionalCVEs > 0 {
 		return fmt.Sprintf("%s %s@%s %s(+%d more) now@%s", u.CVE.Severity, u.Module, fixedVersion, u.CVE.ID, u.AdditionalCVEs, u.Version)
