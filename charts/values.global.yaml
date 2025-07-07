@@ -23,11 +23,11 @@ images:
     image: gke.gcr.io/gke-distroless/bash
     tag: gke_distroless_20250407.00_p0
   alertmanager:
-    image: gke.gcr.io/prometheus-engine/alertmanager
-    tag: v0.27.0-gmp.3-gke.0
+    image: us-east1-docker.pkg.dev/gpe-test-1/public/prometheus-engine/alertmanager
+    tag: v0.27.0-gmp.4-gke.0
   prometheus:
-    image: gke.gcr.io/prometheus-engine/prometheus
-    tag: v2.45.3-gmp.11-gke.0
+    image: us-east1-docker.pkg.dev/gpe-test-1/public/prometheus-engine/prometheus
+    tag: v2.45.3-gmp.13-gke.0
   configReloader:
     image: gke.gcr.io/prometheus-engine/config-reloader
     tag: v0.15.4-gke.0

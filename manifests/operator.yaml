@@ -409,7 +409,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.45.3-gmp.11-gke.0
+        image: us-east1-docker.pkg.dev/gpe-test-1/public/prometheus-engine/prometheus:v2.45.3-gmp.13-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --enable-feature=exemplar-storage
@@ -840,7 +840,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: alertmanager
-        image: gke.gcr.io/prometheus-engine/alertmanager:v0.27.0-gmp.3-gke.0
+        image: us-east1-docker.pkg.dev/gpe-test-1/public/prometheus-engine/alertmanager:v0.27.0-gmp.4-gke.0
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
