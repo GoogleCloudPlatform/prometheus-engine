@@ -35,6 +35,9 @@ updates:
         - "*"
 - package-ecosystem: gomod
   directory: /
+  ignore:
+    # Skip Prometheus as we need to have it pinned carefully.
+    - dependency-name: "github.com/prometheus/prometheus"
   schedule:
     interval: weekly
   commit-message:
@@ -81,6 +84,9 @@ updates:
   target-branch: release/0.16
 - package-ecosystem: gomod
   open-pull-requests-limit: 0 # Security updates only
+  ignore:
+    # Skip Prometheus as we need to have it pinned carefully.
+    - dependency-name: "github.com/prometheus/prometheus"
   directory: /
   schedule:
     interval: weekly
@@ -129,6 +135,9 @@ updates:
   target-branch: release/0.15
 - package-ecosystem: gomod
   open-pull-requests-limit: 0 # Security updates only
+  ignore:
+    # Skip Prometheus as we need to have it pinned carefully.
+    - dependency-name: "github.com/prometheus/prometheus"
   directory: /
   schedule:
     interval: weekly
@@ -177,6 +186,9 @@ updates:
   target-branch: release/0.14
 - package-ecosystem: gomod
   open-pull-requests-limit: 0 # Security updates only
+  ignore:
+    # Skip Prometheus as we need to have it pinned carefully.
+    - dependency-name: "github.com/prometheus/prometheus"
   directory: /
   schedule:
     interval: weekly
@@ -225,6 +237,9 @@ updates:
   target-branch: release/0.13
 - package-ecosystem: gomod
   open-pull-requests-limit: 0 # Security updates only
+  ignore:
+    # Skip Prometheus as we need to have it pinned carefully.
+    - dependency-name: "github.com/prometheus/prometheus"
   directory: /
   schedule:
     interval: weekly
@@ -273,6 +288,9 @@ updates:
   target-branch: release/0.12
 - package-ecosystem: gomod
   open-pull-requests-limit: 0 # Security updates only
+  ignore:
+    # Skip Prometheus as we need to have it pinned carefully.
+    - dependency-name: "github.com/prometheus/prometheus"
   directory: /
   schedule:
     interval: weekly
@@ -321,6 +339,9 @@ updates:
   target-branch: release/0.11
 - package-ecosystem: gomod
   open-pull-requests-limit: 0 # Security updates only
+  ignore:
+    # Skip Prometheus as we need to have it pinned carefully.
+    - dependency-name: "github.com/prometheus/prometheus"
   directory: /
   schedule:
     interval: weekly
