@@ -12,10 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// package main implements prepare_rc script.
+//
+// Run this script to prepare the prometheus-engine files for the next release;
+// without regenerating them (!).
+//
+// Example use:
+//
+//	go run ./... \
+//		-tag=v0.15.4-rc.0 \
+//		-dir=../../../prometheus-engine
 package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,8 +35,16 @@ import (
 	"strings"
 )
 
-const VersionFile = "pkg/export/export.go"
-const ValuesFile = "charts/values.global.yaml"
+const (
+	versionFile = "pkg/export/export.go"
+	valuesFile  = "charts/values.global.yaml"
+)
+
+var (
+	dir    = flag.String("dir", ".", "The path with prometheus-engine repo/")
+	tag    = flag.String("tag", "", "Tag to release. Empty means the tag will be a next RC number from the last git tag in a given -branch.")
+	branch = flag.String("branch", "", "Branch to use for auto-detecting tag to release. Must be matching ^release/(\\d+)\\.(\\d+)$. Can't be used with -tag.")
+)
 
 type Branch struct {
 	major int
@@ -54,95 +73,24 @@ func getBranch(branch string) (*Branch, error) {
 	}, nil
 }
 
-type ReleaseCandidate struct {
-	branch *Branch
-	patch  int
-	rc     int
-}
-
-func (b *Branch) lastTag() (string, error) {
+func (b *Branch) currentTag() (Tag, error) {
 	tagRegex := fmt.Sprintf("v%d.%d.*", b.major, b.minor)
 	tags, err := Cmd("git", "tag", "--list", tagRegex, "--sort=-v:refname").Run()
-	return strings.SplitN(tags, "\n", 2)[0], err
+	if err != nil {
+		return Tag{}, err
+	}
+	return NewTag(strings.SplitN(tags, "\n", 2)[0])
 }
 
-func (b *Branch) lastReleaseCandidate() (*ReleaseCandidate, error) {
-	tag, err := b.lastTag()
-	if err != nil {
-		return nil, err
-	}
-	if tag == "" {
-		return nil, nil
-	}
-	re := regexp.MustCompile(`^v\d+.\d+.(\d+)-rc.(\d+)$`)
-	matches := re.FindStringSubmatch(tag)
-	if matches == nil {
-		return nil, fmt.Errorf("malformatted tag name %q", tag)
-	}
-	patchRaw, rcRaw := matches[1], matches[2]
-	patch, err := strconv.Atoi(patchRaw)
-	if err != nil {
-		return nil, fmt.Errorf("malformatted tag name %q", tag)
-	}
-	rc, err := strconv.Atoi(rcRaw)
-	if err != nil {
-		return nil, fmt.Errorf("malformatted tag name %q", tag)
-	}
-	return &ReleaseCandidate{
-		branch: b,
-		patch:  patch,
-		rc:     rc,
-	}, nil
-}
-
-func (b *Branch) nextReleaseCandidate() (*ReleaseCandidate, error) {
-	last, err := b.lastReleaseCandidate()
-	if err != nil {
-		return nil, err
-	}
-	if last == nil {
-		return &ReleaseCandidate{
-			branch: b,
-			patch:  0,
-			rc:     0,
-		}, nil
-	}
-	hasRelease, err := last.hasRelease()
-	if err != nil {
-		return nil, err
-	}
-	if hasRelease {
-		return &ReleaseCandidate{
-			branch: last.branch,
-			patch:  last.patch + 1,
-			rc:     0,
-		}, nil
-	}
-	return &ReleaseCandidate{
-		branch: last.branch,
-		patch:  last.patch,
-		rc:     last.rc + 1,
-	}, nil
-}
-
-func (rc *ReleaseCandidate) version() string {
-	return fmt.Sprintf("v%d.%d.%d", rc.branch.major, rc.branch.minor, rc.patch)
-}
-
-func (rc *ReleaseCandidate) hasRelease() (bool, error) {
-	out, err := Cmd("git", "tag", "--list", rc.version()).Run()
-	return out != "", err
-}
-
-func (rc *ReleaseCandidate) updateVersionFile(repoPath string) error {
-	path := filepath.Join(repoPath, VersionFile)
+func updateVersionFile(repoPath string, tag Tag) error {
+	path := filepath.Join(repoPath, versionFile)
 	contentBytes, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %w", path, err)
 	}
 	content := string(contentBytes)
 	re := regexp.MustCompile(`(mainModuleVersion\s*=\s*)".*"`)
-	replacement := fmt.Sprintf(`${1}"%s"`, rc.version())
+	replacement := fmt.Sprintf(`${1}"%s"`, tag.String())
 	newContent := re.ReplaceAllString(content, replacement)
 
 	err = os.WriteFile(path, []byte(newContent), 0664)
@@ -152,18 +100,20 @@ func (rc *ReleaseCandidate) updateVersionFile(repoPath string) error {
 	return nil
 }
 
-func (rc *ReleaseCandidate) updateValuesFile(repoPath string) error {
-	path := filepath.Join(repoPath, ValuesFile)
-	_, err := Cmd("go", "tool", "yq", "e",
-		fmt.Sprintf(`.version = "%d.%d.%d"`, rc.branch.major, rc.branch.minor, rc.patch),
+func updateValuesFile(repoPath string, tag Tag) error {
+	path := filepath.Join(repoPath, valuesFile)
+	if _, err := Cmd("yq", "e",
+		fmt.Sprintf(`.version = "%d.%d.%d"`, tag.Major(), tag.Minor(), tag.Patch()),
 		"-i", path,
-	).Run()
-	if err != nil {
+	).Run(); err != nil {
 		return err
 	}
 	for _, image := range []string{"configReloader", "operator", "ruleEvaluator", "datasourceSyncer"} {
-		_, err := Cmd("go", "tool", "yq", "e",
-			fmt.Sprintf(`.images.%s.tag = "%s-gke.%d"`, image, rc.version(), rc.rc),
+		_, err := Cmd("yq", "e",
+			// This assumes RC number is always same as the GKE number -- this is not always
+			// correct e.g. when we retry releases on Louhi side. It's the best guess though
+			// and we can update manifests later on.
+			fmt.Sprintf(`.images.%s.tag = "v%d.%d.%d-gke.%d"`, image, tag.Major(), tag.Minor(), tag.Patch(), tag.RC()),
 			"-i", path,
 		).Run()
 		if err != nil {
@@ -174,46 +124,73 @@ func (rc *ReleaseCandidate) updateValuesFile(repoPath string) error {
 }
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Printf("::error::Usage: %s <branch-name> <repo-path>\n", os.Args[0])
-		fmt.Println("::error::Error: Missing arguments")
+	flag.Parse()
+
+	if *dir == "" {
+		fmt.Println("::error::Error: -dir has to be specified.")
+		flag.Usage()
 		os.Exit(1)
 	}
-	if _, err := Cmd("git", "fetch", "--tags", "-f").Run(); err != nil {
-		fmt.Printf("::error::Failed to fetch tags: %v\n", err)
-	}
-	branch, err := getBranch(os.Args[1])
-	if err != nil {
-		fmt.Printf("::error::Failed to parse branch: %v\n", err)
-	}
-	nextRc, err := branch.nextReleaseCandidate()
-	if err != nil {
-		fmt.Printf("::error::Failed to get next release candidate: %v\n", err)
+
+	if *tag != "" && *branch != "" {
+		fmt.Println("::error::Error: -tag and -branch can't be specified in the same time.")
+		flag.Usage()
+		os.Exit(1)
 	}
 
-	repoPath := os.Args[2]
-	if err := nextRc.updateVersionFile(repoPath); err != nil {
+	var releaseTag Tag
+	if *tag != "" {
+		var err error
+		releaseTag, err = NewTag(*tag)
+		if err != nil {
+			fmt.Printf("::error::Failed to parse the -tag: %v\n", err)
+			os.Exit(1)
+		}
+	} else if *branch != "" {
+		// TODO(bwplotka): Why we ask for repo directory if we this command require this
+		// script to be in the current directory? Fix it.
+		if _, err := Cmd("git", "fetch", "--tags", "-f").Run(); err != nil {
+			fmt.Printf("::error::Failed to fetch tags: %v\n", err)
+		}
+		branch, err := getBranch(os.Args[1])
+		if err != nil {
+			fmt.Printf("::error::Failed to parse branch: %v\n", err)
+		}
+		ct, err := branch.currentTag()
+		if err != nil {
+			fmt.Printf("::error::Failed to get next release candidate: %v\n", err)
+		}
+		releaseTag = ct.NextRC()
+	} else {
+		fmt.Println("::error::Error: Either -tag or -branch has to be specified.")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	fmt.Println("Updating files to", tag)
+	if err := updateVersionFile(*dir, releaseTag); err != nil {
 		fmt.Printf("::error::Failed to update version file: %v\n", err)
-	}
-	if err := nextRc.updateValuesFile(repoPath); err != nil {
-		fmt.Printf("::error::Failed to update value file: %v\n", err)
-	}
-	// For GH actions
-	outputPath := os.Getenv("GITHUB_OUTPUT")
-	if outputPath == "" {
-		fmt.Println("::error::GITHUB_OUTPUT environment variable not set.")
 		os.Exit(1)
 	}
-	outputFile, err := os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Printf("::error::Failed to open GITHUB_OUTPUT: %v\n", err)
-		return
+	if err := updateValuesFile(*dir, releaseTag); err != nil {
+		fmt.Printf("::error::Failed to update value file: %v\n", err)
+		os.Exit(1)
 	}
-	defer outputFile.Close()
 
-	s := fmt.Sprintf("full_rc_version=%s-rc.%d\n", nextRc.version(), nextRc.rc)
-	_, err = outputFile.WriteString(s)
-	if err != nil {
-		fmt.Printf("::error::Failed to write to GITHUB_OUTPUT: %v\n", err)
+	// For GH actions, optionally.
+	outputPath := os.Getenv("GITHUB_OUTPUT")
+	if outputPath != "" {
+		outputFile, err := os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Printf("::error::Failed to open GITHUB_OUTPUT: %v\n", err)
+			return
+		}
+		defer outputFile.Close()
+
+		s := fmt.Sprintf("full_rc_version=%v\n", releaseTag.String())
+		_, err = outputFile.WriteString(s)
+		if err != nil {
+			fmt.Printf("::error::Failed to write to GITHUB_OUTPUT: %v\n", err)
+		}
 	}
 }
