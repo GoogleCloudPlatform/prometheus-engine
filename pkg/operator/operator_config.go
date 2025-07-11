@@ -37,7 +37,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -355,7 +354,7 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 			RuleFiles: []string{path.Join(rulesDir, "*.yaml")},
 		},
 		GoogleCloud: GoogleCloudConfig{
-			Query: &GoogleCloudQueryConfig{
+			Query: GoogleCloudQueryConfig{
 				ProjectID:    queryProjectID,
 				GeneratorURL: spec.GeneratorURL,
 			},
@@ -364,8 +363,8 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 	if spec.Credentials != nil {
 		credentialsFile := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
 		cfg.GoogleCloud.Query.CredentialsFile = credentialsFile
-		cfg.GoogleCloud.Export = &GoogleCloudExportConfig{
-			CredentialsFile: ptr.To(credentialsFile),
+		cfg.GoogleCloud.Export = GoogleCloudExportConfig{
+			CredentialsFile: credentialsFile,
 		}
 	}
 

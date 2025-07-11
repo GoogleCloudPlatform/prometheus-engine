@@ -197,21 +197,9 @@ func testCollectorDeployed(ctx context.Context, restConfig *rest.Config, kubeCli
 	}
 }
 
-// TODO(TheSpiritXIII): https://github.com/go-yaml/yaml/issues/125
-type PrometheusConfig struct {
-	// Google Cloud configuration. Matches our fork's configuration.
-	GoogleCloud *operator.GoogleCloudConfig `yaml:"google_cloud,omitempty"`
-}
-
 func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is configured")
-
-		// Add some export filters.
-		projectFilter := fmt.Sprintf("{project_id='%s'}", projectID)
-		locationFilter := fmt.Sprintf("{location=~'%s$'}", location)
-		// TODO(pintohutch): remove once we've fixed: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/728.
-		kubeletFilter := "{job='kubelet'}"
 
 		config := monitoringv1.OperatorConfig{
 			ObjectMeta: metav1.ObjectMeta{
@@ -222,9 +210,8 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Fatalf("get operatorconfig: %s", err)
 		}
-		config.Collection.Filter = monitoringv1.ExportFilters{
-			MatchOneOf: []string{projectFilter, locationFilter, kubeletFilter},
-		}
+		// Change compression to see the custom Google entry in Prom fork config.
+		config.Collection.Compression = monitoringv1.CompressionNone
 
 		// TODO(pintohutch): add external_labels.
 		// Update OperatorConfig.
@@ -247,20 +234,24 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 				return false, fmt.Errorf("getting collector ConfigMap failed: %w", err)
 			}
 
-			config := PrometheusConfig{}
+			// We specifically check the encoded yaml to ensure empty fields are not printed.
+			config := map[string]string{}
 			data := configMap.Data["config.yaml"]
 			if err = yaml.Unmarshal([]byte(data), &config); err != nil {
 				return false, err
 			}
-			if config.GoogleCloud == nil || config.GoogleCloud.Export == nil {
+
+			if _, ok := config["google_cloud"]; !ok {
 				err = fmt.Errorf("unable to find Google cloud config:\n%s", data)
 				return false, nil
 			}
-			if !cmp.Equal([]string{projectFilter, locationFilter, kubeletFilter}, config.GoogleCloud.Export.Match) {
-				err = errors.New("unable to find export matchers")
+			if diff := cmp.Diff(`
+export:
+  compression: "none"
+`, config["google_cloud"]); diff != "" {
+				err = fmt.Errorf("unexpected google_cloud config entry; diff: %s", diff)
 				return false, nil
 			}
-
 			return true, nil
 		})
 		if pollErr != nil {

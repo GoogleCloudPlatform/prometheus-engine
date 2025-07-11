@@ -227,10 +227,10 @@ type KubeletScraping struct {
 
 // ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
 type ExportFilters struct {
-	// A list of Prometheus time series matchers. Every time series must match at least one
-	// of the matchers to be exported. This field can be used equivalently to the match[]
-	// parameter of the Prometheus federation endpoint to selectively export data.
-	// Example: `["{job!='foobar'}", "{__name__!~'container_foo.*|container_bar.*'}"]`
+	// DEPRECATED: From the 0.14 GMP version, this functionality is no longer implemented.
+	// Specifying this field has no effect.
+	// See https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics for alternatives.
+	// +kubebuilder:deprecatedversion:warning="monitoring.googleapis.com/v1 operatorconfig.collection.filter.matchOneOf filtering is deprecated. See https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics for alternatives."
 	MatchOneOf []string `json:"matchOneOf,omitempty"`
 }
 
