@@ -30,8 +30,10 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/record"
+	"github.com/stretchr/testify/require"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	timestamp_pb "google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -521,4 +523,33 @@ func TestDisabledExporter(t *testing.T) {
 
 	// Allow samples to be sent to the void. If we don't panic, we're good.
 	time.Sleep(batchDelayMax)
+}
+
+func TestExportMatchers(t *testing.T) {
+	m, err := toMatchers([]string{
+		`{__name__=~"certmanager_(certificate_.+|http_acme_client_request_count)"}`,
+		`{__name__=~"controller_runtime_(duration_seconds_bucket|reconcile_total|max_concurrent_reconciles)"}`,
+	})
+	require.NoError(t, err)
+
+	// Broken histogram
+	require.True(t, m.Matches(labels.FromStrings("__name__", "controller_runtime_duration_seconds_bucket")))
+	require.False(t, m.Matches(labels.FromStrings("__name__", "controller_runtime_duration_seconds_sum")))
+	require.False(t, m.Matches(labels.FromStrings("__name__", "controller_runtime_duration_seconds_count")))
+
+	// Broken histogram again
+	require.True(t, m.Matches(labels.FromStrings("__name__", "certmanager_http_acme_client_request_count")))
+	require.False(t, m.Matches(labels.FromStrings("__name__", "certmanager_http_acme_client_request_sum")))
+}
+
+func toMatchers(matchers []string) (Matchers, error) {
+	var selectors []labels.Selector
+	for _, match := range matchers {
+		selector, err := parser.ParseMetricSelector(match)
+		if err != nil {
+			return nil, fmt.Errorf("invalid metric matcher %q: %w", match, err)
+		}
+		selectors = append(selectors, selector)
+	}
+	return selectors, nil
 }
