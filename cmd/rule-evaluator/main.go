@@ -37,14 +37,15 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/rule-evaluator/internal"
 	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
-	exportsetup "github.com/GoogleCloudPlatform/prometheus-engine/pkg/export/setup"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
+	"github.com/prometheus/common/version"
+	"github.com/prometheus/prometheus/google/export"
+	exportsetup "github.com/prometheus/prometheus/google/export/setup"
 	apiv1 "github.com/prometheus/prometheus/web/api/v1"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
@@ -142,17 +143,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// The rule-evaluator version is identical to the export library version for now, so
-	// we reuse that constant.
-	version, err := export.Version()
-	if err != nil {
-		_ = level.Error(logger).Log("msg", "Unable to fetch module version", "err", err)
-		os.Exit(1)
-	}
-
 	opts := exportsetup.Opts{
 		ExporterOpts: export.ExporterOpts{
-			UserAgentProduct: fmt.Sprintf("rule-evaluator/%s", version),
+			UserAgentProduct: fmt.Sprintf("rule-evaluator/%s", version.Version),
 		},
 	}
 	opts.SetupFlags(a)
@@ -212,7 +205,7 @@ func main() {
 	}
 	notificationManager := notifier.NewManager(&notifierOptions, log.With(logger, "component", "notifier"))
 	rulesMetrics := rules.NewGroupMetrics(reg)
-	ruleEvaluator, err := newRuleEvaluator(ctx, logger, &defaultEvaluatorOpts, version, destination, notificationManager, rulesMetrics)
+	ruleEvaluator, err := newRuleEvaluator(ctx, logger, &defaultEvaluatorOpts, version.Version, destination, notificationManager, rulesMetrics)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "Create rule-evaluator", "err", err)
 		os.Exit(1)
@@ -227,34 +220,7 @@ func main() {
 		}, {
 			name: "exporter",
 			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
-				// Don't modify defaults. Copy defaults and modify based on config.
-				exporterOpts := opts.ExporterOpts
-				if cfg.GoogleCloud.Export != nil {
-					exportConfig := cfg.GoogleCloud.Export
-					if exportConfig.Compression != nil {
-						exporterOpts.Compression = *exportConfig.Compression
-					}
-					if exportConfig.Match != nil {
-						var selectors []labels.Selector
-						for _, match := range exportConfig.Match {
-							selector, err := parser.ParseMetricSelector(match)
-							if err != nil {
-								return fmt.Errorf("invalid metric matcher %q: %w", match, err)
-							}
-							selectors = append(selectors, selector)
-						}
-						exporterOpts.Matchers = selectors
-					}
-					if exportConfig.CredentialsFile != nil {
-						exporterOpts.CredentialsFile = *exportConfig.CredentialsFile
-					}
-
-					if err := exporterOpts.Validate(); err != nil {
-						return fmt.Errorf("unable to validate Google Cloud fields: %w", err)
-					}
-				}
-
-				return destination.ApplyConfig(&cfg.Config, &exporterOpts)
+				return destination.ApplyConfig(&cfg.Config)
 			},
 		}, {
 			name: "notify_sd",
@@ -270,20 +236,18 @@ func main() {
 			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
 				// Don't modify defaults. Copy defaults and modify based on config.
 				evaluatorOpts := defaultEvaluatorOpts
-				if cfg.GoogleCloud.Query != nil {
-					if cfg.GoogleCloud.Query.CredentialsFile != "" {
-						evaluatorOpts.CredentialsFile = cfg.GoogleCloud.Query.CredentialsFile
+				if cfg.GoogleCloudQuery.CredentialsFile != "" {
+					evaluatorOpts.CredentialsFile = cfg.GoogleCloudQuery.CredentialsFile
+				}
+				if cfg.GoogleCloudQuery.GeneratorURL != "" {
+					generatorURL, err := url.Parse(cfg.GoogleCloudQuery.GeneratorURL)
+					if err != nil {
+						return fmt.Errorf("unable to parse Google Cloud generator URL: %w", err)
 					}
-					if cfg.GoogleCloud.Query.GeneratorURL != "" {
-						generatorURL, err := url.Parse(cfg.GoogleCloud.Query.GeneratorURL)
-						if err != nil {
-							return fmt.Errorf("unable to parse Google Cloud generator URL: %w", err)
-						}
-						evaluatorOpts.GeneratorURL = generatorURL
-					}
-					if cfg.GoogleCloud.Query.ProjectID != "" {
-						evaluatorOpts.ProjectID = cfg.GoogleCloud.Query.ProjectID
-					}
+					evaluatorOpts.GeneratorURL = generatorURL
+				}
+				if cfg.GoogleCloudQuery.ProjectID != "" {
+					evaluatorOpts.ProjectID = cfg.GoogleCloudQuery.ProjectID
 				}
 				return ruleEvaluator.ApplyConfig(&cfg.Config, &evaluatorOpts)
 			},
@@ -421,7 +385,7 @@ func main() {
 		})
 
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#build-information
-		buildInfoHandler := promapi.BuildinfoHandlerFunc(log.With(logger, "handler", "buildinfo"), "rule-evaluator", version)
+		buildInfoHandler := promapi.BuildinfoHandlerFunc(log.With(logger, "handler", "buildinfo"), "rule-evaluator", version.Version)
 		http.HandleFunc("/api/v1/status/buildinfo", buildInfoHandler)
 
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#rules
@@ -552,8 +516,8 @@ func (opts *evaluatorOptions) validate() error {
 		return fmt.Errorf("load config %q: %w", opts.ConfigFile, err)
 	}
 
-	if opts.ProjectID == "" && cfg.GoogleCloud.Query != nil {
-		opts.ProjectID = cfg.GoogleCloud.Query.ProjectID
+	if opts.ProjectID == "" && cfg.GoogleCloudQuery.ProjectID != "" {
+		opts.ProjectID = cfg.GoogleCloudQuery.ProjectID
 	}
 
 	// Pass a placeholder project ID value "x" to ensure the URL replacement is valid.

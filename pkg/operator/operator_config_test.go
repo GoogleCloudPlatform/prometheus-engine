@@ -17,17 +17,16 @@ package operator
 import (
 	"testing"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/prometheus/config"
+	"github.com/prometheus/prometheus/google/export"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -35,15 +34,15 @@ import (
 func TestRuleEvaluatorConfigUnmarshal(t *testing.T) {
 	code := `
 rule_files:
-    - /etc/rules/*.yaml
+  - /etc/rules/*.yaml
 google_cloud:
-    export:
-        compression: gzip
-        credentials: credentials1.json
-    query:
-        project_id: abc123
-        generator_url: http://example.com/
-        credentials: credentials2.json
+  export:
+    compression: gzip
+    credentials: credentials1.json
+google_cloud_query:
+  project_id: abc123
+  generator_url: http://example.com/
+  credentials: credentials2.json
 `
 	out := RuleEvaluatorConfig{}
 	if err := yaml.Unmarshal([]byte(code), &out); err != nil {
@@ -52,18 +51,14 @@ google_cloud:
 
 	expected := RuleEvaluatorConfig{
 		Config: config.DefaultConfig,
-		GoogleCloud: GoogleCloudConfig{
-			Query: &GoogleCloudQueryConfig{
-				ProjectID:       "abc123",
-				GeneratorURL:    "http://example.com/",
-				CredentialsFile: "credentials2.json",
-			},
-			Export: &GoogleCloudExportConfig{
-				Compression:     ptr.To(string(monitoringv1.CompressionGzip)),
-				CredentialsFile: ptr.To("credentials1.json"),
-			},
+		GoogleCloudQuery: GoogleCloudQueryConfig{
+			ProjectID:       "abc123",
+			GeneratorURL:    "http://example.com/",
+			CredentialsFile: "credentials2.json",
 		},
 	}
+	expected.GoogleCloud.Export.Compression = "gzip"
+	expected.GoogleCloud.Export.CredentialsFile = "credentials1.json"
 	expected.RuleFiles = []string{"/etc/rules/*.yaml"}
 	if diff := cmp.Diff(expected, out); diff != "" {
 		t.Fatalf("unexpected config from marshaling (-want, +got): %s", diff)

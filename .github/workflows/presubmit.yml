@@ -62,19 +62,11 @@ jobs:
           fetch-depth: 0
       - name: Run unit tests
         run: make test
-  test-export-gcm:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run export GCM tests
-        env:
-          GCM_SECRET: ${{ secrets.GCM_SECRET }}
-        run: make test-export-gcm
   test-script-gcm:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run script GCM tests
+      - name: Run example/script GCM tests
         env:
           GCM_SECRET: ${{ secrets.GCM_SECRET }}
         run: make test-script-gcm

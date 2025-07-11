@@ -21,7 +21,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets"
+	"github.com/prometheus/prometheus/google/secrets"
 )
 
 type secretNamespaceTestCase struct {
