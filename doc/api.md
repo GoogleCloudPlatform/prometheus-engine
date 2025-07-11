@@ -2031,7 +2031,7 @@ MonitoringStatus
 </table>
 <h3 id="monitoring.googleapis.com/v1.PrometheusSecretConfigs">
 <span id="PrometheusSecretConfigs">PrometheusSecretConfigs
-(<code>map[string]github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets.KubernetesSecretConfig</code> alias)</span>
+(<code>map[string]github.com/prometheus/prometheus/google/secrets.KubernetesSecretConfig</code> alias)</span>
 </h3>
 <div>
 <p>PrometheusSecretConfigs allows quick gathering of SecretConfigs for Prometheus configuration.</p>
