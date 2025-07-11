@@ -30,7 +30,11 @@ ENV CGO_ENABLED=0
 ENV GOFIPS140=latest
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-RUN go build -o rule-evaluator cmd/rule-evaluator/*.go
+RUN go build \
+  -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq '.version' ) \
+  -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
+  -o rule-evaluator \
+  cmd/rule-evaluator/*.go
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=buildbase /app/rule-evaluator /bin/rule-evaluator

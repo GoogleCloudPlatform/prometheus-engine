@@ -22,7 +22,7 @@ import (
 	"github.com/prometheus/common/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets"
+	"github.com/prometheus/prometheus/google/secrets"
 )
 
 // SecretSelector references a secret from a secret provider e.g. Kubernetes Secret. Only one

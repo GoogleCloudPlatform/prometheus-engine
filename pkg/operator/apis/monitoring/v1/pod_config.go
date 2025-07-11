@@ -21,12 +21,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/export"
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
+	"github.com/prometheus/prometheus/google/export"
 	"github.com/prometheus/prometheus/model/relabel"
 )
 
