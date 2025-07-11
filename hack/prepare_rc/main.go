@@ -24,7 +24,6 @@ import (
 	"strings"
 )
 
-const VersionFile = "pkg/export/export.go"
 const ValuesFile = "charts/values.global.yaml"
 
 type Branch struct {
@@ -134,24 +133,6 @@ func (rc *ReleaseCandidate) hasRelease() (bool, error) {
 	return out != "", err
 }
 
-func (rc *ReleaseCandidate) updateVersionFile(repoPath string) error {
-	path := filepath.Join(repoPath, VersionFile)
-	contentBytes, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read file %s: %w", path, err)
-	}
-	content := string(contentBytes)
-	re := regexp.MustCompile(`(mainModuleVersion\s*=\s*)".*"`)
-	replacement := fmt.Sprintf(`${1}"%s"`, rc.version())
-	newContent := re.ReplaceAllString(content, replacement)
-
-	err = os.WriteFile(path, []byte(newContent), 0664)
-	if err != nil {
-		return fmt.Errorf("failed to write updated content to %s: %w", path, err)
-	}
-	return nil
-}
-
 func (rc *ReleaseCandidate) updateValuesFile(repoPath string) error {
 	path := filepath.Join(repoPath, ValuesFile)
 	_, err := Cmd("go", "tool", "yq", "e",
@@ -192,9 +173,6 @@ func main() {
 	}
 
 	repoPath := os.Args[2]
-	if err := nextRc.updateVersionFile(repoPath); err != nil {
-		fmt.Printf("::error::Failed to update version file: %v\n", err)
-	}
 	if err := nextRc.updateValuesFile(repoPath); err != nil {
 		fmt.Printf("::error::Failed to update value file: %v\n", err)
 	}

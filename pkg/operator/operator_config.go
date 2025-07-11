@@ -37,7 +37,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -291,8 +290,13 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 type RuleEvaluatorConfig struct {
 	promconfig.Config `yaml:",inline"`
 
-	// Google Cloud configuration. Matches our fork's configuration.
-	GoogleCloud GoogleCloudConfig `yaml:"google_cloud,omitempty"`
+	GoogleCloudQuery GoogleCloudQueryConfig `yaml:"google_cloud_query,omitempty"`
+}
+
+type GoogleCloudQueryConfig struct {
+	ProjectID       string `yaml:"project_id,omitempty"`
+	GeneratorURL    string `yaml:"generator_url,omitempty"`
+	CredentialsFile string `yaml:"credentials,omitempty"`
 }
 
 func (config *RuleEvaluatorConfig) UnmarshalYAML(value *yaml.Node) error {
@@ -302,21 +306,17 @@ func (config *RuleEvaluatorConfig) UnmarshalYAML(value *yaml.Node) error {
 	if err := value.Decode(&config.Config); err != nil {
 		return err
 	}
+
 	// We must replicate the nested fields.
 	googleCloudConfig := struct {
-		GoogleCloud GoogleCloudConfig `yaml:"google_cloud,omitempty"`
+		GoogleCloud GoogleCloudQueryConfig `yaml:"google_cloud_query,omitempty"`
 	}{}
 	if err := value.Decode(&googleCloudConfig); err != nil {
 		return err
 	}
-	config.GoogleCloud = googleCloudConfig.GoogleCloud
-	return nil
-}
+	config.GoogleCloudQuery = googleCloudConfig.GoogleCloud
 
-type GoogleCloudQueryConfig struct {
-	ProjectID       string `yaml:"project_id,omitempty"`
-	GeneratorURL    string `yaml:"generator_url,omitempty"`
-	CredentialsFile string `yaml:"credentials,omitempty"`
+	return nil
 }
 
 // makeRuleEvaluatorConfig creates the config for rule-evaluator.
@@ -354,19 +354,15 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 			},
 			RuleFiles: []string{path.Join(rulesDir, "*.yaml")},
 		},
-		GoogleCloud: GoogleCloudConfig{
-			Query: &GoogleCloudQueryConfig{
-				ProjectID:    queryProjectID,
-				GeneratorURL: spec.GeneratorURL,
-			},
+		GoogleCloudQuery: GoogleCloudQueryConfig{
+			ProjectID:    queryProjectID,
+			GeneratorURL: spec.GeneratorURL,
 		},
 	}
 	if spec.Credentials != nil {
 		credentialsFile := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
-		cfg.GoogleCloud.Query.CredentialsFile = credentialsFile
-		cfg.GoogleCloud.Export = &GoogleCloudExportConfig{
-			CredentialsFile: ptr.To(credentialsFile),
-		}
+		cfg.GoogleCloudQuery.CredentialsFile = credentialsFile
+		cfg.GoogleCloud.Export.CredentialsFile = credentialsFile
 	}
 
 	cfgEncoded, err := yaml.Marshal(cfg)

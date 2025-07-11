@@ -28,7 +28,11 @@ ENV CGO_ENABLED=0
 ENV GOFIPS140=latest
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-RUN go build -o datasource-syncer cmd/datasource-syncer/*.go
+RUN go build \
+  -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq '.version' ) \
+  -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
+  -o datasource-syncer \
+  cmd/datasource-syncer/*.go
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=buildbase /app/datasource-syncer /bin/datasource-syncer

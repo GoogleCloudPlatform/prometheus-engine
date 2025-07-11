@@ -35,7 +35,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,7 +42,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secrets"
 )
 
 func setupCollectionControllers(op *Operator) error {
@@ -276,17 +274,15 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
 
-	cfg.GoogleCloud = &GoogleCloudConfig{
-		Export: &GoogleCloudExportConfig{
-			Match: spec.Filter.MatchOneOf,
-		},
-	}
+	// NOTE(bwplotka): Match logic will be removed in https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1688
+	// nolint:staticcheck
+	cfg.GoogleCloud.Export.Match = spec.Filter.MatchOneOf
 	if string(compression) != "" {
-		cfg.GoogleCloud.Export.Compression = ptr.To(string(compression))
+		cfg.GoogleCloud.Export.Compression = string(compression)
 	}
 	if spec.Credentials != nil {
 		credentialsFile := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
-		cfg.GoogleCloud.Export.CredentialsFile = ptr.To(credentialsFile)
+		cfg.GoogleCloud.Export.CredentialsFile = credentialsFile
 	}
 
 	cfgEncoded, err := yaml.Marshal(cfg)
@@ -335,36 +331,15 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	return errors.Join(errs...)
 }
 
-type prometheusConfig struct {
-	promconfig.Config `yaml:",inline"`
-
-	// Secret management. Matches our fork's configuration.
-	SecretConfigs []secrets.SecretConfig `yaml:"kubernetes_secrets,omitempty"`
-
-	// Google Cloud configuration. Matches our fork's configuration.
-	GoogleCloud *GoogleCloudConfig `yaml:"google_cloud,omitempty"`
-}
-
 type update struct {
 	object monitoringv1.MonitoringCRD
 	spec   bool
 	status bool
 }
 
-type GoogleCloudConfig struct {
-	Export *GoogleCloudExportConfig `yaml:"export,omitempty"`
-	Query  *GoogleCloudQueryConfig  `yaml:"query,omitempty"`
-}
-
-type GoogleCloudExportConfig struct {
-	Match           []string `yaml:"match,omitempty"`
-	Compression     *string  `yaml:"compression,omitempty"`
-	CredentialsFile *string  `yaml:"credentials,omitempty"`
-}
-
 // makeCollectorConfig returns the Prometheus configuration based on the scrape configurations, the
 // list of objects to update and any error.
-func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*prometheusConfig, []update, error) {
+func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, exports []monitoringv1.ExportSpec) (*promconfig.Config, []update, error) {
 	logger, _ := logr.FromContext(ctx)
 
 	cfg := &promconfig.Config{
@@ -462,7 +437,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	// TODO(bwplotka): Warn about missing RBAC policies.
 	// https://github.com/GoogleCloudPlatform/prometheus-engine/issues/789
-	secretConfigs := usedSecrets.SecretConfigs()
+	cfg.SecretConfigs = usedSecrets.SecretConfigs()
 
 	if err := r.client.List(ctx, &clusterNodeMons); err != nil {
 		return nil, nil, fmt.Errorf("failed to list ClusterNodeMonitorings: %w", err)
@@ -509,10 +484,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return cfg.ScrapeConfigs[i].JobName < cfg.ScrapeConfigs[j].JobName
 	})
 
-	return &prometheusConfig{
-		Config:        *cfg,
-		SecretConfigs: secretConfigs,
-	}, updates, nil
+	return cfg, updates, nil
 }
 
 // makeRemoteWriteConfig generate the configs for the Prometheus remote_write feature.
