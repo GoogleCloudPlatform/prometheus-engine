@@ -43,6 +43,8 @@ var (
 
 	grafanaAPIToken = flag.String("grafana-api-token", "",
 		"grafana-api-token used to access Grafana. Can be created using: https://grafana.com/docs/grafana/latest/administration/service-accounts/#create-a-service-account-in-grafana")
+	grafanaAPITokenFilepath = flag.String("grafana-api-token-filepath", "",
+		"filepath to a file containing the grafana-api-token used to access Grafana.")
 
 	grafanaEndpoint = flag.String("grafana-api-endpoint", "", "grafana-api-endpoint is the endpoint of the Grafana instance that contains the data sources to update.")
 
@@ -76,11 +78,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *grafanaAPIToken != "" && *grafanaAPITokenFilepath != "" {
+		//nolint:errcheck
+		level.Error(logger).Log("msg", "at most one of --grafana-api-token and --grafana-api-token-filepath must be set")
+		os.Exit(1)
+	}
+
+	if *grafanaAPITokenFilepath != "" {
+		b, err := os.ReadFile(*grafanaAPITokenFilepath)
+		if err != nil {
+			//nolint:errcheck
+			level.Error(logger).Log("msg", "could not read grafana-api-token-filepath", "err", err)
+			os.Exit(1)
+		}
+		*grafanaAPIToken = string(b)
+	}
+
 	if *grafanaAPIToken == "" {
 		envToken := os.Getenv("GRAFANA_SERVICE_ACCOUNT_TOKEN")
 		if envToken == "" {
 			//nolint:errcheck
-			level.Error(logger).Log("msg", "--grafana-api-token or the environment variable GRAFANA_SERVICE_ACCOUNT_TOKEN must be set")
+			level.Error(logger).Log("msg", "at most one of --grafana-api-token, --grafana-api-token-filepath, or the environment variable GRAFANA_SERVICE_ACCOUNT_TOKEN must be set")
 			os.Exit(1)
 		}
 		grafanaAPIToken = &envToken
