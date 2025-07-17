@@ -35,7 +35,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -276,17 +275,12 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
 
-	cfg.GoogleCloud = &GoogleCloudConfig{
-		Export: &GoogleCloudExportConfig{
-			Match: spec.Filter.MatchOneOf,
-		},
-	}
 	if string(compression) != "" {
-		cfg.GoogleCloud.Export.Compression = ptr.To(string(compression))
+		cfg.GoogleCloud.Export.Compression = string(compression)
 	}
 	if spec.Credentials != nil {
 		credentialsFile := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
-		cfg.GoogleCloud.Export.CredentialsFile = ptr.To(credentialsFile)
+		cfg.GoogleCloud.Export.CredentialsFile = credentialsFile
 	}
 
 	cfgEncoded, err := yaml.Marshal(cfg)
@@ -342,7 +336,7 @@ type prometheusConfig struct {
 	SecretConfigs []secrets.SecretConfig `yaml:"kubernetes_secrets,omitempty"`
 
 	// Google Cloud configuration. Matches our fork's configuration.
-	GoogleCloud *GoogleCloudConfig `yaml:"google_cloud,omitempty"`
+	GoogleCloud GoogleCloudConfig `yaml:"google_cloud,omitempty"`
 }
 
 type update struct {
@@ -352,14 +346,13 @@ type update struct {
 }
 
 type GoogleCloudConfig struct {
-	Export *GoogleCloudExportConfig `yaml:"export,omitempty"`
-	Query  *GoogleCloudQueryConfig  `yaml:"query,omitempty"`
+	Export GoogleCloudExportConfig `yaml:"export,omitempty"`
+	Query  GoogleCloudQueryConfig  `yaml:"query,omitempty"`
 }
 
 type GoogleCloudExportConfig struct {
-	Match           []string `yaml:"match,omitempty"`
-	Compression     *string  `yaml:"compression,omitempty"`
-	CredentialsFile *string  `yaml:"credentials,omitempty"`
+	Compression     string `yaml:"compression,omitempty"`
+	CredentialsFile string `yaml:"credentials,omitempty"`
 }
 
 // makeCollectorConfig returns the Prometheus configuration based on the scrape configurations, the
