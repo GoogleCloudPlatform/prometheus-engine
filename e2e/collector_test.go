@@ -27,6 +27,7 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
+	promconfig "github.com/prometheus/prometheus/config"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
@@ -197,12 +198,6 @@ func testCollectorDeployed(ctx context.Context, restConfig *rest.Config, kubeCli
 	}
 }
 
-// TODO(TheSpiritXIII): https://github.com/go-yaml/yaml/issues/125
-type PrometheusConfig struct {
-	// Google Cloud configuration. Matches our fork's configuration.
-	GoogleCloud *operator.GoogleCloudConfig `yaml:"google_cloud,omitempty"`
-}
-
 func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is configured")
@@ -247,15 +242,14 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 				return false, fmt.Errorf("getting collector ConfigMap failed: %w", err)
 			}
 
-			config := PrometheusConfig{}
+			config := promconfig.Config{}
 			data := configMap.Data["config.yaml"]
 			if err = yaml.Unmarshal([]byte(data), &config); err != nil {
 				return false, err
 			}
-			if config.GoogleCloud == nil || config.GoogleCloud.Export == nil {
-				err = fmt.Errorf("unable to find Google cloud config:\n%s", data)
-				return false, nil
-			}
+
+			// NOTE(bwplotka): Match logic will be removed in https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1688
+			// nolint:staticcheck
 			if !cmp.Equal([]string{projectFilter, locationFilter, kubeletFilter}, config.GoogleCloud.Export.Match) {
 				err = errors.New("unable to find export matchers")
 				return false, nil

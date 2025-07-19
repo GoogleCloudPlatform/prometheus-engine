@@ -36,9 +36,6 @@ TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 # If an individual test is not specified, run them all.
 TEST_RUN?=$(shell go test ./e2e/... -list=. | grep -E 'Test*')
 
-# TODO(TheSpiritXIII): Temporary env variables part of `export.go` unit tests.
-export TEST_TAG=true
-
 # Support gsed on OSX (installed via brew), falling back to sed. On Linux
 # systems gsed won't be installed, so will use sed as expected.
 SED?=$(shell which gsed 2>/dev/null || which sed)
@@ -159,17 +156,7 @@ ifeq ($(NO_DOCKER), 1)
 else
 	# TODO(TheSpiritXIII): Temporary env variables part of `export.go` unit tests.
 	$(call docker_build, -f ./hack/Dockerfile --target sync -o . -t gmp/hermetic \
-		--build-arg RUNCMD='GIT_TAG="$(shell git describe --tags --abbrev=0)" TEST_TAG=true ./hack/presubmit.sh test' .)
-endif
-
-GCM_SECRET?=
-.PHONY: test-export-gcm
-test-export-gcm:  ## Run export unit tests that will use GCM if GCM_SECRET is present.
-                  ## TODO(b/306337101): Move to cloud build.
-ifneq ($(GCM_SECRET),)
-	TEST_TAG=false go test -v ./pkg/export/gcm
-else
-	@echo "Secret not provided, skipping!"
+		--build-arg RUNCMD='./hack/presubmit.sh test' .)
 endif
 
 GCM_SECRET?=

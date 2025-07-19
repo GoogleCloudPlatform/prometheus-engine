@@ -293,10 +293,9 @@ alerting:
                     - monitoring
 rule_files:
     - /etc/rules/*.yaml
-google_cloud:
-    query:
-        project_id: {projectID}
-        generator_url: http://example.com/
+google_cloud_query:
+    project_id: {projectID}
+    generator_url: http://example.com/
 `),
 		}
 
