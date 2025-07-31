@@ -338,9 +338,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) error {
 	defer runtimeutil.HandleCrash()
 
-	if err := o.cleanupOldResources(ctx); err != nil {
-		return fmt.Errorf("cleanup old resources: %w", err)
-	}
 	if err := setupAdmissionWebhooks(ctx, o.logger, o.client, o.manager.GetWebhookServer().(*webhook.DefaultServer), &o.opts, o.vpaAvailable); err != nil {
 		return fmt.Errorf("init admission resources: %w", err)
 	}
@@ -364,70 +361,6 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 
 	o.logger.Info("starting GMP operator")
 	return o.manager.Start(ctx)
-}
-
-func (o *Operator) cleanupOldResources(ctx context.Context) error {
-	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator.
-	// in previous versions.
-	validatingWebhookConfig := arv1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
-	}
-	if err := o.client.Delete(ctx, &validatingWebhookConfig); err != nil {
-		switch {
-		case apierrors.IsForbidden(err):
-			o.logger.Info("delete legacy ValidatingWebHookConfiguration was not allowed. Please remove it manually")
-		case !apierrors.IsNotFound(err):
-			return fmt.Errorf("delete legacy ValidatingWebHookConfiguration failed: %w", err)
-		}
-	}
-
-	// If cleanup annotations are not provided, do not clean up any further.
-	if o.opts.CleanupAnnotKey == "" {
-		return nil
-	}
-
-	// Cleanup resources without the provided annotation.
-	// Check the collector DaemonSet.
-	dsKey := client.ObjectKey{
-		Name:      NameCollector,
-		Namespace: o.opts.OperatorNamespace,
-	}
-	var ds appsv1.DaemonSet
-	if err := o.client.Get(ctx, dsKey, &ds); apierrors.IsNotFound(err) {
-		return fmt.Errorf("get collector DaemonSet: %w", err)
-	}
-	if _, ok := ds.Annotations[o.opts.CleanupAnnotKey]; !ok {
-		if err := o.client.Delete(ctx, &ds); err != nil {
-			switch {
-			case apierrors.IsForbidden(err):
-				o.logger.Info("delete collector was not allowed. Please remove it manually", "err", err)
-			case !apierrors.IsNotFound(err):
-				return fmt.Errorf("cleanup collector failed: %w", err)
-			}
-		}
-	}
-
-	// Check the rule-evaluator Deployment.
-	deployKey := client.ObjectKey{
-		Name:      NameRuleEvaluator,
-		Namespace: o.opts.OperatorNamespace,
-	}
-	var deploy appsv1.Deployment
-	if err := o.client.Get(ctx, deployKey, &deploy); apierrors.IsNotFound(err) {
-		return fmt.Errorf("get rule-evaluator Deployment: %w", err)
-	}
-	if _, ok := deploy.Annotations[o.opts.CleanupAnnotKey]; !ok {
-		if err := o.client.Delete(ctx, &deploy); err != nil {
-			switch {
-			case apierrors.IsForbidden(err):
-				o.logger.Info("delete rule-evaluator was not allowed. Please remove it manually", "err", err)
-			case !apierrors.IsNotFound(err):
-				return fmt.Errorf("cleanup rule-evaluator failed: %w", err)
-			}
-		}
-	}
-
-	return nil
 }
 
 // namespacedNamePredicate is an event filter predicate that only allows events with
