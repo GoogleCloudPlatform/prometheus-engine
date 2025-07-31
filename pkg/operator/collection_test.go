@@ -110,7 +110,7 @@ func TestCollectionReconcile(t *testing.T) {
 			Interval: "10s",
 		},
 	}
-	exampleCollectorConfigMapWithoutScrapeConfig := "global: {}\ngoogle_cloud:\n    export: {}\n"
+	exampleCollectorConfigMapWithoutScrapeConfig := "global: {}\n"
 	testCases := []struct {
 		desc                       string
 		input                      monitoringv1.MonitoringCRD
