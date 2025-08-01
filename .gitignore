@@ -5,3 +5,4 @@ e2e_*
 
 # We vendor Go code internally (on Louhi import), don't vendor here.
 vendor/
+.DS_Store

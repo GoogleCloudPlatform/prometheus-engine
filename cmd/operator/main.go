@@ -27,6 +27,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/oklog/run"
+	versioninfo "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap/zapcore"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -110,6 +111,7 @@ func main() {
 	// /metrics endpoint.
 	// It already has the GoCollector and ProcessCollector metrics installed.
 	metrics := ctrlmetrics.Registry
+	metrics.MustRegister(versioninfo.NewCollector("operator")) // Add build_info metric.
 
 	op, err := operator.New(logger, cfg, operator.Options{
 		ProjectID:         *projectID,
