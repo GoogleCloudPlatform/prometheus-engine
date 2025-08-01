@@ -31,6 +31,7 @@ import (
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	versioninfo "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/thanos-io/thanos/pkg/reloader"
 )
@@ -76,6 +77,7 @@ func main() {
 	metrics.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		versioninfo.NewCollector("config-reloader"), // Add build_info metric.
 	)
 
 	reloadURL, err := url.Parse(*reloadURLStr)

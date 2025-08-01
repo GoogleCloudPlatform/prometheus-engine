@@ -43,6 +43,7 @@ import (
 	"github.com/go-kit/log/level"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
+	versioninfo "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/google/export"
 	exportsetup "github.com/prometheus/prometheus/google/export/setup"
@@ -132,6 +133,7 @@ func main() {
 	reg.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		versioninfo.NewCollector("rule-evaluator"), // Add build_info metric.
 		grpc_prometheus.DefaultClientMetrics,
 		queryCounter,
 		queryHistogram,

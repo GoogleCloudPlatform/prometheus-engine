@@ -43,6 +43,7 @@ import (
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	versioninfo "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/version"
 	"google.golang.org/api/option"
@@ -107,6 +108,7 @@ func main() {
 	metrics.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		versioninfo.NewCollector("frontend"), // Add build_info metric.
 	)
 
 	if *projectID == "" {
