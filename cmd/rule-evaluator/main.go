@@ -133,7 +133,7 @@ func main() {
 	reg.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		versioninfo.NewCollector("rule-evaluator"), // Add build_info metric.
+		versioninfo.NewCollector("rule_evaluator"), // Add build_info metric.
 		grpc_prometheus.DefaultClientMetrics,
 		queryCounter,
 		queryHistogram,
@@ -238,18 +238,18 @@ func main() {
 			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
 				// Don't modify defaults. Copy defaults and modify based on config.
 				evaluatorOpts := defaultEvaluatorOpts
-				if cfg.GoogleCloudQuery.CredentialsFile != "" {
-					evaluatorOpts.CredentialsFile = cfg.GoogleCloudQuery.CredentialsFile
+				if cfg.Query.CredentialsFile != "" {
+					evaluatorOpts.CredentialsFile = cfg.Query.CredentialsFile
 				}
-				if cfg.GoogleCloudQuery.GeneratorURL != "" {
-					generatorURL, err := url.Parse(cfg.GoogleCloudQuery.GeneratorURL)
+				if cfg.Query.GeneratorURL != "" {
+					generatorURL, err := url.Parse(cfg.Query.GeneratorURL)
 					if err != nil {
 						return fmt.Errorf("unable to parse Google Cloud generator URL: %w", err)
 					}
 					evaluatorOpts.GeneratorURL = generatorURL
 				}
-				if cfg.GoogleCloudQuery.ProjectID != "" {
-					evaluatorOpts.ProjectID = cfg.GoogleCloudQuery.ProjectID
+				if cfg.Query.ProjectID != "" {
+					evaluatorOpts.ProjectID = cfg.Query.ProjectID
 				}
 				return ruleEvaluator.ApplyConfig(&cfg.Config, &evaluatorOpts)
 			},
@@ -518,8 +518,8 @@ func (opts *evaluatorOptions) validate() error {
 		return fmt.Errorf("load config %q: %w", opts.ConfigFile, err)
 	}
 
-	if opts.ProjectID == "" && cfg.GoogleCloudQuery.ProjectID != "" {
-		opts.ProjectID = cfg.GoogleCloudQuery.ProjectID
+	if opts.ProjectID == "" && cfg.Query.ProjectID != "" {
+		opts.ProjectID = cfg.Query.ProjectID
 	}
 
 	// Pass a placeholder project ID value "x" to ensure the URL replacement is valid.

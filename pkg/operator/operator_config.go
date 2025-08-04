@@ -15,17 +15,21 @@
 package operator
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"strings"
+
+	gcm_exportconfig "github.com/prometheus/prometheus/google/export/config"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	alertmanagerconfig "github.com/prometheus/alertmanager/config"
 	promcommonconfig "github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
-	promconfig "github.com/prometheus/prometheus/config"
+	promforkconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/discovery/targetgroup"
@@ -287,16 +291,40 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorConfig(ctx context.Context
 	return secretData, nil
 }
 
-type RuleEvaluatorConfig struct {
-	promconfig.Config `yaml:",inline"`
-
-	GoogleCloudQuery GoogleCloudQueryConfig `yaml:"google_cloud_query,omitempty"`
-}
-
-type GoogleCloudQueryConfig struct {
+type RuleEvaluatorGoogleCloudQueryConfig struct {
 	ProjectID       string `yaml:"project_id,omitempty"`
 	GeneratorURL    string `yaml:"generator_url,omitempty"`
 	CredentialsFile string `yaml:"credentials,omitempty"`
+}
+
+// RuleEvaluatorConfig represents the Rule-Evaluator configuration. On
+// top of the Prometheus fork config (for rules, export) it adds GCM query
+// configuration.
+type RuleEvaluatorConfig struct {
+	promforkconfig.Config `yaml:",inline"`
+
+	// This field is decode/encoded from the google_cloud.query YAML field.
+	// It requires custom decode/encode, because promforkconfig.Config already
+	// has google_cloud field, see ruleEvaluatorGoogleCloudConfig comment for details.
+	Query RuleEvaluatorGoogleCloudQueryConfig `yaml:"-"`
+}
+
+// ruleEvaluatorGoogleCloudConfig is an extended gcm_exportconfig.GoogleCloudExportConfig
+// that contains both export and query path configuration.
+//
+// We have to have a special decoding and encoding of this structure, because
+// operator now imports Prometheus fork, with its config also having the google_cloud field
+// (google_cloud), but only for the export configuration (it does not make sense to configure
+// GCM querying). As a hindsight, we should not combine export and query fields under
+// same structure in the past: https://github.com/GoogleCloudPlatform/prometheus-engine/commit/0dd3d48d79cc5b0c0209de22d9054e76473c6429#r163387087
+//
+// We could slightly break compatibility with the rule-evaluator and introduce separate
+// totally new `google_cloud_query` field (fine if you rollout atomically operator and rule-evaluator),
+// but given we plan to remove fork long-term, we keep the well-tested custom
+// decode/encode for now.
+type ruleEvaluatorGoogleCloudConfig struct {
+	Export gcm_exportconfig.GoogleCloudExportConfig `yaml:"export,omitempty"`
+	Query  RuleEvaluatorGoogleCloudQueryConfig      `yaml:"query,omitempty"`
 }
 
 func (config *RuleEvaluatorConfig) UnmarshalYAML(value *yaml.Node) error {
@@ -307,16 +335,56 @@ func (config *RuleEvaluatorConfig) UnmarshalYAML(value *yaml.Node) error {
 		return err
 	}
 
-	// We must replicate the nested fields.
+	// See ruleEvaluatorGoogleCloudConfig comment on why custom decode this.
 	googleCloudConfig := struct {
-		GoogleCloud GoogleCloudQueryConfig `yaml:"google_cloud_query,omitempty"`
+		GoogleCloud ruleEvaluatorGoogleCloudConfig `yaml:"google_cloud,omitempty"`
 	}{}
 	if err := value.Decode(&googleCloudConfig); err != nil {
 		return err
 	}
-	config.GoogleCloudQuery = googleCloudConfig.GoogleCloud
-
+	config.Query = googleCloudConfig.GoogleCloud.Query
 	return nil
+}
+
+// MarshalYAML is executed when yaml.Marshal is used on our type.
+// Unfortunately we can't use it - we can't instruct yaml.v3 to use the returned
+// byte slice as-is.
+func (config *RuleEvaluatorConfig) MarshalYAML() (interface{}, error) {
+	return nil, errors.New("do not use native unmarshalling with this config; use RuleEvaluatorConfig.EncodeYAML() instead")
+}
+
+// EncodeYAML is a custom encoding to YAML. Rationales for custom marshal
+// are explained in ruleEvaluatorGoogleCloudConfig commentary.
+func (config *RuleEvaluatorConfig) EncodeYAML() ([]byte, error) {
+	// Capture the google_cloud.export option from Prometheus fork's structure,
+	// so we can later add google_cloud{ query, export }
+	// YAML structure that works for rule-evaluator.
+	configCopy := *config
+	export := configCopy.GoogleCloud.Export
+
+	// Prometheus fork config, with google_cloud field omitted.
+	configCopy.GoogleCloud = gcm_exportconfig.GoogleCloudConfig{} // Ensure it's empty and omitted.
+	b := bytes.Buffer{}
+	part, err := yaml.Marshal(configCopy.Config)
+	if err != nil {
+		return nil, err
+	}
+	b.Write(part)
+
+	// Add rule-evaluator expected google cloud structure.
+	part, err = yaml.Marshal(struct {
+		GoogleCloud ruleEvaluatorGoogleCloudConfig `yaml:"google_cloud,omitempty"`
+	}{
+		GoogleCloud: ruleEvaluatorGoogleCloudConfig{
+			Export: export,
+			Query:  config.Query,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	b.Write(part)
+	return b.Bytes(), nil
 }
 
 // makeRuleEvaluatorConfig creates the config for rule-evaluator.
@@ -345,29 +413,29 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 	}
 
 	cfg := RuleEvaluatorConfig{
-		Config: promconfig.Config{
-			GlobalConfig: promconfig.GlobalConfig{
+		Config: promforkconfig.Config{
+			GlobalConfig: promforkconfig.GlobalConfig{
 				ExternalLabels: labels.FromMap(spec.ExternalLabels),
 			},
-			AlertingConfig: promconfig.AlertingConfig{
+			AlertingConfig: promforkconfig.AlertingConfig{
 				AlertmanagerConfigs: amConfigs,
 			},
 			RuleFiles: []string{path.Join(rulesDir, "*.yaml")},
 		},
-		GoogleCloudQuery: GoogleCloudQueryConfig{
+		Query: RuleEvaluatorGoogleCloudQueryConfig{
 			ProjectID:    queryProjectID,
 			GeneratorURL: spec.GeneratorURL,
 		},
 	}
 	if spec.Credentials != nil {
 		credentialsFile := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
-		cfg.GoogleCloudQuery.CredentialsFile = credentialsFile
+		cfg.Query.CredentialsFile = credentialsFile
 		cfg.GoogleCloud.Export.CredentialsFile = credentialsFile
 	}
 
-	cfgEncoded, err := yaml.Marshal(cfg)
+	cfgEncoded, err := cfg.EncodeYAML()
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal Prometheus config: %w", err)
+		return nil, nil, fmt.Errorf("marshal rule-evaluator enhanced Prometheus config: %w", err)
 	}
 
 	// Create rule-evaluator Secret.
@@ -564,10 +632,10 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorDeployment(ctx context.Con
 
 // makeAlertmanagerConfigs creates the alertmanager_config entries as described in
 // https://prometheus.io/docs/prometheus/latest/configuration/configuration/#alertmanager_config.
-func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, spec *monitoringv1.AlertingSpec) (promconfig.AlertmanagerConfigs, map[string][]byte, error) {
+func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, spec *monitoringv1.AlertingSpec) (promforkconfig.AlertmanagerConfigs, map[string][]byte, error) {
 	var (
 		err        error
-		configs    promconfig.AlertmanagerConfigs
+		configs    promforkconfig.AlertmanagerConfigs
 		secretData = make(map[string][]byte)
 	)
 
@@ -583,7 +651,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 			// Assume first port on service is the correct endpoint.
 			port := ports[0].Port
 			svcDNSName := fmt.Sprintf("%s.%s:%d", amSvc.Name, amSvc.Namespace, port)
-			cfg := promconfig.DefaultAlertmanagerConfig
+			cfg := promforkconfig.DefaultAlertmanagerConfig
 			cfg.ServiceDiscoveryConfigs = discovery.Configs{
 				discovery.StaticConfig{
 					&targetgroup.Group{
@@ -599,7 +667,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		// The upstream struct is lacking the omitempty field on the API version. Thus it looks
 		// like we explicitly set it to empty (invalid) even if left empty after marshalling.
 		// Thus we initialize the config with defaulting. Similar applies for the embedded HTTPConfig.
-		cfg := promconfig.DefaultAlertmanagerConfig
+		cfg := promforkconfig.DefaultAlertmanagerConfig
 
 		if am.PathPrefix != "" {
 			cfg.PathPrefix = am.PathPrefix
@@ -608,7 +676,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 			cfg.Scheme = am.Scheme
 		}
 		if am.APIVersion != "" {
-			cfg.APIVersion = promconfig.AlertmanagerAPIVersion(am.APIVersion)
+			cfg.APIVersion = promforkconfig.AlertmanagerAPIVersion(am.APIVersion)
 		}
 
 		// Timeout, APIVersion, PathPrefix, and Scheme all resort to defaults if left unspecified.

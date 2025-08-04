@@ -31,44 +31,60 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-func TestRuleEvaluatorConfigUnmarshal(t *testing.T) {
-	code := `
+func TestRuleEvaluatorConfig(t *testing.T) {
+	configYAML := `
 rule_files:
-  - /etc/rules/*.yaml
+    - /etc/rules/*.yaml
 google_cloud:
-  export:
-    compression: gzip
-    credentials: credentials1.json
-google_cloud_query:
-  project_id: abc123
-  generator_url: http://example.com/
-  credentials: credentials2.json
+    export:
+        compression: gzip
+        credentials: credentials1.json
+    query:
+        project_id: abc123
+        generator_url: http://example.com/
+        credentials: credentials2.json
 `
 	out := RuleEvaluatorConfig{}
-	if err := yaml.Unmarshal([]byte(code), &out); err != nil {
+	if err := yaml.Unmarshal([]byte(configYAML), &out); err != nil {
 		t.Fatal(err)
 	}
 
+	expectedPromForkConfig := config.DefaultConfig
+	expectedPromForkConfig.GoogleCloud.Export.Compression = "gzip"
+	expectedPromForkConfig.GoogleCloud.Export.CredentialsFile = "credentials1.json"
+	expectedPromForkConfig.RuleFiles = []string{"/etc/rules/*.yaml"}
 	expected := RuleEvaluatorConfig{
-		Config: config.DefaultConfig,
-		GoogleCloudQuery: GoogleCloudQueryConfig{
+		Config: expectedPromForkConfig,
+		Query: RuleEvaluatorGoogleCloudQueryConfig{
 			ProjectID:       "abc123",
 			GeneratorURL:    "http://example.com/",
 			CredentialsFile: "credentials2.json",
 		},
 	}
-	expected.GoogleCloud.Export.Compression = "gzip"
-	expected.GoogleCloud.Export.CredentialsFile = "credentials1.json"
-	expected.RuleFiles = []string{"/etc/rules/*.yaml"}
 	if diff := cmp.Diff(expected, out); diff != "" {
 		t.Fatalf("unexpected config from marshaling (-want, +got): %s", diff)
 	}
 
-	// Ensure we can also marshal. Reuse the same object.
-	outBytes, err := yaml.Marshal(&out)
+	// Ensure we can also (custom) marshal. Reuse the same object.
+	outBytes, err := out.EncodeYAML()
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Prometheus adds some global marshaling.
+	expectedYAML := `global:
+    scrape_interval: 1m
+    scrape_timeout: 10s
+    scrape_protocols:
+        - OpenMetricsText1.0.0
+        - OpenMetricsText0.0.1
+        - PrometheusText0.0.4
+    evaluation_interval: 1m
+runtime:
+    gogc: 75` + configYAML
+	if diff := cmp.Diff(expectedYAML, string(outBytes)); diff != "" {
+		t.Fatalf("unexpected output of the marshal (-want, +got): %s", diff)
+	}
+
 	out = RuleEvaluatorConfig{}
 	if err := yaml.Unmarshal(outBytes, &out); err != nil {
 		t.Fatal(err)

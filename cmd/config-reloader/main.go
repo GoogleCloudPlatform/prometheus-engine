@@ -77,7 +77,7 @@ func main() {
 	metrics.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		versioninfo.NewCollector("config-reloader"), // Add build_info metric.
+		versioninfo.NewCollector("config_reloader"), // Add build_info metric.
 	)
 
 	reloadURL, err := url.Parse(*reloadURLStr)
