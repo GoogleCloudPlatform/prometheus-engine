@@ -10,8 +10,8 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/go-cmp v0.7.0
-	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/googleapis/gax-go/v2 v2.15.0
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
+	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/grafana/grafana-api-golang-client v0.27.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
