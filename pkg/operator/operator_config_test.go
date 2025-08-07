@@ -27,7 +27,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -53,14 +52,14 @@ google_cloud:
 	expected := RuleEvaluatorConfig{
 		Config: config.DefaultConfig,
 		GoogleCloud: GoogleCloudConfig{
-			Query: &GoogleCloudQueryConfig{
+			Query: GoogleCloudQueryConfig{
 				ProjectID:       "abc123",
 				GeneratorURL:    "http://example.com/",
 				CredentialsFile: "credentials2.json",
 			},
-			Export: &GoogleCloudExportConfig{
-				Compression:     ptr.To(string(monitoringv1.CompressionGzip)),
-				CredentialsFile: ptr.To("credentials1.json"),
+			Export: GoogleCloudExportConfig{
+				Compression:     string(monitoringv1.CompressionGzip),
+				CredentialsFile: "credentials1.json",
 			},
 		},
 	}

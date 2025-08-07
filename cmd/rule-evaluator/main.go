@@ -229,31 +229,16 @@ func main() {
 			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
 				// Don't modify defaults. Copy defaults and modify based on config.
 				exporterOpts := opts.ExporterOpts
-				if cfg.GoogleCloud.Export != nil {
-					exportConfig := cfg.GoogleCloud.Export
-					if exportConfig.Compression != nil {
-						exporterOpts.Compression = *exportConfig.Compression
-					}
-					if exportConfig.Match != nil {
-						var selectors []labels.Selector
-						for _, match := range exportConfig.Match {
-							selector, err := parser.ParseMetricSelector(match)
-							if err != nil {
-								return fmt.Errorf("invalid metric matcher %q: %w", match, err)
-							}
-							selectors = append(selectors, selector)
-						}
-						exporterOpts.Matchers = selectors
-					}
-					if exportConfig.CredentialsFile != nil {
-						exporterOpts.CredentialsFile = *exportConfig.CredentialsFile
-					}
 
-					if err := exporterOpts.Validate(); err != nil {
-						return fmt.Errorf("unable to validate Google Cloud fields: %w", err)
-					}
+				if cfg.GoogleCloud.Export.Compression != "" {
+					exporterOpts.Compression = cfg.GoogleCloud.Export.Compression
 				}
-
+				if cfg.GoogleCloud.Export.CredentialsFile != "" {
+					exporterOpts.CredentialsFile = cfg.GoogleCloud.Export.CredentialsFile
+				}
+				if err := exporterOpts.Validate(); err != nil {
+					return fmt.Errorf("unable to validate Google Cloud fields: %w", err)
+				}
 				return destination.ApplyConfig(&cfg.Config, &exporterOpts)
 			},
 		}, {
@@ -270,20 +255,19 @@ func main() {
 			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
 				// Don't modify defaults. Copy defaults and modify based on config.
 				evaluatorOpts := defaultEvaluatorOpts
-				if cfg.GoogleCloud.Query != nil {
-					if cfg.GoogleCloud.Query.CredentialsFile != "" {
-						evaluatorOpts.CredentialsFile = cfg.GoogleCloud.Query.CredentialsFile
+
+				if cfg.GoogleCloud.Query.CredentialsFile != "" {
+					evaluatorOpts.CredentialsFile = cfg.GoogleCloud.Query.CredentialsFile
+				}
+				if cfg.GoogleCloud.Query.GeneratorURL != "" {
+					generatorURL, err := url.Parse(cfg.GoogleCloud.Query.GeneratorURL)
+					if err != nil {
+						return fmt.Errorf("unable to parse Google Cloud generator URL: %w", err)
 					}
-					if cfg.GoogleCloud.Query.GeneratorURL != "" {
-						generatorURL, err := url.Parse(cfg.GoogleCloud.Query.GeneratorURL)
-						if err != nil {
-							return fmt.Errorf("unable to parse Google Cloud generator URL: %w", err)
-						}
-						evaluatorOpts.GeneratorURL = generatorURL
-					}
-					if cfg.GoogleCloud.Query.ProjectID != "" {
-						evaluatorOpts.ProjectID = cfg.GoogleCloud.Query.ProjectID
-					}
+					evaluatorOpts.GeneratorURL = generatorURL
+				}
+				if cfg.GoogleCloud.Query.ProjectID != "" {
+					evaluatorOpts.ProjectID = cfg.GoogleCloud.Query.ProjectID
 				}
 				return ruleEvaluator.ApplyConfig(&cfg.Config, &evaluatorOpts)
 			},
@@ -552,7 +536,7 @@ func (opts *evaluatorOptions) validate() error {
 		return fmt.Errorf("load config %q: %w", opts.ConfigFile, err)
 	}
 
-	if opts.ProjectID == "" && cfg.GoogleCloud.Query != nil {
+	if opts.ProjectID == "" && cfg.GoogleCloud.Query.ProjectID != "" {
 		opts.ProjectID = cfg.GoogleCloud.Query.ProjectID
 	}
 
