@@ -20,7 +20,8 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
-	"github.com/prometheus/prometheus/config"
+	promforkconfig "github.com/prometheus/prometheus/config"
+	gcmconfig "github.com/prometheus/prometheus/google/config"
 	"github.com/prometheus/prometheus/google/export"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -31,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-func TestRuleEvaluatorConfig(t *testing.T) {
+func TestPrometheusConfigForRuleEvaluator(t *testing.T) {
 	configYAML := `
 rule_files:
     - /etc/rules/*.yaml
@@ -44,18 +45,19 @@ google_cloud:
         generator_url: http://example.com/
         credentials: credentials2.json
 `
-	out := RuleEvaluatorConfig{}
+	out := promforkconfig.Config{}
 	if err := yaml.Unmarshal([]byte(configYAML), &out); err != nil {
 		t.Fatal(err)
 	}
 
-	expectedPromForkConfig := config.DefaultConfig
-	expectedPromForkConfig.GoogleCloud.Export.Compression = "gzip"
-	expectedPromForkConfig.GoogleCloud.Export.CredentialsFile = "credentials1.json"
-	expectedPromForkConfig.RuleFiles = []string{"/etc/rules/*.yaml"}
-	expected := RuleEvaluatorConfig{
-		Config: expectedPromForkConfig,
-		Query: RuleEvaluatorGoogleCloudQueryConfig{
+	expected := promforkconfig.DefaultConfig
+	expected.RuleFiles = []string{"/etc/rules/*.yaml"}
+	expected.GoogleCloud = gcmconfig.GoogleCloudConfig{
+		Export: gcmconfig.GoogleCloudExportConfig{
+			Compression:     "gzip",
+			CredentialsFile: "credentials1.json",
+		},
+		Query: gcmconfig.GoogleCloudQueryConfig{
 			ProjectID:       "abc123",
 			GeneratorURL:    "http://example.com/",
 			CredentialsFile: "credentials2.json",
@@ -65,12 +67,13 @@ google_cloud:
 		t.Fatalf("unexpected config from marshaling (-want, +got): %s", diff)
 	}
 
-	// Ensure we can also (custom) marshal. Reuse the same object.
-	outBytes, err := out.EncodeYAML()
+	// Check if we can marshal correctly.
+	outBytes, err := yaml.Marshal(expected)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Prometheus adds some global marshaling.
+
+	// Prometheus adds some global marshaling, expect those.
 	expectedYAML := `global:
     scrape_interval: 1m
     scrape_timeout: 10s
@@ -85,7 +88,8 @@ runtime:
 		t.Fatalf("unexpected output of the marshal (-want, +got): %s", diff)
 	}
 
-	out = RuleEvaluatorConfig{}
+	// Unmarshal back.
+	out = promforkconfig.Config{}
 	if err := yaml.Unmarshal(outBytes, &out); err != nil {
 		t.Fatal(err)
 	}

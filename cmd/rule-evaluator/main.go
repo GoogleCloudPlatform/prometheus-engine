@@ -37,7 +37,6 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/rule-evaluator/internal"
 	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -60,11 +59,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/config"
+	promforkconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
-
-	// Import to enable 'kubernetes_sd_configs' to SD config register.
-	_ "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/notifier"
 	"github.com/prometheus/prometheus/promql"
@@ -73,6 +69,9 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/util/annotations"
 	"github.com/prometheus/prometheus/util/strutil"
+
+	// Import to enable 'kubernetes_sd_configs' to SD config register.
+	_ "github.com/prometheus/prometheus/discovery/kubernetes"
 )
 
 const projectIDVar = "PROJECT_ID"
@@ -215,18 +214,14 @@ func main() {
 
 	reloaders := []reloader{
 		{
-			name: "notify",
-			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
-				return notificationManager.ApplyConfig(&cfg.Config)
-			},
+			name:     "notify",
+			reloader: notificationManager.ApplyConfig,
 		}, {
-			name: "exporter",
-			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
-				return destination.ApplyConfig(&cfg.Config)
-			},
+			name:     "exporter",
+			reloader: destination.ApplyConfig,
 		}, {
 			name: "notify_sd",
-			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
+			reloader: func(cfg *promforkconfig.Config) error {
 				c := make(map[string]discovery.Configs)
 				for k, v := range cfg.AlertingConfig.AlertmanagerConfigs.ToMap() {
 					c[k] = v.ServiceDiscoveryConfigs
@@ -235,23 +230,23 @@ func main() {
 			},
 		}, {
 			name: "rules",
-			reloader: func(cfg *operator.RuleEvaluatorConfig) error {
+			reloader: func(cfg *promforkconfig.Config) error {
 				// Don't modify defaults. Copy defaults and modify based on config.
 				evaluatorOpts := defaultEvaluatorOpts
-				if cfg.Query.CredentialsFile != "" {
-					evaluatorOpts.CredentialsFile = cfg.Query.CredentialsFile
+				if cfg.GoogleCloud.Query.CredentialsFile != "" {
+					evaluatorOpts.CredentialsFile = cfg.GoogleCloud.Query.CredentialsFile
 				}
-				if cfg.Query.GeneratorURL != "" {
-					generatorURL, err := url.Parse(cfg.Query.GeneratorURL)
+				if cfg.GoogleCloud.Query.GeneratorURL != "" {
+					generatorURL, err := url.Parse(cfg.GoogleCloud.Query.GeneratorURL)
 					if err != nil {
 						return fmt.Errorf("unable to parse Google Cloud generator URL: %w", err)
 					}
 					evaluatorOpts.GeneratorURL = generatorURL
 				}
-				if cfg.Query.ProjectID != "" {
-					evaluatorOpts.ProjectID = cfg.Query.ProjectID
+				if cfg.GoogleCloud.Query.ProjectID != "" {
+					evaluatorOpts.ProjectID = cfg.GoogleCloud.Query.ProjectID
 				}
-				return ruleEvaluator.ApplyConfig(&cfg.Config, &evaluatorOpts)
+				return ruleEvaluator.ApplyConfig(cfg, &evaluatorOpts)
 			},
 		},
 	}
@@ -518,8 +513,8 @@ func (opts *evaluatorOptions) validate() error {
 		return fmt.Errorf("load config %q: %w", opts.ConfigFile, err)
 	}
 
-	if opts.ProjectID == "" && cfg.Query.ProjectID != "" {
-		opts.ProjectID = cfg.Query.ProjectID
+	if opts.ProjectID == "" && cfg.GoogleCloud.Query.ProjectID != "" {
+		opts.ProjectID = cfg.GoogleCloud.Query.ProjectID
 	}
 
 	// Pass a placeholder project ID value "x" to ensure the URL replacement is valid.
@@ -653,7 +648,7 @@ func googleCloudLink(projectID, expr string, endTime, startTime time.Time) *url.
 
 type reloader struct {
 	name     string
-	reloader func(*operator.RuleEvaluatorConfig) error
+	reloader func(*promforkconfig.Config) error
 }
 
 // configMetrics establishes reloading metrics similar to Prometheus' built-in ones.
@@ -729,17 +724,16 @@ func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rl
 	return nil
 }
 
-func loadConfig(content []byte) (*operator.RuleEvaluatorConfig, error) {
-	conf := &operator.RuleEvaluatorConfig{
-		Config: config.DefaultConfig,
-	}
+func loadConfig(content []byte) (*promforkconfig.Config, error) {
+	conf := promforkconfig.DefaultConfig
+
 	// Don't expand external labels on config file loading. It's a feature we like but we
 	// want to remain compatible with Prometheus and this is still an experimental feature,
 	// which we don't support. See the Prometheus' config.LoadFile method.
-	if err := yaml.Unmarshal(content, conf); err != nil {
+	if err := yaml.Unmarshal(content, &conf); err != nil {
 		return nil, fmt.Errorf("unmarshal: %w", err)
 	}
-	return conf, nil
+	return &conf, nil
 }
 
 // convertMetricToLabel converts model.Metric to labels.label.
@@ -980,7 +974,7 @@ func newRuleEvaluator(
 	return &evaluator, nil
 }
 
-func (e *ruleEvaluator) ApplyConfig(cfg *config.Config, evaluatorOpts *evaluatorOptions) error {
+func (e *ruleEvaluator) ApplyConfig(cfg *promforkconfig.Config, evaluatorOpts *evaluatorOptions) error {
 	if evaluatorOpts != nil && !reflect.DeepEqual(evaluatorOpts, e.lastEvaluatorOpts) {
 		e.lastEvaluatorOpts = evaluatorOpts
 
