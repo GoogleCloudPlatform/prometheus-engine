@@ -3,7 +3,7 @@ module github.com/GoogleCloudPlatform/prometheus-engine
 go 1.24.0
 
 require (
-	cloud.google.com/go/compute/metadata v0.7.0
+	cloud.google.com/go/compute/metadata v0.8.0
 	cloud.google.com/go/monitoring v1.24.2
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/go-kit/log v0.2.1
@@ -15,7 +15,7 @@ require (
 	github.com/grafana/grafana-api-golang-client v0.27.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
-	github.com/oklog/run v1.1.0
+	github.com/oklog/run v1.2.0
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/prometheus/alertmanager v0.28.1
 	github.com/prometheus/client_golang v1.23.0
@@ -26,13 +26,13 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/thanos-io/thanos v0.34.2-0.20240314081355-f731719f9515
 	go.uber.org/zap v1.27.0
-	golang.org/x/mod v0.26.0
+	golang.org/x/mod v0.27.0
 	golang.org/x/oauth2 v0.30.0
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/api v0.244.0
+	google.golang.org/api v0.246.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/grpc v1.74.2
-	google.golang.org/protobuf v1.36.6
+	google.golang.org/protobuf v1.36.7
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.30.14
@@ -319,7 +319,9 @@ require (
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/term v0.33.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
-	golang.org/x/tools v0.34.0 // indirect
+	golang.org/x/tools v0.35.0 // indirect
+	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
+	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250728155136-f173205681a0 // indirect
