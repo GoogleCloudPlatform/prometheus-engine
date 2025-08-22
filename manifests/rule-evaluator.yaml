@@ -118,20 +118,20 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: rule-evaluator
-        app.kubernetes.io/version: 0.15.3
+        app.kubernetes.io/version: 0.15.0
     spec:
       serviceAccountName: rule-evaluator
       automountServiceAccountToken: true
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20250407.00_p0
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20250807.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
       containers:
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.15.3-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.15.4-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -169,7 +169,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.15.3-gke.0
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.15.4-gke.0
         args:
         - "--config.file=/prometheus/config_out/config.yaml"
         - "--web.listen-address=:9092"
