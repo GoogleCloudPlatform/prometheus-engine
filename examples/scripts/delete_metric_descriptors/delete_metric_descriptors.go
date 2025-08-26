@@ -61,9 +61,10 @@ See go run delete_metric_descriptors.go -help for all options.
 var (
 	cloudMonitoringEndpoint = flag.String("address", "monitoring.googleapis.com:443", "address of monitoring API")
 
-	projectNames    = flag.String("projects", "", "required: comma-separated project IDs of the projects on which to execute the requests. Name format is as defined in https://cloud.google.com/monitoring/api/ref_v3/rpc/google.monitoring.v3#listmetricdescriptorsrequesttarget, e.g. projects/test-project,projects/test-project2")
-	metricTypeRegex = flag.String("metric_type_regex", "", "required: RE2 regex expression matching metric.type (anchored), so metric descriptor names to delete. Guarded with the interactive 'y' confirmation. See --dry_run to only print those")
-	dryRun          = flag.Bool("dry_run", false, "whether to dry run or not")
+	projectNames     = flag.String("projects", "", "required: comma-separated project IDs of the projects on which to execute the requests. Name format is as defined in https://cloud.google.com/monitoring/api/ref_v3/rpc/google.monitoring.v3#listmetricdescriptorsrequesttarget, e.g. projects/test-project,projects/test-project2")
+	metricTypePrefix = flag.String("metric_type_prefix", "", "required: Prefix (e.g. 'custom.googleapis.com/' or 'prometheus.googleapis.com/') of the metric descriptors to delete. ListMetricDescriptors API required an explicit prefix.")
+	metricTypeRegex  = flag.String("metric_type_regex", "", "required: RE2 regex expression matching metric.type (anchored), so metric descriptor names to delete. Deletions are guarded with the interactive 'y' confirmation. See --dry_run to only print those")
+	dryRun           = flag.Bool("dry_run", false, "whether to dry run or not")
 
 	serviceAccountEnvVar = flag.String("sa-envvar", "", "optional environment variable containing Google Service Account JSON, without it application-default flow will be used.")
 )
@@ -92,7 +93,12 @@ func deleteDescriptors(endpoint string, projects []string, re *regexp.Regexp, sa
 	toDelete := 0
 	checked := 0
 	for _, p := range projects {
-		it := client.ListMetricDescriptors(ctx, &monitoringpb.ListMetricDescriptorsRequest{Name: p})
+		it := client.ListMetricDescriptors(ctx, &monitoringpb.ListMetricDescriptorsRequest{
+			Name: p,
+			// Filter field is required for the metric.type and it does not support
+			// monitoring.regex.full_match or matching multiple metric type prefixes.
+			Filter: fmt.Sprintf(`metric.type = starts_with("%s")`, *metricTypePrefix),
+		})
 		for {
 			resp, err := it.Next()
 			if err == iterator.Done {
@@ -175,6 +181,11 @@ func main() {
 
 	if *projectNames == "" {
 		fmt.Println("-projects flag is required")
+		flag.Usage()
+		os.Exit(1)
+	}
+	if *metricTypePrefix == "" {
+		fmt.Println("-metric_type_prefix flag is required")
 		flag.Usage()
 		os.Exit(1)
 	}

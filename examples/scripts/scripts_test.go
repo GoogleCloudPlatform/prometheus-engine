@@ -159,6 +159,7 @@ func TestDeleteMetricDescriptorsDryRun(t *testing.T) {
 		"go", "run",
 		"delete_metric_descriptors/delete_metric_descriptors.go",
 		"-projects", "projects/"+creds.ProjectID,
+		"-metric_type_prefix", "prometheus.googleapis.com/",
 		"-metric_type_regex", ".*pe_test_script(|2)",
 		"-dry_run",
 		"-sa-envvar", "GCM_SECRET",
