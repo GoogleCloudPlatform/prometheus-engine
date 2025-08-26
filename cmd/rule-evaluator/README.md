@@ -131,6 +131,17 @@ Flags:
                                  be identical across replicas. May be set
                                  through the KUBE_NAME environment variable.
                                  ($KUBE_NAME)
+      --export.ha.lease-duration=EXPORT.HA.LEASE-DURATION  
+                                 Duration that non-leader replicas will wait
+                                 before trying to acquire the lease. Optional.
+                                 Defaults to 15s. ($LEASE_DURATION)
+      --export.ha.renew-deadline=EXPORT.HA.RENEW-DEADLINE  
+                                 Duration that the leader will retry refreshing
+                                 the lease before giving up. Optional. Defaults
+                                 to 10s. ($RENEW_DEADLINE)
+      --export.ha.retry-period=EXPORT.HA.RETRY-PERIOD  
+                                 Duration between lease renewal retries.
+                                 Optional. Defaults to 2s. ($RETRY_PERIOD)
       --query.project-id=""      Project ID of the Google Cloud Monitoring
                                  scoping project to evaluate rules against.
       --query.target-url=https://monitoring.googleapis.com/v1/projects/PROJECT_ID/location/global/prometheus  
