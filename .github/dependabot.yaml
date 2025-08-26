@@ -33,6 +33,11 @@ updates:
     docker:
       patterns:
         - "*"
+      exclude-patterns:
+        # To change those we need to do make regen. Still
+        # allow dependabot to bump it to let us know it's possible, just not
+        # in a single group.
+        - "gke.gcr.io/prometheus-engine/*"
 - package-ecosystem: gomod
   directory: /
   ignore:
