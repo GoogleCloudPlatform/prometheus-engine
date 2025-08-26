@@ -25,6 +25,8 @@ Usage of datasource-syncer:
     	grafana-api-endpoint is the endpoint of the Grafana instance that contains the data sources to update.
   -grafana-api-token string
     	grafana-api-token used to access Grafana. Can be created using: https://grafana.com/docs/grafana/latest/administration/service-accounts/#create-a-service-account-in-grafana
+  -grafana-api-token-filepath string
+    	filepath to a file containing the grafana-api-token used to access Grafana.
   -insecure-skip-verify
     	Skip TLS certificate verification
   -project-id string
