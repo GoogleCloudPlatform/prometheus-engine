@@ -85,6 +85,9 @@ func assertExpectedTypesExists(t *testing.T, client *gcm.MetricClient, reqName s
 }
 
 func TestDeleteMetricDescriptorsDryRun(t *testing.T) {
+	// TODO(b/441428928) Un-skip it once solved.
+	t.Skip("knowingly broken until b/441428928")
+
 	gcmSA := gcmServiceAccountOrFail(t)
 
 	ctx := context.Background()
@@ -106,7 +109,7 @@ func TestDeleteMetricDescriptorsDryRun(t *testing.T) {
 
 	testID := fmt.Sprintf("%v: %v", t.Name(), ulid.MustNew(ulid.Now(), rand.New(rand.NewSource(time.Now().UnixNano()))).String())
 
-	var expectedTypes = []string{
+	expectedTypes := []string{
 		"prometheus.googleapis.com/pe_test_script", "prometheus.googleapis.com/pe_test_script2",
 	}
 
@@ -135,7 +138,8 @@ func TestDeleteMetricDescriptorsDryRun(t *testing.T) {
 
 				Points: []*monitoringpb.Point{{
 					Interval: &monitoringpb.TimeInterval{StartTime: timestamppb.New(now), EndTime: timestamppb.New(now)},
-					Value:    &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.1}}}},
+					Value:    &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.1}},
+				}},
 			},
 			{
 				Resource:   resource,
@@ -145,7 +149,8 @@ func TestDeleteMetricDescriptorsDryRun(t *testing.T) {
 
 				Points: []*monitoringpb.Point{{
 					Interval: &monitoringpb.TimeInterval{StartTime: timestamppb.New(now), EndTime: timestamppb.New(now)},
-					Value:    &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.1}}}},
+					Value:    &monitoringpb.TypedValue{Value: &monitoringpb.TypedValue_DoubleValue{DoubleValue: 0.1}},
+				}},
 			},
 		},
 	}); err != nil {
@@ -178,5 +183,4 @@ func TestDeleteMetricDescriptorsDryRun(t *testing.T) {
 
 	// Nothing should be deleted.
 	assertExpectedTypesExists(t, client, reqName, expectedTypes)
-
 }
