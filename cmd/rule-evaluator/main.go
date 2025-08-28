@@ -16,7 +16,6 @@ package main
 
 import (
 	"context"
-	"crypto/fips140"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -106,11 +105,6 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "caller", log.DefaultCaller)
-
-	if !fips140.Enabled() {
-		_ = logger.Log("msg", "FIPS mode not enabled")
-		os.Exit(1)
-	}
 
 	a := kingpin.New("rule", "The Prometheus Rule Evaluator")
 	logLevel := a.Flag("log.level",

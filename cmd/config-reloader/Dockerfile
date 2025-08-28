@@ -23,16 +23,29 @@ COPY go.sum go.sum
 COPY vendor* vendor
 COPY cmd cmd
 
-ENV GOEXPERIMENT=noboringcrypto
-ENV CGO_ENABLED=0
-ENV GOFIPS140=latest
+ENV GOEXPERIMENT=boringcrypto
+ENV CGO_ENABLED=1
+ENV GOFIPS140=off
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-RUN go build \
-  -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq '.version' ) \
-  -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
-  -o config-reloader \
-  cmd/config-reloader/*.go
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+      apt install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+      CC=aarch64-linux-gnu-gcc; \
+    fi && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+      go build \
+        -ldflags="-linkmode=external -extldflags=-static -X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq '.version' ) \
+        -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
+	-o config-reloader \
+	cmd/config-reloader/*.go
+# When Go Cryptographic Module is NIST validated, this can be restored.
+# RUN go build \
+#  -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq '.version' ) \
+#  -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
+#  -o config-reloader \
+#  cmd/config-reloader/*.go
+
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=buildbase /app/config-reloader /bin/config-reloader
