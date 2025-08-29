@@ -27,10 +27,8 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
-	promconfig "github.com/prometheus/prometheus/config"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -217,44 +215,65 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Fatalf("get operatorconfig: %s", err)
 		}
+
+		// Test propagation of the custom options.
 		config.Collection.Filter = monitoringv1.ExportFilters{
 			MatchOneOf: []string{projectFilter, locationFilter, kubeletFilter},
 		}
+		config.Collection.Compression = monitoringv1.CompressionGzip
+		config.Collection.ExternalLabels = map[string]string{
+			"external_key": "external_val",
+		}
 
-		// TODO(pintohutch): add external_labels.
 		// Update OperatorConfig.
 		if err := kubeClient.Update(ctx, &config); err != nil {
 			t.Fatalf("update operatorconfig: %s", err)
 		}
 
+		// Check if operator propagates collection options to enhanced fork Prometheus config.
+		replace := func(s string) string {
+			return strings.NewReplacer(
+				"{projectID}", projectID,
+				"{location}", location,
+				"{cluster}", cluster,
+			).Replace(s)
+		}
+		want := map[string]string{
+			"config.yaml": replace(`global:
+    external_labels:
+        cluster: {cluster}
+        external_key: external_val
+        location: {location}
+        project_id: {projectID}
+google_cloud:
+    export:
+        compression: gzip
+        match:
+            - '{project_id=''{projectID}''}'
+            - '{location=~''{location}$''}'
+            - '{job=''kubelet''}'
+`),
+		}
+
 		var err error
 		pollErr := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			configMap := corev1.ConfigMap{
+			cm := corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: operator.DefaultOperatorNamespace,
 					Name:      operator.NameCollector,
 				},
 			}
-			if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(&configMap), &configMap); err != nil {
+			if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(&cm), &cm); err != nil {
 				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
 				return false, fmt.Errorf("getting collector ConfigMap failed: %w", err)
 			}
 
-			config := promconfig.Config{}
-			data := configMap.Data["config.yaml"]
-			if err = yaml.Unmarshal([]byte(data), &config); err != nil {
-				return false, err
-			}
-
-			// NOTE(bwplotka): Match logic will be removed in https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1688
-			// nolint:staticcheck
-			if !cmp.Equal([]string{projectFilter, locationFilter, kubeletFilter}, config.GoogleCloud.Export.Match) {
-				err = errors.New("unable to find export matchers")
+			if diff := cmp.Diff(want, cm.Data); diff != "" {
+				err = fmt.Errorf("unexpected collector config entry; diff: %s", diff)
 				return false, nil
 			}
-
 			return true, nil
 		})
 		if pollErr != nil {

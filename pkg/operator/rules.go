@@ -119,7 +119,7 @@ func (r *rulesReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
 
-	var projectID, location, cluster = resolveLabels(r.opts.ProjectID, r.opts.Location, r.opts.Cluster, config.Rules.ExternalLabels)
+	projectID, location, cluster := resolveLabels(r.opts.ProjectID, r.opts.Location, r.opts.Cluster, config.Rules.ExternalLabels)
 
 	if err := r.ensureRuleConfigs(ctx, projectID, location, cluster, config.Features.Config.Compression); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure rule configmaps: %w", err)
@@ -203,6 +203,7 @@ func hasRules(ctx context.Context, c client.Client) (bool, error) {
 	}
 	return len(rules.Items) > 0, nil
 }
+
 func hasClusterRules(ctx context.Context, c client.Client) (bool, error) {
 	var rules monitoringv1.ClusterRulesList
 	if err := c.List(ctx, &rules); err != nil {
@@ -210,6 +211,7 @@ func hasClusterRules(ctx context.Context, c client.Client) (bool, error) {
 	}
 	return len(rules.Items) > 0, nil
 }
+
 func hasGlobalRules(ctx context.Context, c client.Client) (bool, error) {
 	var rules monitoringv1.GlobalRulesList
 	if err := c.List(ctx, &rules); err != nil {
@@ -219,7 +221,7 @@ func hasGlobalRules(ctx context.Context, c client.Client) (bool, error) {
 }
 
 // ensureRuleConfigs updates the Prometheus Rules ConfigMap.
-func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string, compression monitoringv1.CompressionType) error {
+func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string, configCompression monitoringv1.CompressionType) error {
 	logger, _ := logr.FromContext(ctx)
 
 	// Re-generate the configmap that's loaded by the rule-evaluator.
@@ -276,7 +278,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			continue
 		}
 		filename := fmt.Sprintf("rules__%s__%s.yaml", rs.Namespace, rs.Name)
-		if err := setConfigMapData(cm, compression, filename, result); err != nil {
+		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
 			return err
 		}
 
@@ -306,7 +308,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			continue
 		}
 		filename := fmt.Sprintf("clusterrules__%s.yaml", rs.Name)
-		if err := setConfigMapData(cm, compression, filename, result); err != nil {
+		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
 			return err
 		}
 
@@ -336,7 +338,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			continue
 		}
 		filename := fmt.Sprintf("globalrules__%s.yaml", rs.Name)
-		if err := setConfigMapData(cm, compression, filename, result); err != nil {
+		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
 			return err
 		}
 
