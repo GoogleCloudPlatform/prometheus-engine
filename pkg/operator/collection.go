@@ -268,7 +268,7 @@ func setConfigMapData(cm *corev1.ConfigMap, c monitoringv1.CompressionType, key 
 }
 
 // ensureCollectorConfig generates the collector config and creates or updates it.
-func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, compression monitoringv1.CompressionType, exports []monitoringv1.ExportSpec) error {
+func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *monitoringv1.CollectionSpec, configCompression monitoringv1.CompressionType, exports []monitoringv1.ExportSpec) error {
 	cfg, updates, err := r.makeCollectorConfig(ctx, spec, exports)
 	if err != nil {
 		return fmt.Errorf("generate Prometheus config: %w", err)
@@ -277,8 +277,8 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	// NOTE(bwplotka): Match logic will be removed in https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1688
 	// nolint:staticcheck
 	cfg.GoogleCloud.Export.Match = spec.Filter.MatchOneOf
-	if string(compression) != "" {
-		cfg.GoogleCloud.Export.Compression = string(compression)
+	if string(spec.Compression) != "" {
+		cfg.GoogleCloud.Export.Compression = string(spec.Compression)
 	}
 	if spec.Credentials != nil {
 		credentialsFile := path.Join(secretsDir, pathForSelector(r.opts.PublicNamespace, &monitoringv1.SecretOrConfigMap{Secret: spec.Credentials}))
@@ -296,7 +296,7 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 			Name:      NameCollector,
 		},
 	}
-	if err := setConfigMapData(cm, compression, configFilename, string(cfgEncoded)); err != nil {
+	if err := setConfigMapData(cm, configCompression, configFilename, string(cfgEncoded)); err != nil {
 		return err
 	}
 
