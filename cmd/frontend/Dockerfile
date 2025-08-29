@@ -39,6 +39,7 @@ COPY --from=assets /app ./
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1
 ENV GOFIPS140=off
+ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
@@ -48,18 +49,12 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
     fi && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
       go build \
-        -ldflags="-linkmode=external -extldflags=-static -X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq '.version' ) \
+        -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq ".version" ) \
         -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o frontend \
 	cmd/frontend/*.go
-# When Go Cryptographic Module is NIST validated, this can be restored.
-# RUN go build \
-#  -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq '.version' ) \
-#  -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
-#  -o frontend \
-#  cmd/frontend/*.go
 
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20250807.00_p0
 COPY --from=appbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]
