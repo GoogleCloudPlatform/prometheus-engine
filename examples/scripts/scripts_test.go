@@ -17,6 +17,7 @@ package scripts
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -67,7 +68,7 @@ func assertExpectedTypesExists(t *testing.T, client *gcm.MetricClient, reqName s
 		var foundTypes []string
 		for {
 			resp, err := it.Next()
-			if err == iterator.Done {
+			if errors.Is(err, iterator.Done) {
 				break
 			}
 			if err != nil {

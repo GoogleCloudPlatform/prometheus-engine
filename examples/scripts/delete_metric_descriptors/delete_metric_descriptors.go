@@ -17,6 +17,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -95,7 +96,7 @@ func deleteDescriptors(endpoint string, projects []string, re *regexp.Regexp, sa
 		it := client.ListMetricDescriptors(ctx, &monitoringpb.ListMetricDescriptorsRequest{Name: p})
 		for {
 			resp, err := it.Next()
-			if err == iterator.Done {
+			if errors.Is(err, iterator.Done) {
 				break
 			}
 			if err != nil {

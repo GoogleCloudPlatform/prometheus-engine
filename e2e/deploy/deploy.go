@@ -38,7 +38,7 @@ func CreateResources(ctx context.Context, kubeClient client.Client, deployOpts .
 	return createResources(ctx, kubeClient, func(obj client.Object) (client.Object, error) {
 		switch obj := obj.(type) {
 		case *appsv1.DaemonSet:
-			return normalizeDeamonSets(opts, obj)
+			return normalizeDaemonSets(opts, obj)
 		case *appsv1.Deployment:
 			return normalizeDeployments(opts, obj)
 		}
@@ -129,7 +129,7 @@ func resources(scheme *runtime.Scheme) ([]client.Object, error) {
 	return resources, nil
 }
 
-func normalizeDeamonSets(opts *deployOptions, obj *appsv1.DaemonSet) (client.Object, error) {
+func normalizeDaemonSets(opts *deployOptions, obj *appsv1.DaemonSet) (client.Object, error) {
 	if !opts.disableGCM {
 		return obj, nil
 	}
