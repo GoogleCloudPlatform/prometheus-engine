@@ -506,7 +506,7 @@ func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Clien
 						},
 					})
 					series, err := iter.Next()
-					if err == iterator.Done {
+					if errors.Is(err, iterator.Done) {
 						t.Log("no data in GCM, retrying...")
 						return false, nil
 					} else if err != nil {
@@ -518,7 +518,7 @@ func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Clien
 					}
 					// We expect exactly one result.
 					series, err = iter.Next()
-					if err != iterator.Done {
+					if !errors.Is(err, iterator.Done) {
 						return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
 					}
 					return true, nil
@@ -576,7 +576,7 @@ func testCollectorScrapeKubelet(ctx context.Context, kubeClient client.Client) f
 						},
 					})
 					series, err := iter.Next()
-					if err == iterator.Done {
+					if errors.Is(err, iterator.Done) {
 						t.Logf("no data in GCM, retrying...")
 						return false, nil
 					} else if err != nil {
@@ -588,7 +588,7 @@ func testCollectorScrapeKubelet(ctx context.Context, kubeClient client.Client) f
 					}
 					// We expect exactly one result.
 					series, err = iter.Next()
-					if err != iterator.Done {
+					if !errors.Is(err, iterator.Done) {
 						return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
 					}
 					return true, nil

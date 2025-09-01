@@ -144,7 +144,8 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient client.Clie
 
 		// Configure
 		config.Rules.ExternalLabels = map[string]string{
-			"external_key": "external_val"}
+			"external_key": "external_val",
+		}
 		config.Rules.GeneratorURL = "http://example.com/"
 		config.Features = features
 
@@ -675,7 +676,7 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 				},
 			})
 			series, err := iter.Next()
-			if err == iterator.Done {
+			if errors.Is(err, iterator.Done) {
 				t.Logf("no data in GCM, retrying...")
 				return false, nil
 			} else if err != nil {
@@ -686,7 +687,7 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 			}
 			// We expect exactly one result.
 			series, err = iter.Next()
-			if err != iterator.Done {
+			if !errors.Is(err, iterator.Done) {
 				return false, fmt.Errorf("expected iterator to be done but series %v: %w", series, err)
 			}
 			return true, nil
