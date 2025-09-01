@@ -86,5 +86,7 @@ jobs:
         testrun: ${{fromJson(needs.e2e-testruns.outputs.testrun)}}
     steps:
       - uses: actions/checkout@v4
-      - name: Run e2e
+      - name: Run e2e (with GCM)
+        env:
+          GCM_SECRET: ${{ secrets.GCM_SECRET }}
         run: TEST_RUN=${{matrix.testrun}} make e2e

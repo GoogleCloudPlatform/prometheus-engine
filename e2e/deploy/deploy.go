@@ -182,17 +182,22 @@ func normalizeDeployments(opts *deployOptions, obj *appsv1.Deployment) (client.O
 	return obj, nil
 }
 
-func CreateGCPSecretResources(ctx context.Context, kubeClient client.Client, namespace string, serviceAccount []byte) error {
+const (
+	GCMSecretName = "user-gcp-service-account"
+	GCMSecretKey  = "key.json"
+)
+
+func CreateGCMSecret(ctx context.Context, kubeClient client.Client, serviceAccount []byte) error {
 	if err := kubeClient.Create(ctx, &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "user-gcp-service-account",
-			Namespace: namespace,
+			Namespace: operator.DefaultOperatorNamespace,
 		},
 		Data: map[string][]byte{
 			"key.json": serviceAccount,
 		},
 	}); err != nil {
-		return fmt.Errorf("create GCP service account secret: %w", err)
+		return fmt.Errorf("create GCM service account secret: %w", err)
 	}
 	return nil
 }
