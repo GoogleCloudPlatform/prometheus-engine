@@ -54,30 +54,7 @@ func TestCollectorPodMonitoring(t *testing.T) {
 	t.Run("collector-deployed", testCollectorDeployed(ctx, restConfig, kubeClient))
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
-	// Self-scrape podmonitoring.
-	pm := &monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "collector-podmon",
-			Namespace: operator.DefaultOperatorNamespace,
-		},
-		Spec: monitoringv1.PodMonitoringSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					operator.LabelAppName: operator.NameCollector,
-				},
-			},
-			Endpoints: []monitoringv1.ScrapeEndpoint{
-				{
-					Port:     intstr.FromString(operator.CollectorPrometheusContainerPortName),
-					Interval: "5s",
-				},
-				{
-					Port:     intstr.FromString(operator.CollectorConfigReloaderContainerPortName),
-					Interval: "5s",
-				},
-			},
-		},
-	}
+	pm := selfScrapeCollectorPodMonitoring(nil)
 	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, pm))
 	if !skipGCM {
 		t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-podmon"))
@@ -626,4 +603,181 @@ func isPodMonitoringScrapeEndpointSuccess(status *monitoringv1.ScrapeEndpointSta
 		}
 	}
 	return nil
+}
+
+func selfScrapeCollectorPodMonitoring(metricRelabeling []monitoringv1.RelabelingRule) *monitoringv1.PodMonitoring {
+	return &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "collector-podmon",
+			Namespace: operator.DefaultOperatorNamespace,
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					operator.LabelAppName: operator.NameCollector,
+				},
+			},
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:             intstr.FromString(operator.CollectorPrometheusContainerPortName),
+					Interval:         "5s",
+					MetricRelabeling: metricRelabeling,
+				},
+				{
+					Port:     intstr.FromString(operator.CollectorConfigReloaderContainerPortName),
+					Interval: "5s",
+				},
+			},
+		},
+	}
+}
+
+// TODO(bwplotka): We use PodMonitoring her we could add the same tests for other CRDs.
+func TestCollectorPodMonitoring_Filtering(t *testing.T) {
+	if skipGCM {
+		t.Skip("This test makes only sense if GCM integration is enabled")
+	}
+
+	expectedMetrics := []string{"up", "scrape_samples_scraped", "go_goroutines", "prometheus_tsdb_head_series"}
+	unexpectedMetrics := []string{"go_info"}
+
+	t.Run("MetricRelabeling", func(t *testing.T) {
+		ctx := contextWithDeadline(t)
+		kubeClient, restConfig, err := setupCluster(ctx, t)
+		if err != nil {
+			t.Fatalf("error instantiating clients. err: %s", err)
+		}
+		t.Run("collector-deployed", testCollectorDeployed(ctx, restConfig, kubeClient))
+		t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
+
+		pm := selfScrapeCollectorPodMonitoring([]monitoringv1.RelabelingRule{
+			{
+				SourceLabels: []string{"__name__"},
+				Action:       "keep",
+				Regex:        "(go_goroutines|prometheus_tsdb_head_.*)",
+			},
+		})
+		t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, pm))
+		t.Run("self-podmonitoring-gcm", testValidateExpectedMetrics(ctx, kubeClient, "collector-podmon", expectedMetrics, unexpectedMetrics))
+	})
+
+	// Regression test against issues around https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1688.
+	t.Run("OperatorConfig.collection.filter.matchOneOf", func(t *testing.T) {
+		ctx := contextWithDeadline(t)
+		kubeClient, restConfig, err := setupCluster(ctx, t)
+		if err != nil {
+			t.Fatalf("error instantiating clients. err: %s", err)
+		}
+		t.Run("collector-deployed", testCollectorDeployed(ctx, restConfig, kubeClient))
+		t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
+
+		config := monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      operator.NameOperatorConfig,
+				Namespace: operator.DefaultPublicNamespace,
+			},
+		}
+		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
+			t.Fatalf("get operatorconfig: %s", err)
+		}
+
+		// Add custom options for the deprecated Filter.MatchOneOf field, matching
+		// expected metrics. While deprecated, users still use this option, so we must not break them.
+		config.Collection.Filter = monitoringv1.ExportFilters{
+			MatchOneOf: []string{
+				// We need explicit up and scrape_samples_scraped, even if it's
+				// an automatic metrics (https://prometheus.io/docs/concepts/jobs_instances/#automatically-generated-labels-and-time-series)
+				// that are cheap and help with various diagnostics. Users typically forget about those.
+				`{__name__~="(up|scrape_samples_scraped)"`,
+				`{__name__="go_goroutines"`, // What happens on ==/= bug?
+				`{__name__~="(prometheus_tsdb_head_series_.*)"}`,
+			},
+		}
+		if err := kubeClient.Update(ctx, &config); err != nil {
+			t.Fatalf("update operatorconfig: %s", err)
+		}
+		pm := selfScrapeCollectorPodMonitoring(nil)
+		t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, pm))
+		t.Run("self-podmonitoring-gcm", testValidateExpectedMetrics(ctx, kubeClient, "collector-podmon", expectedMetrics, unexpectedMetrics))
+	})
+}
+
+// testValidateExpectedMetrics checks whether the specified metrics from the given job
+// can be queried from GCM (or can't for unexpected list).
+func testValidateExpectedMetrics(ctx context.Context, kubeClient client.Client, job string, expectedMetricNames, unexpectedMetricNames []string) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("checking for expected metrics in Cloud Monitoring")
+
+		// Wait for metric data to show up in Cloud Monitoring.
+		metricClient, err := gcm.NewMetricClient(ctx)
+		if err != nil {
+			t.Fatalf("create metric client: %s", err)
+		}
+		defer metricClient.Close()
+
+		pods := corev1.PodList{}
+		err = kubeClient.List(ctx, &pods, client.InNamespace(operator.DefaultPublicNamespace), &client.ListOptions{
+			LabelSelector: labels.SelectorFromSet(map[string]string{
+				operator.LabelAppName: operator.NameCollector,
+			}),
+		})
+		if err != nil {
+			t.Fatalf("list collector pods: %s", err)
+		}
+
+		// See whether the `up` metric is written for each pod/port combination. It is set to 1 by
+		// Prometheus on successful scraping of the target. Thereby we validate service discovery
+		// configuration, config reload handling, as well as data export are correct.
+		//
+		// Make a single query for each pod/port combo as this is simpler than untangling the result
+		// of a single query.
+		for _, pod := range pods.Items {
+			for _, port := range []string{operator.CollectorPrometheusContainerPortName, operator.CollectorConfigReloaderContainerPortName} {
+				t.Logf("poll 'up' metric for pod %q and port %q", pod.Name, port)
+
+				err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+					now := time.Now()
+
+					// Validate the majority of labels being set correctly by filtering along them.
+					iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
+						Name: fmt.Sprintf("projects/%s", projectID),
+						Filter: fmt.Sprintf(`
+				resource.type = "prometheus_target" AND
+				resource.labels.project_id = "%s" AND
+				resource.label.location = "%s" AND
+				resource.labels.cluster = "%s" AND
+				resource.labels.namespace = "%s" AND
+				resource.labels.job = "%s" AND
+				resource.labels.instance = "%s:%s" AND
+				metric.type = "prometheus.googleapis.com/up/gauge"
+				`, projectID, location, cluster, operator.DefaultOperatorNamespace, job, pod.Spec.NodeName, port),
+						Interval: &gcmpb.TimeInterval{
+							EndTime:   timestamppb.New(now),
+							StartTime: timestamppb.New(now.Add(-10 * time.Second)),
+						},
+					})
+					series, err := iter.Next()
+					if err == iterator.Done {
+						t.Log("no data in GCM, retrying...")
+						return false, nil
+					} else if err != nil {
+						return false, fmt.Errorf("querying metrics failed: %w", err)
+					}
+					if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
+						t.Logf("'up' still %v, retrying...", v)
+						return false, nil
+					}
+					// We expect exactly one result.
+					series, err = iter.Next()
+					if err != iterator.Done {
+						return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
+					}
+					return true, nil
+				})
+				if err != nil {
+					t.Fatalf("waiting for collector metrics to appear in GCM failed: %s", err)
+				}
+			}
+		}
+	}
 }
