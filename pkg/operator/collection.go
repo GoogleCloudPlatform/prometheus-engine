@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/common/config"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/relabel"
 	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -242,7 +243,7 @@ func gzipData(data []byte) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func setConfigMapData(cm *corev1.ConfigMap, c monitoringv1.CompressionType, key string, data string) error {
+func setConfigMapData(cm *corev1.ConfigMap, c monitoringv1.CompressionType, key, data string) error {
 	// Thanos config-reloader detects gzip compression automatically, so no sync with
 	// config-reloaders is needed when switching between these.
 	switch c {
@@ -354,6 +355,15 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return nil, nil, fmt.Errorf("failed to create kubelet scrape config: %w", err)
 	}
 
+	var globalMetricRelabelCfgs []*relabel.Config
+	for _, r := range spec.MetricRelabeling {
+		rcfg, err := r.ToPrometheusRelabel()
+		if err != nil {
+			return nil, nil, fmt.Errorf("collection.metricRelabeling validation: %w", err)
+		}
+		globalMetricRelabelCfgs = append(globalMetricRelabelCfgs, rcfg)
+	}
+
 	cfg.RemoteWriteConfigs, err = makeRemoteWriteConfig(exports)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create export config: %w", err)
@@ -379,7 +389,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster, usedSecrets)
+		cfgs, err := pmon.ScrapeConfigs(projectID, location, cluster, usedSecrets, globalMetricRelabelCfgs)
 		if err != nil {
 			msg := "generating scrape config failed for PodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{
@@ -412,7 +422,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster, usedSecrets)
+		cfgs, err := cmon.ScrapeConfigs(projectID, location, cluster, usedSecrets, globalMetricRelabelCfgs)
 		if err != nil {
 			msg := "generating scrape config failed for ClusterPodMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{
@@ -458,7 +468,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			Type:   monitoringv1.ConfigurationCreateSuccess,
 			Status: corev1.ConditionTrue,
 		}
-		cfgs, err := cnmon.ScrapeConfigs(projectID, location, cluster)
+		cfgs, err := cnmon.ScrapeConfigs(projectID, location, cluster, globalMetricRelabelCfgs)
 		if err != nil {
 			msg := "generating scrape config failed for ClusterNodeMonitoring endpoint"
 			cond = &monitoringv1.MonitoringCondition{

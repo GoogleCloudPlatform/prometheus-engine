@@ -18,6 +18,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	prommodel "github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/model/relabel"
 	yaml "gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -72,7 +74,15 @@ func TestClusterNodeMonitoring_ScrapeConfig(t *testing.T) {
 			},
 		},
 	}
-	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster")
+
+	globalMetricRelabelCfg := []*relabel.Config{
+		{
+			Action:       relabel.Drop,
+			SourceLabels: prommodel.LabelNames{"__name__"},
+			Regex:        relabel.MustNewRegexp("my_expensive_metric1"),
+		},
+	}
+	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster", globalMetricRelabelCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,6 +139,9 @@ relabel_configs:
   replacement: test_cluster
   action: replace
 metric_relabel_configs:
+- source_labels: [__name__]
+  regex: my_expensive_metric1
+  action: drop
 - source_labels: [mlabel_1, mlabel_2]
   target_label: mlabel_3
   action: replace
@@ -190,6 +203,10 @@ relabel_configs:
 - target_label: cluster
   replacement: test_cluster
   action: replace
+metric_relabel_configs:
+- source_labels: [__name__]
+  regex: my_expensive_metric1
+  action: drop
 kubernetes_sd_configs:
 - role: node
   kubeconfig_file: ""

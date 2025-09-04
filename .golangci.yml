@@ -61,6 +61,8 @@ linters:
     - wastedassign
     - wrapcheck
     - wsl
+    # Mixed recv and non-recv methods are sometimes done on purpose.
+    - recvcheck
   settings:
     importas:
       alias:

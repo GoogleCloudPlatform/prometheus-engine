@@ -114,6 +114,88 @@ spec:
                 required:
                 - interval
                 type: object
+              metricRelabeling:
+                description: |-
+                  MetricRelabeling allows changing metricRelabelling for all scrape jobs.
+
+                  Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job,
+                  instance, top_level_controller, top_level_controller_type, or __address__) are
+                  not permitted. The labelmap action is not permitted in general.
+
+                  IMPORTANT: Use with care, as this (similar to filter.matchOneOf) can break
+                  your entire cluster metric collection when misconfigured (e.g. accidental drop of some metrics)
+                  It's recommend to use PodMonitoring or ClusterPodMonitoring metricRelabeling first.
+                  Then promote only important few rules that apply to all jobs.
+
+                  A common use case is global denylist for expensive metrics to ingest (or
+                  expensive to scrape/collect). Note that this type of filtering, by design,
+                  won't affect Prometheus generated metrics (https://prometheus.io/docs/concepts/jobs_instances/#automatically-generated-labels-and-time-series).
+                items:
+                  description: RelabelingRule defines a single Prometheus relabeling
+                    rule.
+                  properties:
+                    action:
+                      description: Action to perform based on regex matching. Defaults
+                        to 'replace'.
+                      enum:
+                      - replace
+                      - lowercase
+                      - uppercase
+                      - keep
+                      - drop
+                      - keepequal
+                      - dropequal
+                      - hashmod
+                      - labeldrop
+                      - labelkeep
+                      type: string
+                    modulus:
+                      description: Modulus to take of the hash of the source label
+                        values.
+                      format: int64
+                      type: integer
+                    regex:
+                      description: Regular expression against which the extracted
+                        value is matched. Defaults to '(.*)'.
+                      maxLength: 10000
+                      type: string
+                    replacement:
+                      description: |-
+                        Replacement value against which a regex replace is performed if the
+                        regular expression matches. Regex capture groups are available. Defaults to '$1'.
+                      type: string
+                    separator:
+                      description: Separator placed between concatenated source label
+                        values. Defaults to ';'.
+                      type: string
+                    sourceLabels:
+                      description: |-
+                        The source labels select values from existing labels. Their content is concatenated
+                        using the configured separator and matched against the configured regular expression
+                        for the replace, keep, and drop actions.
+                      items:
+                        pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+                        type: string
+                      maxItems: 100
+                      type: array
+                    targetLabel:
+                      description: |-
+                        Label to which the resulting value is written in a replace action.
+                        It is mandatory for replace actions. Regex capture groups are available.
+                      pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+                      type: string
+                      x-kubernetes-validations:
+                      - messageExpression: '''cannot relabel onto protected label
+                          "%s"''.format([self])'
+                        rule: self != 'project_id' && self != 'location' && self !=
+                          'cluster' && self != 'namespace' && self != 'job' && self
+                          != 'instance' && self != 'top_level_controller' && self
+                          != 'top_level_controller_type' && self != '__address__'
+                  type: object
+                  x-kubernetes-validations:
+                  - rule: '!has(self.action) ||  self.action != ''labeldrop'' || has(self.regex)'
+                maxItems: 100
+                type: array
             type: object
           exports:
             description: |-

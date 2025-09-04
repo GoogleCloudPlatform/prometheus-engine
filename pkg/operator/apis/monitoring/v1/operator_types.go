@@ -181,6 +181,22 @@ type CollectionSpec struct {
 	KubeletScraping *KubeletScraping `json:"kubeletScraping,omitempty"`
 	// Compression enables compression of metrics collection data
 	Compression CompressionType `json:"compression,omitempty"`
+	// MetricRelabeling allows changing metricRelabelling for all scrape jobs.
+	//
+	// Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job,
+	// instance, top_level_controller, top_level_controller_type, or __address__) are
+	// not permitted. The labelmap action is not permitted in general.
+	//
+	// IMPORTANT: Use with care, as this (similar to filter.matchOneOf) can break
+	// your entire cluster metric collection when misconfigured (e.g. accidental drop of some metrics)
+	// It's recommend to use PodMonitoring or ClusterPodMonitoring metricRelabeling first.
+	// Then promote only important few rules that apply to all jobs.
+	//
+	// A common use case is global denylist for expensive metrics to ingest (or
+	// expensive to scrape/collect). Note that this type of filtering, by design,
+	// won't affect Prometheus generated metrics (https://prometheus.io/docs/concepts/jobs_instances/#automatically-generated-labels-and-time-series).
+	// +kubebuilder:validation:MaxItems=100
+	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
 }
 
 type ExportSpec struct {
@@ -213,8 +229,10 @@ type TargetStatusSpec struct {
 // +kubebuilder:validation:Enum=none;gzip
 type CompressionType string
 
-const CompressionNone CompressionType = "none"
-const CompressionGzip CompressionType = "gzip"
+const (
+	CompressionNone CompressionType = "none"
+	CompressionGzip CompressionType = "gzip"
+)
 
 // KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
 type KubeletScraping struct {

@@ -115,9 +115,9 @@ func (c *ClusterNodeMonitoring) GetMonitoringStatus() *MonitoringStatus {
 	return &c.Status
 }
 
-func (c *ClusterNodeMonitoring) ScrapeConfigs(projectID, location, cluster string) (res []*promconfig.ScrapeConfig, err error) {
+func (c *ClusterNodeMonitoring) ScrapeConfigs(projectID, location, cluster string, globalMetricRelabelCfgs []*relabel.Config) (res []*promconfig.ScrapeConfig, err error) {
 	for i, ep := range c.Spec.Endpoints {
-		sc, err := c.endpointScrapeConfig(&ep, projectID, location, cluster)
+		sc, err := c.endpointScrapeConfig(&ep, projectID, location, cluster, globalMetricRelabelCfgs)
 		if err != nil {
 			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
@@ -126,7 +126,7 @@ func (c *ClusterNodeMonitoring) ScrapeConfigs(projectID, location, cluster strin
 	return res, validateDistinctJobNames(res)
 }
 
-func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID, location, cluster string) (*promconfig.ScrapeConfig, error) {
+func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, projectID, location, cluster string, globalMetricRelabelCfgs []*relabel.Config) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected nodes.
 	relabelCfgs, err := relabelingsForSelector(c.Spec.Selector, c)
 	if err != nil {
@@ -202,11 +202,13 @@ func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, pro
 		httpCfg.TLSConfig.InsecureSkipVerify = tls.InsecureSkipVerify
 	}
 
-	return buildPrometheusScrapeConfig(fmt.Sprintf("%s%s", c.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, c.Spec.Limits,
-		ScrapeEndpoint{Interval: ep.Interval,
+	return buildPrometheusScrapeConfig(fmt.Sprintf("%s%s", c.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, globalMetricRelabelCfgs, c.Spec.Limits,
+		ScrapeEndpoint{
+			Interval:         ep.Interval,
 			Timeout:          ep.Timeout,
 			Path:             metricsPath,
 			MetricRelabeling: ep.MetricRelabeling,
 			Scheme:           ep.Scheme,
-			Params:           ep.Params})
+			Params:           ep.Params,
+		})
 }
