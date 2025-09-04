@@ -118,7 +118,6 @@ func TestCRDDefaulting(t *testing.T) {
 					client.ObjectKeyFromObject(tc.obj),
 					tc.obj,
 				)
-
 				if err != nil {
 					t.Errorf("Unexpected error: %v", err)
 				}
@@ -146,7 +145,6 @@ func TestCRDDefaulting(t *testing.T) {
 					client.ObjectKeyFromObject(tc.obj),
 					tc.obj,
 				)
-
 				if err != nil {
 					t.Errorf("Unexpected error: %v", err)
 				}
@@ -480,6 +478,20 @@ func TestCRDValidation(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "config",
 						Namespace: "invalid-namespace",
+					},
+				},
+				wantErr: true,
+			},
+			"invalid metricRelabelling": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "invalid-namespace",
+					},
+					Collection: monitoringv1.CollectionSpec{
+						MetricRelabeling: []monitoringv1.RelabelingRule{
+							{Action: "labeldrop"},
+						},
 					},
 				},
 				wantErr: true,

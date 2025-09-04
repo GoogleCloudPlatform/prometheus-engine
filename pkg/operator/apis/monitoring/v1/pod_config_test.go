@@ -227,7 +227,8 @@ func TestLabelMappingRelabelConfigs(t *testing.T) {
 			doc: "both good and colliding podmonitoring relabel",
 			mappings: []LabelMapping{
 				{From: "from", To: "to"},
-				{From: "from-instance", To: "instance"}},
+				{From: "from-instance", To: "instance"},
+			},
 			expected: nil,
 			expErr:   true,
 		},
@@ -322,7 +323,15 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 			},
 		},
 	}
-	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster", nil)
+
+	globalMetricRelabelCfg := []*relabel.Config{
+		{
+			Action:       relabel.Drop,
+			SourceLabels: prommodel.LabelNames{"__name__"},
+			Regex:        relabel.MustNewRegexp("my_expensive_metric1"),
+		},
+	}
+	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster", nil, globalMetricRelabelCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,6 +403,9 @@ relabel_configs:
   target_label: key3
   action: replace
 metric_relabel_configs:
+- source_labels: [__name__]
+  regex: my_expensive_metric1
+  action: drop
 - source_labels: [mlabel_1, mlabel_2]
   target_label: mlabel_3
   action: replace
@@ -475,6 +487,10 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_pod_label_key3]
   target_label: key3
   action: replace
+metric_relabel_configs:
+- source_labels: [__name__]
+  regex: my_expensive_metric1
+  action: drop
 kubernetes_sd_configs:
 - role: pod
   kubeconfig_file: ""
@@ -548,7 +564,15 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 			},
 		},
 	}
-	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster", nil)
+
+	globalMetricRelabelCfg := []*relabel.Config{
+		{
+			Action:       relabel.Drop,
+			SourceLabels: prommodel.LabelNames{"__name__"},
+			Regex:        relabel.MustNewRegexp("my_expensive_metric1"),
+		},
+	}
+	scrapeCfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster", nil, globalMetricRelabelCfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -617,6 +641,9 @@ relabel_configs:
   target_label: key3
   action: replace
 metric_relabel_configs:
+- source_labels: [__name__]
+  regex: my_expensive_metric1
+  action: drop
 - source_labels: [mlabel_1, mlabel_2]
   target_label: mlabel_3
   action: replace
@@ -693,6 +720,10 @@ relabel_configs:
 - source_labels: [__meta_kubernetes_pod_label_key3]
   target_label: key3
   action: replace
+metric_relabel_configs:
+- source_labels: [__name__]
+  regex: my_expensive_metric1
+  action: drop
 kubernetes_sd_configs:
 - role: pod
   kubeconfig_file: ""

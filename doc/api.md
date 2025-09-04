@@ -927,6 +927,29 @@ CompressionType
 <p>Compression enables compression of metrics collection data</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>metricRelabeling</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.RelabelingRule">
+[]RelabelingRule
+</a>
+</em>
+</td>
+<td>
+<p>MetricRelabeling allows changing metricRelabelling for all scrape jobs.</p>
+<p>Relabeling rules that override protected target labels (project_id, location, cluster, namespace, job,
+instance, top_level_controller, top_level_controller_type, or <strong>address</strong>) are
+not permitted. The labelmap action is not permitted in general.</p>
+<p>IMPORTANT: Use with care, as this (similar to filter.matchOneOf) can break
+your entire cluster metric collection when misconfigured (e.g. accidental drop of some metrics)
+It&rsquo;s recommend to use PodMonitoring or ClusterPodMonitoring metricRelabeling first.
+Then promote only important few rules that apply to all jobs.</p>
+<p>A common use case is global denylist for expensive metrics to ingest (or
+expensive to scrape/collect). Note that this type of filtering, by design,
+won&rsquo;t affect Prometheus generated metrics (<a href="https://prometheus.io/docs/concepts/jobs_instances/#automatically-generated-labels-and-time-series">https://prometheus.io/docs/concepts/jobs_instances/#automatically-generated-labels-and-time-series</a>).</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="monitoring.googleapis.com/v1.CompressionType">
@@ -2074,7 +2097,7 @@ string
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>, <a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.CollectionSpec">CollectionSpec</a>, <a href="#monitoring.googleapis.com/v1.ScrapeEndpoint">ScrapeEndpoint</a>, <a href="#monitoring.googleapis.com/v1.ScrapeNodeEndpoint">ScrapeNodeEndpoint</a>)
 </p>
 <div>
 <p>RelabelingRule defines a single Prometheus relabeling rule.</p>

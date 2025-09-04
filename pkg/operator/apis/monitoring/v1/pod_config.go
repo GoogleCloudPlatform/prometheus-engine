@@ -115,7 +115,7 @@ var (
 )
 
 // ScrapeConfigs generates Prometheus scrape configs for the PodMonitoring.
-func (p *PodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
+func (p *PodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs, globalMetricRelabelCfg []*relabel.Config) (res []*promconfig.ScrapeConfig, err error) {
 	relabelCfgs := []*relabel.Config{
 		// Force target labels, so they cannot be overwritten by metric labels.
 		{
@@ -134,11 +134,13 @@ func (p *PodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool 
 			Replacement: cluster,
 		},
 	}
-	return p.scrapeConfigs(relabelCfgs, pool)
+	return p.scrapeConfigs(relabelCfgs, globalMetricRelabelCfg, pool)
 }
 
 // ScrapeConfigs generates Prometheus scrape configs for the PodMonitoring.
-func (p *PodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
+//
+// The relabelCfgs, globalMetricRelabelCfg slices are read only.
+func (p *PodMonitoring) scrapeConfigs(relabelCfgs, globalMetricRelabelCfg []*relabel.Config, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
 	relabelCfgs = append(relabelCfgs, &relabel.Config{
 		// Filter targets by namespace of the PodMonitoring configuration.
 		Action:       relabel.Keep,
@@ -147,7 +149,7 @@ func (p *PodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool Promet
 	})
 	for i := range p.Spec.Endpoints {
 		// Each scrape endpoint has its own relabel config so make sure we copy the array.
-		c, err := p.endpointScrapeConfig(i, append([]*relabel.Config(nil), relabelCfgs...), pool)
+		c, err := p.endpointScrapeConfig(i, append([]*relabel.Config(nil), relabelCfgs...), globalMetricRelabelCfg, pool)
 		if err != nil {
 			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
@@ -156,7 +158,7 @@ func (p *PodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool Promet
 	return res, validateDistinctJobNames(res)
 }
 
-func (p *PodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (*promconfig.ScrapeConfig, error) {
+func (p *PodMonitoring) endpointScrapeConfig(index int, relabelCfgs, globalMetricRelabelCfg []*relabel.Config, pool PrometheusSecretConfigs) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected pods.
 	selectors, err := relabelingsForSelector(p.Spec.Selector, p)
 	if err != nil {
@@ -201,7 +203,7 @@ func (p *PodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.C
 	return endpointScrapeConfig(
 		p,
 		p.Spec.Endpoints[index],
-		relabelCfgs,
+		relabelCfgs, globalMetricRelabelCfg,
 		p.Spec.TargetLabels.FromPod,
 		p.Spec.Limits,
 		pool,
@@ -209,7 +211,7 @@ func (p *PodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.C
 }
 
 // ScrapeConfigs generates Prometheus scrape configs for the PodMonitoring.
-func (c *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
+func (c *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string, pool PrometheusSecretConfigs, globalMetricRelabelCfg []*relabel.Config) (res []*promconfig.ScrapeConfig, err error) {
 	relabelCfgs := []*relabel.Config{
 		// Force target labels, so they cannot be overwritten by metric labels.
 		{
@@ -228,13 +230,13 @@ func (c *ClusterPodMonitoring) ScrapeConfigs(projectID, location, cluster string
 			Replacement: cluster,
 		},
 	}
-	return c.scrapeConfigs(relabelCfgs, pool)
+	return c.scrapeConfigs(relabelCfgs, globalMetricRelabelCfg, pool)
 }
 
-func (c *ClusterPodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
+func (c *ClusterPodMonitoring) scrapeConfigs(relabelCfgs, globalMetricRelabelCfg []*relabel.Config, pool PrometheusSecretConfigs) (res []*promconfig.ScrapeConfig, err error) {
 	for i := range c.Spec.Endpoints {
 		// Each scrape endpoint has its own relabel config so make sure we copy the array.
-		c, err := c.endpointScrapeConfig(i, append([]*relabel.Config(nil), relabelCfgs...), pool)
+		c, err := c.endpointScrapeConfig(i, append([]*relabel.Config(nil), relabelCfgs...), globalMetricRelabelCfg, pool)
 		if err != nil {
 			return nil, fmt.Errorf("invalid definition for endpoint with index %d: %w", i, err)
 		}
@@ -243,7 +245,7 @@ func (c *ClusterPodMonitoring) scrapeConfigs(relabelCfgs []*relabel.Config, pool
 	return res, validateDistinctJobNames(res)
 }
 
-func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*relabel.Config, pool PrometheusSecretConfigs) (*promconfig.ScrapeConfig, error) {
+func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, relabelCfgs, globalMetricRelabelCfg []*relabel.Config, pool PrometheusSecretConfigs) (*promconfig.ScrapeConfig, error) {
 	// Filter targets that belong to selected pods.
 	selectors, err := relabelingsForSelector(c.Spec.Selector, c)
 	if err != nil {
@@ -286,7 +288,7 @@ func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*re
 	return endpointScrapeConfig(
 		c,
 		c.Spec.Endpoints[index],
-		relabelCfgs,
+		relabelCfgs, globalMetricRelabelCfg,
 		c.Spec.TargetLabels.FromPod,
 		c.Spec.Limits,
 		pool,
@@ -296,7 +298,7 @@ func (c *ClusterPodMonitoring) endpointScrapeConfig(index int, relabelCfgs []*re
 func endpointScrapeConfig(
 	m PodMonitoringCRD,
 	ep ScrapeEndpoint,
-	relabelCfgs []*relabel.Config,
+	relabelCfgs, globalMetricRelabelCfg []*relabel.Config,
 	podLabels []LabelMapping,
 	limits *ScrapeLimits,
 	pool PrometheusSecretConfigs,
@@ -417,7 +419,7 @@ func endpointScrapeConfig(
 		return nil, fmt.Errorf("invalid Prometheus HTTP client config: %w", err)
 	}
 
-	return buildPrometheusScrapeConfig(fmt.Sprintf("%s/%s", id, &ep.Port), discoveryCfgs, httpCfg, relabelCfgs, limits, ep)
+	return buildPrometheusScrapeConfig(fmt.Sprintf("%s/%s", id, &ep.Port), discoveryCfgs, httpCfg, relabelCfgs, globalMetricRelabelCfg, limits, ep)
 }
 
 func relabelingsForMetadata(keys map[string]bool) (res []*relabel.Config) {
@@ -458,9 +460,13 @@ func relabelingsForMetadata(keys map[string]bool) (res []*relabel.Config) {
 	return res
 }
 
-// convertRelabelingRule converts the rule to a relabel configuration. An error is returned
-// if the rule would modify one of the protected labels.
-func convertRelabelingRule(r RelabelingRule) (*relabel.Config, error) {
+// ToPrometheusRelabel converts the rule to a Prometheus relabel configuration.
+// An error is returned if the rule would modify one of the protected labels.
+//
+// GoMixedReceiverTypes rationales: purposefully make a copy to avoid accidental changes.
+//
+//goland:noinspection GoMixedReceiverTypes
+func (r RelabelingRule) ToPrometheusRelabel() (*relabel.Config, error) {
 	rcfg := &relabel.Config{
 		// Upstream applies ToLower when digesting the config, so we allow the same.
 		Action:      relabel.Action(strings.ToLower(r.Action)),
@@ -560,11 +566,11 @@ func labelMappingRelabelConfigs(mappings []LabelMapping, prefix string) ([]*rela
 		if m.To == "" {
 			m.To = m.From
 		}
-		rcfg, err := convertRelabelingRule(RelabelingRule{
+		rcfg, err := RelabelingRule{
 			Action:       "replace",
 			SourceLabels: []string{prefix + string(sanitizeLabelName(m.From))},
 			TargetLabel:  m.To,
-		})
+		}.ToPrometheusRelabel()
 		if err != nil {
 			return nil, err
 		}

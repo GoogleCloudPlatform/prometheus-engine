@@ -111,7 +111,14 @@ func relabelingsForSelector(selector metav1.LabelSelector, crd interface{}) ([]*
 }
 
 // buildPrometheusScrapeConfig builds a Prometheus scrape configuration for a given endpoint.
-func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs, httpCfg config.HTTPClientConfig, relabelCfgs []*relabel.Config, limits *ScrapeLimits, ep ScrapeEndpoint) (*promconfig.ScrapeConfig, error) {
+func buildPrometheusScrapeConfig(
+	jobName string,
+	discoverCfgs discovery.Configs,
+	httpCfg config.HTTPClientConfig,
+	relabelCfgs, globalMetricRelabelCfgs []*relabel.Config,
+	limits *ScrapeLimits,
+	ep ScrapeEndpoint,
+) (*promconfig.ScrapeConfig, error) {
 	interval, err := prommodel.ParseDuration(ep.Interval)
 	if err != nil {
 		return nil, fmt.Errorf("invalid scrape interval: %w", err)
@@ -132,8 +139,10 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 	}
 
 	var metricRelabelCfgs []*relabel.Config
+	// Don't modify globalMetricRelabelCfgs slice, create a new relabelling slice instead.
+	metricRelabelCfgs = append(metricRelabelCfgs, globalMetricRelabelCfgs...)
 	for _, r := range ep.MetricRelabeling {
-		rcfg, err := convertRelabelingRule(r)
+		rcfg, err := r.ToPrometheusRelabel()
 		if err != nil {
 			return nil, err
 		}
