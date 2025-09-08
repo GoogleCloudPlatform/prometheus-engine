@@ -1,0 +1,74 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https:#www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-synthetic
+spec:
+  replicas: 2
+  selector:
+    matchLabels: 
+      app: "go-synthetic"
+  template:
+    metadata:
+      labels:
+        app: "go-synthetic"
+    spec:
+      containers:
+      - name: go-synthetic
+        image: gke.gcr.io/prometheus-engine/example-app:v0.15.0-gke.8
+        args:
+        - "--listen-address=:8080"
+        - "--cpu-burn-ops=75"
+        - "--memory-ballast-mbs=1024"
+        # As of 0.17.0 Prometheus will fail to ingest metrics using UTF-8 extended charset names.
+        # However, some SDKs, including client_golang have dynamic escaping mechanisms to that
+        # switches all metrics special chars to underscore. Those metrics will be "back"
+        # to original name if the collector accepts UTF-8.
+        - "--metric-naming-style=gcm-extended"
+        - "--status-label-naming-style=gcm-extended"
+        ports:
+        - name: web
+          containerPort: 8080
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            memory: 10000Mi
+      terminationGracePeriodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-synthetic
+spec:
+  selector:
+    app: go-synthetic
+  ports:
+  - port: 8080
+    targetPort: web
+---
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: go-synthetic
+spec:
+  selector:
+    matchLabels:
+      app: go-synthetic
+  endpoints:
+  - port: 8080
+    interval: 15s

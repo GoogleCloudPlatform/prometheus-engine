@@ -26,13 +26,16 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/model"
 )
 
 var (
@@ -46,6 +49,7 @@ var (
 	counterCount = flag.Int("counter-count", -1, "Number of unique instances per counter metric.")
 	summaryCount = flag.Int("summary-count", -1, "Number of unique instances per summary metric.")
 
+	// TODO(bwplotka): Implement for testing one day.
 	//nolint:unused
 	omStateSetCount = flag.Int("om-stateset-count", -1, "Number of OpenMetrics StateSet metrics (https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
 	//nolint:unused
@@ -54,170 +58,228 @@ var (
 	omGaugeHistogramCount = flag.Int("om-gaugehistogram-count", -1, "Number of OpenMetrics GaugeHistogram metrics (https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#stateset). Requires OpenMetrics format to be negotiated.")
 
 	exemplarSampling = flag.Float64("exemplar-sampling", 0.1, "Fraction of observations to include exemplars on histograms.")
+
+	metricNamingMode = flag.String("metric-naming-style", PrometheusStyle, `Change the default metric names to test UTF-8 extended charset features. This option will affect all "example_*" metric names produced by this application. For example:
+- 'prometheus' style will keep the old name 'example_incoming_requests_pending'
+- 'gcm-extended' style will add /, . and - , so 'example/incoming.requests-pending'
+- 'exotic-utf-8' style will add (forbidden in GCM) exotic chars like '😂', so 'example/🗻😂/incoming.requests-pending'`)
+	statusLabelNamingMode = flag.String("status-label-naming-style", PrometheusStyle, `Change the default label name for example metrics with 'status' label to test UTF-8 extended charset features. For example:
+- 'prometheus' style will keep the old label name 'status'
+- 'gcm-label-extended' style will add / and . , so 'example/http.request.status'
+- 'exotic-utf-8' style will add (forbidden in GCM) exotic chars like '😂', so 'example/🗻😂/http.request-status'`)
 )
 
-var (
-	// availableLabels represents human-readable labels. This gives us max
-	// of len(availableLabels["method"]) * len(availableLabels["status"]) * len(availableLabels["path"])
-	// combinations of those. If the specified metric count surpasses that, artificial GET, 200, /yolo/<number> will be generated.
-	availableLabels = map[string][]string{
-		"method": {
-			"POST",
-			"PUT",
-			"GET",
-		},
-		"status": {
-			"200",
-			"300",
-			"400",
-			"404",
-			"500",
-		},
-		"path": {
-			"/",
-			"/index",
-			"/topics",
-			"/topics:new",
-			"/topics/<id>",
-			"/topics/<id>/comment",
-			"/topics/<id>/comment:create",
-			"/topics/<id>/comment:edit",
-			"/imprint",
-		},
+type namingStyle = string
+
+const (
+	// PrometheusStyle represents Prometheus OSS strict charset (https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels).
+	PrometheusStyle namingStyle = "prometheus"
+	// GCMExtendedCharsStyle represents GCM charset, so PrometheusStyle and "/.-" characters.
+	GCMExtendedCharsStyle namingStyle = "gcm-extended" // (/[a-zA-Z0-9$-_.+!*'(),%:]+)+ for metric names and Prometheus + "/." chars for labels.
+	// ExoticUTF8 represents any UTF-8 characters.
+	// NOTE: Using those will cause GCM ingestion to block such metrics.
+	ExoticUTF8 namingStyle = "exotic-utf-8"
+)
+
+func adjustExampleMetricName(name string, style namingStyle) string {
+	if !strings.HasPrefix(name, "example_") {
+		panic(fmt.Sprintf("expected example_ prefixed metric, got %v", name))
 	}
-)
+	switch style {
+	case PrometheusStyle:
+		return name
+	case GCMExtendedCharsStyle, ExoticUTF8:
+		name = strings.Replace(name, "_", "/", 1)
+		name = strings.Replace(name, "_", ".", 1)
+		// This likely kills the suffix (_total > -total).
+		// Do it on purpose for a stress test (Otel metrics would skip suffix).
+		name = strings.ReplaceAll(name, "_", "-")
+		if style == GCMExtendedCharsStyle {
+			return name
+		}
+		return strings.Replace(name, "example/", "example/🗻😂/", 1)
+	default:
+		panic(fmt.Sprintf("unsupported %v style", style))
+	}
+}
 
-var (
-	metricIncomingRequestsPending = prometheus.NewGaugeVec(
+func getStatusLabelName(style namingStyle) string {
+	switch style {
+	case PrometheusStyle:
+		return "string"
+	case GCMExtendedCharsStyle:
+		return "example/http.request.status"
+	case ExoticUTF8:
+		return "example/🗻😂/http.request-status"
+	default:
+		panic(fmt.Sprintf("unsupported %v style", style))
+	}
+}
+
+// availableLabels represents human-readable labels. This gives us max
+// of len(availableLabels["method"]) * len(availableLabels["status"]) * len(availableLabels["path"])
+// combinations of those. If the specified metric count surpasses that, artificial GET, 200, /yolo/<number> will be generated.
+var availableLabels = map[string][]string{
+	"method": {
+		"POST",
+		"PUT",
+		"GET",
+	},
+	"status": {
+		"200",
+		"300",
+		"400",
+		"404",
+		"500",
+	},
+	"path": {
+		"/",
+		"/index",
+		"/topics",
+		"/topics:new",
+		"/topics/<id>",
+		"/topics/<id>/comment",
+		"/topics/<id>/comment:create",
+		"/topics/<id>/comment:edit",
+		"/imprint",
+	},
+}
+
+type metrics struct {
+	metricIncomingRequestsPending                *prometheus.GaugeVec
+	metricOutgoingRequestsPending                *prometheus.GaugeVec
+	metricIncomingRequests                       *prometheus.CounterVec
+	metricOutgoingRequests                       *prometheus.CounterVec
+	metricIncomingRequestErrors                  *prometheus.CounterVec
+	metricOutgoingRequestErrors                  *prometheus.CounterVec
+	metricIncomingRequestDurationHistogram       *prometheus.HistogramVec
+	metricOutgoingRequestDurationHistogram       *prometheus.HistogramVec
+	metricIncomingRequestDurationNativeHistogram *prometheus.HistogramVec
+	metricOutgoingRequestDurationNativeHistogram *prometheus.HistogramVec
+	metricIncomingRequestDurationSummary         *prometheus.SummaryVec
+	metricOutgoingRequestDurationSummary         *prometheus.SummaryVec
+}
+
+func newExampleMetrics(reg prometheus.Registerer) (m metrics) {
+	m.metricIncomingRequestsPending = promauto.With(reg).NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "example_incoming_requests_pending",
+			Name: adjustExampleMetricName("example_incoming_requests_pending", *metricNamingMode),
 			Help: "The number of pending incoming requests.",
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-	metricOutgoingRequestsPending = prometheus.NewGaugeVec(
+	m.metricOutgoingRequestsPending = promauto.With(reg).NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "example_outgoing_requests_pending",
+			Name: adjustExampleMetricName("example_outgoing_requests_pending", *metricNamingMode),
 			Help: "The number of pending outgoing requests.",
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-
-	metricIncomingRequests = prometheus.NewCounterVec(
+	m.metricIncomingRequests = promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "example_incoming_requests_total",
+			Name: adjustExampleMetricName("example_incoming_requests_total", *metricNamingMode),
 			Help: "The total number of incoming requests.",
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-	metricOutgoingRequests = prometheus.NewCounterVec(
+	m.metricOutgoingRequests = promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "example_outgoing_requests_total",
+			Name: adjustExampleMetricName("example_outgoing_requests_total", *metricNamingMode),
 			Help: "The total number of outgoing requests.",
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-	metricIncomingRequestErrors = prometheus.NewCounterVec(
+	m.metricIncomingRequestErrors = promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "example_incoming_request_errors_total",
+			Name: adjustExampleMetricName("example_incoming_request_errors_total", *metricNamingMode),
 			Help: "The number of errors on incoming requests.",
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-	metricOutgoingRequestErrors = prometheus.NewCounterVec(
+	m.metricOutgoingRequestErrors = promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "example_outgoing_request_errors_total",
+			Name: adjustExampleMetricName("example_outgoing_request_errors_total", *metricNamingMode),
 			Help: "The number of errors on outgoing requests.",
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-
-	metricIncomingRequestDurationHistogram = prometheus.NewHistogramVec(
+	m.metricIncomingRequestDurationHistogram = promauto.With(reg).NewHistogramVec(
 		//nolint:promlinter // Histogram included in metric name to disambiguate from native histogram.
 		prometheus.HistogramOpts{
-			Name:    "example_histogram_incoming_request_duration",
+			Name:    adjustExampleMetricName("example_histogram_incoming_request_duration", *metricNamingMode),
 			Help:    "Duration ranges of incoming requests.",
 			Buckets: prometheus.LinearBuckets(0, 100, 8),
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-	metricOutgoingRequestDurationHistogram = prometheus.NewHistogramVec(
+	m.metricOutgoingRequestDurationHistogram = promauto.With(reg).NewHistogramVec(
 		//nolint:promlinter // Histogram included in metric name to disambiguate from native histogram.
 		prometheus.HistogramOpts{
-			Name:    "example_histogram_outgoing_request_duration",
+			Name:    adjustExampleMetricName("example_histogram_outgoing_request_duration", *metricNamingMode),
 			Help:    "Duration ranges of outgoing requests.",
 			Buckets: prometheus.LinearBuckets(0, 100, 8),
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-
-	metricIncomingRequestDurationNativeHistogram = prometheus.NewHistogramVec(
+	m.metricIncomingRequestDurationNativeHistogram = promauto.With(reg).NewHistogramVec(
 		//nolint:promlinter // Native histogram included in metric name to disambiguate from histogram.
 		prometheus.HistogramOpts{
-			Name:                            "example_native_histogram_incoming_request_duration",
+			Name:                            adjustExampleMetricName("example_native_histogram_incoming_request_duration", *metricNamingMode),
 			Help:                            "Duration ranges of incoming requests.",
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  150,
 			NativeHistogramMinResetDuration: time.Hour,
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-	metricOutgoingRequestDurationNativeHistogram = prometheus.NewHistogramVec(
+	m.metricOutgoingRequestDurationNativeHistogram = promauto.With(reg).NewHistogramVec(
 		//nolint:promlinter // Native histogram included in metric name to disambiguate from histogram.
 		prometheus.HistogramOpts{
-			Name:                            "example_native_histogram_outgoing_request_duration",
+			Name:                            adjustExampleMetricName("example_native_histogram_outgoing_request_duration", *metricNamingMode),
 			Help:                            "Duration ranges of outgoing requests.",
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  150,
 			NativeHistogramMinResetDuration: time.Hour,
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-
-	metricIncomingRequestDurationSummary = prometheus.NewSummaryVec(
+	m.metricIncomingRequestDurationSummary = promauto.With(reg).NewSummaryVec(
 		//nolint:promlinter // Summary included in metric name to disambiguate from histograms.
 		prometheus.SummaryOpts{
-			Name: "example_summary_incoming_request_duration",
+			Name: adjustExampleMetricName("example_summary_incoming_request_duration", *metricNamingMode),
 			Help: "Duration of incoming requests.",
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-	metricOutgoingRequestDurationSummary = prometheus.NewSummaryVec(
+	m.metricOutgoingRequestDurationSummary = promauto.With(reg).NewSummaryVec(
 		//nolint:promlinter // Summary included in metric name to disambiguate from histograms.
 		prometheus.SummaryOpts{
-			Name: "example_summary_outgoing_request_duration",
+			Name: adjustExampleMetricName("example_summary_outgoing_request_duration", *metricNamingMode),
 			Help: "Duration of outgoing requests.",
 		},
-		[]string{"status", "method", "path"},
+		[]string{getStatusLabelName(*statusLabelNamingMode), "method", "path"},
 	)
-)
+	return m
+}
 
 func main() {
 	httpClientConfig := newHTTPClientConfigFromFlags()
 	flag.Parse()
-
 	if err := httpClientConfig.validate(); err != nil {
 		log.Println("Invalid HTTP client config flags:", err)
 		os.Exit(1)
 	}
+	if *metricNamingMode != PrometheusStyle || *statusLabelNamingMode != PrometheusStyle {
+		// Extend charset.
+		model.NameValidationScheme = model.UTF8Validation
+	}
 
-	metrics := prometheus.NewRegistry()
-	metrics.MustRegister(
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(
 		collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsAll)),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		metricIncomingRequestsPending,
-		metricOutgoingRequestsPending,
-		metricIncomingRequests,
-		metricOutgoingRequests,
-		metricIncomingRequestErrors,
-		metricOutgoingRequestErrors,
-		metricIncomingRequestDurationHistogram,
-		metricOutgoingRequestDurationHistogram,
-		metricIncomingRequestDurationNativeHistogram,
-		metricOutgoingRequestDurationNativeHistogram,
-		metricIncomingRequestDurationSummary,
-		metricOutgoingRequestDurationSummary,
 	)
+	m := newExampleMetrics(reg)
 
 	var memoryBallast []byte
 	allocateMemoryBallast(&memoryBallast, *memBallastMBs*1000*1000)
@@ -245,8 +307,8 @@ func main() {
 	}
 	{
 		mux := http.NewServeMux()
-		mux.Handle("/metrics", httpClientConfig.handle(promhttp.HandlerFor(metrics, promhttp.HandlerOpts{
-			Registry:          metrics,
+		mux.Handle("/metrics", httpClientConfig.handle(promhttp.HandlerFor(reg, promhttp.HandlerOpts{
+			Registry:          reg,
 			EnableOpenMetrics: true,
 		})))
 		httpClientConfig.register(mux)
@@ -291,7 +353,7 @@ func main() {
 		ctx, cancel := context.WithCancel(context.Background())
 		g.Add(
 			func() error {
-				return updateMetrics(ctx)
+				return updateMetrics(ctx, m)
 			},
 			func(error) {
 				cancel()
@@ -339,7 +401,7 @@ func burnCPU(ctx context.Context, ops int) error {
 
 // newTraceIDs generates random trace and span ID strings that conform to the
 // open telemetry spec: https://github.com/open-telemetry/opentelemetry-specification/blob/v1.18.0/specification/overview.md#spancontext.
-func newTraceIDs(traceBytes, spanBytes []byte) (traceID string, spanID string) {
+func newTraceIDs(traceBytes, spanBytes []byte) (traceID, spanID string) {
 	_, _ = rand.Read(traceBytes)
 	_, _ = rand.Read(spanBytes)
 	return hex.EncodeToString(traceBytes), hex.EncodeToString(spanBytes)
@@ -347,7 +409,7 @@ func newTraceIDs(traceBytes, spanBytes []byte) (traceID string, spanID string) {
 
 // updateMetrics is a blocking function that periodically updates toy metrics
 // with new values.
-func updateMetrics(ctx context.Context) error {
+func updateMetrics(ctx context.Context, m metrics) error {
 	projectID := "example-project"
 	traceBytes := make([]byte, 16)
 	spanBytes := make([]byte, 8)
@@ -357,14 +419,14 @@ func updateMetrics(ctx context.Context) error {
 			return nil
 		case <-time.After(100 * time.Millisecond):
 			forNumInstances(*gaugeCount, func(labels prometheus.Labels) {
-				metricIncomingRequestsPending.With(labels).Set(float64(mathrand.Intn(200)))
-				metricOutgoingRequestsPending.With(labels).Set(float64(mathrand.Intn(200)))
+				m.metricIncomingRequestsPending.With(labels).Set(float64(mathrand.Intn(200)))
+				m.metricOutgoingRequestsPending.With(labels).Set(float64(mathrand.Intn(200)))
 			})
 			forNumInstances(*counterCount, func(labels prometheus.Labels) {
-				metricIncomingRequests.With(labels).Add(float64(mathrand.Intn(200)))
-				metricOutgoingRequests.With(labels).Add(float64(mathrand.Intn(100)))
-				metricIncomingRequestErrors.With(labels).Add(float64(mathrand.Intn(15)))
-				metricOutgoingRequestErrors.With(labels).Add(float64(mathrand.Intn(5)))
+				m.metricIncomingRequests.With(labels).Add(float64(mathrand.Intn(200)))
+				m.metricOutgoingRequests.With(labels).Add(float64(mathrand.Intn(100)))
+				m.metricIncomingRequestErrors.With(labels).Add(float64(mathrand.Intn(15)))
+				m.metricOutgoingRequestErrors.With(labels).Add(float64(mathrand.Intn(5)))
 			})
 			forNumInstances(*histogramCount, func(labels prometheus.Labels) {
 				// Record exemplar with histogram depending on sampling fraction.
@@ -373,11 +435,11 @@ func updateMetrics(ctx context.Context) error {
 				if samp < thresh {
 					traceID, spanID := newTraceIDs(traceBytes, spanBytes)
 					exemplar := prometheus.Labels{"trace_id": traceID, "span_id": spanID, "project_id": projectID}
-					metricIncomingRequestDurationHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(mathrand.NormFloat64()*300+500, exemplar)
+					m.metricIncomingRequestDurationHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(mathrand.NormFloat64()*300+500, exemplar)
 				} else {
-					metricIncomingRequestDurationHistogram.With(labels).Observe(mathrand.NormFloat64()*300 + 500)
+					m.metricIncomingRequestDurationHistogram.With(labels).Observe(mathrand.NormFloat64()*300 + 500)
 				}
-				metricOutgoingRequestDurationHistogram.With(labels).Observe(mathrand.NormFloat64()*200 + 300)
+				m.metricOutgoingRequestDurationHistogram.With(labels).Observe(mathrand.NormFloat64()*200 + 300)
 			})
 			forNumInstances(*nativeHistogramCount, func(labels prometheus.Labels) {
 				// Record exemplar with native histogram depending on sampling fraction.
@@ -386,15 +448,15 @@ func updateMetrics(ctx context.Context) error {
 				if samp < thresh {
 					traceID, spanID := newTraceIDs(traceBytes, spanBytes)
 					exemplar := prometheus.Labels{"trace_id": traceID, "span_id": spanID, "project_id": projectID}
-					metricIncomingRequestDurationNativeHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(mathrand.NormFloat64()*300+500, exemplar)
+					m.metricIncomingRequestDurationNativeHistogram.With(labels).(prometheus.ExemplarObserver).ObserveWithExemplar(mathrand.NormFloat64()*300+500, exemplar)
 				} else {
-					metricIncomingRequestDurationNativeHistogram.With(labels).Observe(mathrand.NormFloat64()*300 + 500)
+					m.metricIncomingRequestDurationNativeHistogram.With(labels).Observe(mathrand.NormFloat64()*300 + 500)
 				}
-				metricOutgoingRequestDurationNativeHistogram.With(labels).Observe(mathrand.NormFloat64()*200 + 300)
+				m.metricOutgoingRequestDurationNativeHistogram.With(labels).Observe(mathrand.NormFloat64()*200 + 300)
 			})
 			forNumInstances(*summaryCount, func(labels prometheus.Labels) {
-				metricIncomingRequestDurationSummary.With(labels).Observe(mathrand.NormFloat64()*300 + 500)
-				metricOutgoingRequestDurationSummary.With(labels).Observe(mathrand.NormFloat64()*200 + 300)
+				m.metricIncomingRequestDurationSummary.With(labels).Observe(mathrand.NormFloat64()*300 + 500)
+				m.metricOutgoingRequestDurationSummary.With(labels).Observe(mathrand.NormFloat64()*200 + 300)
 			})
 		}
 	}
@@ -418,8 +480,8 @@ func forNumInstances(c int, f func(prometheus.Labels)) {
 					return
 				}
 				f(prometheus.Labels{
-					"path":   path,
-					"status": status,
+					"path": path,
+					getStatusLabelName(*statusLabelNamingMode): status,
 					"method": method,
 				})
 				c--
@@ -430,8 +492,8 @@ func forNumInstances(c int, f func(prometheus.Labels)) {
 	if c > 0 {
 		for ; c > 0; c-- {
 			f(prometheus.Labels{
-				"path":   fmt.Sprintf("/yolo/%d", c),
-				"status": "200",
+				"path": fmt.Sprintf("/yolo/%d", c),
+				getStatusLabelName(*statusLabelNamingMode): "200",
 				"method": "GET",
 			})
 		}
