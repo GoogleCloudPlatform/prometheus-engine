@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.0@sha256:ffc9c87d9826ce5c48de165fb774e3ec0c4fb1006aa09b374b6cf2e1638e5b89 AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.1@sha256:2a5741ae38c60d188ae9144d1b63730b8059d016216e785b9b35acf1ace69bc1 AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
