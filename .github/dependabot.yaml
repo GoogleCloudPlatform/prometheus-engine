@@ -76,6 +76,58 @@ updates:
     - /hack
   ignore:
     - dependency-name: "gke-release/prometheus-engine/*"
+      versions: [ ">=0.18.0" ]
+  schedule:
+    interval: weekly
+  commit-message:
+    prefix: fix
+    prefix-development: chore
+    include: scope
+  groups:
+    docker:
+      patterns:
+        - "*"
+  target-branch: release/0.17
+- package-ecosystem: gomod
+  open-pull-requests-limit: 0 # Security updates only
+  directory: /
+  ignore:
+  # Skip Prometheus as we need to have it pinned carefully.
+  - dependency-name: "github.com/prometheus/prometheus"
+  schedule:
+    interval: weekly
+  commit-message:
+    prefix: fix
+    prefix-development: chore
+    include: scope
+  groups:
+    # Group dep updates into one PR as single update already updates co-located deps.
+    deps:
+      patterns:
+      - "*"
+      exclude-patterns:
+      - "k8s.io/*"
+      - "sigs.k8s.io/*"
+    # Attempt to group dep updates for k8s as they typically break by assuming
+    # all k8s modules are upgraded in the same time.
+    k8s-deps:
+      patterns:
+      - "k8s.io/*"
+      - "sigs.k8s.io/*"
+  target-branch: release/0.17
+# Duplicate config for release/0.16
+- package-ecosystem: docker
+  open-pull-requests-limit: 0 # Security updates only
+  directories:
+    - /cmd/config-reloader
+    - /cmd/datasource-syncer
+    - /cmd/frontend
+    - /cmd/operator
+    - /cmd/rule-evaluator
+    - /examples/instrumentation/go-synthetic
+    - /hack
+  ignore:
+    - dependency-name: "gke-release/prometheus-engine/*"
       versions: [ ">=0.17.0" ]
   schedule:
     interval: weekly
