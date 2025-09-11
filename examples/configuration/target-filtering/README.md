@@ -42,10 +42,20 @@ In this [example](pod-monitoring.yaml) we allow list the following metric for `p
 
     ![gcm-allow-all](gcm-allow-all.png)
 
-4. Apply `PodMonitoring` with the strict allow list:
+4. Apply `PodMonitoring` with the deny list:
 
     ```
-    kubectl apply -f ./examples/configuration/target-filtering/pod-monitoring.yaml
+    kubectl apply -f ./examples/configuration/target-filtering/pod-monitoring-denylist.yaml
+    ```
+
+   After a short time you should see the same metrics except:
+    * Prometheus special metrics (like `up`)
+    * Deny listed metrics from `prom-example` app (`go_goroutines` gauge, `example_random_number` classic histogram and `go_gc_cycles_total_gc_cycles_total`).
+
+5. Apply `PodMonitoring` with the strict allow list:
+
+    ```
+    kubectl apply -f ./examples/configuration/target-filtering/pod-monitoring-allowlist.yaml
     ```
 
    After a short time you should see ONLY:
