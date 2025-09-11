@@ -1,0 +1,43 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: prom-example
+  labels:
+    app.kubernetes.io/name: prom-example
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prom-example
+  endpoints:
+  - port: metrics
+    interval: 30s
+    # This example metric relabelling shows denylist filtering which is easier
+    # to configure and safer to control and test. Recommended filtering method per pod.
+    metricRelabeling:
+    - sourceLabels: [ __name__, job ]
+      # Drop metrics matching the regex on sourceLabels concatenated with ';',
+      # allow anything else.
+      action: drop
+      # Drop series having pod label prefix `prom-example-` and
+      # either name 'go_goroutines' or prefix 'example_random_numbers_'. The last
+      # metric name is a classic histogram, which consists of 3 metric names:
+      # example_random_numbers_bucket, example_random_numbers_count, example_random_numbers_sum.
+      regex: "(go_goroutines|example_random_numbers_.*);prom-example-.*"
+    - sourceLabels: [ __name__ ]
+      # Drop another metric if needed.
+      action: drop
+      regex: "go_gc_cycles_total_gc_cycles_total"

@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,8 +25,10 @@ spec:
   endpoints:
   - port: metrics
     interval: 30s
+    # This example metric relabelling shows allowlist filtering which is easier
+    # to configure and safer to control and test. Recommended filtering method per pod.
     metricRelabeling:
-    - sourceLabels: [__name__, pod]
+    - sourceLabels: [ __name__ , pod ]
       # Keep metrics matching the regex on sourceLabels concatenated with ';',
       # reject scraping anything else.
       action: keep
