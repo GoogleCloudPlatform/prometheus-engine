@@ -12,9 +12,13 @@ TEST_ARGS=-project-id=$(PROJECT_ID) -location=$(GMP_LOCATION) -cluster=$(GMP_CLU
 
 API_DIR=pkg/operator/apis
 LOCAL_CREDENTIALS=/tmp/gcm-editor.json
-# If credentials are provided, ensure we mount them during e2e test.
-ifneq ($(GOOGLE_APPLICATION_CREDENTIALS),)
-E2E_DOCKER_ARGS := --env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" -v $(GOOGLE_APPLICATION_CREDENTIALS):$(LOCAL_CREDENTIALS)
+ifneq ($(GCM_SECRET),)
+	# If GCM_SECRET env-var is provided use it as GOOGLE_APPLICATION_CREDENTIALS.
+	# e2e-only will write GCM_SECRET env-var to LOCAL_CREDENTIALS.
+	E2E_DOCKER_ARGS := --env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" -v $(LOCAL_CREDENTIALS):$(LOCAL_CREDENTIALS)
+else ifneq ($(GOOGLE_APPLICATION_CREDENTIALS),)
+	# If credentials are provided, ensure we mount them during e2e test.
+	E2E_DOCKER_ARGS := --env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" -v $(GOOGLE_APPLICATION_CREDENTIALS):$(LOCAL_CREDENTIALS)
 endif
 
 ifeq ($(KIND_PERSIST), 1)
@@ -187,6 +191,13 @@ e2e-only:    ## Run e2e test suite without rebuilding images. This assumes that
              ## images are already built (e.g. make e2e was called at least
              ## once). This is useful when testing e2e changes only.
              ##
+ifneq ($(GCM_SECRET),)
+	@# When GCM_SECRET env-var is provided use it as GOOGLE_APPLICATION_CREDENTIALS.
+	@# LOCAL_CREDENTIALS is used in E2E_DOCKER_ARGS generated in the top of Makefile.
+	@# We do this here to not spread credentials in tmp directory for every command.
+	@echo "Writing GCM_SECRET to $(LOCAL_CREDENTIALS) file"
+	@echo "$${GCM_SECRET}" > "$(LOCAL_CREDENTIALS)"
+endif
 	$(call ensure_registry)
 # We lose some isolation by sharing the host network with the kind containers.
 # However, we avoid a gcloud-shell "Dockerception" and save on build times.
