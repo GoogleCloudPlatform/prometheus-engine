@@ -34,7 +34,10 @@ FROM buildbase AS appbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
+COPY charts/values.global.yaml charts/values.global.yaml
 COPY --from=assets /app ./
+
+RUN GO111MODULE=on go get github.com/mikefarah/yq/v3 # Install yq tool.
 
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1
