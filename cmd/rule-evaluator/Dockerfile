@@ -16,6 +16,7 @@ FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.1@sha256:2a5741ae38
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
+COPY charts/values.global.yaml charts/values.global.yaml
 COPY go.mod go.mod
 COPY go.sum go.sum
 # Copy the Go vendor directory only if it exists. Vendor folder will automatically
@@ -24,6 +25,8 @@ COPY vendor* vendor
 COPY cmd cmd
 COPY pkg pkg
 COPY internal internal
+
+RUN GO111MODULE=on go get github.com/mikefarah/yq/v3 # Install yq tool.
 
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1
