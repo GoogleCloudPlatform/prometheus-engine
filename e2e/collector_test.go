@@ -22,10 +22,12 @@ import (
 	"testing"
 	"time"
 
+	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	appsv1 "k8s.io/api/apps/v1"
@@ -457,12 +459,86 @@ func testEnableKubeletScraping(ctx context.Context, kubeClient client.Client) fu
 	}
 }
 
+type listTimeSeriesFilter struct {
+	metricType, job, instance, namespace, node string
+}
+
+func (l listTimeSeriesFilter) Filter(t testing.TB) string {
+	t.Helper()
+
+	require.NotEmpty(t, l.metricType)
+	require.NotEmpty(t, l.job)
+	require.NotEmpty(t, l.instance)
+
+	// Validate the majority of labels being set correctly by filtering along them (e.g. project, location, cluster).
+	filter := fmt.Sprintf(`
+				resource.type = "prometheus_target" AND
+				resource.labels.project_id = "%s" AND
+				resource.label.location = "%s" AND
+				resource.labels.cluster = "%s" AND
+				resource.labels.job = "%s" AND
+				resource.labels.instance = "%s" AND
+				metric.type = "%s"`,
+		projectID,
+		location,
+		cluster,
+		l.job,
+		l.instance,
+		l.metricType,
+	)
+	if l.namespace != "" {
+		filter += fmt.Sprintf(`AND resource.labels.namespace = "%s"`, l.namespace)
+	}
+	if l.node != "" {
+		filter += fmt.Sprintf(`AND metric.labels.node = "%s"`, l.node)
+	}
+	return filter
+}
+
+// testValidateGCMMetricEqual fa checks whether the scrape-time up metrics for all collector
+// pods can be queried from GCM.
+func testValidateGCMMetricEqual(ctx context.Context, metricClient *gcm.MetricClient, f listTimeSeriesFilter, endTime time.Time, expectedValue float64) func(*testing.T) {
+	return func(t *testing.T) {
+		filter := f.Filter(t)
+		t.Log("checking for metric in Cloud Monitoring", filter)
+		if err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
+				Name:   fmt.Sprintf("projects/%s", projectID),
+				Filter: filter,
+				Interval: &gcmpb.TimeInterval{
+					EndTime:   timestamppb.New(endTime),
+					StartTime: timestamppb.New(endTime.Add(-10 * time.Second)),
+				},
+			})
+			series, err := iter.Next()
+			if errors.Is(err, iterator.Done) {
+				t.Log("no data in GCM, retrying...")
+				return false, nil
+			}
+			if err != nil {
+				return false, fmt.Errorf("querying metrics failed: %w", err)
+			}
+			if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != expectedValue {
+				t.Logf("%q has unexpected value %v (expected: %v), retrying...", f.metricType, v, expectedValue)
+				return false, nil
+			}
+
+			// We expect exactly one result.
+			series, err = iter.Next()
+			if !errors.Is(err, iterator.Done) {
+				return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
+			}
+			return true, nil
+		}); err != nil {
+			t.Fatalf("waiting for collector metric to appear in GCM failed: %s; filter: %v", err, filter)
+		}
+	}
+}
+
 // testValidateCollectorUpMetrics checks whether the scrape-time up metrics for all collector
 // pods can be queried from GCM.
 func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Client, job string) func(*testing.T) {
 	return func(t *testing.T) {
-		t.Log("checking for metrics in Cloud Monitoring")
-
 		// Wait for metric data to show up in Cloud Monitoring.
 		metricClient, err := newMetricClient(ctx)
 		if err != nil {
@@ -488,50 +564,13 @@ func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Clien
 		// of a single query.
 		for _, pod := range pods.Items {
 			for _, port := range []string{operator.CollectorPrometheusContainerPortName, operator.CollectorConfigReloaderContainerPortName} {
-				t.Logf("poll 'up' metric for pod %q and port %q", pod.Name, port)
-
-				err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-					now := time.Now()
-
-					// Validate the majority of labels being set correctly by filtering along them.
-					iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
-						Name: fmt.Sprintf("projects/%s", projectID),
-						Filter: fmt.Sprintf(`
-				resource.type = "prometheus_target" AND
-				resource.labels.project_id = "%s" AND
-				resource.label.location = "%s" AND
-				resource.labels.cluster = "%s" AND
-				resource.labels.namespace = "%s" AND
-				resource.labels.job = "%s" AND
-				resource.labels.instance = "%s:%s" AND
-				metric.type = "prometheus.googleapis.com/up/gauge"
-				`, projectID, location, cluster, operator.DefaultOperatorNamespace, job, pod.Spec.NodeName, port),
-						Interval: &gcmpb.TimeInterval{
-							EndTime:   timestamppb.New(now),
-							StartTime: timestamppb.New(now.Add(-10 * time.Second)),
-						},
-					})
-					series, err := iter.Next()
-					if errors.Is(err, iterator.Done) {
-						t.Log("no data in GCM, retrying...")
-						return false, nil
-					} else if err != nil {
-						return false, fmt.Errorf("querying metrics failed: %w", err)
-					}
-					if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
-						t.Logf("'up' still %v, retrying...", v)
-						return false, nil
-					}
-					// We expect exactly one result.
-					series, err = iter.Next()
-					if !errors.Is(err, iterator.Done) {
-						return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
-					}
-					return true, nil
-				})
-				if err != nil {
-					t.Fatalf("waiting for collector metrics to appear in GCM failed: %s", err)
-				}
+				instance := fmt.Sprintf("%s:%s", pod.Name, port)
+				t.Run(instance, testValidateGCMMetricEqual(ctx, metricClient, listTimeSeriesFilter{
+					metricType: "prometheus.googleapis.com/up/gauge",
+					job:        job,
+					instance:   instance,
+					namespace:  operator.DefaultOperatorNamespace,
+				}, time.Now(), 1))
 			}
 		}
 	}
@@ -556,52 +595,13 @@ func testCollectorScrapeKubelet(ctx context.Context, kubeClient client.Client) f
 
 		for _, node := range nodes.Items {
 			for _, port := range []string{"metrics", "cadvisor"} {
-				t.Logf("poll 'up' metric for kubelet on node %q and port %q", node.Name, port)
-
-				err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-					now := time.Now()
-
-					// Validate the majority of labels being set correctly by filtering along them.
-					iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
-						Name: fmt.Sprintf("projects/%s", projectID),
-						Filter: fmt.Sprintf(`
-				resource.type = "prometheus_target" AND
-				resource.labels.project_id = "%s" AND
-				resource.label.location = "%s" AND
-				resource.labels.cluster = "%s" AND
-				resource.labels.job = "kubelet" AND
-				resource.labels.instance = "%s:%s" AND
-				metric.type = "prometheus.googleapis.com/up/gauge" AND
-				metric.labels.node = "%s"
-				`,
-							projectID, location, cluster, node.Name, port, node.Name,
-						),
-						Interval: &gcmpb.TimeInterval{
-							EndTime:   timestamppb.New(now),
-							StartTime: timestamppb.New(now.Add(-10 * time.Second)),
-						},
-					})
-					series, err := iter.Next()
-					if errors.Is(err, iterator.Done) {
-						t.Logf("no data in GCM, retrying...")
-						return false, nil
-					} else if err != nil {
-						return false, fmt.Errorf("querying metrics failed: %w", err)
-					}
-					if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
-						t.Logf("'up' still %v, retrying...", v)
-						return false, nil
-					}
-					// We expect exactly one result.
-					series, err = iter.Next()
-					if !errors.Is(err, iterator.Done) {
-						return false, fmt.Errorf("expected iterator to be done but got series %v: %w", series, err)
-					}
-					return true, nil
-				})
-				if err != nil {
-					t.Fatalf("waiting for collector metrics to appear in GCM failed: %s", err)
-				}
+				instance := fmt.Sprintf("%s:%s", node.Name, port)
+				t.Run(instance, testValidateGCMMetricEqual(ctx, metricClient, listTimeSeriesFilter{
+					metricType: "prometheus.googleapis.com/up/gauge",
+					job:        "kubelet",
+					instance:   instance,
+					node:       node.Name,
+				}, time.Now(), 1))
 			}
 		}
 	}
