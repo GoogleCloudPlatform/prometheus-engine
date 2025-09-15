@@ -38,39 +38,6 @@ spec:
         - name: config-out
           mountPath: /prometheus/config_out
       containers:
-      - name: config-reloader
-        image: {{.Values.images.configReloader.image}}:{{.Values.images.configReloader.tag}}
-        args:
-        - --config-file=/prometheus/config/config.yaml
-        - --config-file-output=/prometheus/config_out/config.yaml
-        - --config-dir=/etc/rules
-        - --config-dir-output=/prometheus/rules_out
-        - --reload-url=http://127.0.0.1:9092/-/reload
-        - --ready-url=http://127.0.0.1:9092/-/ready
-        - --listen-address=:9093
-        ports:
-        - name: cfg-rel-metrics
-          protocol: TCP
-          containerPort: 9093
-        resources: {{- toYaml $.Values.resources.configReloader | nindent 10}}
-        volumeMounts:
-        - name: config
-          readOnly: true
-          mountPath: /prometheus/config
-        - name: config-out
-          mountPath: /prometheus/config_out
-        - name: rules
-          readOnly: true
-          mountPath: /etc/rules
-        - name: rules-out
-          mountPath: /prometheus/rules_out
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          privileged: false
-          readOnlyRootFilesystem: true
       - name: evaluator
         image: {{.Values.images.ruleEvaluator.image}}:{{.Values.images.ruleEvaluator.tag}}
         args:
@@ -97,6 +64,39 @@ spec:
             path: /-/ready
           # Readiness attempts a query round-trip so we need a more generous timeout.
           timeoutSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
+          readOnlyRootFilesystem: true
+      - name: config-reloader
+        image: {{.Values.images.configReloader.image}}:{{.Values.images.configReloader.tag}}
+        args:
+        - --config-file=/prometheus/config/config.yaml
+        - --config-file-output=/prometheus/config_out/config.yaml
+        - --config-dir=/etc/rules
+        - --config-dir-output=/prometheus/rules_out
+        - --reload-url=http://127.0.0.1:9092/-/reload
+        - --ready-url=http://127.0.0.1:9092/-/ready
+        - --listen-address=:9093
+        ports:
+        - name: cfg-rel-metrics
+          protocol: TCP
+          containerPort: 9093
+        resources: {{- toYaml $.Values.resources.configReloader | nindent 10}}
+        volumeMounts:
+        - name: config
+          readOnly: true
+          mountPath: /prometheus/config
+        - name: config-out
+          mountPath: /prometheus/config_out
+        - name: rules
+          readOnly: true
+          mountPath: /etc/rules
+        - name: rules-out
+          mountPath: /prometheus/rules_out
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
