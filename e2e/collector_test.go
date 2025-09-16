@@ -235,6 +235,13 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 				"{projectID}", projectID,
 				"{location}", location,
 				"{cluster}", cluster,
+				"{exportCredentialsEntry}", func() string {
+					if !explicitCredentialsConfigured() {
+						return ""
+					}
+					return fmt.Sprintf(`
+        credentials: %s`, collectorExplicitCredentials())
+				}(),
 			).Replace(s)
 		}
 		want := map[string]string{
@@ -246,7 +253,7 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
         project_id: {projectID}
 google_cloud:
     export:
-        compression: gzip
+        compression: gzip{exportCredentialsEntry}
         match:
             - '{project_id=''{projectID}''}'
             - '{location=~''{location}$''}'

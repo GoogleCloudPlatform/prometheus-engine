@@ -16,14 +16,13 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/manifests"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -34,6 +33,10 @@ func CreateResources(ctx context.Context, kubeClient client.Client, deployOpts .
 		opt(opts)
 	}
 	opts.setDefaults()
+
+	if opts.disableGCM && opts.explicitCredentials != "" {
+		return errors.New("both disableGCM and explicitCredentials option was set; forbidden")
+	}
 
 	return createResources(ctx, kubeClient, func(obj client.Object) (client.Object, error) {
 		switch obj := obj.(type) {
@@ -49,12 +52,13 @@ func CreateResources(ctx context.Context, kubeClient client.Client, deployOpts .
 type DeployOption func(*deployOptions)
 
 type deployOptions struct {
-	operatorNamespace string
-	publicNamespace   string
-	projectID         string
-	cluster           string
-	location          string
-	disableGCM        bool
+	operatorNamespace   string
+	publicNamespace     string
+	projectID           string
+	cluster             string
+	location            string
+	disableGCM          bool
+	explicitCredentials string
 }
 
 func (opts *deployOptions) setDefaults() {
@@ -89,6 +93,14 @@ func WithMeta(projectID, cluster, location string) DeployOption {
 func WithDisableGCM(disableGCM bool) DeployOption {
 	return func(opts *deployOptions) {
 		opts.disableGCM = disableGCM
+	}
+}
+
+// WithExplicitCredentials sets explicit credential file path in local container to use.
+// TODO(bwplotka): This is a temporary solution for https://github.com/GoogleCloudPlatform/prometheus/pull/259/files#r2350691932
+func WithExplicitCredentials(filepath string) DeployOption {
+	return func(opts *deployOptions) {
+		opts.explicitCredentials = filepath
 	}
 }
 
@@ -130,7 +142,7 @@ func resources(scheme *runtime.Scheme) ([]client.Object, error) {
 }
 
 func normalizeDaemonSets(opts *deployOptions, obj *appsv1.DaemonSet) (client.Object, error) {
-	if !opts.disableGCM {
+	if !opts.disableGCM && opts.explicitCredentials == "" {
 		return obj, nil
 	}
 	if obj.GetName() != operator.NameCollector {
@@ -139,7 +151,11 @@ func normalizeDaemonSets(opts *deployOptions, obj *appsv1.DaemonSet) (client.Obj
 	for i := range obj.Spec.Template.Spec.Containers {
 		container := &obj.Spec.Template.Spec.Containers[i]
 		if container.Name == operator.CollectorPrometheusContainerName {
-			container.Args = append(container.Args, "--export.debug.disable-auth")
+			if opts.disableGCM {
+				container.Args = append(container.Args, "--export.debug.disable-auth")
+			} else if opts.explicitCredentials != "" {
+				container.Args = append(container.Args, "--export.credentials-file="+opts.explicitCredentials)
+			}
 			return obj, nil
 		}
 	}
@@ -169,35 +185,23 @@ func normalizeDeployments(opts *deployOptions, obj *appsv1.Deployment) (client.O
 			container.Args = append(container.Args, fmt.Sprintf("--public-namespace=%s", opts.publicNamespace))
 		}
 	case operator.NameRuleEvaluator:
-		if !opts.disableGCM {
+		if !opts.disableGCM && opts.explicitCredentials == "" {
 			break
 		}
 		container, err := kube.DeploymentContainer(obj, operator.RuleEvaluatorContainerName)
 		if err != nil {
 			return nil, fmt.Errorf("unable to find rule-evaluator %q container: %w", operator.RuleEvaluatorContainerName, err)
 		}
-		container.Args = append(container.Args, "--export.debug.disable-auth")
-		container.Args = append(container.Args, "--query.debug.disable-auth")
+		if opts.disableGCM {
+			container.Args = append(container.Args, "--export.debug.disable-auth")
+			container.Args = append(container.Args, "--query.debug.disable-auth")
+			break
+		}
+		if opts.explicitCredentials != "" {
+			container.Args = append(container.Args, "--export.credentials-file="+opts.explicitCredentials)
+			container.Args = append(container.Args, "--query.credentials-file="+opts.explicitCredentials)
+			break
+		}
 	}
 	return obj, nil
-}
-
-const (
-	GCMSecretName = "user-gcp-service-account"
-	GCMSecretKey  = "key.json"
-)
-
-func CreateGCMSecret(ctx context.Context, kubeClient client.Client, serviceAccount []byte) error {
-	if err := kubeClient.Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "user-gcp-service-account",
-			Namespace: operator.DefaultOperatorNamespace,
-		},
-		Data: map[string][]byte{
-			"key.json": serviceAccount,
-		},
-	}); err != nil {
-		return fmt.Errorf("create GCM service account secret: %w", err)
-	}
-	return nil
 }
