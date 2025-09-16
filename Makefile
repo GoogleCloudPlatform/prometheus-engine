@@ -218,6 +218,20 @@ e2e-only:    ## Run e2e test suite without rebuilding images. This assumes that
 		$(E2E_DOCKER_ARGS) \
 		gmp/kindtest ./hack/kind-test.sh {}
 
+.PHONY: e2e-exec
+e2e-exec:     ## Start interactive shell the same context and image as e2e tests.
+              ## Typically this means kind and kubectl commands after KIND_PERSIST=1 make e2e
+e2e-exec:
+	docker run -it \
+    	--env REGISTRY_NAME=$(REGISTRY_NAME) \
+     	--env REGISTRY_PORT=$(REGISTRY_PORT) \
+     	--network host \
+     	--rm \
+     	-v $(DOCKER_VOLUME):/var/run/docker.sock \
+     	-v `pwd`/e2e:/build/e2e \
+     	$(E2E_DOCKER_ARGS) \
+     	gmp/kindtest bash
+
 .PHONY: presubmit
 presubmit:   ## Regenerate all resources, build all images and run all tests.
              ## Steps from presubmit are validated on the CI, but feel free to
