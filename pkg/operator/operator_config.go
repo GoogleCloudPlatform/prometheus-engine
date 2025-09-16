@@ -169,7 +169,6 @@ func setupOperatorConfigControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterAlertManagerSecret)).
 		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
-
 	if err != nil {
 		return fmt.Errorf("operator-config controller: %w", err)
 	}
@@ -399,7 +398,7 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 	}
 
 	// Set defaults on public namespace secret.
-	var sel = &corev1.SecretKeySelector{
+	sel := &corev1.SecretKeySelector{
 		LocalObjectReference: corev1.LocalObjectReference{
 			Name: AlertmanagerPublicSecretName,
 		},
@@ -776,7 +775,7 @@ func getConfigMapKeyBytes(ctx context.Context, c client.Reader, namespace string
 	return nil, fmt.Errorf("key %q in configmap %q not found", sel.Key, sel.Name)
 }
 
-// pathForSelector cretes the filepath for the provided NamespacedSecretOrConfigMap.
+// pathForSelector creates the filepath for the provided NamespacedSecretOrConfigMap.
 // This can be used to avoid naming collisions of like-keys across K8s resources.
 func pathForSelector(namespace string, scm *monitoringv1.SecretOrConfigMap) string {
 	if scm == nil {

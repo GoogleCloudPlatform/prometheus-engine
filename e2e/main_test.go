@@ -36,6 +36,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -53,6 +54,9 @@ const (
 	// terminates.
 	timeoutGracePeriod = 10 * time.Second
 	gcmSecretEnv       = "GCM_SECRET"
+
+	gcmExplicitSecretName = "user-gcp-service-account"
+	gcmExplicitSecretKey  = "key.json"
 )
 
 var (
@@ -92,7 +96,17 @@ func setupCluster(ctx context.Context, t testing.TB) (client.Client, *rest.Confi
 		return nil, nil, err
 	}
 
-	if err := deploy.CreateResources(ctx, kubeClient, deploy.WithMeta(projectID, cluster, location), deploy.WithDisableGCM(skipGCM)); err != nil {
+	options := []deploy.DeployOption{deploy.WithMeta(projectID, cluster, location), deploy.WithDisableGCM(skipGCM)}
+	if explicitCredentialsConfigured() {
+		t.Log(">>> setup explicit credentials")
+		// Due to https://github.com/GoogleCloudPlatform/prometheus/pull/259/files#r2350691932
+		// we have to configure correct credential for fork to use before it applies config.
+		// It will crashloop until operator sets up credentials, but eventually it will work.
+		// TODO(bwplotka): Remove once we make fork apply config on start correctly.
+		options = append(options, deploy.WithExplicitCredentials(collectorExplicitCredentials()))
+	}
+
+	if err := deploy.CreateResources(ctx, kubeClient, options...); err != nil {
 		return nil, nil, err
 	}
 
@@ -107,8 +121,8 @@ func setupCluster(ctx context.Context, t testing.TB) (client.Client, *rest.Confi
 	t.Log(">>> operator started successfully")
 
 	if explicitCredentialsConfigured() {
-		t.Log(">>> setup explicit credentials")
-		if err := setupExplicitCredentials(ctx, kubeClient); err != nil {
+		t.Log(">>> configure operator explicit credentials")
+		if err := configureOperatorExplicitCredentials(ctx, kubeClient); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -135,6 +149,27 @@ func getExplicitGCMSAJSON() ([]byte, error) {
 	return nil, errors.New("gcp-service-account flag or GCM_SECRET environment variable not set")
 }
 
+func createGCMSecret(ctx context.Context, kubeClient client.Client, serviceAccount []byte) error {
+	if err := kubeClient.Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gcmExplicitSecretName,
+			Namespace: operator.DefaultPublicNamespace,
+		},
+		Data: map[string][]byte{
+			gcmExplicitSecretKey: serviceAccount,
+		},
+	}); err != nil {
+		return fmt.Errorf("create GCM service account secret: %w", err)
+	}
+	return nil
+}
+
+// collectorExplicitCredentials returns the local path for operator injected
+// credentials in the local collector filesystem, when using createGCMSecret().
+func collectorExplicitCredentials() string {
+	return fmt.Sprintf("/etc/secrets/secret_%s_%s_%s", operator.DefaultPublicNamespace, gcmExplicitSecretName, gcmExplicitSecretKey)
+}
+
 // newMetricClient returns GCM client. Our e2e tests supports both GOOGLE_APPLICATION_CREDENTIALS (file)
 // and GCM_SECRET (content, required with CI use).
 func newMetricClient(ctx context.Context) (*gcm.MetricClient, error) {
@@ -148,38 +183,42 @@ func newMetricClient(ctx context.Context) (*gcm.MetricClient, error) {
 	return gcm.NewMetricClient(ctx, option.WithCredentialsJSON(gcmSA))
 }
 
-func setupExplicitCredentials(ctx context.Context, kubeClient client.Client) error {
+func configureOperatorExplicitCredentials(ctx context.Context, kubeClient client.Client) error {
 	gcmSA, err := getExplicitGCMSAJSON()
 	if err != nil {
 		return err
 	}
-	// Deploy gmp-public secret.
-	if err := deploy.CreateGCMSecret(ctx, kubeClient, gcmSA); err != nil {
+	// Deploy explicit secret.
+	if err := createGCMSecret(ctx, kubeClient, gcmSA); err != nil {
 		return err
 	}
-	// Select it in OperatorConfig.
-	config := monitoringv1.OperatorConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      operator.NameOperatorConfig,
-			Namespace: operator.DefaultPublicNamespace,
-		},
-	}
-	if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
-		return fmt.Errorf("get operatorconfig: %w", err)
-	}
-	config.Collection.Credentials = &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: deploy.GCMSecretName},
-		Key:                  deploy.GCMSecretKey,
-	}
-	config.Rules.Credentials = &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: deploy.GCMSecretName},
-		Key:                  deploy.GCMSecretKey,
-	}
-	// Update OperatorConfig.
-	if err := kubeClient.Update(ctx, &config); err != nil {
-		return fmt.Errorf("update operatorconfig: %w", err)
-	}
-	return nil
+	// Select credentials via OperatorConfig.
+
+	// Do it in loop as update can fail if starting operator will create an
+	// empty OperatorConfig in the same time.
+	return wait.PollUntilContextCancel(ctx, 500*time.Millisecond, false, func(ctx context.Context) (bool, error) {
+		config := monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      operator.NameOperatorConfig,
+				Namespace: operator.DefaultPublicNamespace,
+			},
+		}
+		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
+			return false, fmt.Errorf("get operatorconfig: %w", err)
+		}
+		config.Collection.Credentials = &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: gcmExplicitSecretName},
+			Key:                  gcmExplicitSecretKey,
+		}
+		config.Rules.Credentials = &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: gcmExplicitSecretName},
+			Key:                  gcmExplicitSecretKey,
+		}
+		if err := kubeClient.Update(ctx, &config); err != nil {
+			return false, fmt.Errorf("update operatorconfig: %w", err)
+		}
+		return true, nil
+	})
 }
 
 func setRESTConfigDefaults(restConfig *rest.Config) error {

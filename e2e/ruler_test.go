@@ -240,6 +240,21 @@ func testRuleEvaluatorConfiguration(ctx context.Context, kubeClient client.Clien
 				"{projectID}", projectID,
 				"{location}", location,
 				"{cluster}", cluster,
+				"{exportCredentialsEntry}", func() string {
+					if !explicitCredentialsConfigured() {
+						return ""
+					}
+					return fmt.Sprintf(`
+    export:
+        credentials: %s`, collectorExplicitCredentials())
+				}(),
+				"{queryCredentialsEntry}", func() string {
+					if !explicitCredentialsConfigured() {
+						return ""
+					}
+					return fmt.Sprintf(`
+        credentials: %s`, collectorExplicitCredentials())
+				}(),
 			).Replace(s)
 		}
 
@@ -293,10 +308,10 @@ alerting:
                     - monitoring
 rule_files:
     - /etc/rules/*.yaml
-google_cloud:
+google_cloud:{exportCredentialsEntry}
     query:
         project_id: {projectID}
-        generator_url: http://example.com/
+        generator_url: http://example.com/{queryCredentialsEntry}
 `),
 		}
 
