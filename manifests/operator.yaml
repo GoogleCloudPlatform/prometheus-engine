@@ -669,47 +669,6 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       containers:
-      - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.15.4-gke.0
-        args:
-        - --config-file=/prometheus/config/config.yaml
-        - --config-file-output=/prometheus/config_out/config.yaml
-        - --config-dir=/etc/rules
-        - --config-dir-output=/prometheus/rules_out
-        - --watched-dir=/etc/secrets
-        - --reload-url=http://127.0.0.1:19092/-/reload
-        - --ready-url=http://127.0.0.1:19092/-/ready
-        - --listen-address=:19093
-        ports:
-        - name: cfg-rel-metrics
-          containerPort: 19093
-        resources:
-          limits:
-            memory: 32M
-          requests:
-            cpu: 1m
-            memory: 4M
-        volumeMounts:
-        - name: config
-          readOnly: true
-          mountPath: /prometheus/config
-        - name: config-out
-          mountPath: /prometheus/config_out
-        - name: rules
-          readOnly: true
-          mountPath: /etc/rules
-        - name: rules-out
-          mountPath: /prometheus/rules_out
-        - name: rules-secret
-          readOnly: true
-          mountPath: /etc/secrets
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          privileged: false
-          readOnlyRootFilesystem: true
       - name: evaluator
         image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.15.4-gke.0
         args:
@@ -745,6 +704,47 @@ spec:
             port: 19092
             path: /-/ready
             scheme: HTTP
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
+          readOnlyRootFilesystem: true
+      - name: config-reloader
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.15.4-gke.0
+        args:
+        - --config-file=/prometheus/config/config.yaml
+        - --config-file-output=/prometheus/config_out/config.yaml
+        - --config-dir=/etc/rules
+        - --config-dir-output=/prometheus/rules_out
+        - --watched-dir=/etc/secrets
+        - --reload-url=http://127.0.0.1:19092/-/reload
+        - --ready-url=http://127.0.0.1:19092/-/ready
+        - --listen-address=:19093
+        ports:
+        - name: cfg-rel-metrics
+          containerPort: 19093
+        resources:
+          limits:
+            memory: 32M
+          requests:
+            cpu: 1m
+            memory: 4M
+        volumeMounts:
+        - name: config
+          readOnly: true
+          mountPath: /prometheus/config
+        - name: config-out
+          mountPath: /prometheus/config_out
+        - name: rules
+          readOnly: true
+          mountPath: /etc/rules
+        - name: rules-out
+          mountPath: /prometheus/rules_out
+        - name: rules-secret
+          readOnly: true
+          mountPath: /etc/secrets
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
