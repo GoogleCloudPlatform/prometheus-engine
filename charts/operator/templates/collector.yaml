@@ -56,37 +56,6 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       containers:
-      - name: config-reloader
-        image: {{.Values.images.configReloader.image}}:{{.Values.images.configReloader.tag}}
-        args:
-        - --config-file=/prometheus/config/config.yaml
-        - --config-file-output=/prometheus/config_out/config.yaml
-        - --reload-url=http://127.0.0.1:19090/-/reload
-        - --ready-url=http://127.0.0.1:19090/-/ready
-        - --listen-address=:19091
-        ports:
-        - name: cfg-rel-metrics
-          containerPort: 19091
-        env:
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: spec.nodeName
-        resources: {{- toYaml $.Values.resources.bash | nindent 10}}
-        volumeMounts:
-        - name: config
-          readOnly: true
-          mountPath: /prometheus/config
-        - name: config-out
-          mountPath: /prometheus/config_out
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          privileged: false
-          readOnlyRootFilesystem: true
       - name: prometheus
         image: {{.Values.images.prometheus.image}}:{{.Values.images.prometheus.tag}}
         args:
@@ -146,6 +115,37 @@ spec:
             port: 19090
             path: /-/ready
             scheme: HTTP
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          privileged: false
+          readOnlyRootFilesystem: true
+      - name: config-reloader
+        image: {{.Values.images.configReloader.image}}:{{.Values.images.configReloader.tag}}
+        args:
+        - --config-file=/prometheus/config/config.yaml
+        - --config-file-output=/prometheus/config_out/config.yaml
+        - --reload-url=http://127.0.0.1:19090/-/reload
+        - --ready-url=http://127.0.0.1:19090/-/ready
+        - --listen-address=:19091
+        ports:
+        - name: cfg-rel-metrics
+          containerPort: 19091
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        resources: {{- toYaml $.Values.resources.bash | nindent 10}}
+        volumeMounts:
+        - name: config
+          readOnly: true
+          mountPath: /prometheus/config
+        - name: config-out
+          mountPath: /prometheus/config_out
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
