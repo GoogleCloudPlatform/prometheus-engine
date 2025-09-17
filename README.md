@@ -101,49 +101,84 @@ To run unit tests from docker container run `make test`
 
 #### Kubernetes End-to-end tests
 
-Running `make e2e` will run e2e tests against Kubernetes cluster:
-* By default, it run in hermetic docker container, downloads kind, recreates
+Running `make e2e` will generally run e2e tests against Kubernetes cluster:
+* By default, it runs in hermetic docker container, downloads kind, recreates
   a single node kind cluster and runs [e2e](./e2e) tests against it.
-* To run a single test, use the `TEST_RUN` environment variable. For example, to run all collector tests, pass `TEST_RUN=TestCollector`:
+* Each Go test from [e2e](./e2e) is running in separate `kind` cluster. Name of
+  the test is determining the cluster name, so `TestXYZ` is executed in `XYX-<short unique sha>` cluster.
+* To run a single test, use the `TEST_RUN` environment variable. For example:
 
 ```bash
-TEST_RUN=TestCollector make e2e
+TEST_RUN=TestCollectorPodMonitoring make e2e
+```
+
+* For easier debugging you can choose to keep `kind` cluster running after test failures using `KIND_PERSIST` variable:
+
+```bash
+KIND_PERSIST=1 TEST_RUN=TestCollectorPodMonitoring make e2e
+```
+
+##### GCM integration
+
+Some tests verify GCM state. For this you need a GCP service account to with read and write permissions against
+GCM in certain project. Here is how to configure it:
+
+* If you have GCP service account in a local file, use `GOOGLE_APPLICATION_CREDENTIALS` environment variable to specify the path to that file.
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=<path to SA> TEST_RUN=TestCollectorPodMonitoring make e2e
+```
+
+* If you have the content of GCP service account in environment variable (e.g. CI), use `GCM_SECRET` variable:
+
+```bash
+GCM_SECRET=<...> TEST_RUN=TestCollectorPodMonitoring make e2e
+```
+
+> NOTE: This is what CI is using at the moment.
+> NOTE2: This is utilizing an explicit credentials path via OperatorConfig, while GOOGLE_APPLICATION_CREDENTIALS is using default credentials mode.
+
+* If you want to skip GCM tests ensure those two variables are empty.
+
+```bash
+GCM_SECRET="" GOOGLE_APPLICATION_CREDENTIALS="" TEST_RUN=TestCollectorPodMonitoring make e2e
 ```
 
 ##### Debugging
 
-In docker mode, to run a single test or debug a cluster during or after failed
-test, you can try entering shell of the `kindtest` container. Before doing so,
-run `make e2e` to setup `kind` and start a cluster.
+In docker mode, after failures with `KIND_PERSIST` and during tests, you can use
+inspect local `kind` cluster for further investigations. The easiest way is to use
+the same docker image and setup that is used in `make e2e`, by starting a new
+container using `gmp/kindtest` image on the same docker socket and network.
 
-To enter shell with kind Kubernetes context, (ensure your docker socket is on
-`/var/run/docker.sock`):
-
-```bash
-docker run --network host --rm -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v `pwd`/e2e:/build/e2e gmp/kindtest bash
-```
-
-To access kind Kubernetes (e.g. to list pods) run:
+You can use `make e2e-exec` to start an interactive shell:
 
 ```bash
-kind export kubeconfig
-kubectl get po
+make e2e-exec 
 ```
 
-To execute a single test e.g. `TestAlertmanagerDefault` you can do (in `kindtest` shell):
+In the interactive shell, you can inspect existing tests/cluster or spin up a new tests.
+
+For example, assuming you are running (or ran with `KIND_PERSIST=1`) `make e2e` you can
+access the Kubernetes cluster (e.g. to list pods):
 
 ```bash
-kind export kubeconfig
-go test -v ./e2e -run "TestAlertmanagerDefault" -args -project-id=test-proj -cluster=test-cluster -location=test-loc -skip-gcm
+kind get clusters 
+kind export kubeconfig -n <TestName-hash from the output above>
+kubectl -n gmp-system get po
 ```
 
-Each test case is creating a separate set of namespaces e.g.
-`gmp-test-testalertmanagerdefault-20230714-120756` and
-`gmp-test-testalertmanagerdefault-20230714-120756-pub`, so to debug tests you
-have to ensure those namespaces are not cleaned. You can also provide
-`time.Sleep` in the place you want debug in.
+You could also execute a single test e.g. `TestCollectorPodMonitoring`, but you need to
+either reuse already started `kind` cluster or create your own e.g.
+
+```bash
+kind export kubeconfig -n "existing-cluster"
+go test -v ./e2e -run "TestCollectorPodMonitoring" -args -project-id=test-proj -cluster="existing-cluster" -location=test-loc -skip-gcm
+kubectl -n gmp-system get po
+```
+
+However, it might be easier to run `KIND_PERSIST=1 TEST_RUN=TestCollector make e2e` in separate terminal and
+play with custom `time.Sleep` statements for more detailed investigations.
 
 ##### Benchmarking
 

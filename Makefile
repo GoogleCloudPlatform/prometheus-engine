@@ -12,9 +12,14 @@ TEST_ARGS=-project-id=$(PROJECT_ID) -location=$(GMP_LOCATION) -cluster=$(GMP_CLU
 
 API_DIR=pkg/operator/apis
 LOCAL_CREDENTIALS=/tmp/gcm-editor.json
-# If credentials are provided, ensure we mount them during e2e test.
-ifneq ($(GOOGLE_APPLICATION_CREDENTIALS),)
-E2E_DOCKER_ARGS := --env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" -v $(GOOGLE_APPLICATION_CREDENTIALS):$(LOCAL_CREDENTIALS)
+ifneq ($(GCM_SECRET),)
+	# If GCM_SECRET env-var is provided ensure we add it to e2e tests.
+	# Don't pass the explicit value here, see:
+	# https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets
+	E2E_DOCKER_ARGS := --env GCM_SECRET
+else ifneq ($(GOOGLE_APPLICATION_CREDENTIALS),)
+	# If credentials are provided, ensure we mount them during e2e test.
+	E2E_DOCKER_ARGS := --env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" -v $(GOOGLE_APPLICATION_CREDENTIALS):$(LOCAL_CREDENTIALS)
 endif
 
 ifeq ($(KIND_PERSIST), 1)
@@ -212,6 +217,20 @@ e2e-only:    ## Run e2e test suite without rebuilding images. This assumes that
 		-v $(DOCKER_VOLUME):/var/run/docker.sock \
 		$(E2E_DOCKER_ARGS) \
 		gmp/kindtest ./hack/kind-test.sh {}
+
+.PHONY: e2e-exec
+e2e-exec:     ## Start interactive shell the same context and image as e2e tests.
+              ## Typically this means kind and kubectl commands after KIND_PERSIST=1 make e2e
+e2e-exec:
+	docker run -it \
+    	--env REGISTRY_NAME=$(REGISTRY_NAME) \
+     	--env REGISTRY_PORT=$(REGISTRY_PORT) \
+     	--network host \
+     	--rm \
+     	-v $(DOCKER_VOLUME):/var/run/docker.sock \
+     	-v `pwd`/e2e:/build/e2e \
+     	$(E2E_DOCKER_ARGS) \
+     	gmp/kindtest bash
 
 .PHONY: presubmit
 presubmit:   ## Regenerate all resources, build all images and run all tests.
