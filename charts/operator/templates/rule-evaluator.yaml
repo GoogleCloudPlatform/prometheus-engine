@@ -65,6 +65,8 @@ spec:
         ports:
         - name: r-eval-metrics
           containerPort: 19092
+        env:
+        - name: _GOOGLE_APPLICATION_CREDENTIALS # Placeholder for P4SA
         resources: {{- toYaml $.Values.resources.ruleEvaluator | nindent 10 }}
         volumeMounts:
         - name: config-out
