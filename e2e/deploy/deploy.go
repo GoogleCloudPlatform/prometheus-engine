@@ -107,6 +107,15 @@ func WithExplicitCredentials(filepath string) DeployOption {
 	}
 }
 
+// WithExplicitCollectorFilter injects --export.match to collector.
+// This is useful to reproduce cases when collector has left over match flags (e.g.
+// via EXTRA_ARGS).
+func WithExplicitCollectorFilter(filter string) DeployOption {
+	return func(opts *deployOptions) {
+		opts.explicitCollectorFilter = filter
+	}
+}
+
 func createResources(ctx context.Context, kubeClient client.Client, normalizeFn func(client.Object) (client.Object, error)) error {
 	resources, err := resources(kubeClient.Scheme())
 	if err != nil {
@@ -158,6 +167,10 @@ func normalizeDaemonSets(opts *deployOptions, obj *appsv1.DaemonSet) (client.Obj
 				container.Args = append(container.Args, "--export.debug.disable-auth")
 			} else if opts.explicitCredentials != "" {
 				container.Args = append(container.Args, "--export.credentials-file="+opts.explicitCredentials)
+			}
+
+			if opts.explicitCollectorFilter != "" {
+				container.Args = append(container.Args, "--export.match="+opts.explicitCollectorFilter)
 			}
 			return obj, nil
 		}

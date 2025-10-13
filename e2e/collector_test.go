@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -56,30 +57,7 @@ func TestCollectorPodMonitoring(t *testing.T) {
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 	// Self-scrape podmonitoring.
-	pm := &monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "collector-podmon",
-			Namespace: operator.DefaultOperatorNamespace,
-		},
-		Spec: monitoringv1.PodMonitoringSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					operator.LabelAppName: operator.NameCollector,
-				},
-			},
-			Endpoints: []monitoringv1.ScrapeEndpoint{
-				{
-					Port:     intstr.FromString(operator.CollectorPrometheusContainerPortName),
-					Interval: "5s",
-				},
-				{
-					Port:     intstr.FromString(operator.CollectorConfigReloaderContainerPortName),
-					Interval: "5s",
-				},
-			},
-		},
-	}
-	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, pm))
+	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, collectorPodMonitoring))
 	if !skipGCM {
 		t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-podmon"))
 	}
@@ -198,14 +176,12 @@ func testCollectorDeployed(ctx context.Context, restConfig *rest.Config, kubeCli
 }
 
 func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) func(*testing.T) {
+	return testCollectorOperatorConfigWithParams(ctx, kubeClient, "external_val", stateEmpty, false)
+}
+
+func testCollectorOperatorConfigWithParams(ctx context.Context, kubeClient client.Client, externalKey string, filter filterState, trimScrapeConfigs bool) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is configured")
-
-		// Add some export filters.
-		projectFilter := fmt.Sprintf("{project_id='%s'}", projectID)
-		locationFilter := fmt.Sprintf("{location=~'%s$'}", location)
-		// TODO(pintohutch): remove once we've fixed: https://github.com/GoogleCloudPlatform/prometheus-engine/issues/728.
-		kubeletFilter := "{job='kubelet'}"
 
 		config := monitoringv1.OperatorConfig{
 			ObjectMeta: metav1.ObjectMeta{
@@ -219,11 +195,11 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 
 		// Test propagation of the custom options.
 		config.Collection.Filter = monitoringv1.ExportFilters{
-			MatchOneOf: []string{projectFilter, locationFilter, kubeletFilter},
+			MatchOneOf: filter.filters(t),
 		}
 		config.Collection.Compression = monitoringv1.CompressionGzip
 		config.Collection.ExternalLabels = map[string]string{
-			"external_key": "external_val",
+			"external_key": externalKey,
 		}
 
 		// Update OperatorConfig.
@@ -237,6 +213,7 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 				"{projectID}", projectID,
 				"{location}", location,
 				"{cluster}", cluster,
+				"{external_key}", externalKey,
 				"{exportCredentialsEntry}", func() string {
 					if !explicitCredentialsConfigured() {
 						return ""
@@ -244,22 +221,19 @@ func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) 
 					return fmt.Sprintf(`
         credentials: %s`, collectorExplicitCredentials())
 				}(),
+				"{expectedMatchEntry}", filter.expectedForkConfigEntry(t),
 			).Replace(s)
 		}
 		want := map[string]string{
 			"config.yaml": replace(`global:
     external_labels:
         cluster: {cluster}
-        external_key: external_val
+        external_key: {external_key}
         location: {location}
         project_id: {projectID}
 google_cloud:
     export:
-        compression: gzip{exportCredentialsEntry}
-        match:
-            - '{project_id=''{projectID}''}'
-            - '{location=~''{location}$''}'
-            - '{job=''kubelet''}'
+        compression: gzip{exportCredentialsEntry}{expectedMatchEntry}
 `),
 		}
 
@@ -278,7 +252,29 @@ google_cloud:
 				return false, fmt.Errorf("getting collector ConfigMap failed: %w", err)
 			}
 
-			if diff := cmp.Diff(want, cm.Data); diff != "" {
+			got := cm.Data
+
+			// It's impractical to try test complex generated scrape configuration here,
+			// so trim scrapeConfigs section to test external labels and forked google cloud section
+			// config propagation, unless asked otherwise.
+			if trimScrapeConfigs {
+				t.Log("comparing configuration without 'scrape_configs' entry")
+
+				gotMap := map[string]any{}
+				if err := yaml.Unmarshal([]byte(got["config.yaml"]), &gotMap); err != nil {
+					return false, err
+				}
+
+				delete(gotMap, "scrape_configs")
+
+				trimmed, err := yaml.Marshal(gotMap)
+				if err != nil {
+					return false, err
+				}
+				got["config.yaml"] = string(trimmed)
+			}
+
+			if diff := cmp.Diff(want, got); diff != "" {
 				err = fmt.Errorf("unexpected collector config entry; diff: %s", diff)
 				return false, nil
 			}
@@ -460,7 +456,7 @@ func testEnableKubeletScraping(ctx context.Context, kubeClient client.Client) fu
 }
 
 type listTimeSeriesFilter struct {
-	metricType, job, instance, namespace, node, pod string
+	metricType, job, instance, namespace, node, pod, container, externalKey string
 }
 
 func (l listTimeSeriesFilter) Filter(t testing.TB) string {
@@ -483,18 +479,28 @@ func (l listTimeSeriesFilter) Filter(t testing.TB) string {
 	if l.pod != "" {
 		entries = append(entries, fmt.Sprintf(`metric.labels.pod = "%s"`, l.pod))
 	}
+	if l.container != "" {
+		entries = append(entries, fmt.Sprintf(`metric.labels.container = "%s"`, l.container))
+	}
 	if l.namespace != "" {
 		entries = append(entries, fmt.Sprintf(`resource.labels.namespace = "%s"`, l.namespace))
 	}
 	if l.node != "" {
 		entries = append(entries, fmt.Sprintf(`metric.labels.node = "%s"`, l.node))
 	}
+	if l.externalKey != "" {
+		entries = append(entries, fmt.Sprintf(`metric.labels.external_key = "%s"`, l.externalKey))
+	}
 	return strings.Join(entries, " AND ")
 }
 
-// testValidateGCMMetricEqual checks whether the scrape-time up metrics for all collector
-// pods can be queried from GCM.
-func testValidateGCMMetricEqual(ctx context.Context, metricClient *gcm.MetricClient, f listTimeSeriesFilter, expectedValue float64) func(*testing.T) {
+type metricExpectation struct {
+	isQueryable  bool
+	expectValue1 bool
+}
+
+// testValidateGCMMetric checks whether the given metric has expected state on GCM.
+func testValidateGCMMetric(ctx context.Context, metricClient *gcm.MetricClient, f listTimeSeriesFilter, expected metricExpectation) func(*testing.T) {
 	return func(t *testing.T) {
 		filter := f.Filter(t)
 		t.Log("checking for metric in Cloud Monitoring", filter)
@@ -511,15 +517,27 @@ func testValidateGCMMetricEqual(ctx context.Context, metricClient *gcm.MetricCli
 			})
 			series, err := iter.Next()
 			if errors.Is(err, iterator.Done) {
+				if !expected.isQueryable {
+					// We expect not having this metric.
+					return true, nil
+				}
 				t.Log("no data in GCM, retrying...")
 				return false, nil
 			}
 			if err != nil {
 				return false, fmt.Errorf("querying metrics failed: %w", err)
 			}
-			if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != expectedValue {
-				t.Logf("%q has unexpected value %v (expected: %v), retrying...", f.metricType, v, expectedValue)
+
+			if !expected.isQueryable {
+				t.Logf("%q is queryable, retrying...", f.metricType)
 				return false, nil
+			}
+
+			if expected.expectValue1 {
+				if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
+					t.Logf("%q has unexpected value %v (expected: %v), retrying...", f.metricType, v, 1)
+					return false, nil
+				}
 			}
 
 			// We expect exactly one result.
@@ -574,13 +592,14 @@ func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Clien
 		for _, pod := range pods.Items {
 			for _, port := range []string{operator.CollectorPrometheusContainerPortName, operator.CollectorConfigReloaderContainerPortName} {
 				instance := fmt.Sprintf("%s:%s", pod.Spec.NodeName, port)
-				t.Run(instance, testValidateGCMMetricEqual(ctx, metricClient, listTimeSeriesFilter{
-					metricType: "prometheus.googleapis.com/up/gauge",
-					job:        job,
-					instance:   instance,
-					pod:        pod.Name,
-					namespace:  operator.DefaultOperatorNamespace,
-				}, 1))
+				t.Run(instance, testValidateGCMMetric(ctx, metricClient, listTimeSeriesFilter{
+					metricType:  "prometheus.googleapis.com/up/gauge",
+					job:         job,
+					instance:    instance,
+					pod:         pod.Name,
+					externalKey: "external_val",
+					namespace:   operator.DefaultOperatorNamespace,
+				}, metricExpectation{isQueryable: true, expectValue1: true}))
 			}
 		}
 	}
@@ -609,12 +628,13 @@ func testCollectorScrapeKubelet(ctx context.Context, kubeClient client.Client) f
 		for _, node := range nodes.Items {
 			for _, port := range []string{"metrics", "cadvisor"} {
 				instance := fmt.Sprintf("%s:%s", node.Name, port)
-				t.Run(instance, testValidateGCMMetricEqual(ctx, metricClient, listTimeSeriesFilter{
-					metricType: "prometheus.googleapis.com/up/gauge",
-					job:        "kubelet",
-					instance:   instance,
-					node:       node.Name,
-				}, 1))
+				t.Run(instance, testValidateGCMMetric(ctx, metricClient, listTimeSeriesFilter{
+					metricType:  "prometheus.googleapis.com/up/gauge",
+					job:         "kubelet",
+					instance:    instance,
+					node:        node.Name,
+					externalKey: "external_val",
+				}, metricExpectation{isQueryable: true, expectValue1: true}))
 			}
 		}
 	}
