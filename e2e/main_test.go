@@ -84,7 +84,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func setupCluster(ctx context.Context, t testing.TB) (client.Client, *rest.Config, error) {
+func setupCluster(ctx context.Context, t testing.TB, dOpts ...deploy.DeployOption) (client.Client, *rest.Config, error) {
 	t.Log(">>> deploying static resources")
 	restConfig, err := newRestConfig()
 	if err != nil {
@@ -96,17 +96,17 @@ func setupCluster(ctx context.Context, t testing.TB) (client.Client, *rest.Confi
 		return nil, nil, err
 	}
 
-	options := []deploy.DeployOption{deploy.WithMeta(projectID, cluster, location), deploy.WithDisableGCM(skipGCM)}
+	dOpts = append(dOpts, deploy.WithMeta(projectID, cluster, location), deploy.WithDisableGCM(skipGCM))
 	if explicitCredentialsConfigured() {
 		t.Log(">>> setup explicit credentials")
 		// Due to https://github.com/GoogleCloudPlatform/prometheus/pull/259/files#r2350691932
 		// we have to configure correct credential for fork to use before it applies config.
 		// It will crashloop until operator sets up credentials, but eventually it will work.
 		// TODO(bwplotka): Remove once we make fork apply config on start correctly.
-		options = append(options, deploy.WithExplicitCredentials(collectorExplicitCredentials()))
+		dOpts = append(dOpts, deploy.WithExplicitCredentials(collectorExplicitCredentials()))
 	}
 
-	if err := deploy.CreateResources(ctx, kubeClient, options...); err != nil {
+	if err := deploy.CreateResources(ctx, kubeClient, dOpts...); err != nil {
 		return nil, nil, err
 	}
 
