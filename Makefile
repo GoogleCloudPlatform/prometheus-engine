@@ -12,12 +12,12 @@ TEST_ARGS=-project-id=$(PROJECT_ID) -location=$(GMP_LOCATION) -cluster=$(GMP_CLU
 
 API_DIR=pkg/operator/apis
 LOCAL_CREDENTIALS=/tmp/gcm-editor.json
-ifneq ($(GCM_SECRET),)
+ifdef GCM_SECRET
 	# If GCM_SECRET env-var is provided ensure we add it to e2e tests.
 	# Don't pass the explicit value here, see:
 	# https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets
 	E2E_DOCKER_ARGS := --env GCM_SECRET
-else ifneq ($(GOOGLE_APPLICATION_CREDENTIALS),)
+else ifdef GOOGLE_APPLICATION_CREDENTIALS
 	# If credentials are provided, ensure we mount them during e2e test.
 	E2E_DOCKER_ARGS := --env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" -v $(GOOGLE_APPLICATION_CREDENTIALS):$(LOCAL_CREDENTIALS)
 endif
@@ -168,7 +168,7 @@ GCM_SECRET?=
 .PHONY: test-script-gcm
 test-script-gcm:  ## Run example/scripts unit tests that will use GCM if GCM_SECRET is present.
                   ## TODO(b/306337101): Move to cloud build.
-ifneq ($(GCM_SECRET),)
+ifdef GCM_SECRET
 	cd examples/scripts && go test -v .
 else
 	@echo "Secret not provided, skipping!"
