@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
@@ -241,6 +240,21 @@ func testRuleEvaluatorConfiguration(ctx context.Context, kubeClient client.Clien
 				"{projectID}", projectID,
 				"{location}", location,
 				"{cluster}", cluster,
+				"{exportCredentialsEntry}", func() string {
+					if !explicitCredentialsConfigured() {
+						return ""
+					}
+					return fmt.Sprintf(`
+    export:
+        credentials: %s`, collectorExplicitCredentials())
+				}(),
+				"{queryCredentialsEntry}", func() string {
+					if !explicitCredentialsConfigured() {
+						return ""
+					}
+					return fmt.Sprintf(`
+        credentials: %s`, collectorExplicitCredentials())
+				}(),
 			).Replace(s)
 		}
 
@@ -294,10 +308,10 @@ alerting:
                     - monitoring
 rule_files:
     - /etc/rules/*.yaml
-google_cloud:
+google_cloud:{exportCredentialsEntry}
     query:
         project_id: {projectID}
-        generator_url: http://example.com/
+        generator_url: http://example.com/{queryCredentialsEntry}
 `),
 		}
 
@@ -648,7 +662,7 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 
 		// Wait for metric data to show up in Cloud Monitoring.
-		metricClient, err := gcm.NewMetricClient(ctx)
+		metricClient, err := newMetricClient(ctx)
 		if err != nil {
 			t.Fatalf("create metric client: %s", err)
 		}
