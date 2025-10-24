@@ -347,7 +347,7 @@ spec:
       labels:
         app: managed-prometheus-collector
         app.kubernetes.io/name: collector
-        app.kubernetes.io/version: 0.15.4
+        app.kubernetes.io/version: 0.15.5
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -444,7 +444,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.15.4-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.15.5-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -543,14 +543,14 @@ spec:
         app.kubernetes.io/component: operator
         app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/part-of: gmp
-        app.kubernetes.io/version: 0.15.4
+        app.kubernetes.io/version: 0.15.5
     spec:
       serviceAccountName: operator
       automountServiceAccountToken: true
       priorityClassName: gmp-critical
       containers:
       - name: operator
-        image: gke.gcr.io/prometheus-engine/operator:v0.15.4-gke.0
+        image: gke.gcr.io/prometheus-engine/operator:v0.15.5-gke.0
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
@@ -644,7 +644,7 @@ spec:
       labels:
         app.kubernetes.io/name: rule-evaluator
         app: managed-prometheus-rule-evaluator
-        app.kubernetes.io/version: 0.15.4
+        app.kubernetes.io/version: 0.15.5
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -670,7 +670,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.15.4-gke.0
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.15.5-gke.0
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --web.listen-address=:19092
@@ -712,7 +712,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.15.4-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.15.5-gke.0
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
@@ -817,7 +817,7 @@ spec:
       labels:
         app: managed-prometheus-alertmanager
         app.kubernetes.io/name: alertmanager
-        app.kubernetes.io/version: 0.15.4
+        app.kubernetes.io/version: 0.15.5
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
@@ -876,7 +876,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.15.4-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.15.5-gke.0
         args:
         - --config-file=/alertmanager/config.yaml
         - --config-file-output=/alertmanager/config_out/config.yaml
