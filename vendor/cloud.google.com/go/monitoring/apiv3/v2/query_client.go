@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package monitoring
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math"
 	"net/url"
 
@@ -49,7 +48,6 @@ func defaultQueryGRPCClientOptions() []option.ClientOption {
 		internaloption.WithDefaultAudience("https://monitoring.googleapis.com/"),
 		internaloption.WithDefaultScopes(DefaultAuthScopes()...),
 		internaloption.EnableJwtWithScope(),
-		internaloption.EnableNewAuthLibrary(),
 		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
@@ -72,7 +70,7 @@ type internalQueryClient interface {
 // QueryClient is a client for interacting with Cloud Monitoring API.
 // Methods, except Close, may be called concurrently. However, fields must not be modified concurrently with method calls.
 //
-// The QueryService API is used to manage time series data in Cloud
+// The QueryService API is used to manage time series data in Stackdriver
 // Monitoring. Time series data is a collection of data points that describes
 // the time-varying values of a metric.
 type QueryClient struct {
@@ -106,12 +104,7 @@ func (c *QueryClient) Connection() *grpc.ClientConn {
 	return c.internalClient.Connection()
 }
 
-// QueryTimeSeries queries time series by using Monitoring Query Language (MQL). We recommend
-// using PromQL instead of MQL. For more information about the status of MQL,
-// see the MQL deprecation
-// notice (at https://cloud.google.com/stackdriver/docs/deprecations/mql).
-//
-// Deprecated: QueryTimeSeries may be removed in a future version.
+// QueryTimeSeries queries time series using Monitoring Query Language. This method does not require a Workspace.
 func (c *QueryClient) QueryTimeSeries(ctx context.Context, req *monitoringpb.QueryTimeSeriesRequest, opts ...gax.CallOption) *TimeSeriesDataIterator {
 	return c.internalClient.QueryTimeSeries(ctx, req, opts...)
 }
@@ -131,14 +124,12 @@ type queryGRPCClient struct {
 
 	// The x-goog-* metadata to be sent with each request.
 	xGoogHeaders []string
-
-	logger *slog.Logger
 }
 
 // NewQueryClient creates a new query service client based on gRPC.
 // The returned client must be Closed when it is done being used to clean up its underlying connections.
 //
-// The QueryService API is used to manage time series data in Cloud
+// The QueryService API is used to manage time series data in Stackdriver
 // Monitoring. Time series data is a collection of data points that describes
 // the time-varying values of a metric.
 func NewQueryClient(ctx context.Context, opts ...option.ClientOption) (*QueryClient, error) {
@@ -161,7 +152,6 @@ func NewQueryClient(ctx context.Context, opts ...option.ClientOption) (*QueryCli
 		connPool:    connPool,
 		queryClient: monitoringpb.NewQueryServiceClient(connPool),
 		CallOptions: &client.CallOptions,
-		logger:      internaloption.GetLogger(opts),
 	}
 	c.setGoogleClientInfo()
 
@@ -184,9 +174,7 @@ func (c *queryGRPCClient) Connection() *grpc.ClientConn {
 func (c *queryGRPCClient) setGoogleClientInfo(keyval ...string) {
 	kv := append([]string{"gl-go", gax.GoVersion}, keyval...)
 	kv = append(kv, "gapic", getVersionClient(), "gax", gax.Version, "grpc", grpc.Version)
-	c.xGoogHeaders = []string{
-		"x-goog-api-client", gax.XGoogHeader(kv...),
-	}
+	c.xGoogHeaders = []string{"x-goog-api-client", gax.XGoogHeader(kv...)}
 }
 
 // Close closes the connection to the API service. The user should invoke this when
@@ -215,7 +203,7 @@ func (c *queryGRPCClient) QueryTimeSeries(ctx context.Context, req *monitoringpb
 		}
 		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 			var err error
-			resp, err = executeRPC(ctx, c.queryClient.QueryTimeSeries, req, settings.GRPC, c.logger, "QueryTimeSeries")
+			resp, err = c.queryClient.QueryTimeSeries(ctx, req, settings.GRPC...)
 			return err
 		}, opts...)
 		if err != nil {

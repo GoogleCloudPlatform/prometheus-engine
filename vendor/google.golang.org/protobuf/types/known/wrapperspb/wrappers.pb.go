@@ -48,18 +48,18 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
-	unsafe "unsafe"
 )
 
 // Wrapper message for `double`.
 //
 // The JSON representation for `DoubleValue` is JSON number.
 type DoubleValue struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The double value.
-	Value         float64 `protobuf:"fixed64,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The double value.
+	Value float64 `protobuf:"fixed64,1,opt,name=value,proto3" json:"value,omitempty"`
 }
 
 // Double stores v in a new DoubleValue and returns a pointer to it.
@@ -69,9 +69,11 @@ func Double(v float64) *DoubleValue {
 
 func (x *DoubleValue) Reset() {
 	*x = DoubleValue{}
-	mi := &file_google_protobuf_wrappers_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+	if protoimpl.UnsafeEnabled {
+		mi := &file_google_protobuf_wrappers_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
 }
 
 func (x *DoubleValue) String() string {
@@ -82,7 +84,7 @@ func (*DoubleValue) ProtoMessage() {}
 
 func (x *DoubleValue) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_wrappers_proto_msgTypes[0]
-	if x != nil {
+	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -108,11 +110,12 @@ func (x *DoubleValue) GetValue() float64 {
 //
 // The JSON representation for `FloatValue` is JSON number.
 type FloatValue struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The float value.
-	Value         float32 `protobuf:"fixed32,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The float value.
+	Value float32 `protobuf:"fixed32,1,opt,name=value,proto3" json:"value,omitempty"`
 }
 
 // Float stores v in a new FloatValue and returns a pointer to it.
@@ -122,9 +125,11 @@ func Float(v float32) *FloatValue {
 
 func (x *FloatValue) Reset() {
 	*x = FloatValue{}
-	mi := &file_google_protobuf_wrappers_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+	if protoimpl.UnsafeEnabled {
+		mi := &file_google_protobuf_wrappers_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
 }
 
 func (x *FloatValue) String() string {
@@ -135,7 +140,7 @@ func (*FloatValue) ProtoMessage() {}
 
 func (x *FloatValue) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_wrappers_proto_msgTypes[1]
-	if x != nil {
+	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -161,11 +166,12 @@ func (x *FloatValue) GetValue() float32 {
 //
 // The JSON representation for `Int64Value` is JSON string.
 type Int64Value struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The int64 value.
-	Value         int64 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The int64 value.
+	Value int64 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
 }
 
 // Int64 stores v in a new Int64Value and returns a pointer to it.
@@ -175,9 +181,11 @@ func Int64(v int64) *Int64Value {
 
 func (x *Int64Value) Reset() {
 	*x = Int64Value{}
-	mi := &file_google_protobuf_wrappers_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+	if protoimpl.UnsafeEnabled {
+		mi := &file_google_protobuf_wrappers_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
 }
 
 func (x *Int64Value) String() string {
@@ -188,7 +196,7 @@ func (*Int64Value) ProtoMessage() {}
 
 func (x *Int64Value) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_wrappers_proto_msgTypes[2]
-	if x != nil {
+	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -214,11 +222,12 @@ func (x *Int64Value) GetValue() int64 {
 //
 // The JSON representation for `UInt64Value` is JSON string.
 type UInt64Value struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The uint64 value.
-	Value         uint64 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The uint64 value.
+	Value uint64 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
 }
 
 // UInt64 stores v in a new UInt64Value and returns a pointer to it.
@@ -228,9 +237,11 @@ func UInt64(v uint64) *UInt64Value {
 
 func (x *UInt64Value) Reset() {
 	*x = UInt64Value{}
-	mi := &file_google_protobuf_wrappers_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+	if protoimpl.UnsafeEnabled {
+		mi := &file_google_protobuf_wrappers_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
 }
 
 func (x *UInt64Value) String() string {
@@ -241,7 +252,7 @@ func (*UInt64Value) ProtoMessage() {}
 
 func (x *UInt64Value) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_wrappers_proto_msgTypes[3]
-	if x != nil {
+	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -267,11 +278,12 @@ func (x *UInt64Value) GetValue() uint64 {
 //
 // The JSON representation for `Int32Value` is JSON number.
 type Int32Value struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The int32 value.
-	Value         int32 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The int32 value.
+	Value int32 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
 }
 
 // Int32 stores v in a new Int32Value and returns a pointer to it.
@@ -281,9 +293,11 @@ func Int32(v int32) *Int32Value {
 
 func (x *Int32Value) Reset() {
 	*x = Int32Value{}
-	mi := &file_google_protobuf_wrappers_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+	if protoimpl.UnsafeEnabled {
+		mi := &file_google_protobuf_wrappers_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
 }
 
 func (x *Int32Value) String() string {
@@ -294,7 +308,7 @@ func (*Int32Value) ProtoMessage() {}
 
 func (x *Int32Value) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_wrappers_proto_msgTypes[4]
-	if x != nil {
+	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -320,11 +334,12 @@ func (x *Int32Value) GetValue() int32 {
 //
 // The JSON representation for `UInt32Value` is JSON number.
 type UInt32Value struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The uint32 value.
-	Value         uint32 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The uint32 value.
+	Value uint32 `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
 }
 
 // UInt32 stores v in a new UInt32Value and returns a pointer to it.
@@ -334,9 +349,11 @@ func UInt32(v uint32) *UInt32Value {
 
 func (x *UInt32Value) Reset() {
 	*x = UInt32Value{}
-	mi := &file_google_protobuf_wrappers_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+	if protoimpl.UnsafeEnabled {
+		mi := &file_google_protobuf_wrappers_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
 }
 
 func (x *UInt32Value) String() string {
@@ -347,7 +364,7 @@ func (*UInt32Value) ProtoMessage() {}
 
 func (x *UInt32Value) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_wrappers_proto_msgTypes[5]
-	if x != nil {
+	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -373,11 +390,12 @@ func (x *UInt32Value) GetValue() uint32 {
 //
 // The JSON representation for `BoolValue` is JSON `true` and `false`.
 type BoolValue struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The bool value.
-	Value         bool `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The bool value.
+	Value bool `protobuf:"varint,1,opt,name=value,proto3" json:"value,omitempty"`
 }
 
 // Bool stores v in a new BoolValue and returns a pointer to it.
@@ -387,9 +405,11 @@ func Bool(v bool) *BoolValue {
 
 func (x *BoolValue) Reset() {
 	*x = BoolValue{}
-	mi := &file_google_protobuf_wrappers_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+	if protoimpl.UnsafeEnabled {
+		mi := &file_google_protobuf_wrappers_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
 }
 
 func (x *BoolValue) String() string {
@@ -400,7 +420,7 @@ func (*BoolValue) ProtoMessage() {}
 
 func (x *BoolValue) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_wrappers_proto_msgTypes[6]
-	if x != nil {
+	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -426,11 +446,12 @@ func (x *BoolValue) GetValue() bool {
 //
 // The JSON representation for `StringValue` is JSON string.
 type StringValue struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The string value.
-	Value         string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The string value.
+	Value string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 }
 
 // String stores v in a new StringValue and returns a pointer to it.
@@ -440,9 +461,11 @@ func String(v string) *StringValue {
 
 func (x *StringValue) Reset() {
 	*x = StringValue{}
-	mi := &file_google_protobuf_wrappers_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+	if protoimpl.UnsafeEnabled {
+		mi := &file_google_protobuf_wrappers_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
 }
 
 func (x *StringValue) String() string {
@@ -453,7 +476,7 @@ func (*StringValue) ProtoMessage() {}
 
 func (x *StringValue) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_wrappers_proto_msgTypes[7]
-	if x != nil {
+	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -479,11 +502,12 @@ func (x *StringValue) GetValue() string {
 //
 // The JSON representation for `BytesValue` is JSON string.
 type BytesValue struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The bytes value.
-	Value         []byte `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The bytes value.
+	Value []byte `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 }
 
 // Bytes stores v in a new BytesValue and returns a pointer to it.
@@ -493,9 +517,11 @@ func Bytes(v []byte) *BytesValue {
 
 func (x *BytesValue) Reset() {
 	*x = BytesValue{}
-	mi := &file_google_protobuf_wrappers_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+	if protoimpl.UnsafeEnabled {
+		mi := &file_google_protobuf_wrappers_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
 }
 
 func (x *BytesValue) String() string {
@@ -506,7 +532,7 @@ func (*BytesValue) ProtoMessage() {}
 
 func (x *BytesValue) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_wrappers_proto_msgTypes[8]
-	if x != nil {
+	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -530,7 +556,7 @@ func (x *BytesValue) GetValue() []byte {
 
 var File_google_protobuf_wrappers_proto protoreflect.FileDescriptor
 
-var file_google_protobuf_wrappers_proto_rawDesc = string([]byte{
+var file_google_protobuf_wrappers_proto_rawDesc = []byte{
 	0x0a, 0x1e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75,
 	0x66, 0x2f, 0x77, 0x72, 0x61, 0x70, 0x70, 0x65, 0x72, 0x73, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
 	0x12, 0x0f, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75,
@@ -564,22 +590,22 @@ var file_google_protobuf_wrappers_proto_rawDesc = string([]byte{
 	0x47, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e,
 	0x57, 0x65, 0x6c, 0x6c, 0x4b, 0x6e, 0x6f, 0x77, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x73, 0x62, 0x06,
 	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
-})
+}
 
 var (
 	file_google_protobuf_wrappers_proto_rawDescOnce sync.Once
-	file_google_protobuf_wrappers_proto_rawDescData []byte
+	file_google_protobuf_wrappers_proto_rawDescData = file_google_protobuf_wrappers_proto_rawDesc
 )
 
 func file_google_protobuf_wrappers_proto_rawDescGZIP() []byte {
 	file_google_protobuf_wrappers_proto_rawDescOnce.Do(func() {
-		file_google_protobuf_wrappers_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_google_protobuf_wrappers_proto_rawDesc), len(file_google_protobuf_wrappers_proto_rawDesc)))
+		file_google_protobuf_wrappers_proto_rawDescData = protoimpl.X.CompressGZIP(file_google_protobuf_wrappers_proto_rawDescData)
 	})
 	return file_google_protobuf_wrappers_proto_rawDescData
 }
 
 var file_google_protobuf_wrappers_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
-var file_google_protobuf_wrappers_proto_goTypes = []any{
+var file_google_protobuf_wrappers_proto_goTypes = []interface{}{
 	(*DoubleValue)(nil), // 0: google.protobuf.DoubleValue
 	(*FloatValue)(nil),  // 1: google.protobuf.FloatValue
 	(*Int64Value)(nil),  // 2: google.protobuf.Int64Value
@@ -603,11 +629,121 @@ func file_google_protobuf_wrappers_proto_init() {
 	if File_google_protobuf_wrappers_proto != nil {
 		return
 	}
+	if !protoimpl.UnsafeEnabled {
+		file_google_protobuf_wrappers_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DoubleValue); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_google_protobuf_wrappers_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*FloatValue); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_google_protobuf_wrappers_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Int64Value); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_google_protobuf_wrappers_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*UInt64Value); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_google_protobuf_wrappers_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Int32Value); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_google_protobuf_wrappers_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*UInt32Value); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_google_protobuf_wrappers_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*BoolValue); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_google_protobuf_wrappers_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*StringValue); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_google_protobuf_wrappers_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*BytesValue); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_google_protobuf_wrappers_proto_rawDesc), len(file_google_protobuf_wrappers_proto_rawDesc)),
+			RawDescriptor: file_google_protobuf_wrappers_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   9,
 			NumExtensions: 0,
@@ -618,6 +754,7 @@ func file_google_protobuf_wrappers_proto_init() {
 		MessageInfos:      file_google_protobuf_wrappers_proto_msgTypes,
 	}.Build()
 	File_google_protobuf_wrappers_proto = out.File
+	file_google_protobuf_wrappers_proto_rawDesc = nil
 	file_google_protobuf_wrappers_proto_goTypes = nil
 	file_google_protobuf_wrappers_proto_depIdxs = nil
 }

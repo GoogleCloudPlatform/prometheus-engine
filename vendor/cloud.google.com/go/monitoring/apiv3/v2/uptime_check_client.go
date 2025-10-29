@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package monitoring
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math"
 	"net/url"
 	"time"
@@ -56,7 +55,6 @@ func defaultUptimeCheckGRPCClientOptions() []option.ClientOption {
 		internaloption.WithDefaultAudience("https://monitoring.googleapis.com/"),
 		internaloption.WithDefaultScopes(DefaultAuthScopes()...),
 		internaloption.EnableJwtWithScope(),
-		internaloption.EnableNewAuthLibrary(),
 		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
@@ -207,7 +205,7 @@ func (c *UptimeCheckClient) DeleteUptimeCheckConfig(ctx context.Context, req *mo
 	return c.internalClient.DeleteUptimeCheckConfig(ctx, req, opts...)
 }
 
-// ListUptimeCheckIps returns the list of IP addresses that checkers run from.
+// ListUptimeCheckIps returns the list of IP addresses that checkers run from
 func (c *UptimeCheckClient) ListUptimeCheckIps(ctx context.Context, req *monitoringpb.ListUptimeCheckIpsRequest, opts ...gax.CallOption) *UptimeCheckIpIterator {
 	return c.internalClient.ListUptimeCheckIps(ctx, req, opts...)
 }
@@ -227,8 +225,6 @@ type uptimeCheckGRPCClient struct {
 
 	// The x-goog-* metadata to be sent with each request.
 	xGoogHeaders []string
-
-	logger *slog.Logger
 }
 
 // NewUptimeCheckClient creates a new uptime check service client based on gRPC.
@@ -262,7 +258,6 @@ func NewUptimeCheckClient(ctx context.Context, opts ...option.ClientOption) (*Up
 		connPool:          connPool,
 		uptimeCheckClient: monitoringpb.NewUptimeCheckServiceClient(connPool),
 		CallOptions:       &client.CallOptions,
-		logger:            internaloption.GetLogger(opts),
 	}
 	c.setGoogleClientInfo()
 
@@ -285,9 +280,7 @@ func (c *uptimeCheckGRPCClient) Connection() *grpc.ClientConn {
 func (c *uptimeCheckGRPCClient) setGoogleClientInfo(keyval ...string) {
 	kv := append([]string{"gl-go", gax.GoVersion}, keyval...)
 	kv = append(kv, "gapic", getVersionClient(), "gax", gax.Version, "grpc", grpc.Version)
-	c.xGoogHeaders = []string{
-		"x-goog-api-client", gax.XGoogHeader(kv...),
-	}
+	c.xGoogHeaders = []string{"x-goog-api-client", gax.XGoogHeader(kv...)}
 }
 
 // Close closes the connection to the API service. The user should invoke this when
@@ -316,7 +309,7 @@ func (c *uptimeCheckGRPCClient) ListUptimeCheckConfigs(ctx context.Context, req 
 		}
 		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 			var err error
-			resp, err = executeRPC(ctx, c.uptimeCheckClient.ListUptimeCheckConfigs, req, settings.GRPC, c.logger, "ListUptimeCheckConfigs")
+			resp, err = c.uptimeCheckClient.ListUptimeCheckConfigs(ctx, req, settings.GRPC...)
 			return err
 		}, opts...)
 		if err != nil {
@@ -351,7 +344,7 @@ func (c *uptimeCheckGRPCClient) GetUptimeCheckConfig(ctx context.Context, req *m
 	var resp *monitoringpb.UptimeCheckConfig
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = executeRPC(ctx, c.uptimeCheckClient.GetUptimeCheckConfig, req, settings.GRPC, c.logger, "GetUptimeCheckConfig")
+		resp, err = c.uptimeCheckClient.GetUptimeCheckConfig(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	if err != nil {
@@ -369,7 +362,7 @@ func (c *uptimeCheckGRPCClient) CreateUptimeCheckConfig(ctx context.Context, req
 	var resp *monitoringpb.UptimeCheckConfig
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = executeRPC(ctx, c.uptimeCheckClient.CreateUptimeCheckConfig, req, settings.GRPC, c.logger, "CreateUptimeCheckConfig")
+		resp, err = c.uptimeCheckClient.CreateUptimeCheckConfig(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	if err != nil {
@@ -387,7 +380,7 @@ func (c *uptimeCheckGRPCClient) UpdateUptimeCheckConfig(ctx context.Context, req
 	var resp *monitoringpb.UptimeCheckConfig
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = executeRPC(ctx, c.uptimeCheckClient.UpdateUptimeCheckConfig, req, settings.GRPC, c.logger, "UpdateUptimeCheckConfig")
+		resp, err = c.uptimeCheckClient.UpdateUptimeCheckConfig(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	if err != nil {
@@ -404,7 +397,7 @@ func (c *uptimeCheckGRPCClient) DeleteUptimeCheckConfig(ctx context.Context, req
 	opts = append((*c.CallOptions).DeleteUptimeCheckConfig[0:len((*c.CallOptions).DeleteUptimeCheckConfig):len((*c.CallOptions).DeleteUptimeCheckConfig)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		_, err = executeRPC(ctx, c.uptimeCheckClient.DeleteUptimeCheckConfig, req, settings.GRPC, c.logger, "DeleteUptimeCheckConfig")
+		_, err = c.uptimeCheckClient.DeleteUptimeCheckConfig(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	return err
@@ -427,7 +420,7 @@ func (c *uptimeCheckGRPCClient) ListUptimeCheckIps(ctx context.Context, req *mon
 		}
 		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 			var err error
-			resp, err = executeRPC(ctx, c.uptimeCheckClient.ListUptimeCheckIps, req, settings.GRPC, c.logger, "ListUptimeCheckIps")
+			resp, err = c.uptimeCheckClient.ListUptimeCheckIps(ctx, req, settings.GRPC...)
 			return err
 		}, opts...)
 		if err != nil {

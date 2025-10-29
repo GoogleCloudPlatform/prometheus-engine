@@ -83,7 +83,6 @@ import (
 	sort "sort"
 	strings "strings"
 	sync "sync"
-	unsafe "unsafe"
 )
 
 // `FieldMask` represents a set of symbolic field paths, for example:
@@ -285,11 +284,12 @@ import (
 // request should verify the included field paths, and return an
 // `INVALID_ARGUMENT` error if any path is unmappable.
 type FieldMask struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The set of field mask paths.
-	Paths         []string `protobuf:"bytes,1,rep,name=paths,proto3" json:"paths,omitempty"`
-	unknownFields protoimpl.UnknownFields
+	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The set of field mask paths.
+	Paths []string `protobuf:"bytes,1,rep,name=paths,proto3" json:"paths,omitempty"`
 }
 
 // New constructs a field mask from a list of paths and verifies that
@@ -467,9 +467,11 @@ func rangeFields(path string, f func(field string) bool) bool {
 
 func (x *FieldMask) Reset() {
 	*x = FieldMask{}
-	mi := &file_google_protobuf_field_mask_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+	if protoimpl.UnsafeEnabled {
+		mi := &file_google_protobuf_field_mask_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
 }
 
 func (x *FieldMask) String() string {
@@ -480,7 +482,7 @@ func (*FieldMask) ProtoMessage() {}
 
 func (x *FieldMask) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_field_mask_proto_msgTypes[0]
-	if x != nil {
+	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -504,7 +506,7 @@ func (x *FieldMask) GetPaths() []string {
 
 var File_google_protobuf_field_mask_proto protoreflect.FileDescriptor
 
-var file_google_protobuf_field_mask_proto_rawDesc = string([]byte{
+var file_google_protobuf_field_mask_proto_rawDesc = []byte{
 	0x0a, 0x20, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75,
 	0x66, 0x2f, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x5f, 0x6d, 0x61, 0x73, 0x6b, 0x2e, 0x70, 0x72, 0x6f,
 	0x74, 0x6f, 0x12, 0x0f, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
@@ -520,22 +522,22 @@ var file_google_protobuf_field_mask_proto_rawDesc = string([]byte{
 	0x47, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e,
 	0x57, 0x65, 0x6c, 0x6c, 0x4b, 0x6e, 0x6f, 0x77, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x73, 0x62, 0x06,
 	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
-})
+}
 
 var (
 	file_google_protobuf_field_mask_proto_rawDescOnce sync.Once
-	file_google_protobuf_field_mask_proto_rawDescData []byte
+	file_google_protobuf_field_mask_proto_rawDescData = file_google_protobuf_field_mask_proto_rawDesc
 )
 
 func file_google_protobuf_field_mask_proto_rawDescGZIP() []byte {
 	file_google_protobuf_field_mask_proto_rawDescOnce.Do(func() {
-		file_google_protobuf_field_mask_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_google_protobuf_field_mask_proto_rawDesc), len(file_google_protobuf_field_mask_proto_rawDesc)))
+		file_google_protobuf_field_mask_proto_rawDescData = protoimpl.X.CompressGZIP(file_google_protobuf_field_mask_proto_rawDescData)
 	})
 	return file_google_protobuf_field_mask_proto_rawDescData
 }
 
 var file_google_protobuf_field_mask_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_google_protobuf_field_mask_proto_goTypes = []any{
+var file_google_protobuf_field_mask_proto_goTypes = []interface{}{
 	(*FieldMask)(nil), // 0: google.protobuf.FieldMask
 }
 var file_google_protobuf_field_mask_proto_depIdxs = []int32{
@@ -551,11 +553,25 @@ func file_google_protobuf_field_mask_proto_init() {
 	if File_google_protobuf_field_mask_proto != nil {
 		return
 	}
+	if !protoimpl.UnsafeEnabled {
+		file_google_protobuf_field_mask_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*FieldMask); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_google_protobuf_field_mask_proto_rawDesc), len(file_google_protobuf_field_mask_proto_rawDesc)),
+			RawDescriptor: file_google_protobuf_field_mask_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
@@ -566,6 +582,7 @@ func file_google_protobuf_field_mask_proto_init() {
 		MessageInfos:      file_google_protobuf_field_mask_proto_msgTypes,
 	}.Build()
 	File_google_protobuf_field_mask_proto = out.File
+	file_google_protobuf_field_mask_proto_rawDesc = nil
 	file_google_protobuf_field_mask_proto_goTypes = nil
 	file_google_protobuf_field_mask_proto_depIdxs = nil
 }
