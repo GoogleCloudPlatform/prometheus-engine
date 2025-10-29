@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ package monitoring
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math"
 	"net/url"
 	"time"
@@ -60,7 +59,6 @@ func defaultNotificationChannelGRPCClientOptions() []option.ClientOption {
 		internaloption.WithDefaultAudience("https://monitoring.googleapis.com/"),
 		internaloption.WithDefaultScopes(DefaultAuthScopes()...),
 		internaloption.EnableJwtWithScope(),
-		internaloption.EnableNewAuthLibrary(),
 		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
@@ -330,8 +328,6 @@ type notificationChannelGRPCClient struct {
 
 	// The x-goog-* metadata to be sent with each request.
 	xGoogHeaders []string
-
-	logger *slog.Logger
 }
 
 // NewNotificationChannelClient creates a new notification channel service client based on gRPC.
@@ -359,7 +355,6 @@ func NewNotificationChannelClient(ctx context.Context, opts ...option.ClientOpti
 		connPool:                  connPool,
 		notificationChannelClient: monitoringpb.NewNotificationChannelServiceClient(connPool),
 		CallOptions:               &client.CallOptions,
-		logger:                    internaloption.GetLogger(opts),
 	}
 	c.setGoogleClientInfo()
 
@@ -382,9 +377,7 @@ func (c *notificationChannelGRPCClient) Connection() *grpc.ClientConn {
 func (c *notificationChannelGRPCClient) setGoogleClientInfo(keyval ...string) {
 	kv := append([]string{"gl-go", gax.GoVersion}, keyval...)
 	kv = append(kv, "gapic", getVersionClient(), "gax", gax.Version, "grpc", grpc.Version)
-	c.xGoogHeaders = []string{
-		"x-goog-api-client", gax.XGoogHeader(kv...),
-	}
+	c.xGoogHeaders = []string{"x-goog-api-client", gax.XGoogHeader(kv...)}
 }
 
 // Close closes the connection to the API service. The user should invoke this when
@@ -413,7 +406,7 @@ func (c *notificationChannelGRPCClient) ListNotificationChannelDescriptors(ctx c
 		}
 		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 			var err error
-			resp, err = executeRPC(ctx, c.notificationChannelClient.ListNotificationChannelDescriptors, req, settings.GRPC, c.logger, "ListNotificationChannelDescriptors")
+			resp, err = c.notificationChannelClient.ListNotificationChannelDescriptors(ctx, req, settings.GRPC...)
 			return err
 		}, opts...)
 		if err != nil {
@@ -448,7 +441,7 @@ func (c *notificationChannelGRPCClient) GetNotificationChannelDescriptor(ctx con
 	var resp *monitoringpb.NotificationChannelDescriptor
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = executeRPC(ctx, c.notificationChannelClient.GetNotificationChannelDescriptor, req, settings.GRPC, c.logger, "GetNotificationChannelDescriptor")
+		resp, err = c.notificationChannelClient.GetNotificationChannelDescriptor(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	if err != nil {
@@ -477,7 +470,7 @@ func (c *notificationChannelGRPCClient) ListNotificationChannels(ctx context.Con
 		}
 		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 			var err error
-			resp, err = executeRPC(ctx, c.notificationChannelClient.ListNotificationChannels, req, settings.GRPC, c.logger, "ListNotificationChannels")
+			resp, err = c.notificationChannelClient.ListNotificationChannels(ctx, req, settings.GRPC...)
 			return err
 		}, opts...)
 		if err != nil {
@@ -512,7 +505,7 @@ func (c *notificationChannelGRPCClient) GetNotificationChannel(ctx context.Conte
 	var resp *monitoringpb.NotificationChannel
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = executeRPC(ctx, c.notificationChannelClient.GetNotificationChannel, req, settings.GRPC, c.logger, "GetNotificationChannel")
+		resp, err = c.notificationChannelClient.GetNotificationChannel(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	if err != nil {
@@ -530,7 +523,7 @@ func (c *notificationChannelGRPCClient) CreateNotificationChannel(ctx context.Co
 	var resp *monitoringpb.NotificationChannel
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = executeRPC(ctx, c.notificationChannelClient.CreateNotificationChannel, req, settings.GRPC, c.logger, "CreateNotificationChannel")
+		resp, err = c.notificationChannelClient.CreateNotificationChannel(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	if err != nil {
@@ -548,7 +541,7 @@ func (c *notificationChannelGRPCClient) UpdateNotificationChannel(ctx context.Co
 	var resp *monitoringpb.NotificationChannel
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = executeRPC(ctx, c.notificationChannelClient.UpdateNotificationChannel, req, settings.GRPC, c.logger, "UpdateNotificationChannel")
+		resp, err = c.notificationChannelClient.UpdateNotificationChannel(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	if err != nil {
@@ -565,7 +558,7 @@ func (c *notificationChannelGRPCClient) DeleteNotificationChannel(ctx context.Co
 	opts = append((*c.CallOptions).DeleteNotificationChannel[0:len((*c.CallOptions).DeleteNotificationChannel):len((*c.CallOptions).DeleteNotificationChannel)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		_, err = executeRPC(ctx, c.notificationChannelClient.DeleteNotificationChannel, req, settings.GRPC, c.logger, "DeleteNotificationChannel")
+		_, err = c.notificationChannelClient.DeleteNotificationChannel(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	return err
@@ -579,7 +572,7 @@ func (c *notificationChannelGRPCClient) SendNotificationChannelVerificationCode(
 	opts = append((*c.CallOptions).SendNotificationChannelVerificationCode[0:len((*c.CallOptions).SendNotificationChannelVerificationCode):len((*c.CallOptions).SendNotificationChannelVerificationCode)], opts...)
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		_, err = executeRPC(ctx, c.notificationChannelClient.SendNotificationChannelVerificationCode, req, settings.GRPC, c.logger, "SendNotificationChannelVerificationCode")
+		_, err = c.notificationChannelClient.SendNotificationChannelVerificationCode(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	return err
@@ -594,7 +587,7 @@ func (c *notificationChannelGRPCClient) GetNotificationChannelVerificationCode(c
 	var resp *monitoringpb.GetNotificationChannelVerificationCodeResponse
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = executeRPC(ctx, c.notificationChannelClient.GetNotificationChannelVerificationCode, req, settings.GRPC, c.logger, "GetNotificationChannelVerificationCode")
+		resp, err = c.notificationChannelClient.GetNotificationChannelVerificationCode(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	if err != nil {
@@ -612,7 +605,7 @@ func (c *notificationChannelGRPCClient) VerifyNotificationChannel(ctx context.Co
 	var resp *monitoringpb.NotificationChannel
 	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = executeRPC(ctx, c.notificationChannelClient.VerifyNotificationChannel, req, settings.GRPC, c.logger, "VerifyNotificationChannel")
+		resp, err = c.notificationChannelClient.VerifyNotificationChannel(ctx, req, settings.GRPC...)
 		return err
 	}, opts...)
 	if err != nil {
