@@ -46,8 +46,9 @@ Example use:
 
 Variables:
 * BRANCH (required) - Release branch to work on; Project is auto-detected from this.
-* TAG (required) - Tag to release.
-* CHECKOUT_DIR (required) - Local working directory e.g. for local clones.
+* CHECKOUT_DIR or DIR (required) - Local working directory e.g. for local clones. DIR is a working dir, CHECKOUT_DIR sets DIR to CHECKOUT_DIR/<project name> from remote URL.
+* TAG (optional) - Tag to release. If empty next tag version will be detected (double check this!)
+* FORCE_NEW_PATCH_VERSION (optional) - If not empty, forces a new patch version as a new TAG (if TAG is empty).
 _EOM
 }
 
@@ -62,7 +63,7 @@ fi
 
 # Check if the BRANCH environment variable is set.
 if [[ -z "${BRANCH}" ]]; then
-	echo "❌  BRANCH environment variable is not set." >&2
+	echo "❌  BRANCH environment variable is not set."
 	usage
 	exit 1
 fi
@@ -76,30 +77,63 @@ PR_BRANCH=${BRANCH} # Same as branch because we push directly, without PR as per
 
 echo "🔄 Assuming ${PROJECT} with remote ${REMOTE_URL}; changes will be pushed directly to ${PR_BRANCH}"
 
-# Check if the BRANCH environment variable is set.
-if [[ -z "${CHECKOUT_DIR}" ]]; then
-	echo "❌  CHECKOUT_DIR environment variable is not set." >&2
+if [[ -z "${CHECKOUT_DIR:-}" && -z "${DIR:-}" ]]; then
+	echo "❌  CHECKOUT_DIR or DIR environment variable has to be set."
 	usage
 	exit 1
 fi
+DIR=${DIR:-"${CHECKOUT_DIR}/${PROJECT}"}
 
-# TODO(bwplotka): Auto-detect this.
-if [[ -z "${TAG}" ]]; then
-	echo "❌  TAG environment variable is not set." >&2
-	usage
-	exit 1
-fi
-
-DIR="${CHECKOUT_DIR}/${PROJECT}"
 release-lib::idemp::clone "${DIR}" "${BRANCH}" "${PR_BRANCH}"
 
 pushd "${DIR}"
 
+if [[ -z "${TAG:-}" ]]; then
+	TAG=$(release-lib::next_release_tag "${DIR}")
+	echo "✅  Detected next release tag: ${TAG}"
+fi
+
 if [[ "${PROJECT}" == "prometheus-engine" ]]; then
-	pushd "${SCRIPT_DIR}"
-	go run "./prepare_rc" -dir "${DIR}" -tag "${TAG}"
-	popd
-	"${DIR}/hack/presubmit.sh" manifests
+	CLEAN_TAG="${TAG%-rc.*}"
+	CLEAN_TAG="${CLEAN_TAG#v}"
+	if [[ "${BRANCH}" == "release/0.12" ]]; then
+		# A bit different flow.
+		chart_file="${DIR}/charts/operator/Chart.yaml"
+		echo "🔄  Ensuring ${CLEAN_TAG} on ${chart_file}..."
+		if ! gsed -i -E "s#appVersion:.*#appVersion: ${CLEAN_TAG}#g" "${chart_file}"; then
+			# TODO: This is flaky, no failing actually on no match. Common bug is
+			echo "❌  sed didn't replace?"
+			exit 1
+		fi
+
+		chart_file="${DIR}/charts/rule-evaluator/Chart.yaml"
+		echo "🔄  Ensuring ${CLEAN_TAG} on ${chart_file}..."
+		if ! gsed -i -E "s#appVersion:.*#appVersion: ${CLEAN_TAG}#g" "${chart_file}"; then
+			# TODO: This is flaky, no failing actually on no match. Common bug is
+			echo "❌  sed didn't replace?"
+			exit 1
+		fi
+	else
+		# 0.12+
+		values_file="${DIR}/charts/values.global.yaml"
+		echo "🔄  Ensuring ${CLEAN_TAG} on ${values_file}..."
+		if ! gsed -i -E "s#version:.*#version: ${CLEAN_TAG}#g" "${values_file}"; then
+			# TODO: This is flaky, no failing actually on no match. Common bug is
+			echo "❌  sed didn't replace?"
+			exit 1
+		fi
+	fi
+	# For versions with export embedded.
+	if [[ -f "${DIR}/pkg/export/export.go" ]]; then
+		echo "🔄  Ensuring ${TAG} in ${DIR}/pkg/export/export.go mainModuleVersion..."
+		if ! gsed -i -E "s#mainModuleVersion = .*#mainModuleVersion = \"${TAG}\"#g" "${DIR}/pkg/export/export.go"; then
+			# TODO: This is flaky, no failing actually on no match. Common bug is
+			echo "❌  sed didn't replace?"
+			exit 1
+		fi
+	fi
+
+	release-lib::manifests_regen "${DIR}"
 	git add --all
 else
 	# Prometheus and Alertmanager fork needs just a correct version in the VERSION file,
@@ -109,6 +143,10 @@ else
 	git add VERSION
 fi
 
+if ! release-lib::confirm "About to create a commit and a local git tag for ${TAG} in ${DIR} on ${PR_BRANCH}; should I continue?"; then
+	exit 1
+fi
+
 # Commit if anything is staged.
 release-lib::idemp::git_commit_amend_match "chore: prepare for ${TAG} release"
 
@@ -116,11 +154,11 @@ release-lib::idemp::git_commit_amend_match "chore: prepare for ${TAG} release"
 if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
 	# Tag exists, but is it tagged for the current HEAD?
 	if [[ "$(git rev-parse HEAD)" != "$(git rev-list -n 1 "${TAG}")" ]]; then
-		echo "❌  Tag ${TAG} exists already locally, not pointing to the HEAD; consider 'git tag -d' to remove it and rerun." >&2
+		echo "❌  Tag ${TAG} exists already locally, not pointing to the HEAD; consider 'git tag -d' to remove it and rerun."
 		exit 1
 	fi
 else
-	echo "🔄 Creating a signed tag ${TAG}..."
+	echo "🔄  Creating a signed tag ${TAG}..."
 	# explicit TTY is often needed on Macs.
 	# TODO(bwplotka): Consider adding v0.x second tag for Prometheus fork (similar to how v0.300 Prometheus releases are structured).
 	# This is to have a little bit cleaner prometheus-engine go.mod version against the fork.

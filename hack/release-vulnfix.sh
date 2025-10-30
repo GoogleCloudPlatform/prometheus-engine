@@ -38,6 +38,14 @@ usage: ${me}
 
 Attempt a minimal dependency upgrade to solve fixable vulnerabilities.
 
+* Docker images:
+  * Distros use latest tag so rebuilding takes latest, nothing to do.
+  * google-go.pkg.dev/golang images are updated to the latest minor version using docker-bump-images.sh
+* Manifests
+  * distroless bumped to latest (although our component tooling is capable of bumpting this too)
+* Go deps: Upgrade to minimal required version per a known fixable vulnerability.
+* Npm deps: Not implemented.
+
 NOTE: The script is idempotent; to force it to recreate local artifacts (e.g. local clones, remote branches it created), remove the artifact you want to recreate.
 
 Example use:
@@ -47,8 +55,9 @@ Example use:
 
 Variables:
 * BRANCH (required) - Release branch to work on; Project is auto-detected from this.
-* CHECKOUT_DIR (required) - Local working directory e.g. for local clones.
+* CHECKOUT_DIR or DIR (required) - Local working directory e.g. for local clones. DIR is a working dir, CHECKOUT_DIR sets DIR to CHECKOUT_DIR/<project name> from remote URL.
 * PR_BRANCH (default: USER/BRANCH-vulnfix) - Upstream branch to push to (user-confirmed first).
+* SYNC_DOCKERFILES_FROM - optional branch name to sync manifests for each dockerfile.
 _EOM
 }
 
@@ -63,9 +72,9 @@ fi
 
 # Check if the BRANCH environment variable is set.
 if [[ -z "${BRANCH}" ]]; then
-	echo "❌  BRANCH environment variable is not set." >&2
+	echo "❌  BRANCH environment variable is not set."
 	usage
-	return 1
+	exit 1
 fi
 
 REMOTE_URL=$(release-lib::remote_url_from_branch "${BRANCH}")
@@ -75,18 +84,52 @@ PROJECT=$(
 )
 PR_BRANCH=${PR_BRANCH:-"${USER}/${BRANCH}-vulnfix"}
 
-echo "🔄 Assuming ${PROJECT} with remote ${REMOTE_URL}; changes will be pushed to ${PR_BRANCH}"
+echo "🔄  Assuming ${PROJECT} with remote ${REMOTE_URL}; changes will be pushed to ${PR_BRANCH}"
 
-# Check if the BRANCH environment variable is set.
-if [[ -z "${CHECKOUT_DIR}" ]]; then
-	echo "❌  CHECKOUT_DIR environment variable is not set." >&2
+if [[ -z "${CHECKOUT_DIR:-}" && -z "${DIR:-}" ]]; then
+	echo "❌  CHECKOUT_DIR or DIR environment variable has to be set."
 	usage
-	return 1
+	exit 1
 fi
+DIR=${DIR:-"${CHECKOUT_DIR}/${PROJECT}"}
 
-DIR="${CHECKOUT_DIR}/${PROJECT}"
 release-lib::idemp::clone "${DIR}" "${BRANCH}" "${PR_BRANCH}"
 
+readarray -t DOCKERFILES < <(release-lib::dockerfiles "${DIR}")
+
+# Sync dockerfiles if needed.
+if [[ -n "${SYNC_DOCKERFILES_FROM:-}" ]]; then
+	pushd "${DIR}"
+	for dockerfile in "${DOCKERFILES[@]}"; do
+		# TODO: Should we ensure SYNC_DOCKERFILES_FROM if it's a branch is up to data with origin?
+		echo "🔄  Syncing ${dockerfile} from ${SYNC_DOCKERFILES_FROM}"
+		git checkout "${SYNC_DOCKERFILES_FROM}" -- "${dockerfile}"
+	done
+	popd
+fi
+
+# Docker images bumps.
+
+# Get first dockerfile Go version. We will use this version to find minor version to stick to.
+go_version=$(release-lib::dockerfile_go_version "${DOCKERFILES[0]}")
+if [[ -z "${go_version}" ]]; then
+	echo "❌  can't find any golang image in ${DOCKERFILES[0]}"
+	exit 1
+fi
+
+# Update our images.
+for dockerfile in "${DOCKERFILES[@]}"; do
+	release-lib::dockerfile_update_image "${dockerfile}" "google-go.pkg.dev/golang" $(echo "${go_version}" | cut -d '.' -f 1-2)
+	release-lib::dockerfile_update_image "${dockerfile}" "gke.gcr.io/gke-distroless/libc" "gke_distroless_"
+done
+
+# bash manifest bump.
+# Exclude 0.12 as values were inlined with each part, easy to manually sed for old versions.
+if [[ "${PROJECT}" == "prometheus-engine" && "${BRANCH}" != "release/0.12" ]]; then
+	release-lib::idemp::manifests_bash_image_bump "${DIR}"
+fi
+
+# Go vulnerabilities.
 vuln_file="${DIR}/.git/vulnlist.txt"
 pushd "${DIR}"
 
@@ -98,10 +141,10 @@ if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
 	git add go.mod go.sum
 
 	# Check if that helped.
-	echo "⚠️ This will fail on older branches with vendoring; in this case, simply go to ${DIR}, run 'go mod vendor' and rerun."
+	echo "⚠️  This will fail on older branches with vendoring; in this case, simply go to ${DIR}, run 'go mod vendor' and rerun."
 	release-lib::vulnlist "${DIR}" "${vuln_file}"
 	if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
-		echo "❌  After go mod update some vulnerabilities are still found; go to ${DIR} and resolve it manually and remove the ./vulnlist.txt file and rerun." >&2
+		echo "❌  After go mod update some vulnerabilities are still found; go to ${DIR} and resolve it manually and remove the ./vulnlist.txt file and rerun."
 		exit 1
 	fi
 fi
@@ -109,7 +152,7 @@ fi
 # TODO: Warn of unstaged files at this point.
 
 # Commit if anything is staged.
-msg="google patch[deps]: fix Go ${BRANCH} vulnerabilities"
+msg="google patch[deps]: fix ${BRANCH} vulnerabilities"
 if [[ "${PROJECT}" == "prometheus-engine" ]]; then
 	msg="fix: fix ${BRANCH} vulnerabilities"
 fi
