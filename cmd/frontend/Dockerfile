@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.0@sha256:ffc9c87d9826ce5c48de165fb774e3ec0c4fb1006aa09b374b6cf2e1638e5b89 AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.3@sha256:35b566f68e22be2310b4538a5c2102c0331a960a69a98b7c473d3d378ba6decf AS buildbase
 
 # Compile the UI assets.
 FROM --platform=$BUILDPLATFORM gcr.io/google-appengine/nodejs AS assets
