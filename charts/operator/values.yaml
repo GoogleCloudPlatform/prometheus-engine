@@ -23,7 +23,7 @@ images:
     tag: "v0.25.1-gmp.2-gke.0"
   bash:
     image: gke.gcr.io/gke-distroless/bash
-    tag: "gke_distroless_20240607.00_p0"
+    tag: gke_distroless_20251007.00_p0
   configReloader:
     image: gke.gcr.io/prometheus-engine/config-reloader
     tag: "v0.12.0-gke.5@sha256:21055a361185da47fbd2c21389fb5cd00b54bfed5c784e0dc258b5b416beaf7e"
