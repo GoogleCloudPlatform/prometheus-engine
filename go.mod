@@ -3,7 +3,7 @@ module github.com/GoogleCloudPlatform/prometheus-engine
 go 1.23.0
 
 require (
-	cloud.google.com/go/compute/metadata v0.2.3
+	cloud.google.com/go/compute/metadata v0.3.0
 	cloud.google.com/go/monitoring v1.18.0
 	github.com/ahmetb/gen-crd-api-reference-docs v0.3.0
 	github.com/alecthomas/kingpin/v2 v2.4.0
@@ -28,7 +28,7 @@ require (
 	github.com/thanos-io/thanos v0.34.2-0.20240314081355-f731719f9515
 	go.uber.org/zap v1.26.0
 	golang.org/x/mod v0.17.0
-	golang.org/x/oauth2 v0.17.0
+	golang.org/x/oauth2 v0.27.0
 	golang.org/x/time v0.5.0
 	google.golang.org/api v0.162.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240205150955-31a09d347014
@@ -46,7 +46,6 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute v1.23.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.6.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.8.0 // indirect
@@ -133,7 +132,6 @@ require (
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
-	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20240125205218-1f4bbc51befe // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240205150955-31a09d347014 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
