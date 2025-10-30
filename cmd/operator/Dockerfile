@@ -12,18 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.24.1@sha256:fa145a3c13f145356057e00ed6f66fbd9bf017798c9d7b2b8e956651fe4f52da as buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.24.9@sha256:17706709dd6f55af1efb33509fea7f09f54163a1209871224bed4cf297fb6bbb AS buildbase
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /app
 COPY go.mod go.mod
 COPY go.sum go.sum
+COPY vendor vendor
 COPY cmd cmd
 COPY pkg pkg
-COPY vendor vendor
 
-FROM buildbase as appbase
-RUN CGO_ENABLED=1 GOEXPERIMENT=boringcrypto \
-    go build -tags boring -mod=vendor -o operator cmd/operator/*.go
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+      apt install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+      CC=aarch64-linux-gnu-gcc; \
+    fi && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
+      go build -tags boring -mod=vendor -o operator cmd/operator/*.go
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20240307.00_p0@sha256:4f834e207f2721977094aeec4c9daee7032c5daec2083c0be97760f4306e4f88
-COPY --from=appbase /app/operator /bin/operator
+FROM gcr.io/distroless/base-nossl-debian12:nonroot
+COPY --from=buildbase /app/operator /bin/operator
 ENTRYPOINT ["/bin/operator"]

@@ -12,14 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.24.1-bullseye as buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.24.9@sha256:17706709dd6f55af1efb33509fea7f09f54163a1209871224bed4cf297fb6bbb AS buildbase
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /app
 COPY . ./
 
-FROM buildbase as appbase
-RUN CGO_ENABLED=0 GOEXPERIMENT=boringcrypto go build -mod=vendor -o datasource-syncer cmd/datasource-syncer/*.go
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+      apt install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+      CC=aarch64-linux-gnu-gcc; \
+    fi && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=1 CC=${CC} \
+      go build -tags boring -mod=vendor -o datasource-syncer cmd/datasource-syncer/*.go
 
-FROM gcr.io/distroless/static-debian11:latest
-COPY --from=appbase /app/datasource-syncer /bin/datasource-syncer
+FROM gcr.io/distroless/base-nossl-debian12:nonroot
+COPY --from=buildbase /app/datasource-syncer /bin/datasource-syncer
 ENTRYPOINT ["/bin/datasource-syncer"]
 
