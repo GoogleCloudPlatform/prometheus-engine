@@ -21,7 +21,7 @@ images:
   # NOTE: All tags have to be quoted otherwise they might be treated as a number.
   bash:
     image: gke.gcr.io/gke-distroless/bash
-    tag: gke_distroless_20250407.00_p0
+    tag: gke_distroless_20251007.00_p0
   alertmanager:
     image: gke.gcr.io/prometheus-engine/alertmanager
     tag: v0.27.0-gmp.3-gke.0
