@@ -43,6 +43,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/operator/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20250807.00_p0
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20251007.00_p0@sha256:06e60d7033d3b97a1be5aa0093b7c75312a8856fa413194e6d187b79d4b34f64
 COPY --from=buildbase /app/operator /bin/operator
 ENTRYPOINT ["/bin/operator"]
