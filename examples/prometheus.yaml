@@ -108,7 +108,7 @@ spec:
           privileged: false
       containers:
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.45.3-gmp.7-gke.0
+        image: gke.gcr.io/prometheus-engine/prometheus:v2.53.5-gmp.0-gke.8
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --storage.tsdb.path=/prometheus/data
@@ -191,7 +191,7 @@ data:
       - role: pod
       relabel_configs:
       - source_labels: [__meta_kubernetes_pod_label_app]
-        regex: prom-example
+        regex: prom-example.*
         action: keep
       - source_labels: [__meta_kubernetes_namespace]
         target_label: namespace
