@@ -131,7 +131,7 @@ spec:
           mountPath: /prometheus/config_out
       containers:
       - name: evaluator
-        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.17.0-gke.0
+        image: gke.gcr.io/prometheus-engine/rule-evaluator:v0.17.0-gke.8
         args:
         - "--config.file=/prometheus/config_out/config.yaml"
         - "--web.listen-address=:9092"
@@ -169,7 +169,7 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
       - name: config-reloader
-        image: gke.gcr.io/prometheus-engine/config-reloader:v0.17.0-gke.0
+        image: gke.gcr.io/prometheus-engine/config-reloader:v0.17.0-gke.8
         args:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
