@@ -60,7 +60,8 @@ type deployOptions struct {
 	disableGCM        bool
 	// TODO(bwplotka): Remove once runtime config can change auth options.
 	// See https://github.com/GoogleCloudPlatform/prometheus/issues/261.
-	explicitCredentials string
+	explicitCredentials     string
+	explicitCollectorFilter string
 }
 
 func (opts *deployOptions) setDefaults() {

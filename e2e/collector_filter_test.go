@@ -63,7 +63,7 @@ var (
 	stateB     = filterState{match: "{__name__='go_goroutines',container='config-reloader'}"}
 )
 
-func (f filterState) expectedForkConfigEntry(t testing.TB) string {
+func (f filterState) expectedMatchConfigEntry(t testing.TB) string {
 	switch f {
 	case stateEmpty:
 		return ""
@@ -98,8 +98,8 @@ func (f filterState) filters(t testing.TB) []string {
 // * collectors are running.
 // * collectorPodMonitoring is applied.
 // * prometheus and config-reloader expose 'go_goroutines' metric.
-// * OperatorConfig as "external_key"=$externalKey label configured (as well as default ones like project, etc.).
-func (f filterState) testValidateApplied(ctx context.Context, kubeClient client.Client, externalKey string) func(*testing.T) {
+// * OperatorConfig as "external_key"=$externalValue label configured (as well as default ones like project, etc.).
+func (f filterState) testValidateApplied(ctx context.Context, kubeClient client.Client, externalValue string) func(*testing.T) {
 	return func(t *testing.T) {
 		metricClient, err := newMetricClient(ctx)
 		if err != nil {
@@ -145,24 +145,24 @@ func (f filterState) testValidateApplied(ctx context.Context, kubeClient client.
 				}
 
 				t.Run("prometheus", testValidateGCMMetric(ctx, metricClient, listTimeSeriesFilter{
-					metricType:  "prometheus.googleapis.com/go_goroutines/gauge",
-					job:         collectorPodMonitoring.Name,
-					instance:    fmt.Sprintf("%s:%s", pod.Spec.NodeName, operator.CollectorPrometheusContainerPortName),
-					pod:         pod.Name,
-					container:   "prometheus",
-					externalKey: externalKey,
-					namespace:   operator.DefaultOperatorNamespace,
-				}, metricExpectation{isQueryable: promMatch}))
+					metricType:    "prometheus.googleapis.com/go_goroutines/gauge",
+					job:           collectorPodMonitoring.Name,
+					instance:      fmt.Sprintf("%s:%s", pod.Spec.NodeName, operator.CollectorPrometheusContainerPortName),
+					pod:           pod.Name,
+					container:     "prometheus",
+					externalValue: externalValue,
+					namespace:     operator.DefaultOperatorNamespace,
+				}, metricExpectation{noPoints: !promMatch}))
 
 				t.Run("config-reloader", testValidateGCMMetric(ctx, metricClient, listTimeSeriesFilter{
-					metricType:  "prometheus.googleapis.com/go_goroutines/gauge",
-					job:         collectorPodMonitoring.Name,
-					instance:    fmt.Sprintf("%s:%s", pod.Spec.NodeName, operator.CollectorConfigReloaderContainerPortName),
-					pod:         pod.Name,
-					container:   "config-reloader",
-					externalKey: externalKey,
-					namespace:   operator.DefaultOperatorNamespace,
-				}, metricExpectation{isQueryable: configReloaderMatch}))
+					metricType:    "prometheus.googleapis.com/go_goroutines/gauge",
+					job:           collectorPodMonitoring.Name,
+					instance:      fmt.Sprintf("%s:%s", pod.Spec.NodeName, operator.CollectorConfigReloaderContainerPortName),
+					pod:           pod.Name,
+					container:     "config-reloader",
+					externalValue: externalValue,
+					namespace:     operator.DefaultOperatorNamespace,
+				}, metricExpectation{noPoints: !configReloaderMatch}))
 			})
 		}
 	}
@@ -251,16 +251,15 @@ func testCollectorMatch(t *testing.T, explicitFilter filterState, filterCases []
 
 	for i, fcase := range filterCases {
 		// Ensure a unique external label value so we are sure the existence checks are accurate.
-		externalKey := fmt.Sprintf("filter%d", i)
+		externalValue := fmt.Sprintf("filter%d", i)
 
 		// Setup OperatorConfig with an intput filtering state (filter.matchOneOf).
 		t.Run("collector-operatorconfig", testCollectorOperatorConfigWithParams(
 			ctx,
 			kubeClient,
-			externalKey,
+			externalValue,
 			fcase.filter,
-			true, // Trim scrapeConfigs from diff chceck.
 		))
-		t.Run("filter-applied-gcm", fcase.expectedFilter.testValidateApplied(ctx, kubeClient, externalKey))
+		t.Run("filter-applied-gcm", fcase.expectedFilter.testValidateApplied(ctx, kubeClient, externalValue))
 	}
 }
