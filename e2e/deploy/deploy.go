@@ -52,12 +52,14 @@ func CreateResources(ctx context.Context, kubeClient client.Client, deployOpts .
 type DeployOption func(*deployOptions)
 
 type deployOptions struct {
-	operatorNamespace   string
-	publicNamespace     string
-	projectID           string
-	cluster             string
-	location            string
-	disableGCM          bool
+	operatorNamespace string
+	publicNamespace   string
+	projectID         string
+	cluster           string
+	location          string
+	disableGCM        bool
+	// TODO(bwplotka): Remove once runtime config can change auth options.
+	// See https://github.com/GoogleCloudPlatform/prometheus/issues/261.
 	explicitCredentials string
 }
 
@@ -97,7 +99,8 @@ func WithDisableGCM(disableGCM bool) DeployOption {
 }
 
 // WithExplicitCredentials sets explicit credential file path in local container to use.
-// TODO(bwplotka): This is a temporary solution for https://github.com/GoogleCloudPlatform/prometheus/pull/259/files#r2350691932
+// TODO(bwplotka): Remove once runtime config can change auth options.
+// See https://github.com/GoogleCloudPlatform/prometheus/issues/261.
 func WithExplicitCredentials(filepath string) DeployOption {
 	return func(opts *deployOptions) {
 		opts.explicitCredentials = filepath
