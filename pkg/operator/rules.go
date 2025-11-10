@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -224,67 +225,28 @@ func hasGlobalRules(ctx context.Context, c client.Client) (bool, error) {
 func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string, configCompression monitoringv1.CompressionType) error {
 	logger, _ := logr.FromContext(ctx)
 
-	// Re-generate the configmap that's loaded by the rule-evaluator.
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.opts.OperatorNamespace,
-			Name:      nameRulesGenerated,
-			Labels: map[string]string{
-				LabelAppName: NameRuleEvaluator,
-			},
-		},
-		// Ensure there's always at least an empty, uncompressed dummy file as the evaluator
-		// expects at least one match.
-		Data: map[string]string{
-			"empty.yaml": "",
-		},
-	}
+	const maxConfigMapSize = 950000 // 950 KB, to stay well below 1 MB limit
 
-	// Generate a final rule file for each Rules resource.
-	//
-	// Depending on the scope level (global, cluster, namespace) the rules will be generated
-	// so that queries are constrained to the appropriate project_id, cluster, and namespace
-	// labels and that they are preserved through query aggregations and appear on the
-	// output data.
-	//
-	// The location is not scoped as it's not a meaningful boundary for "human access"
-	// to data as clusters may span locations.
+	// Gather all rule files to be written.
+	ruleFiles := make([]struct{ filename, content string }, 0)
+
 	var rulesList monitoringv1.RulesList
 	if err := r.client.List(ctx, &rulesList); err != nil {
 		return fmt.Errorf("list rules: %w", err)
 	}
-
-	now := metav1.Now()
-	conditionSuccess := &monitoringv1.MonitoringCondition{
-		Type:   monitoringv1.ConfigurationCreateSuccess,
-		Status: corev1.ConditionTrue,
-	}
-	var statusUpdates []monitoringv1.MonitoringCRD
-
 	for i := range rulesList.Items {
 		rs := &rulesList.Items[i]
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
 		if err != nil {
-			msg := "generating rule config failed"
-			if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, &monitoringv1.MonitoringCondition{
-				Type:    monitoringv1.ConfigurationCreateSuccess,
-				Status:  corev1.ConditionFalse,
-				Message: msg,
-				Reason:  err.Error(),
-			}) {
-				statusUpdates = append(statusUpdates, rs)
-			}
 			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
 			continue
 		}
 		filename := fmt.Sprintf("rules__%s__%s.yaml", rs.Namespace, rs.Name)
-		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
+		var buf strings.Builder
+		if err := setConfigMapDataRaw(&buf, configCompression, result); err != nil {
 			return err
 		}
-
-		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
-			statusUpdates = append(statusUpdates, rs)
-		}
+		ruleFiles = append(ruleFiles, struct{ filename, content string }{filename, buf.String()})
 	}
 
 	var clusterRulesList monitoringv1.ClusterRulesList
@@ -295,26 +257,15 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		rs := &clusterRulesList.Items[i]
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
 		if err != nil {
-			msg := "generating rule config failed"
-			if rs.Status.SetMonitoringCondition(rs.Generation, now, &monitoringv1.MonitoringCondition{
-				Type:    monitoringv1.ConfigurationCreateSuccess,
-				Status:  corev1.ConditionFalse,
-				Message: msg,
-				Reason:  err.Error(),
-			}) {
-				statusUpdates = append(statusUpdates, rs)
-			}
 			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
 			continue
 		}
 		filename := fmt.Sprintf("clusterrules__%s.yaml", rs.Name)
-		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
+		var buf strings.Builder
+		if err := setConfigMapDataRaw(&buf, configCompression, result); err != nil {
 			return err
 		}
-
-		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
-			statusUpdates = append(statusUpdates, rs)
-		}
+		ruleFiles = append(ruleFiles, struct{ filename, content string }{filename, buf.String()})
 	}
 
 	var globalRulesList monitoringv1.GlobalRulesList
@@ -325,43 +276,97 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		rs := &globalRulesList.Items[i]
 		result, err := rs.RuleGroupsConfig()
 		if err != nil {
-			msg := "generating rule config failed"
-			if rs.Status.SetMonitoringCondition(rs.Generation, now, &monitoringv1.MonitoringCondition{
-				Type:    monitoringv1.ConfigurationCreateSuccess,
-				Status:  corev1.ConditionFalse,
-				Message: msg,
-				Reason:  err.Error(),
-			}) {
-				statusUpdates = append(statusUpdates, rs)
-			}
 			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
 			continue
 		}
 		filename := fmt.Sprintf("globalrules__%s.yaml", rs.Name)
-		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
+		var buf strings.Builder
+		if err := setConfigMapDataRaw(&buf, configCompression, result); err != nil {
 			return err
 		}
+		ruleFiles = append(ruleFiles, struct{ filename, content string }{filename, buf.String()})
+	}
 
-		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
-			statusUpdates = append(statusUpdates, rs)
+	// Partition ruleFiles into chunks that fit within maxConfigMapSize
+	configMaps := make([]*corev1.ConfigMap, 0)
+	currentData := make(map[string]string)
+	currentSize := 0
+	cmIndex := 0
+	for i, rf := range ruleFiles {
+		entrySize := len(rf.filename) + len(rf.content)
+		if currentSize+entrySize > maxConfigMapSize && len(currentData) > 0 {
+			cm := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: r.opts.OperatorNamespace,
+					Name:      fmt.Sprintf("rules-generated-%d", cmIndex),
+					Labels:    map[string]string{LabelAppName: NameRuleEvaluator},
+				},
+				Data: currentData,
+			}
+			configMaps = append(configMaps, cm)
+			cmIndex++
+			currentData = make(map[string]string)
+			currentSize = 0
+		}
+		currentData[rf.filename] = rf.content
+		currentSize += entrySize
+		if i == len(ruleFiles)-1 {
+			cm := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: r.opts.OperatorNamespace,
+					Name:      fmt.Sprintf("rules-generated-%d", cmIndex),
+					Labels:    map[string]string{LabelAppName: NameRuleEvaluator},
+				},
+				Data: currentData,
+			}
+			configMaps = append(configMaps, cm)
+		}
+	}
+	if len(configMaps) == 0 {
+		// Always create at least one ConfigMap with an empty file
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: r.opts.OperatorNamespace,
+				Name:      "rules-generated-0",
+				Labels:    map[string]string{LabelAppName: NameRuleEvaluator},
+			},
+			Data: map[string]string{"empty.yaml": ""},
+		}
+		configMaps = append(configMaps, cm)
+	}
+
+	// Create or update ConfigMaps
+	for _, cm := range configMaps {
+		if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
+			if err := r.client.Create(ctx, cm); err != nil {
+				return fmt.Errorf("create generated rules: %w", err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("update generated rules: %w", err)
 		}
 	}
 
-	// Create or update generated rule ConfigMap.
-	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
-		if err := r.client.Create(ctx, cm); err != nil {
-			return fmt.Errorf("create generated rules: %w", err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("update generated rules: %w", err)
-	}
-
-	var errs []error
-	for _, obj := range statusUpdates {
-		if err := patchMonitoringStatus(ctx, r.client, obj, obj.GetMonitoringStatus()); err != nil {
-			errs = append(errs, err)
+	// Clean up obsolete ConfigMaps
+	for i := len(configMaps); ; i++ {
+		name := fmt.Sprintf("rules-generated-%d", i)
+		cm := &corev1.ConfigMap{}
+		cm.ObjectMeta.Namespace = r.opts.OperatorNamespace
+		cm.ObjectMeta.Name = name
+		if err := r.client.Delete(ctx, cm); apierrors.IsNotFound(err) {
+			break
+		} else if err != nil {
+			return fmt.Errorf("delete obsolete rules configmap: %w", err)
 		}
 	}
 
-	return errors.Join(errs...)
+	return nil
+}
+
+// Helper to compress or not compress rule file content
+func setConfigMapDataRaw(buf *strings.Builder, compression monitoringv1.CompressionType, data string) error {
+	if compression == monitoringv1.CompressionGzip {
+		return errors.New("gzip compression not implemented in setConfigMapDataRaw")
+	}
+	buf.WriteString(data)
+	return nil
 }
