@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,7 +30,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
@@ -628,4 +631,136 @@ func applyScale(obj client.Object, scale *autoscalingv1.Scale) error {
 		return fmt.Errorf("unable to extract scale from type %T", obj)
 	}
 	return nil
+}
+
+func TestEnsureRuleConfigs_SplitConfigMaps(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = monitoringv1.AddToScheme(scheme)
+	_ = corev1.AddToScheme(scheme)
+
+	// Create two large rules to force splitting into two configmaps
+	rule1 := &monitoringv1.Rules{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "monitoring.googleapis.com/v1", Kind: "Rules"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Name: "r1"},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{{
+				Name:  "g1",
+				Rules: []monitoringv1.Rule{{Record: "r", Expr: strings.Repeat("A", 900000)}},
+			}},
+		},
+	}
+	rule2 := &monitoringv1.Rules{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "monitoring.googleapis.com/v1", Kind: "Rules"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ns2", Name: "r2"},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{{
+				Name:  "g2",
+				Rules: []monitoringv1.Rule{{Record: "r2", Expr: strings.Repeat("B", 900000)}},
+			}},
+		},
+	}
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(rule1, rule2).Build()
+	reconciler := &rulesReconciler{
+		client: client,
+		opts:   Options{OperatorNamespace: "gmp-system"},
+	}
+	err := reconciler.ensureRuleConfigs(context.Background(), "proj", "loc", "cluster", monitoringv1.CompressionNone)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var cmList corev1.ConfigMapList
+	if err := client.List(context.Background(), &cmList, client.InNamespace("gmp-system")); err != nil {
+		t.Fatalf("listing configmaps: %v", err)
+	}
+	if len(cmList.Items) != 2 {
+		t.Fatalf("expected 2 configmaps, got %d", len(cmList.Items))
+	}
+
+	found := map[string]bool{"rules__ns1__r1.yaml": false, "rules__ns2__r2.yaml": false}
+	for _, cm := range cmList.Items {
+		for key := range cm.Data {
+			if _, ok := found[key]; ok {
+				found[key] = true
+			}
+		}
+		// Check that no configmap exceeds the size limit
+		var totalSize int
+		for _, v := range cm.Data {
+			totalSize += len(v)
+		}
+		if totalSize > 950000 {
+			t.Errorf("configmap %s exceeds size limit: %d bytes", cm.Name, totalSize)
+		}
+	}
+	for k, v := range found {
+		if !v {
+			t.Errorf("expected rule file %s not found in any configmap", k)
+		}
+	}
+}
+
+func TestEnsureRuleConfigs_InterruptionRecovery(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = monitoringv1.AddToScheme(scheme)
+	_ = corev1.AddToScheme(scheme)
+
+	// Simulate a client that fails the first update/create, then succeeds
+	type flakyClient struct {
+		client.Client
+		failOnce map[string]bool
+	}
+	// Wrap Update and Create to fail once per ConfigMap name
+	func (fc *flakyClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+		cm, ok := obj.(*corev1.ConfigMap)
+		if ok && !fc.failOnce[cm.Name] {
+			fc.failOnce[cm.Name] = true
+			return fmt.Errorf("simulated update failure for %s", cm.Name)
+		}
+		return fc.Client.Update(ctx, obj, opts...)
+	}
+	func (fc *flakyClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+		cm, ok := obj.(*corev1.ConfigMap)
+		if ok && !fc.failOnce[cm.Name] {
+			fc.failOnce[cm.Name] = true
+			return fmt.Errorf("simulated create failure for %s", cm.Name)
+		}
+		return fc.Client.Create(ctx, obj, opts...)
+	}
+
+	rule := &monitoringv1.Rules{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "monitoring.googleapis.com/v1", Kind: "Rules"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Name: "r1"},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{{
+				Name:  "g1",
+				Rules: []monitoringv1.Rule{{Record: "r", Expr: "vector(1)"}},
+			}},
+		},
+	}
+
+	baseClient := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(rule).Build()
+	client := &flakyClient{Client: baseClient, failOnce: make(map[string]bool)}
+	reconciler := &rulesReconciler{
+		client: client,
+		opts:   Options{OperatorNamespace: "gmp-system"},
+	}
+
+	// First call: will fail once per ConfigMap, but retry and succeed
+	err := reconciler.ensureRuleConfigs(context.Background(), "proj", "loc", "cluster", monitoringv1.CompressionNone)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var cmList corev1.ConfigMapList
+	if err := client.List(context.Background(), &cmList, client.InNamespace("gmp-system")); err != nil {
+		t.Fatalf("listing configmaps: %v", err)
+	}
+	if len(cmList.Items) != 1 {
+		t.Fatalf("expected 1 configmap, got %d", len(cmList.Items))
+	}
+	if _, ok := cmList.Items[0].Data["rules__ns1__r1.yaml"]; !ok {
+		t.Errorf("expected rule file not found after recovery")
+	}
 }
