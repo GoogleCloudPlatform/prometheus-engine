@@ -700,3 +700,67 @@ func TestEnsureRuleConfigs_SplitConfigMaps(t *testing.T) {
 		}
 	}
 }
+
+func TestEnsureRuleConfigs_InterruptionRecovery(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = monitoringv1.AddToScheme(scheme)
+	_ = corev1.AddToScheme(scheme)
+
+	// Simulate a client that fails the first update/create, then succeeds
+	type flakyClient struct {
+		client.Client
+		failOnce map[string]bool
+	}
+	// Wrap Update and Create to fail once per ConfigMap name
+	func (fc *flakyClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+		cm, ok := obj.(*corev1.ConfigMap)
+		if ok && !fc.failOnce[cm.Name] {
+			fc.failOnce[cm.Name] = true
+			return fmt.Errorf("simulated update failure for %s", cm.Name)
+		}
+		return fc.Client.Update(ctx, obj, opts...)
+	}
+	func (fc *flakyClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+		cm, ok := obj.(*corev1.ConfigMap)
+		if ok && !fc.failOnce[cm.Name] {
+			fc.failOnce[cm.Name] = true
+			return fmt.Errorf("simulated create failure for %s", cm.Name)
+		}
+		return fc.Client.Create(ctx, obj, opts...)
+	}
+
+	rule := &monitoringv1.Rules{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "monitoring.googleapis.com/v1", Kind: "Rules"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Name: "r1"},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{{
+				Name:  "g1",
+				Rules: []monitoringv1.Rule{{Record: "r", Expr: "vector(1)"}},
+			}},
+		},
+	}
+
+	baseClient := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(rule).Build()
+	client := &flakyClient{Client: baseClient, failOnce: make(map[string]bool)}
+	reconciler := &rulesReconciler{
+		client: client,
+		opts:   Options{OperatorNamespace: "gmp-system"},
+	}
+
+	// First call: will fail once per ConfigMap, but retry and succeed
+	err := reconciler.ensureRuleConfigs(context.Background(), "proj", "loc", "cluster", monitoringv1.CompressionNone)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var cmList corev1.ConfigMapList
+	if err := client.List(context.Background(), &cmList, client.InNamespace("gmp-system")); err != nil {
+		t.Fatalf("listing configmaps: %v", err)
+	}
+	if len(cmList.Items) != 1 {
+		t.Fatalf("expected 1 configmap, got %d", len(cmList.Items))
+	}
+	if _, ok := cmList.Items[0].Data["rules__ns1__r1.yaml"]; !ok {
+		t.Errorf("expected rule file not found after recovery")
+	}
+}

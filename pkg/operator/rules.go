@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -222,10 +223,31 @@ func hasGlobalRules(ctx context.Context, c client.Client) (bool, error) {
 }
 
 // ensureRuleConfigs updates the Prometheus Rules ConfigMap.
+type RulesConfigUpdateStatus struct {
+	ConfigMapResults map[string]error
+}
+
+func retryOperation(op func() error, maxRetries int, delay time.Duration) error {
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		if err := op(); err != nil {
+			lastErr = err
+			time.Sleep(delay)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
 func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string, configCompression monitoringv1.CompressionType) error {
 	logger, _ := logr.FromContext(ctx)
 
 	const maxConfigMapSize = 950000 // 950 KB, to stay well below 1 MB limit
+	const maxRetries = 3
+	const retryDelay = 500 * time.Millisecond
+
+	updateStatus := &RulesConfigUpdateStatus{ConfigMapResults: make(map[string]error)}
 
 	// Gather all rule files to be written.
 	ruleFiles := make([]struct{ filename, content string }, 0)
@@ -335,31 +357,59 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		configMaps = append(configMaps, cm)
 	}
 
-	// Create or update ConfigMaps
+	// Create or update ConfigMaps with retry and error tracking
 	for _, cm := range configMaps {
-		if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
-			if err := r.client.Create(ctx, cm); err != nil {
-				return fmt.Errorf("create generated rules: %w", err)
+		name := cm.Name
+		op := func() error {
+			if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
+				if err := r.client.Create(ctx, cm); err != nil {
+					return fmt.Errorf("create generated rules: %w", err)
+				}
+			} else if err != nil {
+				return fmt.Errorf("update generated rules: %w", err)
 			}
-		} else if err != nil {
-			return fmt.Errorf("update generated rules: %w", err)
+			return nil
 		}
+		updateStatus.ConfigMapResults[name] = retryOperation(op, maxRetries, retryDelay)
 	}
 
-	// Clean up obsolete ConfigMaps
+	// Clean up obsolete ConfigMaps with retry and error tracking
 	for i := len(configMaps); ; i++ {
 		name := fmt.Sprintf("rules-generated-%d", i)
 		cm := &corev1.ConfigMap{}
 		cm.ObjectMeta.Namespace = r.opts.OperatorNamespace
 		cm.ObjectMeta.Name = name
-		if err := r.client.Delete(ctx, cm); apierrors.IsNotFound(err) {
+		op := func() error {
+			if err := r.client.Delete(ctx, cm); apierrors.IsNotFound(err) {
+				return nil
+			} else if err != nil {
+				return fmt.Errorf("delete obsolete rules configmap: %w", err)
+			}
+			return nil
+		}
+		updateStatus.ConfigMapResults[name] = retryOperation(op, maxRetries, retryDelay)
+		if updateStatus.ConfigMapResults[name] == nil {
 			break
-		} else if err != nil {
-			return fmt.Errorf("delete obsolete rules configmap: %w", err)
 		}
 	}
 
-	return nil
+	// Log partial update status
+	for name, err := range updateStatus.ConfigMapResults {
+		if err != nil {
+			logger.Error(err, "ConfigMap update failed", "configmap", name)
+		}
+	}
+	// Update OperatorConfig status with results
+	r.updateOperatorConfigStatus(ctx, updateStatus)
+
+	// Return error if any operation failed
+	var anyErr error
+	for _, err := range updateStatus.ConfigMapResults {
+		if err != nil {
+			anyErr = err
+		}
+	}
+	return anyErr
 }
 
 // Helper to compress or not compress rule file content
@@ -369,4 +419,16 @@ func setConfigMapDataRaw(buf *strings.Builder, compression monitoringv1.Compress
 	}
 	buf.WriteString(data)
 	return nil
+}
+
+func (r *rulesReconciler) updateOperatorConfigStatus(ctx context.Context, updateStatus *RulesConfigUpdateStatus) {
+	// This is a stub for updating OperatorConfig status. You can expand this to set a custom status field.
+	// For demonstration, we log the status. In production, you would patch the OperatorConfig resource.
+	for name, err := range updateStatus.ConfigMapResults {
+		if err != nil {
+			fmt.Printf("ConfigMap %s update failed: %v\n", name, err)
+		} else {
+			fmt.Printf("ConfigMap %s update succeeded\n", name)
+		}
+	}
 }
