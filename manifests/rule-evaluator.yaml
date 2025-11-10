@@ -213,8 +213,18 @@ spec:
       - name: config-out
         emptyDir: {}
       - name: rules
-        configMap:
-          name: rules
+        # Mount exactly one ConfigMap per rule type (3 total)
+        projected:
+          sources:
+          - configMap:
+              name: rules
+              optional: true
+          - configMap:
+              name: clusterrules
+              optional: true
+          - configMap:
+              name: globalrules
+              optional: true
       - name: rules-out
         emptyDir: {}
       affinity:

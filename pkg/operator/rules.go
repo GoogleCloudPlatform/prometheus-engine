@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -222,18 +223,42 @@ func hasGlobalRules(ctx context.Context, c client.Client) (bool, error) {
 }
 
 // ensureRuleConfigs updates the Prometheus Rules ConfigMap.
+type RulesConfigUpdateStatus struct {
+	ConfigMapResults map[string]error
+}
+
+func retryOperation(op func() error, maxRetries int, delay time.Duration) error {
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		if err := op(); err != nil {
+			lastErr = err
+			time.Sleep(delay)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
 func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string, configCompression monitoringv1.CompressionType) error {
 	logger, _ := logr.FromContext(ctx)
 
-	const maxConfigMapSize = 950000 // 950 KB, to stay well below 1 MB limit
+	const maxRetries = 3
+	const retryDelay = 500 * time.Millisecond
 
-	// Gather all rule files to be written.
-	ruleFiles := make([]struct{ filename, content string }, 0)
+	updateStatus := &RulesConfigUpdateStatus{ConfigMapResults: make(map[string]error)}
 
+	// Create one ConfigMap per rule type (no splitting)
+	// - rules (namespace-scoped Rules)
+	// - clusterrules (cluster-scoped ClusterRules)
+	// - globalrules (GlobalRules)
+
+	// Process namespace-scoped Rules -> single "rules" ConfigMap
 	var rulesList monitoringv1.RulesList
 	if err := r.client.List(ctx, &rulesList); err != nil {
 		return fmt.Errorf("list rules: %w", err)
 	}
+	rulesData := make(map[string]string)
 	for i := range rulesList.Items {
 		rs := &rulesList.Items[i]
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
@@ -246,13 +271,18 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		if err := setConfigMapDataRaw(&buf, configCompression, result); err != nil {
 			return err
 		}
-		ruleFiles = append(ruleFiles, struct{ filename, content string }{filename, buf.String()})
+		rulesData[filename] = buf.String()
+	}
+	if err := r.createOrUpdateConfigMap(ctx, "rules", rulesData, maxRetries, retryDelay, updateStatus); err != nil {
+		return err
 	}
 
+	// Process cluster-scoped ClusterRules -> single "clusterrules" ConfigMap
 	var clusterRulesList monitoringv1.ClusterRulesList
 	if err := r.client.List(ctx, &clusterRulesList); err != nil {
 		return fmt.Errorf("list cluster rules: %w", err)
 	}
+	clusterRulesData := make(map[string]string)
 	for i := range clusterRulesList.Items {
 		rs := &clusterRulesList.Items[i]
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
@@ -265,13 +295,18 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		if err := setConfigMapDataRaw(&buf, configCompression, result); err != nil {
 			return err
 		}
-		ruleFiles = append(ruleFiles, struct{ filename, content string }{filename, buf.String()})
+		clusterRulesData[filename] = buf.String()
+	}
+	if err := r.createOrUpdateConfigMap(ctx, "clusterrules", clusterRulesData, maxRetries, retryDelay, updateStatus); err != nil {
+		return err
 	}
 
+	// Process GlobalRules -> single "globalrules" ConfigMap
 	var globalRulesList monitoringv1.GlobalRulesList
 	if err := r.client.List(ctx, &globalRulesList); err != nil {
 		return fmt.Errorf("list global rules: %w", err)
 	}
+	globalRulesData := make(map[string]string)
 	for i := range globalRulesList.Items {
 		rs := &globalRulesList.Items[i]
 		result, err := rs.RuleGroupsConfig()
@@ -284,82 +319,65 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		if err := setConfigMapDataRaw(&buf, configCompression, result); err != nil {
 			return err
 		}
-		ruleFiles = append(ruleFiles, struct{ filename, content string }{filename, buf.String()})
+		globalRulesData[filename] = buf.String()
+	}
+	if err := r.createOrUpdateConfigMap(ctx, "globalrules", globalRulesData, maxRetries, retryDelay, updateStatus); err != nil {
+		return err
 	}
 
-	// Partition ruleFiles into chunks that fit within maxConfigMapSize
-	configMaps := make([]*corev1.ConfigMap, 0)
-	currentData := make(map[string]string)
-	currentSize := 0
-	cmIndex := 0
-	for i, rf := range ruleFiles {
-		entrySize := len(rf.filename) + len(rf.content)
-		if currentSize+entrySize > maxConfigMapSize && len(currentData) > 0 {
-			cm := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: r.opts.OperatorNamespace,
-					Name:      fmt.Sprintf("rules-generated-%d", cmIndex),
-					Labels:    map[string]string{LabelAppName: NameRuleEvaluator},
-				},
-				Data: currentData,
-			}
-			configMaps = append(configMaps, cm)
-			cmIndex++
-			currentData = make(map[string]string)
-			currentSize = 0
+	// Log partial update status
+	for name, err := range updateStatus.ConfigMapResults {
+		if err != nil {
+			logger.Error(err, "ConfigMap update failed", "configmap", name)
 		}
-		currentData[rf.filename] = rf.content
-		currentSize += entrySize
-		if i == len(ruleFiles)-1 {
-			cm := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: r.opts.OperatorNamespace,
-					Name:      fmt.Sprintf("rules-generated-%d", cmIndex),
-					Labels:    map[string]string{LabelAppName: NameRuleEvaluator},
-				},
-				Data: currentData,
-			}
-			configMaps = append(configMaps, cm)
-		}
-	}
-	if len(configMaps) == 0 {
-		// Always create at least one ConfigMap with an empty file
-		cm := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: r.opts.OperatorNamespace,
-				Name:      "rules-generated-0",
-				Labels:    map[string]string{LabelAppName: NameRuleEvaluator},
-			},
-			Data: map[string]string{"empty.yaml": ""},
-		}
-		configMaps = append(configMaps, cm)
 	}
 
-	// Create or update ConfigMaps
-	for _, cm := range configMaps {
+	// Return error if any operation failed
+	var anyErr error
+	for _, err := range updateStatus.ConfigMapResults {
+		if err != nil {
+			anyErr = err
+		}
+	}
+	return anyErr
+}
+
+// createOrUpdateConfigMap creates or updates a single ConfigMap for a rule type
+func (r *rulesReconciler) createOrUpdateConfigMap(
+	ctx context.Context,
+	name string,
+	data map[string]string,
+	maxRetries int,
+	retryDelay time.Duration,
+	updateStatus *RulesConfigUpdateStatus,
+) error {
+	// If no data, create empty ConfigMap
+	if len(data) == 0 {
+		data = map[string]string{}
+	}
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: r.opts.OperatorNamespace,
+			Name:      name,
+			Labels:    map[string]string{LabelAppName: NameRuleEvaluator},
+		},
+		Data: data,
+	}
+
+	// Create or update with retry
+	op := func() error {
 		if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
 			if err := r.client.Create(ctx, cm); err != nil {
-				return fmt.Errorf("create generated rules: %w", err)
+				return fmt.Errorf("create %s configmap: %w", name, err)
 			}
 		} else if err != nil {
-			return fmt.Errorf("update generated rules: %w", err)
+			return fmt.Errorf("update %s configmap: %w", name, err)
 		}
+		return nil
 	}
-
-	// Clean up obsolete ConfigMaps
-	for i := len(configMaps); ; i++ {
-		name := fmt.Sprintf("rules-generated-%d", i)
-		cm := &corev1.ConfigMap{}
-		cm.ObjectMeta.Namespace = r.opts.OperatorNamespace
-		cm.ObjectMeta.Name = name
-		if err := r.client.Delete(ctx, cm); apierrors.IsNotFound(err) {
-			break
-		} else if err != nil {
-			return fmt.Errorf("delete obsolete rules configmap: %w", err)
-		}
-	}
-
-	return nil
+	updateStatus.ConfigMapResults[name] = retryOperation(op, maxRetries, retryDelay)
+	return updateStatus.ConfigMapResults[name]
 }
 
 // Helper to compress or not compress rule file content
