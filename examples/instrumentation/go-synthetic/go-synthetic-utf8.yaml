@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
       - name: go-synthetic
-        image: gke.gcr.io/prometheus-engine/example-app:v0.15.0-gke.8
+        image: gke.gcr.io/prometheus-engine/example-app:v0.17.0-gke.8
         args:
         - "--listen-address=:8080"
         - "--cpu-burn-ops=75"
