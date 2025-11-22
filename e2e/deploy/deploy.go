@@ -60,7 +60,8 @@ type deployOptions struct {
 	disableGCM        bool
 	// TODO(bwplotka): Remove once runtime config can change auth options.
 	// See https://github.com/GoogleCloudPlatform/prometheus/issues/261.
-	explicitCredentials string
+	explicitCredentials     string
+	explicitCollectorFilter string
 }
 
 func (opts *deployOptions) setDefaults() {
@@ -104,6 +105,15 @@ func WithDisableGCM(disableGCM bool) DeployOption {
 func WithExplicitCredentials(filepath string) DeployOption {
 	return func(opts *deployOptions) {
 		opts.explicitCredentials = filepath
+	}
+}
+
+// WithExplicitCollectorFilter injects --export.match to collector.
+// This is useful to reproduce cases when collector has left over match flags (e.g.
+// via EXTRA_ARGS).
+func WithExplicitCollectorFilter(filter string) DeployOption {
+	return func(opts *deployOptions) {
+		opts.explicitCollectorFilter = filter
 	}
 }
 
@@ -158,6 +168,10 @@ func normalizeDaemonSets(opts *deployOptions, obj *appsv1.DaemonSet) (client.Obj
 				container.Args = append(container.Args, "--export.debug.disable-auth")
 			} else if opts.explicitCredentials != "" {
 				container.Args = append(container.Args, "--export.credentials-file="+opts.explicitCredentials)
+			}
+
+			if opts.explicitCollectorFilter != "" {
+				container.Args = append(container.Args, "--export.match="+opts.explicitCollectorFilter)
 			}
 			return obj, nil
 		}
