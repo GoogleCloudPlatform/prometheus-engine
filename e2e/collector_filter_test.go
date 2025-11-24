@@ -189,12 +189,12 @@ func TestCollectorMatch0toACase(t *testing.T) {
 		{
 			filter: stateA,
 			// Given the go/gmp:matchstuck we expect the noop behaviour.
-			expectedFilter: stateEmpty, // TODO: Add fix, so it's stateA (when forced).
+			expectedFilter: stateEmpty, // TODO: Change expectations once v2.53.5-gmp.1 is out in prod, so it's stateA (when forced).
 		},
 		{
 			filter: stateB,
 			// Given the go/gmp:matchstuck we expect the noop behaviour.
-			expectedFilter: stateEmpty, // TODO: Add fix, so it's stateB (when forced).
+			expectedFilter: stateEmpty, // TODO: Change expectations once v2.53.5-gmp.1 is out in prod, so it's stateB (when forced).
 		},
 		{
 			filter:         stateEmpty,
@@ -213,13 +213,13 @@ func TestCollectorMatchBtoCCase(t *testing.T) {
 		{
 			filter: stateA,
 			// Given the go/gmp:matchstuck we expect the orphaned setting applied.
-			expectedFilter: stateB, // TODO: Add fix, so it's stateA (when forced).
+			expectedFilter: stateB, // TODO: Change expectations once v2.53.5-gmp.1 is out in prod, so it's stateA (when forced).
 		},
 		// B-2
 		{
 			filter: stateEmpty,
 			// Given the go/gmp:matchstuck we expect the orphaned setting applied.
-			expectedFilter: stateB, // TODO: Add fix, `so it's stateEmpty (when forced).
+			expectedFilter: stateB, // TODO: Change expectations once v2.53.5-gmp.1 is out in prod, so it's stateEmpty (when forced).
 		},
 		// C
 		{

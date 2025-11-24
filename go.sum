@@ -47,8 +47,8 @@ github.com/Djarvur/go-err113 v0.0.0-20210108212216-aea10b59be24 h1:sHglBQTwgx+rW
 github.com/Djarvur/go-err113 v0.0.0-20210108212216-aea10b59be24/go.mod h1:4UJr5HIiMZrwgkSPdsjy2uOQExX/WEILpIrO9UPGuXs=
 github.com/GaijinEntertainment/go-exhaustruct/v3 v3.3.1 h1:Sz1JIXEcSfhz7fUi7xHnhpIE0thVASYjvosApmHuD2k=
 github.com/GaijinEntertainment/go-exhaustruct/v3 v3.3.1/go.mod h1:n/LSCXNuIYqVfBlVXyHfMQkZDdp1/mmxfSjADd3z1Zg=
-github.com/GoogleCloudPlatform/prometheus v0.0.0-20250822124349-98e3120b1750 h1:xuD+UwWYcwPqUvHVoyowUEy49UnW+n+0DCDpwhUL548=
-github.com/GoogleCloudPlatform/prometheus v0.0.0-20250822124349-98e3120b1750/go.mod h1:KJY4lbAwOWwFJ9qgAPDYo3KVfXKokl7gU9WsMrNIdNk=
+github.com/GoogleCloudPlatform/prometheus v0.0.0-20251124145432-3a83a91a9e4f h1:gKRiqqc1rkAtT8GrpbV3MlYHv6iKYG62YM714HZ0s58=
+github.com/GoogleCloudPlatform/prometheus v0.0.0-20251124145432-3a83a91a9e4f/go.mod h1:Rjg7i0YEph5JUInO6E3W2yDUjyxA6qzWlHwXqb7WRHM=
 github.com/Masterminds/semver/v3 v3.3.1 h1:QtNSWtVZ3nBfk8mAOu/B6v7FMJ+NHTIgUPi7rj+4nv4=
 github.com/Masterminds/semver/v3 v3.3.1/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
