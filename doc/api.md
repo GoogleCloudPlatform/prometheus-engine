@@ -1006,16 +1006,47 @@ ClusterPodMonitoring, PodMonitoring, GlobalRules, ClusterRules, and/or Rules.</p
 <tbody>
 <tr>
 <td>
+<code>enableMatchOneOf</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>EnableMatchOneOf allows additional control over MatchOneOf filtering.</p>
+<p>Available settings:
+* not set: This configuration MatchOneOf settings are ignored, default is used.
+* false: MatchOneOf feature is explicitly disabled; export is forced to match all series.
+* true: This configuration MatchOneOf settings are used, overwriting a default.</p>
+<p>See MatchOneOf IMPORTANT section to learn about the MatchOneOf default.</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>matchOneOf</code><br/>
 <em>
 []string
 </em>
 </td>
 <td>
-<p>A list of Prometheus time series matchers. Every time series must match at least one
-of the matchers to be exported. This field can be used equivalently to the match[]
-parameter of the Prometheus federation endpoint to selectively export data.
-Example: <code>[&quot;{job!='foobar'}&quot;, &quot;{__name__!~'container_foo.*|container_bar.*'}&quot;]</code></p>
+<p>MatchOneOf, if EnableMatchOneOf is true, controls the export filtering setting.</p>
+<p>MatchOneOf expects a list of Prometheus time series matchers. Every time series
+must match at least one of the matchers to be exported. This field can be used
+equivalently to the match[] parameter of the Prometheus federation endpoint to
+selectively export data.</p>
+<p>Example: <code>[&quot;{job!='foobar'}&quot;, &quot;{__name__!~'container_foo.*|container_bar.*'}&quot;]</code></p>
+<p>IMPORTANT:
+* This option is prone to misconfiguration, you need to manually
+match important built-in metrics (up, scrape_samples_added, etc.) and the
+metrics are still in the local collector memory (this filters on export only).
+As a result, MatchOneOf is now guarded by the additional flag (EnableMatchOneOf)
+and removed from the public docs. Replacements: <a href="https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics">https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics</a>.
+* Typically, the default (empty array), means match all metrics. However,
+for the clusters that were using MatchOneOf filtering before the GMP 0.14.x,
+version, the default is what has been configured back then in the orphaned
+collector DaemonSet EXTRA_ARGS environment variable. If you are impacted:
+* use EnableMatchOneOf = false to reset the default
+* use EnableMatchOneOf = true to apply this configuration&rsquo;s MatchOneOf
+* Remove EXTRA_ARGS environment variable from the collector DaemonSet (it&rsquo;s safe to do so).</p>
 </td>
 </tr>
 </tbody>
