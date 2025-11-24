@@ -242,7 +242,7 @@ func gzipData(data []byte) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func setConfigMapData(cm *corev1.ConfigMap, c monitoringv1.CompressionType, key string, data string) error {
+func setConfigMapData(cm *corev1.ConfigMap, c monitoringv1.CompressionType, key, data string) error {
 	// Thanos config-reloader detects gzip compression automatically, so no sync with
 	// config-reloaders is needed when switching between these.
 	switch c {
@@ -274,9 +274,16 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
 
-	// NOTE(bwplotka): Match logic will be removed in https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1688
-	// nolint:staticcheck
-	cfg.GoogleCloud.Export.Match = spec.Filter.MatchOneOf
+	if spec.Filter.EnableMatchOneOf != nil {
+		// NOTE: nil, false and true mean something else, see EnableMatchOneOf.
+		cfg.GoogleCloud.Export.EnableMatch = spec.Filter.EnableMatchOneOf
+		if *spec.Filter.EnableMatchOneOf {
+			// As per EnableMatchOneOf logic, it makes only sense to pass things through
+			// on EnableMatchOneOf = true.
+			cfg.GoogleCloud.Export.Match = spec.Filter.MatchOneOf
+		}
+	}
+
 	if string(spec.Compression) != "" {
 		cfg.GoogleCloud.Export.Compression = string(spec.Compression)
 	}
