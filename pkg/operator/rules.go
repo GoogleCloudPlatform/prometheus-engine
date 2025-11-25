@@ -248,6 +248,13 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 
 	updateStatus := &RulesConfigUpdateStatus{ConfigMapResults: make(map[string]error)}
 
+	now := metav1.Now()
+	conditionSuccess := &monitoringv1.MonitoringCondition{
+		Type:   monitoringv1.ConfigurationCreateSuccess,
+		Status: corev1.ConditionTrue,
+	}
+	var statusUpdates []monitoringv1.MonitoringCRD
+
 	// Create one ConfigMap per rule type (no splitting)
 	// - rules (namespace-scoped Rules)
 	// - clusterrules (cluster-scoped ClusterRules)
@@ -263,6 +270,15 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		rs := &rulesList.Items[i]
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
 		if err != nil {
+			msg := "generating rule config failed"
+			if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Message: msg,
+				Reason:  err.Error(),
+			}) {
+				statusUpdates = append(statusUpdates, rs)
+			}
 			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
 			continue
 		}
@@ -272,6 +288,10 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			return err
 		}
 		rulesData[filename] = buf.String()
+
+		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
+			statusUpdates = append(statusUpdates, rs)
+		}
 	}
 	if err := r.createOrUpdateConfigMap(ctx, "rules", rulesData, maxRetries, retryDelay, updateStatus); err != nil {
 		return err
@@ -287,6 +307,15 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		rs := &clusterRulesList.Items[i]
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
 		if err != nil {
+			msg := "generating rule config failed"
+			if rs.Status.SetMonitoringCondition(rs.Generation, now, &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Message: msg,
+				Reason:  err.Error(),
+			}) {
+				statusUpdates = append(statusUpdates, rs)
+			}
 			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
 			continue
 		}
@@ -296,6 +325,10 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			return err
 		}
 		clusterRulesData[filename] = buf.String()
+
+		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
+			statusUpdates = append(statusUpdates, rs)
+		}
 	}
 	if err := r.createOrUpdateConfigMap(ctx, "clusterrules", clusterRulesData, maxRetries, retryDelay, updateStatus); err != nil {
 		return err
@@ -311,6 +344,15 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		rs := &globalRulesList.Items[i]
 		result, err := rs.RuleGroupsConfig()
 		if err != nil {
+			msg := "generating rule config failed"
+			if rs.Status.SetMonitoringCondition(rs.Generation, now, &monitoringv1.MonitoringCondition{
+				Type:    monitoringv1.ConfigurationCreateSuccess,
+				Status:  corev1.ConditionFalse,
+				Message: msg,
+				Reason:  err.Error(),
+			}) {
+				statusUpdates = append(statusUpdates, rs)
+			}
 			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
 			continue
 		}
@@ -320,6 +362,10 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			return err
 		}
 		globalRulesData[filename] = buf.String()
+
+		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
+			statusUpdates = append(statusUpdates, rs)
+		}
 	}
 	if err := r.createOrUpdateConfigMap(ctx, "globalrules", globalRulesData, maxRetries, retryDelay, updateStatus); err != nil {
 		return err
@@ -332,14 +378,21 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		}
 	}
 
-	// Return error if any operation failed
-	var anyErr error
-	for _, err := range updateStatus.ConfigMapResults {
-		if err != nil {
-			anyErr = err
+	// Update status for all processed rule objects
+	var errs []error
+	for _, obj := range statusUpdates {
+		if err := patchMonitoringStatus(ctx, r.client, obj, obj.GetMonitoringStatus()); err != nil {
+			errs = append(errs, err)
 		}
 	}
-	return anyErr
+
+	// Return error if any operation failed
+	for _, err := range updateStatus.ConfigMapResults {
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // createOrUpdateConfigMap creates or updates a single ConfigMap for a rule type.

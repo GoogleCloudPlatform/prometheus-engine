@@ -29,9 +29,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
@@ -659,10 +657,6 @@ func (fc *flakyClient) Create(ctx context.Context, obj client.Object, opts ...cl
 }
 
 func TestEnsureRuleConfigs_SplitConfigMaps(t *testing.T) {
-	scheme := runtime.NewScheme()
-	_ = monitoringv1.AddToScheme(scheme)
-	_ = corev1.AddToScheme(scheme)
-
 	// Create two rules to verify they go into single "rules" ConfigMap
 	rule1 := &monitoringv1.Rules{
 		TypeMeta:   metav1.TypeMeta{APIVersion: "monitoring.googleapis.com/v1", Kind: "Rules"},
@@ -685,7 +679,7 @@ func TestEnsureRuleConfigs_SplitConfigMaps(t *testing.T) {
 		},
 	}
 
-	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(rule1, rule2).Build()
+	c := newFakeClientBuilder().WithObjects(rule1, rule2).Build()
 	reconciler := &rulesReconciler{
 		client: c,
 		opts:   Options{OperatorNamespace: "gmp-system"},
@@ -735,10 +729,6 @@ func TestEnsureRuleConfigs_SplitConfigMaps(t *testing.T) {
 }
 
 func TestEnsureRuleConfigs_InterruptionRecovery(t *testing.T) {
-	scheme := runtime.NewScheme()
-	_ = monitoringv1.AddToScheme(scheme)
-	_ = corev1.AddToScheme(scheme)
-
 	rule := &monitoringv1.Rules{
 		TypeMeta:   metav1.TypeMeta{APIVersion: "monitoring.googleapis.com/v1", Kind: "Rules"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Name: "r1"},
@@ -750,7 +740,7 @@ func TestEnsureRuleConfigs_InterruptionRecovery(t *testing.T) {
 		},
 	}
 
-	baseClient := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(rule).Build()
+	baseClient := newFakeClientBuilder().WithObjects(rule).Build()
 	fc := &flakyClient{Client: baseClient, failOnce: make(map[string]bool)}
 	reconciler := &rulesReconciler{
 		client: fc,
