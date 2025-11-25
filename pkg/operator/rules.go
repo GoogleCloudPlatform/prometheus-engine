@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -36,7 +38,9 @@ import (
 )
 
 const (
-	nameRulesGenerated = "rules-generated"
+	nameRules        = "rules"
+	nameClusterRules = "clusterrules"
+	nameGlobalRules  = "globalrules"
 )
 
 func setupRulesControllers(op *Operator) error {
@@ -52,10 +56,18 @@ func setupRulesControllers(op *Operator) error {
 		namespace: op.opts.PublicNamespace,
 		name:      NameOperatorConfig,
 	}
-	// Rule-evaluator rules ConfigMap filter.
-	objFilterRulesGenerated := namespacedNamePredicate{
+	// Rule-evaluator rules ConfigMap filters for all three ConfigMaps.
+	objFilterRules := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
-		name:      nameRulesGenerated,
+		name:      nameRules,
+	}
+	objFilterClusterRules := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      nameClusterRules,
+	}
+	objFilterGlobalRules := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      nameGlobalRules,
 	}
 
 	// Reconcile the generated rules that are used by the rule-evaluator deployment.
@@ -82,11 +94,11 @@ func setupRulesControllers(op *Operator) error {
 			&monitoringv1.Rules{},
 			enqueueConst(objRequest),
 		).
-		// The configuration we generate for the rule-evaluator.
+		// The configuration we generate for the rule-evaluator (three ConfigMaps).
 		Watches(
 			&corev1.ConfigMap{},
 			enqueueConst(objRequest),
-			builder.WithPredicates(objFilterRulesGenerated),
+			builder.WithPredicates(predicate.Or(objFilterRules, objFilterClusterRules, objFilterGlobalRules)),
 		).
 		Complete(newRulesReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
@@ -221,38 +233,30 @@ func hasGlobalRules(ctx context.Context, c client.Client) (bool, error) {
 }
 
 // ensureRuleConfigs updates the Prometheus Rules ConfigMap.
+type RulesConfigUpdateStatus struct {
+	ConfigMapResults map[string]error
+}
+
+func retryOperation(op func() error, maxRetries int, delay time.Duration) error {
+	var lastErr error
+	for range maxRetries {
+		if err := op(); err != nil {
+			lastErr = err
+			time.Sleep(delay)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
 func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string, configCompression monitoringv1.CompressionType) error {
 	logger, _ := logr.FromContext(ctx)
 
-	// Re-generate the configmap that's loaded by the rule-evaluator.
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.opts.OperatorNamespace,
-			Name:      nameRulesGenerated,
-			Labels: map[string]string{
-				LabelAppName: NameRuleEvaluator,
-			},
-		},
-		// Ensure there's always at least an empty, uncompressed dummy file as the evaluator
-		// expects at least one match.
-		Data: map[string]string{
-			"empty.yaml": "",
-		},
-	}
+	const maxRetries = 3
+	const retryDelay = 500 * time.Millisecond
 
-	// Generate a final rule file for each Rules resource.
-	//
-	// Depending on the scope level (global, cluster, namespace) the rules will be generated
-	// so that queries are constrained to the appropriate project_id, cluster, and namespace
-	// labels and that they are preserved through query aggregations and appear on the
-	// output data.
-	//
-	// The location is not scoped as it's not a meaningful boundary for "human access"
-	// to data as clusters may span locations.
-	var rulesList monitoringv1.RulesList
-	if err := r.client.List(ctx, &rulesList); err != nil {
-		return fmt.Errorf("list rules: %w", err)
-	}
+	updateStatus := &RulesConfigUpdateStatus{ConfigMapResults: make(map[string]error)}
 
 	now := metav1.Now()
 	conditionSuccess := &monitoringv1.MonitoringCondition{
@@ -261,6 +265,17 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 	}
 	var statusUpdates []monitoringv1.MonitoringCRD
 
+	// Create one ConfigMap per rule type (no splitting)
+	// - rules (namespace-scoped Rules)
+	// - clusterrules (cluster-scoped ClusterRules)
+	// - globalrules (GlobalRules)
+
+	// Process namespace-scoped Rules -> single "rules" ConfigMap
+	var rulesList monitoringv1.RulesList
+	if err := r.client.List(ctx, &rulesList); err != nil {
+		return fmt.Errorf("list rules: %w", err)
+	}
+	rulesData := make(map[string]string)
 	for i := range rulesList.Items {
 		rs := &rulesList.Items[i]
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
@@ -278,19 +293,26 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			continue
 		}
 		filename := fmt.Sprintf("rules__%s__%s.yaml", rs.Namespace, rs.Name)
-		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
+		var buf strings.Builder
+		if err := setConfigMapDataRaw(&buf, configCompression, result); err != nil {
 			return err
 		}
+		rulesData[filename] = buf.String()
 
 		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
 			statusUpdates = append(statusUpdates, rs)
 		}
 	}
+	if err := r.createOrUpdateConfigMap(ctx, "rules", rulesData, maxRetries, retryDelay, updateStatus); err != nil {
+		return err
+	}
 
+	// Process cluster-scoped ClusterRules -> single "clusterrules" ConfigMap
 	var clusterRulesList monitoringv1.ClusterRulesList
 	if err := r.client.List(ctx, &clusterRulesList); err != nil {
 		return fmt.Errorf("list cluster rules: %w", err)
 	}
+	clusterRulesData := make(map[string]string)
 	for i := range clusterRulesList.Items {
 		rs := &clusterRulesList.Items[i]
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
@@ -308,19 +330,26 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			continue
 		}
 		filename := fmt.Sprintf("clusterrules__%s.yaml", rs.Name)
-		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
+		var buf strings.Builder
+		if err := setConfigMapDataRaw(&buf, configCompression, result); err != nil {
 			return err
 		}
+		clusterRulesData[filename] = buf.String()
 
 		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
 			statusUpdates = append(statusUpdates, rs)
 		}
 	}
+	if err := r.createOrUpdateConfigMap(ctx, "clusterrules", clusterRulesData, maxRetries, retryDelay, updateStatus); err != nil {
+		return err
+	}
 
+	// Process GlobalRules -> single "globalrules" ConfigMap
 	var globalRulesList monitoringv1.GlobalRulesList
 	if err := r.client.List(ctx, &globalRulesList); err != nil {
 		return fmt.Errorf("list global rules: %w", err)
 	}
+	globalRulesData := make(map[string]string)
 	for i := range globalRulesList.Items {
 		rs := &globalRulesList.Items[i]
 		result, err := rs.RuleGroupsConfig()
@@ -338,24 +367,28 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			continue
 		}
 		filename := fmt.Sprintf("globalrules__%s.yaml", rs.Name)
-		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
+		var buf strings.Builder
+		if err := setConfigMapDataRaw(&buf, configCompression, result); err != nil {
 			return err
 		}
+		globalRulesData[filename] = buf.String()
 
 		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
 			statusUpdates = append(statusUpdates, rs)
 		}
 	}
-
-	// Create or update generated rule ConfigMap.
-	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
-		if err := r.client.Create(ctx, cm); err != nil {
-			return fmt.Errorf("create generated rules: %w", err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("update generated rules: %w", err)
+	if err := r.createOrUpdateConfigMap(ctx, "globalrules", globalRulesData, maxRetries, retryDelay, updateStatus); err != nil {
+		return err
 	}
 
+	// Log partial update status
+	for name, err := range updateStatus.ConfigMapResults {
+		if err != nil {
+			logger.Error(err, "ConfigMap update failed", "configmap", name)
+		}
+	}
+
+	// Update status for all processed rule objects
 	var errs []error
 	for _, obj := range statusUpdates {
 		if err := patchMonitoringStatus(ctx, r.client, obj, obj.GetMonitoringStatus()); err != nil {
@@ -363,5 +396,58 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		}
 	}
 
+	// Return error if any operation failed
+	for _, err := range updateStatus.ConfigMapResults {
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
 	return errors.Join(errs...)
+}
+
+// createOrUpdateConfigMap creates or updates a single ConfigMap for a rule type.
+func (r *rulesReconciler) createOrUpdateConfigMap(
+	ctx context.Context,
+	name string,
+	data map[string]string,
+	maxRetries int,
+	retryDelay time.Duration,
+	updateStatus *RulesConfigUpdateStatus,
+) error {
+	// If no data, create empty ConfigMap
+	if len(data) == 0 {
+		data = map[string]string{}
+	}
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: r.opts.OperatorNamespace,
+			Name:      name,
+			Labels:    map[string]string{LabelAppName: NameRuleEvaluator},
+		},
+		Data: data,
+	}
+
+	// Create or update with retry
+	op := func() error {
+		if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
+			if err := r.client.Create(ctx, cm); err != nil {
+				return fmt.Errorf("create %s configmap: %w", name, err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("update %s configmap: %w", name, err)
+		}
+		return nil
+	}
+	updateStatus.ConfigMapResults[name] = retryOperation(op, maxRetries, retryDelay)
+	return updateStatus.ConfigMapResults[name]
+}
+
+// Helper to compress or not compress rule file content.
+func setConfigMapDataRaw(buf *strings.Builder, compression monitoringv1.CompressionType, data string) error {
+	if compression == monitoringv1.CompressionGzip {
+		return errors.New("gzip compression not implemented in setConfigMapDataRaw")
+	}
+	buf.WriteString(data)
+	return nil
 }

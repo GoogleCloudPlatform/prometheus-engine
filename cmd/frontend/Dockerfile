@@ -37,8 +37,6 @@ WORKDIR /app
 COPY charts/values.global.yaml charts/values.global.yaml
 COPY --from=assets /app ./
 
-RUN GO111MODULE=on go get github.com/mikefarah/yq/v3 # Install yq tool.
-
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1
 ENV GOFIPS140=off
@@ -50,10 +48,11 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
         gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
       CC=aarch64-linux-gnu-gcc; \
     fi && \
+    VERSION=$(awk -F': ' '/^version:/ {print $2}' charts/values.global.yaml) && \
+    BUILD_DATE=$(date --iso-8601=seconds) && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
       go build \
-        -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq ".version" ) \
-        -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
+        -ldflags="-X github.com/prometheus/common/version.Version=${VERSION} -X github.com/prometheus/common/version.BuildDate=${BUILD_DATE}" \
 	-o frontend \
 	cmd/frontend/*.go
 
