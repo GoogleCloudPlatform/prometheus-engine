@@ -214,6 +214,9 @@ spec:
         emptyDir: {}
       - name: rules
         # Mount exactly one ConfigMap per rule type (3 total)
+        # - rules: namespace-scoped Rules
+        # - clusterrules: cluster-scoped ClusterRules
+        # - globalrules: GlobalRules
         projected:
           sources:
           - configMap:
