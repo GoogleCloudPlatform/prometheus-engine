@@ -38,7 +38,9 @@ import (
 )
 
 const (
-	nameRulesGenerated = "rules-generated"
+	nameRules        = "rules"
+	nameClusterRules = "clusterrules"
+	nameGlobalRules  = "globalrules"
 )
 
 func setupRulesControllers(op *Operator) error {
@@ -54,10 +56,18 @@ func setupRulesControllers(op *Operator) error {
 		namespace: op.opts.PublicNamespace,
 		name:      NameOperatorConfig,
 	}
-	// Rule-evaluator rules ConfigMap filter.
-	objFilterRulesGenerated := namespacedNamePredicate{
+	// Rule-evaluator rules ConfigMap filters for all three ConfigMaps.
+	objFilterRules := namespacedNamePredicate{
 		namespace: op.opts.OperatorNamespace,
-		name:      nameRulesGenerated,
+		name:      nameRules,
+	}
+	objFilterClusterRules := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      nameClusterRules,
+	}
+	objFilterGlobalRules := namespacedNamePredicate{
+		namespace: op.opts.OperatorNamespace,
+		name:      nameGlobalRules,
 	}
 
 	// Reconcile the generated rules that are used by the rule-evaluator deployment.
@@ -84,11 +94,11 @@ func setupRulesControllers(op *Operator) error {
 			&monitoringv1.Rules{},
 			enqueueConst(objRequest),
 		).
-		// The configuration we generate for the rule-evaluator.
+		// The configuration we generate for the rule-evaluator (three ConfigMaps).
 		Watches(
 			&corev1.ConfigMap{},
 			enqueueConst(objRequest),
-			builder.WithPredicates(objFilterRulesGenerated),
+			builder.WithPredicates(predicate.Or(objFilterRules, objFilterClusterRules, objFilterGlobalRules)),
 		).
 		Complete(newRulesReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
