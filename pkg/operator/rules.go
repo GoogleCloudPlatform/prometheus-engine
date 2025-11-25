@@ -229,7 +229,7 @@ type RulesConfigUpdateStatus struct {
 
 func retryOperation(op func() error, maxRetries int, delay time.Duration) error {
 	var lastErr error
-	for i := 0; i < maxRetries; i++ {
+	for range maxRetries {
 		if err := op(); err != nil {
 			lastErr = err
 			time.Sleep(delay)
@@ -342,7 +342,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 	return anyErr
 }
 
-// createOrUpdateConfigMap creates or updates a single ConfigMap for a rule type
+// createOrUpdateConfigMap creates or updates a single ConfigMap for a rule type.
 func (r *rulesReconciler) createOrUpdateConfigMap(
 	ctx context.Context,
 	name string,
@@ -380,7 +380,7 @@ func (r *rulesReconciler) createOrUpdateConfigMap(
 	return updateStatus.ConfigMapResults[name]
 }
 
-// Helper to compress or not compress rule file content
+// Helper to compress or not compress rule file content.
 func setConfigMapDataRaw(buf *strings.Builder, compression monitoringv1.CompressionType, data string) error {
 	if compression == monitoringv1.CompressionGzip {
 		return errors.New("gzip compression not implemented in setConfigMapDataRaw")

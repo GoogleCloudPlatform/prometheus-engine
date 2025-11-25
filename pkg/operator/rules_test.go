@@ -632,7 +632,7 @@ func applyScale(obj client.Object, scale *autoscalingv1.Scale) error {
 	return nil
 }
 
-// flakyClient simulates a client that fails the first update/create, then succeeds
+// flakyClient simulates a client that fails the first update/create, then succeeds.
 type flakyClient struct {
 	client.Client
 	failOnce map[string]bool
@@ -690,13 +690,13 @@ func TestEnsureRuleConfigs_SplitConfigMaps(t *testing.T) {
 		client: c,
 		opts:   Options{OperatorNamespace: "gmp-system"},
 	}
-	err := reconciler.ensureRuleConfigs(context.Background(), "proj", "loc", "cluster", monitoringv1.CompressionNone)
+	err := reconciler.ensureRuleConfigs(t.Context(), "proj", "loc", "cluster", monitoringv1.CompressionNone)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	var cmList corev1.ConfigMapList
-	if err := c.List(context.Background(), &cmList); err != nil {
+	if err := c.List(t.Context(), &cmList); err != nil {
 		t.Fatalf("listing configmaps: %v", err)
 	}
 
@@ -758,13 +758,13 @@ func TestEnsureRuleConfigs_InterruptionRecovery(t *testing.T) {
 	}
 
 	// First call: will fail once per ConfigMap, but retry and succeed
-	err := reconciler.ensureRuleConfigs(context.Background(), "proj", "loc", "cluster", monitoringv1.CompressionNone)
+	err := reconciler.ensureRuleConfigs(t.Context(), "proj", "loc", "cluster", monitoringv1.CompressionNone)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	var cmList corev1.ConfigMapList
-	if err := fc.List(context.Background(), &cmList); err != nil {
+	if err := fc.List(t.Context(), &cmList); err != nil {
 		t.Fatalf("listing configmaps: %v", err)
 	}
 	// Should have 3 ConfigMaps: rules, clusterrules, globalrules
