@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.3@sha256:35b566f68e22be2310b4538a5c2102c0331a960a69a98b7c473d3d378ba6decf AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.4@sha256:3f90cabe0630565f75de1f7cdb0898bf9e39ff4b52df1d1e21aff75b87e68fde AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
@@ -43,6 +43,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/operator/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20251007.00_p0@sha256:06e60d7033d3b97a1be5aa0093b7c75312a8856fa413194e6d187b79d4b34f64
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20251107.00_p0@sha256:b283ae35f3ff42b7d59eaef3b477bf4d146488916e1bd2046ad9484e4a4a023c
 COPY --from=buildbase /app/operator /bin/operator
 ENTRYPOINT ["/bin/operator"]

@@ -124,7 +124,7 @@ spec:
       automountServiceAccountToken: true
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20251007.00_p0
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20251107.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
