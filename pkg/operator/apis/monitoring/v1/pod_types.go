@@ -211,7 +211,6 @@ type ScrapeEndpoint struct {
 	// +kubebuilder:validation:XIntOrString
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:validation:Pattern="^[a-z0-9]([a-z0-9-]{0,251}[a-z0-9])?$"
 	// +kubebuilder:validation:XValidation:rule="self != 0",message="Port is required"
 	// +required
 	Port intstr.IntOrString `json:"port,omitempty"`
