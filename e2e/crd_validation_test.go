@@ -118,7 +118,6 @@ func TestCRDDefaulting(t *testing.T) {
 					client.ObjectKeyFromObject(tc.obj),
 					tc.obj,
 				)
-
 				if err != nil {
 					t.Errorf("Unexpected error: %v", err)
 				}
@@ -146,7 +145,6 @@ func TestCRDDefaulting(t *testing.T) {
 					client.ObjectKeyFromObject(tc.obj),
 					tc.obj,
 				)
-
 				if err != nil {
 					t.Errorf("Unexpected error: %v", err)
 				}
@@ -533,6 +531,24 @@ func TestCRDValidation(t *testing.T) {
 					},
 				},
 				wantErr: true,
+			},
+			// Regression case for b/464455553.
+			"port using regex": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "port-using-regex",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics|maybe|apply-to_this(.*)|and-maybe(s?)"),
+							},
+						},
+					},
+				},
+				wantErr: false,
 			},
 			"duplicate port": {
 				obj: &monitoringv1.PodMonitoring{
