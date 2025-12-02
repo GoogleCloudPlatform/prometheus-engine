@@ -449,6 +449,7 @@ Kubernetes meta/v1.ObjectMeta
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 Refer to the Kubernetes API documentation for the fields of the
 <code>metadata</code> field.
 </td>
@@ -600,6 +601,7 @@ Kubernetes meta/v1.ObjectMeta
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 Refer to the Kubernetes API documentation for the fields of the
 <code>metadata</code> field.
 </td>
@@ -689,6 +691,7 @@ ClusterTargetLabels
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Labels to add to the Prometheus target for discovered endpoints.
 The <code>instance</code> label is always set to <code>&lt;pod_name&gt;:&lt;port&gt;</code> or <code>&lt;node_name&gt;:&lt;port&gt;</code>
 if the scraped pod is controlled by a DaemonSet.</p>
@@ -756,6 +759,7 @@ Kubernetes meta/v1.ObjectMeta
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 Refer to the Kubernetes API documentation for the fields of the
 <code>metadata</code> field.
 </td>
@@ -881,6 +885,7 @@ ExportFilters
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Filter limits which metric data is sent to Cloud Monitoring (it doesn&rsquo;t apply to additional exports).</p>
 </td>
 </tr>
@@ -937,6 +942,7 @@ CompressionType
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.CollectionSpec">CollectionSpec</a>, <a href="#monitoring.googleapis.com/v1.ConfigSpec">ConfigSpec</a>)
 </p>
 <div>
+<p>CompressionType is the compression type.</p>
 </div>
 <table>
 <thead>
@@ -1078,6 +1084,7 @@ Kubernetes meta/v1.ObjectMeta
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 Refer to the Kubernetes API documentation for the fields of the
 <code>metadata</code> field.
 </td>
@@ -1129,6 +1136,21 @@ RulesStatus
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+<code>ProxyConfig</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ProxyConfig">
+ProxyConfig
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>ProxyConfig</code> are embedded into this type.)
+</p>
+</td>
+</tr>
 <tr>
 <td>
 <code>authorization</code><br/>
@@ -1183,21 +1205,6 @@ OAuth2
 <td>
 <em>(Optional)</em>
 <p>OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>ProxyConfig</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ProxyConfig">
-ProxyConfig
-</a>
-</em>
-</td>
-<td>
-<p>
-(Members of <code>ProxyConfig</code> are embedded into this type.)
-</p>
 </td>
 </tr>
 </tbody>
@@ -1531,6 +1538,21 @@ int64
 <tbody>
 <tr>
 <td>
+<code>ProxyConfig</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ProxyConfig">
+ProxyConfig
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>ProxyConfig</code> are embedded into this type.)
+</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>clientID</code><br/>
 <em>
 string
@@ -1605,21 +1627,6 @@ TLS
 <p>TLS configures the token request&rsquo;s TLS settings.</p>
 </td>
 </tr>
-<tr>
-<td>
-<code>ProxyConfig</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ProxyConfig">
-ProxyConfig
-</a>
-</em>
-</td>
-<td>
-<p>
-(Members of <code>ProxyConfig</code> are embedded into this type.)
-</p>
-</td>
-</tr>
 </tbody>
 </table>
 <h3 id="monitoring.googleapis.com/v1.OperatorConfig">
@@ -1647,6 +1654,7 @@ Kubernetes meta/v1.ObjectMeta
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 Refer to the Kubernetes API documentation for the fields of the
 <code>metadata</code> field.
 </td>
@@ -1661,6 +1669,7 @@ RuleEvaluatorSpec
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Rules specifies how the operator configures and deploys rule-evaluator.</p>
 </td>
 </tr>
@@ -1674,6 +1683,7 @@ CollectionSpec
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Collection specifies how the operator configures collection, including
 scraping and an integrated export to Google Cloud Monitoring.</p>
 </td>
@@ -1716,6 +1726,7 @@ OperatorFeatures
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Features holds configuration for optional managed-collection features.</p>
 </td>
 </tr>
@@ -1729,6 +1740,7 @@ ScalingSpec
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Scaling contains configuration options for scaling GMP.</p>
 </td>
 </tr>
@@ -1808,6 +1820,7 @@ TargetStatusSpec
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Configuration of target status reporting.</p>
 </td>
 </tr>
@@ -1821,6 +1834,7 @@ ConfigSpec
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Settings for the collector configuration propagation.</p>
 </td>
 </tr>
@@ -1948,6 +1962,7 @@ TargetLabels
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Labels to add to the Prometheus target for discovered endpoints.
 The <code>instance</code> label is always set to <code>&lt;pod_name&gt;:&lt;port&gt;</code> or <code>&lt;node_name&gt;:&lt;port&gt;</code>
 if the scraped pod is controlled by a DaemonSet.</p>
@@ -2327,6 +2342,7 @@ AlertingSpec
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Alerting contains how the rule-evaluator configures alerting.</p>
 </td>
 </tr>
@@ -2435,6 +2451,7 @@ Kubernetes meta/v1.ObjectMeta
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 Refer to the Kubernetes API documentation for the fields of the
 <code>metadata</code> field.
 </td>
@@ -2671,6 +2688,7 @@ VPASpec
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 </td>
 </tr>
 </tbody>
@@ -2693,6 +2711,22 @@ VPASpec
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+<code>HTTPClientConfig</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.HTTPClientConfig">
+HTTPClientConfig
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>HTTPClientConfig</code> are embedded into this type.)
+</p>
+<p>Prometheus HTTP client configuration.</p>
+</td>
+</tr>
 <tr>
 <td>
 <code>port</code><br/>
@@ -2776,22 +2810,6 @@ Must not be larger than the scrape interval.</p>
 override protected target labels (project_id, location, cluster, namespace, job,
 instance, top_level_controller, top_level_controller_type, or <strong>address</strong>) are
 not permitted. The labelmap action is not permitted in general.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>HTTPClientConfig</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.HTTPClientConfig">
-HTTPClientConfig
-</a>
-</em>
-</td>
-<td>
-<p>
-(Members of <code>HTTPClientConfig</code> are embedded into this type.)
-</p>
-<p>Prometheus HTTP client configuration.</p>
 </td>
 </tr>
 </tbody>

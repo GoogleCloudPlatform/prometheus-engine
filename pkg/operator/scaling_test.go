@@ -85,7 +85,7 @@ func TestApplyVPA(t *testing.T) {
 			case err != nil && !tc.wantErr:
 				t.Errorf("unexpected error: %v", err)
 			case err == nil && tc.wantErr:
-				t.Errorf("expected error, but got no error")
+				t.Error("expected error, but got no error")
 			case err != nil && tc.wantErr:
 				// Ok
 			case err == nil && !tc.wantErr:
@@ -101,6 +101,8 @@ func TestApplyVPA(t *testing.T) {
 				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: ruleEvaluatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
 					t.Error(err)
 				}
+			default:
+				// Ok
 			}
 		})
 	}
@@ -169,7 +171,7 @@ func TestDeleteVPA(t *testing.T) {
 			case err != nil && !tc.wantErr:
 				t.Errorf("unexpected error: %v", err)
 			case err == nil && tc.wantErr:
-				t.Errorf("expected error, but got no error")
+				t.Error("expected error, but got no error")
 			case err != nil && tc.wantErr:
 				// Ok
 			case err == nil && !tc.wantErr:
@@ -185,6 +187,8 @@ func TestDeleteVPA(t *testing.T) {
 				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: ruleEvaluatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
 					t.Errorf("expected not found, got %s", err)
 				}
+			default:
+				// Ok
 			}
 		})
 	}

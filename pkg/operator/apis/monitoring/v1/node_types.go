@@ -68,7 +68,8 @@ type ClusterNodeTLS struct {
 type ClusterNodeMonitoringSpec struct {
 	// Label selector that specifies which nodes are selected for this monitoring
 	// configuration. If left empty all nodes are selected.
-	Selector metav1.LabelSelector `json:"selector,omitempty"`
+	// +kubebuilder:validation:Optional
+	Selector metav1.LabelSelector `json:"selector"`
 	// The endpoints to scrape on the selected nodes.
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=10
@@ -81,8 +82,9 @@ type ClusterNodeMonitoringSpec struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterNodeMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterNodeMonitoring `json:"items"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ClusterNodeMonitoring `json:"items"`
 }
 
 // ClusterNodeMonitoring defines monitoring for a set of nodes.
@@ -93,14 +95,16 @@ type ClusterNodeMonitoringList struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 type ClusterNodeMonitoring struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of desired node selection for target discovery by
 	// Prometheus.
 	Spec ClusterNodeMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
 	// +optional
-	Status MonitoringStatus `json:"status,omitempty"`
+	Status MonitoringStatus `json:"status"`
 }
 
 func (c *ClusterNodeMonitoring) GetKey() string {
@@ -203,10 +207,12 @@ func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, pro
 	}
 
 	return buildPrometheusScrapeConfig(fmt.Sprintf("%s%s", c.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, c.Spec.Limits,
-		ScrapeEndpoint{Interval: ep.Interval,
+		ScrapeEndpoint{
+			Interval:         ep.Interval,
 			Timeout:          ep.Timeout,
 			Path:             metricsPath,
 			MetricRelabeling: ep.MetricRelabeling,
 			Scheme:           ep.Scheme,
-			Params:           ep.Params})
+			Params:           ep.Params,
+		})
 }
