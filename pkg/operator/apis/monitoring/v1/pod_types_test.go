@@ -194,7 +194,7 @@ func TestSetMonitoringCondition(t *testing.T) {
 
 			// Get resolved podmonitorings.
 			if change != c.change {
-				t.Errorf("unexpected change")
+				t.Error("unexpected change")
 			} else if diff := cmp.Diff(got, c.want); diff != "" {
 				t.Errorf("actual status differs from expected. diff: %s", diff)
 			}

@@ -33,6 +33,7 @@ import (
 type Rules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -64,7 +65,8 @@ func (r *Rules) GetMonitoringStatus() *MonitoringStatus {
 type RulesList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Rules `json:"items"`
+
+	Items []Rules `json:"items"`
 }
 
 // ClusterRules defines Prometheus alerting and recording rules that are scoped
@@ -82,6 +84,7 @@ type RulesList struct {
 type ClusterRules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -113,7 +116,8 @@ func (r *ClusterRules) GetMonitoringStatus() *MonitoringStatus {
 type ClusterRulesList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterRules `json:"items"`
+
+	Items []ClusterRules `json:"items"`
 }
 
 // GlobalRules defines Prometheus alerting and recording rules that are scoped
@@ -130,6 +134,7 @@ type ClusterRulesList struct {
 type GlobalRules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -161,7 +166,8 @@ func (r *GlobalRules) GetMonitoringStatus() *MonitoringStatus {
 type GlobalRulesList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []GlobalRules `json:"items"`
+
+	Items []GlobalRules `json:"items"`
 }
 
 // RulesSpec contains specification parameters for a Rules resource.

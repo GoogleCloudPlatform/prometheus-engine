@@ -54,12 +54,12 @@ const (
 // https://prometheus.io/docs/prometheus/latest/querying/api/#format-overview
 // response is the prometheus-compatible response format.
 type response struct {
-	Status    status      `json:"status"`
-	Data      interface{} `json:"data,omitempty"`
-	ErrorType errorType   `json:"errorType,omitempty"`
-	Error     string      `json:"error,omitempty"`
-	Warnings  []string    `json:"warnings,omitempty"`
-	Infos     []string    `json:"infos,omitempty"`
+	Status    status    `json:"status"`
+	Data      any       `json:"data,omitempty"`
+	ErrorType errorType `json:"errorType,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	Warnings  []string  `json:"warnings,omitempty"`
+	Infos     []string  `json:"infos,omitempty"`
 }
 
 // RuleRetriever provides a list of active rules.
@@ -102,7 +102,7 @@ func (api *API) writeResponse(w http.ResponseWriter, httpResponseCode int, endpo
 	}
 }
 
-func (api *API) writeSuccessResponse(w http.ResponseWriter, httpResponseCode int, endpointURI string, data interface{}) {
+func (api *API) writeSuccessResponse(w http.ResponseWriter, httpResponseCode int, endpointURI string, data any) {
 	api.writeResponse(w, httpResponseCode, endpointURI, response{
 		Status: statusSuccess,
 		Data:   data,

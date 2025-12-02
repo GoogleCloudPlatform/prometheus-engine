@@ -378,6 +378,8 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 			o.logger.Info("delete legacy ValidatingWebHookConfiguration was not allowed. Please remove it manually")
 		case !apierrors.IsNotFound(err):
 			return fmt.Errorf("delete legacy ValidatingWebHookConfiguration failed: %w", err)
+		default:
+			// Noop
 		}
 	}
 
@@ -403,6 +405,8 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 				o.logger.Info("delete collector was not allowed. Please remove it manually", "err", err)
 			case !apierrors.IsNotFound(err):
 				return fmt.Errorf("cleanup collector failed: %w", err)
+			default:
+				// Noop
 			}
 		}
 	}
@@ -423,6 +427,8 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 				o.logger.Info("delete rule-evaluator was not allowed. Please remove it manually", "err", err)
 			case !apierrors.IsNotFound(err):
 				return fmt.Errorf("cleanup rule-evaluator failed: %w", err)
+			default:
+				// Noop
 			}
 		}
 	}
@@ -440,12 +446,15 @@ type namespacedNamePredicate struct {
 func (o namespacedNamePredicate) Create(e event.CreateEvent) bool {
 	return e.Object.GetNamespace() == o.namespace && e.Object.GetName() == o.name
 }
+
 func (o namespacedNamePredicate) Update(e event.UpdateEvent) bool {
 	return e.ObjectNew.GetNamespace() == o.namespace && e.ObjectNew.GetName() == o.name
 }
+
 func (o namespacedNamePredicate) Delete(e event.DeleteEvent) bool {
 	return e.Object.GetNamespace() == o.namespace && e.Object.GetName() == o.name
 }
+
 func (o namespacedNamePredicate) Generic(e event.GenericEvent) bool {
 	return e.Object.GetNamespace() == o.namespace && e.Object.GetName() == o.name
 }

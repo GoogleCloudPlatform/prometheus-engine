@@ -143,7 +143,7 @@ func TestCleanupOldResources(t *testing.T) {
 					t.Errorf("collector should be deleted but found: %+v", gotDS)
 				}
 			} else if gotDS.Name != ds.Name || gotDS.Namespace != ds.Namespace {
-				t.Errorf("collector DaemonSet differs")
+				t.Error("collector DaemonSet differs")
 			}
 
 			// Check if rule-evaluator Deployment was preserved.
@@ -157,7 +157,7 @@ func TestCleanupOldResources(t *testing.T) {
 					t.Errorf("rule-evaluator should be deleted but found: %+v", gotDeploy)
 				}
 			} else if gotDeploy.Name != deploy.Name || gotDeploy.Namespace != deploy.Namespace {
-				t.Errorf("rule-evaluator Deployment differs")
+				t.Error("rule-evaluator Deployment differs")
 			}
 		})
 	}

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package operator contains the Prometheus
 package operator
 
 import (
@@ -142,10 +141,10 @@ func TestEnsureCertsSelfSigned(t *testing.T) {
 		// Cert and key will be randomly generated, check if they exisits.
 		outCert, outKey := readKeyAndCertFiles(dir, t)
 		if len(outKey) == 0 {
-			t.Errorf("expected generated key but was empty")
+			t.Error("expected generated key but was empty")
 		}
 		if len(outCert) == 0 {
-			t.Errorf("expected generated cert but was empty")
+			t.Error("expected generated cert but was empty")
 		}
 		// self-generate case, ca is equal to crt.
 		if string(outCert) != string(caBundle) {

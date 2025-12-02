@@ -27,6 +27,7 @@ import (
 type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Rules specifies how the operator configures and deployes rule-evaluator.
 	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
 	// Collection specifies how the operator configures collection.
@@ -38,7 +39,8 @@ type OperatorConfig struct {
 type OperatorConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []OperatorConfig `json:"items"`
+
+	Items []OperatorConfig `json:"items"`
 }
 
 // RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
@@ -127,7 +129,7 @@ type Authorization struct {
 	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
-// SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
+// TLSConfig specifies TLS configuration parameters from Kubernetes resources.
 type TLSConfig struct {
 	// Struct containing the CA cert to use for the targets.
 	CA *SecretOrConfigMap `json:"ca,omitempty"`
@@ -158,6 +160,7 @@ type SecretOrConfigMap struct {
 type PodMonitoring struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of desired Pod selection for target discovery by
 	// Prometheus.
 	Spec PodMonitoringSpec `json:"spec"`
@@ -171,7 +174,8 @@ type PodMonitoring struct {
 type PodMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []PodMonitoring `json:"items"`
+
+	Items []PodMonitoring `json:"items"`
 }
 
 // ClusterPodMonitoring defines monitoring for a set of pods.
@@ -184,6 +188,7 @@ type PodMonitoringList struct {
 type ClusterPodMonitoring struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of desired Pod selection for target discovery by
 	// Prometheus.
 	Spec ClusterPodMonitoringSpec `json:"spec"`
@@ -197,7 +202,8 @@ type ClusterPodMonitoring struct {
 type ClusterPodMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterPodMonitoring `json:"items"`
+
+	Items []ClusterPodMonitoring `json:"items"`
 }
 
 // PodMonitoringSpec contains specification parameters for PodMonitoring.
@@ -364,6 +370,7 @@ type MonitoringCondition struct {
 type Rules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -376,7 +383,8 @@ type Rules struct {
 type RulesList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Rules `json:"items"`
+
+	Items []Rules `json:"items"`
 }
 
 // ClusterRules defines Prometheus alerting and recording rules that are scoped
@@ -394,6 +402,7 @@ type RulesList struct {
 type ClusterRules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -406,7 +415,8 @@ type ClusterRules struct {
 type ClusterRulesList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterRules `json:"items"`
+
+	Items []ClusterRules `json:"items"`
 }
 
 // GlobalRules defines Prometheus alerting and recording rules that are scoped
@@ -423,6 +433,7 @@ type ClusterRulesList struct {
 type GlobalRules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -435,7 +446,8 @@ type GlobalRules struct {
 type GlobalRulesList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []GlobalRules `json:"items"`
+
+	Items []GlobalRules `json:"items"`
 }
 
 // RulesSpec contains specification parameters for a Rules resource.

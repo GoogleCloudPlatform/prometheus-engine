@@ -31,6 +31,7 @@ import (
 type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Rules specifies how the operator configures and deploys rule-evaluator.
 	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
 	// Collection specifies how the operator configures collection, including
@@ -136,7 +137,8 @@ func validateSecretKeySelector(secretKeySelector *corev1.SecretKeySelector) erro
 type OperatorConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []OperatorConfig `json:"items"`
+
+	Items []OperatorConfig `json:"items"`
 }
 
 // RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
@@ -210,11 +212,14 @@ type TargetStatusSpec struct {
 	Enabled bool `json:"enabled,omitempty"`
 }
 
+// CompressionType is the compression type.
 // +kubebuilder:validation:Enum=none;gzip
 type CompressionType string
 
-const CompressionNone CompressionType = "none"
-const CompressionGzip CompressionType = "gzip"
+const (
+	CompressionNone CompressionType = "none"
+	CompressionGzip CompressionType = "gzip"
+)
 
 // KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
 type KubeletScraping struct {

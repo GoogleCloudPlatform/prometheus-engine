@@ -35,9 +35,9 @@ func DeploymentContainer(deployment *appsv1.Deployment, name string) (*corev1.Co
 	return nil, fmt.Errorf("unable to find container %q", name)
 }
 
-// Copied from https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/deployment/util/deployment_util.go
 // DeploymentComplete considers a deployment to be complete once all of its desired replicas
 // are updated and available, and no old pods are running.
+// Copied from https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/deployment/util/deployment_util.go
 func DeploymentComplete(deployment *appsv1.Deployment, newStatus *appsv1.DeploymentStatus) bool {
 	return newStatus.UpdatedReplicas == *(deployment.Spec.Replicas) &&
 		newStatus.Replicas == *(deployment.Spec.Replicas) &&

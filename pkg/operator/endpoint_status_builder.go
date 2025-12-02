@@ -276,10 +276,7 @@ func (b *scrapeEndpointStatusBuilder) build() monitoringv1.ScrapeEndpointStatus 
 			rhsInstance := sampleGroup.SampleTargets[j].Labels["instance"]
 			return lhsInstance < rhsInstance
 		})
-		sampleTargetsSize := len(sampleGroup.SampleTargets)
-		if sampleTargetsSize > maxSampleTargetSize {
-			sampleTargetsSize = maxSampleTargetSize
-		}
+		sampleTargetsSize := min(len(sampleGroup.SampleTargets), maxSampleTargetSize)
 		sampleGroup.SampleTargets = sampleGroup.SampleTargets[0:sampleTargetsSize]
 		b.status.SampleGroups = append(b.status.SampleGroups, *sampleGroup)
 	}

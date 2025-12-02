@@ -26,8 +26,8 @@ import (
 // Redundant code for API compliance below can be DRY'ed up if/when this issue is addressed:
 // https://github.com/prometheus/prometheus/issues/14962
 
-// https://prometheus.io/docs/prometheus/latest/querying/api/#format-overview
 // Response is the prometheus-compatible Response format.
+// https://prometheus.io/docs/prometheus/latest/querying/api/#format-overview
 type Response[T RulesResponseData | AlertsResponseData | GenericResponseData] struct {
 	Status    status    `json:"status"`
 	Data      T         `json:"data,omitempty"`
@@ -45,7 +45,7 @@ type AlertsResponseData struct {
 	Alerts []*promapiv1.Alert `json:"alerts"`
 }
 
-type GenericResponseData interface{}
+type GenericResponseData any
 
 type ErrorType string
 
