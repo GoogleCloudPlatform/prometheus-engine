@@ -337,7 +337,7 @@ func (c *oauth2Config) validate() error {
 }
 
 func oauthTokenErrorResponse(code, description string) []byte {
-	return []byte(fmt.Sprintf("{\n\t\"error\": %q,\n\t\"error_description\": %q\n}\n", code, description))
+	return fmt.Appendf(nil, "{\n\t\"error\": %q,\n\t\"error_description\": %q\n}", code, description)
 }
 
 func (c *oauth2Config) tokenHandler() http.Handler {

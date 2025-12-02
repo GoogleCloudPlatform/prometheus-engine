@@ -93,7 +93,7 @@ update_crdgen() {
 update_docgen() {
 	echo ">>> generating API documentation"
 	mkdir -p doc
-	${GEN_CRD_API_REFERENCE_DOCS} \
+	go tool gen-crd-api-reference-docs \
 		-config "./hack/gen-crd/config.json" \
 		-template-dir "./hack/gen-crd" \
 		-api-dir "./pkg/operator/apis/monitoring/v1" \

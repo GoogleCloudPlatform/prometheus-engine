@@ -81,7 +81,7 @@ func TestMain(m *testing.M) {
 
 	flag.Parse()
 
-	os.Exit(m.Run())
+	m.Run()
 }
 
 func setupCluster(ctx context.Context, t testing.TB, dOpts ...deploy.DeployOption) (client.Client, *rest.Config, error) {

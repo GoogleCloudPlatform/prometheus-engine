@@ -251,7 +251,7 @@ func TestLabelMappingRelabelConfigs(t *testing.T) {
 				t.Errorf("returned unexpected error: %s", err)
 			}
 			if err == nil && c.expErr {
-				t.Errorf("should have returned an error")
+				t.Error("should have returned an error")
 			}
 			if diff := cmp.Diff(c.expected, actual, cmpopts.IgnoreUnexported(relabel.Regexp{}, regexp.Regexp{})); diff != "" {
 				t.Errorf("returned unexpected config (-want, +got): %s", diff)

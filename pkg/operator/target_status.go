@@ -304,10 +304,10 @@ func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, httpCli
 }
 
 func patchPodMonitoringStatus(ctx context.Context, kubeClient client.Client, object client.Object, status *monitoringv1.PodMonitoringStatus) error {
-	patchStatus := map[string]interface{}{
+	patchStatus := map[string]any{
 		"endpointStatuses": status.EndpointStatuses,
 	}
-	patchObject := map[string]interface{}{"status": patchStatus}
+	patchObject := map[string]any{"status": patchStatus}
 
 	patchBytes, err := json.Marshal(patchObject)
 	if err != nil {
@@ -390,7 +390,7 @@ func getTarget(ctx context.Context, _ logr.Logger, httpClient *http.Client, port
 	if pod.Status.PodIP == "" {
 		return nil, errors.New("pod does not have IP allocated")
 	}
-	podURL := fmt.Sprintf("http://%s:%d", pod.Status.PodIP, port)
+	podURL := fmt.Sprintf("http://%s:%d", pod.Status.PodIP, port) //nolint:revive // Allow insecure http client
 	client, err := api.NewClient(api.Config{
 		Address: podURL,
 		Client:  httpClient,

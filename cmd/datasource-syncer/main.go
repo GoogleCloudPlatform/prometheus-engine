@@ -135,8 +135,7 @@ func main() {
 
 	dsSuccessfullyUpdated := []string{}
 	dsErrors := []string{}
-	datasourceUIDs := strings.Split(*datasourceUIDList, ",")
-	for _, datasourceUID := range datasourceUIDs {
+	for datasourceUID := range strings.SplitSeq(*datasourceUIDList, ",") {
 		datasourceUID = strings.TrimSpace(datasourceUID)
 		if datasourceUID == "" {
 			continue
@@ -290,7 +289,7 @@ func buildUpdateDataSourceRequest(dataSource grafana.DataSource, token string) (
 	}
 	authHeaderValue := fmt.Sprintf("%s%d", httpHeaderValue, x)
 	if dataSource.SecureJSONData == nil {
-		dataSource.SecureJSONData = map[string]interface{}{}
+		dataSource.SecureJSONData = map[string]any{}
 	}
 	// Add token to SecureJSONData e.g. httpHeaderValue1: Bearer 123.
 	dataSource.SecureJSONData[authHeaderValue] = fmt.Sprintf("Bearer %s", token)

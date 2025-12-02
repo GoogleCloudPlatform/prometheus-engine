@@ -244,6 +244,8 @@ func (c *TLS) ToPrometheusConfig(m PodMonitoringCRD, pool PrometheusSecretConfig
 
 // OAuth2 is the OAuth2 client configuration.
 type OAuth2 struct {
+	ProxyConfig `json:",inline"`
+
 	// ClientID is the public identifier for the client.
 	// +optional
 	ClientID string `json:"clientID"`
@@ -261,8 +263,7 @@ type OAuth2 struct {
 	EndpointParams map[string]string `json:"endpointParams,omitempty"`
 	// TLS configures the token request's TLS settings.
 	// +optional
-	TLS         *TLS `json:"tlsConfig,omitempty"`
-	ProxyConfig `json:",inline"`
+	TLS *TLS `json:"tlsConfig,omitempty"`
 }
 
 // ToPrometheusConfig converts this object into the respective Prometheus configuration.
@@ -331,6 +332,8 @@ func (c *ProxyConfig) ToPrometheusConfig() (config.URL, error) {
 // HTTPClientConfig stores HTTP-client configurations.
 // +kubebuilder:validation:XValidation:rule="((has(self.authorization) ? 1 : 0) + (has(self.basicAuth) ? 1 : 0) + (has(self.oauth2) ? 1 : 0)) <= 1"
 type HTTPClientConfig struct {
+	ProxyConfig `json:",inline"`
+
 	// Authorization is the HTTP authorization credentials for the targets.
 	// +optional
 	Authorization *Auth `json:"authorization,omitempty"`
@@ -342,8 +345,7 @@ type HTTPClientConfig struct {
 	TLS *TLS `json:"tls,omitempty"`
 	// OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.
 	// +optional
-	OAuth2      *OAuth2 `json:"oauth2,omitempty"`
-	ProxyConfig `json:",inline"`
+	OAuth2 *OAuth2 `json:"oauth2,omitempty"`
 }
 
 // ToPrometheusConfig converts this object into the respective Prometheus configuration.
