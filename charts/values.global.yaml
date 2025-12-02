@@ -16,7 +16,7 @@ commonLabels: false
 namespace:
   public: gmp-public
   system: gmp-system
-version: 0.17.0
+version: 0.17.1
 images:
   # NOTE: All tags have to be quoted otherwise they might be treated as a number.
   bash:
