@@ -1,3 +1,17 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -27,7 +41,7 @@ type NVDResponse struct {
 }
 
 // getCVSSSeverity fetches vulnerability details from the NVD API and returns the CVSS V3 severity.
-func getCVSSSeverity(apiKey string, cveID string) (string, error) {
+func getCVSSSeverity(apiKey, cveID string) (string, error) {
 	// https://nvd.nist.gov/developers/vulnerabilities
 	apiURL := fmt.Sprintf("https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=%s", cveID)
 

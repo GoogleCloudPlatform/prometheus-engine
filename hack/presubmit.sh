@@ -21,6 +21,7 @@ set -o pipefail
 if [[ -n "${DEBUG_MODE:-}" ]]; then
 	set -o xtrace
 fi
+
 source .bingo/variables.env
 
 usage() {
@@ -119,7 +120,7 @@ update_manifests() {
 
 run_tests() {
 	echo ">>> running unit tests"
-	go test $(go list ${REPO_ROOT}/... | grep -v e2e | grep -v export/bench | grep -v export/gcm)
+	go test $(go list ${REPO_ROOT}/... | grep -v e2e | grep -v gmpctl/data | grep -v export/bench | grep -v export/gcm)
 }
 
 reformat() {
@@ -128,7 +129,13 @@ reformat() {
 	pushd "${REPO_ROOT}"
 	go fmt ./...
 	popd
-	${MDOX} fmt --soft-wraps "${REPO_ROOT}"/*.md "${REPO_ROOT}"/cmd/**/*.md
+
+	pushd "${REPO_ROOT}/hack/"
+	go mod download # get all deps to avoid garbage output on <command> --help when auto-generating docs.
+	popd
+	${MDOX} fmt --soft-wraps "${REPO_ROOT}"/*.md "${REPO_ROOT}"/cmd/**/*.md "${REPO_ROOT}"/hack/gmpctl/*.md
+	# TODO: Fix and apply this to all .sh scripts we host.
+	${SHFMT} -l -w "${REPO_ROOT}/hack/gmpctl/lib.sh" "${REPO_ROOT}/hack/presubmit.sh"
 }
 
 exit_msg() {
