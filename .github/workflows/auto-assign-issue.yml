@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: (Privileged) Auto Assign Issue
+name: Auto Assign Issue
 
 on:
   issues:
@@ -21,10 +21,11 @@ on:
 jobs:
   auto-assign:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
     - name: Auto-assign issue
-      uses: pozil/auto-assign-issue@v1
+      uses: pozil/auto-assign-issue@v2
       with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
         assignees: ${{ secrets.DEFAULT_ISSUE_ASSIGNEE }}
         abortIfPreviousAssignees: true
