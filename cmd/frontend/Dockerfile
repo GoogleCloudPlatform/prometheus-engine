@@ -15,13 +15,18 @@
 FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.4@sha256:3f90cabe0630565f75de1f7cdb0898bf9e39ff4b52df1d1e21aff75b87e68fde AS buildbase
 
 # Compile the UI assets.
-FROM --platform=$BUILDPLATFORM gcr.io/google-appengine/nodejs AS assets
+FROM --platform=$BUILDPLATFORM us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24@sha256:12f9b32a1afdd87221c0a6c1a907c74978f7de75902264badf2db08ddb21203c AS assets
+WORKDIR /app
 # To build the UI we need a recent node version and the go toolchain.
-RUN install_node v17.9.0
+COPY --from=buildbase /usr/bin/make /usr/bin/
 COPY --from=buildbase /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
-COPY . /app
-RUN pkg/ui/build.sh
+COPY --chown=33:33 ./third_party/prometheus_ui ./third_party/prometheus_ui
+COPY --chown=33:33 go.mod go.sum .
+COPY --chown=33:33 ./cmd/frontend ./cmd/frontend
+COPY --chown=33:33 ./internal/promapi ./internal/promapi
+COPY --chown=33:33 ./pkg/ui ./pkg/ui
+RUN ./pkg/ui/build.sh
 
 # sync is used to copy all auto-generated files to a different context.
 # Usually this is used to mirror the changes back to the host machine.
@@ -37,8 +42,6 @@ WORKDIR /app
 COPY charts/values.global.yaml charts/values.global.yaml
 COPY --from=assets /app ./
 
-RUN GO111MODULE=on go get github.com/mikefarah/yq/v3 # Install yq tool.
-
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1
 ENV GOFIPS140=off
@@ -47,13 +50,14 @@ ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
       apt install -y --no-install-recommends \
+        -tags builtinassets \
         gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
       CC=aarch64-linux-gnu-gcc; \
     fi && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
       go build \
         -tags builtinassets \
-        -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq ".version" ) \
+        -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq ".version" ) \
         -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o frontend \
 	cmd/frontend/*.go
