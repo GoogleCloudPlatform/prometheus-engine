@@ -52,6 +52,7 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
     fi && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
       go build \
+        -tags builtinassets \
         -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq ".version" ) \
         -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o frontend \
