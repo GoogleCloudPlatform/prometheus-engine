@@ -561,30 +561,47 @@ func testCreateRules(
 		var diff string
 
 		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
-			var cm corev1.ConfigMap
-			if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rules-generated"}, &cm); err != nil {
-				if apierrors.IsNotFound(err) {
-					return false, nil
+			// Collect data from all three ConfigMaps: rules, clusterrules, globalrules
+			data := make(map[string]string)
+
+			// List of ConfigMaps to check
+			configMapNames := []string{"rules", "clusterrules", "globalrules"}
+
+			for _, cmName := range configMapNames {
+				var cm corev1.ConfigMap
+				if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: cmName}, &cm); err != nil {
+					if apierrors.IsNotFound(err) {
+						// ConfigMap doesn't exist yet, continue waiting
+						continue
+					}
+					return false, fmt.Errorf("get ConfigMap %s: %w", cmName, err)
 				}
-				return false, fmt.Errorf("get ConfigMap: %w", err)
-			}
-			data := cm.Data
-			if features.Config.Compression == monitoringv1.CompressionGzip {
-				// When compression is enabled, we expect the config map with recording
-				// rules to be compressed with gzip. Decompress all files for validation.
-				for key, compressedData := range cm.BinaryData {
-					r, err := gzip.NewReader(bytes.NewReader(compressedData))
-					if err != nil {
-						t.Fatal(err)
+
+				// Merge data from this ConfigMap
+				if features.Config.Compression == monitoringv1.CompressionGzip {
+					// When compression is enabled, decompress all files for validation
+					for key, compressedData := range cm.BinaryData {
+						r, err := gzip.NewReader(bytes.NewReader(compressedData))
+						if err != nil {
+							t.Fatal(err)
+						}
+						decompressed, err := io.ReadAll(r)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if _, ok := data[key]; ok {
+							t.Errorf("duplicate ConfigMap key %q", key)
+						}
+						data[key] = string(decompressed)
 					}
-					decompressed, err := io.ReadAll(r)
-					if err != nil {
-						t.Fatal(err)
+				} else {
+					// Uncompressed data
+					for key, value := range cm.Data {
+						if _, ok := data[key]; ok {
+							t.Errorf("duplicate ConfigMap key %q", key)
+						}
+						data[key] = value
 					}
-					if _, ok := data[key]; ok {
-						t.Errorf("duplicate ConfigMap key %q", key)
-					}
-					data[key] = string(decompressed)
 				}
 			}
 
