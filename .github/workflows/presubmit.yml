@@ -82,6 +82,16 @@ jobs:
         env:
           GCM_SECRET: ${{ secrets.GCM_SECRET }}
         run: make test-script-gcm
+  image-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run container image tests
+      env:
+        GCM_SECRET: ${{ secrets.GCM_SECRET }}
+      run: make image-test
   e2e-testruns:
     runs-on: ubuntu-latest
     permissions:
