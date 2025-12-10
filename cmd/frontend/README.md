@@ -48,7 +48,7 @@ Usage of frontend:
   -log.level string
     	The level of logging. Can be one of 'debug', 'info', 'warn', 'error' (default "info")
   -query.credentials-file string
-    	JSON-encoded credentials (service account or refresh token). Can be left empty if default credentials have sufficient permission.
+    	Path to a file with the JSON-encoded credentials (service account or refresh token). Can be left empty if default credentials have sufficient permission.
   -query.project-id string
     	Project ID of the Google Cloud Monitoring workspace project to query.
   -query.target-url string
