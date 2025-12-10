@@ -25,6 +25,8 @@ REGISTRY_NAME=kind-registry
 REGISTRY_PORT=5001
 KIND_PARALLEL?=5
 
+IMAGE_TEST_DEPS:=frontend
+
 # For now assume the docker daemon is mounted through a unix socket.
 # TODO(pintohutch): will this work if using a remote docker over tcp?
 DOCKER_HOST?=unix:///var/run/docker.sock
@@ -168,6 +170,12 @@ ifneq ($(GCM_SECRET),)
 else
 	@echo "Secret not provided, skipping!"
 endif
+
+.PHONY: image-test
+image-test:  ## Run unit tests in files with _image_test.go suffix against built docker images.
+image-test: $(IMAGE_TEST_DEPS)
+	# TODO(bwplotka): Search for all tests in files with image build tag.
+	go test -tags=image ./cmd/frontend
 
 # TODO(pintohutch): re-enable e2e testing against an existing K8s cluster
 # (e.g. GKE cluster) without relying on a fresh kind cluster.
