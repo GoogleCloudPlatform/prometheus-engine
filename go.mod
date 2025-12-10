@@ -44,6 +44,8 @@ require (
 	sigs.k8s.io/controller-runtime v0.18.7
 )
 
+require github.com/efficientgo/e2e v0.14.1-0.20230710114240-c316eb95ae5b
+
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
 	4d63.com/gochecknoglobals v0.2.2 // indirect
@@ -123,6 +125,7 @@ require (
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
+	github.com/efficientgo/core v1.0.0-rc.3 // indirect
 	github.com/elliotchance/orderedmap v1.7.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/ettle/strcase v0.2.0 // indirect
