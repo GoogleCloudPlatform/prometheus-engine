@@ -14,7 +14,7 @@
 
 # deps builds binaries in an isolated environment to avoid
 # funkiness in the hermetic build.
-FROM google-go.pkg.dev/golang:1.25.4@sha256:3f90cabe0630565f75de1f7cdb0898bf9e39ff4b52df1d1e21aff75b87e68fde AS deps
+FROM google-go.pkg.dev/golang:1.25.5@sha256:b9b992fbef86e816ebac77aa06d28a5c92c6619cc0ed3548df91cccf3328e9ca AS deps
 WORKDIR /workspace
 
 RUN go install github.com/bwplotka/bingo@v0.9.0
@@ -23,7 +23,7 @@ RUN bingo -v get # TODO(bwplotka): It takes 177s in docker container with colima
 
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
-FROM google-go.pkg.dev/golang:1.25.4@sha256:3f90cabe0630565f75de1f7cdb0898bf9e39ff4b52df1d1e21aff75b87e68fde AS hermetic
+FROM google-go.pkg.dev/golang:1.25.5@sha256:b9b992fbef86e816ebac77aa06d28a5c92c6619cc0ed3548df91cccf3328e9ca AS hermetic
 
 COPY --from=deps /go/bin /go/bin
 ARG RUNCMD='go fmt ./...'
@@ -67,8 +67,8 @@ COPY --from=hermetic /workspace/charts charts
 COPY --from=hermetic /workspace/e2e e2e
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
-FROM google-go.pkg.dev/golang:1.25.4@sha256:3f90cabe0630565f75de1f7cdb0898bf9e39ff4b52df1d1e21aff75b87e68fde AS buildbase
-FROM docker:29.0-cli AS docker
+FROM google-go.pkg.dev/golang:1.25.5@sha256:b9b992fbef86e816ebac77aa06d28a5c92c6619cc0ed3548df91cccf3328e9ca AS buildbase
+FROM docker:29.1-cli AS docker
 FROM debian:stable-slim AS kindtest
 
 WORKDIR /build
