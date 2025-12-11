@@ -26,17 +26,17 @@ import (
 var (
 	Prometheus = Project{
 		Name:      "prometheus",
-		RemoteURL: "git@github.com:GoogleCloudPlatform/prometheus.git",
+		remoteURL: "git@github.com:GoogleCloudPlatform/prometheus.git",
 		BranchRE:  regexp.MustCompile(`^release-[23]\.[0-9]+\.[0-9]+-gmp$`),
 	}
 	Alertmanager = Project{
 		Name:      "alertmanager",
-		RemoteURL: "git@github.com:GoogleCloudPlatform/alertmanager.git",
+		remoteURL: "git@github.com:GoogleCloudPlatform/alertmanager.git",
 		BranchRE:  regexp.MustCompile(`^release-0\.[0-9]+\.[0-9]+-gmp$`),
 	}
 	PrometheusEngine = Project{
 		Name:      "prometheus-engine",
-		RemoteURL: "git@github.com:GoogleCloudPlatform/prometheus-engine.git",
+		remoteURL: "git@github.com:GoogleCloudPlatform/prometheus-engine.git",
 		BranchRE:  regexp.MustCompile(`^release/0\.[0-9]+$`),
 	}
 
@@ -66,7 +66,7 @@ func projectFromBranch(branch string) (Project, bool) {
 
 type Project struct {
 	Name      string
-	RemoteURL string
+	remoteURL string
 	BranchRE  *regexp.Regexp
 }
 
@@ -85,8 +85,8 @@ func (p Project) cloneDir(dir string) (cloneDir string) {
 	if !errors.Is(err, os.ErrNotExist) {
 		panicf("failed to stat %s: %v", cloneDir, err)
 	}
-	logf("Cloning %q into %q", p.RemoteURL, cloneDir)
-	mustCloneRepo(p.RemoteURL, cloneDir)
+	logf("Cloning %q into %q", p.RemoteURL(), cloneDir)
+	mustCloneRepo(p.RemoteURL(), cloneDir)
 	return cloneDir
 }
 
@@ -94,6 +94,16 @@ func (p Project) workDir(dir, branch, suffix string) string {
 	subDir := strings.ToLower(fmt.Sprintf("%v_%v", branch, suffix))
 	subDir = strings.ReplaceAll(subDir, "/", "_")
 	return filepath.Join(dir, p.Name, subDir)
+}
+
+func (p Project) RemoteURL() string {
+	if *gitPreferHTTPS {
+		return "https://" +
+			strings.TrimSuffix(
+				strings.TrimPrefix(strings.ReplaceAll(p.remoteURL, ":", "/"), "git@"),
+				".git")
+	}
+	return p.remoteURL
 }
 
 // WorkDir returns a new working directory.

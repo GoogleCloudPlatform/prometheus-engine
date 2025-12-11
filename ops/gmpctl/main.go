@@ -28,8 +28,9 @@ import (
 )
 
 var (
-	cfgPath = flag.String("c", ".gmpctl.default.yaml", "Path to the configuration file. See config.go#Config for the structure.")
-	verbose = flag.Bool("v", false, "Enabled verbose, debug output (e.g. logging os.Exec commands)")
+	cfgPath        = flag.String("c", ".gmpctl.default.yaml", "Path to the configuration file. See config.go#Config for the structure.")
+	verbose        = flag.Bool("v", false, "Enabled verbose, debug output (e.g. logging os.Exec commands)")
+	gitPreferHTTPS = flag.Bool("git.prefer-https", false, "If true, uses HTTPS protocol instead of git for remote URLs. ")
 )
 
 type Config struct {
@@ -149,6 +150,19 @@ func runLibFunction(dir string, envs []string, function string, args ...string) 
 		&cmdOpts{Dir: dir, Envs: envs, HideOutputs: false},
 		"bash", "-c", fmt.Sprintf(". %v && %v %v", libScript, function, strings.Join(args, " ")),
 	)
+	return err
+}
+
+func runLocalBash(dir string, envs []string, file string, args ...string) error {
+	curr, err := filepath.Abs("") // Hacky. TODO(bwplotka): Improve dir management.
+	if err != nil {
+		return err
+	}
+
+	cmdArgs := []string{"bash", filepath.Join(curr, file)}
+	cmdArgs = append(cmdArgs, args...)
+	envs = append(envs, fmt.Sprintf("SCRIPT_DIR=%v", curr))
+	_, err = runCommand(&cmdOpts{Dir: dir, Envs: envs, HideOutputs: false}, cmdArgs...)
 	return err
 }
 

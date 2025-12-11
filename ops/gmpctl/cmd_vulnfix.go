@@ -68,7 +68,7 @@ func vulnfix() error {
 		prBranch = fmt.Sprintf("%v/%v-gmpctl-vulnfix", os.Getenv("USER"), branch)
 	}
 
-	logf("Assuming %q with remote %q; on %q; changes will be pushed to %q", proj.Name, proj.RemoteURL, branch, prBranch)
+	logf("Assuming %q with remote %q; on %q; changes will be pushed to %q", proj.Name, proj.RemoteURL(), branch, prBranch)
 	dir := proj.WorkDir(cfg.Directory, branch, "vulnfix")
 
 	// Refresh.
@@ -84,7 +84,7 @@ func vulnfix() error {
 	}
 
 	// TODO(bwplotka): Add NPM vulnfix.
-	if err := runLibFunction(dir, opts, "release-lib::vulnfix"); err != nil {
+	if err := runLocalBash(dir, opts, "vulnfix.sh"); err != nil {
 		return err
 	}
 

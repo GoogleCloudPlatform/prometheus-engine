@@ -49,7 +49,7 @@ func release() error {
 		return fmt.Errorf("couldn't find project from branch %s", branch)
 	}
 
-	logf("Assuming %q with remote %q; branch to release: %q", proj.Name, proj.RemoteURL, branch)
+	logf("Assuming %q with remote %q; branch to release: %q", proj.Name, proj.RemoteURL(), branch)
 	dir := proj.WorkDir(cfg.Directory, branch, "release")
 
 	mustFetchAll(dir)
@@ -66,18 +66,19 @@ func release() error {
 	}
 	logf("Selected %v tag", tag)
 
-	if err := runLibFunction(dir, []string{
+	if err := runLocalBash(dir, []string{
 		fmt.Sprintf("DIR=%v", dir),
 		fmt.Sprintf("BRANCH=%v", branch),
 		fmt.Sprintf("PROJECT=%v", proj.Name),
 		fmt.Sprintf("TAG=%v", tag),
-	}, "release-lib::pre-release-rc"); err != nil {
+	}, "prep-rc.sh"); err != nil {
 		return err
 	}
 
 	msg := fmt.Sprintf("chore: prepare for %v release", tag)
 	// TODO(bwplotka): Port to Go, make it more reliable.
 	// TODO(bwplotka): Quote otherwise it's split into separate args... port it so it works better (:
+	// TODO(bwplotka): Add message about a script command.
 	if err := runLibFunction(dir, nil, "release-lib::idemp::git_commit_amend_match", "\""+msg+"\""); err != nil {
 		return err
 	}
