@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 )
 
 func mustCloneRepo(repoURL, destinationDir string) {
@@ -61,6 +62,26 @@ func mustCreateSignedTag(dir, tag string) {
 	); err != nil {
 		panicf(err.Error())
 	}
+}
+
+// mustIsRemoteUpToDate returns true if HEAD points to the same commit as
+// the origin branch
+func mustIsRemoteUpToDate(dir, branch string) bool {
+	// Fetch to ensure we have the latest remote state.
+	mustFetchAll(dir)
+
+	// Get the commit hash of the local HEAD.
+	localHead, err := runCommand(&cmdOpts{Dir: dir, HideOutputs: true}, "git", "rev-parse", "HEAD")
+	if err != nil {
+		panicf(err.Error())
+	}
+
+	// Get the commit hash of the remote branch.
+	remoteHead, err := runCommand(&cmdOpts{Dir: dir, HideOutputs: true}, "git", "rev-parse", "origin/"+branch)
+	if err != nil {
+		panicf(err.Error())
+	}
+	return strings.TrimSpace(localHead) == strings.TrimSpace(remoteHead)
 }
 
 func mustPush(dir, what string) {

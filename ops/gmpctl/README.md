@@ -14,7 +14,13 @@ It's a starting point for smaller or bigger automation on OSS side (e.g. releasi
 
 2. The next this is to obtain NVD API key to avoid rate-limits when querying CVE DB. See https://nvd.nist.gov/developers/request-an-api-key and save this key to `hack/vulnupdatelist/api.text`
 
-3. You can configure different work directory for gmpctl via `-c` flag. By default, `gmpctl` does the work in `hack/gmpctl/.data`)
+3. Ensure you have installed:
+   * new-ish `bash` (MacOS: `brew install bash`)
+   * `gsed` (MacOS: `brew install gsed`)
+   * `gcloud` (https://docs.cloud.google.com/sdk/docs/install-sdk) (and `gcloud auth login`)
+   * `gpg` (MacOS: `brew install gpg`)
+
+4. You can configure different work directory for gmpctl via `-c` flag. By default, `gmpctl` does the work in `hack/gmpctl/.data`)
 
 Enjoy!
 
@@ -45,6 +51,8 @@ on breaking go mod updates for vulnerabilities or fork sync conflicts.
 Usage: gmpctl [COMMAND] [FLAGS]
   -c string
     	Path to the configuration file. See config.go#Config for the structure. (default ".gmpctl.default.yaml")
+  -git.prefer-https
+    	If true, uses HTTPS protocol instead of git for remote URLs. 
   -v	Enabled verbose, debug output (e.g. logging os.Exec commands)
 
 --- Commands ---
@@ -98,10 +106,11 @@ Some rules to follow:
   * Ensure all error messages are redirected to stderr, use log_err func for this.
   * Be careful with pushd/popd which log to stdout, you can redirect those to stderr too.
 
-## TODO
+## TODO / Known issues.
 
-* Ability to configure NVD API key in gmpctl config.
-* Port fork-sync script from the old PR.
-* Generate some on-demand query of vulnerabilities for all releases (aka dashboard.)
-* Fix NPM vulns (although it's rate).
-* Ability to schedule multiple scripts at once and managing that? (lot's of work vs multiple terminals)
+* [ ] Port bash to Go for stable commands.
+* [ ] Ability to configure NVD API key in gmpctl config.
+* [ ] Port fork-sync script from the old PR.
+* [ ] Generate some on-demand query of vulnerabilities for all releases (aka dashboard.)
+* [ ] Fix NPM vulns (although it's rate).
+* [ ] Ability to schedule multiple scripts at once and managing that? (lot's of work vs multiple terminals)
