@@ -113,7 +113,7 @@ bin-go:
 	@echo ">> building binaries"
 ifeq ($(NO_DOCKER), 1)
 	if [ "$(BIN_GO_NAME)" = "frontend" ]; then pkg/ui/build.sh; fi
-	CGO_ENABLED=0 go build -tags builtinassets -o ./build/bin/$(BIN_GO_NAME) ./$(BIN_GO_DIR)/$(BIN_GO_NAME)/*.go
+	CGO_ENABLED=0 go build -o ./build/bin/$(BIN_GO_NAME) ./$(BIN_GO_DIR)/$(BIN_GO_NAME)/*.go
 # If pushing, build and tag native arch image to GCR.
 else ifeq ($(DOCKER_PUSH), 1)
 	$(call docker_build, --tag gmp/$(BIN_GO_NAME) -f ./$(BIN_GO_DIR)/$(BIN_GO_NAME)/Dockerfile .)

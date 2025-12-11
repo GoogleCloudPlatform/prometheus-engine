@@ -5,9 +5,7 @@ into the Prometheus binary using the embed package.
 
 During development it is more convenient to always use the files on disk to 
 directly see changes without recompiling.
-To make this work, remove the `builtinassets` build tag in the `flags` entry
-in `.promu.yml`, and then `make build` (or build Prometheus using
-`go build ./cmd/prometheus`).
+To make this work, add the `localassets` build tag in the `go build` command in `make` that builds the frontend (add `-tags localassets`) and then `make build` as usual.
 
 This will serve all files from your local filesystem. This is for development purposes only.
 

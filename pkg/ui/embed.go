@@ -11,10 +11,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build builtinassets
-// +build builtinassets
+//go:build !localassets
+// +build !localassets
 
 package ui
 
 import "embed"
 
+// Following line replaced by compress_assets.sh
+//{{go:embed}}
+
+var EmbedFS embed.FS
