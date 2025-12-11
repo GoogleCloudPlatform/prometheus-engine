@@ -68,7 +68,7 @@ func vulnfix() error {
 		prBranch = fmt.Sprintf("%v/%v-gmpctl-vulnfix", os.Getenv("USER"), branch)
 	}
 
-	logf("Assuming %q with remote %q; on %q; changes will be pushed to %q", proj.Name, proj.RemoteURL, branch, prBranch)
+	logf("Assuming %q with remote %q; on %q; changes will be pushed to %q", proj.Name, proj.RemoteURL(), branch, prBranch)
 	dir := proj.WorkDir(cfg.Directory, branch, "vulnfix")
 
 	// Refresh.
@@ -84,7 +84,7 @@ func vulnfix() error {
 	}
 
 	// TODO(bwplotka): Add NPM vulnfix.
-	if err := runLibFunction(dir, opts, "release-lib::vulnfix"); err != nil {
+	if err := runLocalBash(dir, opts, "vulnfix.sh"); err != nil {
 		return err
 	}
 
@@ -100,17 +100,21 @@ func vulnfix() error {
 	if err := runLibFunction(dir, nil, "release-lib::idemp::git_commit_amend_match", "\""+msg+"\""); err != nil {
 		return err
 	}
-	// TODO(bwplotka): Check if needs pushing?
+
+	if mustIsRemoteUpToDate(dir, branch) {
+		return fmt.Errorf("nothing to push from %q to \"origin/%v\"; aborting", dir, prBranch)
+	}
+
 	// TODO(bwplotka): Add option to print more debug/open terminal with the workdir?
 	if confirmf("About to FORCE git push state from %q to \"origin/%v\"; are you sure?", dir, prBranch) {
-		// We are in detached state, so be explicit what to push and from where.
+		// We are in detached state, so be explicit what to push and from where, by recreating the local prBranch.
 		mustRecreateBranch(dir, prBranch)
 		mustForcePush(dir, prBranch)
 	} else {
 		return errors.New("aborting")
 	}
 
-	if confirmf("Do you want to remove the %v worktree (recommended)?", dir) {
+	if confirmf("Do you want to remove the %v worktree?", dir) {
 		proj.RemoveWorkDir(cfg.Directory, dir)
 	}
 	return nil

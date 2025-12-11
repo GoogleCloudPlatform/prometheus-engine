@@ -122,6 +122,8 @@ release-lib::vulnlist() {
 	popd
 }
 
+# TODO(bwplotka): There's so much more we can do to guide us here.
+# e.g. not updating too much, updating k8s and prom deps in bulk etc.
 release-lib::gomod_vulnfix() {
 	local dir=${1}
 	if [[ -z "${dir}" ]]; then
@@ -168,94 +170,6 @@ release-lib::gomod_vulnfix() {
 	pushd "${dir}"
 	go mod tidy
 	popd
-}
-
-# Also accepts SYNC_DOCKERFILES_FROM.
-function release-lib::vulnfix() {
-	if [[ -z "${DIR}" ]]; then
-		log_err "DIR envvar is required."
-		return 1
-	fi
-
-	if [[ -z "${BRANCH}" ]]; then
-		log_err "BRANCH envvar is required."
-		return 1
-	fi
-
-	if [[ -z "${PROJECT}" ]]; then
-		log_err "PROJECT envvar is required."
-		return 1
-	fi
-
-	echo "${DIR}"
-	echo "${SCRIPT_DIR}"
-
-	readarray -t DOCKERFILES < <(release-lib::dockerfiles "${DIR}")
-
-	# Sync dockerfiles if needed.
-	if [[ -n "${SYNC_DOCKERFILES_FROM:-}" ]]; then
-		pushd "${DIR}"
-		for dockerfile in "${DOCKERFILES[@]}"; do
-			# TODO: Should we ensure SYNC_DOCKERFILES_FROM if it's a branch is up to data with origin?
-			echo "🔄  Syncing ${dockerfile} from ${SYNC_DOCKERFILES_FROM}"
-			git checkout "${SYNC_DOCKERFILES_FROM}" -- "${dockerfile}"
-		done
-		popd
-	fi
-
-	# Docker images bumps.
-
-	# Get first dockerfile Go version. We will use this version to find minor version to stick to.
-	go_version=$(release-lib::dockerfile_go_version "${DOCKERFILES[0]}")
-	if [[ -z "${go_version}" ]]; then
-		echo "❌  can't find any golang image in ${DOCKERFILES[0]}"
-		return 1
-	fi
-
-	# TODO: git add charts & vendor for old projects?
-
-	# Update our images.
-	for dockerfile in "${DOCKERFILES[@]}"; do
-		release-lib::dockerfile_update_image "${dockerfile}" "google-go.pkg.dev/golang" $(echo "${go_version}" | cut -d '.' -f 1-2)
-		release-lib::dockerfile_update_image "${dockerfile}" "gke.gcr.io/gke-distroless/libc" "gke_distroless_"
-		pushd "${DIR}"
-		git add "${dockerfile}"
-		popd
-	done
-
-	# bash manifest bump.
-	# Exclude 0.12 as values were inlined with each part, easy to manually sed for old versions.
-	if [[ "${PROJECT}" == "prometheus-engine" && "${BRANCH}" != "release/0.12" ]]; then
-		release-lib::idemp::manifests_bash_image_bump "${DIR}"
-	fi
-
-	# Go vulnerabilities.
-	# TODO(bwplotka): Find better place to put this?
-	mkdir -p "${DIR}/.gmpctl/"
-	echo "*" >>"${DIR}/.gmpctl/.gitignore"
-	vuln_file="${DIR}/.gmpctl/vulnlist.txt"
-	pushd "${DIR}"
-
-	release-lib::idemp::vulnlist "${DIR}" "${vuln_file}"
-
-	if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
-		# Attempt to update + go mod tidy.
-		release-lib::gomod_vulnfix "${DIR}" "${vuln_file}"
-		git add go.mod go.sum
-
-		if [ -d "${DIR}/vendor" ]; then
-			go mod vendor
-			git add --all # TODO: Can be flaky.
-		fi
-
-		# Check if that helped.
-		echo "⚠️  This will fail on older branches with vendoring; in this case, simply go to ${DIR}, run 'go mod vendor' and rerun."
-		release-lib::vulnlist "${DIR}" "${vuln_file}"
-		if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
-			echo "❌  After go mod update some vulnerabilities are still found; go to ${DIR} and resolve it manually (select not reusing the ./vulnlist.txt file) and rerun."
-			exit 1
-		fi
-	fi
 }
 
 release-lib::idemp::git_commit_amend_match() {
@@ -320,7 +234,7 @@ release-lib::dockerfiles() {
 		log_err "dir arg is required."
 		return 1
 	fi
-	find "${dir}" -name "Dockerfile*" | grep -v "${dir}/third_party/" | grep -v "${dir}/examples/" | grep -v "${dir}/hack/" | grep -v "${dir}/ui/"
+	find "${dir}" -name "Dockerfile*" | grep -v "${dir}/third_party/" | grep -v "${dir}/hack/" | grep -v "${dir}/ui/" | grep -v "vendor/"
 }
 
 # Return all images used in a Dockerfile, delimited by new-line.
@@ -450,10 +364,7 @@ release-lib::dockerfile_update_image() {
 		return 1
 	fi
 
-	# Prerequisite tool.
-	go install github.com/google/go-containerregistry/cmd/gcrane@latest
-
-	# Use gcrane vs crane for --json.
+	# Use gcrane (over crane) for --json.
 	local all_tags=$(gcrane ls "${image}" --json | jq --raw-output '.tags[]' | sort -V)
 	# Exclude RC images.
 	all_tags=$(echo "${all_tags}" | grep -v "rc.*")
@@ -461,7 +372,7 @@ release-lib::dockerfile_update_image() {
 	all_tags=$(echo "${all_tags}" | grep "${tag_prefix}")
 	local latest_tag=$(echo "${all_tags}" | tail -n1)
 
-	local latest_digest=$(crane digest "${image}:${latest_tag}")
+	local latest_digest=$(gcrane digest "${image}:${latest_tag}")
 	local latest_image="${image}:${latest_tag}@${latest_digest}"
 
 	echo "🔄  Ensuring ${latest_image} on ${dockerfile}..."
@@ -486,12 +397,14 @@ release-lib::idemp::manifests_bash_image_bump() {
 		return 1
 	fi
 
+	go install github.com/mikefarah/yq/v4@latest
+
 	local values_file="${dir}/charts/values.global.yaml"
 	# TODO: Not enough, this has to check actual manifests.
-	local bash_tag=$(go tool yq '.images.bash.tag' "${values_file}")
+	local bash_tag=$(yq '.images.bash.tag' "${values_file}")
 
-	# Use gcrane vs crane for --json.
-	local latest_bash_tag=$(go tool gcrane ls "gke.gcr.io/gke-distroless/bash" --json | jq --raw-output '.tags[]' | grep "gke_distroless_" | sort -V | tail -n1)
+	# Use gcrane (over crane) for --json.
+	local latest_bash_tag=$(gcrane ls "gke.gcr.io/gke-distroless/bash" --json | jq --raw-output '.tags[]' | grep "gke_distroless_" | sort -V | tail -n1)
 	if [[ "${bash_tag}" == "${latest_bash_tag}" ]]; then
 		echo "✅  Nothing to do; ${values_file} already uses ${latest_bash_tag}"
 		return 0
@@ -520,9 +433,17 @@ release-lib::manifests_regen() {
 	fi
 
 	# TODO(bwplotka): Manage deps better. It's getting confusing what bins we should use (worktree bingo? script bingo?).
-	# bingo get is sort of necessary here?
-	source "${dir}/.bingo/variables.env"
-	YQ="${YQ:-}" HELM="${HELM}" ADDLICENSE="${ADDLICENSE:-}" bash "${dir}/hack/presubmit.sh" manifests
+	go install helm.sh/helm/v3/cmd/helm@latest
+	go install github.com/google/addlicense@latest
+	go install github.com/mikefarah/yq/v4@latest
+
+	# Hack: Do the bingo variable swap. This allows injecting our own.
+	# This is faster than running requiring bingo and running bingo get.
+	cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
+	echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
+	YQ="$(which yq)" HELM="$(which helm)" ADDLICENSE="$(which addlicense)" bash "${dir}/hack/presubmit.sh" manifests
+	cp "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env"
+
 	echo "✅  Manifests regenerated"
 	return 0
 }
@@ -590,76 +511,4 @@ release-lib::next_release_tag() {
 
 	echo "${NEW_TAG}"
 	return 0
-}
-
-function release-lib::pre-release-rc() {
-	if [[ -z "${DIR}" ]]; then
-		log_err "DIR envvar is required."
-		return 1
-	fi
-
-	if [[ -z "${BRANCH}" ]]; then
-		log_err "BRANCH envvar is required."
-		return 1
-	fi
-
-	if [[ -z "${TAG}" ]]; then
-		log_err "TAG envvar is required."
-		return 1
-	fi
-
-	if [[ -z "${PROJECT}" ]]; then
-		log_err "PROJECT envvar is required."
-		return 1
-	fi
-
-	if [[ "${PROJECT}" == "prometheus-engine" ]]; then
-		local CLEAN_TAG="${TAG%-rc.*}"
-		CLEAN_TAG="${CLEAN_TAG#v}"
-		if [[ "${BRANCH}" == "release/0.12" ]]; then
-			# A bit different flow.
-			local chart_file="${DIR}/charts/operator/Chart.yaml"
-			echo "🔄  Ensuring ${CLEAN_TAG} on ${chart_file}..."
-			if ! gsed -i -E "s#appVersion:.*#appVersion: ${CLEAN_TAG}#g" "${chart_file}"; then
-				# TODO: This is flaky, no failing actually on no match. Common bug is
-				echo "❌  sed didn't replace?"
-				return 1
-			fi
-
-			chart_file="${DIR}/charts/rule-evaluator/Chart.yaml"
-			echo "🔄  Ensuring ${CLEAN_TAG} on ${chart_file}..."
-			if ! gsed -i -E "s#appVersion:.*#appVersion: ${CLEAN_TAG}#g" "${chart_file}"; then
-				# TODO: This is flaky, no failing actually on no match. Common bug is
-				echo "❌  sed didn't replace?"
-				return 1
-			fi
-		else
-			# 0.12+
-			local values_file="${DIR}/charts/values.global.yaml"
-			echo "🔄  Ensuring ${CLEAN_TAG} on ${values_file}..."
-			if ! gsed -i -E "s#version:.*#version: ${CLEAN_TAG}#g" "${values_file}"; then
-				# TODO: This is flaky, no failing actually on no match. Common bug is
-				echo "❌  sed didn't replace?"
-				return 1
-			fi
-		fi
-		# For versions with export embedded.
-		if [[ -f "${DIR}/pkg/export/export.go" ]]; then
-			echo "🔄  Ensuring ${TAG} in ${DIR}/pkg/export/export.go mainModuleVersion..."
-			if ! gsed -i -E "s#mainModuleVersion = .*#mainModuleVersion = \"${TAG}\"#g" "${DIR}/pkg/export/export.go"; then
-				# TODO: This is flaky, no failing actually on no match. Common bug is
-				echo "❌  sed didn't replace?"
-				return 1
-			fi
-		fi
-
-		release-lib::manifests_regen "${DIR}"
-		git add --all
-	else
-		# Prometheus and Alertmanager fork needs just a correct version in the VERSION file,
-		# so the binary build (go_build_info) metrics and flags are correct.
-		local temp=${TAG#v} # Remove v and then -rc.* suffix.
-		echo "${temp%-rc.*}" >VERSION
-		git add VERSION
-	fi
 }

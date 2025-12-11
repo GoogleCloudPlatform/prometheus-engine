@@ -26,4 +26,12 @@ SCRIPT_DIR="$(
 	pwd -P
 )"
 
-bash "${SCRIPT_DIR}/../ops/gmpctl.sh" "$@"
+# NOTE gmpctl expects the gmpctl directory to be present on execution for
+# local bash scripts and configuration.
+#
+# We could consider embedding bash scripts, config into binary for portability,
+# but it's good enough for now.
+
+pushd "${SCRIPT_DIR}/gmpctl" >/dev/null
+go run ./ "$@"
+popd >/dev/null
