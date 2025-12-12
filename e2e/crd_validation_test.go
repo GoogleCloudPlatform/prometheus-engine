@@ -118,7 +118,6 @@ func TestCRDDefaulting(t *testing.T) {
 					client.ObjectKeyFromObject(tc.obj),
 					tc.obj,
 				)
-
 				if err != nil {
 					t.Errorf("Unexpected error: %v", err)
 				}
@@ -146,7 +145,6 @@ func TestCRDDefaulting(t *testing.T) {
 					client.ObjectKeyFromObject(tc.obj),
 					tc.obj,
 				)
-
 				if err != nil {
 					t.Errorf("Unexpected error: %v", err)
 				}
@@ -352,10 +350,12 @@ func TestCRDValidation(t *testing.T) {
 				case err != nil && !tc.wantErr:
 					t.Errorf("Unexpected error: %v", err)
 				case err == nil && tc.wantErr:
-					t.Errorf("Want error, but got none")
+					t.Error("Want error, but got none")
 				case err != nil && tc.wantErr:
 					t.Log(err)
 					// OK
+				default:
+					// Ok
 				}
 			})
 		}

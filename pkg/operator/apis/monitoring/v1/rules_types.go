@@ -31,8 +31,10 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 type Rules struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -63,8 +65,10 @@ func (r *Rules) GetMonitoringStatus() *MonitoringStatus {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type RulesList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Rules `json:"items"`
+	// +optional
+	metav1.ListMeta `json:"metadata"`
+
+	Items []Rules `json:"items"`
 }
 
 // ClusterRules defines Prometheus alerting and recording rules that are scoped
@@ -80,8 +84,10 @@ type RulesList struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 type ClusterRules struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -112,8 +118,10 @@ func (r *ClusterRules) GetMonitoringStatus() *MonitoringStatus {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterRulesList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterRules `json:"items"`
+	// +optional
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ClusterRules `json:"items"`
 }
 
 // GlobalRules defines Prometheus alerting and recording rules that are scoped
@@ -128,8 +136,10 @@ type ClusterRulesList struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 type GlobalRules struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -160,8 +170,10 @@ func (r *GlobalRules) GetMonitoringStatus() *MonitoringStatus {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type GlobalRulesList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []GlobalRules `json:"items"`
+	// +optional
+	metav1.ListMeta `json:"metadata"`
+
+	Items []GlobalRules `json:"items"`
 }
 
 // RulesSpec contains specification parameters for a Rules resource.

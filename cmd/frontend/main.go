@@ -69,6 +69,7 @@ var (
 	targetURLStr = flag.String("query.target-url", fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar),
 		fmt.Sprintf("The URL to forward authenticated requests to. (%s is replaced with the --query.project-id flag.)", projectIDVar))
 
+	//nolint:revive // Allow insecure http connection
 	ruleEndpointURLStrings = flag.String("rules.target-urls", "http://rule-evaluator.gmp-system.svc.cluster.local:19092", "Comma separated lists of URLs that support HTTP Prometheus Alert and Rules APIs (/api/v1/alerts, /api/v1/rules), e.g. GMP rule-evaluator. NOTE: Results are merged as-is, no sorting and deduplication is done.")
 
 	logLevel = flag.String("log.level", "info",
@@ -126,7 +127,7 @@ func main() {
 	}
 
 	var ruleEndpointURLs []url.URL
-	for _, ruleEndpointURLStr := range strings.Split(*ruleEndpointURLStrings, ",") {
+	for ruleEndpointURLStr := range strings.SplitSeq(*ruleEndpointURLStrings, ",") {
 		ruleEndpointURL, err := url.Parse(strings.TrimSpace(ruleEndpointURLStr))
 		if err != nil || ruleEndpointURL == nil {
 			_ = level.Error(logger).Log("msg", "parsing rule endpoint URL failed", "err", err, "url", strings.TrimSpace(ruleEndpointURLStr))
@@ -187,11 +188,11 @@ func main() {
 
 		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "Prometheus frontend is Healthy.\n")
+			fmt.Fprint(w, "Prometheus frontend is Healthy.\n")
 		})
 		http.HandleFunc("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "Prometheus frontend is Ready.\n")
+			fmt.Fprint(w, "Prometheus frontend is Ready.\n")
 		})
 
 		http.Handle("/", authenticate(ui.Handler(externalURL)))

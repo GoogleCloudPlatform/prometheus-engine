@@ -29,13 +29,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Environment variable for the current node that needs to be interpolated in generated
-// scrape configurations for a PodMonitoring resource.
+// EnvVarNodeName is the current node that needs to be interpolated in
+// generated scrape configurations for a PodMonitoring resource.
 const EnvVarNodeName = "NODE_NAME"
 
 // relabelingsForSelector generates a sequence of relabeling rules that implement
 // the label selector for the meta labels produced by the Kubernetes service discovery.
-func relabelingsForSelector(selector metav1.LabelSelector, crd interface{}) ([]*relabel.Config, error) {
+func relabelingsForSelector(selector metav1.LabelSelector, crd any) ([]*relabel.Config, error) {
 	// Pick the correct labels based on the CRD type.
 	var objectLabelPresent, objectLabel prommodel.LabelName
 	switch crd.(type) {
@@ -104,6 +104,8 @@ func relabelingsForSelector(selector metav1.LabelSelector, crd interface{}) ([]*
 				SourceLabels: prommodel.LabelNames{objectLabelPresent + sanitizeLabelName(exp.Key)},
 				Regex:        relabel.MustNewRegexp("true"),
 			})
+		default:
+			return nil, fmt.Errorf("unsupported operator: %q", exp.Operator)
 		}
 	}
 

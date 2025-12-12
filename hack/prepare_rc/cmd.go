@@ -42,6 +42,16 @@ func (c *Command) String() string {
 	return fmt.Sprintf("%s %s", c.command, strings.Join(c.args, " "))
 }
 
+func (c *Command) Run() (string, error) {
+	fmt.Printf("::group::Running: %s\n", c)
+	res, err := c.run()
+	fmt.Println("::endgroup::")
+	if err != nil {
+		fmt.Printf("::info::Command '%s' failed: %v\n", c, err)
+	}
+	return res, err
+}
+
 func (c *Command) run() (string, error) {
 	cmd := exec.Command(c.command, c.args...)
 
@@ -67,14 +77,4 @@ func (c *Command) run() (string, error) {
 	}
 
 	return result, nil
-}
-
-func (c *Command) Run() (string, error) {
-	fmt.Printf("::group::Running: %s\n", c)
-	res, err := c.run()
-	fmt.Println("::endgroup::")
-	if err != nil {
-		fmt.Printf("::info::Command '%s' failed: %v\n", c, err)
-	}
-	return res, err
 }

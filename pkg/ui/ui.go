@@ -37,7 +37,7 @@ func Handler(externalURL *url.URL) http.Handler {
 	})
 
 	// Serve UI index.
-	var reactRouterPaths = []string{
+	reactRouterPaths := []string{
 		"/graph",
 	}
 	for _, p := range reactRouterPaths {
