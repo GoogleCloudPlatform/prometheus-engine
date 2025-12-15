@@ -15,7 +15,7 @@
 FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.5@sha256:b9b992fbef86e816ebac77aa06d28a5c92c6619cc0ed3548df91cccf3328e9ca AS buildbase
 
 # Compile the UI assets.
-FROM --platform=$BUILDPLATFORM us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24@sha256:12f9b32a1afdd87221c0a6c1a907c74978f7de75902264badf2db08ddb21203c AS assets
+FROM --platform=$BUILDPLATFORM us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24@sha256:5f463b6103a2d87980eaf14912f4a4b60d4f82aebea1e700ebcff09253ec60fe AS assets
 WORKDIR /app
 # To build the UI we need a recent node version and the go toolchain.
 COPY --from=buildbase /usr/bin/make /usr/bin/
