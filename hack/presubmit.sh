@@ -21,6 +21,7 @@ set -o pipefail
 if [[ -n "${DEBUG_MODE:-}" ]]; then
 	set -o xtrace
 fi
+
 source .bingo/variables.env
 
 usage() {
@@ -37,7 +38,7 @@ warn() {
 	echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: Warning: $*" >&2
 }
 
-REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
+REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." &>/dev/null && pwd)
 CRD_DIR=${REPO_ROOT}/charts/operator/crds
 SED=$(which gsed 2>/dev/null || which sed)
 
@@ -76,7 +77,7 @@ combine() {
 update_crdgen() {
 	echo ">>> regenerating CRD yamls"
 	API_DIR=${REPO_ROOT}/pkg/operator/apis/...
-	${CONTROLLER_GEN} crd paths=./${API_DIR} output:crd:dir=${CRD_DIR}
+	${CONTROLLER_GEN} crd paths=${API_DIR} output:crd:dir=${CRD_DIR}
 
 	CRD_YAMLS=$(find ${CRD_DIR} -iname '*.yaml' | sort)
 	for i in $CRD_YAMLS; do
@@ -119,16 +120,32 @@ update_manifests() {
 
 run_tests() {
 	echo ">>> running unit tests"
-	go test $(go list ${REPO_ROOT}/... | grep -v e2e | grep -v export/bench | grep -v export/gcm)
+	go test $(go list ${REPO_ROOT}/... | grep -v e2e | grep -v gmpctl/data | grep -v export/bench | grep -v export/gcm)
 }
 
 reformat() {
-	echo ">>> reformatting"
-	go mod tidy
+	find . -name "go.mod" | grep -v gmpctl/data | grep -v ".bingo" | while read -r file; do
+		dir=$(dirname "$file")
+		pushd "${dir}"
+		echo ">>> go mod tidy $dir"
+		go mod tidy
+		popd
+	done
+
+	echo ">>> formatting Go files"
 	pushd "${REPO_ROOT}"
 	go fmt ./...
 	popd
-	${MDOX} fmt --soft-wraps "${REPO_ROOT}"/*.md "${REPO_ROOT}"/cmd/**/*.md
+
+	echo ">>> formatting docs"
+	pushd "${REPO_ROOT}/ops/gmpctl"
+	go mod download # get all deps to avoid garbage output on <command> --help when auto-generating docs.
+	popd
+	${MDOX} fmt --soft-wraps "${REPO_ROOT}"/*.md "${REPO_ROOT}"/cmd/**/*.md "${REPO_ROOT}"/ops/gmpctl/*.md
+
+	echo ">>> formatting bash scripts"
+	# TODO: Fix and apply this to all .sh scripts we host.
+	${SHFMT} -l -w "${REPO_ROOT}/ops/gmpctl/lib.sh" "${REPO_ROOT}/hack/presubmit.sh"
 }
 
 exit_msg() {

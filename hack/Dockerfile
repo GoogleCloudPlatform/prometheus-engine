@@ -35,6 +35,7 @@ WORKDIR /workspace
 COPY *.md *.md
 COPY vendor* vendor
 COPY hack hack
+COPY ops ops
 COPY .bingo .bingo
 COPY go.mod go.mod
 COPY go.sum go.sum
