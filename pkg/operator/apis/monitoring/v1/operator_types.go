@@ -29,13 +29,17 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:storageversion
 type OperatorConfig struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Rules specifies how the operator configures and deploys rule-evaluator.
-	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
+	// +optional
+	Rules RuleEvaluatorSpec `json:"rules"`
 	// Collection specifies how the operator configures collection, including
 	// scraping and an integrated export to Google Cloud Monitoring.
-	Collection CollectionSpec `json:"collection,omitempty"`
+	// +optional
+	Collection CollectionSpec `json:"collection"`
 	// Exports is an EXPERIMENTAL feature that specifies additional, optional endpoints to export to,
 	// on top of Google Cloud Monitoring collection.
 	// Note: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in the "collection.filter" field.
@@ -44,9 +48,11 @@ type OperatorConfig struct {
 	// +kubebuilder:default={configSecret: {name: alertmanager, key: alertmanager.yaml}}
 	ManagedAlertmanager *ManagedAlertmanagerSpec `json:"managedAlertmanager,omitempty"`
 	// Features holds configuration for optional managed-collection features.
-	Features OperatorFeatures `json:"features,omitempty"`
+	// +optional
+	Features OperatorFeatures `json:"features"`
 	// Scaling contains configuration options for scaling GMP.
-	Scaling ScalingSpec `json:"scaling,omitempty"`
+	// +optional
+	Scaling ScalingSpec `json:"scaling"`
 }
 
 func (oc *OperatorConfig) Validate() error {
@@ -135,8 +141,10 @@ func validateSecretKeySelector(secretKeySelector *corev1.SecretKeySelector) erro
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type OperatorConfigList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []OperatorConfig `json:"items"`
+	// +optional
+	metav1.ListMeta `json:"metadata"`
+
+	Items []OperatorConfig `json:"items"`
 }
 
 // RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
@@ -153,7 +161,8 @@ type RuleEvaluatorSpec struct {
 	// Should point to an instance of a query frontend that gives access to queryProjectID.
 	GeneratorURL string `json:"generatorUrl,omitempty"`
 	// Alerting contains how the rule-evaluator configures alerting.
-	Alerting AlertingSpec `json:"alerting,omitempty"`
+	// +optional
+	Alerting AlertingSpec `json:"alerting"`
 	// A reference to GCP service account credentials with which the rule
 	// evaluator container is run. It needs to have metric read permissions
 	// against queryProjectId and metric write permissions against all projects
@@ -170,7 +179,8 @@ type CollectionSpec struct {
 	// specified in the OperatorConfig. The precedence behavior matches that of Prometheus.
 	ExternalLabels map[string]string `json:"externalLabels,omitempty"`
 	// Filter limits which metric data is sent to Cloud Monitoring (it doesn't apply to additional exports).
-	Filter ExportFilters `json:"filter,omitempty"`
+	// +optional
+	Filter ExportFilters `json:"filter"`
 	// A reference to GCP service account credentials with which Prometheus collectors
 	// are run. It needs to have metric write permissions for all project IDs to which
 	// data is written.
@@ -191,9 +201,11 @@ type ExportSpec struct {
 // OperatorFeatures holds configuration for optional managed-collection features.
 type OperatorFeatures struct {
 	// Configuration of target status reporting.
-	TargetStatus TargetStatusSpec `json:"targetStatus,omitempty"`
+	// +optional
+	TargetStatus TargetStatusSpec `json:"targetStatus"`
 	// Settings for the collector configuration propagation.
-	Config ConfigSpec `json:"config,omitempty"`
+	// +optional
+	Config ConfigSpec `json:"config"`
 }
 
 // ConfigSpec holds configurations for the Prometheus configuration.
@@ -210,11 +222,14 @@ type TargetStatusSpec struct {
 	Enabled bool `json:"enabled,omitempty"`
 }
 
+// CompressionType is the compression type.
 // +kubebuilder:validation:Enum=none;gzip
 type CompressionType string
 
-const CompressionNone CompressionType = "none"
-const CompressionGzip CompressionType = "gzip"
+const (
+	CompressionNone CompressionType = "none"
+	CompressionGzip CompressionType = "gzip"
+)
 
 // KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
 type KubeletScraping struct {
@@ -323,7 +338,8 @@ type SecretOrConfigMap struct {
 
 // ScalingSpec defines configuration options for scaling GMP.
 type ScalingSpec struct {
-	VPA VPASpec `json:"vpa,omitempty"`
+	// +optional
+	VPA VPASpec `json:"vpa"`
 }
 
 // VPASpec defines configuration options for vertical pod autoscaling.

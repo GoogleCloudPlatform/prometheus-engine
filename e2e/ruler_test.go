@@ -691,7 +691,7 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 			})
 			series, err := iter.Next()
 			if errors.Is(err, iterator.Done) {
-				t.Logf("no data in GCM, retrying...")
+				t.Log("no data in GCM, retrying...")
 				return false, nil
 			} else if err != nil {
 				return false, fmt.Errorf("querying metrics failed: %w", err)
@@ -839,8 +839,7 @@ func getRules(ctx context.Context, httpClient *http.Client, address string, port
 }
 
 func logsError(logs string) (string, error) {
-	lines := strings.Split(logs, "\n")
-	for _, line := range lines {
+	for line := range strings.SplitSeq(logs, "\n") {
 		if line == "" {
 			continue
 		}

@@ -329,7 +329,7 @@ func testEnsurePodMonitoringStatus(ctx context.Context, kubeClient client.Client
 
 			// Check status reflects discovered endpoints.
 			if len(pm.Status.EndpointStatuses) < 1 {
-				t.Logf("no endpoint statuses yet")
+				t.Log("no endpoint statuses yet")
 				return false, nil
 			}
 
@@ -387,7 +387,7 @@ func testEnsureClusterPodMonitoringStatus(ctx context.Context, kubeClient client
 
 			// Check status reflects discovered endpoints.
 			if len(cpm.Status.EndpointStatuses) < 1 {
-				t.Logf("no endpoint statuses yet")
+				t.Log("no endpoint statuses yet")
 				return false, nil
 			}
 

@@ -137,11 +137,11 @@ func newCollectionReconciler(c client.Client, opts Options) *collectionReconcile
 
 func patchMonitoringStatus(ctx context.Context, kubeClient client.Client, obj client.Object, status *monitoringv1.MonitoringStatus) error {
 	// TODO(TheSpiritXIII): In the future, change this to server side apply as opposed to patch.
-	patchStatus := map[string]interface{}{
+	patchStatus := map[string]any{
 		"conditions":         status.Conditions,
 		"observedGeneration": status.ObservedGeneration,
 	}
-	patchObject := map[string]interface{}{"status": patchStatus}
+	patchObject := map[string]any{"status": patchStatus}
 
 	patchBytes, err := json.Marshal(patchObject)
 	if err != nil {

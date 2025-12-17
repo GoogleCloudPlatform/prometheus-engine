@@ -36,12 +36,12 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			name: "OK",
 			input: grafana.DataSource{
 				Type:     "prometheus",
-				JSONData: map[string]interface{}{},
+				JSONData: map[string]any{},
 			},
 			want: grafana.DataSource{
 				URL:  "https://monitoring.googleapis.com/v1/projects/test/location/global/prometheus/",
 				Type: "prometheus",
-				JSONData: map[string]interface{}{
+				JSONData: map[string]any{
 					"httpHeaderName1":   "Authorization",
 					"httpMethod":        "GET",
 					"prometheusType":    "Prometheus",
@@ -49,7 +49,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 					"queryTimeout":      "2m",
 					"timeout":           "120",
 				},
-				SecureJSONData: map[string]interface{}{
+				SecureJSONData: map[string]any{
 					"httpHeaderValue1": "Bearer 12345",
 				},
 			},
@@ -59,7 +59,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			input: grafana.DataSource{
 				URL:  "http://localhost:9090",
 				Type: "prometheus",
-				JSONData: map[string]interface{}{
+				JSONData: map[string]any{
 					"httpHeaderName1": "X-Custom-Header",
 					"httpHeaderName2": "X-Custom-Header2",
 				},
@@ -67,7 +67,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			want: grafana.DataSource{
 				URL:  "https://monitoring.googleapis.com/v1/projects/test/location/global/prometheus/",
 				Type: "prometheus",
-				JSONData: map[string]interface{}{
+				JSONData: map[string]any{
 					"httpHeaderName1":   "X-Custom-Header",
 					"httpHeaderName2":   "X-Custom-Header2",
 					"httpHeaderName3":   "Authorization",
@@ -77,7 +77,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 					"queryTimeout":      "2m",
 					"timeout":           "120",
 				},
-				SecureJSONData: map[string]interface{}{
+				SecureJSONData: map[string]any{
 					"httpHeaderValue3": "Bearer 12345",
 				},
 			},
@@ -87,7 +87,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			input: grafana.DataSource{
 				URL:  "http://localhost:9090",
 				Type: "prometheus",
-				JSONData: map[string]interface{}{
+				JSONData: map[string]any{
 					"httpHeaderName1":   "X-Custom-Header",
 					"httpHeaderName2":   "Authorization",
 					"httpHeaderName3":   "X-Custom-Header3",
@@ -99,7 +99,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			want: grafana.DataSource{
 				URL:  "https://monitoring.googleapis.com/v1/projects/test/location/global/prometheus/",
 				Type: "prometheus",
-				JSONData: map[string]interface{}{
+				JSONData: map[string]any{
 					"httpHeaderName1":   "X-Custom-Header",
 					"httpHeaderName2":   "Authorization",
 					"httpHeaderName3":   "X-Custom-Header3",
@@ -109,7 +109,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 					"queryTimeout":      "2m",
 					"timeout":           "120",
 				},
-				SecureJSONData: map[string]interface{}{
+				SecureJSONData: map[string]any{
 					"httpHeaderValue2": "Bearer 12345",
 				},
 			},
@@ -119,7 +119,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			input: grafana.DataSource{
 				Type: "prometheus",
 				URL:  "http://localhost:9090",
-				JSONData: map[string]interface{}{
+				JSONData: map[string]any{
 					"httpHeaderName1":   "X-Custom-Header",
 					"httpHeaderName2":   "X-Custom-Header2",
 					"httpHeaderName3":   "Authorization",
@@ -131,7 +131,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			want: grafana.DataSource{
 				URL:  "https://monitoring.googleapis.com/v1/projects/test/location/global/prometheus/",
 				Type: "prometheus",
-				JSONData: map[string]interface{}{
+				JSONData: map[string]any{
 					"httpHeaderName1":   "X-Custom-Header",
 					"httpHeaderName2":   "X-Custom-Header2",
 					"httpHeaderName3":   "Authorization",
@@ -141,7 +141,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 					"queryTimeout":      "2m",
 					"timeout":           "120",
 				},
-				SecureJSONData: map[string]interface{}{
+				SecureJSONData: map[string]any{
 					"httpHeaderValue3": "Bearer 12345",
 				},
 			},
@@ -151,7 +151,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			input: grafana.DataSource{
 				Type: "prometheus",
 				URL:  "http://localhost:9090",
-				JSONData: map[string]interface{}{
+				JSONData: map[string]any{
 					"prometheusType":    "Prometheus",
 					"prometheusVersion": "2.42.0",
 					"queryTimeout":      "3m",
@@ -161,7 +161,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			want: grafana.DataSource{
 				URL:  "https://monitoring.googleapis.com/v1/projects/test/location/global/prometheus/",
 				Type: "prometheus",
-				JSONData: map[string]interface{}{
+				JSONData: map[string]any{
 					"httpHeaderName1":   "Authorization",
 					"httpMethod":        "GET",
 					"prometheusType":    "Prometheus",
@@ -169,7 +169,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 					"queryTimeout":      "3m",
 					"timeout":           "160",
 				},
-				SecureJSONData: map[string]interface{}{
+				SecureJSONData: map[string]any{
 					"httpHeaderValue1": "Bearer 12345",
 				},
 			},
@@ -188,7 +188,7 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			got, err := buildUpdateDataSourceRequest(tt.input, accessToken)
 			if tt.fail {
 				if err == nil {
-					t.Fatalf("unexpectedly succeeded")
+					t.Fatal("unexpectedly succeeded")
 				}
 				return
 			}

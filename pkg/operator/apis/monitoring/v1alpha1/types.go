@@ -25,20 +25,25 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:deprecatedversion
 type OperatorConfig struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Rules specifies how the operator configures and deployes rule-evaluator.
-	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
+	// +optional
+	Rules RuleEvaluatorSpec `json:"rules"`
 	// Collection specifies how the operator configures collection.
-	Collection CollectionSpec `json:"collection,omitempty"`
+	// +optional
+	Collection CollectionSpec `json:"collection"`
 }
 
 // OperatorConfigList is a list of OperatorConfigs.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type OperatorConfigList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []OperatorConfig `json:"items"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []OperatorConfig `json:"items"`
 }
 
 // RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
@@ -52,7 +57,8 @@ type RuleEvaluatorSpec struct {
 	// from the environment.
 	QueryProjectID string `json:"queryProjectID,omitempty"`
 	// Alerting contains how the rule-evaluator configures alerting.
-	Alerting AlertingSpec `json:"alerting,omitempty"`
+	// +optional
+	Alerting AlertingSpec `json:"alerting"`
 	// A reference to GCP service account credentials with which the rule
 	// evaluator container is run. It needs to have metric read permissions
 	// against queryProjectId and metric write permissions against all projects
@@ -69,7 +75,8 @@ type CollectionSpec struct {
 	// of Prometheus.
 	ExternalLabels map[string]string `json:"externalLabels,omitempty"`
 	// Filter limits which metric data is sent to Cloud Monitoring.
-	Filter ExportFilters `json:"filter,omitempty"`
+	// +optional
+	Filter ExportFilters `json:"filter"`
 	// A reference to GCP service account credentials with which Prometheus collectors
 	// are run. It needs to have metric write permissions for all project IDs to which
 	// data is written.
@@ -127,7 +134,7 @@ type Authorization struct {
 	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
-// SafeTLSConfig specifies TLS configuration parameters from Kubernetes resources.
+// TLSConfig specifies TLS configuration parameters from Kubernetes resources.
 type TLSConfig struct {
 	// Struct containing the CA cert to use for the targets.
 	CA *SecretOrConfigMap `json:"ca,omitempty"`
@@ -156,8 +163,10 @@ type SecretOrConfigMap struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:deprecatedversion
 type PodMonitoring struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of desired Pod selection for target discovery by
 	// Prometheus.
 	Spec PodMonitoringSpec `json:"spec"`
@@ -170,8 +179,9 @@ type PodMonitoring struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PodMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []PodMonitoring `json:"items"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []PodMonitoring `json:"items"`
 }
 
 // ClusterPodMonitoring defines monitoring for a set of pods.
@@ -182,8 +192,10 @@ type PodMonitoringList struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:deprecatedversion
 type ClusterPodMonitoring struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of desired Pod selection for target discovery by
 	// Prometheus.
 	Spec ClusterPodMonitoringSpec `json:"spec"`
@@ -196,8 +208,9 @@ type ClusterPodMonitoring struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterPodMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterPodMonitoring `json:"items"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ClusterPodMonitoring `json:"items"`
 }
 
 // PodMonitoringSpec contains specification parameters for PodMonitoring.
@@ -208,7 +221,8 @@ type PodMonitoringSpec struct {
 	// The endpoints to scrape on the selected pods.
 	Endpoints []ScrapeEndpoint `json:"endpoints"`
 	// Labels to add to the Prometheus target for discovered endpoints.
-	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
+	// +optional
+	TargetLabels TargetLabels `json:"targetLabels"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
 }
@@ -237,7 +251,8 @@ type ClusterPodMonitoringSpec struct {
 	// The endpoints to scrape on the selected pods.
 	Endpoints []ScrapeEndpoint `json:"endpoints"`
 	// Labels to add to the Prometheus target for discovered endpoints
-	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
+	// +optional
+	TargetLabels TargetLabels `json:"targetLabels"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
 }
@@ -339,10 +354,10 @@ type MonitoringCondition struct {
 	Status corev1.ConditionStatus `json:"status"`
 	// The last time this condition was updated.
 	// +optional
-	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
 	// Last time the condition transitioned from one status to another.
 	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
 	// The reason for the condition's last transition.
 	// +optional
 	Reason string `json:"reason,omitempty"`
@@ -362,8 +377,10 @@ type MonitoringCondition struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:deprecatedversion
 type Rules struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -375,8 +392,9 @@ type Rules struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type RulesList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Rules `json:"items"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []Rules `json:"items"`
 }
 
 // ClusterRules defines Prometheus alerting and recording rules that are scoped
@@ -392,8 +410,10 @@ type RulesList struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:deprecatedversion
 type ClusterRules struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -405,8 +425,9 @@ type ClusterRules struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterRulesList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterRules `json:"items"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ClusterRules `json:"items"`
 }
 
 // GlobalRules defines Prometheus alerting and recording rules that are scoped
@@ -421,8 +442,10 @@ type ClusterRulesList struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:deprecatedversion
 type GlobalRules struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
@@ -434,8 +457,9 @@ type GlobalRules struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type GlobalRulesList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []GlobalRules `json:"items"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []GlobalRules `json:"items"`
 }
 
 // RulesSpec contains specification parameters for a Rules resource.

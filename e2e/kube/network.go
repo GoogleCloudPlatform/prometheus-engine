@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package e2e contains tests that validate the behavior of gmp-operator against a cluster.
+// Package kube contains tests that validate the behavior of gmp-operator against a cluster.
 // To make tests simple and fast, the test suite runs the operator internally. The CRDs
 // are expected to be installed out of band (along with the operator deployment itself in
 // a real world setup).
@@ -35,6 +35,7 @@ import (
 // wrappedConn simply wraps a net.Conn with an additional close function.
 type wrappedConn struct {
 	net.Conn
+
 	closeFn func()
 }
 

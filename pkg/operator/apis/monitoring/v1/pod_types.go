@@ -54,8 +54,11 @@ type PodMonitoringCRD interface {
 // +kubebuilder:validation:XValidation:rule="self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.key) || !has(e.tls.key.secret) || !has(e.tls.key.secret.__namespace__))",message="Namespace not allowed on PodMonitoring secret references.",reason="FieldValueForbidden"
 // +kubebuilder:validation:XValidation:rule="self.spec.endpoints.all(e, !has(e.oauth2) || !has(e.oauth2.clientSecret) || !has(e.oauth2.clientSecret.secret) || !has(e.oauth2.clientSecret.secret.__namespace__))",message="Namespace not allowed on PodMonitoring secret references.",reason="FieldValueForbidden"
 type PodMonitoring struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	// +kubebuilder:validation:Optional
+	metav1.TypeMeta `json:",inline"`
+	// +kubebuilder:validation:Optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of desired Pod selection for target discovery by
 	// Prometheus.
 	Spec PodMonitoringSpec `json:"spec"`
@@ -88,8 +91,9 @@ func (p *PodMonitoring) GetMonitoringStatus() *MonitoringStatus {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PodMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []PodMonitoring `json:"items"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []PodMonitoring `json:"items"`
 }
 
 // ClusterPodMonitoring defines monitoring for a set of pods, scoped to all
@@ -101,8 +105,10 @@ type PodMonitoringList struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 type ClusterPodMonitoring struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata"`
+
 	// Specification of desired Pod selection for target discovery by
 	// Prometheus.
 	Spec ClusterPodMonitoringSpec `json:"spec"`
@@ -135,8 +141,9 @@ func (c *ClusterPodMonitoring) GetMonitoringStatus() *MonitoringStatus {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ClusterPodMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterPodMonitoring `json:"items"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ClusterPodMonitoring `json:"items"`
 }
 
 // PodMonitoringSpec contains specification parameters for PodMonitoring.
@@ -151,7 +158,8 @@ type PodMonitoringSpec struct {
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
 	// if the scraped pod is controlled by a DaemonSet.
-	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
+	// +optional
+	TargetLabels TargetLabels `json:"targetLabels"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
 	// FilterRunning will drop any pods that are in the "Failed" or "Succeeded"
@@ -188,7 +196,8 @@ type ClusterPodMonitoringSpec struct {
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
 	// if the scraped pod is controlled by a DaemonSet.
-	TargetLabels ClusterTargetLabels `json:"targetLabels,omitempty"`
+	// +optional
+	TargetLabels ClusterTargetLabels `json:"targetLabels"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
 	// FilterRunning will drop any pods that are in the "Failed" or "Succeeded"
@@ -205,6 +214,9 @@ type ClusterPodMonitoringSpec struct {
 // ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 // +kubebuilder:validation:XValidation:rule="!has(self.timeout) || self.timeout <= self.interval",messageExpression="'scrape timeout (%s) must not be greater than scrape interval (%s)'.format([self.timeout, self.interval])"
 type ScrapeEndpoint struct {
+	// Prometheus HTTP client configuration.
+	HTTPClientConfig `json:",inline"`
+
 	// Name or number of the port to scrape.
 	// The container metadata label is only populated if the port is referenced by name
 	// because port numbers are not unique across containers.
@@ -213,7 +225,7 @@ type ScrapeEndpoint struct {
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:XValidation:rule="self != 0",message="Port is required"
 	// +required
-	Port intstr.IntOrString `json:"port,omitempty"`
+	Port intstr.IntOrString `json:"port"`
 	// Protocol scheme to use to scrape.
 	// +kubebuilder:validation:Enum=http;https
 	Scheme string `json:"scheme,omitempty"`
@@ -235,8 +247,6 @@ type ScrapeEndpoint struct {
 	// not permitted. The labelmap action is not permitted in general.
 	// +kubebuilder:validation:MaxItems=250
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
-	// Prometheus HTTP client configuration.
-	HTTPClientConfig `json:",inline"`
 }
 
 // TargetLabels configures labels for the discovered Prometheus targets.
@@ -328,7 +338,8 @@ type ScrapeEndpointStatus struct {
 	// Total number of active, unhealthy targets.
 	UnhealthyTargets int64 `json:"unhealthyTargets,omitempty"`
 	// Last time this status was updated.
-	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	// +kubebuilder:validation:Optional
+	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
 	// A fixed sample of targets grouped by error type.
 	SampleGroups []SampleGroup `json:"sampleGroups,omitempty"`
 	// Fraction of collectors included in status, bounded [0,1].
@@ -359,6 +370,7 @@ type SampleTarget struct {
 // PodMonitoringStatus holds status information of a PodMonitoring resource.
 type PodMonitoringStatus struct {
 	MonitoringStatus `json:",inline"`
+
 	// Represents the latest available observations of target state for each ScrapeEndpoint.
 	EndpointStatuses []ScrapeEndpointStatus `json:"endpointStatuses,omitempty"`
 }
