@@ -24,22 +24,22 @@ images:
     tag: gke_distroless_20251107.00_p0
   alertmanager:
     image: gke.gcr.io/prometheus-engine/alertmanager
-    tag: "v0.27.0-gmp.4-gke.2"
+    tag: "v0.27.0-gmp.4-gke.4"
   prometheus:
     image: gke.gcr.io/prometheus-engine/prometheus
-    tag: "v2.53.5-gmp.0-gke.13"
+    tag: "v2.53.5-gmp.1-gke.2"
   configReloader:
     image: gke.gcr.io/prometheus-engine/config-reloader
-    tag: "v0.17.0-gke.8"
+    tag: "v0.17.2-gke.2"
   operator:
     image: gke.gcr.io/prometheus-engine/operator
-    tag: "v0.17.0-gke.8"
+    tag: "v0.17.2-gke.2"
   ruleEvaluator:
     image: gke.gcr.io/prometheus-engine/rule-evaluator
-    tag: "v0.17.0-gke.8"
+    tag: "v0.17.2-gke.2"
   datasourceSyncer:
     image: gke.gcr.io/prometheus-engine/datasource-syncer
-    tag: "v0.17.0-gke.8"
+    tag: "v0.17.2-gke.2"
 resources:
   alertManager:
     limits:

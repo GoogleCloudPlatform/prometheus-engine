@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ spec:
                 - linux
       containers:
       - name: datasource-syncer-init
-        image: gke.gcr.io/prometheus-engine/datasource-syncer:v0.17.0-gke.8
+        image: gke.gcr.io/prometheus-engine/datasource-syncer:v0.17.2-gke.2
         args:
         - "--datasource-uids=$DATASOURCE_UIDS"
         - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"
@@ -79,7 +79,7 @@ spec:
                     - linux
           containers:
           - name: datasource-syncer
-            image: gke.gcr.io/prometheus-engine/datasource-syncer:v0.17.0-gke.8
+            image: gke.gcr.io/prometheus-engine/datasource-syncer:v0.17.2-gke.2
             args:
             - "--datasource-uids=$DATASOURCE_UIDS"
             - "--grafana-api-endpoint=$GRAFANA_API_ENDPOINT"

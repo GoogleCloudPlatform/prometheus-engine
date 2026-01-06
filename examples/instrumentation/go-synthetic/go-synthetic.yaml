@@ -29,7 +29,7 @@ spec:
       containers:
       - name: go-synthetic
         # TODO(bwplotka): Rename image to go-synthetic (example-app is misleading, we actually use go-synthetic).
-        image: gke.gcr.io/prometheus-engine/example-app:v0.17.0-gke.8
+        image: gke.gcr.io/prometheus-engine/example-app:v0.17.2-gke.2
         args:
         - "--listen-address=:8080"
         - "--cpu-burn-ops=75"
