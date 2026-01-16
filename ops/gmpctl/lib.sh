@@ -108,8 +108,9 @@ release-lib::vulnlist() {
   echo "🔄  Detecting Go ${go_version} vulnerabilities to fix..."
   pushd "${SCRIPT_DIR}/vulnupdatelist/"
   if [[ ! -f "./api.text" ]]; then
-    log_err "$(pwd)/api.text file not found in your filesystem. Please create it with your NVD API key. See https://nvd.nist.gov/developers/request-an-api-key"
-    return 1
+    echo "Please create an NVD API key. See https://nvd.nist.gov/developers/request-an-api-key"
+    read -p "NVD API Key: " NVD_API_KEY
+    echo ${NVD_API_KEY} >./api.text
   fi
 
   go run "./..." \
