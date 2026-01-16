@@ -115,7 +115,7 @@ update_manifests() {
 		-f "${REPO_ROOT}/charts/values.global.yaml" \
 		>"${REPO_ROOT}/cmd/datasource-syncer/datasource-syncer.yaml"
 
-	go tool addlicense ${REPO_ROOT}/manifests/*.yaml "${REPO_ROOT}/cmd/datasource-syncer/datasource-syncer.yaml"
+	go tool addlicense -y 2025 ${REPO_ROOT}/manifests/*.yaml "${REPO_ROOT}/cmd/datasource-syncer/datasource-syncer.yaml"
 }
 
 run_tests() {
