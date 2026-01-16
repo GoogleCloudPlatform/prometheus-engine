@@ -1063,6 +1063,7 @@ func (e *ruleEvaluator) Stop() {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	e.rulesManager.Stop()
+	e.rulesManager = nil
 }
 
 func newQueryFunc(logger log.Logger, v1api v1.API) rules.QueryFunc {
