@@ -18,12 +18,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/google/go-cmp/cmp"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
@@ -100,13 +104,15 @@ func TestSelect(t *testing.T) {
 					}
 					return promql.Matrix{{
 						Metric: labels.FromStrings(model.MetricNameLabel, "testLabel"),
-						Floats: []promql.FPoint{{T: 600613, F: 1.0}}}}, nil, nil
+						Floats: []promql.FPoint{{T: 600613, F: 1.0}},
+					}}, nil, nil
 				},
 			},
 			want: &listSeriesSet{
 				m: promql.Matrix{{
 					Metric: labels.FromStrings(model.MetricNameLabel, "testLabel"),
-					Floats: []promql.FPoint{{T: 600613, F: 1.0}}}},
+					Floats: []promql.FPoint{{T: 600613, F: 1.0}},
+				}},
 			},
 		},
 		// Error cases
@@ -178,4 +184,30 @@ func TestSelect(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Regression test against b/470033222.
+func TestGracefulShutdown(t *testing.T) {
+	re, err := newRuleEvaluator(
+		t.Context(), log.NewNopLogger(),
+		&evaluatorOptions{
+			DisableAuth: true,
+			TargetURL:   &url.URL{},
+		},
+		version.Version,
+		nil, nil, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		re.Run()
+		wg.Done()
+	}()
+
+	re.Stop()
+	wg.Wait()
 }
