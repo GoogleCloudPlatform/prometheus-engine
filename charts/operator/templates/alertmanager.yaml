@@ -67,7 +67,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-            - all
+            - ALL
           privileged: false
           readOnlyRootFilesystem: true
       containers:
@@ -99,7 +99,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-            - all
+            - ALL
           privileged: false
           readOnlyRootFilesystem: true
       - name: config-reloader
@@ -130,7 +130,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-            - all
+            - ALL
           privileged: false
           readOnlyRootFilesystem: true
       volumes:

@@ -79,7 +79,7 @@ spec:
           privileged: false
           capabilities:
             drop:
-            - all
+            - ALL
           runAsUser: 1000
           runAsGroup: 1000
         livenessProbe:

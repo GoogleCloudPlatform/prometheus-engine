@@ -104,7 +104,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-            - all
+            - ALL
           privileged: false
       containers:
       - name: prometheus

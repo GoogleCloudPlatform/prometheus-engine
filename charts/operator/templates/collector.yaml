@@ -52,7 +52,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-            - all
+            - ALL
           privileged: false
           readOnlyRootFilesystem: true
       containers:
@@ -84,7 +84,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-            - all
+            - ALL
           privileged: false
           readOnlyRootFilesystem: true
       - name: prometheus
@@ -150,7 +150,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-            - all
+            - ALL
           privileged: false
           readOnlyRootFilesystem: true
       volumes:
