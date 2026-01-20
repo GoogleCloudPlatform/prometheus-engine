@@ -58,7 +58,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
-            - all
+            - ALL
           privileged: false
           runAsGroup: 1000
           runAsNonRoot: true
