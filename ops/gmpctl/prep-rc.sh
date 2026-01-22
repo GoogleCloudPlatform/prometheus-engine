@@ -22,83 +22,85 @@ set -o pipefail
 set -o nounset
 
 if [[ -n "${DEBUG_MODE:-}" ]]; then
-	set -o xtrace
+  set -o xtrace
 fi
+
+SED=$(which gsed || which sed)
 
 # TODO(bwplotka): Finding correct script dir is not so trivial.
 if [[ -z "${SCRIPT_DIR}" ]]; then
-	log_err "SCRIPT_DIR envvar is required."
-	exit 1
+  log_err "SCRIPT_DIR envvar is required."
+  exit 1
 fi
 
 source "${SCRIPT_DIR}/lib.sh"
 
 if [[ -z "${DIR}" ]]; then
-	log_err "DIR envvar is required."
-	exit 1
+  log_err "DIR envvar is required."
+  exit 1
 fi
 
 if [[ -z "${BRANCH}" ]]; then
-	log_err "BRANCH envvar is required."
-	exit 1
+  log_err "BRANCH envvar is required."
+  exit 1
 fi
 
 if [[ -z "${TAG}" ]]; then
-	log_err "TAG envvar is required."
-	exit 1
+  log_err "TAG envvar is required."
+  exit 1
 fi
 
 if [[ -z "${PROJECT}" ]]; then
-	log_err "PROJECT envvar is required."
-	exit 1
+  log_err "PROJECT envvar is required."
+  exit 1
 fi
 
 if [[ "${PROJECT}" == "prometheus-engine" ]]; then
-	CLEAN_TAG="${TAG%-rc.*}"
-	CLEAN_TAG="${CLEAN_TAG#v}"
-	if [[ "${BRANCH}" == "release/0.12" ]]; then
-		# A bit different flow.
-		chart_file="${DIR}/charts/operator/Chart.yaml"
-		echo "🔄  Ensuring ${CLEAN_TAG} on ${chart_file}..."
-		if ! gsed -i -E "s#appVersion:.*#appVersion: ${CLEAN_TAG}#g" "${chart_file}"; then
-			# TODO: This is flaky, no failing actually on no match. Common bug is
-			echo "❌  sed didn't replace?"
-			exit 1
-		fi
+  CLEAN_TAG="${TAG%-rc.*}"
+  CLEAN_TAG="${CLEAN_TAG#v}"
+  if [[ "${BRANCH}" == "release/0.12" ]]; then
+    # A bit different flow.
+    chart_file="${DIR}/charts/operator/Chart.yaml"
+    echo "🔄  Ensuring ${CLEAN_TAG} on ${chart_file}..."
+    if ! ${SED} -i -E "s#appVersion:.*#appVersion: ${CLEAN_TAG}#g" "${chart_file}"; then
+      # TODO: This is flaky, no failing actually on no match. Common bug is
+      echo "❌  sed didn't replace?"
+      exit 1
+    fi
 
-		chart_file="${DIR}/charts/rule-evaluator/Chart.yaml"
-		echo "🔄  Ensuring ${CLEAN_TAG} on ${chart_file}..."
-		if ! gsed -i -E "s#appVersion:.*#appVersion: ${CLEAN_TAG}#g" "${chart_file}"; then
-			# TODO: This is flaky, no failing actually on no match. Common bug is
-			echo "❌  sed didn't replace?"
-			exit 1
-		fi
-	else
-		# 0.12+
-		values_file="${DIR}/charts/values.global.yaml"
-		echo "🔄  Ensuring ${CLEAN_TAG} on ${values_file}..."
-		if ! gsed -i -E "s#version:.*#version: ${CLEAN_TAG}#g" "${values_file}"; then
-			# TODO: This is flaky, no failing actually on no match. Common bug is
-			echo "❌  sed didn't replace?"
-			exit 1
-		fi
-	fi
-	# For versions with export embedded.
-	if [[ -f "${DIR}/pkg/export/export.go" ]]; then
-		echo "🔄  Ensuring ${TAG} in ${DIR}/pkg/export/export.go mainModuleVersion..."
-		if ! gsed -i -E "s#mainModuleVersion = .*#mainModuleVersion = \"${TAG}\"#g" "${DIR}/pkg/export/export.go"; then
-			# TODO: This is flaky, no failing actually on no match. Common bug is
-			echo "❌  sed didn't replace?"
-			exit 1
-		fi
-	fi
+    chart_file="${DIR}/charts/rule-evaluator/Chart.yaml"
+    echo "🔄  Ensuring ${CLEAN_TAG} on ${chart_file}..."
+    if ! ${SED} -i -E "s#appVersion:.*#appVersion: ${CLEAN_TAG}#g" "${chart_file}"; then
+      # TODO: This is flaky, no failing actually on no match. Common bug is
+      echo "❌  sed didn't replace?"
+      exit 1
+    fi
+  else
+    # 0.12+
+    values_file="${DIR}/charts/values.global.yaml"
+    echo "🔄  Ensuring ${CLEAN_TAG} on ${values_file}..."
+    if ! ${SED} -i -E "s#version:.*#version: ${CLEAN_TAG}#g" "${values_file}"; then
+      # TODO: This is flaky, no failing actually on no match. Common bug is
+      echo "❌  sed didn't replace?"
+      exit 1
+    fi
+  fi
+  # For versions with export embedded.
+  if [[ -f "${DIR}/pkg/export/export.go" ]]; then
+    echo "🔄  Ensuring ${TAG} in ${DIR}/pkg/export/export.go mainModuleVersion..."
+    if ! ${SED} -i -E "s#mainModuleVersion = .*#mainModuleVersion = \"${TAG}\"#g" "${DIR}/pkg/export/export.go"; then
+      # TODO: This is flaky, no failing actually on no match. Common bug is
+      echo "❌  sed didn't replace?"
+      exit 1
+    fi
+  fi
 
-	release-lib::manifests_regen "${DIR}"
-	git add --all
+  release-lib::manifests_regen "${DIR}"
+  git add --all
 else
-	# Prometheus and Alertmanager fork needs just a correct version in the VERSION file,
-	# so the binary build (go_build_info) metrics and flags are correct.
-	temp=${TAG#v} # Remove v and then -rc.* suffix.
-	echo "${temp%-rc.*}" >VERSION
-	git add VERSION
+  # Prometheus and Alertmanager fork needs just a correct version in the VERSION file,
+  # so the binary build (go_build_info) metrics and flags are correct.
+  temp=${TAG#v} # Remove v and then -rc.* suffix.
+  echo "${temp%-rc.*}" >VERSION
+  git add VERSION
 fi
