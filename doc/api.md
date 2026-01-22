@@ -689,6 +689,7 @@ ClusterTargetLabels
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Labels to add to the Prometheus target for discovered endpoints.
 The <code>instance</code> label is always set to <code>&lt;pod_name&gt;:&lt;port&gt;</code> or <code>&lt;node_name&gt;:&lt;port&gt;</code>
 if the scraped pod is controlled by a DaemonSet.</p>
@@ -815,6 +816,7 @@ RulesStatus
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Pod metadata labels that are set on all scraped targets.
 Permitted keys are <code>container</code>, <code>namespace</code>, <code>node</code>, <code>pod</code>,
 <code>top_level_controller_name</code> and <code>top_level_controller_type</code>. The <code>container</code>
@@ -1948,6 +1950,7 @@ TargetLabels
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Labels to add to the Prometheus target for discovered endpoints.
 The <code>instance</code> label is always set to <code>&lt;pod_name&gt;:&lt;port&gt;</code> or <code>&lt;node_name&gt;:&lt;port&gt;</code>
 if the scraped pod is controlled by a DaemonSet.</p>
@@ -3447,6 +3450,7 @@ See MinVersion in <a href="https://pkg.go.dev/crypto/tls#Config">https://pkg.go.
 </em>
 </td>
 <td>
+<em>(Optional)</em>
 <p>Pod metadata labels that are set on all scraped targets.
 Permitted keys are <code>container</code>, <code>node</code>, <code>pod</code>, <code>top_level_controller_name</code>,
 and <code>top_level_controller_type</code>. The <code>container</code>
