@@ -96,6 +96,54 @@ func cleanupKindCluster(t *testing.T, clusterName string) func() {
 	}
 }
 
+func TestClusterPodMonitoringDefaultingYAML(t *testing.T) {
+	t.Parallel()
+
+	c, kubeconfigPath := createKindCluster(t)
+
+	tests := []struct {
+		file string
+		want monitoringv1.ClusterPodMonitoringSpec
+	}{
+		{
+			file: "cluster-pod-monitoring.yaml",
+			want: monitoringv1.ClusterPodMonitoringSpec{
+				Selector: metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app.kubernetes.io/name": "prom-example",
+					},
+				},
+				Endpoints: []monitoringv1.ScrapeEndpoint{
+					{
+						Port:     intstr.IntOrString{StrVal: "metrics", Type: intstr.String},
+						Interval: "30s",
+					},
+				},
+				TargetLabels: monitoringv1.ClusterTargetLabels{
+					Metadata: &[]string{"container", "namespace", "pod", "top_level_controller_name", "top_level_controller_type"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		createClusterPodMonitoringOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", tc.file).CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s\b%v", createClusterPodMonitoringOutput, err)
+		}
+		t.Logf("%s\n", createClusterPodMonitoringOutput)
+
+		var got monitoringv1.ClusterPodMonitoring
+		if err := c.Get(t.Context(), client.ObjectKey{Namespace: "default", Name: "prom-example"}, &got); err != nil {
+			t.Error(err)
+		}
+
+		if diff := cmp.Diff(tc.want, got.Spec); diff != "" {
+			t.Error(diff)
+		}
+	}
+}
+
 func TestPodMonitoringDefaultingYAML(t *testing.T) {
 	t.Parallel()
 
