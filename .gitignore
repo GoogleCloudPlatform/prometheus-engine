@@ -2,6 +2,7 @@
 /**/node_modules/.cache
 e2e_*
 .idea/
+ops
 
 # We vendor Go code internally (on Louhi import), don't vendor here.
 vendor/
