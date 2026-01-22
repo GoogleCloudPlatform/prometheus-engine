@@ -190,6 +190,8 @@ type ClusterPodMonitoringSpec struct {
 	// Labels to add to the Prometheus target for discovered endpoints.
 	// The `instance` label is always set to `<pod_name>:<port>` or `<node_name>:<port>`
 	// if the scraped pod is controlled by a DaemonSet.
+	// +optional
+	// +default:value={}
 	TargetLabels ClusterTargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
@@ -272,6 +274,7 @@ type ClusterTargetLabels struct {
 	// only.
 	// +kubebuilder:validation:items:Enum=container;namespace;node;pod;top_level_controller_name;top_level_controller_type
 	// +listType=set
+	// +optional
 	// +kubebuilder:default=container;namespace;pod;top_level_controller_name;top_level_controller_type
 	Metadata *[]string `json:"metadata,omitempty"`
 	// Labels to transfer from the Kubernetes Pod to Prometheus target labels.
