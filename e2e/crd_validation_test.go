@@ -15,6 +15,7 @@
 package e2e
 
 import (
+	_ "embed"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -29,9 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func createKindCluster(t *testing.T) client.Client {
-	t.Helper()
-
+func createKindCluster(t *testing.T) (client.Client, string) {
 	// Add a randomized suffix to the test cluster name to reduce collisions.
 	clusterName := fmt.Sprintf("crd-test-%s", rand.String(6))
 
@@ -84,7 +83,7 @@ func createKindCluster(t *testing.T) client.Client {
 	if err != nil {
 		t.Error(err)
 	}
-	return c
+	return c, kubeconfigPath
 }
 
 func cleanupKindCluster(t *testing.T, clusterName string) func() {
@@ -97,10 +96,58 @@ func cleanupKindCluster(t *testing.T, clusterName string) func() {
 	}
 }
 
+func TestPodMonitoringDefaultingYAML(t *testing.T) {
+	t.Parallel()
+
+	c, kubeconfigPath := createKindCluster(t)
+
+	tests := []struct {
+		file string
+		want monitoringv1.PodMonitoringSpec
+	}{
+		{
+			file: "../examples/pod-monitoring.yaml",
+			want: monitoringv1.PodMonitoringSpec{
+				Selector: metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app.kubernetes.io/name": "prom-example",
+					},
+				},
+				Endpoints: []monitoringv1.ScrapeEndpoint{
+					{
+						Port:     intstr.IntOrString{StrVal: "metrics", Type: intstr.String},
+						Interval: "30s",
+					},
+				},
+				TargetLabels: monitoringv1.TargetLabels{
+					Metadata: &[]string{"container", "pod", "top_level_controller_name", "top_level_controller_type"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		createPodMonitoringOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", tc.file).CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s\b%v", createPodMonitoringOutput, err)
+		}
+		t.Logf("%s\n", createPodMonitoringOutput)
+
+		var got monitoringv1.PodMonitoring
+		if err := c.Get(t.Context(), client.ObjectKey{Namespace: "default", Name: "prom-example"}, &got); err != nil {
+			t.Error(err)
+		}
+
+		if diff := cmp.Diff(tc.want, got.Spec); diff != "" {
+			t.Error(diff)
+		}
+	}
+}
+
 func TestCRDDefaulting(t *testing.T) {
 	t.Parallel()
 
-	c := createKindCluster(t)
+	c, _ := createKindCluster(t)
 
 	type cpmTest struct {
 		obj  *monitoringv1.ClusterPodMonitoring
@@ -333,7 +380,7 @@ func TestCRDDefaulting(t *testing.T) {
 func TestCRDValidation(t *testing.T) {
 	t.Parallel()
 
-	c := createKindCluster(t)
+	c, _ := createKindCluster(t)
 
 	type test struct {
 		obj     client.Object
