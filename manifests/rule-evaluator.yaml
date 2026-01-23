@@ -118,7 +118,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: rule-evaluator
-        app.kubernetes.io/version: 0.15.5
+        app.kubernetes.io/version: 0.15.6
     spec:
       serviceAccountName: rule-evaluator
       automountServiceAccountToken: true
