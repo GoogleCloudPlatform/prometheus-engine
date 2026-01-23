@@ -69,6 +69,10 @@ func newFrontendContainer(e e2e.Environment, name string, gcmSA []byte) *e2emon.
 // This tests assumes it was invoked by `make image-test` that depends on `make frontend`.
 // It requires GCM_SECRET envvar.
 func TestFrontend_Image_UIServed(t *testing.T) {
+	if os.Getenv("GCM_SECRET") == "" {
+		t.Skip("This test requires GCM_SECRET; on CI only maintainers' PRs have it enabled")
+	}
+
 	e, err := e2e.New()
 	require.NoError(t, err)
 	t.Cleanup(e.Close)
