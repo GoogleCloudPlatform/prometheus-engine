@@ -166,6 +166,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	// Fetch OperatorConfig if it exists.
 	if err := r.client.Get(ctx, req.NamespacedName, &config); apierrors.IsNotFound(err) {
 		logger.Info("no operatorconfig created yet")
+		return reconcile.Result{}, nil
 	} else if err != nil {
 		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
