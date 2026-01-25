@@ -77,7 +77,10 @@ func setupCollectionControllers(op *Operator) error {
 		// at least once initially.
 		For(
 			&monitoringv1.OperatorConfig{},
-			builder.WithPredicates(objFilterOperatorConfig),
+			builder.WithPredicates(
+				objFilterOperatorConfig,
+				predicate.GenerationChangedPredicate{},
+			),
 		).
 		// Any update to a PodMonitoring requires regenerating the config.
 		Watches(
@@ -109,6 +112,7 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(
 				objFilterCollector,
+				predicate.GenerationChangedPredicate{},
 			)).
 		// Detect and undo changes to the secret.
 		Watches(
