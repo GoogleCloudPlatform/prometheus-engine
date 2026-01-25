@@ -66,6 +66,8 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.OperatorConfig">OperatorConfig</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.OperatorConfigStatus">OperatorConfigStatus</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.OperatorConfigValidator">OperatorConfigValidator</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.OperatorFeatures">OperatorFeatures</a>
@@ -948,9 +950,11 @@ CompressionType
 </tr>
 </thead>
 <tbody><tr><td><p>&#34;gzip&#34;</p></td>
-<td></td>
+<td><p>CompressionGzip indicates that gzip compression should be used.</p>
+</td>
 </tr><tr><td><p>&#34;none&#34;</p></td>
-<td></td>
+<td><p>CompressionNone indicates that no compression should be used.</p>
+</td>
 </tr></tbody>
 </table>
 <h3 id="monitoring.googleapis.com/v1.ConfigSpec">
@@ -1462,7 +1466,10 @@ string
 <th>Description</th>
 </tr>
 </thead>
-<tbody><tr><td><p>&#34;ConfigurationCreateSuccess&#34;</p></td>
+<tbody><tr><td><p>&#34;CollectorDaemonSetExists&#34;</p></td>
+<td><p>CollectorDaemonSetExists indicates whether the collector DaemonSet exists.</p>
+</td>
+</tr><tr><td><p>&#34;ConfigurationCreateSuccess&#34;</p></td>
 <td><p>ConfigurationCreateSuccess indicates that the config generated from the
 monitoring resource was created successfully.</p>
 </td>
@@ -1473,7 +1480,7 @@ monitoring resource was created successfully.</p>
 </span>
 </h3>
 <p>
-(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoring">ClusterNodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>, <a href="#monitoring.googleapis.com/v1.RulesStatus">RulesStatus</a>)
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ClusterNodeMonitoring">ClusterNodeMonitoring</a>, <a href="#monitoring.googleapis.com/v1.OperatorConfigStatus">OperatorConfigStatus</a>, <a href="#monitoring.googleapis.com/v1.PodMonitoringStatus">PodMonitoringStatus</a>, <a href="#monitoring.googleapis.com/v1.RulesStatus">RulesStatus</a>)
 </p>
 <div>
 <p>MonitoringStatus holds status information of a monitoring resource.</p>
@@ -1732,6 +1739,54 @@ ScalingSpec
 </td>
 <td>
 <p>Scaling contains configuration options for scaling GMP.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>status</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.OperatorConfigStatus">
+OperatorConfigStatus
+</a>
+</em>
+</td>
+<td>
+<p>Status holds the status of the OperatorConfig.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.OperatorConfigStatus">
+<span id="OperatorConfigStatus">OperatorConfigStatus
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.OperatorConfig">OperatorConfig</a>)
+</p>
+<div>
+<p>OperatorConfigStatus holds status information of the OperatorConfig.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>MonitoringStatus</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.MonitoringStatus">
+MonitoringStatus
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>MonitoringStatus</code> are embedded into this type.)
+</p>
 </td>
 </tr>
 </tbody>
