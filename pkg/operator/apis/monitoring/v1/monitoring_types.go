@@ -70,6 +70,7 @@ func NewDefaultConditions(now metav1.Time) []MonitoringCondition {
 	}
 }
 
+// IsValid returns true if the condition has a valid type and status.
 func (cond *MonitoringCondition) IsValid() bool {
 	return cond.Type != "" && cond.Status != ""
 }

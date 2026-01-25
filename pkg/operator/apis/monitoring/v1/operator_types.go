@@ -52,6 +52,7 @@ type OperatorConfig struct {
 	Status OperatorConfigStatus `json:"status,omitempty"`
 }
 
+// GetMonitoringStatus returns the status of the OperatorConfig.
 func (oc *OperatorConfig) GetMonitoringStatus() *MonitoringStatus {
 	return &oc.Status.MonitoringStatus
 }
@@ -220,8 +221,12 @@ type TargetStatusSpec struct {
 // +kubebuilder:validation:Enum=none;gzip
 type CompressionType string
 
-const CompressionNone CompressionType = "none"
-const CompressionGzip CompressionType = "gzip"
+const (
+	// CompressionNone indicates that no compression should be used.
+	CompressionNone CompressionType = "none"
+	// CompressionGzip indicates that gzip compression should be used.
+	CompressionGzip CompressionType = "gzip"
+)
 
 // KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
 type KubeletScraping struct {
