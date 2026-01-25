@@ -28,6 +28,7 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:storageversion
+// +kubebuilder:subresource:status
 type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -47,6 +48,12 @@ type OperatorConfig struct {
 	Features OperatorFeatures `json:"features,omitempty"`
 	// Scaling contains configuration options for scaling GMP.
 	Scaling ScalingSpec `json:"scaling,omitempty"`
+	// Status holds the status of the OperatorConfig.
+	Status OperatorConfigStatus `json:"status,omitempty"`
+}
+
+func (oc *OperatorConfig) GetMonitoringStatus() *MonitoringStatus {
+	return &oc.Status.MonitoringStatus
 }
 
 func (oc *OperatorConfig) Validate() error {
@@ -223,6 +230,11 @@ type KubeletScraping struct {
 	// TLSInsecureSkipVerify disables verifying the target cert.
 	// This can be useful for clusters provisioned with kubeadm.
 	TLSInsecureSkipVerify bool `json:"tlsInsecureSkipVerify,omitempty"`
+}
+
+// OperatorConfigStatus holds status information of the OperatorConfig.
+type OperatorConfigStatus struct {
+	MonitoringStatus `json:",inline"`
 }
 
 // ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.

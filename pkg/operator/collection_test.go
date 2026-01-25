@@ -60,7 +60,8 @@ func newFakeClientBuilder() *fake.ClientBuilder {
 		WithStatusSubresource(&monitoringv1.ClusterNodeMonitoring{}).
 		WithStatusSubresource(&monitoringv1.Rules{}).
 		WithStatusSubresource(&monitoringv1.ClusterRules{}).
-		WithStatusSubresource(&monitoringv1.GlobalRules{})
+		WithStatusSubresource(&monitoringv1.GlobalRules{}).
+		WithStatusSubresource(&monitoringv1.OperatorConfig{})
 }
 
 func TestCollectionReconcile(t *testing.T) {
@@ -498,6 +499,97 @@ func TestCollectionReconcile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCollectionReconcile_OperatorConfigStatus(t *testing.T) {
+	testCases := []struct {
+		desc           string
+		daemonSet      *appsv1.DaemonSet
+		expectedStatus corev1.ConditionStatus
+		expectedReason string
+	}{
+		{
+			desc:           "daemonset missing",
+			daemonSet:      nil,
+			expectedStatus: corev1.ConditionFalse,
+			expectedReason: "DaemonSetMissing",
+		},
+		{
+			desc: "daemonset exists",
+			daemonSet: &appsv1.DaemonSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      NameCollector,
+					Namespace: "gmp-system",
+				},
+			},
+			expectedStatus: corev1.ConditionTrue,
+			expectedReason: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			logger := testr.New(t)
+			ctx := logr.NewContext(t.Context(), logger)
+			opts := Options{
+				ProjectID:         "test-proj",
+				Location:          "test-loc",
+				Cluster:           "test-cluster",
+				OperatorNamespace: "gmp-system",
+				PublicNamespace:   "gmp-public",
+			}
+
+			objs := []client.Object{
+				&monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      NameOperatorConfig,
+						Namespace: opts.PublicNamespace,
+					},
+				},
+			}
+			if tc.daemonSet != nil {
+				objs = append(objs, tc.daemonSet)
+			}
+
+			kubeClient := newFakeClientBuilder().WithObjects(objs...).Build()
+			r := newCollectionReconciler(kubeClient, opts)
+
+			_, err := r.Reconcile(ctx, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: opts.PublicNamespace,
+					Name:      NameOperatorConfig,
+				},
+			})
+			if err != nil {
+				t.Fatalf("Reconcile failed: %v", err)
+			}
+
+			var config monitoringv1.OperatorConfig
+			if err := kubeClient.Get(ctx, types.NamespacedName{Namespace: opts.PublicNamespace, Name: NameOperatorConfig}, &config); err != nil {
+				t.Fatalf("Get OperatorConfig failed: %v", err)
+			}
+
+			cond := getCondition(config.Status.Conditions, monitoringv1.CollectorDaemonSetExists)
+			if cond == nil {
+				t.Fatal("CollectorDaemonSetExists condition not found")
+			}
+			if cond.Status != tc.expectedStatus {
+				t.Errorf("expected status %v, got %v", tc.expectedStatus, cond.Status)
+			}
+			if tc.expectedReason != "" && cond.Reason != tc.expectedReason {
+				t.Errorf("expected reason %v, got %v", tc.expectedReason, cond.Reason)
+			}
+		})
+	}
+}
+
+func getCondition(conditions []monitoringv1.MonitoringCondition, t monitoringv1.MonitoringConditionType) *monitoringv1.MonitoringCondition {
+	for _, c := range conditions {
+		if c.Type == t {
+			return &c
+		}
+	}
+	return nil
 }
 
 func TestSetConfigMapData(t *testing.T) {
