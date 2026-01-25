@@ -241,7 +241,7 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, con
 	// retries as this logic gets re-triggered anyway if the DaemonSet is created later.
 	cond := &monitoringv1.MonitoringCondition{
 		Type:   monitoringv1.CollectorDaemonSetExists,
-		Status: corev1.ConditionTrue,
+		Status: corev1.ConditionUnknown,
 	}
 	if apierrors.IsNotFound(err) {
 		logger.Error(err, "collector DaemonSet does not exist")
@@ -249,6 +249,8 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, con
 		cond.Reason = "DaemonSetMissing"
 		cond.Message = "Collector DaemonSet does not exist."
 		err = nil
+	} else if err == nil {
+		cond.Status = corev1.ConditionTrue
 	}
 	return config.Status.SetMonitoringCondition(config.GetGeneration(), metav1.Now(), cond), err
 }
