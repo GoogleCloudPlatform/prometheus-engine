@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
@@ -648,7 +647,7 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 
 		// Wait for metric data to show up in Cloud Monitoring.
-		metricClient, err := gcm.NewMetricClient(ctx)
+		metricClient, err := newMetricClient(ctx)
 		if err != nil {
 			t.Fatalf("create metric client: %s", err)
 		}
