@@ -2318,9 +2318,49 @@ spec:
                       type: boolean
                   type: object
               type: object
+            status:
+              description: Status holds the status of the OperatorConfig.
+              properties:
+                conditions:
+                  description: Represents the latest available observations of a podmonitor's current state.
+                  items:
+                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    properties:
+                      lastTransitionTime:
+                        description: Last time the condition transitioned from one status to another.
+                        format: date-time
+                        type: string
+                      lastUpdateTime:
+                        description: The last time this condition was updated.
+                        format: date-time
+                        type: string
+                      message:
+                        description: A human-readable message indicating details about the transition.
+                        type: string
+                      reason:
+                        description: The reason for the condition's last transition.
+                        type: string
+                      status:
+                        description: Status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: MonitoringConditionType is the type of MonitoringCondition.
+                        type: string
+                    required:
+                      - status
+                      - type
+                    type: object
+                  type: array
+                observedGeneration:
+                  description: The generation observed by the controller.
+                  format: int64
+                  type: integer
+              type: object
           type: object
       served: true
       storage: true
+      subresources:
+        status: {}
     - deprecated: true
       name: v1alpha1
       schema:

@@ -28,6 +28,7 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:storageversion
+// +kubebuilder:subresource:status
 type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -47,6 +48,13 @@ type OperatorConfig struct {
 	Features OperatorFeatures `json:"features,omitempty"`
 	// Scaling contains configuration options for scaling GMP.
 	Scaling ScalingSpec `json:"scaling,omitempty"`
+	// Status holds the status of the OperatorConfig.
+	Status OperatorConfigStatus `json:"status,omitempty"`
+}
+
+// GetMonitoringStatus returns the status of the OperatorConfig.
+func (oc *OperatorConfig) GetMonitoringStatus() *MonitoringStatus {
+	return &oc.Status.MonitoringStatus
 }
 
 func (oc *OperatorConfig) Validate() error {
@@ -213,8 +221,12 @@ type TargetStatusSpec struct {
 // +kubebuilder:validation:Enum=none;gzip
 type CompressionType string
 
-const CompressionNone CompressionType = "none"
-const CompressionGzip CompressionType = "gzip"
+const (
+	// CompressionNone indicates that no compression should be used.
+	CompressionNone CompressionType = "none"
+	// CompressionGzip indicates that gzip compression should be used.
+	CompressionGzip CompressionType = "gzip"
+)
 
 // KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
 type KubeletScraping struct {
@@ -223,6 +235,11 @@ type KubeletScraping struct {
 	// TLSInsecureSkipVerify disables verifying the target cert.
 	// This can be useful for clusters provisioned with kubeadm.
 	TLSInsecureSkipVerify bool `json:"tlsInsecureSkipVerify,omitempty"`
+}
+
+// OperatorConfigStatus holds status information of the OperatorConfig.
+type OperatorConfigStatus struct {
+	MonitoringStatus `json:",inline"`
 }
 
 // ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
