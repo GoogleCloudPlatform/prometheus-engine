@@ -22,6 +22,7 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/deploy"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"google.golang.org/protobuf/proto"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -54,52 +55,58 @@ var collectorPodMonitoring = &monitoringv1.PodMonitoring{
 }
 
 type filterState struct {
-	match string
+	container string
 }
 
 var (
 	stateEmpty = filterState{}
-	stateA     = filterState{match: "{__name__='go_goroutines',container='prometheus'}"}
-	stateB     = filterState{match: "{__name__='go_goroutines',container='config-reloader'}"}
+	stateA     = filterState{container: "prometheus"}
+	stateB     = filterState{container: "config-reloader"}
 )
 
-func (f filterState) expectedMatchConfigEntry(t testing.TB) string {
-	switch f {
-	case stateEmpty:
+// expectedCollectorExportConfigEntry returns expected prometheus config.GoogleCloudExportConfig
+// serialized entry for the given filter state.
+func (f filterState) expectedCollectorExportConfigEntry(enabled *bool) string {
+	var entry string
+	switch {
+	case enabled == nil:
 		return ""
-	case stateA:
-		return `
-        match:
-            - '{__name__=''go_goroutines'',container=''prometheus''}'`
-	case stateB:
-		return `
-        match:
-            - '{__name__=''go_goroutines'',container=''config-reloader''}'`
+	case *enabled:
+		entry += `
+        enable_match: true`
+	case !*enabled:
+		entry += `
+        enable_match: false`
 	default:
-		t.Fatalf("invalid filter state: %s", f)
-		return ""
+		panic("unexpected enabled state")
 	}
+
+	// We only add matchers if it's enabled, no point doing this otherwise.
+	if *enabled && f.container != "" {
+		entry += fmt.Sprintf(`
+        match:
+            - '{__name__=''go_goroutines'',container=''%s''}'`, f.container)
+	}
+	return entry
 }
 
-func (f filterState) filters(t testing.TB) []string {
-	switch f {
-	case stateEmpty:
-		return nil
-	case stateA, stateB:
-		return []string{f.match}
-	default:
-		t.Fatalf("invalid filter state: %s", f)
-		return nil
+func (f filterState) toMatcher() string {
+	if f.container != "" {
+		return fmt.Sprintf("{__name__='go_goroutines',container='%s'}", f.container)
 	}
+	return ""
 }
 
-// testValidateApplied fails the test if the current filtering state is not applied to "f"
-// within the context deadline. This test assumes:
+// testFiltering fails the test if the current filtering state is applied by
+// querying GCM expecting only f.container metrics to be present. If f.container
+// is empty, it means GCM should see both container's metrics.
+//
+// This test assumes:
 // * collectors are running.
 // * collectorPodMonitoring is applied.
 // * prometheus and config-reloader expose 'go_goroutines' metric.
-// * OperatorConfig as "external_key"=$externalValue label configured (as well as default ones like project, etc.).
-func (f filterState) testValidateApplied(ctx context.Context, kubeClient client.Client, externalValue string) func(*testing.T) {
+// * OperatorConfig as "external_key"=$externalValue label configured (on top default labels like project, etc.).
+func (f filterState) testFiltering(ctx context.Context, kubeClient client.Client, externalValue string) func(*testing.T) {
 	return func(t *testing.T) {
 		metricClient, err := newMetricClient(ctx)
 		if err != nil {
@@ -129,21 +136,6 @@ func (f filterState) testValidateApplied(ctx context.Context, kubeClient client.
 
 		for _, pod := range pods.Items {
 			t.Run(pod.Name, func(t *testing.T) {
-				var promMatch, configReloaderMatch bool
-				switch f {
-				case stateEmpty:
-					promMatch = true
-					configReloaderMatch = true
-				case stateA:
-					promMatch = true
-					configReloaderMatch = false
-				case stateB:
-					promMatch = false
-					configReloaderMatch = true
-				default:
-					t.Fatalf("invalid filter state: %s", f)
-				}
-
 				t.Run("prometheus", testValidateGCMMetric(ctx, metricClient, listTimeSeriesFilter{
 					metricType:    "prometheus.googleapis.com/go_goroutines/gauge",
 					job:           collectorPodMonitoring.Name,
@@ -152,7 +144,7 @@ func (f filterState) testValidateApplied(ctx context.Context, kubeClient client.
 					container:     "prometheus",
 					externalValue: externalValue,
 					namespace:     operator.DefaultOperatorNamespace,
-				}, metricExpectation{noPoints: !promMatch}))
+				}, metricExpectation{noPoints: f.container != "" && f.container != "prometheus"}))
 
 				t.Run("config-reloader", testValidateGCMMetric(ctx, metricClient, listTimeSeriesFilter{
 					metricType:    "prometheus.googleapis.com/go_goroutines/gauge",
@@ -162,41 +154,104 @@ func (f filterState) testValidateApplied(ctx context.Context, kubeClient client.
 					container:     "config-reloader",
 					externalValue: externalValue,
 					namespace:     operator.DefaultOperatorNamespace,
-				}, metricExpectation{noPoints: !configReloaderMatch}))
+				}, metricExpectation{noPoints: f.container != "" && f.container != "config-reloader"}))
 			})
 		}
 	}
 }
 
 type filterCase struct {
-	filter         filterState
+	name             string
+	filter           filterState // OperatorConfig.collection.filter.matchOneOf.
+	enableMatchOneOf *bool       // Opt in flag, so OperatorConfig.collection.filter.enableMatchOneOf.
+
 	expectedFilter filterState // What we expect to be applied.
 }
 
 // Regression tests against go/gmp:matchstuck.
-// See go/gmp:matchstuck for 0, A, B, C case definition.
-func TestCollectorMatch0toACase(t *testing.T) {
+// NOTE: TestCollectorMatch_NoFiltering takes ~1m per case, add sequential cases carefully.
+func TestCollectorMatch_NoFiltering(t *testing.T) {
 	if skipGCM {
 		t.Skip("this test requires GCM integration")
 	}
 	testCollectorMatch(t, stateEmpty, []filterCase{
-		// 0
 		{
-			filter:         stateEmpty,
+			name:   "no filtering",
+			filter: stateEmpty,
+
 			expectedFilter: stateEmpty,
 		},
-		// A
 		{
+			name:             "no filtering/enable=true",
+			filter:           stateEmpty,
+			enableMatchOneOf: proto.Bool(true),
+
+			expectedFilter: stateEmpty,
+		},
+		{
+			name:             "no filtering/enable=false",
+			filter:           stateEmpty,
+			enableMatchOneOf: proto.Bool(false),
+
+			expectedFilter: stateEmpty,
+		},
+	})
+}
+
+// Regression tests against go/gmp:matchstuck.
+// NOTE: TestCollectorMatch_NewFilter takes ~1m per case, add sequential cases carefully.
+func TestCollectorMatch_NewFilter(t *testing.T) {
+	if skipGCM {
+		t.Skip("this test requires GCM integration")
+	}
+	testCollectorMatch(t, stateEmpty, []filterCase{
+		{
+			name:   "filtering stuck",
 			filter: stateA,
-			// Given the go/gmp:matchstuck we expect the noop behaviour.
-			expectedFilter: stateEmpty, // TODO: Add fix, so it's stateA (when forced).
+
+			// Given the go/gmp:matchstuck we expect the noop behaviour, without opt-in.
+			expectedFilter: stateEmpty,
 		},
 		{
-			filter: stateB,
-			// Given the go/gmp:matchstuck we expect the noop behaviour.
-			expectedFilter: stateEmpty, // TODO: Add fix, so it's stateB (when forced).
+			name:             "filtering/enable=true",
+			filter:           stateA,
+			enableMatchOneOf: proto.Bool(true),
+
+			expectedFilter: stateA,
 		},
 		{
+			name:             "filtering/enable=false",
+			filter:           stateA,
+			enableMatchOneOf: proto.Bool(false),
+
+			expectedFilter: stateEmpty,
+		},
+	})
+}
+
+// Regression tests against go/gmp:matchstuck.
+// NOTE: TestCollectorMatch_NewFilter_ThenRemoved takes ~1m per case, add sequential cases carefully.
+func TestCollectorMatch_NewFilter_ThenRemoved(t *testing.T) {
+	if skipGCM {
+		t.Skip("this test requires GCM integration")
+	}
+	testCollectorMatch(t, stateEmpty, []filterCase{
+		{
+			name:             "filtering/enable=true",
+			filter:           stateA,
+			enableMatchOneOf: proto.Bool(true),
+
+			expectedFilter: stateA,
+		},
+		{
+			name:   "filtering stuck again",
+			filter: stateA,
+
+			// Given the go/gmp:matchstuck we expect the noop behaviour.
+			expectedFilter: stateEmpty,
+		},
+		{
+			name:           "no filtering again",
 			filter:         stateEmpty,
 			expectedFilter: stateEmpty,
 		},
@@ -204,27 +259,34 @@ func TestCollectorMatch0toACase(t *testing.T) {
 }
 
 // Regression tests against go/gmp:matchstuck.
-// See go/gmp:matchstuck for 0, A, B, C case definition.
-func TestCollectorMatchBtoCCase(t *testing.T) {
+// NOTE: TestCollectorMatch_StuckFilter takes some time per case, add cases carefully.
+func TestCollectorMatch_StuckFilter(t *testing.T) {
 	if skipGCM {
 		t.Skip("this test requires GCM integration")
 	}
+
+	// --export.match=stateB.
 	testCollectorMatch(t, stateB, []filterCase{
 		{
+			name:   "filtering stuck",
 			filter: stateA,
+
 			// Given the go/gmp:matchstuck we expect the orphaned setting applied.
-			expectedFilter: stateB, // TODO: Add fix, so it's stateA (when forced).
-		},
-		// B-2
-		{
-			filter: stateEmpty,
-			// Given the go/gmp:matchstuck we expect the orphaned setting applied.
-			expectedFilter: stateB, // TODO: Add fix, `so it's stateEmpty (when forced).
-		},
-		// C
-		{
-			filter:         stateB,
 			expectedFilter: stateB,
+		},
+		{
+			name:             "filtering/enable=true",
+			filter:           stateA,
+			enableMatchOneOf: proto.Bool(true),
+
+			expectedFilter: stateA,
+		},
+		{
+			name:             "filtering/enable=disabled",
+			filter:           stateA,
+			enableMatchOneOf: proto.Bool(false),
+
+			expectedFilter: stateEmpty,
 		},
 	})
 }
@@ -238,7 +300,7 @@ func testCollectorMatch(t *testing.T, explicitFilter filterState, filterCases []
 
 	var dOpts []deploy.DeployOption
 	if explicitFilter != stateEmpty {
-		dOpts = append(dOpts, deploy.WithExplicitCollectorFilter(explicitFilter.match))
+		dOpts = append(dOpts, deploy.WithExplicitCollectorFilter(explicitFilter.toMatcher()))
 	}
 	kubeClient, restConfig, err := setupCluster(ctx, t, dOpts...)
 	if err != nil {
@@ -250,16 +312,19 @@ func testCollectorMatch(t *testing.T, explicitFilter filterState, filterCases []
 	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, collectorPodMonitoring))
 
 	for i, fcase := range filterCases {
-		// Ensure a unique external label value so we are sure the existence checks are accurate.
-		externalValue := fmt.Sprintf("filter%d", i)
+		t.Run(fcase.name, func(t *testing.T) {
+			// Ensure a unique external label value so we are sure the existence checks are accurate.
+			externalValue := fmt.Sprintf("filter%d", i)
 
-		// Setup OperatorConfig with an intput filtering state (filter.matchOneOf).
-		t.Run("collector-operatorconfig", testCollectorOperatorConfigWithParams(
-			ctx,
-			kubeClient,
-			externalValue,
-			fcase.filter,
-		))
-		t.Run("filter-applied-gcm", fcase.expectedFilter.testValidateApplied(ctx, kubeClient, externalValue))
+			// Setup OperatorConfig with an input filtering state (filter.matchOneOf).
+			t.Run("collector-operatorconfig", testCollectorOperatorConfigWithParams(
+				ctx,
+				kubeClient,
+				externalValue,
+				fcase.filter,
+				fcase.enableMatchOneOf,
+			))
+			t.Run("filter-applied-gcm", fcase.expectedFilter.testFiltering(ctx, kubeClient, externalValue))
+		})
 	}
 }

@@ -176,10 +176,16 @@ func testCollectorDeployed(ctx context.Context, restConfig *rest.Config, kubeCli
 }
 
 func testCollectorOperatorConfig(ctx context.Context, kubeClient client.Client) func(*testing.T) {
-	return testCollectorOperatorConfigWithParams(ctx, kubeClient, "external_val", stateEmpty)
+	return testCollectorOperatorConfigWithParams(ctx, kubeClient, "external_val", stateEmpty, nil)
 }
 
-func testCollectorOperatorConfigWithParams(ctx context.Context, kubeClient client.Client, externalValue string, filter filterState) func(*testing.T) {
+func testCollectorOperatorConfigWithParams(
+	ctx context.Context,
+	kubeClient client.Client,
+	externalValue string,
+	matchOneOf filterState,
+	enableMatchOneOf *bool,
+) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking collector is configured")
 
@@ -194,8 +200,13 @@ func testCollectorOperatorConfigWithParams(ctx context.Context, kubeClient clien
 		}
 
 		// Test propagation of the custom options.
+		var matchers []string
+		if m := matchOneOf.toMatcher(); m != "" {
+			matchers = []string{m}
+		}
 		config.Collection.Filter = monitoringv1.ExportFilters{
-			MatchOneOf: filter.filters(t),
+			MatchOneOf:       matchers,
+			EnableMatchOneOf: enableMatchOneOf,
 		}
 		config.Collection.Compression = monitoringv1.CompressionGzip
 		config.Collection.ExternalLabels = map[string]string{
@@ -221,7 +232,7 @@ func testCollectorOperatorConfigWithParams(ctx context.Context, kubeClient clien
 					return fmt.Sprintf(`
         credentials: %s`, collectorExplicitCredentials())
 				}(),
-				"{expectedMatchEntry}", filter.expectedMatchConfigEntry(t),
+				"{expectedMatchEntry}", matchOneOf.expectedCollectorExportConfigEntry(enableMatchOneOf),
 			).Replace(s)
 		}
 		want := map[string]string{
@@ -505,6 +516,7 @@ func testValidateGCMMetric(ctx context.Context, metricClient *gcm.MetricClient, 
 	return func(t *testing.T) {
 		filter := f.Filter(t)
 		t.Log("checking for metric in Cloud Monitoring", filter)
+		now := time.Now()
 		if err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
 			endTime := time.Now() // Always check for fresh data, so we don't have a potential race between collector starting to send data vs this timestamp.
 
@@ -549,8 +561,9 @@ func testValidateGCMMetric(ctx context.Context, metricClient *gcm.MetricClient, 
 			}
 			return true, nil
 		}); err != nil {
-			t.Fatalf("waiting for collector metric to appear in GCM failed: %s; filter: %v", err, filter)
+			t.Fatalf("waiting for collector metric to appear in GCM failed after %v; err: %s; filter: %v", time.Since(now), err, filter)
 		}
+		t.Log("found metric after", time.Since(now))
 	}
 }
 

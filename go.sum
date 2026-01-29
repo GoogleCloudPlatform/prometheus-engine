@@ -53,8 +53,8 @@ github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
 github.com/Djarvur/go-err113 v0.1.1 h1:eHfopDqXRwAi+YmCUas75ZE0+hoBHJ2GQNLYRSxao4g=
 github.com/Djarvur/go-err113 v0.1.1/go.mod h1:IaWJdYFLg76t2ihfflPZnM1LIQszWOsFDh2hhhAVF6k=
-github.com/GoogleCloudPlatform/prometheus v0.0.0-20250822124349-98e3120b1750 h1:xuD+UwWYcwPqUvHVoyowUEy49UnW+n+0DCDpwhUL548=
-github.com/GoogleCloudPlatform/prometheus v0.0.0-20250822124349-98e3120b1750/go.mod h1:KJY4lbAwOWwFJ9qgAPDYo3KVfXKokl7gU9WsMrNIdNk=
+github.com/GoogleCloudPlatform/prometheus v0.0.0-20251124145432-3a83a91a9e4f h1:gKRiqqc1rkAtT8GrpbV3MlYHv6iKYG62YM714HZ0s58=
+github.com/GoogleCloudPlatform/prometheus v0.0.0-20251124145432-3a83a91a9e4f/go.mod h1:Rjg7i0YEph5JUInO6E3W2yDUjyxA6qzWlHwXqb7WRHM=
 github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1Xbatp0=
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
