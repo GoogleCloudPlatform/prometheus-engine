@@ -364,6 +364,12 @@ spec:
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
+        resources:
+          limits:
+            memory: 32M
+          requests:
+            cpu: 1m
+            memory: 4M
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
