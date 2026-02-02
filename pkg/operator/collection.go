@@ -274,15 +274,11 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
 
-	if spec.Filter.EnableMatchOneOf != nil {
-		// NOTE: nil, false and true mean something else, see EnableMatchOneOf.
-		cfg.GoogleCloud.Export.EnableMatch = spec.Filter.EnableMatchOneOf
-		if *spec.Filter.EnableMatchOneOf {
-			// As per EnableMatchOneOf logic, it makes only sense to pass things through
-			// on EnableMatchOneOf = true.
-			cfg.GoogleCloud.Export.Match = spec.Filter.MatchOneOf
-		}
-	}
+	// NOTE: nil, false and true mean something else, see EnableMatchOneOf.
+	cfg.GoogleCloud.Export.EnableMatch = spec.Filter.EnableMatchOneOf
+	// This is only used when spec.Filter.EnableMatchOneOf=true. Passing
+	// through for debuggability (config map inspections).
+	cfg.GoogleCloud.Export.Match = spec.Filter.MatchOneOf
 
 	if string(spec.Compression) != "" {
 		cfg.GoogleCloud.Export.Compression = string(spec.Compression)

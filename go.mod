@@ -379,8 +379,7 @@ replace (
 	// Remove once this version moves to newer Prometheus.
 	github.com/prometheus/common => github.com/prometheus/common v0.61.0
 	// See go/gmp:fork-toil for rationales of this entry.
-	// v2.53.5-gmp.0-rc.8
-	github.com/prometheus/prometheus => github.com/GoogleCloudPlatform/prometheus v0.0.0-20251124145432-3a83a91a9e4f // v2.53.5-gmp.1-rc.0
+	github.com/prometheus/prometheus => github.com/GoogleCloudPlatform/prometheus v0.0.0-20260123105636-10ff5b96bd82 // v2.53.5-gmp.2-rc.0
 )
 
 tool (
