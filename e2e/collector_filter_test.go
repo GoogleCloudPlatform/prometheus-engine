@@ -68,21 +68,18 @@ var (
 // serialized entry for the given filter state.
 func (f filterState) expectedCollectorExportConfigEntry(enabled *bool) string {
 	var entry string
-	switch {
-	case enabled == nil:
-		return ""
-	case *enabled:
-		entry += `
+	if enabled != nil {
+		switch *enabled {
+		case true:
+			entry += `
         enable_match: true`
-	case !*enabled:
-		entry += `
+		case false:
+			entry += `
         enable_match: false`
-	default:
-		panic("unexpected enabled state")
+		}
 	}
 
-	// We only add matchers if it's enabled, no point doing this otherwise.
-	if *enabled && f.container != "" {
+	if f.container != "" {
 		entry += fmt.Sprintf(`
         match:
             - '{__name__=''go_goroutines'',container=''%s''}'`, f.container)

@@ -222,6 +222,9 @@ linters:
         - name: useless-break
           severity: warning
           disabled: true
+        - name: enforce-switch-style
+          severity: warning
+          disabled: true
   exclusions:
     generated: lax
     rules:
