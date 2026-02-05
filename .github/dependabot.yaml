@@ -39,6 +39,11 @@ updates:
         # in a single group.
         - "gke.gcr.io/prometheus-engine/*"
 - package-ecosystem: gomod
+  directories:
+    - "/tools/**"
+  schedule:
+    interval: weekly
+- package-ecosystem: gomod
   directory: /
   ignore:
     # Skip Prometheus as we need to have it pinned carefully.

@@ -12,20 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# deps builds binaries in an isolated environment to avoid
-# funkiness in the hermetic build.
-FROM google-go.pkg.dev/golang:1.25.6@sha256:773e06d539804d75beb6cd9783191ae08c2731d16afecf67a80e93743ce04f65 AS deps
-WORKDIR /workspace
-
-RUN go install github.com/bwplotka/bingo@v0.9.0
-COPY .bingo .bingo
-RUN bingo -v get # TODO(bwplotka): It takes 177s in docker container with colima on Mac for me. Investigate or de-dockerize.
-
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
 FROM google-go.pkg.dev/golang:1.25.6@sha256:773e06d539804d75beb6cd9783191ae08c2731d16afecf67a80e93743ce04f65 AS hermetic
 
-COPY --from=deps /go/bin /go/bin
 ARG RUNCMD='go fmt ./...'
 WORKDIR /workspace
 
@@ -36,7 +26,7 @@ COPY *.md *.md
 COPY vendor* vendor
 COPY hack hack
 COPY ops ops
-COPY .bingo .bingo
+COPY tools tools
 COPY go.mod go.mod
 COPY go.sum go.sum
 COPY examples examples
@@ -87,15 +77,15 @@ RUN apt install -y curl
 # Install kubectl, jq.
 RUN curl -Lo ./kubectl https://dl.k8s.io/release/v1.32.1/bin/linux/amd64/kubectl
 RUN install -o root -g root -m 07555 kubectl /usr/local/bin/kubectl \
-  && rm kubectl
+	&& rm kubectl
 RUN curl -Lo ./jq https://github.com/jqlang/jq/releases/download/jq-1.7/jq-linux-amd64
 RUN install -o root -g root -m 07555 jq /usr/local/bin/jq \
-  && rm jq
+	&& rm jq
 
 # Install kind.
 RUN curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.26.0/kind-linux-amd64
 RUN install -o root -g root -m 0755 kind /usr/local/bin/kind \
-  && rm kind
+	&& rm kind
 
 # Get resources into image.
 COPY examples examples
