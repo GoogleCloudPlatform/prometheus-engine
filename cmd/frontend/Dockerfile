@@ -22,7 +22,7 @@ COPY --from=buildbase /usr/bin/make /usr/bin/
 COPY --from=buildbase /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
 COPY --chown=33:33 ./third_party/prometheus_ui ./third_party/prometheus_ui
-COPY --chown=33:33 go.mod go.sum .
+COPY --chown=33:33 go.mod go.sum ./
 COPY --chown=33:33 ./cmd/frontend ./cmd/frontend
 COPY --chown=33:33 ./internal/promapi ./internal/promapi
 COPY --chown=33:33 ./pkg/ui ./pkg/ui
@@ -49,16 +49,16 @@ ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
-      apt install -y --no-install-recommends \
-        -tags builtinassets \
-        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
-      CC=aarch64-linux-gnu-gcc; \
-    fi && \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
-      go build \
-        -tags builtinassets \
-        -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq ".version" ) \
-        -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
+	apt install -y --no-install-recommends \
+	-tags builtinassets \
+	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+	CC=aarch64-linux-gnu-gcc; \
+	fi && \
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+	go build \
+	-tags builtinassets \
+	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool -modfile="tools/go.mod" yq ".version" ) \
+	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o frontend \
 	cmd/frontend/*.go
 
