@@ -26,8 +26,6 @@ COPY cmd cmd
 COPY pkg pkg
 COPY internal internal
 
-RUN GO111MODULE=on go get github.com/mikefarah/yq/v3 # Install yq tool.
-
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1
 ENV GOFIPS140=off
@@ -35,14 +33,14 @@ ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
-      apt install -y --no-install-recommends \
-        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
-      CC=aarch64-linux-gnu-gcc; \
-    fi && \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
-      go build \
-        -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq '.version' ) \
-        -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
+	apt install -y --no-install-recommends \
+	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+	CC=aarch64-linux-gnu-gcc; \
+	fi && \
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+	go build \
+	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq '.version' ) \
+	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o rule-evaluator \
 	cmd/rule-evaluator/*.go
 
