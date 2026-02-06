@@ -23,6 +23,7 @@ COPY --from=buildbase /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
 COPY --chown=33:33 ./third_party/prometheus_ui ./third_party/prometheus_ui
 COPY --chown=33:33 go.mod go.sum ./
+COPY --chown=33:33 tools tools
 COPY --chown=33:33 ./cmd/frontend ./cmd/frontend
 COPY --chown=33:33 ./internal/promapi ./internal/promapi
 COPY --chown=33:33 ./pkg/ui ./pkg/ui

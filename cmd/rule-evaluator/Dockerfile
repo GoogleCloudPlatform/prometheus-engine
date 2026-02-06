@@ -19,6 +19,7 @@ WORKDIR /app
 COPY charts/values.global.yaml charts/values.global.yaml
 COPY go.mod go.mod
 COPY go.sum go.sum
+COPY tools tools
 # Copy the Go vendor directory only if it exists. Vendor folder will automatically
 # cause 'go build' to use -mod=vendor flag (otherwise -mod=mod is used).
 COPY vendor* vendor
@@ -39,7 +40,7 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	fi && \
 	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
 	go build \
-	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq '.version' ) \
+	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool -modfile="tools/go.mod" yq '.version' ) \
 	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o rule-evaluator \
 	cmd/rule-evaluator/*.go
