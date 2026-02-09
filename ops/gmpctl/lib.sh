@@ -237,7 +237,7 @@ release-lib::dockerfiles() {
     log_err "dir arg is required."
     return 1
   fi
-  find "${dir}" -name "Dockerfile*" | grep -v "${dir}/third_party/" | grep -v "${dir}/hack/" | grep -v "${dir}/ui/" | grep -v "vendor/"
+  find "${dir}" -name "Dockerfile*" | grep -v "${dir}/third_party/" | grep -v "${dir}/hack/" | grep -v "${dir}/ui/" | grep -v "vendor/" | grep -v "node_modules/"
 }
 
 # Return all images used in a Dockerfile, delimited by new-line.
