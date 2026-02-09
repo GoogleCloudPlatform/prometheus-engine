@@ -93,6 +93,7 @@ done
 # Exclude 0.12 as values were inlined with each part, easy to manually sed for old versions.
 if [[ "${PROJECT}" == "prometheus-engine" && "${BRANCH}" != "release/0.12" ]]; then
 	release-lib::idemp::manifests_bash_image_bump "${DIR}"
+	git add --all
 fi
 
 # Go vulnerabilities.
@@ -111,7 +112,7 @@ if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
 
 	if [ -d "${DIR}/vendor" ]; then
 		go mod vendor
-		git add --all # TODO: Can be flaky.
+		git add --all
 	fi
 
 	# Check if that helped.
