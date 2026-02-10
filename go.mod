@@ -188,5 +188,3 @@ replace (
 	// See go/gmp:fork-toil for rationales of this entry.
 	github.com/prometheus/prometheus => github.com/GoogleCloudPlatform/prometheus v0.0.0-20260123105636-10ff5b96bd82 // v2.53.5-gmp.2-rc.0
 )
-
-replace github.com/thanos-io/thanos => ../thanos
