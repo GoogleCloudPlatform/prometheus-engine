@@ -1,3 +1,17 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -5,13 +19,10 @@ import (
 	"compress/gzip"
 	"fmt"
 	"math/rand"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"testing"
+	"time"
 
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/relabel"
@@ -154,63 +165,57 @@ func generateCompressedTestPromConfig(t testing.TB, jobs int) []byte {
 
 	out, err := yaml.Marshal(ret)
 	require.NoError(t, err)
-
-	b, err := gzipData(out)
-	require.NoError(t, err)
-
-	// Expected numbers of bytes before compression.
-	require.Len(t, out, 29809714, len(out))
-
-	// Expected number of bytes post compression (~0.96 MB out of ~28.4 MB uncompressed).
-	// This number can't be larger than Kubernetes configMap limit (1MB)
-	// https://kubernetes.io/docs/concepts/configuration/configmap/#motivation
-	require.Len(t, b, 984774, len(b))
-	return b
+	return out
 }
 
 // Recommended CLI invocation:
 /*
 	export bench=reloader && go test ./cmd/config-reloader/... \
-		-run '^$' -bench '^BenchmarkConfigReloader_LargeCfgFile_Reloading' \
+		-run '^$' -bench '^BenchmarkConfigReloader_ReloadingWithoutChange' \
 		-benchtime 2s -count 6 -cpu 2 -timeout 999m \
 		| tee ${bench}.txt
 */
-func BenchmarkConfigReloader_LargeCfgFile_ReloadingWithoutChange(b *testing.B) {
-	dir := b.TempDir()
-	input := generateCompressedTestPromConfig(b, 8500)
+func BenchmarkConfigReloader_ReloadingWithoutChange(b *testing.B) {
+	// 8500 is roughly the maximum number of minimal scrape jobs (so scrape endpoints
+	// in all PM, CPM and CNMs CRs) user could configure given the Kubernetes
+	// configMap limit (1MB as per https://kubernetes.io/docs/concepts/configuration/configmap/#motivation)
+	//
+	// 8500 jobs means compressed ~0.96 MB config file, from the ~28.4 MB uncompressed.
+	// This can obviously vary depends on compressibility and size of the extra relabelling.
+	// Practically this number could be closer to ~7000.
+	for _, jobs := range []int{10, 100, 1000, 8500} {
+		b.Run(fmt.Sprintf("jobs=%v", jobs), func(b *testing.B) {
+			dir := b.TempDir()
+			input := generateCompressedTestPromConfig(b, jobs)
+			compressedInput, err := gzipData(input)
+			require.NoError(b, err)
 
-	require.NoError(b, os.WriteFile(filepath.Join(dir, "config.yaml"), input, 0o644))
+			require.NoError(b, os.WriteFile(filepath.Join(dir, "config.yaml"), compressedInput, 0o644))
 
-	var reloads atomic.Int64
-	rec := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		reloads.Add(1)
-	}))
-	b.Cleanup(rec.Close)
+			r := reloader.New(
+				log.NewNopLogger(),
+				nil,
+				&reloader.Options{
+					CfgFile:       filepath.Join(dir, "config.yaml"),
+					CfgOutputFile: filepath.Join(dir, "config-out.yaml"),
 
-	recURL, err := url.Parse(rec.URL)
-	require.NoError(b, err)
+					WatchInterval: 0,               // Watch 0 turns makes reloader run on-demand.
+					RetryInterval: 5 * time.Second, // Has to be positive due to Thanos bug.
+				},
+			)
 
-	r := reloader.New(
-		log.NewNopLogger(),
-		nil,
-		&reloader.Options{
-			ReloadURL:     recURL,
-			CfgFile:       filepath.Join(dir, "config.yaml"),
-			CfgOutputFile: filepath.Join(dir, "config-out.yaml"),
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				b.ReportMetric(float64(jobs), "scrape-jobs")
+				b.ReportMetric(float64(len(compressedInput)), "compressed-config-size-bytes")
+				b.ReportMetric(float64(len(input)), "config-size-bytes")
 
-			WatchInterval: 0, // Watch 0 turns makes reloader run on-demand.
-		},
-	)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for b.Loop() {
-		// TODO: Verify full cycle has happened. This requires updating the config.
-		// Majority of the overhead happens before
-		require.NoError(b, r.Watch(b.Context()))
-
-		// require.Equal(b, lastReloads+1, reloads.Load())
+				// TODO: Verify full cycle has happened. This requires updating the config,
+				// reloading mock etc. However the majority of the overhead happens before,
+				// so low priority..
+				require.NoError(b, r.Watch(b.Context()))
+			}
+		})
 	}
 }
