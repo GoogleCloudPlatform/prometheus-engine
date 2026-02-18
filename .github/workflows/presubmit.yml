@@ -115,4 +115,5 @@ jobs:
       - name: Run e2e (with GCM)
         env:
           GCM_SECRET: ${{ secrets.GCM_SECRET }}
-        run: TEST_RUN=${{matrix.testrun}} make e2e
+          MATRIX_TESTRUN: ${{matrix.testrun}}
+        run: TEST_RUN=${MATRIX_TESTRUN} make e2e
