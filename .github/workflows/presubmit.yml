@@ -87,4 +87,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run e2e
-        run: TEST_RUN=${{matrix.testrun}} make e2e
+        run: TEST_RUN=${MATRIX_TESTRUN} make e2e
+        env:
+          MATRIX_TESTRUN: ${{matrix.testrun}}
