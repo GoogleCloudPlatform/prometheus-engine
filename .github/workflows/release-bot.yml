@@ -51,23 +51,29 @@ jobs:
       - name: Get the other commit from the merge if there is one
         id: merge
         run: |
-          parents=$(git log --pretty=%P -n 1 ${{ inputs.commit_sha }})
+          parents=$(git log --pretty=%P -n 1 ${INPUTS_COMMIT_SHA})
           IFS=' ' read -r parent1 parent2 <<< "$parents"
           echo "sha=$parent2" >> $GITHUB_OUTPUT
+        env:
+          INPUTS_COMMIT_SHA: ${{ inputs.commit_sha }}
       - name: Check if commit is tagged
         if: ${{ steps.merge.outputs.sha != '' }}
         id: check
         run: |
-          TAG=$(git tag --points-at ${{ steps.merge.outputs.sha }} | grep releasebot || true)
+          TAG=$(git tag --points-at ${STEPS_MERGE_OUTPUTS_SHA} | grep releasebot || true)
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+        env:
+          STEPS_MERGE_OUTPUTS_SHA: ${{ steps.merge.outputs.sha }}
       - name: Push tag
         if: ${{ steps.check.outputs.tag != '' }}
         run: |
           set -ex
-          NEW_TAG=$(echo "${{ steps.check.outputs.tag }}" | awk '{gsub(/releasebot\//, ""); print}')
+          NEW_TAG=$(echo "${STEPS_CHECK_OUTPUTS_TAG}" | awk '{gsub(/releasebot\//, ""); print}')
           git tag "$NEW_TAG"
           git push origin "$NEW_TAG"
           echo "::notice::Successfully created and pushed new tag: '$NEW_TAG'."
+        env:
+          STEPS_CHECK_OUTPUTS_TAG: ${{ steps.check.outputs.tag }}
     
   build_and_push_image:
     runs-on: ubuntu-latest
@@ -80,7 +86,7 @@ jobs:
       - name: Get docker tag
         id: create_tag
         run: |
-          TAG=$(echo "${{ env.BRANCH_NAME }}" | awk '{gsub(/\//, "-"); print}')
+          TAG=$(echo "${BRANCH_NAME}" | awk '{gsub(/\//, "-"); print}')
           echo "image_tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG" >> $GITHUB_OUTPUT
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -135,28 +141,32 @@ jobs:
         id: prepare
         working-directory: ./main_branch
         run: |
-          go run ./hack/prepare_rc ${{ env.BRANCH_NAME }} ../release_branch
+          go run ./hack/prepare_rc ${BRANCH_NAME} ../release_branch
       - name: Regen files
         working-directory: ./release_branch
         # Workflows can't edit workflows. Better to create PR and let tests fail.
         run: |
           mv .github ..
-          make regen CACHE_IMAGE_FROM=${{ needs.build_and_push_image.outputs.image_tag }}-cache
+          make regen CACHE_IMAGE_FROM=${NEEDS_BUILD_AND_PUSH_IMAGE_OUTPUTS_IMAGE_TAG}-cache
           mv ../.github .
+        env:
+          NEEDS_BUILD_AND_PUSH_IMAGE_OUTPUTS_IMAGE_TAG: ${{ needs.build_and_push_image.outputs.image_tag }}
       - name: Commit and Tag Release Candidate
         if: steps.prepare.outputs.full_rc_version != ''
         id: push
         working-directory: ./release_branch
         run: |
           set -e
-          BOT_BRANCH=$(echo "${{ env.BRANCH_NAME }}" | awk '{gsub(/release/, "releasebot"); print}')
+          BOT_BRANCH=$(echo "${BRANCH_NAME}" | awk '{gsub(/release/, "releasebot"); print}')
           echo "bot_branch=$BOT_BRANCH" >> $GITHUB_OUTPUT
           git checkout -b "$BOT_BRANCH"
           git add .
-          RC="${{ steps.prepare.outputs.full_rc_version }}"
+          RC="${STEPS_PREPARE_OUTPUTS_FULL_RC_VERSION}"
           git commit -as -m"chore: prepare for $RC release"
           git tag -a "releasebot/$RC" -m "releasebot release candidate $RC"
           git push -f origin "$BOT_BRANCH" "releasebot/$RC"
+        env:
+          STEPS_PREPARE_OUTPUTS_FULL_RC_VERSION: ${{ steps.prepare.outputs.full_rc_version }}
   manage_pr:
     permissions:
       contents: read
@@ -172,11 +182,13 @@ jobs:
     - name: Manage Release PR
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        NEEDS_PREPARE_RC_OUTPUTS_BOT_BRANCH: ${{needs.prepare_rc.outputs.bot_branch}}
+        NEEDS_PREPARE_RC_OUTPUTS_FULL_RC_VERSION: ${{ needs.prepare_rc.outputs.full_rc_version }}
       run: |
-        BOT_BRANCH=${{needs.prepare_rc.outputs.bot_branch}}
-        RC=${{ needs.prepare_rc.outputs.full_rc_version }}
+        BOT_BRANCH=${NEEDS_PREPARE_RC_OUTPUTS_BOT_BRANCH}
+        RC=${NEEDS_PREPARE_RC_OUTPUTS_FULL_RC_VERSION}
         EXISTING_PR_NUMBER=$(gh pr list \
-          --base ${{ env.BRANCH_NAME }} \
+          --base ${BRANCH_NAME} \
           --head $BOT_BRANCH \
           --state open \
           --json number \
@@ -184,7 +196,7 @@ jobs:
         
         if [[ -z "$EXISTING_PR_NUMBER" ]]; then
           gh pr create \
-            --base ${{ env.BRANCH_NAME }} \
+            --base ${BRANCH_NAME} \
             --head $BOT_BRANCH \
             --title "chore: prepare for $RC release" \
             --body "Beep boop. Merging activates deployment. A fresh PR appears on merge. Boop beep."
