@@ -1,1 +1,8 @@
 have_fun: true
+ignore_patterns:
+  - 'doc/**'
+  - 'manifests/**'
+  - 'vendor/**'
+  - '**/zz_generated.*'
+pull_request_opened:
+  include_drafts: false
