@@ -5,4 +5,3 @@
   ```suggestion
   updated_code_here()
   ```
-  ```
