@@ -178,7 +178,7 @@ release-lib::gomod_vulnfix() {
 release-lib::idemp::git_commit_amend_match() {
   # Anything staged?
   if ! git diff-index --quiet --cached HEAD; then
-    release-lib::git_commit_amend_match "${1}"
+    release-lib::git_commit_amend_match "${1}" "${2}"
   fi
 }
 
@@ -188,7 +188,14 @@ release-lib::git_commit_amend_match() {
     log_err "message is required."
     return 1
   fi
-  if [[ "$(git log -1 --pretty=%s)" == "${message}" ]]; then
+  local branch="${2}"
+  if [[ -z "${branch}" ]]; then
+    log_err "branch is required."
+    return 1
+  fi
+
+  if [[ "$(git log -1 --pretty=%s)" == "${message}" ]] && ! git branch -r --contains HEAD | grep -qE "origin/${branch}"; then
+    echo "⚠️ Amending last commit: $(git log -1 --pretty=%s)"
     git commit -s --amend -m "${message}"
   else
     git commit -sm "${message}"
