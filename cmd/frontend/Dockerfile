@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.7@sha256:3f9182c7a2d70b48bf57f0c32ea60a7dfbb35547cfe889132f738552bb922fad AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.8@sha256:f4d9d5a9e87635686467eeb068e7f416b25b649f30964216d14ff0abbb49b850 AS buildbase
 
 # Compile the UI assets.
 FROM --platform=$BUILDPLATFORM us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24@sha256:12f9b32a1afdd87221c0a6c1a907c74978f7de75902264badf2db08ddb21203c AS assets
@@ -62,6 +62,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/frontend/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260207.00_p0@sha256:ae6350bb7078a86c22fb9db290b02a3f702e95e79b216c3d469e896780363da6
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260307.00_p0@sha256:d5c073079125b887158bb1dd0ee4da49b39a08203c3c96124ee310962dd5aae2
 COPY --from=appbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]
