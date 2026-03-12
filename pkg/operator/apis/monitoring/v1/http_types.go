@@ -360,6 +360,10 @@ func (c *HTTPClientConfig) ToPrometheusConfig(m PodMonitoringCRD, pool Prometheu
 		if err != nil {
 			errs = append(errs, err)
 		}
+		// Default to the Kubernetes service account if type is explicitly Bearer and no credentials provided.
+		if c.Authorization.Type == "Bearer" && c.Authorization.Credentials == nil {
+			clientConfig.Authorization.CredentialsFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+		}
 	}
 	if c.BasicAuth != nil {
 		var err error

@@ -19,6 +19,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/prometheus/common/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/prometheus/prometheus/google/secrets"
@@ -218,6 +220,119 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_ClusterPodMonitoring(t *
 				},
 			}, pool.SecretConfigs(); cmp.Diff(exp, got) != "" {
 				t.Fatalf("unexpected secret configs; diff: %v", cmp.Diff(exp, got))
+			}
+		})
+	}
+}
+
+func TestHTTPClientConfig_ToPrometheusConfig_DefaultServiceAccount(t *testing.T) {
+	testCases := []struct {
+		desc             string
+		crd              PodMonitoringCRD
+		httpClientConfig *HTTPClientConfig
+		expected         config.HTTPClientConfig
+	}{
+		{
+			desc: "PodMonitoring should have no default service account if omitted",
+			crd:  &PodMonitoring{},
+			expected: func() config.HTTPClientConfig {
+				c := config.DefaultHTTPClientConfig
+				c.Authorization = nil
+				return c
+			}(),
+		},
+		{
+			desc: "ClusterPodMonitoring should have no default service account if omitted",
+			crd:  &ClusterPodMonitoring{},
+			expected: func() config.HTTPClientConfig {
+				c := config.DefaultHTTPClientConfig
+				c.Authorization = nil
+				return c
+			}(),
+		},
+		{
+			desc: "ClusterPodMonitoring should have default service account if explicitly Bearer",
+			crd:  &ClusterPodMonitoring{},
+			httpClientConfig: &HTTPClientConfig{
+				Authorization: &Auth{
+					Type: "Bearer",
+				},
+			},
+			expected: func() config.HTTPClientConfig {
+				c := config.DefaultHTTPClientConfig
+				c.Authorization = &config.Authorization{
+					Type:            "Bearer",
+					CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+				}
+				return c
+			}(),
+		},
+		{
+			desc: "ClusterPodMonitoring should allow custom TLS to override default and keep no service account",
+			crd:  &ClusterPodMonitoring{},
+			httpClientConfig: &HTTPClientConfig{
+				TLS: &TLS{
+					InsecureSkipVerify: true,
+				},
+			},
+			expected: func() config.HTTPClientConfig {
+				c := config.DefaultHTTPClientConfig
+				c.Authorization = nil
+				c.TLSConfig = config.TLSConfig{
+					InsecureSkipVerify: true,
+				}
+				return c
+			}(),
+		},
+		{
+			desc: "BasicAuth should disable default service account token but keep CA",
+			crd:  &PodMonitoring{},
+			httpClientConfig: &HTTPClientConfig{
+				BasicAuth: &BasicAuth{
+					Username: "user",
+				},
+			},
+			expected: func() config.HTTPClientConfig {
+				c := config.DefaultHTTPClientConfig
+				c.BasicAuth = &config.BasicAuth{
+					Username: "user",
+				}
+				return c
+			}(),
+		},
+		{
+			desc: "OAuth2 should disable default service account token but keep CA",
+			crd:  &PodMonitoring{},
+			httpClientConfig: &HTTPClientConfig{
+				OAuth2: &OAuth2{
+					ClientID: "client",
+				},
+			},
+			expected: func() config.HTTPClientConfig {
+				c := config.DefaultHTTPClientConfig
+				c.OAuth2 = &config.OAuth2{
+					ClientID: "client",
+				}
+				return c
+			}(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			h := tc.httpClientConfig
+			if h == nil {
+				h = &HTTPClientConfig{}
+			}
+			got, err := h.ToPrometheusConfig(tc.crd, nil)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			opts := []cmp.Option{
+				cmpopts.IgnoreUnexported(config.HTTPClientConfig{}, config.Authorization{}, config.TLSConfig{}, config.ProxyConfig{}),
+			}
+			if diff := cmp.Diff(tc.expected, got, opts...); diff != "" {
+				t.Errorf("unexpected config (-want +got):\n%s", diff)
 			}
 		})
 	}
