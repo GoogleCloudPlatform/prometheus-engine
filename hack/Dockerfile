@@ -74,18 +74,18 @@ COPY --from=docker /usr/local/bin/docker /usr/local/bin
 RUN apt update
 RUN apt install -y curl
 
-# Install kubectl, jq.
-RUN curl -Lo ./kubectl https://dl.k8s.io/release/v1.32.1/bin/linux/amd64/kubectl
-RUN install -o root -g root -m 07555 kubectl /usr/local/bin/kubectl \
-	&& rm kubectl
-RUN curl -Lo ./jq https://github.com/jqlang/jq/releases/download/jq-1.7/jq-linux-amd64
-RUN install -o root -g root -m 07555 jq /usr/local/bin/jq \
-	&& rm jq
+# Install kubectl, jq, kind.
+RUN ARCH=$(dpkg --print-architecture) && \
+	curl -Lo ./kubectl "https://dl.k8s.io/release/v1.32.1/bin/linux/${ARCH}/kubectl" && \
+	install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
+	rm kubectl && \
+	curl -Lo ./jq "https://github.com/jqlang/jq/releases/download/jq-1.7/jq-linux-${ARCH}" && \
+	install -o root -g root -m 0755 jq /usr/local/bin/jq && \
+	rm jq && \
+	curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.26.0/kind-linux-${ARCH}" && \
+	install -o root -g root -m 0755 kind /usr/local/bin/kind && \
+	rm kind
 
-# Install kind.
-RUN curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.26.0/kind-linux-amd64
-RUN install -o root -g root -m 0755 kind /usr/local/bin/kind \
-	&& rm kind
 
 # Get resources into image.
 COPY examples examples
