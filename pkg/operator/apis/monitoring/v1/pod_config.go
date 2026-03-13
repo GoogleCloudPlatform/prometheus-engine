@@ -413,6 +413,9 @@ func endpointScrapeConfig(
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse or invalid Prometheus HTTP client config: %w", err)
 	}
+	if ep.Scheme == "https" && httpCfg.TLSConfig.CAFile == "" && httpCfg.TLSConfig.CARef == "" {
+		httpCfg.TLSConfig.CAFile = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	}
 	if err := httpCfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid Prometheus HTTP client config: %w", err)
 	}
