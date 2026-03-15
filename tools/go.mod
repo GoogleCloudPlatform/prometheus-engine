@@ -43,7 +43,7 @@ require (
 	github.com/Masterminds/vcs v1.13.3 // indirect
 	github.com/MirrexOne/unqueryvet v1.2.1 // indirect
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
-	github.com/PuerkitoBio/goquery v1.5.1 // indirect
+	github.com/PuerkitoBio/goquery v1.8.1 // indirect
 	github.com/a8m/envsubst v1.4.3 // indirect
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/ahmetb/gen-crd-api-reference-docs v0.3.0 // indirect
@@ -58,7 +58,7 @@ require (
 	github.com/alfatraining/structtag v1.0.0 // indirect
 	github.com/alingse/asasalint v0.0.11 // indirect
 	github.com/alingse/nilnesserr v0.2.0 // indirect
-	github.com/andybalholm/cascadia v1.2.0 // indirect
+	github.com/andybalholm/cascadia v1.3.2 // indirect
 	github.com/antchfx/htmlquery v1.2.3 // indirect
 	github.com/antchfx/xmlquery v1.3.4 // indirect
 	github.com/antchfx/xpath v1.1.10 // indirect
@@ -231,7 +231,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/mgechev/revive v1.12.0 // indirect
-	github.com/microcosm-cc/bluemonday v1.0.6 // indirect
+	github.com/microcosm-cc/bluemonday v1.0.26 // indirect
 	github.com/mikefarah/yq/v4 v4.52.2 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
