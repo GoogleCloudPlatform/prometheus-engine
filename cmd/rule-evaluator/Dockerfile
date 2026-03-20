@@ -45,6 +45,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/rule-evaluator/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260307.00_p0@sha256:d5c073079125b887158bb1dd0ee4da49b39a08203c3c96124ee310962dd5aae2
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260317.00_p0@sha256:38421dcbc73a0b372bdcb6ea88415ccd4c19427b577a163b908c32d0d3c7316d
 COPY --from=buildbase /app/rule-evaluator /bin/rule-evaluator
 ENTRYPOINT ["/bin/rule-evaluator"]
