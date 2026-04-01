@@ -64,6 +64,7 @@ spec:
               drop:
                 - ALL
             privileged: false
+            readOnlyRootFilesystem: true
       securityContext:
         runAsGroup: 1000
         runAsNonRoot: true
