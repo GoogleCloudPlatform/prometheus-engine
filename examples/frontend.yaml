@@ -26,47 +26,49 @@ spec:
       labels:
         app: frontend
     spec:
-      automountServiceAccountToken: true
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.io/arch
-                operator: In
-                values:
-                - arm64
-                - amd64
-              - key: kubernetes.io/os
-                operator: In
-                values:
-                - linux
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - arm64
+                      - amd64
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+      automountServiceAccountToken: true
       containers:
-      - name: frontend
-        image: gke.gcr.io/prometheus-engine/frontend:v0.15.3-gke.0
-        args:
-        - "--web.listen-address=:9090"
-        - "--query.project-id=$PROJECT_ID"
-        ports:
-        - name: web
-          containerPort: 9090
-        readinessProbe:
-          httpGet:
-            path: /-/ready
-            port: web
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          privileged: false
-          runAsGroup: 1000
-          runAsNonRoot: true
-          runAsUser: 1000
-        livenessProbe:
-          httpGet:
-            path: /-/healthy
-            port: web
+        - args:
+            - "--web.listen-address=:9090"
+            - "--query.project-id=$PROJECT_ID"
+          image: gke.gcr.io/prometheus-engine/frontend:v0.15.3-gke.0
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: web
+          name: frontend
+          ports:
+            - containerPort: 9090
+              name: web
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: web
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
 ---
 apiVersion: v1
 kind: Service
@@ -74,8 +76,8 @@ metadata:
   name: frontend
 spec:
   clusterIP: None
+  ports:
+    - name: web
+      port: 9090
   selector:
     app: frontend
-  ports:
-  - name: web
-    port: 9090
