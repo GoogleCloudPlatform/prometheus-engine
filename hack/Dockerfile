@@ -22,7 +22,7 @@ WORKDIR /workspace
 # Separate COPY directives to take advantage of docker's build cache.
 # Least-changed dirs should go first. NOTE: When adding new directories
 # ensure .dockerignore is updated.
-COPY *.md *.md
+COPY *.md ./
 COPY vendor* vendor
 COPY hack hack
 COPY ops ops
@@ -48,6 +48,9 @@ RUN echo ${RUNCMD} | sh && echo 'done'
 # sync is used to copy all auto-generated files to a different context.
 # Usually this is used to mirror the changes back to the host machine.
 FROM scratch AS sync
+COPY --from=hermetic /workspace/README.md README.md
+COPY --from=hermetic /workspace/CONTRIBUTING.md CONTRIBUTING.md
+COPY --from=hermetic /workspace/BENCHMARK.md BENCHMARK.md
 COPY --from=hermetic /workspace/go.mod go.mod
 COPY --from=hermetic /workspace/go.sum go.sum
 COPY --from=hermetic /workspace/cmd cmd
@@ -56,6 +59,9 @@ COPY --from=hermetic /workspace/examples examples
 COPY --from=hermetic /workspace/manifests manifests
 COPY --from=hermetic /workspace/charts charts
 COPY --from=hermetic /workspace/e2e e2e
+COPY --from=hermetic /workspace/ops ops
+COPY --from=hermetic /workspace/hack hack
+COPY --from=hermetic /workspace/tools tools
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
 FROM google-go.pkg.dev/golang:1.26.1@sha256:56beaa755d2081aff2ce92f18da183130da0db0221b59180e303bf99d84c0c71 AS buildbase
