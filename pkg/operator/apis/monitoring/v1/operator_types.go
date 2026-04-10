@@ -345,7 +345,7 @@ type TLSConfig struct {
 	// Struct containing the client cert file for the targets.
 	Cert *SecretOrConfigMap `json:"cert,omitempty"`
 	// Secret containing the client key file for the targets.
-	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$') && size(self.name) <= 63"
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$') && size(self.name) <= 63"
 	KeySecret *corev1.SecretKeySelector `json:"keySecret,omitempty"`
 	// Used to verify the hostname for the targets.
 	ServerName string `json:"serverName,omitempty"`

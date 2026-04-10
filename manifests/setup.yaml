@@ -2279,7 +2279,7 @@ spec:
                                 type: object
                                 x-kubernetes-map-type: atomic
                                 x-kubernetes-validations:
-                                  - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$') && size(self.name) <= 63
+                                  - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$') && size(self.name) <= 63
                               maxVersion:
                                 description: |-
                                   Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).

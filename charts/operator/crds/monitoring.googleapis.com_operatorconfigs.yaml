@@ -471,7 +471,7 @@ spec:
                               type: object
                               x-kubernetes-map-type: atomic
                               x-kubernetes-validations:
-                              - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+                              - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$')
                                   && size(self.name) <= 63
                             maxVersion:
                               description: |-
