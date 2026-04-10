@@ -23,6 +23,7 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -575,6 +576,209 @@ func TestCRDValidation(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "config",
 						Namespace: "invalid-namespace",
+					},
+				},
+				wantErr: true,
+			},
+			"bad scrape interval": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-bad-scrape-interval",
+						Namespace: "gmp-public",
+					},
+					Collection: monitoringv1.CollectionSpec{
+						KubeletScraping: &monitoringv1.KubeletScraping{
+							Interval: "xyz",
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"missing collection credentials secret key": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-missing-collection-credentials",
+						Namespace: "gmp-public",
+					},
+					Collection: monitoringv1.CollectionSpec{
+						Credentials: &v1.SecretKeySelector{},
+					},
+				},
+				wantErr: true,
+			},
+			"bad generator URL": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-bad-generator-url",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						GeneratorURL: "~:://example.com",
+					},
+				},
+				wantErr: true,
+			},
+			"missing rule manager credentials secret key": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-missing-rule-manager-credentials",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Credentials: &v1.SecretKeySelector{},
+					},
+				},
+				wantErr: true,
+			},
+			"missing managed alert manager config secret key": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-missing-alert-manager-secret",
+						Namespace: "gmp-public",
+					},
+					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+						ConfigSecret: &v1.SecretKeySelector{},
+					},
+				},
+				wantErr: true,
+			},
+			"rule manager authorization credentials secret key missing": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-missing-rule-auth-secret",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+								Name: "bar",
+								TLS:  &monitoringv1.TLSConfig{},
+								Authorization: &monitoringv1.Authorization{
+									Credentials: &v1.SecretKeySelector{},
+								},
+							}},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"rule manager TLS secret key missing": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-missing-tls-secret-key",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+								Name: "bar",
+								TLS: &monitoringv1.TLSConfig{
+									KeySecret: &v1.SecretKeySelector{},
+								},
+							}},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"rule manager TLS CA mutually exclusive": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-tls-ca-mutually-exclusive",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+								Name: "bar",
+								TLS: &monitoringv1.TLSConfig{
+									CA: &monitoringv1.SecretOrConfigMap{
+										Secret: &v1.SecretKeySelector{
+											LocalObjectReference: v1.LocalObjectReference{
+												Name: "baz",
+											},
+										},
+										ConfigMap: &v1.ConfigMapKeySelector{
+											LocalObjectReference: v1.LocalObjectReference{
+												Name: "qux",
+											},
+										},
+									},
+								},
+							}},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"rule manager TLS CA secret key missing": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-tls-ca-secret-key-missing",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+								Name: "bar",
+								TLS: &monitoringv1.TLSConfig{
+									CA: &monitoringv1.SecretOrConfigMap{
+										Secret: &v1.SecretKeySelector{},
+									},
+								},
+							}},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"rule manager TLS Cert mutually exclusive": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-tls-cert-mutually-exclusive",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+								Name: "bar",
+								TLS: &monitoringv1.TLSConfig{
+									Cert: &monitoringv1.SecretOrConfigMap{
+										Secret: &v1.SecretKeySelector{
+											LocalObjectReference: v1.LocalObjectReference{
+												Name: "baz",
+											},
+										},
+										ConfigMap: &v1.ConfigMapKeySelector{
+											LocalObjectReference: v1.LocalObjectReference{
+												Name: "qux",
+											},
+										},
+									},
+								},
+							}},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"rule manager TLS Cert secret key missing": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-tls-cert-secret-key-missing",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+								Name: "bar",
+								TLS: &monitoringv1.TLSConfig{
+									Cert: &monitoringv1.SecretOrConfigMap{
+										Secret: &v1.SecretKeySelector{},
+									},
+								},
+							}},
+						},
 					},
 				},
 				wantErr: true,
