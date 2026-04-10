@@ -1913,6 +1913,8 @@ spec:
                     - key
                   type: object
                   x-kubernetes-map-type: atomic
+                  x-kubernetes-validations:
+                    - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$') && size(self.name) <= 253
                 externalLabels:
                   additionalProperties:
                     type: string
@@ -1921,6 +1923,9 @@ spec:
                     data before being written to Google Cloud Monitoring or any other additional exports
                     specified in the OperatorConfig. The precedence behavior matches that of Prometheus.
                   type: object
+                  x-kubernetes-validations:
+                    - message: Invalid label key
+                      rule: self.all(key, key.matches('^[a-zA-Z_][a-zA-Z0-9_]*$'))
                 filter:
                   description: Filter limits which metric data is sent to Cloud Monitoring (it doesn't apply to additional exports).
                   properties:
@@ -1990,9 +1995,12 @@ spec:
                   url:
                     description: The URL of the endpoint that supports Prometheus Remote Write to export samples to.
                     type: string
+                    x-kubernetes-validations:
+                      - rule: self == '' || isURL(self)
                 required:
                   - url
                 type: object
+              maxItems: 10
               type: array
             features:
               description: Features holds configuration for optional managed-collection features.
@@ -2057,6 +2065,8 @@ spec:
                     - key
                   type: object
                   x-kubernetes-map-type: atomic
+                  x-kubernetes-validations:
+                    - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$') && size(self.name) <= 253
                 externalURL:
                   description: |-
                     ExternalURL is the URL under which Alertmanager is externally reachable (for example, if
@@ -2067,6 +2077,8 @@ spec:
 
                     If no URL is provided, Alertmanager will point to the Google Cloud Metric Explorer page.
                   type: string
+                  x-kubernetes-validations:
+                    - rule: self == '' || isURL(self)
               type: object
             metadata:
               type: object
@@ -2113,6 +2125,8 @@ spec:
                                   - key
                                 type: object
                                 x-kubernetes-map-type: atomic
+                                x-kubernetes-validations:
+                                  - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$') && size(self.name) <= 253
                               type:
                                 description: |-
                                   Set the authentication type. Defaults to Bearer, Basic will cause an
@@ -2121,9 +2135,13 @@ spec:
                             type: object
                           name:
                             description: Name of Endpoints object in Namespace.
+                            maxLength: 63
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                             type: string
                           namespace:
                             description: Namespace of Endpoints object.
+                            maxLength: 63
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                             type: string
                           pathPrefix:
                             description: Prefix for the HTTP path alerts are pushed to.
@@ -2136,6 +2154,9 @@ spec:
                             x-kubernetes-int-or-string: true
                           scheme:
                             description: Scheme to use when firing alerts.
+                            enum:
+                              - http
+                              - https
                             type: string
                           timeout:
                             description: Timeout is a per-target Alertmanager timeout when pushing alerts.
@@ -2190,6 +2211,8 @@ spec:
                                       - key
                                     type: object
                                     x-kubernetes-map-type: atomic
+                                    x-kubernetes-validations:
+                                      - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$') && size(self.name) <= 253
                                 type: object
                               cert:
                                 description: Struct containing the client cert file for the targets.
@@ -2238,6 +2261,8 @@ spec:
                                       - key
                                     type: object
                                     x-kubernetes-map-type: atomic
+                                    x-kubernetes-validations:
+                                      - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$') && size(self.name) <= 253
                                 type: object
                               insecureSkipVerify:
                                 description: Disable target certificate validation.
@@ -2264,6 +2289,8 @@ spec:
                                   - key
                                 type: object
                                 x-kubernetes-map-type: atomic
+                                x-kubernetes-validations:
+                                  - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$') && size(self.name) <= 253
                               maxVersion:
                                 description: |-
                                   Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
@@ -2285,6 +2312,7 @@ spec:
                           - namespace
                           - port
                         type: object
+                      maxItems: 3
                       type: array
                   type: object
                 credentials:
@@ -2315,6 +2343,8 @@ spec:
                     - key
                   type: object
                   x-kubernetes-map-type: atomic
+                  x-kubernetes-validations:
+                    - rule: has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$') && size(self.name) <= 253
                 externalLabels:
                   additionalProperties:
                     type: string
@@ -2323,17 +2353,25 @@ spec:
                     results and alerts produced by rules. The precedence behavior matches that
                     of Prometheus.
                   type: object
+                  x-kubernetes-validations:
+                    - message: Invalid label key
+                      rule: self.all(key, key.matches('^[a-zA-Z_][a-zA-Z0-9_]*$'))
                 generatorUrl:
                   description: |-
                     The base URL used for the generator URL in the alert notification payload.
                     Should point to an instance of a query frontend that gives access to queryProjectID.
                   type: string
+                  x-kubernetes-validations:
+                    - rule: self == '' || isURL(self)
                 queryProjectID:
                   description: |-
                     QueryProjectID is the GCP project ID to evaluate rules against.
                     If left blank, the rule-evaluator will try attempt to infer the Project ID
                     from the environment.
                   type: string
+                  x-kubernetes-validations:
+                    - message: Invalid GCP project ID
+                      rule: self == '' || (self.matches('^[a-z][a-z0-9-]*[a-z0-9]$') && size(self) >= 6 && size(self) <= 30)
               type: object
             scaling:
               description: Scaling contains configuration options for scaling GMP.
