@@ -342,7 +342,7 @@ func main() {
 		})
 		http.HandleFunc("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "rule-evaluator is Ready.\n")
+			fmt.Fprintln(w, "rule-evaluator is Ready.")
 		})
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#runtime-information
 		// Useful for knowing whether a config reload was successful.
@@ -685,7 +685,7 @@ func (m *configMetrics) setFailure() {
 // reloadConfig applies the configuration files.
 func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rls ...reloader) (err error) {
 	start := time.Now()
-	timings := []interface{}{}
+	timings := []any{}
 	_ = level.Info(logger).Log("msg", "Loading configuration file", "filename", filename)
 
 	content, err := os.ReadFile(filename)
@@ -713,7 +713,7 @@ func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rl
 	}
 
 	metrics.setSuccess()
-	l := []interface{}{"msg", "Completed loading of configuration file", "filename", filename, "totalDuration", time.Since(start)}
+	l := []any{"msg", "Completed loading of configuration file", "filename", filename, "totalDuration", time.Since(start)}
 	_ = level.Info(logger).Log(append(l, timings...)...)
 	return nil
 }
@@ -853,6 +853,7 @@ func (s *queryStorage) Querier(mint, maxt int64) (storage.Querier, error) {
 type queryAccess struct {
 	// storage.LabelQuerier satisfies the interface. Calling related methods will result in panic.
 	storage.LabelQuerier
+
 	api   v1.API
 	mint  int64
 	maxt  int64

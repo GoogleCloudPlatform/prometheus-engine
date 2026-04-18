@@ -140,11 +140,11 @@ func newCollectionReconciler(c client.Client, opts Options) *collectionReconcile
 
 func patchMonitoringStatus(ctx context.Context, kubeClient client.Client, obj client.Object, status *monitoringv1.MonitoringStatus) error {
 	// TODO(TheSpiritXIII): In the future, change this to server side apply as opposed to patch.
-	patchStatus := map[string]interface{}{
+	patchStatus := map[string]any{
 		"conditions":         status.Conditions,
 		"observedGeneration": status.ObservedGeneration,
 	}
-	patchObject := map[string]interface{}{"status": patchStatus}
+	patchObject := map[string]any{"status": patchStatus}
 
 	patchBytes, err := json.Marshal(patchObject)
 	if err != nil {
@@ -267,7 +267,7 @@ func gzipData(data []byte) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func setConfigMapData(cm *corev1.ConfigMap, c monitoringv1.CompressionType, key string, data string) error {
+func setConfigMapData(cm *corev1.ConfigMap, c monitoringv1.CompressionType, key, data string) error {
 	// Thanos config-reloader detects gzip compression automatically, so no sync with
 	// config-reloaders is needed when switching between these.
 	switch c {
@@ -299,9 +299,12 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 		return fmt.Errorf("generate Prometheus config: %w", err)
 	}
 
-	// NOTE(bwplotka): Match logic will be removed in https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1688
-	// nolint:staticcheck
+	// NOTE: nil, false and true mean something else, see EnableMatchOneOf.
+	cfg.GoogleCloud.Export.EnableMatch = spec.Filter.EnableMatchOneOf
+	// This is only used when spec.Filter.EnableMatchOneOf=true. Passing
+	// through for debuggability (config map inspections).
 	cfg.GoogleCloud.Export.Match = spec.Filter.MatchOneOf
+
 	if string(spec.Compression) != "" {
 		cfg.GoogleCloud.Export.Compression = string(spec.Compression)
 	}

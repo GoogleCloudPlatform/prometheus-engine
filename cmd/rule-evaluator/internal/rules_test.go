@@ -87,7 +87,6 @@ func TestAPI_HandleRulesEndpoint(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt //nolint:copyloopvar // parallel test
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -480,7 +479,6 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt //nolint:copyloopvar // parallel test
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			api := &API{logger: log.NewNopLogger()}

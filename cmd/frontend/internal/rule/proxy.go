@@ -96,18 +96,14 @@ func fanoutForward[T *promapiv1.Alert | *promapiv1.RuleGroup](
 
 	// Parallel call to all endpoints.
 	for _, baseURL := range ruleEndpoints {
-		wg.Add(1)
-		go func(baseURL url.URL) {
-			defer wg.Done()
-
+		wg.Go(func() {
 			result, err := retrieveFn(ctx, baseURL, rawQuery)
 			if err != nil {
 				errChan <- fmt.Errorf("retrieving alerts from %s failed: %w", baseURL.String(), err)
 				return
 			}
-
 			resultChan <- result
-		}(baseURL)
+		})
 	}
 
 	go func() {

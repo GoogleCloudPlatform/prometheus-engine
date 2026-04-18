@@ -48,6 +48,7 @@ spec:
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
+        resources: {{- toYaml $.Values.resources.bash | nindent 10}}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

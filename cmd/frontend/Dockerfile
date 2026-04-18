@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.5@sha256:b9b992fbef86e816ebac77aa06d28a5c92c6619cc0ed3548df91cccf3328e9ca AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.2@sha256:1bee769a7a50eea7730ac31f75182ae2614f50a70902407312db390a7c7cb2ff AS buildbase
 
 # Compile the UI assets.
-FROM --platform=$BUILDPLATFORM us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24@sha256:5f463b6103a2d87980eaf14912f4a4b60d4f82aebea1e700ebcff09253ec60fe AS assets
+FROM --platform=$BUILDPLATFORM us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24@sha256:d89c705d490819c00baad0acb534942d95c5415bc2c04132690e1dd02e2d253e AS assets
 WORKDIR /app
 # To build the UI we need a recent node version and the go toolchain.
 COPY --from=buildbase /usr/bin/make /usr/bin/
 COPY --from=buildbase /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
 COPY --chown=33:33 ./third_party/prometheus_ui ./third_party/prometheus_ui
-COPY --chown=33:33 go.mod go.sum .
+COPY --chown=33:33 go.mod go.sum ./
+COPY --chown=33:33 tools tools
 COPY --chown=33:33 ./cmd/frontend ./cmd/frontend
 COPY --chown=33:33 ./internal/promapi ./internal/promapi
 COPY --chown=33:33 ./pkg/ui ./pkg/ui
@@ -49,20 +50,20 @@ ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
-      apt install -y --no-install-recommends \
-        -tags builtinassets \
-        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
-      CC=aarch64-linux-gnu-gcc; \
-    fi && \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
-      go build \
-        -tags builtinassets \
-        -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq ".version" ) \
-        -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
+	apt install -y --no-install-recommends \
+	-tags builtinassets \
+	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+	CC=aarch64-linux-gnu-gcc; \
+	fi && \
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+	go build \
+	-tags builtinassets \
+	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool -modfile="tools/go.mod" yq ".version" ) \
+	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o frontend \
 	cmd/frontend/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20250807.00_p0
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260207.00_p0@sha256:ae6350bb7078a86c22fb9db290b02a3f702e95e79b216c3d469e896780363da6
 COPY --from=appbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]

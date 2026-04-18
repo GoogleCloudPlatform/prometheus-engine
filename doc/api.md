@@ -941,6 +941,7 @@ CompressionType
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.CollectionSpec">CollectionSpec</a>, <a href="#monitoring.googleapis.com/v1.ConfigSpec">ConfigSpec</a>)
 </p>
 <div>
+<p>CompressionType is the compression type.</p>
 </div>
 <table>
 <thead>
@@ -1012,16 +1013,48 @@ ClusterPodMonitoring, PodMonitoring, GlobalRules, ClusterRules, and/or Rules.</p
 <tbody>
 <tr>
 <td>
+<code>enableMatchOneOf</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>EnableMatchOneOf allows additional control over MatchOneOf filtering.</p>
+<p>Available settings:
+* not set: The MatchOneOf settings are ignored, default is used.
+* false: MatchOneOf feature is explicitly disabled; export is forced to match all series.
+* true: The MatchOneOf settings are used, overwriting a default.</p>
+<p>See MatchOneOf IMPORTANT section to learn about the MatchOneOf default.</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>matchOneOf</code><br/>
 <em>
 []string
 </em>
 </td>
 <td>
-<p>A list of Prometheus time series matchers. Every time series must match at least one
-of the matchers to be exported. This field can be used equivalently to the match[]
-parameter of the Prometheus federation endpoint to selectively export data.
-Example: <code>[&quot;{job!='foobar'}&quot;, &quot;{__name__!~'container_foo.*|container_bar.*'}&quot;]</code></p>
+<p>MatchOneOf, if EnableMatchOneOf is true, controls the export filtering setting.</p>
+<p>MatchOneOf expects a list of Prometheus time series matchers. Every time series
+must match at least one of the matchers to be exported. This field can be used
+equivalently to the match[] parameter of the Prometheus federation endpoint to
+selectively export data.</p>
+<p>Example: <code>[&quot;{job!='foobar'}&quot;, &quot;{__name__!~'container_foo.*|container_bar.*'}&quot;]</code></p>
+<p>IMPORTANT: MatchOneOf is guarded by the additional flag (EnableMatchOneOf)
+and removed from the public docs. Replacements: <a href="https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics">https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics</a>.</p>
+<p>Rationales:
+* This option is prone to misconfiguration, e.g. you need to manually
+match important built-in metrics (up, scrape_samples_added, etc.).
+* Unmatched metrics are still in the local collector memory
+(this filters on export only).
+* Typically, the default (empty array), means match all metrics. However,
+for the clusters that were using MatchOneOf filtering before the GMP 0.14.x,
+version, the default is what has been configured back then in the orphaned
+collector DaemonSet EXTRA_ARGS environment variable. If you are impacted:
+* use EnableMatchOneOf = false to reset the default
+* use EnableMatchOneOf = true to apply this configuration&rsquo;s MatchOneOf
+* Remove EXTRA_ARGS environment variable from the collector DaemonSet (it&rsquo;s safe to do so).</p>
 </td>
 </tr>
 </tbody>
@@ -1137,6 +1170,21 @@ RulesStatus
 <tbody>
 <tr>
 <td>
+<code>ProxyConfig</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ProxyConfig">
+ProxyConfig
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>ProxyConfig</code> are embedded into this type.)
+</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>authorization</code><br/>
 <em>
 <a href="#monitoring.googleapis.com/v1.Auth">
@@ -1189,21 +1237,6 @@ OAuth2
 <td>
 <em>(Optional)</em>
 <p>OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>ProxyConfig</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ProxyConfig">
-ProxyConfig
-</a>
-</em>
-</td>
-<td>
-<p>
-(Members of <code>ProxyConfig</code> are embedded into this type.)
-</p>
 </td>
 </tr>
 </tbody>
@@ -1540,6 +1573,21 @@ int64
 <tbody>
 <tr>
 <td>
+<code>ProxyConfig</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.ProxyConfig">
+ProxyConfig
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>ProxyConfig</code> are embedded into this type.)
+</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>clientID</code><br/>
 <em>
 string
@@ -1612,21 +1660,6 @@ TLS
 <td>
 <em>(Optional)</em>
 <p>TLS configures the token request&rsquo;s TLS settings.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>ProxyConfig</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.ProxyConfig">
-ProxyConfig
-</a>
-</em>
-</td>
-<td>
-<p>
-(Members of <code>ProxyConfig</code> are embedded into this type.)
-</p>
 </td>
 </tr>
 </tbody>
@@ -2753,6 +2786,22 @@ VPASpec
 <tbody>
 <tr>
 <td>
+<code>HTTPClientConfig</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.HTTPClientConfig">
+HTTPClientConfig
+</a>
+</em>
+</td>
+<td>
+<p>
+(Members of <code>HTTPClientConfig</code> are embedded into this type.)
+</p>
+<p>Prometheus HTTP client configuration.</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>port</code><br/>
 <em>
 k8s.io/apimachinery/pkg/util/intstr.IntOrString
@@ -2834,22 +2883,6 @@ Must not be larger than the scrape interval.</p>
 override protected target labels (project_id, location, cluster, namespace, job,
 instance, top_level_controller, top_level_controller_type, or <strong>address</strong>) are
 not permitted. The labelmap action is not permitted in general.</p>
-</td>
-</tr>
-<tr>
-<td>
-<code>HTTPClientConfig</code><br/>
-<em>
-<a href="#monitoring.googleapis.com/v1.HTTPClientConfig">
-HTTPClientConfig
-</a>
-</em>
-</td>
-<td>
-<p>
-(Members of <code>HTTPClientConfig</code> are embedded into this type.)
-</p>
-<p>Prometheus HTTP client configuration.</p>
 </td>
 </tr>
 </tbody>

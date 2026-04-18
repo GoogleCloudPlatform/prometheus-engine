@@ -97,7 +97,7 @@ func vulnfix() error {
 	}
 	// TODO(bwplotka): Port to Go, make it more reliable.
 	// TODO(bwplotka): Quote otherwise it's split into separate args... port it so it works better (:
-	if err := runLibFunction(dir, nil, "release-lib::idemp::git_commit_amend_match", "\""+msg+"\""); err != nil {
+	if err := runLibFunction(dir, nil, "release-lib::idemp::git_commit_amend_match", "\""+msg+"\"", "\""+branch+"\""); err != nil {
 		return err
 	}
 

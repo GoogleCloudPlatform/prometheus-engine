@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package deploy provides utilities for provisioning and configuring the Prometheus engine components and a synthetic
+// application within a Kubernetes cluster. These deployed resources serve as the test environment for end-to-end
+// tests, enabling validation of the Prometheus engine's functionality by interacting with its operator, collector,
+// and rule-evaluator, and by scraping metrics from the synthetic application.
 package deploy
 
 import (
@@ -219,6 +223,8 @@ func normalizeDeployments(opts *deployOptions, obj *appsv1.Deployment) (client.O
 			container.Args = append(container.Args, "--query.credentials-file="+opts.explicitCredentials)
 			break
 		}
+	default:
+		return nil, fmt.Errorf("unhandled deployment: %q", obj.GetName())
 	}
 	return obj, nil
 }

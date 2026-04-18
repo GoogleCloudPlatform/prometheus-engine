@@ -47,9 +47,9 @@ func TestMain(m *testing.M) {
 	testScheme, err = NewScheme()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to get scheme: %s", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:revive // Handle os.Exit before m.Run()
 	}
-	os.Exit(m.Run())
+	m.Run()
 }
 
 func newFakeClientBuilder() *fake.ClientBuilder {

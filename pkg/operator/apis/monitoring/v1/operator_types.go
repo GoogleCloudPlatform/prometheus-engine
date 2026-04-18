@@ -32,6 +32,7 @@ import (
 type OperatorConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Rules specifies how the operator configures and deploys rule-evaluator.
 	Rules RuleEvaluatorSpec `json:"rules,omitempty"`
 	// Collection specifies how the operator configures collection, including
@@ -144,7 +145,8 @@ func validateSecretKeySelector(secretKeySelector *corev1.SecretKeySelector) erro
 type OperatorConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []OperatorConfig `json:"items"`
+
+	Items []OperatorConfig `json:"items"`
 }
 
 // RuleEvaluatorSpec defines configuration for deploying rule-evaluator.
@@ -218,13 +220,18 @@ type TargetStatusSpec struct {
 	Enabled bool `json:"enabled,omitempty"`
 }
 
+// CompressionType is the compression type.
 // +kubebuilder:validation:Enum=none;gzip
 type CompressionType string
 
 const (
+<<<<<<< HEAD
 	// CompressionNone indicates that no compression should be used.
 	CompressionNone CompressionType = "none"
 	// CompressionGzip indicates that gzip compression should be used.
+=======
+	CompressionNone CompressionType = "none"
+>>>>>>> upstream/main
 	CompressionGzip CompressionType = "gzip"
 )
 
@@ -244,10 +251,40 @@ type OperatorConfigStatus struct {
 
 // ExportFilters provides mechanisms to filter the scraped data that's sent to GMP.
 type ExportFilters struct {
-	// A list of Prometheus time series matchers. Every time series must match at least one
-	// of the matchers to be exported. This field can be used equivalently to the match[]
-	// parameter of the Prometheus federation endpoint to selectively export data.
+	// EnableMatchOneOf allows additional control over MatchOneOf filtering.
+	//
+	// Available settings:
+	// * not set: The MatchOneOf settings are ignored, default is used.
+	// * false: MatchOneOf feature is explicitly disabled; export is forced to match all series.
+	// * true: The MatchOneOf settings are used, overwriting a default.
+	//
+	// See MatchOneOf IMPORTANT section to learn about the MatchOneOf default.
+	EnableMatchOneOf *bool `json:"enableMatchOneOf,omitempty"`
+
+	// MatchOneOf, if EnableMatchOneOf is true, controls the export filtering setting.
+	//
+	// MatchOneOf expects a list of Prometheus time series matchers. Every time series
+	// must match at least one of the matchers to be exported. This field can be used
+	// equivalently to the match[] parameter of the Prometheus federation endpoint to
+	// selectively export data.
+	//
 	// Example: `["{job!='foobar'}", "{__name__!~'container_foo.*|container_bar.*'}"]`
+	//
+	// IMPORTANT: MatchOneOf is guarded by the additional flag (EnableMatchOneOf)
+	// and removed from the public docs. Replacements: https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics.
+	//
+	// Rationales:
+	// * This option is prone to misconfiguration, e.g. you need to manually
+	//   match important built-in metrics (up, scrape_samples_added, etc.).
+	// * Unmatched metrics are still in the local collector memory
+	//   (this filters on export only).
+	// * Typically, the default (empty array), means match all metrics. However,
+	//   for the clusters that were using MatchOneOf filtering before the GMP 0.14.x,
+	//   version, the default is what has been configured back then in the orphaned
+	//   collector DaemonSet EXTRA_ARGS environment variable. If you are impacted:
+	//   * use EnableMatchOneOf = false to reset the default
+	//   * use EnableMatchOneOf = true to apply this configuration's MatchOneOf
+	//   * Remove EXTRA_ARGS environment variable from the collector DaemonSet (it's safe to do so).
 	MatchOneOf []string `json:"matchOneOf,omitempty"`
 }
 

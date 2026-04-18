@@ -42,6 +42,7 @@ Can be also installed via:
 ```bash
 gcloud components install kubectl
 ```
+
 4. [`Docker`](https://docs.docker.com/get-docker/) with
    [`buildx`](https://docs.docker.com/build/architecture/#install-buildx) plugin.
 

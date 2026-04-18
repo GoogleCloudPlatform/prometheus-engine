@@ -18,7 +18,7 @@ package ui
 
 import "net/http"
 
-// Serve assets from a static directory if they have not been compiled into the binary.
+// Assets serves assets from a static directory if they have not been compiled into the binary.
 //
 // It always attempts to serve anything "static/" in the current working directory as this is for
 // development purposes only.

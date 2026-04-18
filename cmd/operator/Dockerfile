@@ -12,20 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.5@sha256:b9b992fbef86e816ebac77aa06d28a5c92c6619cc0ed3548df91cccf3328e9ca AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.2@sha256:1bee769a7a50eea7730ac31f75182ae2614f50a70902407312db390a7c7cb2ff AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
 COPY charts/values.global.yaml charts/values.global.yaml
 COPY go.mod go.mod
 COPY go.sum go.sum
+COPY tools tools
 # Copy the Go vendor directory only if it exists. Vendor folder will automatically
 # cause 'go build' to use -mod=vendor flag (otherwise -mod=mod is used).
 COPY vendor* vendor
 COPY cmd cmd
 COPY pkg pkg
-
-RUN GO111MODULE=on go get github.com/mikefarah/yq/v3 # Install yq tool.
 
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1
@@ -34,18 +33,18 @@ ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
-      apt install -y --no-install-recommends \
-        gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
-      CC=aarch64-linux-gnu-gcc; \
-    fi && \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
-      go build \
-        -ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | yq '.version' ) \
-        -X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
+	apt install -y --no-install-recommends \
+	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+	CC=aarch64-linux-gnu-gcc; \
+	fi && \
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+	go build \
+	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool -modfile="tools/go.mod" yq '.version' ) \
+	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o operator \
 	cmd/operator/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20250807.00_p0
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260207.00_p0@sha256:ae6350bb7078a86c22fb9db290b02a3f702e95e79b216c3d469e896780363da6
 COPY --from=buildbase /app/operator /bin/operator
 ENTRYPOINT ["/bin/operator"]

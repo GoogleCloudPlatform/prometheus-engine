@@ -82,7 +82,8 @@ type ClusterNodeMonitoringSpec struct {
 type ClusterNodeMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterNodeMonitoring `json:"items"`
+
+	Items []ClusterNodeMonitoring `json:"items"`
 }
 
 // ClusterNodeMonitoring defines monitoring for a set of nodes.
@@ -95,6 +96,7 @@ type ClusterNodeMonitoringList struct {
 type ClusterNodeMonitoring struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of desired node selection for target discovery by
 	// Prometheus.
 	Spec ClusterNodeMonitoringSpec `json:"spec"`
@@ -203,10 +205,12 @@ func (c *ClusterNodeMonitoring) endpointScrapeConfig(ep *ScrapeNodeEndpoint, pro
 	}
 
 	return buildPrometheusScrapeConfig(fmt.Sprintf("%s%s", c.GetKey(), metricsPath), discoveryCfgs, httpCfg, relabelCfgs, c.Spec.Limits,
-		ScrapeEndpoint{Interval: ep.Interval,
+		ScrapeEndpoint{
+			Interval:         ep.Interval,
 			Timeout:          ep.Timeout,
 			Path:             metricsPath,
 			MetricRelabeling: ep.MetricRelabeling,
 			Scheme:           ep.Scheme,
-			Params:           ep.Params})
+			Params:           ep.Params,
+		})
 }

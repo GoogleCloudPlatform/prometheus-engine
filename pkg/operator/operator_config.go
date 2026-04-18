@@ -17,6 +17,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path"
 	"strings"
 
@@ -363,9 +364,7 @@ func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Contex
 		},
 		Data: make(map[string][]byte),
 	}
-	for f, b := range data {
-		secret.Data[f] = b
-	}
+	maps.Copy(secret.Data, data)
 
 	if err := r.client.Update(ctx, secret); apierrors.IsNotFound(err) {
 		if err := r.client.Create(ctx, secret); err != nil {

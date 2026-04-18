@@ -202,11 +202,9 @@ func TestGracefulShutdown(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		re.Run()
-		wg.Done()
-	}()
+	})
 
 	re.Stop()
 	wg.Wait()

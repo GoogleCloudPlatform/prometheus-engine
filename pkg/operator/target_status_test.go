@@ -182,7 +182,7 @@ func targetFetchFromMap(m map[string]*prometheusv1.TargetsResult) getTargetFn {
 }
 
 func TestUpdateTargetStatus(t *testing.T) {
-	var date = metav1.Date(2022, time.January, 4, 0, 0, 0, 0, time.UTC)
+	date := metav1.Date(2022, time.January, 4, 0, 0, 0, 0, time.UTC)
 
 	testCases := expand([]updateTargetStatusTestCase{
 		// All empty -- nothing happens.
@@ -369,7 +369,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 							},
 						},
 					},
-				}},
+				},
+			},
 		},
 		// Single healthy target with no error, with non-matching PodMonitoring.
 		{
@@ -467,7 +468,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 							Port: intstr.FromString("metrics"),
 						}},
 					},
-				}},
+				},
+			},
 		},
 		// Single healthy target with an error, with matching PodMonitoring.
 		{
@@ -519,7 +521,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 							},
 						},
 					},
-				}},
+				},
+			},
 		},
 		// Single unhealthy target with an error, with matching PodMonitoring.
 		{
@@ -571,7 +574,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 							},
 						},
 					},
-				}},
+				},
+			},
 		},
 		// One healthy and one unhealthy target.
 		{
@@ -642,7 +646,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 							},
 						},
 					},
-				}},
+				},
+			},
 		},
 		// Multiple targets with multiple endpoints.
 		{
@@ -763,7 +768,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 							},
 						},
 					},
-				}},
+				},
+			},
 		},
 		// Multiple unhealthy target with different errors.
 		{
@@ -905,7 +911,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 							},
 						},
 					},
-				}},
+				},
+			},
 		},
 		// Multiple unhealthy targets, one cut-off.
 		{
@@ -1095,7 +1102,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 							},
 						},
 					},
-				}},
+				},
+			},
 		},
 		// Multiple healthy targets with one non-matching PodMonitoring.
 		{
@@ -1352,7 +1360,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			if err != nil && (testCase.expErr == nil || !testCase.expErr(err)) {
 				t.Fatalf("unexpected error updating target status: %s", err)
 			} else if err == nil && (testCase.expErr != nil) {
-				t.Fatalf("expected error missing when updating target status")
+				t.Fatal("expected error missing when updating target status")
 			}
 
 			for _, podMonitoring := range testCase.podMonitorings {
@@ -1858,11 +1866,11 @@ func TestFetchTargets(t *testing.T) {
 
 			diff := cmp.Diff(targets, targetsExpected)
 			if diff != "" {
-				t.Errorf("Targets:")
+				t.Error("Targets:")
 				for i, target := range targets {
 					t.Errorf("%d: %v", i, target)
 				}
-				t.Errorf("Targets Expected:")
+				t.Error("Targets Expected:")
 				for i, target := range targetsExpected {
 					t.Errorf("%d: %v", i, target)
 				}

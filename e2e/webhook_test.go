@@ -70,7 +70,7 @@ func TestWebhooksNoRBAC(t *testing.T) {
 			return false, nil
 		}
 
-		t.Logf("waiting for operator logs to contain RBAC message")
+		t.Log("waiting for operator logs to contain RBAC message")
 		return strings.Contains(logs, "delete legacy ValidatingWebHookConfiguration was not allowed"), nil
 	}); err != nil {
 		t.Fatalf("unable to check operator logs: %s", err)

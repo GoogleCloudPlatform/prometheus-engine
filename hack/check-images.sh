@@ -18,50 +18,50 @@ set -o nounset
 set -o pipefail
 
 VALUES=charts/values.global.yaml
-VERSION=$(go tool yq '.version' "$VALUES")
+VERSION=$(go tool -modfile="tools/go.mod" yq '.version' "$VALUES")
 
 check_image() {
-  IMAGE=$1
-  TAG=$2
-  GMP_VERSIONED=${3:-false}
+	IMAGE=$1
+	TAG=$2
+	GMP_VERSIONED=${3:-false}
 
-  # Find the latest, while filtering out knowingly broken tags e.g. 0.16 stream.
-  LATEST=$(docker run gcr.io/go-containerregistry/crane ls "${IMAGE}" | grep "^v[0-9]" | grep -v "0.16" | sort -V | tail -1)
+	# Find the latest, while filtering out knowingly broken tags e.g. 0.16 stream.
+	LATEST=$(go tool -modfile="tools/go.mod" crane ls "${IMAGE}" | grep "^v[0-9]" | grep -v "0.16" | sort -V | tail -1)
 
-  if [[ $GMP_VERSIONED = true && ! "$TAG" =~ ^v${VERSION}.*$ ]]; then
-    printf "GMP Version is %q, but tag %q of %q does not match\n" "$VERSION" "$TAG" "$IMAGE" && exit 1
-  fi
+	if [[ $GMP_VERSIONED = true && ! "$TAG" =~ ^v${VERSION}.*$ ]]; then
+		printf "GMP Version is %q, but tag %q of %q does not match\n" "$VERSION" "$TAG" "$IMAGE" && exit 1
+	fi
 
-  if [ "$TAG" != "$LATEST" ]; then
-    printf "%s is %q, latest is %q" "$IMAGE" "$TAG" "$LATEST"
-  fi
-  docker manifest inspect "${IMAGE}:${TAG}" > /dev/null
+	if [ "$TAG" != "$LATEST" ]; then
+		printf "%s is %q, latest is %q" "$IMAGE" "$TAG" "$LATEST"
+	fi
+	docker manifest inspect "${IMAGE}:${TAG}" >/dev/null
 
-  printf "%s:%s verified\n" "$IMAGE" "$TAG"
+	printf "%s:%s verified\n" "$IMAGE" "$TAG"
 }
 
-ALERTMANAGER_IMAGE=$(go tool yq '.images.alertmanager.image' "$VALUES")
-ALERTMANAGER_TAG=$(go tool yq '.images.alertmanager.tag' "$VALUES")
+ALERTMANAGER_IMAGE=$(go tool -modfile="tools/go.mod" yq '.images.alertmanager.image' "$VALUES")
+ALERTMANAGER_TAG=$(go tool -modfile="tools/go.mod" yq '.images.alertmanager.tag' "$VALUES")
 check_image "$ALERTMANAGER_IMAGE" "$ALERTMANAGER_TAG"
 
-CONFIG_RELOADER_IMAGE=$(go tool yq '.images.configReloader.image' "$VALUES")
-CONFIG_RELOADER_TAG=$(go tool yq '.images.configReloader.tag' "$VALUES")
+CONFIG_RELOADER_IMAGE=$(go tool -modfile="tools/go.mod" yq '.images.configReloader.image' "$VALUES")
+CONFIG_RELOADER_TAG=$(go tool -modfile="tools/go.mod" yq '.images.configReloader.tag' "$VALUES")
 check_image "$CONFIG_RELOADER_IMAGE" "$CONFIG_RELOADER_TAG" true
 
-DATASOURCE_SYNCER_IMAGE=$(go tool yq '.images.datasourceSyncer.image' "$VALUES")
-DATASOURCE_SYNCER_TAG=$(go tool yq '.images.datasourceSyncer.tag' "$VALUES")
+DATASOURCE_SYNCER_IMAGE=$(go tool -modfile="tools/go.mod" yq '.images.datasourceSyncer.image' "$VALUES")
+DATASOURCE_SYNCER_TAG=$(go tool -modfile="tools/go.mod" yq '.images.datasourceSyncer.tag' "$VALUES")
 check_image "$DATASOURCE_SYNCER_IMAGE" "$DATASOURCE_SYNCER_TAG" true
 
-OPERATOR_IMAGE=$(go tool yq '.images.operator.image' "$VALUES")
-OPERATOR_TAG=$(go tool yq '.images.operator.tag' "$VALUES")
+OPERATOR_IMAGE=$(go tool -modfile="tools/go.mod" yq '.images.operator.image' "$VALUES")
+OPERATOR_TAG=$(go tool -modfile="tools/go.mod" yq '.images.operator.tag' "$VALUES")
 check_image "$OPERATOR_IMAGE" "$OPERATOR_TAG" true
 
-PROMETHEUS_IMAGE=$(go tool yq '.images.prometheus.image' "$VALUES")
-PROMETHEUS_TAG=$(go tool yq '.images.prometheus.tag' "$VALUES")
+PROMETHEUS_IMAGE=$(go tool -modfile="tools/go.mod" yq '.images.prometheus.image' "$VALUES")
+PROMETHEUS_TAG=$(go tool -modfile="tools/go.mod" yq '.images.prometheus.tag' "$VALUES")
 check_image "$PROMETHEUS_IMAGE" "$PROMETHEUS_TAG"
 
-RULE_EVALUATOR_IMAGE=$(go tool yq '.images.ruleEvaluator.image' "$VALUES")
-RULE_EVALUATOR_TAG=$(go tool yq '.images.ruleEvaluator.tag' "$VALUES")
+RULE_EVALUATOR_IMAGE=$(go tool -modfile="tools/go.mod" yq '.images.ruleEvaluator.image' "$VALUES")
+RULE_EVALUATOR_TAG=$(go tool -modfile="tools/go.mod" yq '.images.ruleEvaluator.tag' "$VALUES")
 check_image "$RULE_EVALUATOR_IMAGE" "$RULE_EVALUATOR_TAG" true
 
 echo "All images verified"

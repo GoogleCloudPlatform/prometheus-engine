@@ -56,6 +56,7 @@ type PodMonitoringCRD interface {
 type PodMonitoring struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of desired Pod selection for target discovery by
 	// Prometheus.
 	Spec PodMonitoringSpec `json:"spec"`
@@ -89,7 +90,8 @@ func (p *PodMonitoring) GetMonitoringStatus() *MonitoringStatus {
 type PodMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []PodMonitoring `json:"items"`
+
+	Items []PodMonitoring `json:"items"`
 }
 
 // ClusterPodMonitoring defines monitoring for a set of pods, scoped to all
@@ -103,6 +105,7 @@ type PodMonitoringList struct {
 type ClusterPodMonitoring struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
 	// Specification of desired Pod selection for target discovery by
 	// Prometheus.
 	Spec ClusterPodMonitoringSpec `json:"spec"`
@@ -136,7 +139,8 @@ func (c *ClusterPodMonitoring) GetMonitoringStatus() *MonitoringStatus {
 type ClusterPodMonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterPodMonitoring `json:"items"`
+
+	Items []ClusterPodMonitoring `json:"items"`
 }
 
 // PodMonitoringSpec contains specification parameters for PodMonitoring.
@@ -209,6 +213,9 @@ type ClusterPodMonitoringSpec struct {
 // ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
 // +kubebuilder:validation:XValidation:rule="!has(self.timeout) || self.timeout <= self.interval",messageExpression="'scrape timeout (%s) must not be greater than scrape interval (%s)'.format([self.timeout, self.interval])"
 type ScrapeEndpoint struct {
+	// Prometheus HTTP client configuration.
+	HTTPClientConfig `json:",inline"`
+
 	// Name or number of the port to scrape.
 	// The container metadata label is only populated if the port is referenced by name
 	// because port numbers are not unique across containers.
@@ -239,8 +246,6 @@ type ScrapeEndpoint struct {
 	// not permitted. The labelmap action is not permitted in general.
 	// +kubebuilder:validation:MaxItems=250
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
-	// Prometheus HTTP client configuration.
-	HTTPClientConfig `json:",inline"`
 }
 
 // TargetLabels configures labels for the discovered Prometheus targets.
@@ -365,6 +370,7 @@ type SampleTarget struct {
 // PodMonitoringStatus holds status information of a PodMonitoring resource.
 type PodMonitoringStatus struct {
 	MonitoringStatus `json:",inline"`
+
 	// Represents the latest available observations of target state for each ScrapeEndpoint.
 	EndpointStatuses []ScrapeEndpointStatus `json:"endpointStatuses,omitempty"`
 }

@@ -278,6 +278,68 @@ func TestOperatorConfigValidate(t *testing.T) {
 			err: "invalid rules config: invalid alert manager endpoint `bar` (index 0): invalid TLS CA: missing secret key selector name",
 		},
 		{
+			desc: "rule manager TLS CA mutually exclusive",
+			oc: &OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: RuleEvaluatorSpec{
+					Alerting: AlertingSpec{
+						Alertmanagers: []AlertmanagerEndpoints{{
+							Name: "bar",
+							TLS: &TLSConfig{
+								CA: &SecretOrConfigMap{
+									Secret: &v1.SecretKeySelector{
+										LocalObjectReference: v1.LocalObjectReference{
+											Name: "baz",
+										},
+									},
+									ConfigMap: &v1.ConfigMapKeySelector{
+										LocalObjectReference: v1.LocalObjectReference{
+											Name: "qux",
+										},
+									},
+								},
+							},
+						}},
+					},
+				},
+			},
+			err: "invalid rules config: invalid alert manager endpoint `bar` (index 0): invalid TLS CA: SecretOrConfigMap fields are mutually exclusive",
+		},
+		{
+			desc: "rule manager TLS Cert mutually exclusive",
+			oc: &OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "config",
+				},
+				Rules: RuleEvaluatorSpec{
+					Alerting: AlertingSpec{
+						Alertmanagers: []AlertmanagerEndpoints{{
+							Name: "bar",
+							TLS: &TLSConfig{
+								Cert: &SecretOrConfigMap{
+									Secret: &v1.SecretKeySelector{
+										LocalObjectReference: v1.LocalObjectReference{
+											Name: "baz",
+										},
+									},
+									ConfigMap: &v1.ConfigMapKeySelector{
+										LocalObjectReference: v1.LocalObjectReference{
+											Name: "qux",
+										},
+									},
+								},
+							},
+						}},
+					},
+				},
+			},
+			err: "invalid rules config: invalid alert manager endpoint `bar` (index 0): invalid TLS Cert: SecretOrConfigMap fields are mutually exclusive",
+		},
+		{
 			desc: "rule manager TLS CA secret key",
 			oc: &OperatorConfig{
 				ObjectMeta: metav1.ObjectMeta{
