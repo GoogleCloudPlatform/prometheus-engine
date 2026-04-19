@@ -225,13 +225,9 @@ type TargetStatusSpec struct {
 type CompressionType string
 
 const (
-<<<<<<< HEAD
 	// CompressionNone indicates that no compression should be used.
 	CompressionNone CompressionType = "none"
 	// CompressionGzip indicates that gzip compression should be used.
-=======
-	CompressionNone CompressionType = "none"
->>>>>>> upstream/main
 	CompressionGzip CompressionType = "gzip"
 )
 

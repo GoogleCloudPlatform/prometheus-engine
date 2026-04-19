@@ -1393,7 +1393,7 @@ be derived automatically.</p>
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.MonitoringStatus">MonitoringStatus</a>)
 </p>
 <div>
-<p>MonitoringCondition describes the condition of a PodMonitoring.</p>
+<p>MonitoringCondition describes a condition of a monitoring resource.</p>
 </div>
 <table>
 <thead>
@@ -1548,7 +1548,7 @@ int64
 </em>
 </td>
 <td>
-<p>Represents the latest available observations of a podmonitor&rsquo;s current state.</p>
+<p>Represents the latest available observations of the monitoring resource&rsquo;s current state.</p>
 </td>
 </tr>
 </tbody>

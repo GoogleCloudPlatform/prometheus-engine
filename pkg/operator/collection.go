@@ -106,7 +106,7 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterCollector),
 		).
-		// Detect and undo changes to the daemon set.
+		// Detect changes to the collector DaemonSet and re-check its status.
 		Watches(
 			&appsv1.DaemonSet{},
 			enqueueConst(objRequest),
@@ -175,12 +175,14 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, fmt.Errorf("ensure collector secrets: %w", err)
 	}
 	// Deploy Prometheus collector as a node agent.
-	if changed, err := r.ensureCollectorDaemonSet(ctx, &config); err != nil {
-		return reconcile.Result{}, fmt.Errorf("ensure collector daemon set: %w", err)
-	} else if changed {
+	changed, err := r.ensureCollectorDaemonSet(ctx, &config)
+	if changed {
 		if err := patchMonitoringStatus(ctx, r.client, &config, config.GetMonitoringStatus()); err != nil {
 			return reconcile.Result{}, fmt.Errorf("patch operatorconfig status: %w", err)
 		}
+	}
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("ensure collector daemon set: %w", err)
 	}
 	if err := r.ensureCollectorConfig(ctx, &config.Collection, config.Features.Config.Compression, config.Exports); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector config: %w", err)
@@ -222,13 +224,10 @@ func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec 
 	return nil
 }
 
-// ensureCollectorDaemonSet populates the collector DaemonSet with operator-provided values.
+// ensureCollectorDaemonSet checks whether the collector DaemonSet exists and updates status.
 func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, config *monitoringv1.OperatorConfig) (bool, error) {
 	logger, _ := logr.FromContext(ctx)
 
-	// Build the DaemonSet.
-	// For now, we only ensure the DaemonSet exists.
-	// In the future, we might want to reconcile the DaemonSet spec as well.
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      NameCollector,
@@ -237,7 +236,7 @@ func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, con
 	}
 
 	err := r.client.Get(ctx, client.ObjectKeyFromObject(ds), ds)
-	// Some users deliberately not want to run the collectors. Only emit a warning but don't cause
+	// Some users deliberately do not want to run the collectors. Only emit a warning but don't cause
 	// retries as this logic gets re-triggered anyway if the DaemonSet is created later.
 	cond := &monitoringv1.MonitoringCondition{
 		Type:   monitoringv1.CollectorDaemonSetExists,

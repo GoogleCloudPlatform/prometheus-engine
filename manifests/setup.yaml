@@ -249,9 +249,9 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of the monitoring resource's current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes a condition of a monitoring resource.
                     properties:
                       lastTransitionTime:
                         description: Last time the condition transitioned from one status to another.
@@ -944,9 +944,9 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of the monitoring resource's current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes a condition of a monitoring resource.
                     properties:
                       lastTransitionTime:
                         description: Last time the condition transitioned from one status to another.
@@ -1437,9 +1437,9 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of the monitoring resource's current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes a condition of a monitoring resource.
                     properties:
                       lastTransitionTime:
                         description: Last time the condition transitioned from one status to another.
@@ -1703,9 +1703,9 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of the monitoring resource's current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes a condition of a monitoring resource.
                     properties:
                       lastTransitionTime:
                         description: Last time the condition transitioned from one status to another.
@@ -2353,9 +2353,9 @@ spec:
               description: Status holds the status of the OperatorConfig.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of the monitoring resource's current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes a condition of a monitoring resource.
                     properties:
                       lastTransitionTime:
                         description: Last time the condition transitioned from one status to another.
@@ -3365,9 +3365,9 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of the monitoring resource's current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes a condition of a monitoring resource.
                     properties:
                       lastTransitionTime:
                         description: Last time the condition transitioned from one status to another.
@@ -3877,9 +3877,9 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of the monitoring resource's current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes a condition of a monitoring resource.
                     properties:
                       lastTransitionTime:
                         description: Last time the condition transitioned from one status to another.

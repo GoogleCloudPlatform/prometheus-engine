@@ -17,6 +17,8 @@ package operator
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -37,6 +39,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -580,6 +583,64 @@ func TestCollectionReconcile_OperatorConfigStatus(t *testing.T) {
 				t.Errorf("expected reason %v, got %v", tc.expectedReason, cond.Reason)
 			}
 		})
+	}
+}
+
+func TestCollectionReconcile_OperatorConfigStatusUnknownOnAPIError(t *testing.T) {
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), logger)
+	opts := Options{
+		ProjectID:         "test-proj",
+		Location:          "test-loc",
+		Cluster:           "test-cluster",
+		OperatorNamespace: "gmp-system",
+		PublicNamespace:   "gmp-public",
+	}
+
+	daemonSetErr := errors.New("daemonset lookup failed")
+	kubeClient := newFakeClientBuilder().
+		WithObjects(&monitoringv1.OperatorConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      NameOperatorConfig,
+				Namespace: opts.PublicNamespace,
+			},
+		}).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, ok := obj.(*appsv1.DaemonSet); ok {
+					return daemonSetErr
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		}).
+		Build()
+
+	r := newCollectionReconciler(kubeClient, opts)
+
+	_, err := r.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: opts.PublicNamespace,
+			Name:      NameOperatorConfig,
+		},
+	})
+	if !errors.Is(err, daemonSetErr) {
+		t.Fatalf("expected daemonset lookup error, got %v", err)
+	}
+
+	var config monitoringv1.OperatorConfig
+	if err := kubeClient.Get(ctx, types.NamespacedName{Namespace: opts.PublicNamespace, Name: NameOperatorConfig}, &config); err != nil {
+		t.Fatalf("Get OperatorConfig failed: %v", err)
+	}
+
+	cond := getCondition(config.Status.Conditions, monitoringv1.CollectorDaemonSetExists)
+	if cond == nil {
+		t.Fatal("CollectorDaemonSetExists condition not found")
+	}
+	if cond.Status != corev1.ConditionUnknown {
+		t.Fatalf("expected status %v, got %v", corev1.ConditionUnknown, cond.Status)
+	}
+	if cond.Reason != "" {
+		t.Fatalf("expected empty reason, got %q", cond.Reason)
 	}
 }
 
