@@ -1,9 +1,15 @@
-# Auto generated binary variables helper managed by https://github.com/bwplotka/bingo v0.9. DO NOT EDIT.
+# Auto generated binary variables helper managed by https://github.com/bwplotka/bingo v0.10. DO NOT EDIT.
 # All tools are designed to be build inside $GOBIN.
 BINGO_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 GOPATH ?= $(shell go env GOPATH)
 GOBIN  ?= $(firstword $(subst :, ,${GOPATH}))/bin
 GO     ?= $(shell which go)
+
+# Ensure bingo-managed tools are always built for the host platform,
+# even when GOOS/GOARCH are set for cross-compilation of other targets.
+GOHOSTOS     ?= $(shell $(GO) env GOHOSTOS)
+GOHOSTARCH   ?= $(shell $(GO) env GOHOSTARCH)
+GOHOSTARM    ?= $(shell $(GO) env GOHOSTARM)
 
 # Below generated variables ensure that every time a tool under each variable is invoked, the correct version
 # will be used; reinstalling only if needed.
@@ -21,29 +27,29 @@ ADDLICENSE := $(GOBIN)/addlicense-v1.1.1
 $(ADDLICENSE): $(BINGO_DIR)/addlicense.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
 	@echo "(re)installing $(GOBIN)/addlicense-v1.1.1"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.1.1 "github.com/google/addlicense"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=addlicense.mod -o=$(GOBIN)/addlicense-v1.1.1 "github.com/google/addlicense"
 
-GOLANGCI_LINT := $(GOBIN)/golangci-lint-v1.61.0
+GOLANGCI_LINT := $(GOBIN)/golangci-lint-v1.64.8
 $(GOLANGCI_LINT): $(BINGO_DIR)/golangci-lint.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/golangci-lint-v1.61.0"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=golangci-lint.mod -o=$(GOBIN)/golangci-lint-v1.61.0 "github.com/golangci/golangci-lint/cmd/golangci-lint"
+	@echo "(re)installing $(GOBIN)/golangci-lint-v1.64.8"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=golangci-lint.mod -o=$(GOBIN)/golangci-lint-v1.64.8 "github.com/golangci/golangci-lint/cmd/golangci-lint"
 
 HELM := $(GOBIN)/helm-v3.14.0
 $(HELM): $(BINGO_DIR)/helm.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
 	@echo "(re)installing $(GOBIN)/helm-v3.14.0"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=helm.mod -o=$(GOBIN)/helm-v3.14.0 "helm.sh/helm/v3/cmd/helm"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=helm.mod -o=$(GOBIN)/helm-v3.14.0 "helm.sh/helm/v3/cmd/helm"
 
 MDOX := $(GOBIN)/mdox-v0.9.0
 $(MDOX): $(BINGO_DIR)/mdox.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
 	@echo "(re)installing $(GOBIN)/mdox-v0.9.0"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=mdox.mod -o=$(GOBIN)/mdox-v0.9.0 "github.com/bwplotka/mdox"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=mdox.mod -o=$(GOBIN)/mdox-v0.9.0 "github.com/bwplotka/mdox"
 
 YQ := $(GOBIN)/yq-v4.40.7
 $(YQ): $(BINGO_DIR)/yq.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
 	@echo "(re)installing $(GOBIN)/yq-v4.40.7"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=yq.mod -o=$(GOBIN)/yq-v4.40.7 "github.com/mikefarah/yq/v4"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=yq.mod -o=$(GOBIN)/yq-v4.40.7 "github.com/mikefarah/yq/v4"
 

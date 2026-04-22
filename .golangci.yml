@@ -54,12 +54,14 @@ linters:
     - perfsprint
     - prealloc
     - protogetter
+    - recvcheck
     - stylecheck
     - tagliatelle
     - testpackage
     - thelper
     - tparallel
     - unparam
+    - usetesting
     - varnamelen
     - wastedassign
     - wrapcheck
@@ -106,6 +108,10 @@ linters-settings:
           - otherpragma
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#confusing-naming
       - name: confusing-naming
+        severity: warning
+        disabled: true
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#confusing-results
+      - name: confusing-results
         severity: warning
         disabled: true
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#cyclomatic
@@ -209,6 +215,10 @@ linters-settings:
           - allowRegex: "^_"
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#use-any
       - name: use-any
+        severity: warning
+        disabled: true
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#use-errors-new
+      - name: use-errors-new
         severity: warning
         disabled: true
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#useless-break
