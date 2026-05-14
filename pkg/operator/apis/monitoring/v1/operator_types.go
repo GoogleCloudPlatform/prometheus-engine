@@ -289,6 +289,87 @@ type ManagedAlertmanagerSpec struct {
 	//
 	// If no URL is provided, Alertmanager will point to the Google Cloud Metric Explorer page.
 	ExternalURL string `json:"externalURL,omitempty"`
+	// Storage opts the managed Alertmanager into a PersistentVolumeClaim-backed
+	// data directory. When unset, Alertmanager uses an ephemeral emptyDir volume
+	// and all silences, notification log entries, and inhibitions are lost on
+	// pod restart. When set, the operator creates a PVC in the operator
+	// namespace and mounts it at the Alertmanager data path so this state
+	// survives pod churn.
+	//
+	// See https://github.com/GoogleCloudPlatform/prometheus-engine/issues/685.
+	Storage *AlertmanagerStorageSpec `json:"storage,omitempty"`
+}
+
+// AlertmanagerStorageSpec configures persistent storage for the managed
+// Alertmanager. The operator provisions a single PersistentVolumeClaim named
+// "alertmanager-data" in the operator namespace using the supplied spec and
+// mounts it at the Alertmanager data path. The managed Alertmanager runs with
+// a single replica, so a ReadWriteOnce access mode is sufficient; multi-replica
+// support would require migrating to volumeClaimTemplates and is out of scope
+// here.
+//
+// Changing this spec after creation triggers a rolling restart of the
+// Alertmanager StatefulSet. Most PersistentVolumeClaim fields are immutable
+// once the claim is bound — only `resources.requests.storage` can be
+// expanded (and only if the StorageClass allows volume expansion). The
+// operator logs and ignores shrink requests and other mutations to
+// immutable fields; the existing PVC must be deleted manually to fully
+// reset (silences will be lost).
+type AlertmanagerStorageSpec struct {
+	// VolumeClaim describes the desired PersistentVolumeClaim. The
+	// embedded structure exposes both `metadata` (so callers can attach
+	// labels and annotations, e.g. for volume-snapshot tooling) and `spec`
+	// (so every Kubernetes PVC field — accessModes, storageClassName,
+	// resources, selector, volumeMode, dataSource, dataSourceRef — is
+	// configurable). The operator overwrites the claim's name and
+	// namespace; everything else is taken from the caller-provided spec
+	// modulo Kubernetes-enforced immutability.
+	VolumeClaim EmbeddedPersistentVolumeClaim `json:"volumeClaim"`
+}
+
+// EmbeddedPersistentVolumeClaim is a PersistentVolumeClaim definition
+// embedded directly in a parent resource's spec. It mirrors prometheus-
+// operator's type of the same name so user-facing YAML feels familiar.
+//
+// Only ObjectMeta fields that customise the claim itself (labels,
+// annotations, finalizers) are honoured; name and namespace are owned by
+// the operator.
+type EmbeddedPersistentVolumeClaim struct {
+	metav1.TypeMeta `json:",inline"`
+
+	// EmbeddedObjectMetadata contains labels, annotations and finalizers
+	// applied to the generated PersistentVolumeClaim. Other ObjectMeta
+	// fields are ignored.
+	// +optional
+	EmbeddedObjectMetadata `json:"metadata,omitempty"`
+
+	// Spec defines the desired characteristics of the volume. At minimum,
+	// `resources.requests.storage` must be set. See the Kubernetes
+	// PersistentVolumeClaim documentation for the full field reference:
+	// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#persistentvolumeclaimspec-v1-core
+	Spec corev1.PersistentVolumeClaimSpec `json:"spec,omitempty"`
+}
+
+// EmbeddedObjectMetadata is a subset of metav1.ObjectMeta containing only
+// the fields that make sense to set on an operator-managed child resource.
+// Setting `name` or `namespace` here has no effect — the operator owns
+// those.
+type EmbeddedObjectMetadata struct {
+	// Labels applied to the generated resource. Merged with the
+	// operator's default labels; on conflict the operator's value wins.
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+	// Annotations applied to the generated resource. Useful for
+	// integrations such as VolumeSnapshot controllers or storage-class
+	// provisioners that read annotations from the claim.
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+	// Finalizers applied to the generated resource on creation. The
+	// operator does not strip user-managed finalizers it did not add, so
+	// removing entries from this list does not remove them from the live
+	// object.
+	// +optional
+	Finalizers []string `json:"finalizers,omitempty"`
 }
 
 // AlertmanagerEndpoints defines a selection of a single Endpoints object

@@ -52,6 +52,12 @@ Resource Types:
 </li><li>
 <a href="#monitoring.googleapis.com/v1.LabelMapping">LabelMapping</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.AlertmanagerStorageSpec">AlertmanagerStorageSpec</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.EmbeddedObjectMetadata">EmbeddedObjectMetadata</a>
+</li><li>
+<a href="#monitoring.googleapis.com/v1.EmbeddedPersistentVolumeClaim">EmbeddedPersistentVolumeClaim</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.ManagedAlertmanagerSpec">ManagedAlertmanagerSpec</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.MonitoringCRD">MonitoringCRD</a>
@@ -1371,6 +1377,189 @@ links back to Alertmanager itself. If the URL has a path portion, it will be use
 prefix all HTTP endpoints served by Alertmanager, otherwise relevant URL components will
 be derived automatically.</p>
 <p>If no URL is provided, Alertmanager will point to the Google Cloud Metric Explorer page.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>storage</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.AlertmanagerStorageSpec">
+AlertmanagerStorageSpec
+</a>
+</em>
+</td>
+<td>
+<p>Storage opts the managed Alertmanager into a PersistentVolumeClaim-backed
+data directory. When unset, Alertmanager uses an ephemeral emptyDir volume
+and all silences, notification log entries, and inhibitions are lost on
+pod restart. When set, the operator creates a PVC in the operator
+namespace and mounts it at the Alertmanager data path so this state
+survives pod churn.</p>
+<p>See <a href="https://github.com/GoogleCloudPlatform/prometheus-engine/issues/685">issue #685</a>.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.AlertmanagerStorageSpec">
+<span id="AlertmanagerStorageSpec">AlertmanagerStorageSpec
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.ManagedAlertmanagerSpec">ManagedAlertmanagerSpec</a>)
+</p>
+<div>
+<p>AlertmanagerStorageSpec configures persistent storage for the managed
+Alertmanager. The operator provisions a single PersistentVolumeClaim named
+&quot;alertmanager-data&quot; in the operator namespace using the supplied spec and
+mounts it at the Alertmanager data path. The managed Alertmanager runs with
+a single replica, so a ReadWriteOnce access mode is sufficient; multi-replica
+support would require migrating to volumeClaimTemplates and is out of scope
+here.</p>
+<p>Changing this spec after creation triggers a rolling restart of the
+Alertmanager StatefulSet. Most PersistentVolumeClaim fields are immutable
+once the claim is bound — only <code>resources.requests.storage</code> can be
+expanded (and only if the StorageClass allows volume expansion). The
+operator logs and ignores shrink requests and other mutations to
+immutable fields; the existing PVC must be deleted manually to fully
+reset (silences will be lost).</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>volumeClaim</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.EmbeddedPersistentVolumeClaim">
+EmbeddedPersistentVolumeClaim
+</a>
+</em>
+</td>
+<td>
+<p>VolumeClaim describes the desired PersistentVolumeClaim. The embedded
+structure exposes both <code>metadata</code> (so callers can attach labels and
+annotations, e.g. for volume-snapshot tooling) and <code>spec</code> (so every
+Kubernetes PVC field — accessModes, storageClassName, resources, selector,
+volumeMode, dataSource, dataSourceRef — is configurable). The operator
+overwrites the claim's name and namespace; everything else is taken from
+the caller-provided spec modulo Kubernetes-enforced immutability.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.EmbeddedPersistentVolumeClaim">
+<span id="EmbeddedPersistentVolumeClaim">EmbeddedPersistentVolumeClaim
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.AlertmanagerStorageSpec">AlertmanagerStorageSpec</a>)
+</p>
+<div>
+<p>EmbeddedPersistentVolumeClaim is a PersistentVolumeClaim definition
+embedded directly in a parent resource's spec. It mirrors prometheus-
+operator's type of the same name so user-facing YAML feels familiar.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>metadata</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.EmbeddedObjectMetadata">
+EmbeddedObjectMetadata
+</a>
+</em>
+</td>
+<td>
+<p>EmbeddedObjectMetadata contains labels, annotations and finalizers
+applied to the generated PersistentVolumeClaim. Other ObjectMeta
+fields are ignored.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>spec</code><br/>
+<em>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#persistentvolumeclaimspec-v1-core">
+Kubernetes core/v1.PersistentVolumeClaimSpec
+</a>
+</em>
+</td>
+<td>
+<p>Spec defines the desired characteristics of the volume. At minimum,
+<code>resources.requests.storage</code> must be set.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="monitoring.googleapis.com/v1.EmbeddedObjectMetadata">
+<span id="EmbeddedObjectMetadata">EmbeddedObjectMetadata
+</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.EmbeddedPersistentVolumeClaim">EmbeddedPersistentVolumeClaim</a>)
+</p>
+<div>
+<p>EmbeddedObjectMetadata is a subset of metav1.ObjectMeta containing only
+the fields that make sense to set on an operator-managed child resource.
+Setting <code>name</code> or <code>namespace</code> here has no effect — the operator owns
+those.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>labels</code><br/>
+<em>
+map[string]string
+</em>
+</td>
+<td>
+<p>Labels applied to the generated resource. Merged with the operator's
+default labels; on conflict the operator's value wins.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>annotations</code><br/>
+<em>
+map[string]string
+</em>
+</td>
+<td>
+<p>Annotations applied to the generated resource. Useful for integrations
+such as VolumeSnapshot controllers or storage-class provisioners that
+read annotations from the claim.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>finalizers</code><br/>
+<em>
+[]string
+</em>
+</td>
+<td>
+<p>Finalizers applied to the generated resource on creation. The operator
+does not strip user-managed finalizers it did not add, so removing
+entries from this list does not remove them from the live object.</p>
 </td>
 </tr>
 </tbody>
