@@ -29,6 +29,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -36,7 +37,10 @@ import (
 )
 
 const (
-	nameRulesGenerated = "rules-generated"
+	nameRulesGenerated       = "rules-generated"
+	nameRulesGeneratedPrefix = "rules-generated-"
+	maxShardDataBytes        = 800 * 1024 // headroom below 1MB etcd limit for metadata overhead
+	labelRulesShardType      = "monitoring.googleapis.com/rules-shard"
 )
 
 func setupRulesControllers(op *Operator) error {
@@ -52,10 +56,10 @@ func setupRulesControllers(op *Operator) error {
 		namespace: op.opts.PublicNamespace,
 		name:      NameOperatorConfig,
 	}
-	// Rule-evaluator rules ConfigMap filter.
-	objFilterRulesGenerated := namespacedNamePredicate{
+	// Rule-evaluator rules shard ConfigMap filter.
+	objFilterRuleShards := namespacedLabelPredicate{
 		namespace: op.opts.OperatorNamespace,
-		name:      nameRulesGenerated,
+		labels:    map[string]string{labelRulesShardType: "true"},
 	}
 
 	// Reconcile the generated rules that are used by the rule-evaluator deployment.
@@ -86,7 +90,7 @@ func setupRulesControllers(op *Operator) error {
 		Watches(
 			&corev1.ConfigMap{},
 			enqueueConst(objRequest),
-			builder.WithPredicates(objFilterRulesGenerated),
+			builder.WithPredicates(objFilterRuleShards),
 		).
 		Complete(newRulesReconciler(op.manager.GetClient(), op.opts))
 	if err != nil {
@@ -220,35 +224,65 @@ func hasGlobalRules(ctx context.Context, c client.Client) (bool, error) {
 	return len(rules.Items) > 0, nil
 }
 
-// ensureRuleConfigs updates the Prometheus Rules ConfigMap.
+type ruleEntry struct {
+	filename string
+	data     string
+}
+
+func configMapDataSize(cm *corev1.ConfigMap) int {
+	var n int
+	for k, v := range cm.Data {
+		n += len(k) + len(v)
+	}
+	for k, v := range cm.BinaryData {
+		n += len(k) + len(v)
+	}
+	return n
+}
+
+func deleteConfigMapKey(cm *corev1.ConfigMap, compression monitoringv1.CompressionType, key string) {
+	switch compression {
+	case monitoringv1.CompressionGzip:
+		delete(cm.BinaryData, key)
+	default:
+		delete(cm.Data, key)
+	}
+}
+
+type namespacedLabelPredicate struct {
+	namespace string
+	labels    map[string]string
+}
+
+func (p namespacedLabelPredicate) Create(e event.CreateEvent) bool {
+	return p.matches(e.Object)
+}
+func (p namespacedLabelPredicate) Update(e event.UpdateEvent) bool {
+	return p.matches(e.ObjectNew)
+}
+func (p namespacedLabelPredicate) Delete(e event.DeleteEvent) bool {
+	return p.matches(e.Object)
+}
+func (p namespacedLabelPredicate) Generic(e event.GenericEvent) bool {
+	return p.matches(e.Object)
+}
+
+func (p namespacedLabelPredicate) matches(obj client.Object) bool {
+	if obj.GetNamespace() != p.namespace {
+		return false
+	}
+	objLabels := obj.GetLabels()
+	for k, v := range p.labels {
+		if objLabels[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
 func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, location, cluster string, configCompression monitoringv1.CompressionType) error {
 	logger, _ := logr.FromContext(ctx)
 
-	// Re-generate the configmap that's loaded by the rule-evaluator.
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.opts.OperatorNamespace,
-			Name:      nameRulesGenerated,
-			Labels: map[string]string{
-				LabelAppName: NameRuleEvaluator,
-			},
-		},
-		// Ensure there's always at least an empty, uncompressed dummy file as the evaluator
-		// expects at least one match.
-		Data: map[string]string{
-			"empty.yaml": "",
-		},
-	}
-
-	// Generate a final rule file for each Rules resource.
-	//
-	// Depending on the scope level (global, cluster, namespace) the rules will be generated
-	// so that queries are constrained to the appropriate project_id, cluster, and namespace
-	// labels and that they are preserved through query aggregations and appear on the
-	// output data.
-	//
-	// The location is not scoped as it's not a meaningful boundary for "human access"
-	// to data as clusters may span locations.
 	var rulesList monitoringv1.RulesList
 	if err := r.client.List(ctx, &rulesList); err != nil {
 		return fmt.Errorf("list rules: %w", err)
@@ -260,6 +294,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		Status: corev1.ConditionTrue,
 	}
 	var statusUpdates []monitoringv1.MonitoringCRD
+	var entries []ruleEntry
 
 	for i := range rulesList.Items {
 		rs := &rulesList.Items[i]
@@ -278,10 +313,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			continue
 		}
 		filename := fmt.Sprintf("rules__%s__%s.yaml", rs.Namespace, rs.Name)
-		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
-			return err
-		}
-
+		entries = append(entries, ruleEntry{filename: filename, data: result})
 		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
 			statusUpdates = append(statusUpdates, rs)
 		}
@@ -308,10 +340,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			continue
 		}
 		filename := fmt.Sprintf("clusterrules__%s.yaml", rs.Name)
-		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
-			return err
-		}
-
+		entries = append(entries, ruleEntry{filename: filename, data: result})
 		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
 			statusUpdates = append(statusUpdates, rs)
 		}
@@ -338,22 +367,18 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			continue
 		}
 		filename := fmt.Sprintf("globalrules__%s.yaml", rs.Name)
-		if err := setConfigMapData(cm, configCompression, filename, result); err != nil {
-			return err
-		}
-
+		entries = append(entries, ruleEntry{filename: filename, data: result})
 		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
 			statusUpdates = append(statusUpdates, rs)
 		}
 	}
 
-	// Create or update generated rule ConfigMap.
-	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
-		if err := r.client.Create(ctx, cm); err != nil {
-			return fmt.Errorf("create generated rules: %w", err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("update generated rules: %w", err)
+	numShards, err := r.upsertShards(ctx, entries, configCompression)
+	if err != nil {
+		return err
+	}
+	if err := r.deleteStaleShards(ctx, logger, numShards); err != nil {
+		return err
 	}
 
 	var errs []error
@@ -364,4 +389,96 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 	}
 
 	return errors.Join(errs...)
+}
+
+func (r *rulesReconciler) newShardConfigMap(idx int) *corev1.ConfigMap {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: r.opts.OperatorNamespace,
+			Name:      fmt.Sprintf("%s%d", nameRulesGeneratedPrefix, idx),
+			Labels: map[string]string{
+				LabelAppName:        NameRuleEvaluator,
+				labelRulesShardType: "true",
+			},
+		},
+	}
+	if idx == 0 {
+		cm.Data = map[string]string{"empty.yaml": ""}
+	}
+	return cm
+}
+
+func (r *rulesReconciler) createOrUpdateConfigMap(ctx context.Context, cm *corev1.ConfigMap) error {
+	if err := r.client.Update(ctx, cm); apierrors.IsNotFound(err) {
+		if err := r.client.Create(ctx, cm); err != nil {
+			return fmt.Errorf("create shard %s: %w", cm.Name, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("update shard %s: %w", cm.Name, err)
+	}
+	return nil
+}
+
+func (r *rulesReconciler) upsertShards(ctx context.Context, entries []ruleEntry, compression monitoringv1.CompressionType) (int, error) {
+	shardIdx := 0
+	cm := r.newShardConfigMap(shardIdx)
+	entriesInShard := 0
+
+	for _, e := range entries {
+		if err := setConfigMapData(cm, compression, e.filename, e.data); err != nil {
+			return 0, err
+		}
+		entriesInShard++
+
+		if configMapDataSize(cm) > maxShardDataBytes && entriesInShard > 1 {
+			deleteConfigMapKey(cm, compression, e.filename)
+			if err := r.createOrUpdateConfigMap(ctx, cm); err != nil {
+				return 0, err
+			}
+			shardIdx++
+			cm = r.newShardConfigMap(shardIdx)
+			if err := setConfigMapData(cm, compression, e.filename, e.data); err != nil {
+				return 0, err
+			}
+			entriesInShard = 1
+		}
+	}
+
+	if err := r.createOrUpdateConfigMap(ctx, cm); err != nil {
+		return 0, err
+	}
+	return shardIdx + 1, nil
+}
+
+func (r *rulesReconciler) deleteStaleShards(ctx context.Context, logger logr.Logger, numShards int) error {
+	active := make(map[string]bool, numShards)
+	for i := range numShards {
+		active[fmt.Sprintf("%s%d", nameRulesGeneratedPrefix, i)] = true
+	}
+
+	var cmList corev1.ConfigMapList
+	if err := r.client.List(ctx, &cmList,
+		client.InNamespace(r.opts.OperatorNamespace),
+		client.MatchingLabels{labelRulesShardType: "true"},
+	); err != nil {
+		return fmt.Errorf("list rule configmaps: %w", err)
+	}
+
+	for i := range cmList.Items {
+		cm := &cmList.Items[i]
+		if !active[cm.Name] {
+			if err := r.client.Delete(ctx, cm); err != nil && !apierrors.IsNotFound(err) {
+				logger.Error(err, "delete stale shard", "name", cm.Name)
+			}
+		}
+	}
+
+	// Clean up legacy single ConfigMap from before sharding was introduced.
+	var legacy corev1.ConfigMap
+	legacy.Namespace = r.opts.OperatorNamespace
+	legacy.Name = nameRulesGenerated
+	if err := r.client.Delete(ctx, &legacy); err != nil && !apierrors.IsNotFound(err) {
+		logger.Error(err, "delete legacy rules-generated")
+	}
+	return nil
 }

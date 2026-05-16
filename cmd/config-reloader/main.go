@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"net/http"
 	"net/url"
@@ -28,6 +29,8 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
+
+	crinternal "github.com/GoogleCloudPlatform/prometheus-engine/cmd/config-reloader/internal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	versioninfo "github.com/prometheus/client_golang/prometheus/collectors/version"
@@ -42,6 +45,10 @@ func main() {
 		configFileOutput = flag.String("config-file-output", "", "config file to write with interpolated environment variables")
 		configDir        = flag.String("config-dir", "", "config directory to watch for changes")
 		configDirOutput  = flag.String("config-dir-output", "", "config directory to write with interpolated environment variables")
+
+		configMapSelector  = flag.String("config-dir-from-configmap-selector", "", "label selector to discover rule ConfigMaps via K8s API (e.g. monitoring.googleapis.com/rules-shard=true). When set, replaces --config-dir for rule file discovery.")
+		configMapNamespace = flag.String("config-dir-from-configmap-namespace", "", "namespace to list ConfigMaps from (required when --config-dir-from-configmap-selector is set)")
+
 		// Ready and reload endpoints should be compatible with Prometheus-style
 		// management APIs, e.g.
 		// https://prometheus.io/docs/prometheus/latest/management_api/
@@ -135,12 +142,13 @@ func main() {
 	}()
 	<-done
 
-	var cfgDirs []reloader.CfgDirOption
-	if *configDir != "" {
-		cfgDirs = append(cfgDirs, reloader.CfgDirOption{
-			Dir:       *configDir,
-			OutputDir: *configDirOutput,
-		})
+	watchInterval := 10 * time.Second
+
+	cfgDirs, syncer, err := setupCfgDirs(*configMapSelector, *configMapNamespace, *configDir, *configDirOutput, watchInterval, logger)
+	if err != nil {
+		//nolint:errcheck
+		level.Error(logger).Log("msg", "setting up config dirs", "err", err)
+		os.Exit(1)
 	}
 
 	rel := reloader.New(
@@ -156,7 +164,7 @@ func main() {
 			// Configure a very aggress refresh for now. The reloader will only send reload signals
 			// to Prometheus if the contents actually changed. So this should not have any practical
 			// drawbacks.
-			WatchInterval: 10 * time.Second,
+			WatchInterval: watchInterval,
 			RetryInterval: 5 * time.Second,
 			DelayInterval: 3 * time.Second,
 		},
@@ -171,6 +179,16 @@ func main() {
 			cancel()
 		})
 	}
+
+	if syncer != nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		g.Add(func() error {
+			return syncer.Run(ctx)
+		}, func(error) {
+			cancel()
+		})
+	}
+
 	{
 		cancel := make(chan struct{})
 		g.Add(
@@ -211,6 +229,40 @@ func main() {
 		level.Error(logger).Log("msg", "running reloader failed", "err", err)
 		os.Exit(1)
 	}
+}
+
+func setupCfgDirs(configMapSelector, configMapNamespace, configDir, configDirOutput string, interval time.Duration, logger log.Logger) ([]reloader.CfgDirOption, *crinternal.ConfigMapSyncer, error) {
+	if configMapSelector == "" {
+		var dirs []reloader.CfgDirOption
+		if configDir != "" {
+			dirs = append(dirs, reloader.CfgDirOption{
+				Dir:       configDir,
+				OutputDir: configDirOutput,
+			})
+		}
+		return dirs, nil, nil
+	}
+
+	if configMapNamespace == "" {
+		return nil, nil, errors.New("--config-dir-from-configmap-namespace required when using --config-dir-from-configmap-selector")
+	}
+	if configDir == "" {
+		return nil, nil, errors.New("--config-dir required when using --config-dir-from-configmap-selector")
+	}
+	if configDirOutput == "" {
+		return nil, nil, errors.New("--config-dir-output required when using --config-dir-from-configmap-selector")
+	}
+
+	syncer, err := crinternal.NewConfigMapSyncer(configMapNamespace, configMapSelector, configDir, interval, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dirs := []reloader.CfgDirOption{{
+		Dir:       configDir,
+		OutputDir: configDirOutput,
+	}}
+	return dirs, syncer, nil
 }
 
 type stringSlice []string

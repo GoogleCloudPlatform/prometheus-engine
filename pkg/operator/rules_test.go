@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -628,4 +629,444 @@ func applyScale(obj client.Object, scale *autoscalingv1.Scale) error {
 		return fmt.Errorf("unable to extract scale from type %T", obj)
 	}
 	return nil
+}
+
+func TestConfigMapDataSize(t *testing.T) {
+	cm := &corev1.ConfigMap{
+		Data: map[string]string{
+			"a.yaml": "hello",
+			"b.yaml": "world",
+		},
+		BinaryData: map[string][]byte{
+			"c.yaml": {0x1f, 0x8b},
+		},
+	}
+	got := configMapDataSize(cm)
+	want := len("a.yaml") + len("hello") + len("b.yaml") + len("world") + len("c.yaml") + 2
+	if got != want {
+		t.Errorf("configMapDataSize = %d, want %d", got, want)
+	}
+}
+
+func TestEnsureRuleConfigs_MultiShard(t *testing.T) {
+	largeExpr := strings.Repeat("x", 500*1024)
+	rules1 := &monitoringv1.Rules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "large-rules-1",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{
+					Name: "test-group-1",
+					Rules: []monitoringv1.Rule{
+						{Record: "test_record", Expr: largeExpr},
+					},
+				},
+			},
+		},
+	}
+	rules2 := &monitoringv1.Rules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "large-rules-2",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{
+					Name: "test-group-2",
+					Rules: []monitoringv1.Rule{
+						{Record: "test_record", Expr: largeExpr},
+					},
+				},
+			},
+		},
+	}
+
+	kubeClient := newFakeClientBuilder().
+		WithObjects(rules1, rules2).
+		Build()
+
+	r := rulesReconciler{
+		client: kubeClient,
+		opts:   Options{OperatorNamespace: "gmp-system"},
+	}
+
+	if err := r.ensureRuleConfigs(t.Context(), "", "", "", monitoringv1.CompressionNone); err != nil {
+		t.Fatal("ensure rule configs:", err)
+	}
+
+	var cmList corev1.ConfigMapList
+	if err := kubeClient.List(t.Context(), &cmList, client.InNamespace("gmp-system")); err != nil {
+		t.Fatal(err)
+	}
+
+	shardCount := 0
+	for _, cm := range cmList.Items {
+		if strings.HasPrefix(cm.Name, nameRulesGeneratedPrefix) {
+			shardCount++
+			if cm.Labels[labelRulesShardType] != "true" {
+				t.Errorf("shard %s missing label %s", cm.Name, labelRulesShardType)
+			}
+			// empty.yaml sentinel should only be in shard 0.
+			_, hasEmpty := cm.Data["empty.yaml"]
+			if cm.Name == "rules-generated-0" && !hasEmpty {
+				t.Error("shard 0 should have empty.yaml sentinel")
+			}
+			if cm.Name != "rules-generated-0" && hasEmpty {
+				t.Errorf("shard %s should not have empty.yaml sentinel", cm.Name)
+			}
+		}
+	}
+	if shardCount < 2 {
+		t.Errorf("expected at least 2 shards, got %d", shardCount)
+	}
+}
+
+func TestEnsureRuleConfigs_CleanupStaleShards(t *testing.T) {
+	staleShard := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rules-generated-5",
+			Namespace: "gmp-system",
+			Labels: map[string]string{
+				LabelAppName:        NameRuleEvaluator,
+				labelRulesShardType: "true",
+			},
+		},
+		Data: map[string]string{"stale.yaml": "stale data"},
+	}
+
+	kubeClient := newFakeClientBuilder().
+		WithObjects(staleShard).
+		Build()
+
+	r := rulesReconciler{
+		client: kubeClient,
+		opts:   Options{OperatorNamespace: "gmp-system"},
+	}
+
+	if err := r.ensureRuleConfigs(t.Context(), "", "", "", monitoringv1.CompressionNone); err != nil {
+		t.Fatal("ensure rule configs:", err)
+	}
+
+	var cm corev1.ConfigMap
+	err := kubeClient.Get(t.Context(), client.ObjectKey{Namespace: "gmp-system", Name: "rules-generated-5"}, &cm)
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("expected stale shard to be deleted, got err: %v", err)
+	}
+
+	err = kubeClient.Get(t.Context(), client.ObjectKey{Namespace: "gmp-system", Name: "rules-generated-0"}, &cm)
+	if err != nil {
+		t.Errorf("expected shard 0 to exist: %v", err)
+	}
+}
+
+func TestEnsureRuleConfigs_CleanupLegacy(t *testing.T) {
+	legacyCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rules-generated",
+			Namespace: "gmp-system",
+			Labels: map[string]string{
+				LabelAppName: NameRuleEvaluator,
+			},
+		},
+		Data: map[string]string{"old.yaml": "old data"},
+	}
+
+	kubeClient := newFakeClientBuilder().
+		WithObjects(legacyCM).
+		Build()
+
+	r := rulesReconciler{
+		client: kubeClient,
+		opts:   Options{OperatorNamespace: "gmp-system"},
+	}
+
+	if err := r.ensureRuleConfigs(t.Context(), "", "", "", monitoringv1.CompressionNone); err != nil {
+		t.Fatal("ensure rule configs:", err)
+	}
+
+	var cm corev1.ConfigMap
+	err := kubeClient.Get(t.Context(), client.ObjectKey{Namespace: "gmp-system", Name: "rules-generated"}, &cm)
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("expected legacy rules-generated to be deleted, got err: %v", err)
+	}
+}
+
+func TestEnsureRuleConfigs_SingleShard(t *testing.T) {
+	rules := &monitoringv1.Rules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "small-rules",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{
+					Name: "test-group",
+					Rules: []monitoringv1.Rule{
+						{Record: "test_record", Expr: "test_expr"},
+					},
+				},
+			},
+		},
+	}
+
+	kubeClient := newFakeClientBuilder().
+		WithObjects(rules).
+		Build()
+
+	r := rulesReconciler{
+		client: kubeClient,
+		opts:   Options{OperatorNamespace: "gmp-system"},
+	}
+
+	if err := r.ensureRuleConfigs(t.Context(), "", "", "", monitoringv1.CompressionNone); err != nil {
+		t.Fatal("ensure rule configs:", err)
+	}
+
+	var cm corev1.ConfigMap
+	if err := kubeClient.Get(t.Context(), client.ObjectKey{Namespace: "gmp-system", Name: "rules-generated-0"}, &cm); err != nil {
+		t.Fatalf("shard 0 should exist: %v", err)
+	}
+
+	if cm.Labels[LabelAppName] != NameRuleEvaluator {
+		t.Error("missing app name label")
+	}
+	if cm.Labels[labelRulesShardType] != "true" {
+		t.Error("missing shard type label")
+	}
+	if cm.Data["empty.yaml"] != "" {
+		t.Error("shard 0 should have empty.yaml sentinel")
+	}
+
+	found := false
+	for k := range cm.Data {
+		if strings.HasPrefix(k, "rules__") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("shard 0 should contain rule data, got keys: %v", keysOf(cm.Data))
+	}
+
+	err := kubeClient.Get(t.Context(), client.ObjectKey{Namespace: "gmp-system", Name: "rules-generated-1"}, &cm)
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("expected no shard 1 for small rules, got err: %v", err)
+	}
+}
+
+func TestEnsureRuleConfigs_ShardReduction(t *testing.T) {
+	shard0 := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rules-generated-0",
+			Namespace: "gmp-system",
+			Labels: map[string]string{
+				LabelAppName:        NameRuleEvaluator,
+				labelRulesShardType: "true",
+			},
+		},
+		Data: map[string]string{"empty.yaml": "", "rules__default__old.yaml": "old"},
+	}
+	shard1 := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rules-generated-1",
+			Namespace: "gmp-system",
+			Labels: map[string]string{
+				LabelAppName:        NameRuleEvaluator,
+				labelRulesShardType: "true",
+			},
+		},
+		Data: map[string]string{"rules__default__extra1.yaml": "extra1"},
+	}
+	shard2 := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rules-generated-2",
+			Namespace: "gmp-system",
+			Labels: map[string]string{
+				LabelAppName:        NameRuleEvaluator,
+				labelRulesShardType: "true",
+			},
+		},
+		Data: map[string]string{"rules__default__extra2.yaml": "extra2"},
+	}
+
+	rules := &monitoringv1.Rules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "small-rule",
+			Namespace: "default",
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{
+					Name: "grp",
+					Rules: []monitoringv1.Rule{
+						{Record: "r", Expr: "1"},
+					},
+				},
+			},
+		},
+	}
+
+	kubeClient := newFakeClientBuilder().
+		WithObjects(shard0, shard1, shard2, rules).
+		Build()
+
+	r := rulesReconciler{
+		client: kubeClient,
+		opts:   Options{OperatorNamespace: "gmp-system"},
+	}
+
+	if err := r.ensureRuleConfigs(t.Context(), "", "", "", monitoringv1.CompressionNone); err != nil {
+		t.Fatal("ensure rule configs:", err)
+	}
+
+	var cm corev1.ConfigMap
+	if err := kubeClient.Get(t.Context(), client.ObjectKey{Namespace: "gmp-system", Name: "rules-generated-0"}, &cm); err != nil {
+		t.Fatalf("shard 0 should exist: %v", err)
+	}
+
+	for _, name := range []string{"rules-generated-1", "rules-generated-2"} {
+		err := kubeClient.Get(t.Context(), client.ObjectKey{Namespace: "gmp-system", Name: name}, &cm)
+		if !apierrors.IsNotFound(err) {
+			t.Errorf("expected %s to be deleted, got err: %v", name, err)
+		}
+	}
+}
+
+func TestEnsureRuleConfigs_AllRuleTypes(t *testing.T) {
+	rules := &monitoringv1.Rules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ns-rules",
+			Namespace: "app-ns",
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{Name: "g1", Rules: []monitoringv1.Rule{{Record: "r1", Expr: "1"}}},
+			},
+		},
+	}
+	clusterRules := &monitoringv1.ClusterRules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster-rules",
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{Name: "g2", Rules: []monitoringv1.Rule{{Record: "r2", Expr: "2"}}},
+			},
+		},
+	}
+	globalRules := &monitoringv1.GlobalRules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "global-rules",
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{Name: "g3", Rules: []monitoringv1.Rule{{Record: "r3", Expr: "3"}}},
+			},
+		},
+	}
+
+	kubeClient := newFakeClientBuilder().
+		WithObjects(rules, clusterRules, globalRules).
+		Build()
+
+	r := rulesReconciler{
+		client: kubeClient,
+		opts:   Options{OperatorNamespace: "gmp-system"},
+	}
+
+	if err := r.ensureRuleConfigs(t.Context(), "proj", "us-central1", "cluster-1", monitoringv1.CompressionNone); err != nil {
+		t.Fatal("ensure rule configs:", err)
+	}
+
+	var cm corev1.ConfigMap
+	if err := kubeClient.Get(t.Context(), client.ObjectKey{Namespace: "gmp-system", Name: "rules-generated-0"}, &cm); err != nil {
+		t.Fatal(err)
+	}
+
+	foundNS, foundCluster, foundGlobal := false, false, false
+	var allKeys []string
+	for k := range cm.Data {
+		allKeys = append(allKeys, k)
+		if strings.HasPrefix(k, "rules__") {
+			foundNS = true
+		}
+		if strings.HasPrefix(k, "clusterrules__") {
+			foundCluster = true
+		}
+		if strings.HasPrefix(k, "globalrules__") {
+			foundGlobal = true
+		}
+	}
+	if !foundNS {
+		t.Errorf("missing namespaced rules in keys: %v", allKeys)
+	}
+	if !foundCluster {
+		t.Errorf("missing cluster rules in keys: %v", allKeys)
+	}
+	if !foundGlobal {
+		t.Errorf("missing global rules in keys: %v", allKeys)
+	}
+}
+
+func TestNamespacedLabelPredicate(t *testing.T) {
+	pred := namespacedLabelPredicate{
+		namespace: "gmp-system",
+		labels:    map[string]string{labelRulesShardType: "true"},
+	}
+
+	matchingCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rules-generated-0",
+			Namespace: "gmp-system",
+			Labels:    map[string]string{labelRulesShardType: "true"},
+		},
+	}
+	wrongNamespaceCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rules-generated-0",
+			Namespace: "other",
+			Labels:    map[string]string{labelRulesShardType: "true"},
+		},
+	}
+	wrongLabelCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rule-evaluator",
+			Namespace: "gmp-system",
+			Labels:    map[string]string{LabelAppName: NameRuleEvaluator},
+		},
+	}
+	noLabelsCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "some-cm",
+			Namespace: "gmp-system",
+		},
+	}
+
+	tests := map[string]struct {
+		obj  client.Object
+		want bool
+	}{
+		"matching":        {obj: matchingCM, want: true},
+		"wrong namespace": {obj: wrongNamespaceCM, want: false},
+		"wrong label":     {obj: wrongLabelCM, want: false},
+		"no labels":       {obj: noLabelsCM, want: false},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := pred.matches(tc.obj); got != tc.want {
+				t.Errorf("matches() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func keysOf(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

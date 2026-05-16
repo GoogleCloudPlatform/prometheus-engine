@@ -9,6 +9,10 @@ Meant to be run as a sidecar.
 Usage of config-reloader:
   -config-dir string
     	config directory to watch for changes
+  -config-dir-from-configmap-namespace string
+    	namespace to list ConfigMaps from (required when --config-dir-from-configmap-selector is set)
+  -config-dir-from-configmap-selector string
+    	label selector to discover rule ConfigMaps via K8s API (e.g. monitoring.googleapis.com/rules-shard=true). When set, replaces --config-dir for rule file discovery.
   -config-dir-output string
     	config directory to write with interpolated environment variables
   -config-file string

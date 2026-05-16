@@ -190,7 +190,7 @@ rules:
 - resources:
   - configmaps
   apiGroups: [""]
-  verbs: ["list", "watch", "create"]
+  verbs: ["list", "watch", "create", "get", "patch", "update", "delete"]
 - resources:
   - configmaps
   apiGroups: [""]
@@ -247,6 +247,18 @@ rules:
   apiGroups: ["monitoring.googleapis.com"]
   verbs: ["get", "update", "list", "watch"]
 ---
+# Source: operator/templates/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: collector
+  namespace: gmp-system
+rules:
+- resources:
+  - configmaps
+  apiGroups: [""]
+  verbs: ["get", "list", "watch"]
+---
 # Source: operator/templates/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -274,6 +286,20 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 subjects:
 - name: operator
+  kind: ServiceAccount
+---
+# Source: operator/templates/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: collector
+  namespace: gmp-system
+roleRef:
+  name: collector
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- name: collector
   kind: ServiceAccount
 ---
 # Source: operator/templates/alertmanager.yaml
@@ -727,6 +753,8 @@ spec:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
         - --config-dir=/etc/rules
+        - --config-dir-from-configmap-selector=monitoring.googleapis.com/rules-shard=true
+        - --config-dir-from-configmap-namespace=gmp-system
         - --config-dir-output=/prometheus/rules_out
         - --watched-dir=/etc/secrets
         - --reload-url=http://127.0.0.1:19092/-/reload
@@ -748,7 +776,6 @@ spec:
         - name: config-out
           mountPath: /prometheus/config_out
         - name: rules
-          readOnly: true
           mountPath: /etc/rules
         - name: rules-out
           mountPath: /prometheus/rules_out
@@ -770,9 +797,7 @@ spec:
       - name: config-out
         emptyDir: {}
       - name: rules
-        configMap:
-          name: rules-generated
-          defaultMode: 420
+        emptyDir: {}
       - name: rules-out
         emptyDir: {}
       - name: rules-secret
