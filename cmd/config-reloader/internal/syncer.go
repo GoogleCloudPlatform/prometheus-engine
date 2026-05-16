@@ -125,6 +125,9 @@ func (s *ConfigMapSyncer) writeFiles(files map[string][]byte) error {
 	}
 
 	for name, data := range files {
+		if filepath.Base(name) != name {
+			continue
+		}
 		if err := os.WriteFile(filepath.Join(s.outputDir, name), data, 0o644); err != nil {
 			return err
 		}
