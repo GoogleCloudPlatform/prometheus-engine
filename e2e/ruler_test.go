@@ -1078,7 +1078,7 @@ func largeRules(namespace, name, groupName, expr string) *monitoringv1.Rules {
 				{
 					Name: groupName,
 					Rules: []monitoringv1.Rule{
-						{Record: "shard_test_" + name, Expr: expr},
+						{Record: "shard_test_" + strings.ReplaceAll(name, "-", "_"), Expr: expr},
 					},
 				},
 			},
