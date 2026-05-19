@@ -844,11 +844,11 @@ func logsError(logs string) (string, error) {
 		if line == "" {
 			continue
 		}
-		data := map[string]string{}
+		data := map[string]any{}
 		if err := json.Unmarshal([]byte(line), &data); err != nil {
 			return "", fmt.Errorf("unable to unmarshal log line: %s", err)
 		}
-		if data["level"] == "error" {
+		if level, _ := data["level"].(string); level == "error" {
 			return line, nil
 		}
 	}
