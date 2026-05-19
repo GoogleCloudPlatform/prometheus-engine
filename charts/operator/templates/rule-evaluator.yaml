@@ -44,10 +44,13 @@ spec:
       initContainers:
       - name: config-init
         image: {{.Values.images.bash.image}}:{{.Values.images.bash.tag}}
-        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        # placeholder.yaml keeps rule_files glob non-empty until the syncer populates rules-out.
+        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml /prometheus/rules_out/placeholder.yaml']
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
+        - name: rules-out
+          mountPath: /prometheus/rules_out
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

@@ -693,10 +693,13 @@ spec:
       initContainers:
       - name: config-init
         image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260207.00_p0
-        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        # placeholder.yaml keeps rule_files glob non-empty until the syncer populates rules-out.
+        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml /prometheus/rules_out/placeholder.yaml']
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
+        - name: rules-out
+          mountPath: /prometheus/rules_out
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
