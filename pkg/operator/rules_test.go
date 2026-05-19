@@ -761,7 +761,7 @@ func TestEnsureRuleConfigs_CleanupStaleShards(t *testing.T) {
 	}
 }
 
-func TestEnsureRuleConfigs_CleanupLegacy(t *testing.T) {
+func TestEnsureRuleConfigs_PreservesLegacy(t *testing.T) {
 	legacyCM := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "rules-generated",
@@ -787,9 +787,11 @@ func TestEnsureRuleConfigs_CleanupLegacy(t *testing.T) {
 	}
 
 	var cm corev1.ConfigMap
-	err := kubeClient.Get(t.Context(), client.ObjectKey{Namespace: "gmp-system", Name: "rules-generated"}, &cm)
-	if !apierrors.IsNotFound(err) {
-		t.Errorf("expected legacy rules-generated to be deleted, got err: %v", err)
+	if err := kubeClient.Get(t.Context(), client.ObjectKey{Namespace: "gmp-system", Name: "rules-generated"}, &cm); err != nil {
+		t.Fatalf("legacy rules-generated should be preserved for rollback safety: %v", err)
+	}
+	if cm.Data["old.yaml"] != "old data" {
+		t.Errorf("legacy rules-generated data was modified: %v", cm.Data)
 	}
 }
 

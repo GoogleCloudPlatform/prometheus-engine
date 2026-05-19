@@ -37,7 +37,6 @@ import (
 )
 
 const (
-	nameRulesGenerated       = "rules-generated"
 	nameRulesGeneratedPrefix = "rules-generated-"
 	maxShardDataBytes        = 800 * 1024 // headroom below 1MB etcd limit for metadata overhead
 	labelRulesShardType      = "monitoring.googleapis.com/rules-shard"
@@ -450,6 +449,13 @@ func (r *rulesReconciler) upsertShards(ctx context.Context, entries []ruleEntry,
 	return shardIdx + 1, nil
 }
 
+// deleteStaleShards removes shard ConfigMaps from previous reconciles that
+// the current ruleset no longer needs.
+//
+// The legacy single "rules-generated" ConfigMap is intentionally not deleted
+// here — leaving it in place keeps rollback to a pre-sharding operator binary
+// safe for users under the etcd size limit. Remove in a follow-up release
+// after this version has soaked.
 func (r *rulesReconciler) deleteStaleShards(ctx context.Context, logger logr.Logger, numShards int) error {
 	active := make(map[string]bool, numShards)
 	for i := range numShards {
@@ -471,14 +477,6 @@ func (r *rulesReconciler) deleteStaleShards(ctx context.Context, logger logr.Log
 				logger.Error(err, "delete stale shard", "name", cm.Name)
 			}
 		}
-	}
-
-	// Clean up legacy single ConfigMap from before sharding was introduced.
-	var legacy corev1.ConfigMap
-	legacy.Namespace = r.opts.OperatorNamespace
-	legacy.Name = nameRulesGenerated
-	if err := r.client.Delete(ctx, &legacy); err != nil && !apierrors.IsNotFound(err) {
-		logger.Error(err, "delete legacy rules-generated")
 	}
 	return nil
 }
