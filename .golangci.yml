@@ -89,6 +89,7 @@ linters:
         - io/ioutil.ReadFile
         - io.Copy(*bytes.Buffer)
         - io.Copy(os.Stdout)
+        - (github.com/go-kit/log.Logger).Log
       # Display function signature instead of selector.
       # Default: false
       verbose: true

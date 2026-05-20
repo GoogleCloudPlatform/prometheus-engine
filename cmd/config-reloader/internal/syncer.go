@@ -85,7 +85,6 @@ func (s *ConfigMapSyncer) Sync(ctx context.Context) (bool, error) {
 	for i := range cmList.Items {
 		cm := &cmList.Items[i]
 		if s.namePrefix != "" && !strings.HasPrefix(cm.Name, s.namePrefix) {
-			//nolint:errcheck
 			level.Warn(s.logger).Log("msg", "ignoring configmap with unexpected name", "name", cm.Name, "want_prefix", s.namePrefix)
 			continue
 		}
@@ -107,7 +106,6 @@ func (s *ConfigMapSyncer) Sync(ctx context.Context) (bool, error) {
 	}
 
 	s.lastHash = hash
-	//nolint:errcheck
 	level.Info(s.logger).Log("msg", "synced configmap rules", "configmaps", len(cmList.Items), "files", len(files))
 	return true, nil
 }
@@ -116,7 +114,6 @@ func (s *ConfigMapSyncer) Sync(ctx context.Context) (bool, error) {
 func (s *ConfigMapSyncer) Run(ctx context.Context) error {
 	// Best-effort initial sync; the reloader will pick up files on its next poll cycle.
 	if _, err := s.Sync(ctx); err != nil {
-		//nolint:errcheck
 		level.Warn(s.logger).Log("msg", "initial configmap sync failed", "err", err)
 	}
 	ticker := time.NewTicker(s.interval)
@@ -127,7 +124,6 @@ func (s *ConfigMapSyncer) Run(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			if _, err := s.Sync(ctx); err != nil {
-				//nolint:errcheck
 				level.Warn(s.logger).Log("msg", "configmap sync failed", "err", err)
 			}
 		}
