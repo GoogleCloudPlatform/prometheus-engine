@@ -181,9 +181,9 @@ func main() {
 		buildInfoHandler := http.HandlerFunc(promapi.BuildinfoHandlerFunc(log.With(logger, "component", "buildinfo-handler"), "frontend", version.Version))
 		http.Handle("/api/v1/status/buildinfo", buildInfoHandler)
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
-		http.Handle("/api/v1/rules", http.HandlerFunc(ruleProxy.RuleGroups))
-		http.Handle("/api/v1/rules/", http.NotFoundHandler())
-		http.Handle("/api/v1/alerts", http.HandlerFunc(ruleProxy.Alerts))
+		http.Handle("/api/v1/rules", authenticate(http.HandlerFunc(ruleProxy.RuleGroups)))
+		http.Handle("/api/v1/rules/", authenticate(http.NotFoundHandler()))
+		http.Handle("/api/v1/alerts", authenticate(http.HandlerFunc(ruleProxy.Alerts)))
 		http.Handle("/api/", authenticate(forward(logger, targetURL, transport)))
 
 		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
