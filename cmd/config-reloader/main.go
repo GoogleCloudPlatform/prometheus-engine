@@ -46,7 +46,7 @@ func main() {
 		configDir        = flag.String("config-dir", "", "config directory to watch for changes")
 		configDirOutput  = flag.String("config-dir-output", "", "config directory to write with interpolated environment variables")
 
-		configMapSelector  = flag.String("config-dir-from-configmap-selector", "", "label selector to discover rule ConfigMaps via K8s API (e.g. monitoring.googleapis.com/rules-shard=true). When set, replaces --config-dir for rule file discovery.")
+		configMapSelector  = flag.String("config-dir-from-configmap-selector", "", "label selector to discover ConfigMaps via K8s API (e.g. monitoring.googleapis.com/rules-shard=true). When set, materialized ConfigMap entries are written into --config-dir-output alongside any files from --config-dir.")
 		configMapNamespace = flag.String("config-dir-from-configmap-namespace", "", "namespace to list ConfigMaps from (required when --config-dir-from-configmap-selector is set)")
 
 		// Ready and reload endpoints should be compatible with Prometheus-style
