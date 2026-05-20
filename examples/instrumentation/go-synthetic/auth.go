@@ -347,6 +347,7 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 		if err := r.ParseForm(); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write(oauthTokenErrorResponse("server_error", "unable to parse form contents"))
+			return
 		}
 
 		grantType := r.Form.Get("grant_type")
