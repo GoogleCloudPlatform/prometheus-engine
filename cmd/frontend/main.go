@@ -260,6 +260,7 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 			method = "GET"
 			if err := req.ParseForm(); err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 			u.RawQuery = req.Form.Encode()
 		} else {
