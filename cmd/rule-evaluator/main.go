@@ -380,7 +380,7 @@ func main() {
 		http.HandleFunc("/api/v1/status/buildinfo", buildInfoHandler)
 
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#rules
-		apiHandler := internal.NewAPI(logger, ruleEvaluator.rulesManager)
+		apiHandler := internal.NewAPI(logger, ruleEvaluator)
 		http.HandleFunc("/api/v1/rules", apiHandler.HandleRulesEndpoint)
 		http.HandleFunc("/api/v1/rules/", http.NotFound)
 
@@ -1052,6 +1052,28 @@ func (e *ruleEvaluator) Stop() {
 	defer e.mtx.Unlock()
 	e.rulesManager.Stop()
 	e.rulesManager = nil
+}
+
+// RuleGroups reads the live rulesManager pointer so the API sees the manager after any ApplyConfig swap.
+func (e *ruleEvaluator) RuleGroups() []*rules.Group {
+	e.mtx.Lock()
+	curr := e.rulesManager
+	e.mtx.Unlock()
+	if curr == nil {
+		return nil
+	}
+	return curr.RuleGroups()
+}
+
+// AlertingRules returns the currently loaded alerting rules. See RuleGroups.
+func (e *ruleEvaluator) AlertingRules() []*rules.AlertingRule {
+	e.mtx.Lock()
+	curr := e.rulesManager
+	e.mtx.Unlock()
+	if curr == nil {
+		return nil
+	}
+	return curr.AlertingRules()
 }
 
 func newQueryFunc(logger log.Logger, v1api v1.API) rules.QueryFunc {
