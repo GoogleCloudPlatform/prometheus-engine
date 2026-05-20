@@ -1037,19 +1037,27 @@ func testCreateMultiShardRules(
 				t.Logf("unable to get rules: %s", err)
 				return false, nil
 			}
-			gotGroups := make(map[string]bool, len(rules.Groups))
+			gotGroups := make(map[string]string, len(rules.Groups))
 			for _, g := range rules.Groups {
-				gotGroups[g.Name] = true
+				gotGroups[g.Name] = g.File
 			}
+			var missing []string
 			for name := range wantGroupNames {
-				if !gotGroups[name] {
-					t.Logf("rule group %q not yet loaded", name)
-					return false, nil
+				if _, ok := gotGroups[name]; !ok {
+					missing = append(missing, name)
 				}
 			}
-			return true, nil
+			if rt, rterr := getRuntimeInfo(ctx, httpClient, pod, 19092); rterr == nil {
+				t.Logf("rules poll: got=%v missing=%v reloadSuccess=%t lastConfigTime=%s",
+					gotGroups, missing, rt.ReloadConfigSuccess, rt.LastConfigTime.Format(time.RFC3339))
+			} else {
+				t.Logf("rules poll: got=%v missing=%v runtimeInfo_err=%s", gotGroups, missing, rterr)
+			}
+			return len(missing) == 0, nil
 		})
 		if err != nil {
+			dumpContainerLogs(ctx, t, restConfig, pod, operator.RuleEvaluatorContainerName)
+			dumpContainerLogs(ctx, t, restConfig, pod, configReloaderContainerName)
 			t.Fatalf("not all rule groups appeared in evaluator API: %s", err)
 		}
 
@@ -1065,6 +1073,16 @@ func testCreateMultiShardRules(
 			t.Fatalf("found error in config-reloader logs: %s", line)
 		}
 	}
+}
+
+func dumpContainerLogs(ctx context.Context, t *testing.T, restConfig *rest.Config, pod *corev1.Pod, container string) {
+	t.Helper()
+	logs, err := kube.PodLogs(ctx, restConfig, pod.Namespace, pod.Name, container)
+	if err != nil {
+		t.Logf("debug: fetch %s logs failed: %s", container, err)
+		return
+	}
+	t.Logf("debug: %s container logs follow:\n%s", container, logs)
 }
 
 func largeRules(namespace, name, groupName, expr string) *monitoringv1.Rules {

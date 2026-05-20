@@ -1,4 +1,4 @@
-// Copyright 2024 Google LLC
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+// ConfigMapSyncer materializes ConfigMaps matched by a label selector into
+// files under outputDir, so the thanos reloader can pick them up.
 type ConfigMapSyncer struct {
 	client    kubernetes.Interface
 	namespace string
@@ -41,6 +43,7 @@ type ConfigMapSyncer struct {
 	lastHash string
 }
 
+// NewConfigMapSyncer constructs a syncer using in-cluster credentials.
 func NewConfigMapSyncer(namespace, selector, outputDir string, interval time.Duration, logger log.Logger) (*ConfigMapSyncer, error) {
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
@@ -64,6 +67,7 @@ func newConfigMapSyncerWithClient(client kubernetes.Interface, namespace, select
 	}
 }
 
+// Sync runs one list-and-write cycle. It returns whether any file changed.
 func (s *ConfigMapSyncer) Sync(ctx context.Context) (bool, error) {
 	cmList, err := s.client.CoreV1().ConfigMaps(s.namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: s.selector,
@@ -98,6 +102,7 @@ func (s *ConfigMapSyncer) Sync(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+// Run does an initial Sync and then re-syncs on every interval until ctx is cancelled.
 func (s *ConfigMapSyncer) Run(ctx context.Context) error {
 	// Best-effort initial sync; the reloader will pick up files on its next poll cycle.
 	if _, err := s.Sync(ctx); err != nil {
