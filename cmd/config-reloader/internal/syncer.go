@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -30,21 +31,24 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// ConfigMapSyncer materializes ConfigMaps matched by a label selector into
-// files under outputDir, so the thanos reloader can pick them up.
+// ConfigMapSyncer materializes ConfigMaps matched by selector into files
+// under outputDir. ConfigMaps whose name does not start with namePrefix are
+// skipped.
 type ConfigMapSyncer struct {
-	client    kubernetes.Interface
-	namespace string
-	selector  string
-	outputDir string
-	logger    log.Logger
-	interval  time.Duration
+	client     kubernetes.Interface
+	namespace  string
+	selector   string
+	namePrefix string
+	outputDir  string
+	logger     log.Logger
+	interval   time.Duration
 
 	lastHash string
 }
 
 // NewConfigMapSyncer constructs a syncer using in-cluster credentials.
-func NewConfigMapSyncer(namespace, selector, outputDir string, interval time.Duration, logger log.Logger) (*ConfigMapSyncer, error) {
+// Empty namePrefix disables the name check.
+func NewConfigMapSyncer(namespace, selector, namePrefix, outputDir string, interval time.Duration, logger log.Logger) (*ConfigMapSyncer, error) {
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -53,17 +57,18 @@ func NewConfigMapSyncer(namespace, selector, outputDir string, interval time.Dur
 	if err != nil {
 		return nil, err
 	}
-	return newConfigMapSyncerWithClient(client, namespace, selector, outputDir, interval, logger), nil
+	return newConfigMapSyncerWithClient(client, namespace, selector, namePrefix, outputDir, interval, logger), nil
 }
 
-func newConfigMapSyncerWithClient(client kubernetes.Interface, namespace, selector, outputDir string, interval time.Duration, logger log.Logger) *ConfigMapSyncer {
+func newConfigMapSyncerWithClient(client kubernetes.Interface, namespace, selector, namePrefix, outputDir string, interval time.Duration, logger log.Logger) *ConfigMapSyncer {
 	return &ConfigMapSyncer{
-		client:    client,
-		namespace: namespace,
-		selector:  selector,
-		outputDir: outputDir,
-		interval:  interval,
-		logger:    logger,
+		client:     client,
+		namespace:  namespace,
+		selector:   selector,
+		namePrefix: namePrefix,
+		outputDir:  outputDir,
+		interval:   interval,
+		logger:     logger,
 	}
 }
 
@@ -79,6 +84,11 @@ func (s *ConfigMapSyncer) Sync(ctx context.Context) (bool, error) {
 	files := make(map[string][]byte)
 	for i := range cmList.Items {
 		cm := &cmList.Items[i]
+		if s.namePrefix != "" && !strings.HasPrefix(cm.Name, s.namePrefix) {
+			//nolint:errcheck
+			level.Warn(s.logger).Log("msg", "ignoring configmap with unexpected name", "name", cm.Name, "want_prefix", s.namePrefix)
+			continue
+		}
 		for k, v := range cm.Data {
 			files[cm.Name+"__"+k] = []byte(v)
 		}

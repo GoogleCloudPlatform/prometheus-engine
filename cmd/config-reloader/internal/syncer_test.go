@@ -43,7 +43,7 @@ func TestConfigMapSyncer_BasicSync(t *testing.T) {
 	}
 
 	client := fake.NewSimpleClientset(cm)
-	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", outputDir, time.Second, log.NewNopLogger())
+	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", "rules-generated-", outputDir, time.Second, log.NewNopLogger())
 
 	changed, err := syncer.Sync(t.Context())
 	if err != nil {
@@ -79,7 +79,7 @@ func TestConfigMapSyncer_NoChangeOnSecondSync(t *testing.T) {
 	}
 
 	client := fake.NewSimpleClientset(cm)
-	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", outputDir, time.Second, log.NewNopLogger())
+	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", "rules-generated-", outputDir, time.Second, log.NewNopLogger())
 
 	if _, err := syncer.Sync(t.Context()); err != nil {
 		t.Fatalf("first sync: %v", err)
@@ -116,7 +116,7 @@ func TestConfigMapSyncer_StaleFileRemoval(t *testing.T) {
 	}
 
 	client := fake.NewSimpleClientset(cm)
-	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", outputDir, time.Second, log.NewNopLogger())
+	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", "rules-generated-", outputDir, time.Second, log.NewNopLogger())
 
 	if _, err := syncer.Sync(t.Context()); err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func TestConfigMapSyncer_MultipleConfigMaps(t *testing.T) {
 	}
 
 	client := fake.NewSimpleClientset(cm0, cm1)
-	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", outputDir, time.Second, log.NewNopLogger())
+	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", "rules-generated-", outputDir, time.Second, log.NewNopLogger())
 
 	changed, err := syncer.Sync(t.Context())
 	if err != nil {
@@ -189,7 +189,7 @@ func TestConfigMapSyncer_ContentUpdateDetection(t *testing.T) {
 	}
 
 	client := fake.NewSimpleClientset(cm)
-	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", outputDir, time.Second, log.NewNopLogger())
+	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", "rules-generated-", outputDir, time.Second, log.NewNopLogger())
 
 	if _, err := syncer.Sync(t.Context()); err != nil {
 		t.Fatalf("first sync: %v", err)
@@ -235,7 +235,7 @@ func TestConfigMapSyncer_MixedDataAndBinaryData(t *testing.T) {
 	}
 
 	client := fake.NewSimpleClientset(cm)
-	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", outputDir, time.Second, log.NewNopLogger())
+	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", "rules-generated-", outputDir, time.Second, log.NewNopLogger())
 
 	if _, err := syncer.Sync(t.Context()); err != nil {
 		t.Fatal(err)
@@ -295,7 +295,7 @@ func TestConfigMapSyncer_SelectorFiltering(t *testing.T) {
 	}
 
 	client := fake.NewSimpleClientset(matching, nonMatching, wrongNamespace)
-	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", outputDir, time.Second, log.NewNopLogger())
+	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", "rules-generated-", outputDir, time.Second, log.NewNopLogger())
 
 	if _, err := syncer.Sync(t.Context()); err != nil {
 		t.Fatal(err)
@@ -331,7 +331,7 @@ func TestConfigMapSyncer_ConfigMapRemoved(t *testing.T) {
 	}
 
 	client := fake.NewSimpleClientset(cm)
-	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", outputDir, time.Second, log.NewNopLogger())
+	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", "rules-generated-", outputDir, time.Second, log.NewNopLogger())
 
 	if _, err := syncer.Sync(t.Context()); err != nil {
 		t.Fatal(err)
@@ -358,5 +358,44 @@ func TestConfigMapSyncer_ConfigMapRemoved(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Errorf("expected 0 files after ConfigMap removed, got %d", len(entries))
+	}
+}
+
+func TestConfigMapSyncer_IgnoresUnexpectedNames(t *testing.T) {
+	outputDir := t.TempDir()
+
+	shard := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rules-generated-0",
+			Namespace: "gmp-system",
+			Labels: map[string]string{
+				"monitoring.googleapis.com/rules-shard": "true",
+			},
+		},
+		Data: map[string]string{"rules__default__test.yaml": "groups: []\n"},
+	}
+	rogue := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tenant-injected",
+			Namespace: "gmp-system",
+			Labels: map[string]string{
+				"monitoring.googleapis.com/rules-shard": "true",
+			},
+		},
+		Data: map[string]string{"evil.yaml": "groups: [{name: evil, rules: []}]\n"},
+	}
+
+	client := fake.NewSimpleClientset(shard, rogue)
+	syncer := newConfigMapSyncerWithClient(client, "gmp-system", "monitoring.googleapis.com/rules-shard=true", "rules-generated-", outputDir, time.Second, log.NewNopLogger())
+
+	if _, err := syncer.Sync(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(outputDir, "rules-generated-0__rules__default__test.yaml")); err != nil {
+		t.Errorf("expected shard file to be written: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outputDir, "tenant-injected__evil.yaml")); !os.IsNotExist(err) {
+		t.Errorf("expected rogue ConfigMap to be skipped, got err=%v", err)
 	}
 }

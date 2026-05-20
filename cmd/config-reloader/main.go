@@ -253,7 +253,8 @@ func setupCfgDirs(configMapSelector, configMapNamespace, configDir, configDirOut
 		return nil, nil, errors.New("--config-dir-output required when using --config-dir-from-configmap-selector")
 	}
 
-	syncer, err := crinternal.NewConfigMapSyncer(configMapNamespace, configMapSelector, configDir, interval, logger)
+	// Only operator-generated shards (rules-generated-N) are materialized.
+	syncer, err := crinternal.NewConfigMapSyncer(configMapNamespace, configMapSelector, "rules-generated-", configDir, interval, logger)
 	if err != nil {
 		return nil, nil, err
 	}
