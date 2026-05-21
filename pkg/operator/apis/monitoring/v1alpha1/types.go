@@ -291,7 +291,7 @@ type TargetLabels struct {
 // LabelMapping specifies how to transfer a label from a Kubernetes resource
 // onto a Prometheus target.
 type LabelMapping struct {
-	// Kubenetes resource label to remap.
+	// Kubernetes resource label to remap.
 	From string `json:"from"`
 	// Remapped Prometheus target label.
 	// Defaults to the same name as `From`.

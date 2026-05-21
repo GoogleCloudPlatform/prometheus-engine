@@ -1241,7 +1241,7 @@ spec:
                           onto a Prometheus target.
                         properties:
                           from:
-                            description: Kubenetes resource label to remap.
+                            description: Kubernetes resource label to remap.
                             type: string
                           to:
                             description: |-
@@ -3641,7 +3641,7 @@ spec:
                           onto a Prometheus target.
                         properties:
                           from:
-                            description: Kubenetes resource label to remap.
+                            description: Kubernetes resource label to remap.
                             type: string
                           to:
                             description: |-
