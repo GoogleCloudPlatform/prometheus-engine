@@ -68,7 +68,7 @@ rules:
 - resources:
   - configmaps
   apiGroups: [""]
-  verbs: ["list", "watch", "create"]
+  verbs: ["list", "watch", "create", "get", "patch", "update", "delete"]
 - resources:
   - configmaps
   apiGroups: [""]
@@ -184,4 +184,23 @@ rules:
   resourceNames:
   - gmp-operator
   verbs: ["delete"]
+{{- end -}}
+{{- if .Values.collector.rbac.create -}}
+  {{- if .Values.operator.rbac.create }}
+---
+  {{- end }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: collector
+  namespace: {{.Values.namespace.system}}
+  {{- if .Values.commonLabels }}
+  labels:
+    {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
+rules:
+- resources:
+  - configmaps
+  apiGroups: [""]
+  verbs: ["get", "list", "watch"]
 {{- end -}}

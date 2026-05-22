@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -562,7 +563,7 @@ func testCreateRules(
 
 		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 			var cm corev1.ConfigMap
-			if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rules-generated"}, &cm); err != nil {
+			if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rules-generated-0"}, &cm); err != nil {
 				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
@@ -843,13 +844,274 @@ func logsError(logs string) (string, error) {
 		if line == "" {
 			continue
 		}
-		data := map[string]string{}
+		data := map[string]any{}
 		if err := json.Unmarshal([]byte(line), &data); err != nil {
 			return "", fmt.Errorf("unable to unmarshal log line: %s", err)
 		}
-		if data["level"] == "error" {
+		if level, _ := data["level"].(string); level == "error" {
 			return line, nil
 		}
 	}
 	return "", nil
+}
+
+func TestRuleEvaluatorMultiShardNoCompression(t *testing.T) {
+	testRuleEvaluatorMultiShard(t, monitoringv1.OperatorFeatures{
+		Config: monitoringv1.ConfigSpec{
+			Compression: monitoringv1.CompressionNone,
+		},
+	})
+}
+
+func TestRuleEvaluatorMultiShardGzipCompression(t *testing.T) {
+	testRuleEvaluatorMultiShard(t, monitoringv1.OperatorFeatures{
+		Config: monitoringv1.ConfigSpec{
+			Compression: monitoringv1.CompressionGzip,
+		},
+	})
+}
+
+func testRuleEvaluatorMultiShard(t *testing.T, features monitoringv1.OperatorFeatures) {
+	ctx := contextWithDeadline(t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
+
+	t.Run("rule-evaluator-deployed", testRuleEvaluatorDeployed(ctx, kubeClient))
+	t.Run("rule-evaluator-operatorconfig", testRuleEvaluatorOperatorConfig(ctx, kubeClient, features))
+	t.Run("rules-multi-shard", testCreateMultiShardRules(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, features))
+}
+
+func testCreateMultiShardRules(
+	ctx context.Context,
+	restConfig *rest.Config,
+	kubeClient client.Client,
+	systemNamespace,
+	userNamespace string,
+	features monitoringv1.OperatorFeatures,
+) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("creating large rules to trigger multi-shard")
+
+		timeStart := time.Now()
+
+		type ruleSpec struct {
+			name      string
+			groupName string
+			expr      string
+		}
+
+		var specs []ruleSpec
+		switch features.Config.Compression {
+		case monitoringv1.CompressionGzip:
+			// 900KiB hex expressions. Hex has 4 bits entropy/byte so gzip compresses
+			// to ≥50% of original → ≥450KiB per entry. Two entries ≥900KiB > 800KiB
+			// threshold, guaranteeing a shard split.
+			for i := range 3 {
+				specs = append(specs, ruleSpec{
+					name:      fmt.Sprintf("large-rules-%d", i),
+					groupName: fmt.Sprintf("group-%d", i),
+					expr:      incompressibleMetricName(900 * 1024),
+				})
+			}
+		default:
+			for i := range 2 {
+				specs = append(specs, ruleSpec{
+					name:      fmt.Sprintf("large-rules-%d", i),
+					groupName: fmt.Sprintf("group-%d", i),
+					expr:      strings.Repeat("a", 500*1024),
+				})
+			}
+		}
+
+		wantGroupNames := make(map[string]bool, len(specs))
+		for _, s := range specs {
+			if err := kubeClient.Create(ctx, largeRules(userNamespace, s.name, s.groupName, s.expr)); err != nil {
+				t.Fatal(err)
+			}
+			wantGroupNames[s.groupName] = true
+		}
+
+		var shardCMs []corev1.ConfigMap
+		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+			var cmList corev1.ConfigMapList
+			if err := kubeClient.List(ctx, &cmList,
+				client.InNamespace(systemNamespace),
+				client.MatchingLabels{"monitoring.googleapis.com/rules-shard": "true"},
+			); err != nil {
+				return false, fmt.Errorf("list shard ConfigMaps: %w", err)
+			}
+			if len(cmList.Items) < 2 {
+				return false, nil
+			}
+			shardCMs = cmList.Items
+			return true, nil
+		})
+		if err != nil {
+			t.Fatalf("waiting for at least 2 shard ConfigMaps: %s", err)
+		}
+		t.Logf("found %d shard ConfigMaps", len(shardCMs))
+
+		allFiles := make(map[string]bool)
+		for _, cm := range shardCMs {
+			isShard0 := cm.Name == "rules-generated-0"
+			if isShard0 {
+				if _, ok := cm.Data["empty.yaml"]; !ok {
+					t.Error("shard 0 missing empty.yaml sentinel")
+				}
+			} else {
+				if _, ok := cm.Data["empty.yaml"]; ok {
+					t.Errorf("shard %s should not have empty.yaml sentinel", cm.Name)
+				}
+			}
+			for k := range cm.Data {
+				allFiles[k] = true
+			}
+			for k := range cm.BinaryData {
+				allFiles[k] = true
+			}
+			if features.Config.Compression == monitoringv1.CompressionGzip {
+				for k := range cm.Data {
+					if k != "empty.yaml" {
+						t.Errorf("shard %s: key %q should be in BinaryData with gzip, not Data", cm.Name, k)
+					}
+				}
+			}
+		}
+
+		for _, s := range specs {
+			filename := fmt.Sprintf("rules__%s__%s.yaml", userNamespace, s.name)
+			if !allFiles[filename] {
+				t.Errorf("expected rule file %q not found in any shard", filename)
+			}
+		}
+
+		var legacyCM corev1.ConfigMap
+		err = kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rules-generated"}, &legacyCM)
+		if err == nil {
+			t.Error("legacy rules-generated ConfigMap should not exist")
+		} else if !apierrors.IsNotFound(err) {
+			t.Fatalf("unexpected error checking legacy ConfigMap: %s", err)
+		}
+
+		if err := kube.WaitForDeploymentReady(ctx, kubeClient, systemNamespace, operator.NameRuleEvaluator); err != nil {
+			t.Errorf("rule-evaluator is not ready: %s", err)
+			out := strings.Builder{}
+			if err := kube.Debug(t.Context(), restConfig, kubeClient, &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: systemNamespace,
+					Name:      operator.NameRuleEvaluator,
+				},
+			}, &out); err != nil {
+				t.Fatalf("unable to debug: %s", err)
+			}
+			t.Fatalf("debug:\n%s", out.String())
+		}
+
+		pod, err := ruleEvaluatorPod(ctx, kubeClient, systemNamespace)
+		if err != nil {
+			t.Fatalf("unable to get rule-evaluator pod: %s", err)
+		}
+
+		httpClient, err := createPortForwardClient(t, restConfig, kubeClient)
+		if err != nil {
+			t.Fatalf("failed to create port forward client: %s", err)
+		}
+
+		err = wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+			updated, err := isRuntimeInfoUpdatedSince(ctx, httpClient, pod, 19092, timeStart)
+			if err != nil {
+				t.Logf("unable to check rule-evaluator status: %s", err)
+				return false, nil
+			}
+			return updated, nil
+		})
+		if err != nil {
+			t.Fatalf("failed waiting for rule-evaluator config reload: %s", err)
+		}
+
+		err = wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+			rules, err := getRules(ctx, httpClient, pod.Status.PodIP, 19092)
+			if err != nil {
+				t.Logf("unable to get rules: %s", err)
+				return false, nil
+			}
+			gotGroups := make(map[string]string, len(rules.Groups))
+			for _, g := range rules.Groups {
+				gotGroups[g.Name] = g.File
+			}
+			var missing []string
+			for name := range wantGroupNames {
+				if _, ok := gotGroups[name]; !ok {
+					missing = append(missing, name)
+				}
+			}
+			if rt, rterr := getRuntimeInfo(ctx, httpClient, pod, 19092); rterr == nil {
+				t.Logf("rules poll: got=%v missing=%v reloadSuccess=%t lastConfigTime=%s",
+					gotGroups, missing, rt.ReloadConfigSuccess, rt.LastConfigTime.Format(time.RFC3339))
+			} else {
+				t.Logf("rules poll: got=%v missing=%v runtimeInfo_err=%s", gotGroups, missing, rterr)
+			}
+			return len(missing) == 0, nil
+		})
+		if err != nil {
+			dumpContainerLogs(ctx, t, restConfig, pod, operator.RuleEvaluatorContainerName)
+			dumpContainerLogs(ctx, t, restConfig, pod, configReloaderContainerName)
+			t.Fatalf("not all rule groups appeared in evaluator API: %s", err)
+		}
+
+		logs, err := kube.PodLogs(ctx, restConfig, pod.Namespace, pod.Name, configReloaderContainerName)
+		if err != nil {
+			t.Fatalf("unable to fetch config-reloader logs: %s", err)
+		}
+		line, err := logsError(logs)
+		if err != nil {
+			t.Fatalf("unable to read logs: %s", err)
+		}
+		if line != "" {
+			t.Fatalf("found error in config-reloader logs: %s", line)
+		}
+	}
+}
+
+func dumpContainerLogs(ctx context.Context, t *testing.T, restConfig *rest.Config, pod *corev1.Pod, container string) {
+	t.Helper()
+	logs, err := kube.PodLogs(ctx, restConfig, pod.Namespace, pod.Name, container)
+	if err != nil {
+		t.Logf("debug: fetch %s logs failed: %s", container, err)
+		return
+	}
+	t.Logf("debug: %s container logs follow:\n%s", container, logs)
+}
+
+func largeRules(namespace, name, groupName, expr string) *monitoringv1.Rules {
+	return &monitoringv1.Rules{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: monitoringv1.RulesSpec{
+			Groups: []monitoringv1.RuleGroup{
+				{
+					Name: groupName,
+					Rules: []monitoringv1.Rule{
+						{Record: "shard_test_" + strings.ReplaceAll(name, "-", "_"), Expr: expr},
+					},
+				},
+			},
+		},
+	}
+}
+
+func incompressibleMetricName(size int) string {
+	var buf strings.Builder
+	buf.Grow(size)
+	_, _ = buf.WriteString("m_")
+	h := sha256.Sum256([]byte("seed"))
+	for buf.Len() < size {
+		_, _ = buf.WriteString(fmt.Sprintf("%x", h))
+		h = sha256.Sum256(h[:])
+	}
+	return buf.String()[:size]
 }
