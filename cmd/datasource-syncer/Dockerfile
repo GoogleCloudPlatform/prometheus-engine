@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.8@sha256:f4d9d5a9e87635686467eeb068e7f416b25b649f30964216d14ff0abbb49b850 AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.10@sha256:749f454e65f13df43fbef73abf307542b8ae1337ab16444dc205cdceb94db6b7 AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
@@ -42,7 +42,7 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/datasource-syncer/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260317.00_p0@sha256:38421dcbc73a0b372bdcb6ea88415ccd4c19427b577a163b908c32d0d3c7316d
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260526.00_p0@sha256:ab652d36941186888f7c88293cc57a4f75c5c243d46fee363ab2ae15eca639a3
 COPY --from=buildbase /app/datasource-syncer /bin/datasource-syncer
 ENTRYPOINT ["/bin/datasource-syncer"]
 
