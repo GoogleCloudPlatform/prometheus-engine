@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"crypto/fips140"
 	"flag"
 	"net/http"
 	"net/url"
@@ -60,6 +61,11 @@ func main() {
 	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "caller", log.DefaultCaller)
+
+	if !fips140.Enabled() {
+		_ = logger.Log("msg", "FIPS mode is required by security policy but could not be initialized")
+		os.Exit(1)
+	}
 
 	if *configDirOutput != "" && *configDir == "" {
 		//nolint:errcheck
