@@ -68,7 +68,7 @@ func main() {
 	logger = log.With(logger, "caller", log.DefaultCaller)
 
 	if !fips140.Enabled() {
-		_ = logger.Log("msg", "FIPS mode is required by security policy but could not be initialized")
+		_ = level.Error(logger).Log("msg", "FIPS mode is required by security policy but could not be initialized")
 		os.Exit(1)
 	}
 
