@@ -39,19 +39,19 @@ COPY --from=assets /app/pkg/ui/static pkg/ui/static
 FROM buildbase AS appbase
 ARG TARGETOS
 ARG TARGETARCH
+ARG BUILDARCH
 WORKDIR /app
 COPY charts/values.global.yaml charts/values.global.yaml
 COPY --from=assets /app ./
 
-ENV GOEXPERIMENT=boringcrypto
-ENV CGO_ENABLED=1
-ENV GOFIPS140=off
+ENV GOEXPERIMENT=noboringcrypto
+ENV CGO_ENABLED=0
+ENV GOFIPS140=certified
 ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	apt install -y --no-install-recommends \
-	-tags builtinassets \
 	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
 	CC=aarch64-linux-gnu-gcc; \
 	fi && \
@@ -64,6 +64,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/frontend/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260207.00_p0@sha256:ae6350bb7078a86c22fb9db290b02a3f702e95e79b216c3d469e896780363da6
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:d093aa3e30dbadd3efe1310db061a14da60299baff8450a17fe0ccc514a16639
 COPY --from=appbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]

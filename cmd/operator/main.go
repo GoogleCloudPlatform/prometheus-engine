@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"crypto/fips140"
 	"errors"
 	"flag"
 	"net/http"
@@ -92,6 +93,11 @@ func main() {
 	ctrl.SetLogger(logger)
 	if err := errors.Join(errList...); err != nil {
 		logger.Error(err, "unable to fetch Google Cloud metadata")
+	}
+
+	if !fips140.Enabled() {
+		logger.Error(errors.New("FIPS mode required"), "FIPS mode is required by security policy but could not be initialized")
+		os.Exit(1)
 	}
 
 	cfg, err := ctrl.GetConfig()
