@@ -25,7 +25,7 @@ ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN go build \
-	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq '.version' ) \
+	-ldflags="-X github.com/prometheus/common/version.Version=$(sed -n 's/^version:[[:space:]]*//p' charts/values.global.yaml | tr -d '\"' ) \
 	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o datasource-syncer \
 	cmd/datasource-syncer/*.go

@@ -43,7 +43,7 @@ ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN go build \
 	-tags builtinassets \
-	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq ".version" ) \
+	-ldflags="-X github.com/prometheus/common/version.Version=$(sed -n 's/^version:[[:space:]]*//p' charts/values.global.yaml | tr -d '\"' ) \
 	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o frontend \
 	cmd/frontend/*.go

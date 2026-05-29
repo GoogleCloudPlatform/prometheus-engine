@@ -22,6 +22,8 @@ COPY vendor vendor
 COPY cmd cmd
 COPY pkg pkg
 
+COPY charts/values.global.yaml charts/values.global.yaml
+
 ENV GOEXPERIMENT=noboringcrypto
 ENV CGO_ENABLED=0
 ENV GOFIPS140=certified
@@ -29,7 +31,7 @@ ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN go build \
-	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq '.version' ) \
+	-ldflags="-X github.com/prometheus/common/version.Version=$(sed -n 's/^version:[[:space:]]*//p' charts/values.global.yaml | tr -d '\"' ) \
 	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o config-reloader \
 	cmd/config-reloader/*.go
