@@ -39,7 +39,7 @@ IMAGE_REGISTRY?=us-east4-docker.pkg.dev/$(PROJECT_ID)/prometheus-engine
 TAG_NAME?=$(shell date "+gmp-%Y%d%m_%H%M")
 
 # If an individual test is not specified, run them all.
-TEST_RUN?=$(shell go test ./e2e/... -list=. | grep -E 'Test*')
+TEST_RUN?=$(shell go test -v ./e2e/... -list=. | grep -E 'Test*')
 
 # Support gsed on OSX (installed via brew), falling back to sed. On Linux
 # systems gsed won't be installed, so will use sed as expected.
