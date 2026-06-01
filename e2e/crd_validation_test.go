@@ -1497,6 +1497,32 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
+				wantErr: false,
+			},
+			"no namespace on secret reference": {
+				obj: &monitoringv1.PodMonitoring{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "namespace-on-secret-references",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Interval: "1m",
+								Port:     intstr.FromString("metrics"),
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									OAuth2: &monitoringv1.OAuth2{
+										ClientSecret: &monitoringv1.SecretSelector{
+											Secret: &monitoringv1.SecretKeySelector{
+												Name: "test",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 				wantErr: true,
 			},
 		}
