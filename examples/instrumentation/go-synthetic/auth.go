@@ -18,6 +18,8 @@ import (
 	"crypto/ed25519"
 	cryptorand "crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -237,7 +239,7 @@ func (c *basicAuthConfig) isEnabled() bool {
 func (c *basicAuthConfig) handle(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		username, password, ok := r.BasicAuth()
-		if ok && username == c.username && password == c.password {
+		if ok && constEqual(username, c.username) && constEqual(password, c.password) {
 			handler.ServeHTTP(w, r)
 			return
 		}
@@ -245,6 +247,11 @@ func (c *basicAuthConfig) handle(handler http.Handler) http.Handler {
 		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 	})
+}
+
+func constEqual(a, b string) bool {
+	ax, bx := sha256.Sum256([]byte(a)), sha256.Sum256([]byte(b))
+	return subtle.ConstantTimeCompare(ax[:], bx[:]) == 1
 }
 
 func authorizationHandler(handler http.Handler, scheme, parameters string) http.Handler {
@@ -260,7 +267,7 @@ func authorizationHandler(handler http.Handler, scheme, parameters string) http.
 			// Parameters could be leading with any number of spaces so we need an additional trim.
 			foundParameters = strings.TrimSpace(authParts[1])
 		}
-		if expectedScheme == foundScheme && expectedParameters == foundParameters {
+		if expectedScheme == foundScheme && constEqual(foundParameters, expectedParameters) {
 			handler.ServeHTTP(w, r)
 			return
 		}
@@ -360,7 +367,7 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 			return
 		}
 
-		if clientID != c.clientID || clientSecret != c.clientSecret {
+		if !constEqual(clientID, c.clientID) || !constEqual(clientSecret, c.clientSecret) {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write(oauthTokenErrorResponse("invalid_client", "incorrect client credentials"))
 			return
