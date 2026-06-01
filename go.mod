@@ -1,6 +1,6 @@
 module github.com/GoogleCloudPlatform/prometheus-engine
 
-go 1.25.0 // Keep 1.23, otherwise golangci-lint version would need to be updated.
+go 1.25.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0

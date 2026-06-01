@@ -21,7 +21,7 @@ WORKDIR /workspace
 #   && cd prometheus-operator \
 #   && go install ./cmd/po-docgen
 # TODO(TheSpiritXIII): Replace once merged: https://github.com/kubernetes-sigs/controller-tools/pull/878
-RUN go install github.com/TheSpiritXIII/controller-tools/cmd/controller-gen@v0.14.1-gmp
+RUN GOTOOLCHAIN=go1.24.0 go install github.com/TheSpiritXIII/controller-tools/cmd/controller-gen@v0.14.1-gmp
 RUN go install github.com/ahmetb/gen-crd-api-reference-docs@v0.3.0
 
 RUN go install github.com/bwplotka/bingo@v0.9.0
