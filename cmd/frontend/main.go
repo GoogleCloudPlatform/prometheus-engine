@@ -22,6 +22,8 @@ package main
 import (
 	"context"
 	"crypto/fips140"
+	"crypto/sha256"
+	"crypto/subtle"
 	"errors"
 	"flag"
 	"fmt"
@@ -236,7 +238,7 @@ func authenticate(next http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			if reqUser != username || reqPass != password {
+			if !constEqual(reqUser, username) || !constEqual(reqPass, password) {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
@@ -244,6 +246,11 @@ func authenticate(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, req)
 	})
+}
+
+func constEqual(a, b string) bool {
+	ax, bx := sha256.Sum256([]byte(a)), sha256.Sum256([]byte(b))
+	return subtle.ConstantTimeCompare(ax[:], bx[:]) == 1
 }
 
 func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) http.Handler {
