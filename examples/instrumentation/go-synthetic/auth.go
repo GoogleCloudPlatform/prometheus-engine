@@ -18,8 +18,6 @@ import (
 	"crypto/ed25519"
 	cryptorand "crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -36,6 +34,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secutil"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -239,7 +238,9 @@ func (c *basicAuthConfig) isEnabled() bool {
 func (c *basicAuthConfig) handle(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		username, password, ok := r.BasicAuth()
-		if ok && constEqual(username, c.username) && constEqual(password, c.password) {
+		matchUser := secutil.ConstTimeEqual(username, c.username)
+		matchPass := secutil.ConstTimeEqual(password, c.password)
+		if ok && matchUser && matchPass {
 			handler.ServeHTTP(w, r)
 			return
 		}
@@ -247,11 +248,6 @@ func (c *basicAuthConfig) handle(handler http.Handler) http.Handler {
 		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 	})
-}
-
-func constEqual(a, b string) bool {
-	ax, bx := sha256.Sum256([]byte(a)), sha256.Sum256([]byte(b))
-	return subtle.ConstantTimeCompare(ax[:], bx[:]) == 1
 }
 
 func authorizationHandler(handler http.Handler, scheme, parameters string) http.Handler {
@@ -267,7 +263,9 @@ func authorizationHandler(handler http.Handler, scheme, parameters string) http.
 			// Parameters could be leading with any number of spaces so we need an additional trim.
 			foundParameters = strings.TrimSpace(authParts[1])
 		}
-		if expectedScheme == foundScheme && constEqual(foundParameters, expectedParameters) {
+		matchScheme := secutil.ConstTimeEqual(foundScheme, expectedScheme)
+		matchParams := secutil.ConstTimeEqual(foundParameters, expectedParameters)
+		if matchScheme && matchParams {
 			handler.ServeHTTP(w, r)
 			return
 		}
@@ -367,7 +365,9 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 			return
 		}
 
-		if !constEqual(clientID, c.clientID) || !constEqual(clientSecret, c.clientSecret) {
+		matchID := secutil.ConstTimeEqual(clientID, c.clientID)
+		matchSecret := secutil.ConstTimeEqual(clientSecret, c.clientSecret)
+		if !matchID || !matchSecret {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write(oauthTokenErrorResponse("invalid_client", "incorrect client credentials"))
 			return
