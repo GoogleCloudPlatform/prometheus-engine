@@ -22,8 +22,6 @@ package main
 import (
 	"context"
 	"crypto/fips140"
-	"crypto/sha256"
-	"crypto/subtle"
 	"errors"
 	"flag"
 	"fmt"
@@ -39,6 +37,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/frontend/internal/rule"
 	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/ui"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -228,9 +227,9 @@ func main() {
 }
 
 func authenticate(next http.Handler) http.Handler {
+	username := os.Getenv(authUsernameEnv)
+	password := os.Getenv(authPasswordEnv)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		username := os.Getenv(authUsernameEnv)
-		password := os.Getenv(authPasswordEnv)
 		if len(username) > 0 && len(password) > 0 {
 			reqUser, reqPass, ok := req.BasicAuth()
 			if !ok {
@@ -238,7 +237,9 @@ func authenticate(next http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			if !constEqual(reqUser, username) || !constEqual(reqPass, password) {
+			matchUser := secutil.ConstTimeEqual(reqUser, username)
+			matchPass := secutil.ConstTimeEqual(reqPass, password)
+			if !matchUser || !matchPass {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
@@ -246,11 +247,6 @@ func authenticate(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, req)
 	})
-}
-
-func constEqual(a, b string) bool {
-	ax, bx := sha256.Sum256([]byte(a)), sha256.Sum256([]byte(b))
-	return subtle.ConstantTimeCompare(ax[:], bx[:]) == 1
 }
 
 func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) http.Handler {

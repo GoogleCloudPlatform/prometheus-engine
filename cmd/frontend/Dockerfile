@@ -27,6 +27,7 @@ COPY --chown=33:33 tools tools
 COPY --chown=33:33 ./cmd/frontend ./cmd/frontend
 COPY --chown=33:33 ./internal/promapi ./internal/promapi
 COPY --chown=33:33 ./pkg/ui ./pkg/ui
+COPY --chown=33:33 ./pkg/secutil ./pkg/secutil
 RUN ./pkg/ui/build.sh
 
 # sync is used to copy all auto-generated files to a different context.
