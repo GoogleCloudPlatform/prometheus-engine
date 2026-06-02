@@ -130,13 +130,24 @@ func ensureCerts(operatorNamespace, dir, certEncoded, keyEncoded, caCertEncoded 
 		return nil, errors.New("flags key-base64 and cert-base64 must both be set")
 	}
 	// Create cert/key files.
-	if err := os.WriteFile(filepath.Join(dir, "tls.crt"), crt, 0666); err != nil {
+	certPath := filepath.Join(dir, "tls.crt")
+	if err := writeFile(certPath, crt, 0644); err != nil {
 		return nil, fmt.Errorf("create cert file: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "tls.key"), key, 0666); err != nil {
+	keyPath := filepath.Join(dir, "tls.key")
+	if err := writeFile(keyPath, key, 0600); err != nil {
 		return nil, fmt.Errorf("create key file: %w", err)
 	}
 	return caData, nil
+}
+
+// writeFile writes file and chmod right away to ensure right permissions, even if
+// the file is being overridden (os.WriteFile does not override permissions).
+func writeFile(path string, data []byte, perm os.FileMode) error {
+	if err := os.WriteFile(path, data, perm); err != nil {
+		return err
+	}
+	return os.Chmod(path, perm)
 }
 
 func validatePath(gvr metav1.GroupVersionResource) string {
