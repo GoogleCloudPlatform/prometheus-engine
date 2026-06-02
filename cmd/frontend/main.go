@@ -31,6 +31,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -253,6 +254,10 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 	client := http.Client{Transport: transport}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if slices.Contains(strings.Split(req.URL.Path, "/"), "..") {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		u := *target
 		u.Path = path.Join(u.Path, req.URL.Path)
 
