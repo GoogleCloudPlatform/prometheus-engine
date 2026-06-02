@@ -35,14 +35,32 @@ import (
 )
 
 func readKeyAndCertFiles(dir string, t *testing.T) (cert []byte, key []byte) {
-	outCert, err := os.ReadFile(path.Join(dir, "tls.crt"))
+	certPath := path.Join(dir, "tls.crt")
+	outCert, err := os.ReadFile(certPath)
 	if err != nil {
 		t.Fatalf("error reading from cert file: %v", err)
 	}
-	outKey, err := os.ReadFile(path.Join(dir, "tls.key"))
+	certInfo, err := os.Stat(certPath)
+	if err != nil {
+		t.Fatalf("error stat cert file: %v", err)
+	}
+	if certInfo.Mode().Perm() != 0644 {
+		t.Errorf("expected cert file permission 0644, got %o", certInfo.Mode().Perm())
+	}
+
+	keyPath := path.Join(dir, "tls.key")
+	outKey, err := os.ReadFile(keyPath)
 	if err != nil {
 		t.Fatalf("error reading from key file: %v", err)
 	}
+	keyInfo, err := os.Stat(keyPath)
+	if err != nil {
+		t.Fatalf("error stat key file: %v", err)
+	}
+	if keyInfo.Mode().Perm() != 0600 {
+		t.Errorf("expected key file permission 0600, got %o", keyInfo.Mode().Perm())
+	}
+
 	return outCert, outKey
 }
 
