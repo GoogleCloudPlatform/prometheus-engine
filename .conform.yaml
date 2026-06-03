@@ -39,6 +39,7 @@ policies:
           - style
           - test
         scopes:
+          - agents
           - configs
           - deps
           - e2e
