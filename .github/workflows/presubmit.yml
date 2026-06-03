@@ -43,7 +43,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.0.2
+          version: v2.12.2
           skip-cache: true
           args: --timeout=5m --verbose
   validate:
@@ -75,11 +75,11 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@v4
-    - name: Run container image tests
-      env:
-        GCM_SECRET: ${{ secrets.GCM_SECRET }}
-      run: make image-test
+      - uses: actions/checkout@v4
+      - name: Run container image tests
+        env:
+          GCM_SECRET: ${{ secrets.GCM_SECRET }}
+        run: make image-test
   e2e-testruns:
     runs-on: ubuntu-latest
     outputs:
