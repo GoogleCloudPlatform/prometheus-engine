@@ -20,18 +20,21 @@ linters:
     - contextcheck
     - cyclop
     - depguard
+    - embeddedstructfieldcheck
     - err113
     - errorlint
     - exhaustive
     - exhaustruct
     - forbidigo
     - forcetypeassert
+    - funcorder
     - funlen
     - gochecknoglobals
     - gocognit
     - goconst
     - gocritic
     - gocyclo
+    - godoclint
     - godox
     - gomoddirectives
     - gosec
@@ -40,18 +43,21 @@ linters:
     - lll
     - maintidx
     - mnd
+    - modernize
     - nestif
     - nilnil
     - nlreturn
     - noctx
     # TODO(bwplotka): Remove once https://github.com/golangci/golangci-lint/issues/3228 is fixed.
     - nolintlint
+    - noinlineerr
     - nonamedreturns
     - nosprintfhostport
     - paralleltest
     - perfsprint
     - prealloc
     - protogetter
+    - revive
     - tagliatelle
     - testpackage
     - thelper
@@ -61,6 +67,7 @@ linters:
     - wastedassign
     - wrapcheck
     - wsl
+    - wsl_v5
   settings:
     govet:
       disable:
