@@ -38,6 +38,7 @@ COPY --from=assets /app/pkg/ui/static pkg/ui/static
 FROM buildbase AS appbase
 ARG TARGETOS
 ARG TARGETARCH
+ARG BUILDARCH
 WORKDIR /app
 COPY charts/values.global.yaml charts/values.global.yaml
 COPY --from=assets /app ./
@@ -51,9 +52,9 @@ ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	apt install -y --no-install-recommends \
 	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
-	CC=aarch64-linux-gnu-gcc; \
+	export CC=aarch64-linux-gnu-gcc; \
 	fi && \
-	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build \
 	-tags builtinassets \
 	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq ".version" ) \

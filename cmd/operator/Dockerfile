@@ -15,6 +15,7 @@
 FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.4@sha256:3444149d0a7e3f7cfb9c2db65f0f75676fe6ad04de3ce72674efb120c08dd1c1 AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
+ARG BUILDARCH
 WORKDIR /app
 COPY charts/values.global.yaml charts/values.global.yaml
 COPY go.mod go.mod
@@ -34,9 +35,9 @@ ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	apt install -y --no-install-recommends \
 	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
-	CC=aarch64-linux-gnu-gcc; \
+	export CC=aarch64-linux-gnu-gcc; \
 	fi && \
-	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build \
 	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq '.version' ) \
 	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
