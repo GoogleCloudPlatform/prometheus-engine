@@ -27,7 +27,7 @@ ENV GOFIPS140=off
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
-	apt install -y --no-install-recommends \
+	apt-get update && apt-get install -y --no-install-recommends \
 	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
 	export CC=aarch64-linux-gnu-gcc; \
 	fi && \
