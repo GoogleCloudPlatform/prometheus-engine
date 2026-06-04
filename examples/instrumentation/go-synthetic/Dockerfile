@@ -22,7 +22,7 @@ FROM buildbase AS appbase
 
 ENV GOEXPERIMENT=noboringcrypto
 ENV CGO_ENABLED=0
-ENV GOFIPS140=certified
+ENV GOFIPS140=latest
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN go build -o go-synthetic ./examples/instrumentation/go-synthetic

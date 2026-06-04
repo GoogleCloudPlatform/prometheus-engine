@@ -106,6 +106,7 @@ linters:
     modernize:
       disable:
       - omitzero
+      - waitgroupgo
     revive:
       enable-all-rules: true
       rules:
@@ -224,6 +225,8 @@ linters:
           disabled: true
         - name: enforce-switch-style
           severity: warning
+          disabled: true
+        - name: use-waitgroup-go
           disabled: true
   exclusions:
     generated: lax
