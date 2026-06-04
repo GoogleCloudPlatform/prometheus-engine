@@ -22,11 +22,11 @@ FROM buildbase AS appbase
 
 ENV GOEXPERIMENT=noboringcrypto
 ENV CGO_ENABLED=0
-ENV GOFIPS140=certified
+ENV GOFIPS140=latest
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN go build -o go-synthetic ./examples/instrumentation/go-synthetic
 
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:d093aa3e30dbadd3efe1310db061a14da60299baff8450a17fe0ccc514a16639
+FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=appbase /app/go-synthetic /bin/go-synthetic
 ENTRYPOINT ["/bin/go-synthetic"]

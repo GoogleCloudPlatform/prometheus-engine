@@ -25,19 +25,25 @@ COPY vendor* vendor
 COPY cmd cmd
 COPY pkg pkg
 
-ENV GOEXPERIMENT=noboringcrypto
-ENV CGO_ENABLED=0
-ENV GOFIPS140=certified
+ENV GOEXPERIMENT=boringcrypto
+ENV CGO_ENABLED=1
+ENV GOFIPS140=off
 ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-RUN go build \
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+	apt install -y --no-install-recommends \
+	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+	CC=aarch64-linux-gnu-gcc; \
+	fi && \
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+	go build \
 	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq '.version' ) \
 	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o operator \
 	cmd/operator/*.go
 
 
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:d093aa3e30dbadd3efe1310db061a14da60299baff8450a17fe0ccc514a16639
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260521.00_p0@sha256:392c2580a81528cefce98087ff2bebf9451eddc55304090727b324540f24e523
 COPY --from=buildbase /app/operator /bin/operator
 ENTRYPOINT ["/bin/operator"]
