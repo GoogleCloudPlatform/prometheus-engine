@@ -13,9 +13,6 @@
 # limitations under the License.
 
 FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.4@sha256:3444149d0a7e3f7cfb9c2db65f0f75676fe6ad04de3ce72674efb120c08dd1c1 AS buildbase
-ARG TARGETOS
-ARG TARGETARCH
-ARG BUILDARCH
 WORKDIR /app
 COPY . ./
 
