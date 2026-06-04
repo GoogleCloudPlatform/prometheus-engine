@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.4@sha256:3444149d0a7e3f7cfb9c2db65f0f75676fe6ad04de3ce72674efb120c08dd1c1 AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.10@sha256:749f454e65f13df43fbef73abf307542b8ae1337ab16444dc205cdceb94db6b7 AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
@@ -22,11 +22,11 @@ FROM buildbase AS appbase
 
 ENV GOEXPERIMENT=noboringcrypto
 ENV CGO_ENABLED=0
-ENV GOFIPS140=certified
+ENV GOFIPS140=latest
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN go build -o go-synthetic ./examples/instrumentation/go-synthetic
 
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:d093aa3e30dbadd3efe1310db061a14da60299baff8450a17fe0ccc514a16639
+FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=appbase /app/go-synthetic /bin/go-synthetic
 ENTRYPOINT ["/bin/go-synthetic"]

@@ -29,7 +29,7 @@ rm -rf "$SCRIPT_DIR/static"
 # which defeats the purpose of vendoring them.
 # This is because make will check whether yarn.lock and package.json are older than
 # node_modules/
-cp -rp ${SCRIPT_ROOT}/third_party/prometheus_ui/base $BUILD_DIR
+cp -r --preserve=timestamps ${SCRIPT_ROOT}/third_party/prometheus_ui/base $BUILD_DIR
 cp -r ${SCRIPT_ROOT}/third_party/prometheus_ui/override/* $BUILD_DIR/
 
 cd $BUILD_DIR

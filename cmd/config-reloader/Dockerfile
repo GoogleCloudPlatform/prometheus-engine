@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.4@sha256:3444149d0a7e3f7cfb9c2db65f0f75676fe6ad04de3ce72674efb120c08dd1c1 AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.10@sha256:749f454e65f13df43fbef73abf307542b8ae1337ab16444dc205cdceb94db6b7 AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
@@ -24,19 +24,25 @@ COPY go.sum go.sum
 COPY vendor* vendor
 COPY cmd cmd
 
-ENV GOEXPERIMENT=noboringcrypto
-ENV CGO_ENABLED=0
-ENV GOFIPS140=certified
+ENV GOEXPERIMENT=boringcrypto
+ENV CGO_ENABLED=1
+ENV GOFIPS140=off
 ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-RUN go build \
+RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+	apt install -y --no-install-recommends \
+	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
+	CC=aarch64-linux-gnu-gcc; \
+	fi && \
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+	go build \
 	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool yq '.version' ) \
 	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
 	-o config-reloader \
 	cmd/config-reloader/*.go
 
 
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:d093aa3e30dbadd3efe1310db061a14da60299baff8450a17fe0ccc514a16639
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260521.00_p0@sha256:392c2580a81528cefce98087ff2bebf9451eddc55304090727b324540f24e523
 COPY --from=buildbase /app/config-reloader /bin/config-reloader
 ENTRYPOINT ["/bin/config-reloader"]
