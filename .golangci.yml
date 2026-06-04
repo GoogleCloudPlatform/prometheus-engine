@@ -40,6 +40,8 @@ linters:
     - lll
     - maintidx
     - mnd
+    - modernize
+    - revive
     - nestif
     - nilnil
     - nlreturn
