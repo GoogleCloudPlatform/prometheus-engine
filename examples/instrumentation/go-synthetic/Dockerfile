@@ -20,9 +20,9 @@ COPY . ./
 
 FROM buildbase AS appbase
 
-ENV GOEXPERIMENT=noboringcrypto
-ENV CGO_ENABLED=0
-ENV GOFIPS140=latest
+ENV GOEXPERIMENT=boringcrypto
+ENV CGO_ENABLED=1
+ENV GOFIPS140=off
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN go build -o go-synthetic ./examples/instrumentation/go-synthetic
