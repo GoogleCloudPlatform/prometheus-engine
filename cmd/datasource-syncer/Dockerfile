@@ -35,6 +35,10 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	apt-get update && apt-get install -y --no-install-recommends \
 	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
 	export CC=aarch64-linux-gnu-gcc; \
+	elif [ "${TARGETARCH}" = "amd64" ] && [ "${BUILDARCH}" != "amd64" ]; then \
+	apt-get update && apt-get install -y --no-install-recommends \
+	gcc-x86-64-linux-gnu libc6-dev-amd64-cross; \
+	export CC=x86_64-linux-gnu-gcc; \
 	fi && \
 	GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build \
