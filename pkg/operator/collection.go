@@ -409,6 +409,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		return nil, nil, fmt.Errorf("failed to list ClusterPodMonitorings: %w", err)
 	}
 
+	clusterPodMons.Items = deduplicateKSM(clusterPodMons.Items)
+
 	// Mark status updates in batch with single timestamp.
 	for _, cmon := range clusterPodMons.Items {
 		cond := &monitoringv1.MonitoringCondition{
@@ -504,4 +506,115 @@ func makeRemoteWriteConfig(exports []monitoringv1.ExportSpec) ([]*promconfig.Rem
 			})
 	}
 	return exportConfigs, nil
+}
+
+// deduplicateKSM matches GKE's managed kube-state-metrics and Customer's self-deployed
+// kube-state-metrics, and resolves duplicate metric collection by updating Customer's relabeling rules.
+func deduplicateKSM(mons []monitoringv1.ClusterPodMonitoring) []monitoringv1.ClusterPodMonitoring {
+	var gkeKSM *monitoringv1.ClusterPodMonitoring
+	var custKSMs []*monitoringv1.ClusterPodMonitoring
+	var custIndices []int
+
+	for i := range mons {
+		if isSystemKSMResource(&mons[i]) {
+			gkeKSM = &mons[i]
+		} else if isSelfDeployedKSMResource(&mons[i]) {
+			custKSMs = append(custKSMs, &mons[i])
+			custIndices = append(custIndices, i)
+		}
+	}
+
+	if gkeKSM == nil || len(custKSMs) == 0 {
+		return mons
+	}
+
+	if len(gkeKSM.Spec.Endpoints) == 0 {
+		return mons
+	}
+
+	result := make([]monitoringv1.ClusterPodMonitoring, len(mons))
+	copy(result, mons)
+
+	for idx, custKSM := range custKSMs {
+		custCopy := custKSM.DeepCopy()
+		var newEndpoints []monitoringv1.ScrapeEndpoint
+
+		for _, custEp := range custCopy.Spec.Endpoints {
+			matched := false
+			var matchedGkeEp *monitoringv1.ScrapeEndpoint
+
+			// Find matching GKE endpoint
+			for i := range gkeKSM.Spec.Endpoints {
+				gkeEp := &gkeKSM.Spec.Endpoints[i]
+				if pathsMatch(custEp, *gkeEp) {
+					matched = true
+					matchedGkeEp = gkeEp
+					break
+				}
+			}
+
+			if matched {
+				// Find keep rules in matched GKE endpoint
+				var gkeKeepRules []monitoringv1.RelabelingRule
+				for _, r := range matchedGkeEp.MetricRelabeling {
+					if r.Action == "keep" && len(r.SourceLabels) == 1 && r.SourceLabels[0] == "__name__" {
+						gkeKeepRules = append(gkeKeepRules, r)
+					}
+				}
+
+				if len(gkeKeepRules) > 0 {
+					// GKE has allowlist. Drop these metrics from Customer KSM.
+					epCopy := custEp.DeepCopy()
+					for _, kr := range gkeKeepRules {
+						epCopy.MetricRelabeling = append(epCopy.MetricRelabeling, monitoringv1.RelabelingRule{
+							Action:       "drop",
+							SourceLabels: []string{"__name__"},
+							Regex:        kr.Regex,
+						})
+					}
+					newEndpoints = append(newEndpoints, *epCopy)
+				} else {
+					// GKE collects everything. Remove this endpoint from Customer KSM.
+					// (Do not append to newEndpoints)
+				}
+			} else {
+				// No match, keep it unmodified
+				newEndpoints = append(newEndpoints, custEp)
+			}
+		}
+
+		custCopy.Spec.Endpoints = newEndpoints
+		if len(custCopy.Spec.Endpoints) == 0 {
+			custCopy.Spec.Endpoints = nil
+		}
+		result[custIndices[idx]] = *custCopy
+	}
+
+	return result
+}
+
+func pathsMatch(ep1, ep2 monitoringv1.ScrapeEndpoint) bool {
+	p1 := ep1.Path
+	if p1 == "" {
+		p1 = "/metrics"
+	}
+	p2 := ep2.Path
+	if p2 == "" {
+		p2 = "/metrics"
+	}
+	return p1 == p2
+}
+
+func isSystemKSMResource(mon *monitoringv1.ClusterPodMonitoring) bool {
+	if mon.Labels == nil {
+		return false
+	}
+	return mon.Labels["app.kubernetes.io/name"] == "gke-managed-kube-state-metrics"
+}
+
+func isSelfDeployedKSMResource(mon *monitoringv1.ClusterPodMonitoring) bool {
+	if mon.Labels == nil {
+		return false
+	}
+	return mon.Labels["app.kubernetes.io/name"] == "self-deployed-kube-state-metrics" 
 }
