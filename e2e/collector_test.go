@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	gcm "cloud.google.com/go/monitoring/apiv3/v2"
 	gcmpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
@@ -458,7 +457,7 @@ func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Clien
 		t.Log("checking for metrics in Cloud Monitoring")
 
 		// Wait for metric data to show up in Cloud Monitoring.
-		metricClient, err := gcm.NewMetricClient(ctx)
+		metricClient, err := newMetricClient(ctx)
 		if err != nil {
 			t.Fatalf("create metric client: %s", err)
 		}
@@ -537,7 +536,7 @@ func testCollectorScrapeKubelet(ctx context.Context, kubeClient client.Client) f
 		t.Log("checking for metrics in Cloud Monitoring")
 
 		// Wait for metric data to show up in Cloud Monitoring.
-		metricClient, err := gcm.NewMetricClient(ctx)
+		metricClient, err := newMetricClient(ctx)
 		if err != nil {
 			t.Fatalf("create GCM metric client: %s", err)
 		}

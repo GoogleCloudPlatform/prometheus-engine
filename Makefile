@@ -12,9 +12,14 @@ TEST_ARGS=-project-id=$(PROJECT_ID) -location=$(GMP_LOCATION) -cluster=$(GMP_CLU
 
 API_DIR=pkg/operator/apis
 LOCAL_CREDENTIALS=/tmp/gcm-editor.json
-# If credentials are provided, ensure we mount them during e2e test.
-ifneq ($(GOOGLE_APPLICATION_CREDENTIALS),)
-E2E_DOCKER_ARGS := --env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" -v $(GOOGLE_APPLICATION_CREDENTIALS):$(LOCAL_CREDENTIALS)
+ifneq ($(GCM_SECRET),)
+	# If GCM_SECRET env-var is provided ensure we add it to e2e tests.
+	# Don't pass the explicit value here, see:
+	# https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets
+	E2E_DOCKER_ARGS := --env GCM_SECRET
+else ifneq ($(GOOGLE_APPLICATION_CREDENTIALS),)
+	# If credentials are provided, ensure we mount them during e2e test.
+	E2E_DOCKER_ARGS := --env GOOGLE_APPLICATION_CREDENTIALS="$(LOCAL_CREDENTIALS)" -v $(GOOGLE_APPLICATION_CREDENTIALS):$(LOCAL_CREDENTIALS)
 endif
 
 ifeq ($(KIND_PERSIST), 1)
