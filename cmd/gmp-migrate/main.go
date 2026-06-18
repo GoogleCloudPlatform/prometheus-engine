@@ -15,26 +15,41 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/migrate"
-	"github.com/alecthomas/kingpin/v2"
-)
-
-var (
-	// Flags.
-	inputFile = kingpin.Flag("file", "Input source (YAML file, directory, or '-' for stdin)").Short('f').Required().String()
 )
 
 func main() {
-	kingpin.CommandLine.Help = "Migrate Prometheus Operator configurations to Google Managed Prometheus (GMP)."
-	kingpin.Parse()
+	var inputFile string
+	flag.StringVar(&inputFile, "file", "", "Input source (YAML file, directory, or '-' for stdin) (Required)")
+	flag.StringVar(&inputFile, "f", "", "Input source (YAML file, directory, or '-' for stdin) (Required)")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		fmt.Fprint(os.Stderr, "Migrate Prometheus Operator configurations to Google Managed Prometheus (GMP).\n\n")
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+
+	if inputFile == "" {
+		fmt.Fprintln(os.Stderr, "[ERROR] Flag -f / --file is required.")
+		flag.Usage()
+		os.Exit(1)
+	}
 
 	migrator := migrate.NewMigrator()
-	_, err := migrator.Run(*inputFile)
+	report, err := migrator.Run(inputFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[ERROR] Migration failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	// If any resource failed to migrate, exit with a non-zero code.
+	if report.FailedCount > 0 {
+		fmt.Fprintf(os.Stderr, "\n[ERROR] Migration completed with %d failures.\n", report.FailedCount)
 		os.Exit(1)
 	}
 }

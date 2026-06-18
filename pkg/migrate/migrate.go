@@ -16,9 +16,11 @@ package migrate
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,9 +33,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// MigrationReport accumulates the results and statistics of the migration run.
+// MigrationReport accumulates the statistics of the migration run.
 type MigrationReport struct {
-	Logs         []LogMessage
 	SuccessCount int // Successfully migrated with no warnings
 	WarningCount int // Successfully migrated but had warnings
 	FailedCount  int // Fatal failure, resource skipped
@@ -48,6 +49,7 @@ type Migrator struct {
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+	Logger *slog.Logger
 }
 
 // NewMigrator creates a new Migrator.
@@ -58,6 +60,7 @@ func NewMigrator() *Migrator {
 		Stdin:      os.Stdin,
 		Stdout:     os.Stdout,
 		Stderr:     os.Stderr,
+		Logger:     slog.Default(),
 	}
 }
 
@@ -70,30 +73,49 @@ func (m *Migrator) RegisterConverter(c ResourceConverter) {
 func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
 	report := &MigrationReport{}
 
-	// 1. Parse all inputs and populate the cache
-	if err := m.parseInputs(inputPath, report); err != nil {
+	// Instantiate our custom ConsoleHandler
+	handler := NewConsoleHandler(m.Stderr)
+	m.Logger = slog.New(handler)
+
+	// Temporarily set as default so package-level slog calls route to our handler
+	oldLogger := slog.Default()
+	slog.SetDefault(m.Logger)
+	defer slog.SetDefault(oldLogger)
+
+	// 1. Parse all inputs
+	if err := m.parseInputs(inputPath); err != nil {
 		return nil, fmt.Errorf("failed to parse inputs: %w", err)
 	}
 
-	// 2. Run converters on cached resources
-	outputs, err := m.convertResources(report)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert resources: %w", err)
-	}
+	// 2. Run converters
+	outputs := m.convertResources()
 
-	// 3. Write outputs (always to Stdout)
+	// 3. Write GMP manifests
 	if err := m.writeOutputs(outputs); err != nil {
 		return nil, fmt.Errorf("failed to write outputs: %w", err)
 	}
 
-	// 4. Print Summary Stats
+	// 4. Calculate final statistics from the handler's tracked levels
+	for _, level := range handler.resourceLevels {
+		switch level {
+		case slog.LevelError:
+			report.FailedCount++
+		case slog.LevelWarn:
+			report.WarningCount++
+		default:
+			// Info or Success levels are counted as perfect successes
+			report.SuccessCount++
+		}
+	}
+
+	// 5. Print Summary Stats
 	m.printSummary(report)
 
 	return report, nil
 }
 
 // parseInputs reads files, directories, or stdin and loads them into the cache.
-func (m *Migrator) parseInputs(path string, report *MigrationReport) error {
+func (m *Migrator) parseInputs(path string) error {
 	if path == "-" {
 		return m.parseYAMLStream(m.Stdin)
 	}
@@ -114,15 +136,14 @@ func (m *Migrator) parseInputs(path string, report *MigrationReport) error {
 		if d.IsDir() {
 			return nil
 		}
-		if strings.HasSuffix(fp, ".yaml") || strings.HasSuffix(fp, ".yml") {
+		ext := strings.ToLower(filepath.Ext(fp))
+		if ext == ".yaml" || ext == ".yml" {
 			if err := m.parseFile(fp); err != nil {
-				log := LogMessage{
-					Level:   LevelError,
-					Name:    fp, // Use file path as name since we don't have Kind/Namespace yet
-					Message: fmt.Sprintf("Skipping file due to parse error: %v", err),
-				}
-				report.Logs = append(report.Logs, log)
-				fmt.Fprintln(m.Stderr, log.String())
+				// A file failed to parse completely. Count as a failed run step.
+				slog.Error("Skipping file due to parse error",
+					slog.String("file", fp),
+					slog.Any("error", err),
+				)
 			}
 		}
 		return nil
@@ -148,19 +169,26 @@ func (m *Migrator) parseYAMLStream(r io.Reader) error {
 			}
 			return err
 		}
-		if u.Object == nil || u.GetKind() == "" {
+
+		// Silent skip for empty blocks or comments
+		if u.Object == nil || (u.GetKind() == "" && u.GetName() == "") {
 			continue
 		}
+
+		// Return error for malformed K8s resources missing metadata.name
+		if u.GetKind() != "" && u.GetName() == "" {
+			return fmt.Errorf("resource of kind %q is missing metadata.name", u.GetKind())
+		}
+
 		m.cache.Add(&u)
 	}
 	return nil
 }
 
-// convertResources runs registered converters and populates the MigrationReport.
-func (m *Migrator) convertResources(report *MigrationReport) ([]*unstructured.Unstructured, error) {
+func (m *Migrator) convertResources() []*unstructured.Unstructured {
 	var allOutputs []*unstructured.Unstructured
+	ctx := context.Background()
 
-	// Sort Kinds alphabetically for deterministic execution order
 	kinds := slices.AppendSeq(make([]string, 0, len(m.cache.resources)), maps.Keys(m.cache.resources))
 	slices.Sort(kinds)
 
@@ -171,69 +199,36 @@ func (m *Migrator) convertResources(report *MigrationReport) ([]*unstructured.Un
 		}
 
 		nsMap := m.cache.resources[kind]
-		// Sort Namespace/Name keys alphabetically for determinism
 		keys := slices.AppendSeq(make([]string, 0, len(nsMap)), maps.Keys(nsMap))
 		slices.Sort(keys)
 
 		for _, key := range keys {
 			res := nsMap[key]
-			outputs, logs, err := converter.Convert(res, m.cache)
-			report.Logs = append(report.Logs, logs...)
 
-			// Emitting operational logs (INFO, WARNING, SUCCESS)
-			for _, log := range logs {
-				fmt.Fprintln(m.Stderr, log.String())
-			}
+			// Create the pre-scoped resource logger
+			resourceLogger := m.Logger.With(
+				slog.String("kind", kind),
+				slog.String("namespace", res.GetNamespace()),
+				slog.String("name", res.GetName()),
+			)
 
-			// If conversion fails, increment fail count
+			outputs, err := converter.Convert(ctx, resourceLogger, res, m.cache)
+
 			if err != nil {
-				report.FailedCount++
-				errLog := LogMessage{
-					Level:     LevelError,
-					Kind:      kind,
-					Namespace: res.GetNamespace(),
-					Name:      res.GetName(),
-					Message:   err.Error(),
-				}
-				report.Logs = append(report.Logs, errLog)
-				fmt.Fprintln(m.Stderr, errLog.String())
+				resourceLogger.Error(err.Error())
 				continue
 			}
 
 			allOutputs = append(allOutputs, outputs...)
 
 			if len(outputs) > 0 {
-				// Distinguish migrated with warnings vs complete success
-				hasWarnings := false
-				for _, l := range logs {
-					if l.Level == LevelWarning {
-						hasWarnings = true
-						break
-					}
-				}
-
-				if hasWarnings {
-					report.WarningCount++
-				} else {
-					report.SuccessCount++
-				}
-
-				successLog := LogMessage{
-					Level:     LevelSuccess,
-					Kind:      kind,
-					Namespace: res.GetNamespace(),
-					Name:      res.GetName(),
-					Message:   "Translated successfully",
-				}
-				report.Logs = append(report.Logs, successLog)
-				fmt.Fprintln(m.Stderr, successLog.String())
+				resourceLogger.Log(ctx, LevelSuccess, "Translated successfully")
 			}
 		}
 	}
-	return allOutputs, nil
+	return allOutputs
 }
 
-// writeOutputs writes the translated resources to Stdout separated by ---.
 func (m *Migrator) writeOutputs(outputs []*unstructured.Unstructured) error {
 	for i, out := range outputs {
 		yamlOut, err := yaml.Marshal(out.Object)
@@ -248,9 +243,7 @@ func (m *Migrator) writeOutputs(outputs []*unstructured.Unstructured) error {
 	return nil
 }
 
-// printSummary outputs the final execution statistics.
 func (m *Migrator) printSummary(r *MigrationReport) {
-	// Summary goes to Stderr so it doesn't pollute the redirected YAML payload
 	fmt.Fprintln(m.Stderr, "\n=========================================")
 	fmt.Fprintln(m.Stderr, "Migration Complete Summary:")
 	fmt.Fprintf(m.Stderr, "  Successfully Migrated: %d\n", r.SuccessCount)

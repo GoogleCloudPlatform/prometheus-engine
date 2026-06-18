@@ -16,6 +16,8 @@ package migrate
 
 import (
 	"bytes"
+	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,28 +35,15 @@ func (d *DummyConverter) ImportKey() string {
 	return "DummyResource"
 }
 
-func (d *DummyConverter) Convert(unstruct *unstructured.Unstructured, cache *ResourceCache) ([]*unstructured.Unstructured, []LogMessage, error) {
+func (d *DummyConverter) Convert(_ context.Context, logger *slog.Logger, unstruct *unstructured.Unstructured, cache *ResourceCache) ([]*unstructured.Unstructured, error) {
 	d.calls++
 
 	_, found := cache.Get("Service", unstruct.GetNamespace(), "backing-service")
 
-	logs := []LogMessage{}
 	if !found {
-		logs = append(logs, LogMessage{
-			Level:     LevelWarning,
-			Kind:      unstruct.GetKind(),
-			Namespace: unstruct.GetNamespace(),
-			Name:      unstruct.GetName(),
-			Message:   "backing-service not found in cache",
-		})
+		logger.Warn("backing-service not found in cache")
 	} else {
-		logs = append(logs, LogMessage{
-			Level:     LevelInfo,
-			Kind:      unstruct.GetKind(),
-			Namespace: unstruct.GetNamespace(),
-			Name:      unstruct.GetName(),
-			Message:   "Successfully resolved backing-service",
-		})
+		logger.Info("Successfully resolved backing-service")
 	}
 
 	out := &unstructured.Unstructured{}
@@ -63,7 +52,7 @@ func (d *DummyConverter) Convert(unstruct *unstructured.Unstructured, cache *Res
 	out.SetName("translated-" + unstruct.GetName())
 	out.SetNamespace(unstruct.GetNamespace())
 
-	return []*unstructured.Unstructured{out}, logs, nil
+	return []*unstructured.Unstructured{out}, nil
 }
 
 func TestMigratorCacheAndExtensibility(t *testing.T) {
@@ -93,7 +82,6 @@ spec:
 	}
 
 	migrator := NewMigrator()
-	// Redirect output to buffers to avoid cluttering test logs and verify output
 	var stdoutBuf, stderrBuf bytes.Buffer
 	migrator.Stdout = &stdoutBuf
 	migrator.Stderr = &stderrBuf
@@ -107,12 +95,11 @@ spec:
 		t.Fatalf("Run failed: %v", err)
 	}
 
-	// Verify converter was called
 	if dummyConv.calls != 1 {
 		t.Errorf("expected DummyConverter to be called 1 time, got %d", dummyConv.calls)
 	}
 
-	// Verify report stats (should be success, since backing-service was found)
+	// Verify report stats
 	if report.SuccessCount != 1 {
 		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
 	}
@@ -120,39 +107,32 @@ spec:
 		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
 	}
 
-	// Verify logs contains the INFO log
-	foundInfo := false
-	for _, log := range report.Logs {
-		if log.Level == LevelInfo && strings.Contains(log.Message, "Successfully resolved backing-service") {
-			foundInfo = true
-		}
+	stderrLogs := stderrBuf.String()
+	if !strings.Contains(stderrLogs, "[INFO] [DummyResource:default/my-dummy] Successfully resolved backing-service") {
+		t.Errorf("expected formatted INFO log in Stderr, got: %q", stderrLogs)
 	}
-	if !foundInfo {
-		t.Error("expected INFO log about resolving backing-service was not found in report")
+	if !strings.Contains(stderrLogs, "[SUCCESS] [DummyResource:default/my-dummy] Translated successfully") {
+		t.Errorf("expected formatted SUCCESS log in Stderr, got: %q", stderrLogs)
 	}
 }
 
 func TestResourceCacheNamespaceScoping(t *testing.T) {
 	cache := NewResourceCache()
 
-	// 1. Test defaulting of omitted namespace for namespaced resources
 	omittedNsRes := &unstructured.Unstructured{}
 	omittedNsRes.SetKind("PodMonitor")
 	omittedNsRes.SetName("my-monitor-omitted")
-	omittedNsRes.SetNamespace("") // Omitted in YAML
+	omittedNsRes.SetNamespace("")
 
 	cache.Add(omittedNsRes)
 
-	// It should be stored under "default"
 	if _, found := cache.Get("PodMonitor", "default", "my-monitor-omitted"); !found {
 		t.Error("expected namespaced resource with omitted namespace to be defaulted to 'default'")
 	}
-	// It should NOT be found under empty namespace
 	if _, found := cache.Get("PodMonitor", "", "my-monitor-omitted"); found {
 		t.Error("expected namespaced resource with omitted namespace NOT to be found under empty namespace")
 	}
 
-	// 2. Test strict namespace isolation
 	nsARes := &unstructured.Unstructured{}
 	nsARes.SetKind("PodMonitor")
 	nsARes.SetName("common-name")
@@ -160,17 +140,63 @@ func TestResourceCacheNamespaceScoping(t *testing.T) {
 
 	cache.Add(nsARes)
 
-	// Querying in namespace-b should NOT return the resource from namespace-a
 	if _, found := cache.Get("PodMonitor", "namespace-b", "common-name"); found {
 		t.Error("expected strict namespace isolation; found resource from namespace-a when querying namespace-b")
 	}
 
-	// Querying in namespace-a should find it
 	res, found := cache.Get("PodMonitor", "namespace-a", "common-name")
 	if !found {
 		t.Fatal("expected to find resource in namespace-a")
 	}
 	if res.GetNamespace() != "namespace-a" {
 		t.Errorf("expected found resource to have namespace 'namespace-a', got %q", res.GetNamespace())
+	}
+}
+
+func TestMigratorMalformedInput(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// YAML resource with a Kind but completely missing metadata.name
+	malformedYAML := `
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: my-app
+`
+	inputFilePath := filepath.Join(tmpDir, "bad_resource.yaml")
+	if err := os.WriteFile(inputFilePath, []byte(malformedYAML), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	migrator := NewMigrator()
+	var stdoutBuf, stderrBuf bytes.Buffer
+	migrator.Stdout = &stdoutBuf
+	migrator.Stderr = &stderrBuf
+
+	// Run migration on the directory containing the malformed file
+	report, err := migrator.Run(tmpDir)
+	if err != nil {
+		t.Fatalf("Run should not return a fatal error for directory walks, got: %v", err)
+	}
+
+	// Verify that the file parse error was caught and counted as a failure.
+	if report.FailedCount != 1 {
+		t.Errorf("expected FailedCount to be 1, got %d", report.FailedCount)
+	}
+	if report.SuccessCount != 0 {
+		t.Errorf("expected SuccessCount to be 0, got %d", report.SuccessCount)
+	}
+
+	// Verify that a [ERROR] log was printed to Stderr showing the file path and exact parse error
+	stderrLogs := stderrBuf.String()
+	if !strings.Contains(stderrLogs, "[ERROR] ["+inputFilePath+"] Skipping file due to parse error") {
+		t.Errorf("expected formatted [ERROR] log in Stderr, got: %q", stderrLogs)
+	}
+	if !strings.Contains(stderrLogs, "resource of kind \"PodMonitor\" is missing metadata.name") {
+		t.Errorf("expected underlying parse error in Stderr, got: %q", stderrLogs)
 	}
 }
