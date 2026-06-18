@@ -442,17 +442,7 @@ release-lib::manifests_regen() {
 		return 1
 	fi
 
-	# TODO(bwplotka): Manage deps better. It's getting confusing what bins we should use (worktree bingo? script bingo?).
-	go install helm.sh/helm/v3/cmd/helm@latest
-	go install github.com/google/addlicense@latest
-	go install github.com/mikefarah/yq/v4@latest
-
-	# Hack: Do the bingo variable swap. This allows injecting our own.
-	# This is faster than running requiring bingo and running bingo get.
-	cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
-	echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
-	YQ="$(which yq)" HELM="$(which helm)" ADDLICENSE="$(which addlicense)" bash "${dir}/hack/presubmit.sh" manifests
-	cp "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env"
+	bash "${dir}/hack/presubmit.sh" manifests
 
 	echo "✅  Manifests regenerated"
 	return 0
