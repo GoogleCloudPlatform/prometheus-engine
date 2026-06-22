@@ -188,12 +188,23 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 	slices.Sort(kinds)
 
 	for _, kind := range kinds {
+		nsMap := m.cache.resources[kind]
 		converter, registered := m.converters[kind]
 		if !registered {
+			// If this is a Prometheus Operator resource (group: monitoring.coreos.com),
+			// log an error then skip.
+			for _, res := range nsMap {
+				if strings.HasPrefix(res.GetAPIVersion(), "monitoring.coreos.com") {
+					m.Logger.Error("Skipping unsupported Prometheus Operator resource",
+						slog.String("kind", kind),
+						slog.String("namespace", res.GetNamespace()),
+						slog.String("name", res.GetName()),
+					)
+				}
+			}
 			continue
 		}
 
-		nsMap := m.cache.resources[kind]
 		keys := slices.AppendSeq(make([]string, 0, len(nsMap)), maps.Keys(nsMap))
 		slices.Sort(keys)
 
