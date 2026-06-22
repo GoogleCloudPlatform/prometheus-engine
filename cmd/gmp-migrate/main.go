@@ -17,12 +17,15 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/migrate"
 )
 
 func main() {
+	slog.SetDefault(slog.New(migrate.NewConsoleHandler(os.Stderr)))
+
 	var inputFile string
 	flag.StringVar(&inputFile, "file", "", "Input source (YAML file, directory, or '-' for stdin) (Required)")
 	flag.StringVar(&inputFile, "f", "", "Input source (YAML file, directory, or '-' for stdin) (Required)")
@@ -35,7 +38,7 @@ func main() {
 	flag.Parse()
 
 	if inputFile == "" {
-		fmt.Fprintln(os.Stderr, "[ERROR] Flag -f / --file is required.")
+		slog.Error("Flag -f / --file is required.")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -43,13 +46,13 @@ func main() {
 	migrator := migrate.NewMigrator()
 	report, err := migrator.Run(inputFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] Migration failed: %v\n", err)
+		slog.Error("Migration failed", slog.Any("error", err))
 		os.Exit(1)
 	}
 
 	// If any resource failed to migrate, exit with a non-zero code.
 	if report.FailedCount > 0 {
-		fmt.Fprintf(os.Stderr, "\n[ERROR] Migration completed with %d failures.\n", report.FailedCount)
+		slog.Error("Migration completed with failures", slog.Int("failures", report.FailedCount))
 		os.Exit(1)
 	}
 }
