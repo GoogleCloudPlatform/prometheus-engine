@@ -77,11 +77,6 @@ func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
 	handler := NewConsoleHandler(m.Stderr)
 	m.Logger = slog.New(handler)
 
-	// Temporarily set as default so package-level slog calls route to our handler
-	oldLogger := slog.Default()
-	slog.SetDefault(m.Logger)
-	defer slog.SetDefault(oldLogger)
-
 	// 1. Parse all inputs
 	if err := m.parseInputs(inputPath); err != nil {
 		return nil, fmt.Errorf("failed to parse inputs: %w", err)
@@ -96,7 +91,7 @@ func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
 	}
 
 	// 4. Calculate final statistics from the handler's tracked levels
-	for _, level := range handler.resourceLevels {
+	for _, level := range handler.state.resourceLevels {
 		switch level {
 		case slog.LevelError:
 			report.FailedCount++
@@ -140,7 +135,7 @@ func (m *Migrator) parseInputs(path string) error {
 		if ext == ".yaml" || ext == ".yml" {
 			if err := m.parseFile(fp); err != nil {
 				// A file failed to parse completely. Count as a failed run step.
-				slog.Error("Skipping file due to parse error",
+				m.Logger.Error("Skipping file due to parse error",
 					slog.String("file", fp),
 					slog.Any("error", err),
 				)

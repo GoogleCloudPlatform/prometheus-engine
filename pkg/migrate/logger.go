@@ -26,20 +26,27 @@ import (
 // LevelSuccess defines a custom slog.Level for Success (standard Info is 0, Warn is 4).
 const LevelSuccess slog.Level = slog.LevelInfo + 1 // Level 1
 
+// loggerState encapsulates the shared, thread-safe state across all handler clones.
+type loggerState struct {
+	mu             sync.Mutex
+	resourceLevels map[string]slog.Level
+}
+
 // ConsoleHandler is a thread-safe slog.Handler that formats logs for the console (Stderr)
 // and tracks the highest log level seen per resource (for statistics).
 type ConsoleHandler struct {
-	mu             sync.Mutex
-	out            io.Writer
-	resourceLevels map[string]slog.Level
-	attrs          []slog.Attr
+	out   io.Writer
+	state *loggerState
+	attrs []slog.Attr
 }
 
 // NewConsoleHandler creates a new ConsoleHandler.
 func NewConsoleHandler(out io.Writer) *ConsoleHandler {
 	return &ConsoleHandler{
-		out:            out,
-		resourceLevels: make(map[string]slog.Level),
+		out: out,
+		state: &loggerState{
+			resourceLevels: make(map[string]slog.Level),
+		},
 	}
 }
 
@@ -48,8 +55,8 @@ func (h *ConsoleHandler) Enabled(_ context.Context, _ slog.Level) bool {
 }
 
 func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	h.state.mu.Lock()
+	defer h.state.mu.Unlock()
 
 	var kind, namespace, name, file string
 	var extraAttrs []string
@@ -120,13 +127,13 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	// 2. Track the highest log level seen for this resource (for final report)
 	if kind != "" && name != "" {
 		key := fmt.Sprintf("%s/%s/%s", kind, namespace, name)
-		if r.Level > h.resourceLevels[key] {
-			h.resourceLevels[key] = r.Level
+		if r.Level > h.state.resourceLevels[key] {
+			h.state.resourceLevels[key] = r.Level
 		}
 	} else if file != "" {
 		// Track file-level log severity under the file path key
-		if r.Level > h.resourceLevels[file] {
-			h.resourceLevels[file] = r.Level
+		if r.Level > h.state.resourceLevels[file] {
+			h.state.resourceLevels[file] = r.Level
 		}
 	}
 
@@ -134,11 +141,10 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 }
 
 func (h *ConsoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	newAttrs := append(h.attrs, attrs...)
 	return &ConsoleHandler{
-		out:            h.out,
-		resourceLevels: h.resourceLevels,
-		attrs:          newAttrs,
+		out:   h.out,
+		state: h.state,
+		attrs: append(h.attrs, attrs...),
 	}
 }
 
