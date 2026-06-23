@@ -71,6 +71,16 @@ func (m *Migrator) RegisterConverter(c ResourceConverter) {
 
 // Run executes the migration flow and returns the summary report.
 func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
+	if m.Stdin == nil {
+		m.Stdin = os.Stdin
+	}
+	if m.Stdout == nil {
+		m.Stdout = os.Stdout
+	}
+	if m.Stderr == nil {
+		m.Stderr = os.Stderr
+	}
+
 	report := &MigrationReport{}
 
 	// Instantiate our custom ConsoleHandler
@@ -259,9 +269,13 @@ func (m *Migrator) writeOutputs(outputs []*unstructured.Unstructured) error {
 			return err
 		}
 		if i > 0 {
-			fmt.Fprintln(m.Stdout, "---")
+			if _, err := fmt.Fprintln(m.Stdout, "---"); err != nil {
+				return fmt.Errorf("failed to write document separator: %w", err)
+			}
 		}
-		fmt.Fprint(m.Stdout, string(yamlOut))
+		if _, err := m.Stdout.Write(yamlOut); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
+		}
 	}
 	return nil
 }
