@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"strings"
 	"sync"
 )
@@ -158,4 +159,12 @@ func (h *ConsoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (h *ConsoleHandler) WithGroup(_ string) slog.Handler {
 	return h
+}
+
+// ResourceLevels returns a thread-safe copy of the tracked resource log levels.
+func (h *ConsoleHandler) ResourceLevels() map[string]slog.Level {
+	h.state.mu.Lock()
+	defer h.state.mu.Unlock()
+
+	return maps.Clone(h.state.resourceLevels)
 }

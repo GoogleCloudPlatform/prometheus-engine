@@ -101,7 +101,7 @@ func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
 	}
 
 	// 4. Calculate final statistics from the handler's tracked levels
-	for _, level := range handler.state.resourceLevels {
+	for _, level := range handler.ResourceLevels() {
 		switch level {
 		case slog.LevelError:
 			report.FailedCount++
