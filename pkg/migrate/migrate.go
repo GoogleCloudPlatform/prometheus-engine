@@ -264,7 +264,7 @@ func (m *Migrator) writeOutputs(outputs []*unstructured.Unstructured) error {
 			return fmt.Errorf("internal error: found nil resource or uninitialized object in outputs at index %d", i)
 		}
 
-		yamlOut, err := yaml.Marshal(out.Object)
+		yamlOut, err := yaml.Marshal(out)
 		if err != nil {
 			return err
 		}

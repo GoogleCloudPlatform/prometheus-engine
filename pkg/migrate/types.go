@@ -63,11 +63,9 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
 		c.resources[kind] = make(map[string]*unstructured.Unstructured)
 	}
 
-	// Safe to default since we only ingest namespaced resources.
 	ns := u.GetNamespace()
 	if ns == "" {
 		ns = "default"
-		u.SetNamespace("default") // Explicitly write "default" namespace to the object.
 	}
 
 	key := fmt.Sprintf("%s/%s", ns, u.GetName())
@@ -79,6 +77,9 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
 func (c *ResourceCache) Get(kind, namespace, name string) (*unstructured.Unstructured, bool) {
 	if c == nil || c.resources == nil {
 		return nil, false
+	}
+	if namespace == "" {
+		namespace = "default"
 	}
 	nsMap, ok := c.resources[kind]
 	if !ok {
