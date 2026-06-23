@@ -347,7 +347,7 @@ spec:
       labels:
         app: managed-prometheus-collector
         app.kubernetes.io/name: collector
-        app.kubernetes.io/version: 0.17.3
+        app.kubernetes.io/version: 0.19.0
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -359,7 +359,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260601.00_p0
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260615.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -551,7 +551,7 @@ spec:
         app.kubernetes.io/component: operator
         app.kubernetes.io/name: gmp-operator
         app.kubernetes.io/part-of: gmp
-        app.kubernetes.io/version: 0.17.3
+        app.kubernetes.io/version: 0.19.0
     spec:
       serviceAccountName: operator
       automountServiceAccountToken: true
@@ -654,7 +654,7 @@ spec:
       labels:
         app.kubernetes.io/name: rule-evaluator
         app: managed-prometheus-rule-evaluator
-        app.kubernetes.io/version: 0.17.3
+        app.kubernetes.io/version: 0.19.0
       annotations:
         # The emptyDir for the storage and config directories prevents cluster
         # autoscaling unless this annotation is set.
@@ -666,7 +666,7 @@ spec:
       priorityClassName: gmp-critical
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260601.00_p0
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260615.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -829,7 +829,7 @@ spec:
       labels:
         app: managed-prometheus-alertmanager
         app.kubernetes.io/name: alertmanager
-        app.kubernetes.io/version: 0.17.3
+        app.kubernetes.io/version: 0.19.0
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         components.gke.io/component-name: managed_prometheus
@@ -838,7 +838,7 @@ spec:
       automountServiceAccountToken: false
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260601.00_p0
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260615.00_p0
         command: ['/bin/bash', '-c', 'touch /alertmanager/config_out/config.yaml && echo -e "receivers:\n  - name: noop\nroute:\n  receiver: noop" > alertmanager/config_out/config.yaml']
         volumeMounts:
         - name: alertmanager-config
