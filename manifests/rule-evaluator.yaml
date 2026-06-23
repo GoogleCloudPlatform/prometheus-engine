@@ -118,13 +118,13 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: rule-evaluator
-        app.kubernetes.io/version: 0.17.3
+        app.kubernetes.io/version: 0.19.0
     spec:
       serviceAccountName: rule-evaluator
       automountServiceAccountToken: true
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260601.00_p0
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260615.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
