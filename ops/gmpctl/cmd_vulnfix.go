@@ -30,7 +30,7 @@ var (
 	vulnfixBranch              = vulnfixFlags.String("b", "", "Release branch to work on; Project is auto-detected from this")
 	vulnfixPRBranch            = vulnfixFlags.String("pr-branch", "", "(default: $USER/BRANCH-vulnfix) Upstream branch to push to (user-confirmed first).")
 	vulnfixSyncDockerfilesFrom = vulnfixFlags.Bool("sync-dockerfiles-from", false, "Optional branch name to sync Dockerfiles from. Useful when things changed.")
-	vulnfixGoVersion           = vulnfixFlags.String("go-version", "", "Go minor version to use for toolchain and docker images.")
+	vulnfixGoVersion           = vulnfixFlags.String("go-version", "", "Go minor version to use for docker images.")
 )
 
 // Attempt a minimal dependency upgrade to solve fixable vulnerabilities.
