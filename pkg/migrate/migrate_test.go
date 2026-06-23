@@ -26,17 +26,17 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// DummyConverter implements ResourceConverter for testing.
-type DummyConverter struct {
+// TestPodMonitorConverter implements ResourceConverter for testing.
+type TestPodMonitorConverter struct {
 	calls int
 }
 
-func (d *DummyConverter) ImportKey() string {
-	return "DummyResource"
+func (t *TestPodMonitorConverter) ImportKey() string {
+	return "PodMonitor"
 }
 
-func (d *DummyConverter) Convert(_ context.Context, logger *slog.Logger, unstruct *unstructured.Unstructured, cache *ResourceCache) ([]*unstructured.Unstructured, error) {
-	d.calls++
+func (t *TestPodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, unstruct *unstructured.Unstructured, cache *ResourceCache) ([]*unstructured.Unstructured, error) {
+	t.calls++
 
 	_, found := cache.Get("Service", unstruct.GetNamespace(), "backing-service")
 
@@ -60,9 +60,9 @@ func TestMigratorCacheAndExtensibility(t *testing.T) {
 
 	yamlContent := `
 apiVersion: monitoring.coreos.com/v1
-kind: DummyResource
+kind: PodMonitor
 metadata:
-  name: my-dummy
+  name: my-monitor
   namespace: default
 spec:
   foo: bar
@@ -86,8 +86,8 @@ spec:
 	migrator.Stdout = &stdoutBuf
 	migrator.Stderr = &stderrBuf
 
-	dummyConv := &DummyConverter{}
-	migrator.RegisterConverter(dummyConv)
+	testConv := &TestPodMonitorConverter{}
+	migrator.RegisterConverter(testConv)
 
 	// Run migration
 	report, err := migrator.Run(inputFilePath)
@@ -95,8 +95,8 @@ spec:
 		t.Fatalf("Run failed: %v", err)
 	}
 
-	if dummyConv.calls != 1 {
-		t.Errorf("expected DummyConverter to be called 1 time, got %d", dummyConv.calls)
+	if testConv.calls != 1 {
+		t.Errorf("expected TestPodMonitorConverter to be called 1 time, got %d", testConv.calls)
 	}
 
 	// Verify report stats
@@ -108,10 +108,10 @@ spec:
 	}
 
 	stderrLogs := stderrBuf.String()
-	if !strings.Contains(stderrLogs, "[INFO] [DummyResource:default/my-dummy] Successfully resolved backing-service") {
+	if !strings.Contains(stderrLogs, "[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service") {
 		t.Errorf("expected formatted INFO log in Stderr, got: %q", stderrLogs)
 	}
-	if !strings.Contains(stderrLogs, "[SUCCESS] [DummyResource:default/my-dummy] Converted successfully") {
+	if !strings.Contains(stderrLogs, "[SUCCESS] [PodMonitor:default/my-monitor] Converted successfully") {
 		t.Errorf("expected formatted SUCCESS log in Stderr, got: %q", stderrLogs)
 	}
 }
@@ -124,7 +124,9 @@ func TestResourceCacheNamespaceScoping(t *testing.T) {
 	omittedNsRes.SetName("my-monitor-omitted")
 	omittedNsRes.SetNamespace("")
 
-	cache.Add(omittedNsRes)
+	if err := cache.Add(omittedNsRes); err != nil {
+		t.Fatalf("Add failed: %v", err)
+	}
 
 	if _, found := cache.Get("PodMonitor", "default", "my-monitor-omitted"); !found {
 		t.Error("expected namespaced resource with omitted namespace to be defaulted to 'default'")
@@ -138,7 +140,9 @@ func TestResourceCacheNamespaceScoping(t *testing.T) {
 	nsARes.SetName("common-name")
 	nsARes.SetNamespace("namespace-a")
 
-	cache.Add(nsARes)
+	if err := cache.Add(nsARes); err != nil {
+		t.Fatalf("Add failed: %v", err)
+	}
 
 	if _, found := cache.Get("PodMonitor", "namespace-b", "common-name"); found {
 		t.Error("expected strict namespace isolation; found resource from namespace-a when querying namespace-b")
@@ -173,6 +177,7 @@ spec:
 	}
 
 	migrator := NewMigrator()
+	migrator.RegisterConverter(&TestPodMonitorConverter{})
 	var stdoutBuf, stderrBuf bytes.Buffer
 	migrator.Stdout = &stdoutBuf
 	migrator.Stderr = &stderrBuf

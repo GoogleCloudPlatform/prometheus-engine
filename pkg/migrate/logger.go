@@ -141,10 +141,18 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 }
 
 func (h *ConsoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	// 1. Allocate a brand-new, independent underlying array of exact size
+	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
+
+	// 2. Copy the parent's attributes to the beginning of the new array
+	copy(newAttrs, h.attrs)
+
+	// 3. Copy the new attributes to the remaining space, starting at the offset
+	copy(newAttrs[len(h.attrs):], attrs)
 	return &ConsoleHandler{
 		out:   h.out,
 		state: h.state,
-		attrs: append(h.attrs, attrs...),
+		attrs: newAttrs,
 	}
 }
 

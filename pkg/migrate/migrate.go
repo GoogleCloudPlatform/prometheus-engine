@@ -49,7 +49,7 @@ type Migrator struct {
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
-	Logger *slog.Logger
+	logger *slog.Logger
 }
 
 // NewMigrator creates a new Migrator.
@@ -60,7 +60,7 @@ func NewMigrator() *Migrator {
 		Stdin:      os.Stdin,
 		Stdout:     os.Stdout,
 		Stderr:     os.Stderr,
-		Logger:     slog.Default(),
+		logger:     slog.Default(),
 	}
 }
 
@@ -75,7 +75,7 @@ func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
 
 	// Instantiate our custom ConsoleHandler
 	handler := NewConsoleHandler(m.Stderr)
-	m.Logger = slog.New(handler)
+	m.logger = slog.New(handler)
 
 	// 1. Parse all inputs
 	if err := m.parseInputs(inputPath); err != nil {
@@ -146,7 +146,7 @@ func (m *Migrator) parseInputs(path string) error {
 		if ext == ".yaml" || ext == ".yml" {
 			if err := m.parseFile(fp); err != nil {
 				// A file failed to parse completely. Count as a failed run step.
-				m.Logger.Error("Skipping file due to parse error",
+				m.logger.Error("Skipping file due to parse error",
 					slog.String("file", fp),
 					slog.Any("error", err),
 				)
@@ -184,7 +184,7 @@ func (m *Migrator) parseYAMLStream(r io.Reader) error {
 		if !m.isRelevantKind(kind) {
 			// If it's a Prometheus Operator resource, log an ERROR first.
 			if strings.HasPrefix(apiVersion, "monitoring.coreos.com") {
-				m.Logger.Error("Skipping unsupported Prometheus Operator resource",
+				m.logger.Error("Skipping unsupported Prometheus Operator resource",
 					slog.String("apiVersion", apiVersion),
 					slog.String("kind", kind),
 					slog.String("namespace", u.GetNamespace()),
@@ -199,7 +199,9 @@ func (m *Migrator) parseYAMLStream(r io.Reader) error {
 			return fmt.Errorf("malformed resource: apiVersion, kind, and metadata.name must all be specified (got apiVersion=%q, kind=%q, name=%q)", apiVersion, kind, name)
 		}
 
-		m.cache.Add(&u)
+		if err := m.cache.Add(&u); err != nil {
+			return fmt.Errorf("failed to cache resource: %w", err)
+		}
 	}
 	return nil
 }
@@ -222,10 +224,10 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 		slices.Sort(keys)
 
 		for _, key := range keys {
-			res := nsMap[key]
+			res := nsMap[key].DeepCopy()
 
 			// Create the pre-scoped resource logger
-			resourceLogger := m.Logger.With(
+			resourceLogger := m.logger.With(
 				slog.String("kind", kind),
 				slog.String("namespace", res.GetNamespace()),
 				slog.String("name", res.GetName()),

@@ -16,6 +16,7 @@ package migrate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -43,11 +44,16 @@ func NewResourceCache() *ResourceCache {
 	}
 }
 
-// Add adds a resource to the cache, defaulting empty namespaces to "default".
-func (c *ResourceCache) Add(u *unstructured.Unstructured) {
-	if c == nil || u == nil {
-		return
+// Add adds a resource to the cache, returning an error if inputs are invalid.
+// Defaulting empty namespaces to "default".
+func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
+	if c == nil {
+		return errors.New("cannot add to nil ResourceCache")
 	}
+	if u == nil {
+		return errors.New("cannot add nil resource to cache")
+	}
+
 	if c.resources == nil {
 		c.resources = make(map[string]map[string]*unstructured.Unstructured)
 	}
@@ -66,6 +72,7 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) {
 
 	key := fmt.Sprintf("%s/%s", ns, u.GetName())
 	c.resources[kind][key] = u
+	return nil
 }
 
 // Get retrieves a resource from the cache by kind, namespace, and name.
