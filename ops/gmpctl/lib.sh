@@ -244,7 +244,7 @@ release-lib::dockerfiles() {
 		log_err "dir arg is required."
 		return 1
 	fi
-	find "${dir}" -name "Dockerfile*" | grep -v "${dir}/third_party/" | grep -v "${dir}/hack/" | grep -v "${dir}/ui/" | grep -v "vendor/" | grep -v "node_modules/"
+	find "${dir}" \( -name "third_party" -o -name "ui" -o -name "vendor" -o -name "node_modules" -o -name ".git" \) -prune -o -name "Dockerfile*" -print
 }
 
 # Return all images used in a Dockerfile, delimited by new-line.
@@ -407,8 +407,6 @@ release-lib::idemp::manifests_bash_image_bump() {
 		return 1
 	fi
 
-	go install github.com/mikefarah/yq/v4@latest
-
 	local values_file="${dir}/charts/values.global.yaml"
 	# TODO: Not enough, this has to check actual manifests.
 	local bash_tag=$(yq '.images.bash.tag' "${values_file}")
@@ -442,17 +440,22 @@ release-lib::manifests_regen() {
 		return 1
 	fi
 
-	# TODO(bwplotka): Manage deps better. It's getting confusing what bins we should use (worktree bingo? script bingo?).
-	go install helm.sh/helm/v3/cmd/helm@latest
-	go install github.com/google/addlicense@latest
-	go install github.com/mikefarah/yq/v4@latest
-
 	# Hack: Do the bingo variable swap. This allows injecting our own.
 	# This is faster than running requiring bingo and running bingo get.
-	cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
-	echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
+	# NOTE: Only needed before 0.19.
+	if [[ -f "${dir}/.bingo/variables.env" ]]; then
+		cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
+		echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
+	fi
+
+	echo "🔄 Regenerating manifests..."
+	# Regenerate.
 	YQ="$(which yq)" HELM="$(which helm)" ADDLICENSE="$(which addlicense)" bash "${dir}/hack/presubmit.sh" manifests
-	cp "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env"
+
+	# NOTE: Only needed before 0.19.
+	if [[ -f "${dir}/.bingo/variables.env.bak" ]]; then
+		mv "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env"
+	fi
 
 	echo "✅  Manifests regenerated"
 	return 0

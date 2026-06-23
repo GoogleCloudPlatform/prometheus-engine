@@ -49,19 +49,66 @@ func mustFetchAll(dir string) {
 	}
 }
 
+func getTTY(dir string) string {
+	out, err := runCommand(&cmdOpts{Dir: dir, HideOutputs: true}, "tty")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
 func mustCreateSignedTag(dir, tag string) {
 	logf("Creating a signed tag %v...", tag)
 
-	// explicit TTY is often needed on Macs.
+	// Ensure TTY is set for GPG signing.
+	var envs []string
+	if tty := getTTY(dir); tty != "" {
+		envs = append(envs, "GPG_TTY="+tty)
+	}
+
 	// TODO(bwplotka): Consider adding v0.x second tag for Prometheus fork (similar to how v0.300 Prometheus releases are structured).
 	// This is to have a little bit cleaner prometheus-engine go.mod version against the fork.
 	if _, err := runCommand(
-		&cmdOpts{Dir: dir},
-		"bash", "-c",
-		fmt.Sprintf("GPG_TTY=$(tty) git tag -s %v -m %v", tag, tag),
+		&cmdOpts{Dir: dir, Envs: envs},
+		"git", "tag", "-s", tag, "-m", tag,
 	); err != nil {
 		panicf(err.Error())
 	}
+}
+
+func mustCreateOrRecreateTag(dir, tag string) {
+	// Check if the tag exists on origin, and if so, finish
+	_, errLs := runCommand(&cmdOpts{Dir: dir, HideOutputs: true}, "git", "ls-remote", "--exit-code", "--tags", "origin", "refs/tags/"+tag)
+	if errLs == nil {
+		panicf("This tag %v was already pushed, chose a different one!", tag)
+	}
+
+	// Check if the tag already exists locally.
+	tagCommit, err := runCommand(&cmdOpts{Dir: dir, HideOutputs: true}, "git", "rev-parse", "--verify", "-q", "refs/tags/"+tag+"^{commit}")
+	if err == nil {
+		// Tag exists locally!
+		headCommit, err := runCommand(&cmdOpts{Dir: dir, HideOutputs: true}, "git", "rev-parse", "HEAD")
+		if err != nil {
+			panicf("failed to get HEAD commit: %v", err)
+		}
+
+		tagCommit = strings.TrimSpace(tagCommit)
+		headCommit = strings.TrimSpace(headCommit)
+
+		if tagCommit == headCommit {
+			logf("Tag %q already exists locally and points to HEAD (%s). Skipping recreation.", tag, headCommit)
+			return
+		}
+		logf("Tag %q exists locally but points to commit %s, while HEAD is at %s. Re-tagging...", tag, tagCommit, headCommit)
+
+		// Delete the local tag.
+		if _, err := runCommand(&cmdOpts{Dir: dir}, "git", "tag", "-d", tag); err != nil {
+			panicf("failed to delete local tag %s: %v", tag, err)
+		}
+	}
+
+	// Create the signed tag.
+	mustCreateSignedTag(dir, tag)
 }
 
 // mustIsRemoteUpToDate returns true if HEAD points to the same commit as
@@ -84,9 +131,10 @@ func mustIsRemoteUpToDate(dir, branch string) bool {
 	return strings.TrimSpace(localHead) == strings.TrimSpace(remoteHead)
 }
 
-func mustPush(dir, what string) {
-	logf("Pushing %v...", what)
-	if _, err := runCommand(&cmdOpts{Dir: dir}, "git", "push", "origin", what); err != nil {
+func mustPush(dir string, what ...string) {
+	logf("Pushing %v...", strings.Join(what, " "))
+	args := append([]string{"git", "push", "origin"}, what...)
+	if _, err := runCommand(&cmdOpts{Dir: dir}, args...); err != nil {
 		panicf("failed to push: %v", err)
 	}
 }
@@ -103,6 +151,12 @@ func mustRecreateBranch(dir, branch string) {
 	_, _ = runCommand(&cmdOpts{Dir: dir}, "git", "branch", "-D", branch)
 	if _, err := runCommand(&cmdOpts{Dir: dir}, "git", "branch", branch); err != nil {
 		panicf("failed to  fopush: %v", err)
+	}
+}
+
+func mustAddAll(dir string) {
+	if _, err := runCommand(&cmdOpts{Dir: dir}, "git", "add", "--all"); err != nil {
+		panicf("failed to git add all: %v", err)
 	}
 }
 

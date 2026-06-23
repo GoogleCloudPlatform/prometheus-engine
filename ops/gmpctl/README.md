@@ -67,6 +67,8 @@ Usage: gmpctl [COMMAND] [FLAGS]
 [vulnfix] Usage of vulnfix:
   -b string
     	Release branch to work on; Project is auto-detected from this
+  -go-version string
+    	Go minor version to use for toolchain and docker images.
   -pr-branch string
     	(default: $USER/BRANCH-vulnfix) Upstream branch to push to (user-confirmed first).
   -sync-dockerfiles-from

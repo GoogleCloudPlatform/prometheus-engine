@@ -26,6 +26,12 @@ SCRIPT_DIR="$(
 	pwd -P
 )"
 
+# Install dependencies in the current context. We switch Go toolchain versions so using go tool might not work.
+go install github.com/google/go-containerregistry/cmd/gcrane@latest
+go install github.com/mikefarah/yq/v4@latest
+go install helm.sh/helm/v3/cmd/helm@latest
+go install github.com/google/addlicense@latest
+
 # NOTE gmpctl expects the gmpctl directory to be present on execution for
 # local bash scripts and configuration.
 #

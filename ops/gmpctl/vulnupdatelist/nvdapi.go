@@ -21,7 +21,13 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+)
+
+var (
+	severityCache = make(map[string]string)
+	cacheMu       sync.RWMutex
 )
 
 // NVDResponse is the top-level object for the NVD CVE API.
@@ -35,6 +41,11 @@ type NVDResponse struct {
 						BaseSeverity string `json:"baseSeverity"`
 					} `json:"cvssData"`
 				} `json:"cvssMetricV31"`
+				CVSSMetricV30 []struct {
+					CVSSData struct {
+						BaseSeverity string `json:"baseSeverity"`
+					} `json:"cvssData"`
+				} `json:"cvssMetricV30"`
 			} `json:"metrics"`
 		} `json:"cve"`
 	} `json:"vulnerabilities"`
@@ -42,6 +53,13 @@ type NVDResponse struct {
 
 // getCVSSSeverity fetches vulnerability details from the NVD API and returns the CVSS V3 severity.
 func getCVSSSeverity(apiKey, cveID string) (string, error) {
+	cacheMu.RLock()
+	if sev, ok := severityCache[cveID]; ok {
+		cacheMu.RUnlock()
+		return sev, nil
+	}
+	cacheMu.RUnlock()
+
 	// https://nvd.nist.gov/developers/vulnerabilities
 	apiURL := fmt.Sprintf("https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=%s", cveID)
 
@@ -75,11 +93,23 @@ func getCVSSSeverity(apiKey, cveID string) (string, error) {
 
 	if len(nvdResponse.Vulnerabilities) > 0 {
 		metrics := nvdResponse.Vulnerabilities[0].CVE.Metrics
+		var sev string
 		if len(metrics.CVSSMetricV31) > 0 {
-			return metrics.CVSSMetricV31[0].CVSSData.BaseSeverity, nil
+			sev = metrics.CVSSMetricV31[0].CVSSData.BaseSeverity
+		} else if len(metrics.CVSSMetricV30) > 0 {
+			sev = metrics.CVSSMetricV30[0].CVSSData.BaseSeverity
+		}
+		if sev != "" {
+			cacheMu.Lock()
+			severityCache[cveID] = sev
+			cacheMu.Unlock()
+			return sev, nil
 		}
 	}
 
+	cacheMu.Lock()
+	severityCache[cveID] = "UNKNOWN"
+	cacheMu.Unlock()
 	return "UNKNOWN", nil
 }
 
