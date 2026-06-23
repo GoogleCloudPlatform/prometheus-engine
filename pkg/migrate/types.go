@@ -45,6 +45,13 @@ func NewResourceCache() *ResourceCache {
 
 // Add adds a resource to the cache, defaulting empty namespaces to "default".
 func (c *ResourceCache) Add(u *unstructured.Unstructured) {
+	if c == nil || u == nil {
+		return
+	}
+	if c.resources == nil {
+		c.resources = make(map[string]map[string]*unstructured.Unstructured)
+	}
+
 	kind := u.GetKind()
 	if _, ok := c.resources[kind]; !ok {
 		c.resources[kind] = make(map[string]*unstructured.Unstructured)
@@ -62,6 +69,9 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) {
 
 // Get retrieves a resource from the cache by kind, namespace, and name.
 func (c *ResourceCache) Get(kind, namespace, name string) (*unstructured.Unstructured, bool) {
+	if c == nil || c.resources == nil {
+		return nil, false
+	}
 	nsMap, ok := c.resources[kind]
 	if !ok {
 		return nil, false

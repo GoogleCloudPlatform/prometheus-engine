@@ -237,6 +237,10 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 
 func (m *Migrator) writeOutputs(outputs []*unstructured.Unstructured) error {
 	for i, out := range outputs {
+		if out == nil || out.Object == nil {
+			return fmt.Errorf("internal error: found nil resource or uninitialized object in outputs at index %d", i)
+		}
+
 		yamlOut, err := yaml.Marshal(out.Object)
 		if err != nil {
 			return err
