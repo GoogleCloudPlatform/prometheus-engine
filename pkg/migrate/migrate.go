@@ -176,31 +176,27 @@ func (m *Migrator) parseYAMLStream(r io.Reader) error {
 			return err
 		}
 
-		// 1. If it is completely empty of all three (comments/empty dividers), skip it safely.
-		if u.Object == nil || (u.GetAPIVersion() == "" && u.GetKind() == "" && u.GetName() == "") {
-			continue
-		}
-
-		// 2. A valid Kubernetes resource must specify apiVersion, kind, and metadata.name.
 		apiVersion := u.GetAPIVersion()
 		kind := u.GetKind()
 		name := u.GetName()
-		if apiVersion == "" || kind == "" || name == "" {
-			return fmt.Errorf("malformed resource: apiVersion, kind, and metadata.name must all be specified (got apiVersion=%q, kind=%q, name=%q)", apiVersion, kind, name)
-		}
 
-		// 2. Check if we care about this resource.
-		if !m.isRelevantKind(u.GetKind()) {
-			// If this is an unsupported Prometheus Operator resource, log an error before discarding.
-			if strings.HasPrefix(u.GetAPIVersion(), "monitoring.coreos.com") {
+		// 1. If it's not a resource we care about, skip it.
+		if !m.isRelevantKind(kind) {
+			// If it's a Prometheus Operator resource, log an ERROR first.
+			if strings.HasPrefix(apiVersion, "monitoring.coreos.com") {
 				m.Logger.Error("Skipping unsupported Prometheus Operator resource",
-					slog.String("apiVersion", u.GetAPIVersion()),
-					slog.String("kind", u.GetKind()),
+					slog.String("apiVersion", apiVersion),
+					slog.String("kind", kind),
 					slog.String("namespace", u.GetNamespace()),
-					slog.String("name", u.GetName()),
+					slog.String("name", name),
 				)
 			}
 			continue
+		}
+
+		// 2. Since this IS a resource we care about, it must be well-formed.
+		if apiVersion == "" || kind == "" || name == "" {
+			return fmt.Errorf("malformed resource: apiVersion, kind, and metadata.name must all be specified (got apiVersion=%q, kind=%q, name=%q)", apiVersion, kind, name)
 		}
 
 		m.cache.Add(&u)
@@ -219,17 +215,6 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 		nsMap := m.cache.resources[kind]
 		converter, registered := m.converters[kind]
 		if !registered {
-			// If this is a Prometheus Operator resource (group: monitoring.coreos.com),
-			// log an error then skip.
-			for _, res := range nsMap {
-				if strings.HasPrefix(res.GetAPIVersion(), "monitoring.coreos.com") {
-					m.Logger.Error("Skipping unsupported Prometheus Operator resource",
-						slog.String("kind", kind),
-						slog.String("namespace", res.GetNamespace()),
-						slog.String("name", res.GetName()),
-					)
-				}
-			}
 			continue
 		}
 
