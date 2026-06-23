@@ -57,6 +57,7 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) {
 		c.resources[kind] = make(map[string]*unstructured.Unstructured)
 	}
 
+	// Safe to default since we only ingest namespaced resources.
 	ns := u.GetNamespace()
 	if ns == "" {
 		ns = "default"

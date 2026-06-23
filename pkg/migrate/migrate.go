@@ -109,6 +109,17 @@ func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
 	return report, nil
 }
 
+// isRelevantKind returns true if the given resource Kind is either a target
+// resource with a registered converter, or a known cached dependency.
+func (m *Migrator) isRelevantKind(kind string) bool {
+	switch kind {
+	case "Service", "ConfigMap", "Secret":
+		return true
+	}
+	_, registered := m.converters[kind]
+	return registered
+}
+
 // parseInputs reads files, directories, or stdin and loads them into the cache.
 func (m *Migrator) parseInputs(path string) error {
 	if path == "-" {
@@ -165,14 +176,31 @@ func (m *Migrator) parseYAMLStream(r io.Reader) error {
 			return err
 		}
 
-		// Silent skip for empty blocks or comments
-		if u.Object == nil || (u.GetKind() == "" && u.GetName() == "") {
+		// 1. If it is completely empty of all three (comments/empty dividers), skip it safely.
+		if u.Object == nil || (u.GetAPIVersion() == "" && u.GetKind() == "" && u.GetName() == "") {
 			continue
 		}
 
-		// Return error for malformed K8s resources missing metadata.name
-		if u.GetKind() != "" && u.GetName() == "" {
-			return fmt.Errorf("resource of kind %q is missing metadata.name", u.GetKind())
+		// 2. A valid Kubernetes resource must specify apiVersion, kind, and metadata.name.
+		apiVersion := u.GetAPIVersion()
+		kind := u.GetKind()
+		name := u.GetName()
+		if apiVersion == "" || kind == "" || name == "" {
+			return fmt.Errorf("malformed resource: apiVersion, kind, and metadata.name must all be specified (got apiVersion=%q, kind=%q, name=%q)", apiVersion, kind, name)
+		}
+
+		// 2. Check if we care about this resource.
+		if !m.isRelevantKind(u.GetKind()) {
+			// If this is an unsupported Prometheus Operator resource, log an error before discarding.
+			if strings.HasPrefix(u.GetAPIVersion(), "monitoring.coreos.com") {
+				m.Logger.Error("Skipping unsupported Prometheus Operator resource",
+					slog.String("apiVersion", u.GetAPIVersion()),
+					slog.String("kind", u.GetKind()),
+					slog.String("namespace", u.GetNamespace()),
+					slog.String("name", u.GetName()),
+				)
+			}
+			continue
 		}
 
 		m.cache.Add(&u)
@@ -227,9 +255,7 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 
 			allOutputs = append(allOutputs, outputs...)
 
-			if len(outputs) > 0 {
-				resourceLogger.Log(ctx, LevelSuccess, "Translated successfully")
-			}
+			resourceLogger.Log(ctx, LevelSuccess, "Converted successfully")
 		}
 	}
 	return allOutputs

@@ -127,12 +127,12 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	// 2. Track the highest log level seen for this resource (for final report)
 	if kind != "" && name != "" {
 		key := fmt.Sprintf("%s/%s/%s", kind, namespace, name)
-		if r.Level > h.state.resourceLevels[key] {
+		if val, exists := h.state.resourceLevels[key]; !exists || r.Level > val {
 			h.state.resourceLevels[key] = r.Level
 		}
 	} else if file != "" {
 		// Track file-level log severity under the file path key
-		if r.Level > h.state.resourceLevels[file] {
+		if val, exists := h.state.resourceLevels[file]; !exists || r.Level > val {
 			h.state.resourceLevels[file] = r.Level
 		}
 	}

@@ -111,7 +111,7 @@ spec:
 	if !strings.Contains(stderrLogs, "[INFO] [DummyResource:default/my-dummy] Successfully resolved backing-service") {
 		t.Errorf("expected formatted INFO log in Stderr, got: %q", stderrLogs)
 	}
-	if !strings.Contains(stderrLogs, "[SUCCESS] [DummyResource:default/my-dummy] Translated successfully") {
+	if !strings.Contains(stderrLogs, "[SUCCESS] [DummyResource:default/my-dummy] Converted successfully") {
 		t.Errorf("expected formatted SUCCESS log in Stderr, got: %q", stderrLogs)
 	}
 }
@@ -196,7 +196,7 @@ spec:
 	if !strings.Contains(stderrLogs, "[ERROR] ["+inputFilePath+"] Skipping file due to parse error") {
 		t.Errorf("expected formatted [ERROR] log in Stderr, got: %q", stderrLogs)
 	}
-	if !strings.Contains(stderrLogs, "resource of kind \"PodMonitor\" is missing metadata.name") {
+	if !strings.Contains(stderrLogs, "malformed resource: apiVersion, kind, and metadata.name must all be specified") {
 		t.Errorf("expected underlying parse error in Stderr, got: %q", stderrLogs)
 	}
 }
