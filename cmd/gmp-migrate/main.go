@@ -83,6 +83,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Write the convertedGMP manifests using the migrator's Stdout stream
+	if err := migrator.WriteOutputs(report.Outputs); err != nil {
+		slog.Error("Failed to write outputs", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	// Print the standardized summary to Stderr using the migrator's stream
 	migrator.PrintSummary(report)
 

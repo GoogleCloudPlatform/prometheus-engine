@@ -77,6 +77,9 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
 	ns := u.GetNamespace()
 
 	key := fmt.Sprintf("%s/%s", ns, name)
+	if _, exists := c.resources[kind][key]; exists {
+		return fmt.Errorf("duplicate resource %s/%s found in cache", kind, key)
+	}
 	c.resources[kind][key] = u
 	return nil
 }

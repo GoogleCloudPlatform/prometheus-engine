@@ -34,12 +34,13 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// MigrationReport accumulates the statistics of the migration run.
+// MigrationReport accumulates the statistics and payloads of the migration run.
 type MigrationReport struct {
-	SuccessCount int // Successfully migrated with no warnings
-	WarningCount int // Successfully migrated but had warnings
-	SkippedCount int // Bypassed because resource is unsupported/out-of-scope
-	FailedCount  int // Fatal failure, resource skipped
+	SuccessCount int                          // Successfully migrated with no warnings
+	WarningCount int                          // Successfully migrated but had warnings
+	SkippedCount int                          // Bypassed because resource is unsupported/out-of-scope
+	FailedCount  int                          // Fatal failure, resource skipped
+	Outputs      []*unstructured.Unstructured // Converted GMP manifests in-memory
 }
 
 // Migrator orchestrates the migration process.
@@ -105,13 +106,9 @@ func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 		}
 	}
 
-	// 2. Run converters
+	// 2. Run converters across the cached resources
 	outputs := m.convertResources()
-
-	// 3. Write GMP manifests
-	if err := m.writeOutputs(outputs); err != nil {
-		return nil, fmt.Errorf("failed to write outputs: %w", err)
-	}
+	report.Outputs = outputs
 
 	// 4. Calculate final statistics from the handler's tracked statuses
 	for _, status := range handler.ResourceStatuses() {
@@ -139,6 +136,34 @@ func (m *Migrator) PrintSummary(r *MigrationReport) {
 	fmt.Fprintf(m.Stderr, "  Skipped (Unsupported):  %d\n", r.SkippedCount)
 	fmt.Fprintf(m.Stderr, "  Failed:                 %d\n", r.FailedCount)
 	fmt.Fprintln(m.Stderr, "=========================================")
+}
+
+// WriteOutputs serializes and writes the converted manifests to the migrator's Stdout stream
+// in standard Kubernetes multi-document YAML format (separated by "---").
+func (m *Migrator) WriteOutputs(outputs []*unstructured.Unstructured) error {
+	var buf strings.Builder
+	for i, out := range outputs {
+		if out == nil || out.Object == nil {
+			return fmt.Errorf("internal error: found nil resource or uninitialized object in outputs at index %d", i)
+		}
+
+		yamlOut, err := yaml.Marshal(out)
+		if err != nil {
+			return err
+		}
+		if i > 0 {
+			if _, err := fmt.Fprintln(&buf, "---"); err != nil {
+				return fmt.Errorf("failed to write document separator: %w", err)
+			}
+		}
+		if _, err := buf.Write(yamlOut); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
+		}
+	}
+	if _, err := io.WriteString(m.Stdout, buf.String()); err != nil {
+		return fmt.Errorf("failed to write output to destination: %w", err)
+	}
+	return nil
 }
 
 // isRelevantKind returns true if the input resource Kind is either a target
@@ -329,28 +354,3 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 	}
 	return allOutputs
 }
-
-func (m *Migrator) writeOutputs(outputs []*unstructured.Unstructured) error {
-	for i, out := range outputs {
-		if out == nil || out.Object == nil {
-			return fmt.Errorf("internal error: found nil resource or uninitialized object in outputs at index %d", i)
-		}
-
-		yamlOut, err := yaml.Marshal(out)
-		if err != nil {
-			return err
-		}
-		if i > 0 {
-			if _, err := fmt.Fprintln(m.Stdout, "---"); err != nil {
-				return fmt.Errorf("failed to write document separator: %w", err)
-			}
-		}
-		if _, err := m.Stdout.Write(yamlOut); err != nil {
-			return fmt.Errorf("failed to write output: %w", err)
-		}
-	}
-	return nil
-}
-
-// PrintSummary formats and writes the standardized migration report summary
-// to the migrator's Stderr stream, ensuring stream consistency.

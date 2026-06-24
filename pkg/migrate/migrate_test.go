@@ -110,6 +110,19 @@ spec:
 		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
 	}
 
+	// Verify in-memory converted outputs
+	if len(report.Outputs) != 1 {
+		t.Errorf("expected 1 output resource, got %d", len(report.Outputs))
+	} else {
+		out := report.Outputs[0]
+		if out.GetKind() != "TranslatedDummy" {
+			t.Errorf("expected output kind 'TranslatedDummy', got %q", out.GetKind())
+		}
+		if out.GetName() != "translated-my-monitor" {
+			t.Errorf("expected output name 'translated-my-monitor', got %q", out.GetName())
+		}
+	}
+
 	stderrLogs := stderrBuf.String()
 	if !strings.Contains(stderrLogs, "[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service") {
 		t.Errorf("expected formatted INFO log in Stderr, got: %q", stderrLogs)
