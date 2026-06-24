@@ -23,11 +23,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// ResourceConverter defines the interface for converting a specific Kubernetes resource kind.
+// ResourceConverter defines the interface for converting a specific Prometheus Operator resource kind.
 type ResourceConverter interface {
 	// ImportKey returns the Kind of the resource this converter handles (e.g., "PodMonitor").
 	ImportKey() string
-	// Convert translates the input unstructured resource to one or more GKE resources.
+	// Convert translates the input unstructured resource to one or more GMP resources.
 	Convert(ctx context.Context, logger *slog.Logger, unstruct *unstructured.Unstructured, cache *ResourceCache) (outputs []*unstructured.Unstructured, err error)
 }
 

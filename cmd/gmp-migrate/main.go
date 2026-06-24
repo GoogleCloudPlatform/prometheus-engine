@@ -19,16 +19,35 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/migrate"
 )
 
+// commaStringSlice implements the flag.Value interface to support
+// repeated and/or comma-separated string flags.
+type commaStringSlice []string
+
+func (s *commaStringSlice) String() string {
+	return strings.Join(*s, ",")
+}
+
+func (s *commaStringSlice) Set(value string) error {
+	for p := range strings.SplitSeq(value, ",") {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			*s = append(*s, trimmed)
+		}
+	}
+	return nil
+}
+
 func main() {
 	slog.SetDefault(slog.New(migrate.NewConsoleHandler(os.Stderr)))
 
-	var inputFile string
-	flag.StringVar(&inputFile, "file", "", "Input source (YAML file, directory, or '-' for stdin) (Required)")
-	flag.StringVar(&inputFile, "f", "", "Input source (YAML file, directory, or '-' for stdin) (Required)")
+	var inputFiles commaStringSlice
+	flag.Var(&inputFiles, "file", "Input source (YAML file, directory, or '-' for stdin) (Required)")
+	flag.Var(&inputFiles, "f", "Input source (YAML file, directory, or '-' for stdin) (Required)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
@@ -37,14 +56,25 @@ func main() {
 	}
 	flag.Parse()
 
-	if inputFile == "" {
+	// Reject unexpected positional arguments to prevent silent typos (like forgetting -f)
+	if flag.NArg() > 0 {
+		slog.Error("Unexpected positional arguments.",
+			slog.Any("arguments", flag.Args()),
+		)
+		fmt.Fprintln(os.Stderr, "\nAll input files and directories must be explicitly passed using the -f or --file flags. For example:")
+		fmt.Fprintf(os.Stderr, "  %s -f %s -f %s\n\n", os.Args[0], inputFiles.String(), strings.Join(flag.Args(), " -f "))
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	if len(inputFiles) == 0 {
 		slog.Error("Flag -f / --file is required.")
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	migrator := migrate.NewMigrator()
-	report, err := migrator.Run(inputFile)
+	report, err := migrator.Run(inputFiles...)
 	if err != nil {
 		slog.Error("Migration failed", slog.Any("error", err))
 		os.Exit(1)

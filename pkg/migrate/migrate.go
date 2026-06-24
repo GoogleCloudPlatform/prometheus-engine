@@ -72,8 +72,8 @@ func (m *Migrator) RegisterConverter(c ResourceConverter) {
 	m.converters[c.ImportKey()] = c
 }
 
-// Run executes the migration flow and returns the summary report.
-func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
+// Run executes the migration flow and returns the summary report across multiple inputs.
+func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 	if m.Stdin == nil {
 		m.Stdin = os.Stdin
 	}
@@ -97,8 +97,10 @@ func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
 	m.logger = slog.New(handler)
 
 	// 1. Parse all inputs
-	if err := m.parseInputs(inputPath); err != nil {
-		return nil, fmt.Errorf("failed to parse inputs: %w", err)
+	for _, path := range inputPaths {
+		if err := m.parseInputs(path); err != nil {
+			return nil, fmt.Errorf("failed to parse input %q: %w", path, err)
+		}
 	}
 
 	// 2. Run converters
@@ -129,8 +131,8 @@ func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
 	return report, nil
 }
 
-// isRelevantKind returns true if the given resource Kind is either a target
-// resource with a registered converter, or a known cached dependency.
+// isRelevantKind returns true if the input resource Kind is either a target
+// resource with a registered converter, or a known dependency.
 func (m *Migrator) isRelevantKind(kind string) bool {
 	switch kind {
 	case "Service", "ConfigMap", "Secret":
@@ -253,7 +255,7 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 		for _, key := range keys {
 			res := nsMap[key].DeepCopy()
 
-			// Create the pre-scoped resource logger
+			// Create the resource logger
 			resourceLogger := m.logger.With(
 				slog.String("kind", kind),
 				slog.String("namespace", res.GetNamespace()),

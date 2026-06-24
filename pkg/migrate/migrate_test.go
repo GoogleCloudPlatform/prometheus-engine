@@ -261,3 +261,76 @@ spec:
 		t.Errorf("expected formatted [SKIPPED] log in Stderr, got: %q", stderrLogs)
 	}
 }
+
+func TestMigratorMultipleInputs(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 1. Write a Service manifest to a separate file
+	serviceYAML := `
+apiVersion: v1
+kind: Service
+metadata:
+  name: backing-service
+  namespace: default
+spec:
+  ports:
+  - port: 80
+`
+	servicePath := filepath.Join(tmpDir, "service.yaml")
+	if err := os.WriteFile(servicePath, []byte(serviceYAML), 0644); err != nil {
+		t.Fatalf("failed to write service file: %v", err)
+	}
+
+	// 2. Write a PodMonitor manifest referencing that service to a separate file
+	podMonitorYAML := `
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: my-monitor
+  namespace: default
+spec:
+  foo: bar
+`
+	podMonitorPath := filepath.Join(tmpDir, "podmonitor.yaml")
+	if err := os.WriteFile(podMonitorPath, []byte(podMonitorYAML), 0644); err != nil {
+		t.Fatalf("failed to write podmonitor file: %v", err)
+	}
+
+	migrator := NewMigrator()
+	var stdoutBuf, stderrBuf bytes.Buffer
+	migrator.Stdout = &stdoutBuf
+	migrator.Stderr = &stderrBuf
+
+	testConv := &TestPodMonitorConverter{}
+	migrator.RegisterConverter(testConv)
+
+	// Run migration passing both files explicitly!
+	report, err := migrator.Run(servicePath, podMonitorPath)
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if testConv.calls != 1 {
+		t.Errorf("expected TestPodMonitorConverter to be called 1 time, got %d", testConv.calls)
+	}
+
+	// Verify report stats
+	if report.SuccessCount != 1 {
+		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
+	}
+	if report.WarningCount != 0 {
+		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
+	}
+	if report.SkippedCount != 0 {
+		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
+	}
+	if report.FailedCount != 0 {
+		t.Errorf("expected FailedCount to be 0, got %d", report.FailedCount)
+	}
+
+	// Verify that the reference was successfully resolved across the separate files!
+	stderrLogs := stderrBuf.String()
+	if !strings.Contains(stderrLogs, "[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service") {
+		t.Errorf("expected reference to be successfully resolved, got logs: %q", stderrLogs)
+	}
+}
