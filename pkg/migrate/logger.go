@@ -68,18 +68,19 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 
 	// Helper to process and categorize attributes
 	processAttr := func(a slog.Attr) {
+		val := a.Value.Resolve()
 		switch a.Key {
 		case "kind":
-			kind = a.Value.String()
+			kind = val.String()
 		case "namespace":
-			namespace = a.Value.String()
+			namespace = val.String()
 		case "name":
-			name = a.Value.String()
+			name = val.String()
 		case "file":
-			file = a.Value.String()
+			file = val.String()
 		default:
 			// Collect all other attributes to print at the end of the line
-			extraAttrs = append(extraAttrs, fmt.Sprintf("%s=%v", a.Key, a.Value.Any()))
+			extraAttrs = append(extraAttrs, fmt.Sprintf("%s=%v", a.Key, val.Any()))
 		}
 	}
 

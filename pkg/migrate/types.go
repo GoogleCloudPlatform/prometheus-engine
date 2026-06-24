@@ -45,7 +45,6 @@ func NewResourceCache() *ResourceCache {
 }
 
 // Add adds a resource to the cache, returning an error if inputs are invalid.
-// Defaulting empty namespaces to "default".
 func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
 	if c == nil {
 		return errors.New("cannot add to nil ResourceCache")
