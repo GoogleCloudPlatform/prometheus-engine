@@ -83,18 +83,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Write the convertedGMP manifests using the migrator's Stdout stream
+	// If any resource failed to convert in-memory, we print summary and abort
+	if report.FailedCount > 0 {
+		migrator.PrintSummary(report) // Still print the diagnostic summary to Stderr
+		slog.Error("Migration aborted: resources failed conversion. Zero manifests were written to Stdout.",
+			slog.Int("failures", report.FailedCount),
+		)
+		os.Exit(1)
+	}
+
+	// Write the converted GMP manifests using the migrator's Stdout stream
 	if err := migrator.WriteOutputs(report.Outputs); err != nil {
 		slog.Error("Failed to write outputs", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	// Print the standardized summary to Stderr using the migrator's stream
+	// Print the successful complete summary to Stderr
 	migrator.PrintSummary(report)
-
-	// If any resource failed to migrate, exit with a non-zero code.
-	if report.FailedCount > 0 {
-		slog.Error("Migration completed with failures", slog.Int("failures", report.FailedCount))
-		os.Exit(1)
-	}
 }
