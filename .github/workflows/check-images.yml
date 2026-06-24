@@ -31,6 +31,6 @@ jobs:
         persist-credentials: false
     - uses: actions/setup-go@v6
       with:
-        go-version: '1.25'
+        go-version: stable
     - name: Check manifest images
       run: make check-images
