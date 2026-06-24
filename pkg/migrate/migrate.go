@@ -15,7 +15,6 @@
 package migrate
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -37,6 +36,7 @@ import (
 type MigrationReport struct {
 	SuccessCount int // Successfully migrated with no warnings
 	WarningCount int // Successfully migrated but had warnings
+	SkippedCount int // Bypassed because resource is unsupported/out-of-scope
 	FailedCount  int // Fatal failure, resource skipped
 }
 
@@ -109,16 +109,17 @@ func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
 		return nil, fmt.Errorf("failed to write outputs: %w", err)
 	}
 
-	// 4. Calculate final statistics from the handler's tracked levels
-	for _, level := range handler.ResourceLevels() {
-		switch level {
-		case slog.LevelError:
-			report.FailedCount++
-		case slog.LevelWarn:
-			report.WarningCount++
-		default:
-			// Info or Success levels are counted as perfect successes
+	// 4. Calculate final statistics from the handler's tracked statuses
+	for _, status := range handler.ResourceStatuses() {
+		switch status {
+		case StatusSuccess:
 			report.SuccessCount++
+		case StatusSkipped:
+			report.SkippedCount++
+		case StatusWarning:
+			report.WarningCount++
+		case StatusFailed:
+			report.FailedCount++
 		}
 	}
 
@@ -159,6 +160,9 @@ func (m *Migrator) parseInputs(path string) error {
 			return err
 		}
 		if d.IsDir() {
+			if d.Name() != "." && d.Name() != ".." && strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(fp))
@@ -185,7 +189,7 @@ func (m *Migrator) parseFile(path string) error {
 }
 
 func (m *Migrator) parseYAMLStream(r io.Reader) error {
-	decoder := k8syaml.NewYAMLOrJSONDecoder(bufio.NewReader(r), 4096)
+	decoder := k8syaml.NewYAMLOrJSONDecoder(r, 4096)
 	for {
 		var u unstructured.Unstructured
 		if err := decoder.Decode(&u); err != nil {
@@ -201,9 +205,9 @@ func (m *Migrator) parseYAMLStream(r io.Reader) error {
 
 		// 1. If it's not a resource we care about, skip it.
 		if !m.isRelevantKind(kind) {
-			// If it's a Prometheus Operator resource, log a WARNING first.
+			// If it's a Prometheus Operator resource, log a SKIPPED milestone first.
 			if strings.HasPrefix(apiVersion, "monitoring.coreos.com") {
-				m.logger.Warn("Skipping unsupported Prometheus Operator resource",
+				m.logger.Log(context.Background(), LevelSkipped, "Skipping unsupported Prometheus Operator resource",
 					slog.String("apiVersion", apiVersion),
 					slog.String("kind", kind),
 					slog.String("namespace", u.GetNamespace()),
@@ -292,8 +296,9 @@ func (m *Migrator) writeOutputs(outputs []*unstructured.Unstructured) error {
 func (m *Migrator) printSummary(r *MigrationReport) {
 	fmt.Fprintln(m.Stderr, "\n=========================================")
 	fmt.Fprintln(m.Stderr, "Migration Complete Summary:")
-	fmt.Fprintf(m.Stderr, "  Successfully Migrated: %d\n", r.SuccessCount)
+	fmt.Fprintf(m.Stderr, "  Successfully Migrated:  %d\n", r.SuccessCount)
 	fmt.Fprintf(m.Stderr, "  Migrated with Warnings: %d\n", r.WarningCount)
-	fmt.Fprintf(m.Stderr, "  Failed (Skipped):        %d\n", r.FailedCount)
+	fmt.Fprintf(m.Stderr, "  Skipped (Unsupported):  %d\n", r.SkippedCount)
+	fmt.Fprintf(m.Stderr, "  Failed:                 %d\n", r.FailedCount)
 	fmt.Fprintln(m.Stderr, "=========================================")
 }

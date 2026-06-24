@@ -106,6 +106,9 @@ spec:
 	if report.WarningCount != 0 {
 		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
 	}
+	if report.SkippedCount != 0 {
+		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
+	}
 
 	stderrLogs := stderrBuf.String()
 	if !strings.Contains(stderrLogs, "[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service") {
@@ -192,6 +195,12 @@ spec:
 	if report.SuccessCount != 0 {
 		t.Errorf("expected SuccessCount to be 0, got %d", report.SuccessCount)
 	}
+	if report.WarningCount != 0 {
+		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
+	}
+	if report.SkippedCount != 0 {
+		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
+	}
 
 	// Verify that a [ERROR] log was printed to Stderr showing the file path and exact parse error
 	stderrLogs := stderrBuf.String()
@@ -200,5 +209,55 @@ spec:
 	}
 	if !strings.Contains(stderrLogs, "malformed resource: apiVersion, kind, and metadata.name must all be specified") {
 		t.Errorf("expected underlying parse error in Stderr, got: %q", stderrLogs)
+	}
+}
+
+func TestMigratorSkippedResource(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Unsupported Prometheus Operator resource kind (Alertmanager)
+	skippedYAML := `
+apiVersion: monitoring.coreos.com/v1
+kind: Alertmanager
+metadata:
+  name: my-alertmanager
+spec:
+  replicas: 3
+`
+	inputFilePath := filepath.Join(tmpDir, "skipped_resource.yaml")
+	if err := os.WriteFile(inputFilePath, []byte(skippedYAML), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	migrator := NewMigrator()
+	migrator.RegisterConverter(&TestPodMonitorConverter{})
+	var stdoutBuf, stderrBuf bytes.Buffer
+	migrator.Stdout = &stdoutBuf
+	migrator.Stderr = &stderrBuf
+
+	// Run migration on the directory containing the skipped file
+	report, err := migrator.Run(tmpDir)
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	// Verify report stats
+	if report.SkippedCount != 1 {
+		t.Errorf("expected SkippedCount to be 1, got %d", report.SkippedCount)
+	}
+	if report.SuccessCount != 0 {
+		t.Errorf("expected SuccessCount to be 0, got %d", report.SuccessCount)
+	}
+	if report.WarningCount != 0 {
+		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
+	}
+	if report.FailedCount != 0 {
+		t.Errorf("expected FailedCount to be 0, got %d", report.FailedCount)
+	}
+
+	// Verify that a [SKIPPED] log was printed to Stderr showing the resource details
+	stderrLogs := stderrBuf.String()
+	if !strings.Contains(stderrLogs, "[SKIPPED] [Alertmanager:my-alertmanager] Skipping unsupported Prometheus Operator resource") {
+		t.Errorf("expected formatted [SKIPPED] log in Stderr, got: %q", stderrLogs)
 	}
 }

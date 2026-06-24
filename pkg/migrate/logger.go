@@ -25,13 +25,36 @@ import (
 	"sync"
 )
 
-// LevelSuccess defines a custom slog.Level for Success (standard Info is 0, Warn is 4).
-const LevelSuccess slog.Level = slog.LevelInfo + 1 // Level 1
+// Custom slog.Levels for status logging.
+const (
+	LevelSuccess slog.Level = slog.LevelInfo - 1 // Level -1 (Standard Info is 0)
+	LevelSkipped slog.Level = slog.LevelInfo + 1 // Level 1
+)
+
+// ResourceStatus defines the final migration state of an ingested resource.
+type ResourceStatus int
+
+const (
+	StatusSuccess ResourceStatus = iota // 0 (Migrated Successfully)
+	StatusSkipped                       // 1 (Skipped / Unsupported)
+	StatusWarning                       // 2 (Migrated with Warnings)
+	StatusFailed                        // 3 (Failed)
+)
+
+// statusLevels maps slog.Levels to their corresponding ResourceStatus.
+// Levels omitted from this map (like slog.LevelInfo) represent progress logs
+// and are ignored for status tracking.
+var statusLevels = map[slog.Level]ResourceStatus{
+	LevelSuccess:    StatusSuccess,
+	LevelSkipped:    StatusSkipped,
+	slog.LevelWarn:  StatusWarning,
+	slog.LevelError: StatusFailed,
+}
 
 // loggerState encapsulates the shared, thread-safe state across all handler clones.
 type loggerState struct {
-	mu             sync.Mutex
-	resourceLevels map[string]slog.Level
+	mu               sync.Mutex
+	resourceStatuses map[string]ResourceStatus
 }
 
 // ConsoleHandler is a thread-safe slog.Handler that formats logs for the console (Stderr)
@@ -50,7 +73,7 @@ func NewConsoleHandler(out io.Writer) *ConsoleHandler {
 	return &ConsoleHandler{
 		out: out,
 		state: &loggerState{
-			resourceLevels: make(map[string]slog.Level),
+			resourceStatuses: make(map[string]ResourceStatus),
 		},
 	}
 }
@@ -104,6 +127,8 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 		levelStr = "INFO"
 	case LevelSuccess:
 		levelStr = "SUCCESS"
+	case LevelSkipped:
+		levelStr = "SKIPPED"
 	case slog.LevelWarn:
 		levelStr = "WARNING"
 	case slog.LevelError:
@@ -134,21 +159,24 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 		return err
 	}
 
-	// 2. Track the highest log level seen for this resource (for final report)
-	if kind != "" && name != "" {
-		var key string
-		if namespace == "" {
-			key = fmt.Sprintf("%s/%s", kind, name)
-		} else {
-			key = fmt.Sprintf("%s/%s/%s", kind, namespace, name)
-		}
-		if val, exists := h.state.resourceLevels[key]; !exists || r.Level > val {
-			h.state.resourceLevels[key] = r.Level
-		}
-	} else if file != "" {
-		// Track file-level log severity under the file path key
-		if val, exists := h.state.resourceLevels[file]; !exists || r.Level > val {
-			h.state.resourceLevels[file] = r.Level
+	// 2. Track the migration status of the resource (for final report)
+	// Only update the map if the log level represents an actual status milestone.
+	if status, ok := statusLevels[r.Level]; ok {
+		if kind != "" && name != "" {
+			var key string
+			if namespace == "" {
+				key = fmt.Sprintf("%s/%s", kind, name)
+			} else {
+				key = fmt.Sprintf("%s/%s/%s", kind, namespace, name)
+			}
+			if val, exists := h.state.resourceStatuses[key]; !exists || status > val {
+				h.state.resourceStatuses[key] = status
+			}
+		} else if file != "" {
+			// Track file-level log status under the file path key
+			if val, exists := h.state.resourceStatuses[file]; !exists || status > val {
+				h.state.resourceStatuses[file] = status
+			}
 		}
 	}
 
@@ -175,10 +203,10 @@ func (h *ConsoleHandler) WithGroup(_ string) slog.Handler {
 	return h
 }
 
-// ResourceLevels returns a thread-safe copy of the tracked resource log levels.
-func (h *ConsoleHandler) ResourceLevels() map[string]slog.Level {
+// ResourceStatuses returns a thread-safe copy of the tracked resource statuses.
+func (h *ConsoleHandler) ResourceStatuses() map[string]ResourceStatus {
 	h.state.mu.Lock()
 	defer h.state.mu.Unlock()
 
-	return maps.Clone(h.state.resourceLevels)
+	return maps.Clone(h.state.resourceStatuses)
 }
