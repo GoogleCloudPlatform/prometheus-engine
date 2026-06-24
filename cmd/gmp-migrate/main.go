@@ -62,7 +62,10 @@ func main() {
 			slog.Any("arguments", flag.Args()),
 		)
 		fmt.Fprintln(os.Stderr, "\nAll input files and directories must be explicitly passed using the -f or --file flags. For example:")
-		fmt.Fprintf(os.Stderr, "  %s -f %s -f %s\n\n", os.Args[0], inputFiles.String(), strings.Join(flag.Args(), " -f "))
+		var allInputs []string
+		allInputs = append(allInputs, inputFiles...)
+		allInputs = append(allInputs, flag.Args()...)
+		fmt.Fprintf(os.Stderr, "  %s -f %s\n\n", os.Args[0], strings.Join(allInputs, " -f "))
 		flag.Usage()
 		os.Exit(1)
 	}

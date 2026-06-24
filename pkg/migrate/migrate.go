@@ -85,12 +85,12 @@ func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 	if m.Stderr == nil {
 		m.Stderr = os.Stderr
 	}
-	if m.cache == nil {
-		m.cache = NewResourceCache()
-	}
+
 	if m.converters == nil {
 		m.converters = make(map[string]ResourceConverter)
 	}
+
+	m.cache = NewResourceCache()
 
 	report := &MigrationReport{}
 
