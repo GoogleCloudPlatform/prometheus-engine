@@ -83,6 +83,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Print the standardized summary to Stderr using the migrator's stream
+	migrator.PrintSummary(report)
+
 	// If any resource failed to migrate, exit with a non-zero code.
 	if report.FailedCount > 0 {
 		slog.Error("Migration completed with failures", slog.Int("failures", report.FailedCount))

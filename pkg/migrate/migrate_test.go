@@ -123,6 +123,7 @@ func TestResourceCacheNamespaceScoping(t *testing.T) {
 	cache := NewResourceCache()
 
 	omittedNsRes := &unstructured.Unstructured{}
+	omittedNsRes.SetAPIVersion("monitoring.coreos.com/v1")
 	omittedNsRes.SetKind("PodMonitor")
 	omittedNsRes.SetName("my-monitor-omitted")
 	omittedNsRes.SetNamespace("")
@@ -136,6 +137,7 @@ func TestResourceCacheNamespaceScoping(t *testing.T) {
 	}
 
 	nsARes := &unstructured.Unstructured{}
+	nsARes.SetAPIVersion("monitoring.coreos.com/v1")
 	nsARes.SetKind("PodMonitor")
 	nsARes.SetName("common-name")
 	nsARes.SetNamespace("namespace-a")

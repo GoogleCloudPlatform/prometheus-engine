@@ -127,10 +127,18 @@ func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 		}
 	}
 
-	// 5. Print Summary Stats
-	m.printSummary(report)
-
 	return report, nil
+}
+
+// PrintSummary formats and writes the standardized migration report summary.
+func (m *Migrator) PrintSummary(r *MigrationReport) {
+	fmt.Fprintln(m.Stderr, "\n=========================================")
+	fmt.Fprintln(m.Stderr, "Migration Complete Summary:")
+	fmt.Fprintf(m.Stderr, "  Successfully Migrated:  %d\n", r.SuccessCount)
+	fmt.Fprintf(m.Stderr, "  Migrated with Warnings: %d\n", r.WarningCount)
+	fmt.Fprintf(m.Stderr, "  Skipped (Unsupported):  %d\n", r.SkippedCount)
+	fmt.Fprintf(m.Stderr, "  Failed:                 %d\n", r.FailedCount)
+	fmt.Fprintln(m.Stderr, "=========================================")
 }
 
 // isRelevantKind returns true if the input resource Kind is either a target
@@ -344,12 +352,5 @@ func (m *Migrator) writeOutputs(outputs []*unstructured.Unstructured) error {
 	return nil
 }
 
-func (m *Migrator) printSummary(r *MigrationReport) {
-	fmt.Fprintln(m.Stderr, "\n=========================================")
-	fmt.Fprintln(m.Stderr, "Migration Complete Summary:")
-	fmt.Fprintf(m.Stderr, "  Successfully Migrated:  %d\n", r.SuccessCount)
-	fmt.Fprintf(m.Stderr, "  Migrated with Warnings: %d\n", r.WarningCount)
-	fmt.Fprintf(m.Stderr, "  Skipped (Unsupported):  %d\n", r.SkippedCount)
-	fmt.Fprintf(m.Stderr, "  Failed:                 %d\n", r.FailedCount)
-	fmt.Fprintln(m.Stderr, "=========================================")
-}
+// PrintSummary formats and writes the standardized migration report summary
+// to the migrator's Stderr stream, ensuring stream consistency.

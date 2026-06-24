@@ -57,19 +57,26 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
 	if name == "" {
 		return errors.New("cannot add resource with empty name to cache")
 	}
+	kind := u.GetKind()
+	if kind == "" {
+		return errors.New("cannot add resource with empty kind to cache")
+	}
+	apiVersion := u.GetAPIVersion()
+	if apiVersion == "" {
+		return errors.New("cannot add resource with empty apiVersion to cache")
+	}
 
 	if c.resources == nil {
 		c.resources = make(map[string]map[string]*unstructured.Unstructured)
 	}
 
-	kind := u.GetKind()
 	if _, ok := c.resources[kind]; !ok {
 		c.resources[kind] = make(map[string]*unstructured.Unstructured)
 	}
 
 	ns := u.GetNamespace()
 
-	key := fmt.Sprintf("%s/%s", ns, u.GetName())
+	key := fmt.Sprintf("%s/%s", ns, name)
 	c.resources[kind][key] = u
 	return nil
 }
