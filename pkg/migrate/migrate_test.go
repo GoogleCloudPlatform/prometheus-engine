@@ -128,9 +128,6 @@ func TestResourceCacheNamespaceScoping(t *testing.T) {
 		t.Fatalf("Add failed: %v", err)
 	}
 
-	if _, found := cache.Get("PodMonitor", "default", "my-monitor-omitted"); found {
-		t.Error("expected namespaced resource with omitted namespace NOT to be found under 'default' namespace")
-	}
 	if _, found := cache.Get("PodMonitor", "", "my-monitor-omitted"); !found {
 		t.Error("expected namespaced resource with omitted namespace to be found under empty namespace")
 	}

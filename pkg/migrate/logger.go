@@ -117,7 +117,7 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 		prefix = fmt.Sprintf("[%s] ", file)
 	} else if kind != "" && name != "" {
 		if namespace == "" {
-			prefix = fmt.Sprintf("[%s:%s] ", kind, name) // Clean omission
+			prefix = fmt.Sprintf("[%s:%s] ", kind, name)
 		} else {
 			prefix = fmt.Sprintf("[%s:%s/%s] ", kind, namespace, name)
 		}
@@ -137,7 +137,7 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	if kind != "" && name != "" {
 		var key string
 		if namespace == "" {
-			key = fmt.Sprintf("%s/%s", kind, name) // Clean omission, no double-slash!
+			key = fmt.Sprintf("%s/%s", kind, name)
 		} else {
 			key = fmt.Sprintf("%s/%s/%s", kind, namespace, name)
 		}
