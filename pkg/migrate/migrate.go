@@ -160,6 +160,10 @@ func (m *Migrator) parseInputs(path string) error {
 			return err
 		}
 		if d.IsDir() {
+			if fp == path {
+				return nil
+			}
+			// Skip hidden subdirectories encountered during the walk
 			if d.Name() != "." && d.Name() != ".." && strings.HasPrefix(d.Name(), ".") {
 				return filepath.SkipDir
 			}
