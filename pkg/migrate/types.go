@@ -54,6 +54,11 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
 		return errors.New("cannot add nil resource to cache")
 	}
 
+	name := u.GetName()
+	if name == "" {
+		return errors.New("cannot add resource with empty name to cache")
+	}
+
 	if c.resources == nil {
 		c.resources = make(map[string]map[string]*unstructured.Unstructured)
 	}
@@ -64,9 +69,6 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
 	}
 
 	ns := u.GetNamespace()
-	if ns == "" {
-		ns = "default"
-	}
 
 	key := fmt.Sprintf("%s/%s", ns, u.GetName())
 	c.resources[kind][key] = u
@@ -77,9 +79,6 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
 func (c *ResourceCache) Get(kind, namespace, name string) (*unstructured.Unstructured, bool) {
 	if c == nil || c.resources == nil {
 		return nil, false
-	}
-	if namespace == "" {
-		namespace = "default"
 	}
 	nsMap, ok := c.resources[kind]
 	if !ok {

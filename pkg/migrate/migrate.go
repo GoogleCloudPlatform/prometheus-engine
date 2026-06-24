@@ -66,6 +66,9 @@ func NewMigrator() *Migrator {
 
 // RegisterConverter registers a converter for a specific resource Kind.
 func (m *Migrator) RegisterConverter(c ResourceConverter) {
+	if m.converters == nil {
+		m.converters = make(map[string]ResourceConverter)
+	}
 	m.converters[c.ImportKey()] = c
 }
 
@@ -79,6 +82,12 @@ func (m *Migrator) Run(inputPath string) (*MigrationReport, error) {
 	}
 	if m.Stderr == nil {
 		m.Stderr = os.Stderr
+	}
+	if m.cache == nil {
+		m.cache = NewResourceCache()
+	}
+	if m.converters == nil {
+		m.converters = make(map[string]ResourceConverter)
 	}
 
 	report := &MigrationReport{}
@@ -192,9 +201,9 @@ func (m *Migrator) parseYAMLStream(r io.Reader) error {
 
 		// 1. If it's not a resource we care about, skip it.
 		if !m.isRelevantKind(kind) {
-			// If it's a Prometheus Operator resource, log an ERROR first.
+			// If it's a Prometheus Operator resource, log a WARNING first.
 			if strings.HasPrefix(apiVersion, "monitoring.coreos.com") {
-				m.logger.Error("Skipping unsupported Prometheus Operator resource",
+				m.logger.Warn("Skipping unsupported Prometheus Operator resource",
 					slog.String("apiVersion", apiVersion),
 					slog.String("kind", kind),
 					slog.String("namespace", u.GetNamespace()),

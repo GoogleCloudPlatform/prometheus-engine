@@ -20,6 +20,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"os"
 	"strings"
 	"sync"
 )
@@ -43,6 +44,9 @@ type ConsoleHandler struct {
 
 // NewConsoleHandler creates a new ConsoleHandler.
 func NewConsoleHandler(out io.Writer) *ConsoleHandler {
+	if out == nil {
+		out = os.Stderr
+	}
 	return &ConsoleHandler{
 		out: out,
 		state: &loggerState{
@@ -112,7 +116,11 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	if file != "" {
 		prefix = fmt.Sprintf("[%s] ", file)
 	} else if kind != "" && name != "" {
-		prefix = fmt.Sprintf("[%s:%s/%s] ", kind, namespace, name)
+		if namespace == "" {
+			prefix = fmt.Sprintf("[%s:%s] ", kind, name) // Clean omission
+		} else {
+			prefix = fmt.Sprintf("[%s:%s/%s] ", kind, namespace, name)
+		}
 	}
 
 	// 1. Write formatted log to Stderr (console), appending extra attributes if any.
@@ -127,7 +135,12 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 
 	// 2. Track the highest log level seen for this resource (for final report)
 	if kind != "" && name != "" {
-		key := fmt.Sprintf("%s/%s/%s", kind, namespace, name)
+		var key string
+		if namespace == "" {
+			key = fmt.Sprintf("%s/%s", kind, name) // Clean omission, no double-slash!
+		} else {
+			key = fmt.Sprintf("%s/%s/%s", kind, namespace, name)
+		}
 		if val, exists := h.state.resourceLevels[key]; !exists || r.Level > val {
 			h.state.resourceLevels[key] = r.Level
 		}
