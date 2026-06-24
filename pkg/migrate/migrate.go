@@ -146,19 +146,37 @@ func (m *Migrator) isRelevantKind(kind string) bool {
 
 // parseInputs reads files, directories, or stdin and loads them into the cache.
 func (m *Migrator) parseInputs(path string) error {
+	// 1. Handle Stdin Strm
 	if path == "-" {
-		return m.parseYAMLStream(m.Stdin)
+		if err := m.parseYAMLStream(m.Stdin); err != nil {
+			// Log and track the error
+			m.logger.Error("Skipping stdin due to parse error",
+				slog.String("file", "-"),
+				slog.Any("error", err),
+			)
+		}
+		return nil
 	}
 
+	// 2. Resolve system  errors
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
 	}
 
+	// 3. Handle Single Direct File
 	if !info.IsDir() {
-		return m.parseFile(path)
+		if err := m.parseFile(path); err != nil {
+			// Log and track the error
+			m.logger.Error("Skipping file due to parse error",
+				slog.String("file", path),
+				slog.Any("error", err),
+			)
+		}
+		return nil
 	}
 
+	// 4. Handle Directory Walk
 	return filepath.WalkDir(path, func(fp string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -173,10 +191,16 @@ func (m *Migrator) parseInputs(path string) error {
 			}
 			return nil
 		}
+
+		// Skip hidden files encountered during the walk (e.g. .yamllint.yaml)
+		if strings.HasPrefix(d.Name(), ".") {
+			return nil
+		}
+
 		ext := strings.ToLower(filepath.Ext(fp))
 		if ext == ".yaml" || ext == ".yml" {
 			if err := m.parseFile(fp); err != nil {
-				// A file failed to parse completely. Count as a failed run step.
+				// Log and track the error
 				m.logger.Error("Skipping file due to parse error",
 					slog.String("file", fp),
 					slog.Any("error", err),
