@@ -334,3 +334,69 @@ spec:
 		t.Errorf("expected reference to be successfully resolved, got logs: %q", stderrLogs)
 	}
 }
+
+func TestMigratorPipedList(t *testing.T) {
+	// A standard v1.List containing a Service and a PodMonitor in its items array
+	listYAML := `
+apiVersion: v1
+kind: List
+metadata:
+  resourceVersion: ""
+items:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: backing-service
+    namespace: default
+  spec:
+    ports:
+    - port: 80
+- apiVersion: monitoring.coreos.com/v1
+  kind: PodMonitor
+  metadata:
+    name: my-monitor
+    namespace: default
+  spec:
+    foo: bar
+`
+	migrator := NewMigrator()
+	var stdoutBuf, stderrBuf bytes.Buffer
+	migrator.Stdout = &stdoutBuf
+	migrator.Stderr = &stderrBuf
+
+	// Pipe the list YAML buffer directly into Stdin!
+	migrator.Stdin = strings.NewReader(listYAML)
+
+	testConv := &TestPodMonitorConverter{}
+	migrator.RegisterConverter(testConv)
+
+	// Run migration using "-" (Stdin)
+	report, err := migrator.Run("-")
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	if testConv.calls != 1 {
+		t.Errorf("expected TestPodMonitorConverter to be called 1 time, got %d", testConv.calls)
+	}
+
+	// Verify report stats
+	if report.SuccessCount != 1 {
+		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
+	}
+	if report.WarningCount != 0 {
+		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
+	}
+	if report.SkippedCount != 0 {
+		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
+	}
+	if report.FailedCount != 0 {
+		t.Errorf("expected FailedCount to be 0, got %d", report.FailedCount)
+	}
+
+	// Verify that the PodMonitor resolved the Service successfully inside the list!
+	stderrLogs := stderrBuf.String()
+	if !strings.Contains(stderrLogs, "[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service") {
+		t.Errorf("expected reference to be successfully resolved inside list, got logs: %q", stderrLogs)
+	}
+}

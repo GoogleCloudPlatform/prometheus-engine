@@ -16,6 +16,7 @@ package migrate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -28,6 +29,7 @@ import (
 	"maps"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 )
@@ -205,32 +207,51 @@ func (m *Migrator) parseYAMLStream(r io.Reader) error {
 			return err
 		}
 
-		apiVersion := u.GetAPIVersion()
-		kind := u.GetKind()
-		name := u.GetName()
+		if err := m.processUnstructured(&u); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-		// 1. If it's not a resource we care about, skip it.
-		if !m.isRelevantKind(kind) {
-			// If it's a Prometheus Operator resource, log a SKIPPED milestone first.
-			if strings.HasPrefix(apiVersion, "monitoring.coreos.com") {
-				m.logger.Log(context.Background(), LevelSkipped, "Skipping unsupported Prometheus Operator resource",
-					slog.String("apiVersion", apiVersion),
-					slog.String("kind", kind),
-					slog.String("namespace", u.GetNamespace()),
-					slog.String("name", name),
-				)
+// processUnstructured processes a single unstructured resource.
+// If the resource is a List, it recursively processes all nested items.
+func (m *Migrator) processUnstructured(u *unstructured.Unstructured) error {
+	if u.IsList() {
+		return u.EachListItem(func(obj runtime.Object) error {
+			nested, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				return errors.New("internal error: failed to cast list item to unstructured")
 			}
-			continue
-		}
+			return m.processUnstructured(nested)
+		})
+	}
 
-		// 2. Since this IS a resource we care about, it must be well-formed.
-		if apiVersion == "" || kind == "" || name == "" {
-			return fmt.Errorf("malformed resource: apiVersion, kind, and metadata.name must all be specified (got apiVersion=%q, kind=%q, name=%q)", apiVersion, kind, name)
-		}
+	apiVersion := u.GetAPIVersion()
+	kind := u.GetKind()
+	name := u.GetName()
 
-		if err := m.cache.Add(&u); err != nil {
-			return fmt.Errorf("failed to cache resource: %w", err)
+	// 1. If it's not a resource we care about, skip it.
+	if !m.isRelevantKind(kind) {
+		// If it's a Prometheus Operator resource, log a SKIPPED milestone first.
+		if strings.HasPrefix(apiVersion, "monitoring.coreos.com") {
+			m.logger.Log(context.Background(), LevelSkipped, "Skipping unsupported Prometheus Operator resource",
+				slog.String("apiVersion", apiVersion),
+				slog.String("kind", kind),
+				slog.String("namespace", u.GetNamespace()),
+				slog.String("name", name),
+			)
 		}
+		return nil
+	}
+
+	// 2. Since this IS a resource we care about, it must be well-formed.
+	if apiVersion == "" || kind == "" || name == "" {
+		return fmt.Errorf("malformed resource: apiVersion, kind, and metadata.name must all be specified (got apiVersion=%q, kind=%q, name=%q)", apiVersion, kind, name)
+	}
+
+	if err := m.cache.Add(u); err != nil {
+		return fmt.Errorf("failed to cache resource: %w", err)
 	}
 	return nil
 }
