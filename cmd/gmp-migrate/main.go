@@ -77,6 +77,7 @@ func main() {
 	}
 
 	migrator := migrate.NewMigrator()
+	migrator.RegisterConverter(&migrate.PodMonitorConverter{})
 	report, err := migrator.Run(inputFiles...)
 	if err != nil {
 		slog.Error("Migration failed", slog.Any("error", err))
