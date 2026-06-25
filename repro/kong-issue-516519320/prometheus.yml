@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: 'kong'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['kong:8001']
+    metric_relabel_configs:
+      - source_labels: [instance]
+        target_label: exporter_instance
+      - source_labels: [service]
+        regex: (.+)
+        target_label: instance
