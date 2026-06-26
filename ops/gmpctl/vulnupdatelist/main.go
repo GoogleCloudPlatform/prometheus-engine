@@ -43,8 +43,9 @@ import (
 var (
 	goVersion = flag.String("go-version", "", "Go version to test vulnerabilities in (stdlib). Otherwise the `go env GOVERSION` is used")
 	dir       = flag.String("dir", ".", "Where to run the script from")
-	nvdAPIKey = flag.String("nvd-api-key", "", "API Key for avoiding rate-limiting on severity checks; see https://nvd.nist.gov/developers/request-an-api-key")
-	onlyFixed = flag.Bool("only-fixed", false, "Don't print vulnerable modules without fixed version; note: fixed version often means sometimes that a new major version contains a fix.")
+	nvdAPIKey  = flag.String("nvd-api-key", "", "API Key for avoiding rate-limiting on severity checks; see https://nvd.nist.gov/developers/request-an-api-key")
+	onlyFixed  = flag.Bool("only-fixed", false, "Don't print vulnerable modules without fixed version; note: fixed version often means sometimes that a new major version contains a fix.")
+	ignoreCVEs = flag.String("ignore-cves", "", "Comma-separated list of CVE/GO IDs to ignore")
 )
 
 // UpdateList presents the minimum version to upgrade to solve all CVEs with
