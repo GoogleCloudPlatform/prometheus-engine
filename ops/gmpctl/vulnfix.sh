@@ -33,9 +33,6 @@ fi
 
 source "${SCRIPT_DIR}/lib.sh"
 
-# TODO: Find better way. Go tool grane is tricky as we run in different directory.
-go install github.com/google/go-containerregistry/cmd/gcrane@latest
-
 # Also accepts SYNC_DOCKERFILES_FROM.
 
 if [[ -z "${DIR}" ]]; then
@@ -50,6 +47,11 @@ fi
 
 if [[ -z "${PROJECT}" ]]; then
 	log_err "PROJECT envvar is required."
+	exit 1
+fi
+
+if [[ -z "${GO_VERSION}" ]]; then
+	log_err "GO_VERSION envvar is required."
 	exit 1
 fi
 
@@ -71,18 +73,12 @@ fi
 
 # Docker images bumps.
 
-# Get first dockerfile Go version. We will use this version to find minor version to stick to.
-go_version=$(release-lib::dockerfile_go_version "${DOCKERFILES[0]}")
-if [[ -z "${go_version}" ]]; then
-	echo "❌  can't find any golang image in ${DOCKERFILES[0]}"
-	exit 1
-fi
-
 # TODO: git add charts & vendor for old projects?
 
 # Update our images.
 for dockerfile in "${DOCKERFILES[@]}"; do
-	release-lib::dockerfile_update_image "${dockerfile}" "google-go.pkg.dev/golang" $(echo "${go_version}" | cut -d '.' -f 1-2)
+  # TOOD(bwplotka): Bump gcr.io/distroless/static-debian12:nonroot images as well https://github.com/GoogleCloudPlatform/prometheus-engine/pull/1933
+	release-lib::dockerfile_update_image "${dockerfile}" "google-go.pkg.dev/golang" $(echo "${GO_VERSION}" | cut -d '.' -f 1-2)
 	release-lib::dockerfile_update_image "${dockerfile}" "gke.gcr.io/gke-distroless/libc" "gke_distroless_"
 	pushd "${DIR}"
 	git add "${dockerfile}"
@@ -116,7 +112,6 @@ if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
 	fi
 
 	# Check if that helped.
-	echo "⚠️  This will fail on older branches with vendoring; in this case, simply go to ${DIR}, run 'go mod vendor' and rerun."
 	release-lib::vulnlist "${DIR}" "${vuln_file}"
 	if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
 		echo "❌  After go mod update some vulnerabilities are still found; go to ${DIR} and resolve it manually (select not reusing the ./vulnlist.txt file) and rerun."
