@@ -25,12 +25,6 @@ import (
 	"sync"
 )
 
-// Custom slog.Levels for status logging.
-const (
-	LevelSuccess slog.Level = slog.LevelInfo - 1 // Level -1 (Standard Info is 0)
-	LevelSkipped slog.Level = slog.LevelInfo + 1 // Level 1
-)
-
 // ResourceStatus defines the final migration state of an ingested resource.
 type ResourceStatus int
 
@@ -45,10 +39,16 @@ const (
 // Levels omitted from this map (like slog.LevelInfo) represent progress logs
 // and are ignored for status tracking.
 var statusLevels = map[slog.Level]ResourceStatus{
-	LevelSuccess:    StatusSuccess,
-	LevelSkipped:    StatusSkipped,
+	slog.LevelDebug: StatusSuccess,
 	slog.LevelWarn:  StatusWarning,
 	slog.LevelError: StatusFailed,
+}
+
+// trackStatus updates the tracked status for a key if the new status is more severe.
+func (h *ConsoleHandler) trackStatus(key string, status ResourceStatus) {
+	if val, exists := h.state.resourceStatuses[key]; !exists || status > val {
+		h.state.resourceStatuses[key] = status
+	}
 }
 
 // loggerState encapsulates the shared, thread-safe state across all handler clones.
@@ -86,7 +86,7 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	h.state.mu.Lock()
 	defer h.state.mu.Unlock()
 
-	var kind, namespace, name, file string
+	var kind, namespace, name, file, migrationStatus string
 	var extraAttrs []string
 
 	// Helper to process and categorize attributes
@@ -101,6 +101,8 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 			name = val.String()
 		case "file":
 			file = val.String()
+		case "migration_status":
+			migrationStatus = val.String()
 		default:
 			// Collect all other attributes to print at the end of the line
 			extraAttrs = append(extraAttrs, fmt.Sprintf("%s=%v", a.Key, val.Any()))
@@ -122,13 +124,12 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	var levelStr string
 	switch r.Level {
 	case slog.LevelDebug:
-		levelStr = "DEBUG"
+		levelStr = "SUCCESS"
 	case slog.LevelInfo:
 		levelStr = "INFO"
-	case LevelSuccess:
-		levelStr = "SUCCESS"
-	case LevelSkipped:
-		levelStr = "SKIPPED"
+		if migrationStatus == "skipped" {
+			levelStr = "SKIPPED"
+		}
 	case slog.LevelWarn:
 		levelStr = "WARNING"
 	case slog.LevelError:
@@ -160,23 +161,22 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	}
 
 	// 2. Track the migration status of the resource (for final report)
-	// Only update the map if the log level represents an actual status milestone.
-	if status, ok := statusLevels[r.Level]; ok {
-		if kind != "" && name != "" {
-			var key string
-			if namespace == "" {
-				key = fmt.Sprintf("%s/%s", kind, name)
-			} else {
-				key = fmt.Sprintf("%s/%s/%s", kind, namespace, name)
-			}
-			if val, exists := h.state.resourceStatuses[key]; !exists || status > val {
-				h.state.resourceStatuses[key] = status
-			}
-		} else if file != "" {
-			// Track file-level log status under the file path key
-			if val, exists := h.state.resourceStatuses[file]; !exists || status > val {
-				h.state.resourceStatuses[file] = status
-			}
+	var key string
+	if kind != "" && name != "" {
+		if namespace == "" {
+			key = fmt.Sprintf("%s/%s", kind, name)
+		} else {
+			key = fmt.Sprintf("%s/%s/%s", kind, namespace, name)
+		}
+	} else if file != "" {
+		key = file
+	}
+
+	if key != "" {
+		if r.Level == slog.LevelInfo && migrationStatus == "skipped" {
+			h.trackStatus(key, StatusSkipped)
+		} else if status, ok := statusLevels[r.Level]; ok {
+			h.trackStatus(key, status)
 		}
 	}
 

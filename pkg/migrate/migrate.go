@@ -291,14 +291,13 @@ func (m *Migrator) processUnstructured(u *unstructured.Unstructured) error {
 	// 1. If it's not a resource we care about, skip it.
 	if !m.isRelevantKind(kind) {
 		// If it's a Prometheus Operator resource, log a SKIPPED milestone first.
-		if strings.HasPrefix(apiVersion, "monitoring.coreos.com") {
-			m.logger.Log(context.Background(), LevelSkipped, "Skipping unsupported Prometheus Operator resource",
-				slog.String("apiVersion", apiVersion),
-				slog.String("kind", kind),
-				slog.String("namespace", u.GetNamespace()),
-				slog.String("name", name),
-			)
-		}
+		m.logger.Info("Skipping unsupported Prometheus Operator resource",
+			slog.String("migration_status", "skipped"),
+			slog.String("apiVersion", apiVersion),
+			slog.String("kind", kind),
+			slog.String("namespace", u.GetNamespace()),
+			slog.String("name", name),
+		)
 		return nil
 	}
 
@@ -349,7 +348,7 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 
 			allOutputs = append(allOutputs, outputs...)
 
-			resourceLogger.Log(ctx, LevelSuccess, "Converted successfully")
+			resourceLogger.Debug("Converted successfully")
 		}
 	}
 	return allOutputs
