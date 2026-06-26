@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -1850,18 +1850,27 @@ func TestFetchTargets(t *testing.T) {
 			}
 
 			// Concurrency causes the targets slice to come back randomly.
-			sort.Slice(targets, func(i, j int) bool {
-				lhsName := targets[i].Active[0].Labels["instance"]
-				rhsName := targets[j].Active[0].Labels["instance"]
-				lhsValue, err := strconv.Atoi(string(lhsName))
-				if err != nil {
-					return false
+			slices.SortFunc(targets, func(a, b *prometheusv1.TargetsResult) int {
+				lhsName := a.Active[0].Labels["instance"]
+				rhsName := b.Active[0].Labels["instance"]
+				lhsValue, errL := strconv.Atoi(string(lhsName))
+				rhsValue, errR := strconv.Atoi(string(rhsName))
+				if errL != nil && errR != nil {
+					return 0
 				}
-				rhsValue, err := strconv.Atoi(string(rhsName))
-				if err != nil {
-					return false
+				if errL != nil {
+					return 1
 				}
-				return lhsValue < rhsValue
+				if errR != nil {
+					return -1
+				}
+				if lhsValue < rhsValue {
+					return -1
+				}
+				if lhsValue > rhsValue {
+					return 1
+				}
+				return 0
 			})
 
 			diff := cmp.Diff(targets, targetsExpected)

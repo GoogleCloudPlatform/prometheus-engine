@@ -30,7 +30,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -375,9 +375,9 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 
 		if len(c.scopes) > 0 {
 			requiredScopes := strings.Split(c.scopes, ",")
-			sort.Strings(requiredScopes)
+			slices.Sort(requiredScopes)
 			requestedScopes := strings.Split(scopes, " ")
-			sort.Strings(requestedScopes)
+			slices.Sort(requestedScopes)
 			if !cmp.Equal(requestedScopes, requiredScopes) {
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = w.Write(oauthTokenErrorResponse("invalid_scope", fmt.Sprintf("expected %q, received %q", c.scopes, scopes)))
