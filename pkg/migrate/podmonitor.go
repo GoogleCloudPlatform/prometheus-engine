@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	gmpv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,7 +30,7 @@ type PodMonitorConverter struct{}
 
 // ImportKey returns the Kind of the resource this converter handles.
 func (c *PodMonitorConverter) ImportKey() string {
-	return "PodMonitor"
+	return KindPodMonitor
 }
 
 // Convert translates a Prometheus Operator PodMonitor into GMP resources.
@@ -47,7 +48,101 @@ func (c *PodMonitorConverter) Convert(ctx context.Context, logger *slog.Logger, 
 
 	logger.Info("Successfully decoded PodMonitor", slog.String("name", podMonitor.Name))
 
-	// TODO: Implement actual conversion logic in subsequent steps
+	// 2. Determine Scoping based on namespaceSelector
+	nsSel := podMonitor.Spec.NamespaceSelector
 
-	return nil, nil
+	if nsSel.Any {
+		// Case A: namespaceSelector.any = true -> Single ClusterPodMonitoring
+		logger.Info("namespaceSelector selects 'any: true'. Translated to 'ClusterPodMonitoring'")
+		u, err := c.convertToClusterPodMonitoring(&podMonitor, logger)
+		if err != nil {
+			return nil, err
+		}
+		return []*unstructured.Unstructured{u}, nil
+	}
+
+	if len(nsSel.MatchNames) > 0 {
+		// Case B: namespaceSelector.matchNames listed -> Multiple PodMonitoring resources (one per namespace)
+		targetNamespaces := ParseAndCleanNamespaces(nsSel.MatchNames)
+
+		// 2.1 Skip if all provided names were empty/whitespace (broken config)
+		if len(targetNamespaces) == 0 {
+			logger.Warn("Skipping PodMonitor: namespaceSelector.matchNames contains only empty or invalid values",
+				slog.String("name", podMonitor.Name),
+				slog.String("namespace", podMonitor.Namespace),
+			)
+			return nil, nil
+		}
+
+		if len(targetNamespaces) > 1 {
+			logger.Info("namespaceSelector targets multiple namespaces. Generating separate PodMonitoring resources for each namespace",
+				slog.Any("namespaces", targetNamespaces),
+			)
+		}
+
+		// 2.2 Convert to a base namespaced PodMonitoring
+		baseU, err := c.convertToPodMonitoring(&podMonitor, logger)
+		if err != nil {
+			return nil, err
+		}
+
+		// 2.3 Clone and apply target namespaces
+		var outputs []*unstructured.Unstructured
+		for _, ns := range targetNamespaces {
+			uClone := baseU.DeepCopy()
+			uClone.SetNamespace(ns)
+			outputs = append(outputs, uClone)
+		}
+		return outputs, nil
+	}
+
+	// Case C: namespaceSelector is empty/omitted -> Single PodMonitoring in local namespace
+	u, err := c.convertToPodMonitoring(&podMonitor, logger)
+	if err != nil {
+		return nil, err
+	}
+	return []*unstructured.Unstructured{u}, nil
+}
+
+func (c *PodMonitorConverter) convertToPodMonitoring(pm *monitoringv1.PodMonitor, logger *slog.Logger) (*unstructured.Unstructured, error) {
+	gmpPM := &gmpv1.PodMonitoring{
+		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+		ObjectMeta: BuildObjectMeta(pm.Name, pm.Namespace),
+		Spec: gmpv1.PodMonitoringSpec{
+			Selector: pm.Spec.Selector,
+		},
+	}
+
+	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(gmpPM)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal PodMonitoring: %w", err)
+	}
+
+	// Explicitly restore type meta as ToUnstructured sometimes strips it
+	u := &unstructured.Unstructured{Object: unstructuredMap}
+	u.SetAPIVersion(GMPAPIVersion)
+	u.SetKind(KindPodMonitoring)
+
+	return u, nil
+}
+
+func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *monitoringv1.PodMonitor, logger *slog.Logger) (*unstructured.Unstructured, error) {
+	gmpCPM := &gmpv1.ClusterPodMonitoring{
+		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
+		ObjectMeta: BuildObjectMeta(pm.Name, ""), // Cluster-scoped, namespace is omitted
+		Spec: gmpv1.ClusterPodMonitoringSpec{
+			Selector: pm.Spec.Selector,
+		},
+	}
+
+	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(gmpCPM)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal ClusterPodMonitoring: %w", err)
+	}
+
+	u := &unstructured.Unstructured{Object: unstructuredMap}
+	u.SetAPIVersion(GMPAPIVersion)
+	u.SetKind(KindClusterPodMonitoring)
+
+	return u, nil
 }
