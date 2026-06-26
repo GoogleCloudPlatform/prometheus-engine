@@ -62,6 +62,8 @@ func projectFromBranch(branch string) (Project, bool) {
 		return Alertmanager, true
 	case PrometheusEngine.BranchRE.MatchString(branch):
 		return PrometheusEngine, true
+	case branch == "main":
+		return PrometheusEngine, true
 	}
 	return Project{}, false
 }
