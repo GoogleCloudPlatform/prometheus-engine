@@ -16,6 +16,7 @@ package operator
 
 import (
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -23,7 +24,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
-	"sort"
+	"slices"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/common/config"
@@ -483,8 +484,8 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 	}
 
 	// Sort to ensure reproducible configs.
-	sort.Slice(cfg.ScrapeConfigs, func(i, j int) bool {
-		return cfg.ScrapeConfigs[i].JobName < cfg.ScrapeConfigs[j].JobName
+	slices.SortFunc(cfg.ScrapeConfigs, func(a, b *promconfig.ScrapeConfig) int {
+		return cmp.Compare(a.JobName, b.JobName)
 	})
 
 	return cfg, updates, nil

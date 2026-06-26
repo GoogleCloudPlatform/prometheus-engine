@@ -17,7 +17,7 @@ package internal
 import (
 	"encoding/json"
 	"net/http"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -137,15 +137,22 @@ func alertsToAPIAlerts(alerts []*rules.Alert) []*apiv1.Alert {
 		})
 	}
 	// Sort for testability.
-	sort.Slice(apiAlerts, func(i, j int) bool {
-		a, b := apiAlerts[i].Labels.Hash(), apiAlerts[j].Labels.Hash()
-		if a == b {
-			a, b = apiAlerts[i].Annotations.Hash(), apiAlerts[j].Annotations.Hash()
+	slices.SortFunc(apiAlerts, func(a, b *apiv1.Alert) int {
+		ha, hb := a.Labels.Hash(), b.Labels.Hash()
+		if ha != hb {
+			if ha > hb {
+				return -1
+			}
+			return 1
 		}
-		if a == b {
-			return strings.Compare(apiAlerts[i].State, apiAlerts[j].State) < 0 // firing before pending.
+		ha, hb = a.Annotations.Hash(), b.Annotations.Hash()
+		if ha != hb {
+			if ha > hb {
+				return -1
+			}
+			return 1
 		}
-		return a >= b
+		return strings.Compare(a.State, b.State)
 	})
 	return apiAlerts
 }

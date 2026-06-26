@@ -15,8 +15,9 @@
 package operator
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -207,10 +208,8 @@ func (b *scrapeEndpointBuilder) build() map[string][]monitoringv1.ScrapeEndpoint
 		}
 
 		// Make endpoint status deterministic.
-		sort.SliceStable(endpointStatuses, func(i, j int) bool {
-			lhsName := endpointStatuses[i].Name
-			rhsName := endpointStatuses[j].Name
-			return lhsName < rhsName
+		slices.SortStableFunc(endpointStatuses, func(a, b monitoringv1.ScrapeEndpointStatus) int {
+			return cmp.Compare(a.Name, b.Name)
 		})
 		resultMap[key] = endpointStatuses
 	}
@@ -270,26 +269,28 @@ func (b *scrapeEndpointStatusBuilder) addSampleTarget(target *prometheusv1.Activ
 func (b *scrapeEndpointStatusBuilder) build() monitoringv1.ScrapeEndpointStatus {
 	// Deterministic sample group by error.
 	for _, sampleGroup := range b.groupByError {
-		sort.SliceStable(sampleGroup.SampleTargets, func(i, j int) bool {
+		slices.SortStableFunc(sampleGroup.SampleTargets, func(a, b monitoringv1.SampleTarget) int {
 			// Every sample target is guaranteed to have an instance label.
-			lhsInstance := sampleGroup.SampleTargets[i].Labels["instance"]
-			rhsInstance := sampleGroup.SampleTargets[j].Labels["instance"]
-			return lhsInstance < rhsInstance
+			return cmp.Compare(a.Labels["instance"], b.Labels["instance"])
 		})
 		sampleTargetsSize := min(len(sampleGroup.SampleTargets), maxSampleTargetSize)
 		sampleGroup.SampleTargets = sampleGroup.SampleTargets[0:sampleTargetsSize]
 		b.status.SampleGroups = append(b.status.SampleGroups, *sampleGroup)
 	}
-	sort.SliceStable(b.status.SampleGroups, func(i, j int) bool {
+	slices.SortStableFunc(b.status.SampleGroups, func(a, b monitoringv1.SampleGroup) int {
 		// Assumes that every sample target in a group has the same error.
-		lhsError := b.status.SampleGroups[i].SampleTargets[0].LastError
-		rhsError := b.status.SampleGroups[j].SampleTargets[0].LastError
-		if lhsError == nil {
-			return false
-		} else if rhsError == nil {
-			return true
+		lhsError := a.SampleTargets[0].LastError
+		rhsError := b.SampleTargets[0].LastError
+		if lhsError == nil && rhsError == nil {
+			return 0
 		}
-		return *lhsError < *rhsError
+		if lhsError == nil {
+			return 1
+		}
+		if rhsError == nil {
+			return -1
+		}
+		return cmp.Compare(*lhsError, *rhsError)
 	})
 	return b.status
 }

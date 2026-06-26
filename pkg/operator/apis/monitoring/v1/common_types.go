@@ -17,7 +17,7 @@ package v1
 import (
 	"fmt"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/prometheus/common/config"
@@ -54,7 +54,7 @@ func relabelingsForSelector(selector metav1.LabelSelector, crd any) ([]*relabel.
 	for k := range selector.MatchLabels {
 		selectorKeys = append(selectorKeys, k)
 	}
-	sort.Strings(selectorKeys)
+	slices.Sort(selectorKeys)
 
 	var relabelCfgs []*relabel.Config
 
