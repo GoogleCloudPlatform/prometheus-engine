@@ -44,13 +44,6 @@ var statusLevels = map[slog.Level]ResourceStatus{
 	slog.LevelError: StatusFailed,
 }
 
-// trackStatus updates the tracked status for a key if the new status is more severe.
-func (h *ConsoleHandler) trackStatus(key string, status ResourceStatus) {
-	if val, exists := h.state.resourceStatuses[key]; !exists || status > val {
-		h.state.resourceStatuses[key] = status
-	}
-}
-
 // loggerState encapsulates the shared, thread-safe state across all handler clones.
 type loggerState struct {
 	mu               sync.Mutex
@@ -207,4 +200,11 @@ func (h *ConsoleHandler) ResourceStatuses() map[string]ResourceStatus {
 	defer h.state.mu.Unlock()
 
 	return maps.Clone(h.state.resourceStatuses)
+}
+
+// trackStatus updates the tracked status for a key if the new status is more severe.
+func (h *ConsoleHandler) trackStatus(key string, status ResourceStatus) {
+	if val, exists := h.state.resourceStatuses[key]; !exists || status > val {
+		h.state.resourceStatuses[key] = status
+	}
 }
