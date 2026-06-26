@@ -219,6 +219,7 @@ type TargetStatusSpec struct {
 }
 
 // CompressionType is the compression type.
+// +kubebuilder:validation:Enum=none;gzip
 type CompressionType string
 
 const (
