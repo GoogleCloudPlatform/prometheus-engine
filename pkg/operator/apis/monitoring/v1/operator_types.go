@@ -146,13 +146,18 @@ type RuleEvaluatorSpec struct {
 	// ExternalLabels specifies external labels that are attached to any rule
 	// results and alerts produced by rules. The precedence behavior matches that
 	// of Prometheus.
+	// +kubebuilder:validation:XValidation:rule="self.all(key, key.matches('^[a-zA-Z_][a-zA-Z0-9_]*$'))",message="Invalid label key"
 	ExternalLabels map[string]string `json:"externalLabels,omitempty"`
 	// QueryProjectID is the GCP project ID to evaluate rules against.
 	// If left blank, the rule-evaluator will try attempt to infer the Project ID
 	// from the environment.
+	// +kubebuilder:validation:MinLength=6
+	// +kubebuilder:validation:MaxLength=30
+	// +kubebuilder:validation:Pattern=^[a-z][a-z0-9-]*[a-z0-9]$
 	QueryProjectID string `json:"queryProjectID,omitempty"`
 	// The base URL used for the generator URL in the alert notification payload.
 	// Should point to an instance of a query frontend that gives access to queryProjectID.
+	// +kubebuilder:validation:XValidation:rule="self == '' || isURL(self)"
 	GeneratorURL string `json:"generatorUrl,omitempty"`
 	// Alerting contains how the rule-evaluator configures alerting.
 	Alerting AlertingSpec `json:"alerting,omitempty"`
@@ -170,6 +175,7 @@ type CollectionSpec struct {
 	// ExternalLabels specifies external labels that are attached to all scraped
 	// data before being written to Google Cloud Monitoring or any other additional exports
 	// specified in the OperatorConfig. The precedence behavior matches that of Prometheus.
+	// +kubebuilder:validation:XValidation:rule="self.all(key, key.matches('^[a-zA-Z_][a-zA-Z0-9_]*$'))",message="Invalid label key"
 	ExternalLabels map[string]string `json:"externalLabels,omitempty"`
 	// Filter limits which metric data is sent to Cloud Monitoring (it doesn't apply to additional exports).
 	Filter ExportFilters `json:"filter,omitempty"`
@@ -187,6 +193,7 @@ type CollectionSpec struct {
 
 type ExportSpec struct {
 	// The URL of the endpoint that supports Prometheus Remote Write to export samples to.
+	// +kubebuilder:validation:XValidation:rule="self == '' || isURL(self)"
 	URL string `json:"url"`
 }
 
@@ -288,6 +295,7 @@ type ManagedAlertmanagerSpec struct {
 	// be derived automatically.
 	//
 	// If no URL is provided, Alertmanager will point to the Google Cloud Metric Explorer page.
+	// +kubebuilder:validation:XValidation:rule="self == '' || isURL(self)"
 	ExternalURL string `json:"externalURL,omitempty"`
 }
 
@@ -295,12 +303,17 @@ type ManagedAlertmanagerSpec struct {
 // containing alertmanager IPs to fire alerts against.
 type AlertmanagerEndpoints struct {
 	// Namespace of Endpoints object.
+	// +kubebuilder:validation:Pattern=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+	// +kubebuilder:validation:MaxLength=63
 	Namespace string `json:"namespace"`
 	// Name of Endpoints object in Namespace.
+	// +kubebuilder:validation:Pattern=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+	// +kubebuilder:validation:MaxLength=63
 	Name string `json:"name"`
 	// Port the Alertmanager API is exposed on.
 	Port intstr.IntOrString `json:"port"`
 	// Scheme to use when firing alerts.
+	// +kubebuilder:validation:Enum=http;https
 	Scheme string `json:"scheme,omitempty"`
 	// Prefix for the HTTP path alerts are pushed to.
 	PathPrefix string `json:"pathPrefix,omitempty"`
@@ -332,6 +345,7 @@ type TLSConfig struct {
 	// Struct containing the client cert file for the targets.
 	Cert *SecretOrConfigMap `json:"cert,omitempty"`
 	// Secret containing the client key file for the targets.
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$') && size(self.name) <= 63"
 	KeySecret *corev1.SecretKeySelector `json:"keySecret,omitempty"`
 	// Used to verify the hostname for the targets.
 	ServerName string `json:"serverName,omitempty"`
