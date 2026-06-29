@@ -36,8 +36,8 @@ func (c *PodMonitorConverter) ImportKey() string {
 
 // Convert translates a Prometheus Operator PodMonitor into GMP resources.
 func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, unstruct *unstructured.Unstructured, _ *ResourceCache) ([]*unstructured.Unstructured, error) {
-	if unstruct == nil {
-		return nil, errors.New("cannot convert nil unstructured resource")
+	if unstruct == nil || unstruct.Object == nil {
+		return nil, errors.New("cannot convert nil or uninitialized unstructured resource")
 	}
 
 	// 1. Unmarshal unstructured to typed PodMonitor
@@ -104,7 +104,7 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor) (*unstructured.Unstructured, error) {
 	gmpPM := &monitoringv1.PodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-		ObjectMeta: BuildObjectMeta(pm.Name, pm.Namespace),
+		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, pm.Namespace),
 		Spec: monitoringv1.PodMonitoringSpec{
 			Selector: pm.Spec.Selector,
 			// TODO: Migrate pm.Spec.PodMetricsEndpoints to Spec.Endpoints in subsequent step.
@@ -127,7 +127,7 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor) (*unstructured.Unstructured, error) {
 	gmpCPM := &monitoringv1.ClusterPodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
-		ObjectMeta: BuildObjectMeta(pm.Name, ""), // Cluster-scoped, namespace is omitted
+		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, ""), // Cluster-scoped, namespace is omitted
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector: pm.Spec.Selector,
 			// TODO: Migrate pm.Spec.PodMetricsEndpoints to Spec.Endpoints in subsequent step.

@@ -15,18 +15,11 @@
 package migrate
 
 import (
+	"maps"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-// BuildObjectMeta constructs standard ObjectMeta with name and namespace.
-func BuildObjectMeta(name, namespace string) metav1.ObjectMeta {
-	return metav1.ObjectMeta{
-		Name:      name,
-		Namespace: namespace,
-	}
-}
 
 // BuildTypeMeta constructs standard TypeMeta for a GMP resource Kind.
 func BuildTypeMeta(kind string) metav1.TypeMeta {
@@ -34,6 +27,22 @@ func BuildTypeMeta(kind string) metav1.TypeMeta {
 		APIVersion: GMPAPIVersion,
 		Kind:       kind,
 	}
+}
+
+// CopyObjectMeta copies user-controlled metadata (Name, Labels, Annotations) from source to target,
+// setting the namespace to the specified target namespace and filtering out system annotations.
+func CopyObjectMeta(src metav1.ObjectMeta, targetNamespace string) metav1.ObjectMeta {
+	dst := metav1.ObjectMeta{
+		Name:        src.Name,
+		Namespace:   targetNamespace,
+		Labels:      maps.Clone(src.Labels),
+		Annotations: maps.Clone(src.Annotations),
+	}
+
+	// Strip system-injected kubectl annotation to prevent out-of-date configurations
+	delete(dst.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+
+	return dst
 }
 
 // ParseAndCleanNamespaces trims whitespace, filters out empty strings, and deduplicates namespaces.

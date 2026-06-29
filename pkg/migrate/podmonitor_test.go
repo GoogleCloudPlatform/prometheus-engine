@@ -42,8 +42,10 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 				Kind:       KindPodMonitor,
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "global-monitor",
-				Namespace: "default",
+				Name:        "global-monitor",
+				Namespace:   "default",
+				Labels:      map[string]string{"team": "frontend"},
+				Annotations: map[string]string{"prometheus.io/scrape": "true", "kubectl.kubernetes.io/last-applied-configuration": "{}"},
 			},
 			Spec: pomonitoringv1.PodMonitorSpec{
 				NamespaceSelector: pomonitoringv1.NamespaceSelector{
@@ -78,6 +80,17 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 		}
 		if out.GetNamespace() != "" {
 			t.Errorf("expected empty Namespace for cluster-scoped resource, got %q", out.GetNamespace())
+		}
+
+		// Verify metadata copied & system annotations stripped
+		if out.GetLabels()["team"] != "frontend" {
+			t.Errorf("expected label team=frontend, got %v", out.GetLabels())
+		}
+		if out.GetAnnotations()["prometheus.io/scrape"] != "true" {
+			t.Errorf("expected annotation scrape=true, got %v", out.GetAnnotations())
+		}
+		if _, exists := out.GetAnnotations()["kubectl.kubernetes.io/last-applied-configuration"]; exists {
+			t.Error("expected kubectl last-applied annotation to be stripped, but it exists")
 		}
 
 		// Verify spec selector mapped
@@ -180,7 +193,7 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 		}
 	})
 
-	t.Run("Case B.3: Broken Config (Skip and Warn)", func(t *testing.T) {
+	t.Run("Case B.3: Broken Config", func(t *testing.T) {
 		pm := &pomonitoringv1.PodMonitor{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "monitoring.coreos.com/v1",
