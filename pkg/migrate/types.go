@@ -24,23 +24,17 @@ import (
 )
 
 const (
-	// GMP Group and API Version
 	GMPAPIVersion = "monitoring.googleapis.com/v1"
 
-	// GMP Kinds
 	KindPodMonitoring        = "PodMonitoring"
 	KindClusterPodMonitoring = "ClusterPodMonitoring"
 	KindOperatorConfig       = "OperatorConfig"
-
-	// Prometheus Operator Kinds
-	KindPodMonitor     = "PodMonitor"
-	KindServiceMonitor = "ServiceMonitor"
-	KindPrometheus     = "Prometheus"
-
-	// Standard Kubernetes Kinds
-	KindService   = "Service"
-	KindConfigMap = "ConfigMap"
-	KindSecret    = "Secret"
+	KindPodMonitor           = "PodMonitor"
+	KindServiceMonitor       = "ServiceMonitor"
+	KindPrometheus           = "Prometheus"
+	KindService              = "Service"
+	KindConfigMap            = "ConfigMap"
+	KindSecret               = "Secret"
 )
 
 // ResourceConverter defines the interface for converting a specific Prometheus Operator resource kind.

@@ -16,11 +16,12 @@ package migrate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
-	gmpv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -34,13 +35,13 @@ func (c *PodMonitorConverter) ImportKey() string {
 }
 
 // Convert translates a Prometheus Operator PodMonitor into GMP resources.
-func (c *PodMonitorConverter) Convert(ctx context.Context, logger *slog.Logger, unstruct *unstructured.Unstructured, cache *ResourceCache) ([]*unstructured.Unstructured, error) {
+func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, unstruct *unstructured.Unstructured, _ *ResourceCache) ([]*unstructured.Unstructured, error) {
 	if unstruct == nil {
-		return nil, fmt.Errorf("cannot convert nil unstructured resource")
+		return nil, errors.New("cannot convert nil unstructured resource")
 	}
 
 	// 1. Unmarshal unstructured to typed PodMonitor
-	var podMonitor monitoringv1.PodMonitor
+	var podMonitor pomonitoringv1.PodMonitor
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstruct.Object, &podMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode PodMonitor: %w", err)
@@ -54,7 +55,7 @@ func (c *PodMonitorConverter) Convert(ctx context.Context, logger *slog.Logger, 
 	if nsSel.Any {
 		// Case A: namespaceSelector.any = true -> Single ClusterPodMonitoring
 		logger.Info("namespaceSelector selects 'any: true'. Translated to 'ClusterPodMonitoring'")
-		u, err := c.convertToClusterPodMonitoring(&podMonitor, logger)
+		u, err := c.convertToClusterPodMonitoring(&podMonitor)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +82,7 @@ func (c *PodMonitorConverter) Convert(ctx context.Context, logger *slog.Logger, 
 		}
 
 		// 2.2 Convert to a base namespaced PodMonitoring
-		baseU, err := c.convertToPodMonitoring(&podMonitor, logger)
+		baseU, err := c.convertToPodMonitoring(&podMonitor)
 		if err != nil {
 			return nil, err
 		}
@@ -97,19 +98,20 @@ func (c *PodMonitorConverter) Convert(ctx context.Context, logger *slog.Logger, 
 	}
 
 	// Case C: namespaceSelector is empty/omitted -> Single PodMonitoring in local namespace
-	u, err := c.convertToPodMonitoring(&podMonitor, logger)
+	u, err := c.convertToPodMonitoring(&podMonitor)
 	if err != nil {
 		return nil, err
 	}
 	return []*unstructured.Unstructured{u}, nil
 }
 
-func (c *PodMonitorConverter) convertToPodMonitoring(pm *monitoringv1.PodMonitor, logger *slog.Logger) (*unstructured.Unstructured, error) {
-	gmpPM := &gmpv1.PodMonitoring{
+func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor) (*unstructured.Unstructured, error) {
+	gmpPM := &monitoringv1.PodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
 		ObjectMeta: BuildObjectMeta(pm.Name, pm.Namespace),
-		Spec: gmpv1.PodMonitoringSpec{
+		Spec: monitoringv1.PodMonitoringSpec{
 			Selector: pm.Spec.Selector,
+			// TODO: Migrate pm.Spec.PodMetricsEndpoints to Spec.Endpoints in subsequent step.
 		},
 	}
 
@@ -126,12 +128,13 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *monitoringv1.PodMonitor
 	return u, nil
 }
 
-func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *monitoringv1.PodMonitor, logger *slog.Logger) (*unstructured.Unstructured, error) {
-	gmpCPM := &gmpv1.ClusterPodMonitoring{
+func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor) (*unstructured.Unstructured, error) {
+	gmpCPM := &monitoringv1.ClusterPodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
 		ObjectMeta: BuildObjectMeta(pm.Name, ""), // Cluster-scoped, namespace is omitted
-		Spec: gmpv1.ClusterPodMonitoringSpec{
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector: pm.Spec.Selector,
+			// TODO: Migrate pm.Spec.PodMetricsEndpoints to Spec.Endpoints in subsequent step.
 		},
 	}
 

@@ -348,7 +348,7 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 
 			allOutputs = append(allOutputs, outputs...)
 
-			resourceLogger.Debug("Converted successfully")
+			resourceLogger.Info("Converted successfully", slog.String("migration_status", "success"))
 		}
 	}
 	return allOutputs

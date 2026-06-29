@@ -20,8 +20,8 @@ import (
 	"strings"
 	"testing"
 
-	gmpv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,7 +36,7 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 	}))
 
 	t.Run("Case A: Cluster-Scoped (Any Namespace)", func(t *testing.T) {
-		pm := &monitoringv1.PodMonitor{
+		pm := &pomonitoringv1.PodMonitor{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "monitoring.coreos.com/v1",
 				Kind:       KindPodMonitor,
@@ -45,8 +45,8 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 				Name:      "global-monitor",
 				Namespace: "default",
 			},
-			Spec: monitoringv1.PodMonitorSpec{
-				NamespaceSelector: monitoringv1.NamespaceSelector{
+			Spec: pomonitoringv1.PodMonitorSpec{
+				NamespaceSelector: pomonitoringv1.NamespaceSelector{
 					Any: true,
 				},
 				Selector: metav1.LabelSelector{
@@ -81,7 +81,7 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 		}
 
 		// Verify spec selector mapped
-		var gmpCPM gmpv1.ClusterPodMonitoring
+		var gmpCPM monitoringv1.ClusterPodMonitoring
 		fromUnstructured(t, out, &gmpCPM)
 		if gmpCPM.Spec.Selector.MatchLabels["app"] != "global-app" {
 			t.Errorf("expected selector app='global-app', got %v", gmpCPM.Spec.Selector.MatchLabels)
@@ -89,7 +89,7 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 	})
 
 	t.Run("Case B: Multi-Namespace Split (Unstructured Cloning)", func(t *testing.T) {
-		pm := &monitoringv1.PodMonitor{
+		pm := &pomonitoringv1.PodMonitor{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "monitoring.coreos.com/v1",
 				Kind:       KindPodMonitor,
@@ -98,8 +98,8 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 				Name:      "multi-monitor",
 				Namespace: "default",
 			},
-			Spec: monitoringv1.PodMonitorSpec{
-				NamespaceSelector: monitoringv1.NamespaceSelector{
+			Spec: pomonitoringv1.PodMonitorSpec{
+				NamespaceSelector: pomonitoringv1.NamespaceSelector{
 					MatchNames: []string{"ns-a", "ns-b"},
 				},
 				Selector: metav1.LabelSelector{
@@ -130,7 +130,7 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 			}
 			namespacesSeen[out.GetNamespace()] = true
 
-			var gmpPM gmpv1.PodMonitoring
+			var gmpPM monitoringv1.PodMonitoring
 			fromUnstructured(t, out, &gmpPM)
 			if gmpPM.Spec.Selector.MatchLabels["app"] != "multi-app" {
 				t.Errorf("expected selector app='multi-app', got %v", gmpPM.Spec.Selector.MatchLabels)
@@ -143,7 +143,7 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 	})
 
 	t.Run("Case B.2: Namespace Deduplication & Trimming", func(t *testing.T) {
-		pm := &monitoringv1.PodMonitor{
+		pm := &pomonitoringv1.PodMonitor{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "monitoring.coreos.com/v1",
 				Kind:       KindPodMonitor,
@@ -152,8 +152,8 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 				Name:      "dirty-monitor",
 				Namespace: "default",
 			},
-			Spec: monitoringv1.PodMonitorSpec{
-				NamespaceSelector: monitoringv1.NamespaceSelector{
+			Spec: pomonitoringv1.PodMonitorSpec{
+				NamespaceSelector: pomonitoringv1.NamespaceSelector{
 					MatchNames: []string{"ns-a", " ns-a ", "  ns-a", "", "   "},
 				},
 				Selector: metav1.LabelSelector{
@@ -181,7 +181,7 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 	})
 
 	t.Run("Case B.3: Broken Config (Skip and Warn)", func(t *testing.T) {
-		pm := &monitoringv1.PodMonitor{
+		pm := &pomonitoringv1.PodMonitor{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "monitoring.coreos.com/v1",
 				Kind:       KindPodMonitor,
@@ -190,8 +190,8 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 				Name:      "broken-monitor",
 				Namespace: "default",
 			},
-			Spec: monitoringv1.PodMonitorSpec{
-				NamespaceSelector: monitoringv1.NamespaceSelector{
+			Spec: pomonitoringv1.PodMonitorSpec{
+				NamespaceSelector: pomonitoringv1.NamespaceSelector{
 					MatchNames: []string{"", "   "},
 				},
 				Selector: metav1.LabelSelector{
@@ -214,7 +214,7 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 	})
 
 	t.Run("Case C: Local Scoping (Omitted Selector)", func(t *testing.T) {
-		pm := &monitoringv1.PodMonitor{
+		pm := &pomonitoringv1.PodMonitor{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "monitoring.coreos.com/v1",
 				Kind:       KindPodMonitor,
@@ -223,7 +223,7 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 				Name:      "local-monitor",
 				Namespace: "my-local-namespace",
 			},
-			Spec: monitoringv1.PodMonitorSpec{
+			Spec: pomonitoringv1.PodMonitorSpec{
 				// NamespaceSelector is completely omitted
 				Selector: metav1.LabelSelector{
 					MatchLabels: map[string]string{"app": "local-app"},
@@ -250,7 +250,7 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 			t.Errorf("expected Namespace 'my-local-namespace', got %q", out.GetNamespace())
 		}
 
-		var gmpPM gmpv1.PodMonitoring
+		var gmpPM monitoringv1.PodMonitoring
 		fromUnstructured(t, out, &gmpPM)
 		if gmpPM.Spec.Selector.MatchLabels["app"] != "local-app" {
 			t.Errorf("expected selector app='local-app', got %v", gmpPM.Spec.Selector.MatchLabels)
@@ -258,8 +258,8 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 	})
 }
 
-// Helpers for test conversions
-func toUnstructured(t *testing.T, obj interface{}) *unstructured.Unstructured {
+// Helpers for test conversions.
+func toUnstructured(t *testing.T, obj any) *unstructured.Unstructured {
 	t.Helper()
 	m, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	if err != nil {
@@ -268,7 +268,7 @@ func toUnstructured(t *testing.T, obj interface{}) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: m}
 }
 
-func fromUnstructured(t *testing.T, u *unstructured.Unstructured, obj interface{}) {
+func fromUnstructured(t *testing.T, u *unstructured.Unstructured, obj any) {
 	t.Helper()
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, obj)
 	if err != nil {
@@ -276,7 +276,7 @@ func fromUnstructured(t *testing.T, u *unstructured.Unstructured, obj interface{
 	}
 }
 
-// testingWriter redirects slog output to go test logging
+// testingWriter redirects slog output to go test logging.
 type testingWriter struct {
 	t *testing.T
 }

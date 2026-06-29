@@ -36,10 +36,7 @@ const (
 )
 
 // statusLevels maps slog.Levels to their corresponding ResourceStatus.
-// Levels omitted from this map (like slog.LevelInfo) represent progress logs
-// and are ignored for status tracking.
 var statusLevels = map[slog.Level]ResourceStatus{
-	slog.LevelDebug: StatusSuccess,
 	slog.LevelWarn:  StatusWarning,
 	slog.LevelError: StatusFailed,
 }
@@ -116,12 +113,13 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	// Map slog.Level to string for console output.
 	var levelStr string
 	switch r.Level {
-	case slog.LevelDebug:
-		levelStr = "SUCCESS"
 	case slog.LevelInfo:
 		levelStr = "INFO"
-		if migrationStatus == "skipped" {
+		switch migrationStatus {
+		case "skipped":
 			levelStr = "SKIPPED"
+		case "success":
+			levelStr = "SUCCESS"
 		}
 	case slog.LevelWarn:
 		levelStr = "WARNING"
@@ -166,8 +164,13 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	}
 
 	if key != "" {
-		if r.Level == slog.LevelInfo && migrationStatus == "skipped" {
-			h.trackStatus(key, StatusSkipped)
+		if r.Level == slog.LevelInfo {
+			switch migrationStatus {
+			case "skipped":
+				h.trackStatus(key, StatusSkipped)
+			case "success":
+				h.trackStatus(key, StatusSuccess)
+			}
 		} else if status, ok := statusLevels[r.Level]; ok {
 			h.trackStatus(key, status)
 		}
