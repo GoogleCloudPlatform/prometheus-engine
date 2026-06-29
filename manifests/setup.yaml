@@ -1882,6 +1882,9 @@ spec:
               properties:
                 compression:
                   description: Compression enables compression of metrics collection data
+                  enum:
+                    - none
+                    - gzip
                   type: string
                 credentials:
                   description: |-
@@ -2010,6 +2013,9 @@ spec:
                         Compression enables compression of the config data propagated by the operator to collectors
                         and the rule-evaluator. It is recommended to use the gzip option when using a large number of
                         ClusterPodMonitoring, PodMonitoring, GlobalRules, ClusterRules, and/or Rules.
+                      enum:
+                        - none
+                        - gzip
                       type: string
                   type: object
                 targetStatus:

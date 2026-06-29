@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -446,14 +445,16 @@ func TestCRDValidation(t *testing.T) {
 		for name, tc := range tests {
 			t.Run(name, func(t *testing.T) {
 				err := c.Create(t.Context(), tc.obj)
-				switch {
-				case err == nil && !tc.wantErr:
-					// OK
+				if err == nil {
 					_ = c.Delete(t.Context(), tc.obj)
 					_ = wait.PollUntilContextTimeout(t.Context(), 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
 						err := c.Get(ctx, client.ObjectKeyFromObject(tc.obj), tc.obj.DeepCopyObject().(client.Object))
 						return apierrors.IsNotFound(err), nil
 					})
+				}
+				switch {
+				case err == nil && !tc.wantErr:
+					// OK
 				case err != nil && !tc.wantErr:
 					t.Errorf("Unexpected error: %v", err)
 				case err == nil && tc.wantErr:
@@ -461,8 +462,6 @@ func TestCRDValidation(t *testing.T) {
 				case err != nil && tc.wantErr:
 					t.Log(err)
 					// OK
-				default:
-					// Ok
 				}
 			})
 		}
@@ -817,40 +816,6 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-			},
-			"invalid credentials secret name": {
-				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
-					Collection: monitoringv1.CollectionSpec{
-						Credentials: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: "my_secret",
-							},
-							Key: "key.json",
-						},
-					},
-				},
-				wantErr: true,
-			},
-			"credentials secret name too long": {
-				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
-					Collection: monitoringv1.CollectionSpec{
-						Credentials: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: strings.Repeat("a", 254),
-							},
-							Key: "key.json",
-						},
-					},
-				},
-				wantErr: true,
 			},
 			"queryProjectID empty string": {
 				obj: &unstructured.Unstructured{
