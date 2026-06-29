@@ -36,7 +36,7 @@ func BuildTypeMeta(kind string) metav1.TypeMeta {
 	}
 }
 
-// ParseAndCleanNamespaces trims whitespace, filters out empty strings, and deduplicates namespaces..
+// ParseAndCleanNamespaces trims whitespace, filters out empty strings, and deduplicates namespaces.
 func ParseAndCleanNamespaces(namespaces []string) []string {
 	unique := make(map[string]bool)
 	var cleaned []string
