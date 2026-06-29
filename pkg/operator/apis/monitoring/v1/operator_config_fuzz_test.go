@@ -287,14 +287,29 @@ func FuzzOperatorConfig(f *testing.F) {
 			}
 			if celPassed && !webhookPassed {
 				// This is a False Negative in CEL (CEL is too lenient / missing rules).
-				// We narrowly tolerate this if the webhook rejected it specifically because of generatorUrl parsing.
+				// We narrowly tolerate this if the webhook rejected it specifically because of generatorUrl parsing
+				// or duration string parsing (see https://github.com/kubernetes/kube-openapi/pull/619).
 				if strings.Contains(webhookErr.Error(), "failed to parse generator URL") {
 					t.Skip("Narrowly skipping: Webhook is stricter than CEL for generatorUrl validation")
+				}
+				if isDurationValidationDiscrepancy(webhookErr) {
+					t.Skip("Narrowly skipping: Webhook is stricter than CEL for duration string validation")
 				}
 				t.Fatalf("Discrepancy (False Negative): CEL validation accepted the object, but Webhook rejected it.\nWebhook Error: %v\nPayload: %s", webhookErr, string(data))
 			}
 		}
 	})
+}
+
+func isDurationValidationDiscrepancy(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "not a valid duration string") ||
+		strings.Contains(msg, "empty duration string") ||
+		strings.Contains(msg, "unknown unit") ||
+		strings.Contains(msg, "duration out of range")
 }
 
 func isURLValidationDiscrepancy(errs field.ErrorList) bool {
