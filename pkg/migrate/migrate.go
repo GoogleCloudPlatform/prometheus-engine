@@ -365,7 +365,14 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 // checkCollisions verifies that none of the generated outputs conflict with previously generated outputs.
 func (m *Migrator) checkCollisions(outputs []*unstructured.Unstructured, seen map[string]string, srcKind, srcNamespace, srcName string) error {
 	srcKey := fmt.Sprintf("%s/%s/%s", srcKind, srcNamespace, srcName)
+
+	// Store verified keys
+	verifiedKeys := make([]string, 0, len(outputs))
+	// Verify and collect keys
 	for _, out := range outputs {
+		if out == nil {
+			continue
+		}
 		gvk := out.GroupVersionKind()
 		key := fmt.Sprintf("%s/%s/%s", gvk.String(), out.GetNamespace(), out.GetName())
 
@@ -373,6 +380,10 @@ func (m *Migrator) checkCollisions(outputs []*unstructured.Unstructured, seen ma
 			return fmt.Errorf("conflict detected: both %s and %s generate the same target resource %q",
 				srcKey, originalSrc, key)
 		}
+		verifiedKeys = append(verifiedKeys, key)
+	}
+	// Add verified keys
+	for _, key := range verifiedKeys {
 		seen[key] = srcKey
 	}
 	return nil
