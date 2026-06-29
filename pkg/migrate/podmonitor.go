@@ -66,13 +66,9 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 		// Case B: namespaceSelector.matchNames listed -> Multiple PodMonitoring resources (one per namespace)
 		targetNamespaces := ParseAndCleanNamespaces(nsSel.MatchNames)
 
-		// 2.1 Skip if all provided names were empty/whitespace (broken config)
+		// 2.1 Fail if all provided names were empty/whitespace (broken config)
 		if len(targetNamespaces) == 0 {
-			logger.Warn("Skipping PodMonitor: namespaceSelector.matchNames contains only empty or invalid values",
-				slog.String("name", podMonitor.Name),
-				slog.String("namespace", podMonitor.Namespace),
-			)
-			return nil, nil
+			return nil, errors.New("namespaceSelector.matchNames contains only empty or invalid values")
 		}
 
 		if len(targetNamespaces) > 1 {

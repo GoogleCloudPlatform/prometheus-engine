@@ -201,15 +201,12 @@ func TestPodMonitorNamespaceHarness(t *testing.T) {
 		}
 
 		uInput := toUnstructured(t, pm)
-
-		outputs, err := converter.Convert(context.Background(), logger, uInput, nil)
-		if err != nil {
-			t.Fatalf("Convert failed: %v", err)
+		_, err := converter.Convert(context.Background(), logger, uInput, nil)
+		if err == nil {
+			t.Fatal("expected Convert to fail on empty matchNames, but got no error")
 		}
-
-		// Should gracefully skip (return nil, nil)
-		if len(outputs) != 0 || outputs != nil {
-			t.Errorf("expected skipped resource to return nil outputs, got %v", outputs)
+		if !strings.Contains(err.Error(), "contains only empty or invalid values") {
+			t.Errorf("expected error message to contain 'contains only empty or invalid values', got %v", err)
 		}
 	})
 
