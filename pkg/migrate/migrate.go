@@ -316,6 +316,9 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 	var allOutputs []*unstructured.Unstructured
 	ctx := context.Background()
 
+	// Track generated outputs to detect name collisions.
+	seenOutputs := make(map[string]string)
+
 	kinds := slices.AppendSeq(make([]string, 0, len(m.cache.resources)), maps.Keys(m.cache.resources))
 	slices.Sort(kinds)
 
@@ -346,10 +349,31 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 				continue
 			}
 
+			if err := m.checkCollisions(outputs, seenOutputs, kind, res.GetNamespace(), res.GetName()); err != nil {
+				resourceLogger.Error(err.Error())
+				continue
+			}
+
 			allOutputs = append(allOutputs, outputs...)
 
 			resourceLogger.Info("Converted successfully", slog.String("migration_status", "success"))
 		}
 	}
 	return allOutputs
+}
+
+// checkCollisions verifies that none of the generated outputs conflict with previously generated outputs.
+func (m *Migrator) checkCollisions(outputs []*unstructured.Unstructured, seen map[string]string, srcKind, srcNamespace, srcName string) error {
+	srcKey := fmt.Sprintf("%s/%s/%s", srcKind, srcNamespace, srcName)
+	for _, out := range outputs {
+		gvk := out.GroupVersionKind()
+		key := fmt.Sprintf("%s/%s/%s", gvk.String(), out.GetNamespace(), out.GetName())
+
+		if originalSrc, exists := seen[key]; exists {
+			return fmt.Errorf("conflict detected: both %s and %s generate the same target resource %q",
+				srcKey, originalSrc, key)
+		}
+		seen[key] = srcKey
+	}
+	return nil
 }
