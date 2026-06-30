@@ -175,10 +175,83 @@ func (c *PodMonitorConverter) convertEndpoints(
 			}
 		}
 
+		// 4. Relabeling Rules (MetricRelabelings)
+		if len(ep.MetricRelabelConfigs) > 0 {
+			rules, err := c.convertMetricRelabelings(logger, ep.MetricRelabelConfigs)
+			if err != nil {
+				return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
+			}
+			gmpEp.MetricRelabeling = rules
+		}
+
+		// 5. Warnings for Unsupported Fields in Endpoint
+		if ep.HonorLabels {
+			logger.Warn("Field 'honorLabels: true' is unsupported and dropped. GMP always overrides conflicting labels. Clashing metric labels will be renamed with the 'exported_' prefix.")
+		}
+		if ep.HonorTimestamps != nil && *ep.HonorTimestamps {
+			logger.Warn("Field 'honorTimestamps: true' is unsupported and dropped. GMP always uses the scrape ingestion timestamp. Target metric timestamps will be ignored.")
+		}
+		if ep.TrackTimestampsStaleness != nil {
+			logger.Warn("Field 'trackTimestampsStaleness' is unsupported in GMP and has been dropped.")
+		}
+
 		gmpEndpoints = append(gmpEndpoints, gmpEp)
 	}
 
 	return gmpEndpoints, nil
+}
+
+func (c *PodMonitorConverter) convertMetricRelabelings(
+	logger *slog.Logger,
+	configs []pomonitoringv1.RelabelConfig,
+) ([]monitoringv1.RelabelingRule, error) {
+	var rules []monitoringv1.RelabelingRule
+
+	for _, config := range configs {
+		action := strings.ToLower(config.Action)
+		if action == "labelmap" {
+			logger.Warn("metricRelabelings rule uses 'action: labelmap' which is not supported by GMP and has been dropped.")
+			continue
+		}
+
+		targetLabel := config.TargetLabel
+		if action == "replace" || action == "hashmod" || action == "lowercase" || action == "uppercase" || action == "keepequal" || action == "dropequal" || action == "" {
+			if protectedLabels[config.TargetLabel] {
+				targetLabel = "exported_" + config.TargetLabel
+				logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.",
+					config.TargetLabel, targetLabel))
+			}
+		}
+
+		rule := monitoringv1.RelabelingRule{
+			TargetLabel: targetLabel,
+			Regex:       config.Regex,
+			Modulus:     config.Modulus,
+		}
+		if config.Action != "" {
+			rule.Action = action
+		} else {
+			rule.Action = "replace" // Default is replace
+		}
+
+		if len(config.SourceLabels) > 0 {
+			rule.SourceLabels = make([]string, len(config.SourceLabels))
+			for i, sl := range config.SourceLabels {
+				rule.SourceLabels[i] = string(sl)
+			}
+		}
+
+		if config.Separator != nil {
+			rule.Separator = *config.Separator
+		}
+		if config.Replacement != nil {
+			rule.Replacement = *config.Replacement
+		}
+
+		rules = append(rules, rule)
+	}
+
+	return rules, nil
 }
 
 func (c *PodMonitorConverter) convertToPodMonitoring(logger *slog.Logger, pm *pomonitoringv1.PodMonitor) (*unstructured.Unstructured, error) {
