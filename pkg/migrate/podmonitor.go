@@ -104,6 +104,29 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 	return []*unstructured.Unstructured{u}, nil
 }
 
+func (c *PodMonitorConverter) convertFromPodLabels(logger *slog.Logger, pm *pomonitoringv1.PodMonitor) []monitoringv1.LabelMapping {
+	var fromPod []monitoringv1.LabelMapping
+
+	for _, l := range pm.Spec.PodTargetLabels {
+		mapping := monitoringv1.LabelMapping{From: l}
+		if protectedLabels[l] {
+			mapping.To = "exported_" + l
+			logger.Warn(fmt.Sprintf("Pod target label %q is protected in GMP. Renamed target to %q.", l, mapping.To))
+		}
+		fromPod = append(fromPod, mapping)
+	}
+
+	if pm.Spec.JobLabel != "" {
+		logger.Warn(fmt.Sprintf("GMP does not support overriding the protected 'job' label. Value on label %q has been copied into the target label 'exported_job'.", pm.Spec.JobLabel))
+		fromPod = append(fromPod, monitoringv1.LabelMapping{
+			From: pm.Spec.JobLabel,
+			To:   "exported_job",
+		})
+	}
+
+	return fromPod
+}
+
 func (c *PodMonitorConverter) convertEndpoints(
 	logger *slog.Logger,
 	endpoints []pomonitoringv1.PodMetricsEndpoint,
@@ -170,6 +193,9 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		Spec: monitoringv1.PodMonitoringSpec{
 			Selector:  pm.Spec.Selector,
 			Endpoints: endpoints,
+			TargetLabels: monitoringv1.TargetLabels{
+				FromPod: c.convertFromPodLabels(logger, pm),
+			},
 		},
 	}
 
@@ -197,6 +223,9 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector:  pm.Spec.Selector,
 			Endpoints: endpoints,
+			TargetLabels: monitoringv1.ClusterTargetLabels{
+				FromPod: c.convertFromPodLabels(logger, pm),
+			},
 		},
 	}
 
