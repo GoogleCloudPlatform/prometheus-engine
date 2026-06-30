@@ -17,258 +17,279 @@ package migrate
 import (
 	"context"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/google/go-cmp/cmp"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func TestPodMonitorNamespaceHarness(t *testing.T) {
-	converter := &PodMonitorConverter{}
+func TestPodMonitorConversion(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *pomonitoringv1.PodMonitor
+		expected []runtime.Object
+		wantErr  string
+	}{
+		{
+			name: "Case A: Cluster-Scoped (Any Namespace)",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "global-monitor",
+					Namespace:   "default",
+					Labels:      map[string]string{"team": "frontend"},
+					Annotations: map[string]string{"prometheus.io/scrape": "true", "kubectl.kubernetes.io/last-applied-configuration": "{}"},
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						Any: true,
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "global-app"},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.ClusterPodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindClusterPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "global-monitor",
+						Labels: map[string]string{
+							"team": "frontend",
+						},
+						Annotations: map[string]string{
+							"prometheus.io/scrape": "true",
+						},
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "global-app",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Case B: Multi-Namespace Split",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "multi-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						MatchNames: []string{"ns-a", "ns-b"},
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "multi-app"},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "multi-monitor",
+						Namespace: "ns-a",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "multi-app",
+							},
+						},
+					},
+				},
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "multi-monitor",
+						Namespace: "ns-b",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "multi-app",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Case B.2: Namespace Deduplication & Trimming",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "dirty-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						MatchNames: []string{"ns-a", " ns-a ", "  ns-a", "", "   "},
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "dirty-app"},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "dirty-monitor",
+						Namespace: "ns-a",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "dirty-app",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Case B.3: Broken Config",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "broken-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						MatchNames: []string{"", "   "},
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "broken-app"},
+					},
+				},
+			},
+			wantErr: "namespaceSelector.matchNames contains only empty or invalid values",
+		},
+		{
+			name: "Case C: Local Scoping (Omitted Selector)",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "local-monitor",
+					Namespace: "my-local-namespace",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "local-app"},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "local-monitor",
+						Namespace: "my-local-namespace",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "local-app",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 
-	// Helper to build unstructured logger that writes to go test logs
+	converter := &PodMonitorConverter{}
 	logger := slog.New(slog.NewTextHandler(&testingWriter{t}, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
 
-	t.Run("Case A: Cluster-Scoped (Any Namespace)", func(t *testing.T) {
-		pm := &pomonitoringv1.PodMonitor{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "monitoring.coreos.com/v1",
-				Kind:       KindPodMonitor,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        "global-monitor",
-				Namespace:   "default",
-				Labels:      map[string]string{"team": "frontend"},
-				Annotations: map[string]string{"prometheus.io/scrape": "true", "kubectl.kubernetes.io/last-applied-configuration": "{}"},
-			},
-			Spec: pomonitoringv1.PodMonitorSpec{
-				NamespaceSelector: pomonitoringv1.NamespaceSelector{
-					Any: true,
-				},
-				Selector: metav1.LabelSelector{
-					MatchLabels: map[string]string{"app": "global-app"},
-				},
-			},
-		}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uInput := toUnstructured(t, tc.input)
 
-		uInput := toUnstructured(t, pm)
+			actual, err := converter.Convert(context.Background(), logger, uInput, nil)
 
-		outputs, err := converter.Convert(context.Background(), logger, uInput, nil)
-		if err != nil {
-			t.Fatalf("Convert failed: %v", err)
-		}
-
-		if len(outputs) != 1 {
-			t.Fatalf("expected exactly 1 output, got %d", len(outputs))
-		}
-
-		out := outputs[0]
-		if out.GetKind() != KindClusterPodMonitoring {
-			t.Errorf("expected Kind %q, got %q", KindClusterPodMonitoring, out.GetKind())
-		}
-		if out.GetAPIVersion() != GMPAPIVersion {
-			t.Errorf("expected APIVersion %q, got %q", GMPAPIVersion, out.GetAPIVersion())
-		}
-		if out.GetName() != "global-monitor" {
-			t.Errorf("expected Name 'global-monitor', got %q", out.GetName())
-		}
-		if out.GetNamespace() != "" {
-			t.Errorf("expected empty Namespace for cluster-scoped resource, got %q", out.GetNamespace())
-		}
-
-		// Verify metadata copied & system annotations stripped
-		if out.GetLabels()["team"] != "frontend" {
-			t.Errorf("expected label team=frontend, got %v", out.GetLabels())
-		}
-		if out.GetAnnotations()["prometheus.io/scrape"] != "true" {
-			t.Errorf("expected annotation scrape=true, got %v", out.GetAnnotations())
-		}
-		if _, exists := out.GetAnnotations()["kubectl.kubernetes.io/last-applied-configuration"]; exists {
-			t.Error("expected kubectl last-applied annotation to be stripped, but it exists")
-		}
-
-		// Verify spec selector mapped
-		var gmpCPM monitoringv1.ClusterPodMonitoring
-		fromUnstructured(t, out, &gmpCPM)
-		if gmpCPM.Spec.Selector.MatchLabels["app"] != "global-app" {
-			t.Errorf("expected selector app='global-app', got %v", gmpCPM.Spec.Selector.MatchLabels)
-		}
-	})
-
-	t.Run("Case B: Multi-Namespace Split (Unstructured Cloning)", func(t *testing.T) {
-		pm := &pomonitoringv1.PodMonitor{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "monitoring.coreos.com/v1",
-				Kind:       KindPodMonitor,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "multi-monitor",
-				Namespace: "default",
-			},
-			Spec: pomonitoringv1.PodMonitorSpec{
-				NamespaceSelector: pomonitoringv1.NamespaceSelector{
-					MatchNames: []string{"ns-a", "ns-b"},
-				},
-				Selector: metav1.LabelSelector{
-					MatchLabels: map[string]string{"app": "multi-app"},
-				},
-			},
-		}
-
-		uInput := toUnstructured(t, pm)
-
-		outputs, err := converter.Convert(context.Background(), logger, uInput, nil)
-		if err != nil {
-			t.Fatalf("Convert failed: %v", err)
-		}
-
-		if len(outputs) != 2 {
-			t.Fatalf("expected exactly 2 outputs, got %d", len(outputs))
-		}
-
-		// Verify each output resource
-		namespacesSeen := make(map[string]bool)
-		for _, out := range outputs {
-			if out.GetKind() != KindPodMonitoring {
-				t.Errorf("expected Kind %q, got %q", KindPodMonitoring, out.GetKind())
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatal("expected error, got none")
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %q", tc.wantErr, err.Error())
+				}
+				return
 			}
-			if out.GetName() != "multi-monitor" {
-				t.Errorf("expected Name 'multi-monitor', got %q", out.GetName())
+
+			if err != nil {
+				t.Fatalf("Convert failed: %v", err)
 			}
-			namespacesSeen[out.GetNamespace()] = true
 
-			var gmpPM monitoringv1.PodMonitoring
-			fromUnstructured(t, out, &gmpPM)
-			if gmpPM.Spec.Selector.MatchLabels["app"] != "multi-app" {
-				t.Errorf("expected selector app='multi-app', got %v", gmpPM.Spec.Selector.MatchLabels)
+			if len(actual) != len(tc.expected) {
+				t.Fatalf("expected %d output resources, got %d", len(tc.expected), len(actual))
 			}
-		}
 
-		if !namespacesSeen["ns-a"] || !namespacesSeen["ns-b"] {
-			t.Errorf("expected outputs in namespaces ns-a and ns-b, got %v", namespacesSeen)
-		}
-	})
+			for i := range actual {
+				expectedVal := reflect.ValueOf(tc.expected[i])
+				if expectedVal.Kind() != reflect.Pointer {
+					t.Fatalf("expected object at index %d must be a pointer, got %T", i, tc.expected[i])
+				}
+				gotObj := reflect.New(expectedVal.Elem().Type()).Interface().(runtime.Object)
 
-	t.Run("Case B.2: Namespace Deduplication & Trimming", func(t *testing.T) {
-		pm := &pomonitoringv1.PodMonitor{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "monitoring.coreos.com/v1",
-				Kind:       KindPodMonitor,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "dirty-monitor",
-				Namespace: "default",
-			},
-			Spec: pomonitoringv1.PodMonitorSpec{
-				NamespaceSelector: pomonitoringv1.NamespaceSelector{
-					MatchNames: []string{"ns-a", " ns-a ", "  ns-a", "", "   "},
-				},
-				Selector: metav1.LabelSelector{
-					MatchLabels: map[string]string{"app": "dirty-app"},
-				},
-			},
-		}
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(actual[i].Object, gotObj)
+				if err != nil {
+					t.Fatalf("failed to convert actual to struct: %v", err)
+				}
 
-		uInput := toUnstructured(t, pm)
-
-		outputs, err := converter.Convert(context.Background(), logger, uInput, nil)
-		if err != nil {
-			t.Fatalf("Convert failed: %v", err)
-		}
-
-		// Should deduplicate "ns-a" and filter out the empty/whitespace entries, yielding EXACTLY 1 resource
-		if len(outputs) != 1 {
-			t.Fatalf("expected exactly 1 output after deduplication, got %d", len(outputs))
-		}
-
-		out := outputs[0]
-		if out.GetNamespace() != "ns-a" {
-			t.Errorf("expected trimmed namespace 'ns-a', got %q", out.GetNamespace())
-		}
-	})
-
-	t.Run("Case B.3: Broken Config", func(t *testing.T) {
-		pm := &pomonitoringv1.PodMonitor{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "monitoring.coreos.com/v1",
-				Kind:       KindPodMonitor,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "broken-monitor",
-				Namespace: "default",
-			},
-			Spec: pomonitoringv1.PodMonitorSpec{
-				NamespaceSelector: pomonitoringv1.NamespaceSelector{
-					MatchNames: []string{"", "   "},
-				},
-				Selector: metav1.LabelSelector{
-					MatchLabels: map[string]string{"app": "broken-app"},
-				},
-			},
-		}
-
-		uInput := toUnstructured(t, pm)
-		_, err := converter.Convert(context.Background(), logger, uInput, nil)
-		if err == nil {
-			t.Fatal("expected Convert to fail on empty matchNames, but got no error")
-		}
-		if !strings.Contains(err.Error(), "contains only empty or invalid values") {
-			t.Errorf("expected error message to contain 'contains only empty or invalid values', got %v", err)
-		}
-	})
-
-	t.Run("Case C: Local Scoping (Omitted Selector)", func(t *testing.T) {
-		pm := &pomonitoringv1.PodMonitor{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "monitoring.coreos.com/v1",
-				Kind:       KindPodMonitor,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "local-monitor",
-				Namespace: "my-local-namespace",
-			},
-			Spec: pomonitoringv1.PodMonitorSpec{
-				// NamespaceSelector is completely omitted
-				Selector: metav1.LabelSelector{
-					MatchLabels: map[string]string{"app": "local-app"},
-				},
-			},
-		}
-
-		uInput := toUnstructured(t, pm)
-
-		outputs, err := converter.Convert(context.Background(), logger, uInput, nil)
-		if err != nil {
-			t.Fatalf("Convert failed: %v", err)
-		}
-
-		if len(outputs) != 1 {
-			t.Fatalf("expected exactly 1 output, got %d", len(outputs))
-		}
-
-		out := outputs[0]
-		if out.GetKind() != KindPodMonitoring {
-			t.Errorf("expected Kind %q, got %q", KindPodMonitoring, out.GetKind())
-		}
-		if out.GetNamespace() != "my-local-namespace" {
-			t.Errorf("expected Namespace 'my-local-namespace', got %q", out.GetNamespace())
-		}
-
-		var gmpPM monitoringv1.PodMonitoring
-		fromUnstructured(t, out, &gmpPM)
-		if gmpPM.Spec.Selector.MatchLabels["app"] != "local-app" {
-			t.Errorf("expected selector app='local-app', got %v", gmpPM.Spec.Selector.MatchLabels)
-		}
-	})
+				if diff := cmp.Diff(tc.expected[i], gotObj); diff != "" {
+					t.Errorf("mismatch at index %d (-want +got):\n%s", i, diff)
+				}
+			}
+		})
+	}
 }
 
-// Helpers for test conversions.
 func toUnstructured(t *testing.T, obj any) *unstructured.Unstructured {
 	t.Helper()
 	m, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
@@ -278,15 +299,6 @@ func toUnstructured(t *testing.T, obj any) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: m}
 }
 
-func fromUnstructured(t *testing.T, u *unstructured.Unstructured, obj any) {
-	t.Helper()
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, obj)
-	if err != nil {
-		t.Fatalf("failed to convert unstructured to object: %v", err)
-	}
-}
-
-// testingWriter redirects slog output to go test logging.
 type testingWriter struct {
 	t *testing.T
 }

@@ -39,22 +39,8 @@ func CopyObjectMeta(src metav1.ObjectMeta, targetNamespace string) metav1.Object
 		Annotations: maps.Clone(src.Annotations),
 	}
 
-	// Strip cluster deployment history
+	// Strip this annotation because it will contain the old PO schema.
 	delete(dst.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
-	delete(dst.Annotations, "meta.helm.sh/release-name")
-	delete(dst.Annotations, "meta.helm.sh/release-namespace")
-
-	// Strip variations of Helm hooks
-	for k := range dst.Annotations {
-		if strings.HasPrefix(k, "helm.sh/hook") {
-			delete(dst.Annotations, k)
-		}
-	}
-
-	// ALWAYS strip deployment orchestration/tracking labels by default.
-	delete(dst.Labels, "app.kubernetes.io/managed-by")
-	delete(dst.Labels, "app.kubernetes.io/instance")
-	delete(dst.Labels, "helm.sh/chart")
 
 	return dst
 }
