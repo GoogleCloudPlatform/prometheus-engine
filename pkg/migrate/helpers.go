@@ -42,6 +42,8 @@ func CopyObjectMeta(src metav1.ObjectMeta, targetNamespace string) metav1.Object
 	// Strip this annotation because it will contain the old PO schema.
 	delete(dst.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 
+	// Future consideration: Delete deployment specific annotations/labels (helm, ARGO, Kustomize etc.)
+
 	return dst
 }
 
