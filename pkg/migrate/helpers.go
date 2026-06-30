@@ -21,6 +21,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// protectedLabels contains the list of labels that are protected by GMP and cannot
+// be overwritten by targetLabels or relabeling rules.
+var protectedLabels = map[string]bool{
+	"project_id":                true,
+	"location":                  true,
+	"cluster":                   true,
+	"namespace":                 true,
+	"job":                       true,
+	"instance":                  true,
+	"top_level_controller":      true,
+	"top_level_controller_type": true,
+	"__address__":               true,
+}
+
 // BuildTypeMeta constructs standard TypeMeta for a GMP resource Kind.
 func BuildTypeMeta(kind string) metav1.TypeMeta {
 	return metav1.TypeMeta{
