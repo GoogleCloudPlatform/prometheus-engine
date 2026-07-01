@@ -17,7 +17,6 @@ package migrate
 import (
 	"context"
 	"log/slog"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -271,11 +270,15 @@ func TestPodMonitorConversion(t *testing.T) {
 			}
 
 			for i := range actual {
-				expectedVal := reflect.ValueOf(tc.expected[i])
-				if expectedVal.Kind() != reflect.Pointer {
-					t.Fatalf("expected object at index %d must be a pointer, got %T", i, tc.expected[i])
+				var gotObj runtime.Object
+				switch tc.expected[i].(type) {
+				case *monitoringv1.PodMonitoring:
+					gotObj = &monitoringv1.PodMonitoring{}
+				case *monitoringv1.ClusterPodMonitoring:
+					gotObj = &monitoringv1.ClusterPodMonitoring{}
+				default:
+					t.Fatalf("expected object at index %d must be a pointer to a recognized monitoring type, got %T", i, tc.expected[i])
 				}
-				gotObj := reflect.New(expectedVal.Elem().Type()).Interface().(runtime.Object)
 
 				err := runtime.DefaultUnstructuredConverter.FromUnstructured(actual[i].Object, gotObj)
 				if err != nil {
