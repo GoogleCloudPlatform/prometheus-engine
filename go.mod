@@ -46,6 +46,7 @@ require (
 
 require (
 	github.com/efficientgo/e2e v0.14.1-0.20230710114240-c316eb95ae5b
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.75.0
 	k8s.io/apiserver v0.30.14
 	sigs.k8s.io/yaml v1.6.0
 )
