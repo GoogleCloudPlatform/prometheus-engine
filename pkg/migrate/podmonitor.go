@@ -52,6 +52,8 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 
 	logger.Info("Successfully decoded PodMonitor", slog.String("name", podMonitor.Name))
 
+	// TODO(M2): Override local namespace scoping if Prometheus CR specifies ignoreNamespaceSelectors.
+
 	// 2. Determine Scoping based on namespaceSelector
 	nsSel := podMonitor.Spec.NamespaceSelector
 
@@ -154,16 +156,18 @@ func (c *PodMonitorConverter) convertEndpoints(
 		gmpEp.Interval = string(ep.Interval)
 		gmpEp.Timeout = string(ep.ScrapeTimeout)
 
+		// TODO(M2): Inherit global scrape interval from Prometheus CR if empty.
 		if gmpEp.Interval == "" {
 			logger.Warn("Scrape interval is empty. Defaulting to '30s' as GMP requires this field.")
 			gmpEp.Interval = "30s"
 		}
 
+		intDur, err := prommodel.ParseDuration(gmpEp.Interval)
+		if err != nil {
+			return nil, fmt.Errorf("endpoint [%d]: invalid interval %q: %w", i, gmpEp.Interval, err)
+		}
+
 		if gmpEp.Timeout != "" {
-			intDur, err := prommodel.ParseDuration(gmpEp.Interval)
-			if err != nil {
-				return nil, fmt.Errorf("endpoint [%d]: invalid interval %q: %w", i, gmpEp.Interval, err)
-			}
 			toDur, err := prommodel.ParseDuration(gmpEp.Timeout)
 			if err != nil {
 				return nil, fmt.Errorf("endpoint [%d]: invalid scrapeTimeout %q: %w", i, gmpEp.Timeout, err)
@@ -174,6 +178,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 				gmpEp.Timeout = gmpEp.Interval
 			}
 		}
+		// TODO(M2): Inherit global scrape timeout from Prometheus CR if empty.
 
 		// 4. Relabeling Rules (MetricRelabelings)
 		if len(ep.MetricRelabelConfigs) > 0 {
