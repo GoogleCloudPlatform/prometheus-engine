@@ -19,11 +19,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	prommodel "github.com/prometheus/common/model"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // PodMonitorConverter implements ResourceConverter for PodMonitor resources.
@@ -49,13 +52,15 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 
 	logger.Info("Successfully decoded PodMonitor", slog.String("name", podMonitor.Name))
 
+	// TODO(M2): Override local namespace scoping if Prometheus CR specifies ignoreNamespaceSelectors.
+
 	// 2. Determine Scoping based on namespaceSelector
 	nsSel := podMonitor.Spec.NamespaceSelector
 
 	if nsSel.Any {
 		// Case A: namespaceSelector.any = true -> Single ClusterPodMonitoring
 		logger.Info("namespaceSelector selects 'any: true'. Translated to 'ClusterPodMonitoring'")
-		u, err := c.convertToClusterPodMonitoring(&podMonitor)
+		u, err := c.convertToClusterPodMonitoring(logger, &podMonitor)
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +83,7 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 		}
 
 		// 2.2 Convert to a base namespaced PodMonitoring
-		baseU, err := c.convertToPodMonitoring(&podMonitor)
+		baseU, err := c.convertToPodMonitoring(logger, &podMonitor)
 		if err != nil {
 			return nil, err
 		}
@@ -94,20 +99,181 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 	}
 
 	// Case C: namespaceSelector is empty/omitted -> Single PodMonitoring in local namespace
-	u, err := c.convertToPodMonitoring(&podMonitor)
+	u, err := c.convertToPodMonitoring(logger, &podMonitor)
 	if err != nil {
 		return nil, err
 	}
 	return []*unstructured.Unstructured{u}, nil
 }
 
-func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor) (*unstructured.Unstructured, error) {
+func (c *PodMonitorConverter) convertFromPodLabels(logger *slog.Logger, pm *pomonitoringv1.PodMonitor) []monitoringv1.LabelMapping {
+	var fromPod []monitoringv1.LabelMapping
+
+	for _, l := range pm.Spec.PodTargetLabels {
+		mapping := monitoringv1.LabelMapping{From: l}
+		if protectedLabels[l] {
+			mapping.To = "exported_" + l
+			logger.Warn(fmt.Sprintf("Pod target label %q is protected in GMP. Renamed target to %q.", l, mapping.To))
+		}
+		fromPod = append(fromPod, mapping)
+	}
+
+	if pm.Spec.JobLabel != "" {
+		logger.Warn(fmt.Sprintf("GMP does not support overriding the protected 'job' label. Value on label %q has been copied into the target label 'exported_job'.", pm.Spec.JobLabel))
+		fromPod = append(fromPod, monitoringv1.LabelMapping{
+			From: pm.Spec.JobLabel,
+			To:   "exported_job",
+		})
+	}
+
+	return fromPod
+}
+
+func (c *PodMonitorConverter) convertEndpoints(
+	logger *slog.Logger,
+	endpoints []pomonitoringv1.PodMetricsEndpoint,
+) ([]monitoringv1.ScrapeEndpoint, error) {
+	var gmpEndpoints []monitoringv1.ScrapeEndpoint
+
+	for i, ep := range endpoints {
+		gmpEp := monitoringv1.ScrapeEndpoint{}
+
+		// 1. Port mapping
+		if ep.Port != "" {
+			gmpEp.Port = intstr.FromString(ep.Port)
+		} else if ep.TargetPort != nil { // nolint:staticcheck // Map deprecated TargetPort for backwards compatibility.
+			gmpEp.Port = *ep.TargetPort // nolint:staticcheck // Map deprecated TargetPort for backwards compatibility.
+		} else {
+			return nil, fmt.Errorf("endpoint [%d]: port or targetPort must be set", i)
+		}
+
+		// 2. Basic Fields
+		gmpEp.Path = ep.Path
+		gmpEp.Scheme = strings.ToLower(ep.Scheme)
+		gmpEp.Params = ep.Params
+
+		// 3. Scrape Intervals & Timeouts
+		gmpEp.Interval = string(ep.Interval)
+		gmpEp.Timeout = string(ep.ScrapeTimeout)
+
+		// TODO(M2): Inherit global scrape interval from Prometheus CR if empty.
+		if gmpEp.Interval == "" {
+			logger.Warn("Scrape interval is empty. Defaulting to '30s' as GMP requires this field.")
+			gmpEp.Interval = "30s"
+		}
+
+		intDur, err := prommodel.ParseDuration(gmpEp.Interval)
+		if err != nil {
+			return nil, fmt.Errorf("endpoint [%d]: invalid interval %q: %w", i, gmpEp.Interval, err)
+		}
+
+		if gmpEp.Timeout != "" {
+			toDur, err := prommodel.ParseDuration(gmpEp.Timeout)
+			if err != nil {
+				return nil, fmt.Errorf("endpoint [%d]: invalid scrapeTimeout %q: %w", i, gmpEp.Timeout, err)
+			}
+			if toDur > intDur {
+				logger.Warn(fmt.Sprintf("Scrape timeout %q is larger than scrape interval %q. Capping timeout to %q.",
+					gmpEp.Timeout, gmpEp.Interval, gmpEp.Interval))
+				gmpEp.Timeout = gmpEp.Interval
+			}
+		}
+		// TODO(M2): Inherit global scrape timeout from Prometheus CR if empty.
+
+		// 4. Relabeling Rules (MetricRelabelings)
+		if len(ep.MetricRelabelConfigs) > 0 {
+			rules, err := c.convertMetricRelabelings(logger, ep.MetricRelabelConfigs)
+			if err != nil {
+				return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
+			}
+			gmpEp.MetricRelabeling = rules
+		}
+
+		// 5. Warnings for Unsupported Fields in Endpoint
+		if ep.HonorLabels {
+			logger.Warn("Field 'honorLabels: true' is unsupported and dropped. GMP always overrides conflicting labels. Clashing metric labels will be renamed with the 'exported_' prefix.")
+		}
+		if ep.HonorTimestamps != nil && *ep.HonorTimestamps {
+			logger.Warn("Field 'honorTimestamps: true' is unsupported and dropped. GMP always uses the scrape ingestion timestamp. Target metric timestamps will be ignored.")
+		}
+		if ep.TrackTimestampsStaleness != nil {
+			logger.Warn("Field 'trackTimestampsStaleness' is unsupported in GMP and has been dropped.")
+		}
+
+		gmpEndpoints = append(gmpEndpoints, gmpEp)
+	}
+
+	return gmpEndpoints, nil
+}
+
+func (c *PodMonitorConverter) convertMetricRelabelings(
+	logger *slog.Logger,
+	configs []pomonitoringv1.RelabelConfig,
+) ([]monitoringv1.RelabelingRule, error) {
+	var rules []monitoringv1.RelabelingRule
+
+	for _, config := range configs {
+		action := strings.ToLower(config.Action)
+		if action == "" {
+			action = "replace"
+		}
+
+		if action == "labelmap" {
+			logger.Warn("metricRelabelings rule uses 'action: labelmap' which is not supported by GMP and has been dropped.")
+			continue
+		}
+
+		targetLabel := config.TargetLabel
+		if action == "replace" || action == "hashmod" || action == "lowercase" || action == "uppercase" {
+			if protectedLabels[config.TargetLabel] {
+				targetLabel = "exported_" + config.TargetLabel
+				logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.",
+					config.TargetLabel, targetLabel))
+			}
+		}
+
+		rule := monitoringv1.RelabelingRule{
+			TargetLabel: targetLabel,
+			Regex:       config.Regex,
+			Modulus:     config.Modulus,
+			Action:      action,
+		}
+
+		if len(config.SourceLabels) > 0 {
+			rule.SourceLabels = make([]string, len(config.SourceLabels))
+			for i, sl := range config.SourceLabels {
+				rule.SourceLabels[i] = string(sl)
+			}
+		}
+
+		if config.Separator != nil {
+			rule.Separator = *config.Separator
+		}
+		if config.Replacement != nil {
+			rule.Replacement = *config.Replacement
+		}
+
+		rules = append(rules, rule)
+	}
+
+	return rules, nil
+}
+
+func (c *PodMonitorConverter) convertToPodMonitoring(logger *slog.Logger, pm *pomonitoringv1.PodMonitor) (*unstructured.Unstructured, error) {
+	endpoints, err := c.convertEndpoints(logger, pm.Spec.PodMetricsEndpoints)
+	if err != nil {
+		return nil, err
+	}
+
 	gmpPM := &monitoringv1.PodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
 		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, pm.Namespace),
 		Spec: monitoringv1.PodMonitoringSpec{
-			Selector: pm.Spec.Selector,
-			// TODO: Migrate pm.Spec.PodMetricsEndpoints to Spec.Endpoints in subsequent step.
+			Selector:  pm.Spec.Selector,
+			Endpoints: endpoints,
+			TargetLabels: monitoringv1.TargetLabels{
+				FromPod: c.convertFromPodLabels(logger, pm),
+			},
 		},
 	}
 
@@ -116,7 +282,6 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		return nil, fmt.Errorf("failed to marshal PodMonitoring: %w", err)
 	}
 
-	// Explicitly restore type meta as ToUnstructured sometimes strips it
 	u := &unstructured.Unstructured{Object: unstructuredMap}
 	u.SetAPIVersion(GMPAPIVersion)
 	u.SetKind(KindPodMonitoring)
@@ -124,13 +289,21 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	return u, nil
 }
 
-func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor) (*unstructured.Unstructured, error) {
+func (c *PodMonitorConverter) convertToClusterPodMonitoring(logger *slog.Logger, pm *pomonitoringv1.PodMonitor) (*unstructured.Unstructured, error) {
+	endpoints, err := c.convertEndpoints(logger, pm.Spec.PodMetricsEndpoints)
+	if err != nil {
+		return nil, err
+	}
+
 	gmpCPM := &monitoringv1.ClusterPodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
-		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, ""), // Cluster-scoped, namespace is omitted
+		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, ""),
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
-			Selector: pm.Spec.Selector,
-			// TODO: Migrate pm.Spec.PodMetricsEndpoints to Spec.Endpoints in subsequent step.
+			Selector:  pm.Spec.Selector,
+			Endpoints: endpoints,
+			TargetLabels: monitoringv1.ClusterTargetLabels{
+				FromPod: c.convertFromPodLabels(logger, pm),
+			},
 		},
 	}
 
