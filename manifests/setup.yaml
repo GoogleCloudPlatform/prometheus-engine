@@ -1913,6 +1913,9 @@ spec:
                     - key
                   type: object
                   x-kubernetes-map-type: atomic
+                  x-kubernetes-validations:
+                    - message: missing secret key selector name
+                      rule: has(self.name) && self.name != ''
                 externalLabels:
                   additionalProperties:
                     type: string
@@ -1970,6 +1973,7 @@ spec:
                   properties:
                     interval:
                       description: The interval at which the metric endpoints are scraped.
+                      format: duration
                       type: string
                     tlsInsecureSkipVerify:
                       description: |-
@@ -1989,7 +1993,11 @@ spec:
                 properties:
                   url:
                     description: The URL of the endpoint that supports Prometheus Remote Write to export samples to.
+                    format: uri
                     type: string
+                    x-kubernetes-validations:
+                      - message: url must be a valid URL
+                        rule: self == '' || isURL(self)
                 required:
                   - url
                 type: object
@@ -2057,6 +2065,9 @@ spec:
                     - key
                   type: object
                   x-kubernetes-map-type: atomic
+                  x-kubernetes-validations:
+                    - message: missing secret key selector name
+                      rule: has(self.name) && self.name != ''
                 externalURL:
                   description: |-
                     ExternalURL is the URL under which Alertmanager is externally reachable (for example, if
@@ -2066,7 +2077,11 @@ spec:
                     be derived automatically.
 
                     If no URL is provided, Alertmanager will point to the Google Cloud Metric Explorer page.
+                  format: uri
                   type: string
+                  x-kubernetes-validations:
+                    - message: externalURL must be a valid URL
+                      rule: self == '' || isURL(self)
               type: object
             metadata:
               type: object
@@ -2113,6 +2128,9 @@ spec:
                                   - key
                                 type: object
                                 x-kubernetes-map-type: atomic
+                                x-kubernetes-validations:
+                                  - message: missing secret key selector name
+                                    rule: has(self.name) && self.name != ''
                               type:
                                 description: |-
                                   Set the authentication type. Defaults to Bearer, Basic will cause an
@@ -2139,6 +2157,7 @@ spec:
                             type: string
                           timeout:
                             description: Timeout is a per-target Alertmanager timeout when pushing alerts.
+                            format: duration
                             type: string
                           tls:
                             description: TLS Config to use for alertmanager connection.
@@ -2190,7 +2209,13 @@ spec:
                                       - key
                                     type: object
                                     x-kubernetes-map-type: atomic
+                                    x-kubernetes-validations:
+                                      - message: missing secret key selector name
+                                        rule: has(self.name) && self.name != ''
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: SecretOrConfigMap fields are mutually exclusive
+                                    rule: '!(has(self.secret) && has(self.configMap))'
                               cert:
                                 description: Struct containing the client cert file for the targets.
                                 properties:
@@ -2238,7 +2263,13 @@ spec:
                                       - key
                                     type: object
                                     x-kubernetes-map-type: atomic
+                                    x-kubernetes-validations:
+                                      - message: missing secret key selector name
+                                        rule: has(self.name) && self.name != ''
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: SecretOrConfigMap fields are mutually exclusive
+                                    rule: '!(has(self.secret) && has(self.configMap))'
                               insecureSkipVerify:
                                 description: Disable target certificate validation.
                                 type: boolean
@@ -2264,6 +2295,9 @@ spec:
                                   - key
                                 type: object
                                 x-kubernetes-map-type: atomic
+                                x-kubernetes-validations:
+                                  - message: missing secret key selector name
+                                    rule: has(self.name) && self.name != ''
                               maxVersion:
                                 description: |-
                                   Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
@@ -2315,6 +2349,9 @@ spec:
                     - key
                   type: object
                   x-kubernetes-map-type: atomic
+                  x-kubernetes-validations:
+                    - message: missing secret key selector name
+                      rule: has(self.name) && self.name != ''
                 externalLabels:
                   additionalProperties:
                     type: string
@@ -2327,7 +2364,11 @@ spec:
                   description: |-
                     The base URL used for the generator URL in the alert notification payload.
                     Should point to an instance of a query frontend that gives access to queryProjectID.
+                  format: uri
                   type: string
+                  x-kubernetes-validations:
+                    - message: generatorUrl must be a valid URL
+                      rule: self == '' || isURL(self)
                 queryProjectID:
                   description: |-
                     QueryProjectID is the GCP project ID to evaluate rules against.

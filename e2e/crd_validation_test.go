@@ -15,18 +15,23 @@
 package e2e
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -440,6 +445,13 @@ func TestCRDValidation(t *testing.T) {
 		for name, tc := range tests {
 			t.Run(name, func(t *testing.T) {
 				err := c.Create(t.Context(), tc.obj)
+				if err == nil {
+					_ = c.Delete(t.Context(), tc.obj)
+					_ = wait.PollUntilContextTimeout(t.Context(), 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
+						err := c.Get(ctx, client.ObjectKeyFromObject(tc.obj), tc.obj.DeepCopyObject().(client.Object))
+						return apierrors.IsNotFound(err), nil
+					})
+				}
 				switch {
 				case err == nil && !tc.wantErr:
 					// OK
@@ -450,8 +462,6 @@ func TestCRDValidation(t *testing.T) {
 				case err != nil && tc.wantErr:
 					t.Log(err)
 					// OK
-				default:
-					// Ok
 				}
 			})
 		}
@@ -601,7 +611,7 @@ func TestCRDValidation(t *testing.T) {
 						Namespace: "gmp-public",
 					},
 					Collection: monitoringv1.CollectionSpec{
-						Credentials: &v1.SecretKeySelector{},
+						Credentials: &corev1.SecretKeySelector{},
 					},
 				},
 				wantErr: true,
@@ -625,7 +635,7 @@ func TestCRDValidation(t *testing.T) {
 						Namespace: "gmp-public",
 					},
 					Rules: monitoringv1.RuleEvaluatorSpec{
-						Credentials: &v1.SecretKeySelector{},
+						Credentials: &corev1.SecretKeySelector{},
 					},
 				},
 				wantErr: true,
@@ -637,7 +647,7 @@ func TestCRDValidation(t *testing.T) {
 						Namespace: "gmp-public",
 					},
 					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
-						ConfigSecret: &v1.SecretKeySelector{},
+						ConfigSecret: &corev1.SecretKeySelector{},
 					},
 				},
 				wantErr: true,
@@ -654,7 +664,7 @@ func TestCRDValidation(t *testing.T) {
 								Name: "bar",
 								TLS:  &monitoringv1.TLSConfig{},
 								Authorization: &monitoringv1.Authorization{
-									Credentials: &v1.SecretKeySelector{},
+									Credentials: &corev1.SecretKeySelector{},
 								},
 							}},
 						},
@@ -673,7 +683,7 @@ func TestCRDValidation(t *testing.T) {
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
 								Name: "bar",
 								TLS: &monitoringv1.TLSConfig{
-									KeySecret: &v1.SecretKeySelector{},
+									KeySecret: &corev1.SecretKeySelector{},
 								},
 							}},
 						},
@@ -693,13 +703,13 @@ func TestCRDValidation(t *testing.T) {
 								Name: "bar",
 								TLS: &monitoringv1.TLSConfig{
 									CA: &monitoringv1.SecretOrConfigMap{
-										Secret: &v1.SecretKeySelector{
-											LocalObjectReference: v1.LocalObjectReference{
+										Secret: &corev1.SecretKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
 												Name: "baz",
 											},
 										},
-										ConfigMap: &v1.ConfigMapKeySelector{
-											LocalObjectReference: v1.LocalObjectReference{
+										ConfigMap: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
 												Name: "qux",
 											},
 										},
@@ -723,7 +733,7 @@ func TestCRDValidation(t *testing.T) {
 								Name: "bar",
 								TLS: &monitoringv1.TLSConfig{
 									CA: &monitoringv1.SecretOrConfigMap{
-										Secret: &v1.SecretKeySelector{},
+										Secret: &corev1.SecretKeySelector{},
 									},
 								},
 							}},
@@ -744,13 +754,13 @@ func TestCRDValidation(t *testing.T) {
 								Name: "bar",
 								TLS: &monitoringv1.TLSConfig{
 									Cert: &monitoringv1.SecretOrConfigMap{
-										Secret: &v1.SecretKeySelector{
-											LocalObjectReference: v1.LocalObjectReference{
+										Secret: &corev1.SecretKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
 												Name: "baz",
 											},
 										},
-										ConfigMap: &v1.ConfigMapKeySelector{
-											LocalObjectReference: v1.LocalObjectReference{
+										ConfigMap: &corev1.ConfigMapKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
 												Name: "qux",
 											},
 										},
@@ -774,7 +784,7 @@ func TestCRDValidation(t *testing.T) {
 								Name: "bar",
 								TLS: &monitoringv1.TLSConfig{
 									Cert: &monitoringv1.SecretOrConfigMap{
-										Secret: &v1.SecretKeySelector{},
+										Secret: &corev1.SecretKeySelector{},
 									},
 								},
 							}},
@@ -790,6 +800,374 @@ func TestCRDValidation(t *testing.T) {
 						Namespace: "gmp-public",
 					},
 				},
+			},
+			"valid credentials secret name (RFC 1123 subdomain)": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
+					},
+					Collection: monitoringv1.CollectionSpec{
+						Credentials: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "my-secret.v1",
+							},
+							Key: "key.json",
+						},
+					},
+				},
+			},
+			"queryProjectID empty string": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "OperatorConfig",
+						"metadata": map[string]any{
+							"name":      "config",
+							"namespace": "gmp-public",
+						},
+						"rules": map[string]any{
+							"queryProjectID": "",
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"queryProjectID valid": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "OperatorConfig",
+						"metadata": map[string]any{
+							"name":      "config",
+							"namespace": "gmp-public",
+						},
+						"rules": map[string]any{
+							"queryProjectID": "my-valid-project",
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"queryProjectID invalid pattern": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "OperatorConfig",
+						"metadata": map[string]any{
+							"name":      "config-query-project-id-invalid-pattern",
+							"namespace": "gmp-public",
+						},
+						"rules": map[string]any{
+							"queryProjectID": "bad!",
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"queryProjectID too short": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "OperatorConfig",
+						"metadata": map[string]any{
+							"name":      "config-query-project-id-too-short",
+							"namespace": "gmp-public",
+						},
+						"rules": map[string]any{
+							"queryProjectID": "abc",
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"valid externalLabels": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
+					},
+					Collection: monitoringv1.CollectionSpec{
+						ExternalLabels: map[string]string{
+							"env": "production",
+						},
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						ExternalLabels: map[string]string{
+							"region": "us-central1",
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"collection externalLabels invalid key": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-invalid-collection-labels",
+						Namespace: "gmp-public",
+					},
+					Collection: monitoringv1.CollectionSpec{
+						ExternalLabels: map[string]string{
+							"0invalid-key": "value",
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"rules externalLabels invalid key": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-invalid-rules-labels",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						ExternalLabels: map[string]string{
+							"invalid.key": "value",
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"queryProjectID too long": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "OperatorConfig",
+						"metadata": map[string]any{
+							"name":      "config-query-project-id-too-long",
+							"namespace": "gmp-public",
+						},
+						"rules": map[string]any{
+							"queryProjectID": "a-project-id-that-is-way-too-long-to-be-valid",
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"valid generator URL": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						GeneratorURL: "https://example.com/graph",
+					},
+				},
+				wantErr: false,
+			},
+			"valid exports URL": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
+					},
+					Exports: []monitoringv1.ExportSpec{
+						{
+							URL: "https://remote-write.example.com/api/v1/write",
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"bad exports URL": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-bad-exports-url",
+						Namespace: "gmp-public",
+					},
+					Exports: []monitoringv1.ExportSpec{
+						{
+							URL: "~:://example.com",
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"valid externalURL": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
+					},
+					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+						ConfigSecret: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{Name: "alertmanager"},
+							Key:                  "alertmanager.yaml",
+						},
+						ExternalURL: "https://alertmanager.example.com",
+					},
+				},
+				wantErr: false,
+			},
+			"bad externalURL": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-bad-external-url",
+						Namespace: "gmp-public",
+					},
+					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+						ConfigSecret: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{Name: "alertmanager"},
+							Key:                  "alertmanager.yaml",
+						},
+						ExternalURL: "~:://example.com",
+					},
+				},
+				wantErr: true,
+			},
+			"valid AlertmanagerEndpoints": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
+								{
+									Namespace: "monitoring",
+									Name:      "alertmanager-operated",
+									Port:      intstr.FromString("web"),
+									Scheme:    "https",
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"AlertmanagerEndpoints invalid namespace": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-alertmanager-invalid-ns",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
+								{
+									Namespace: "invalid.ns!",
+									Name:      "alertmanager-operated",
+									Port:      intstr.FromString("web"),
+									Scheme:    "http",
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"AlertmanagerEndpoints invalid name": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-alertmanager-invalid-name",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
+								{
+									Namespace: "monitoring",
+									Name:      "invalid_name",
+									Port:      intstr.FromString("web"),
+									Scheme:    "http",
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"AlertmanagerEndpoints invalid scheme": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-alertmanager-invalid-scheme",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
+								{
+									Namespace: "monitoring",
+									Name:      "alertmanager-operated",
+									Port:      intstr.FromString("web"),
+									Scheme:    "grpc",
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"too many exports": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-too-many-exports",
+						Namespace: "gmp-public",
+					},
+					Exports: func() []monitoringv1.ExportSpec {
+						var exports []monitoringv1.ExportSpec
+						for i := range 11 {
+							exports = append(exports, monitoringv1.ExportSpec{
+								URL: fmt.Sprintf("https://example.com/write-%d", i),
+							})
+						}
+						return exports
+					}(),
+				},
+				wantErr: true,
+			},
+			"too many alertmanagers": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-too-many-alertmanagers",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: func() []monitoringv1.AlertmanagerEndpoints {
+								var ams []monitoringv1.AlertmanagerEndpoints
+								for i := range 4 {
+									ams = append(ams, monitoringv1.AlertmanagerEndpoints{
+										Namespace: "monitoring",
+										Name:      fmt.Sprintf("am-%d", i),
+										Port:      intstr.FromString("web"),
+										Scheme:    "http",
+									})
+								}
+								return ams
+							}(),
+						},
+					},
+				},
+				wantErr: true,
+			},
+			"invalid TLS key secret name": {
+				obj: &monitoringv1.OperatorConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "config-invalid-tls-key-secret",
+						Namespace: "gmp-public",
+					},
+					Rules: monitoringv1.RuleEvaluatorSpec{
+						Alerting: monitoringv1.AlertingSpec{
+							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+								Namespace: "monitoring",
+								Name:      "alertmanager-operated",
+								Port:      intstr.FromString("web"),
+								TLS: &monitoringv1.TLSConfig{
+									KeySecret: &corev1.SecretKeySelector{
+										LocalObjectReference: corev1.LocalObjectReference{
+											Name: "my_invalid_secret",
+										},
+										Key: "tls.key",
+									},
+								},
+							}},
+						},
+					},
+				},
+				wantErr: true,
 			},
 		}
 		run(t, tests)

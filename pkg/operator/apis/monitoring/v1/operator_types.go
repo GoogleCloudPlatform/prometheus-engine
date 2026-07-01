@@ -153,6 +153,8 @@ type RuleEvaluatorSpec struct {
 	QueryProjectID string `json:"queryProjectID,omitempty"`
 	// The base URL used for the generator URL in the alert notification payload.
 	// Should point to an instance of a query frontend that gives access to queryProjectID.
+	// +kubebuilder:validation:Format=uri
+	// +kubebuilder:validation:XValidation:rule="self == '' || isURL(self)",message="generatorUrl must be a valid URL"
 	GeneratorURL string `json:"generatorUrl,omitempty"`
 	// Alerting contains how the rule-evaluator configures alerting.
 	Alerting AlertingSpec `json:"alerting,omitempty"`
@@ -162,6 +164,7 @@ type RuleEvaluatorSpec struct {
 	// to which rule results are written.
 	// Within GKE, this can typically be left empty if the compute default
 	// service account has the required permissions.
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="missing secret key selector name"
 	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
@@ -178,6 +181,7 @@ type CollectionSpec struct {
 	// data is written.
 	// Within GKE, this can typically be left empty if the compute default
 	// service account has the required permissions.
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="missing secret key selector name"
 	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 	// Configuration to scrape the metric endpoints of the Kubelets.
 	KubeletScraping *KubeletScraping `json:"kubeletScraping,omitempty"`
@@ -187,6 +191,8 @@ type CollectionSpec struct {
 
 type ExportSpec struct {
 	// The URL of the endpoint that supports Prometheus Remote Write to export samples to.
+	// +kubebuilder:validation:Format=uri
+	// +kubebuilder:validation:XValidation:rule="self == '' || isURL(self)",message="url must be a valid URL"
 	URL string `json:"url"`
 }
 
@@ -224,6 +230,7 @@ const (
 // KubeletScraping allows enabling scraping of the Kubelets' metric endpoints.
 type KubeletScraping struct {
 	// The interval at which the metric endpoints are scraped.
+	// +kubebuilder:validation:Format=duration
 	Interval string `json:"interval"`
 	// TLSInsecureSkipVerify disables verifying the target cert.
 	// This can be useful for clusters provisioned with kubeadm.
@@ -280,6 +287,7 @@ type AlertingSpec struct {
 type ManagedAlertmanagerSpec struct {
 	// ConfigSecret refers to the name of a single-key Secret in the public namespace that
 	// holds the managed Alertmanager config file.
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="missing secret key selector name"
 	ConfigSecret *corev1.SecretKeySelector `json:"configSecret,omitempty"`
 	// ExternalURL is the URL under which Alertmanager is externally reachable (for example, if
 	// Alertmanager is served via a reverse proxy). Used for generating relative and absolute
@@ -288,6 +296,8 @@ type ManagedAlertmanagerSpec struct {
 	// be derived automatically.
 	//
 	// If no URL is provided, Alertmanager will point to the Google Cloud Metric Explorer page.
+	// +kubebuilder:validation:Format=uri
+	// +kubebuilder:validation:XValidation:rule="self == '' || isURL(self)",message="externalURL must be a valid URL"
 	ExternalURL string `json:"externalURL,omitempty"`
 }
 
@@ -312,6 +322,7 @@ type AlertmanagerEndpoints struct {
 	// can be "v1" or "v2".
 	APIVersion string `json:"apiVersion,omitempty"`
 	// Timeout is a per-target Alertmanager timeout when pushing alerts.
+	// +kubebuilder:validation:Format=duration
 	Timeout string `json:"timeout,omitempty"`
 }
 
@@ -322,6 +333,7 @@ type Authorization struct {
 	// error
 	Type string `json:"type,omitempty"`
 	// The secret's key that contains the credentials of the request
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="missing secret key selector name"
 	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
@@ -332,6 +344,7 @@ type TLSConfig struct {
 	// Struct containing the client cert file for the targets.
 	Cert *SecretOrConfigMap `json:"cert,omitempty"`
 	// Secret containing the client key file for the targets.
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="missing secret key selector name"
 	KeySecret *corev1.SecretKeySelector `json:"keySecret,omitempty"`
 	// Used to verify the hostname for the targets.
 	ServerName string `json:"serverName,omitempty"`
@@ -349,8 +362,10 @@ type TLSConfig struct {
 
 // SecretOrConfigMap allows to specify data as a Secret or ConfigMap. Fields are mutually exclusive.
 // Taking inspiration from prometheus-operator: https://github.com/prometheus-operator/prometheus-operator/blob/2c81b0cf6a5673e08057499a08ddce396b19dda4/Documentation/api.md#secretorconfigmap
+// +kubebuilder:validation:XValidation:rule="!(has(self.secret) && has(self.configMap))",message="SecretOrConfigMap fields are mutually exclusive"
 type SecretOrConfigMap struct {
 	// Secret containing data to use for the targets.
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="missing secret key selector name"
 	Secret *corev1.SecretKeySelector `json:"secret,omitempty"`
 	// ConfigMap containing data to use for the targets.
 	ConfigMap *corev1.ConfigMapKeySelector `json:"configMap,omitempty"`

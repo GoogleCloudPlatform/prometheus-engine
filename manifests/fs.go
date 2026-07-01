@@ -23,5 +23,7 @@ import _ "embed"
 //go:embed operator.yaml
 var OperatorManifest []byte
 
+// CRDManifest contains the OperatorConfig and GMP CRDs.
+//
 //go:embed setup.yaml
 var CRDManifest []byte
