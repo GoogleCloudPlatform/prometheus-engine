@@ -214,13 +214,17 @@ func (c *PodMonitorConverter) convertMetricRelabelings(
 
 	for _, config := range configs {
 		action := strings.ToLower(config.Action)
+		if action == "" {
+			action = "replace"
+		}
+
 		if action == "labelmap" {
 			logger.Warn("metricRelabelings rule uses 'action: labelmap' which is not supported by GMP and has been dropped.")
 			continue
 		}
 
 		targetLabel := config.TargetLabel
-		if action == "replace" || action == "hashmod" || action == "lowercase" || action == "uppercase" || action == "keepequal" || action == "dropequal" || action == "" {
+		if action == "replace" || action == "hashmod" || action == "lowercase" || action == "uppercase" {
 			if protectedLabels[config.TargetLabel] {
 				targetLabel = "exported_" + config.TargetLabel
 				logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.",
@@ -232,11 +236,7 @@ func (c *PodMonitorConverter) convertMetricRelabelings(
 			TargetLabel: targetLabel,
 			Regex:       config.Regex,
 			Modulus:     config.Modulus,
-		}
-		if config.Action != "" {
-			rule.Action = action
-		} else {
-			rule.Action = "replace" // Default is replace
+			Action:      action,
 		}
 
 		if len(config.SourceLabels) > 0 {
