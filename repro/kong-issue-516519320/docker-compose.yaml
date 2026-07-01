@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  upstream-mock:
+    image: traefik/whoami:latest
+    container_name: upstream-mock
+    ports:
+      - "5678:80"
+
+  kong:
+    image: kong:3.6
+    container_name: kong
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+      KONG_PLUGINS: bundled
+    volumes:
+      - ./kong.yml:/kong/declarative/kong.yml:ro
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    depends_on:
+      - upstream-mock
+
+  prometheus:
+    image: gke.gcr.io/prometheus-engine/prometheus:v2.53.5-gmp.2-gke.0
+    container_name: prometheus
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /etc/prometheus/gmp-test-sa-key.json
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=1d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--export.credentials-file=/etc/prometheus/gmp-test-sa-key.json'
+      - '--export.label.project-id=gpe-test-1'
+      - '--export.label.location=us-central1'
+      - '--export.label.cluster=debug-cluster'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${HOME}/gmp-test-sa-key.json:/etc/prometheus/gmp-test-sa-key.json:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - kong
+
+  traffic-generator:
+    image: curlimages/curl:latest
+    container_name: traffic-generator
+    init: true
+    command: /bin/sh -c "while true; do seq 1 1000 | xargs -P 25 -I {} curl --max-time 2 -s http://kong:8000/mock-{} > /dev/null; done"
+    depends_on:
+      - kong
