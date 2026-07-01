@@ -183,8 +183,6 @@ require (
 )
 
 replace (
-	// Force compatible client_golang to resolve typecheck error with pinned common
-	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.20.4
 	// TODO(bwplotka): We have to pin common to avoid auto-upgrades which are in compatible with Prometheus v2.53.5.
 	// Remove once this version moves to newer Prometheus.
 	github.com/prometheus/common => github.com/prometheus/common v0.61.0
