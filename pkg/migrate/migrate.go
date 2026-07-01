@@ -106,6 +106,8 @@ func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 		}
 	}
 
+	// TODO(M2): Implement Prometheus CR monitor discovery filtering (podMonitorSelector / serviceMonitorSelector) before converting.
+
 	// 2. Run converters across the cached resources.
 	outputs := m.convertResources()
 	report.Outputs = outputs
