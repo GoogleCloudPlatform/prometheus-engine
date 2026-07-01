@@ -14,6 +14,8 @@
 
 //go:build goexperiment.jsonv2
 
+// TODO(bernot): Remove this file when the webhook is removed.
+
 package v1
 
 import (
