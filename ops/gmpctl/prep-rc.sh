@@ -84,6 +84,11 @@ if [[ "${PROJECT}" == "prometheus-engine" ]]; then
       echo "❌  sed didn't replace?"
       exit 1
     fi
+    # Ensure versioned image tags match the release version.
+    for img in configReloader operator ruleEvaluator datasourceSyncer; do
+      echo "🔄  Ensuring v${CLEAN_TAG}-gke.0 on ${values_file} for ${img} tag..."
+      go tool -modfile="${DIR}/tools/go.mod" yq -i ".images.${img}.tag = \"v${CLEAN_TAG}-gke.0\"" "${values_file}"
+    done
   fi
   # For versions with export embedded.
   if [[ -f "${DIR}/pkg/export/export.go" ]]; then
