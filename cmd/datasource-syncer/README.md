@@ -40,3 +40,15 @@ Usage of datasource-syncer:
   -tls-key string
     	Path to the server TLS key.
 ```
+
+Configuration can also be set via environment variables however command line
+flags take precedence. Following configuration are available through environment
+variables:
+
+- `DATASOURCE_UIDS`
+- `GRAFANA_SERVICE_ACCOUNT_TOKEN`
+- `GRAFANA_API_ENDPOINT`
+- `PROJECT_ID`
+- `TLS_CERT_FILE`
+- `TLS_KEY_FILE`
+- `TLS_CA_FILE`
