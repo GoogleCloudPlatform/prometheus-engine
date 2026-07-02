@@ -83,22 +83,22 @@ func release() error {
 		return err
 	}
 
+	mustCreateOrRecreateTag(dir, tag)
 	if !mustIsRemoteUpToDate(dir, branch) {
-		if confirmf("About to git push state from %q to \"origin/%v\" for %q tag; are you sure?", dir, branch, tag) {
-			// We are in detached state, so use the HEAD reference.
-			mustPush(dir, fmt.Sprintf("HEAD:%v", branch))
+		if confirmf("About to create a signed tag %q and git push state (HEAD:%v) and tag %q from %q to \"origin\"; are you sure?", tag, branch, tag, dir) {
+			mustPush(dir, fmt.Sprintf("HEAD:%v", branch), tag)
+		} else {
+			return errors.New("aborting")
+		}
+	} else {
+		// Retagging only. This can happen if someone wants to continue the script.
+		if confirmf("About to create a signed tag %q and push it from %q to \"origin\"; are you sure?", tag, dir) {
+			mustPush(dir, tag)
 		} else {
 			return errors.New("aborting")
 		}
 	}
 
-	// TODO(bwplotka): Check if tag exists.
-	mustCreateSignedTag(dir, tag)
-	if confirmf("About to git push %q tag from %q to \"origin/%v\"; are you sure?", tag, dir, branch) {
-		mustPush(dir, tag)
-	} else {
-		return errors.New("aborting")
-	}
 	if confirmf("Do you want to remove the %v worktree (recommended)?", dir) {
 		proj.RemoveWorkDir(cfg.Directory, dir)
 	}

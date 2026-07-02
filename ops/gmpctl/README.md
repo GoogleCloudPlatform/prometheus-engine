@@ -47,7 +47,7 @@ key information and confirmations e.g.
 same parameters, and it will continue the previous work or at least yield same results. This is crucial when iterating
 on breaking go mod updates for vulnerabilities or fork sync conflicts.
 
-```text mdox-exec="bash ops/gmpctl.sh --help"
+```text mdox-exec="bash -c \"bash ops/gmpctl.sh --help 2>&1 | sed -n '/Usage/,$p'\""
 Usage: gmpctl [COMMAND] [FLAGS]
   -c string
     	Path to the configuration file. See config.go#Config for the structure. (default ".gmpctl.default.yaml")
@@ -67,6 +67,8 @@ Usage: gmpctl [COMMAND] [FLAGS]
 [vulnfix] Usage of vulnfix:
   -b string
     	Release branch to work on; Project is auto-detected from this
+  -go-version string
+    	Go minor version to use for docker images.
   -pr-branch string
     	(default: $USER/BRANCH-vulnfix) Upstream branch to push to (user-confirmed first).
   -sync-dockerfiles-from

@@ -19,6 +19,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
 )
 
 var (
@@ -26,6 +30,7 @@ var (
 	vulnfixBranch              = vulnfixFlags.String("b", "", "Release branch to work on; Project is auto-detected from this")
 	vulnfixPRBranch            = vulnfixFlags.String("pr-branch", "", "(default: $USER/BRANCH-vulnfix) Upstream branch to push to (user-confirmed first).")
 	vulnfixSyncDockerfilesFrom = vulnfixFlags.Bool("sync-dockerfiles-from", false, "Optional branch name to sync Dockerfiles from. Useful when things changed.")
+	vulnfixGoVersion           = vulnfixFlags.String("go-version", "", "Go minor version to use for docker images.")
 )
 
 // Attempt a minimal dependency upgrade to solve fixable vulnerabilities.
@@ -74,10 +79,22 @@ func vulnfix() error {
 	// Refresh.
 	mustFetchAll(dir)
 
+	goVersion := *vulnfixGoVersion
+	if goVersion == "" {
+		goVersion, err = detectGoMinorVersion(dir)
+		if err != nil {
+			return fmt.Errorf("could not detect Go version from Dockerfile: %v", err)
+		}
+	}
+	logf("Using Go version: %s", goVersion)
+
 	opts := []string{
 		fmt.Sprintf("DIR=%v", dir),
 		fmt.Sprintf("BRANCH=%v", branch),
 		fmt.Sprintf("PROJECT=%v", proj.Name),
+		fmt.Sprintf("GO_VERSION=%v", goVersion),
+		// We use the local toolchain to avoid downloading remote toolchains during vulnfix.
+		fmt.Sprintf("GOTOOLCHAIN=local"),
 	}
 	if *vulnfixSyncDockerfilesFrom {
 		opts = append(opts, "SYNC_DOCKERFILES_FROM=true")
@@ -88,7 +105,13 @@ func vulnfix() error {
 		return err
 	}
 
-	// TODO: Warn of unstaged files at this point.
+	if proj.Name != "prometheus-engine" {
+		if err := fixOtelSchemaConflict(dir); err != nil {
+			return err
+		}
+	}
+
+	// TODO: Warn of any unstaged files at this point.
 
 	// Commit if anything is staged.
 	msg := fmt.Sprintf("google patch[deps]: fix %v vulnerabilities", branch)
@@ -110,6 +133,7 @@ func vulnfix() error {
 		// We are in detached state, so be explicit what to push and from where, by recreating the local prBranch.
 		mustRecreateBranch(dir, prBranch)
 		mustForcePush(dir, prBranch)
+		mustEnsurePullRequest(dir, branch, prBranch, msg, "Updating Go and image vulnerabilities using"+wrapCode("./gmpctl.sh vulnfix"))
 	} else {
 		return errors.New("aborting")
 	}
@@ -117,5 +141,155 @@ func vulnfix() error {
 	if confirmf("Do you want to remove the %v worktree?", dir) {
 		proj.RemoveWorkDir(cfg.Directory, dir)
 	}
+	return nil
+}
+
+func detectGoMinorVersion(dir string) (string, error) {
+	var dockerfiles []string
+	err := filepath.WalkDir(dir, func(path string, info os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == "third_party" || name == "ui" || name == "vendor" || name == "node_modules" || name == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasPrefix(info.Name(), "Dockerfile") {
+			dockerfiles = append(dockerfiles, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(dockerfiles) == 0 {
+		return "", fmt.Errorf("no Dockerfile found in %s", dir)
+	}
+
+	re := regexp.MustCompile(`(?:google-go\.pkg\.dev/golang|golang):([0-9]+\.[0-9]+)`)
+
+	for _, df := range dockerfiles {
+		content, err := os.ReadFile(df)
+		if err != nil {
+			continue
+		}
+		matches := re.FindSubmatch(content)
+		if len(matches) > 1 {
+			return string(matches[1]), nil
+		}
+	}
+	return "", fmt.Errorf("could not find golang image in any Dockerfile under %s", dir)
+}
+
+func wrapCode(s string) string {
+	return "\n```\n" + s + "\n```\n"
+}
+
+// It's a common occurrence that schema import goes off-sync with the go module, fix it.
+func fixOtelSchemaConflict(dir string) error {
+	targetVersion, err := detectSchemaVersion(dir)
+	if err != nil {
+		return err
+	}
+	if targetVersion == "" {
+		return nil
+	}
+	return replaceOtelImports(dir, targetVersion)
+}
+
+// TODO(bwplotka): AI figured some way, but there's likely a better way to tell?
+func detectSchemaVersion(dir string) (string, error) {
+	tmpFile := filepath.Join(dir, "gmpctl_tmp_schema.go")
+	tmpCode := `package main
+
+import (
+	"fmt"
+	"go.opentelemetry.io/otel/sdk/resource"
+)
+
+func main() {
+	r := resource.Default()
+	fmt.Print(r.SchemaURL())
+}
+`
+	if err := os.WriteFile(tmpFile, []byte(tmpCode), 0o644); err != nil {
+		return "", fmt.Errorf("failed to write temp file: %w", err)
+	}
+	defer os.Remove(tmpFile)
+
+	cmd := exec.Command("go", "run", "gmpctl_tmp_schema.go")
+	cmd.Dir = dir
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
+	if err != nil {
+		// If it fails to run, it might be because otel/sdk is not in dependencies,
+		// or some other issue. We log and ignore to not block the whole pipeline if it's not relevant.
+		logf("Warning: failed to run temp schema detector: %v", err)
+		return "", nil
+	}
+
+	schemaURL := string(out)
+	if schemaURL == "" {
+		logf("No schema URL detected from SDK resource")
+		return "", nil
+	}
+
+	reVersion := regexp.MustCompile(`([0-9]+\.[0-9]+\.[0-9]+)$`)
+	matches := reVersion.FindStringSubmatch(schemaURL)
+	if len(matches) < 2 {
+		logf("Could not parse version from schema URL: %s", schemaURL)
+		return "", nil
+	}
+	return "v" + matches[1], nil
+}
+
+func replaceOtelImports(dir string, targetVersion string) error {
+	logf("Detected target OpenTelemetry schema version: %s", targetVersion)
+
+	reImport := regexp.MustCompile(`"go\.opentelemetry\.io/otel/semconv/(v1\.[0-9]+\.[0-9]+)"`)
+	reSchemaURLUse := regexp.MustCompile(`\.SchemaURL\b`)
+
+	if err := filepath.WalkDir(dir, func(path string, info os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == "vendor" || name == "third_party" || name == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(info.Name(), ".go") {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		if !reImport.Match(content) || !reSchemaURLUse.Match(content) {
+			return nil
+		}
+
+		newContent := reImport.ReplaceAllFunc(content, func(match []byte) []byte {
+			return []byte(fmt.Sprintf(`"go.opentelemetry.io/otel/semconv/%s"`, targetVersion))
+		})
+
+		if string(newContent) != string(content) {
+			logf("Updating OTEL semconv imports to %s in %s", targetVersion, path)
+			if err := os.WriteFile(path, newContent, 0o644); err != nil {
+				return fmt.Errorf("failed to write file %s: %w", path, err)
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	mustAddAll(dir)
 	return nil
 }

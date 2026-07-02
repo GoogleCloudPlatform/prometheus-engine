@@ -16,6 +16,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"maps"
@@ -80,6 +81,35 @@ type FindingTrace struct {
 	Version string `json:"version"`
 }
 
+var ignoredCVEs = map[string]string{
+	// TODO(bwplotka): We are not affected by CVE-2026-44903, CVE-2026-42151, CVE-2026-42154, etc. in prometheus/prometheus. They are going to be fixed with the unfork.
+	"CVE-2026-44903": "Not affected; going to be fixed with the unfork",
+	"CVE-2026-42151": "Not affected; going to be fixed with the unfork",
+	"CVE-2026-42154": "Not affected; going to be fixed with the unfork",
+}
+
+func isIgnoredCVE(osvID string, aliases []string, cveID string, module string) (string, bool) {
+	if module == "github.com/prometheus/prometheus" {
+		return "Not affected; going to be fixed with the unfork", true
+	}
+	for _, id := range append([]string{osvID, cveID}, aliases...) {
+		if id == "" {
+			continue
+		}
+		if reason, ok := ignoredCVEs[id]; ok {
+			return fmt.Sprintf("%s (%s)", id, reason), true
+		}
+		if *ignoreCVEs != "" {
+			for _, userIgnored := range strings.Split(*ignoreCVEs, ",") {
+				if strings.TrimSpace(userIgnored) == id {
+					return fmt.Sprintf("%s (ignored via command line)", id), true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
 // compileUpdateList decodes the JSON stream from govulncheck and extracts
 // a list of modules that need to be updated to a fixed version.
 func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error) {
@@ -110,9 +140,11 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error)
 		osv := osvs[v.Finding.OSVID]
 		cve := CVE{}
 		allCVEs := v.Finding.OSVID
+		var aliases []string
 		if osv != nil {
 			cve = getCVEDetails(*nvdAPIKey, *osv)
 			allCVEs = osv.CVEs()
+			aliases = osv.Aliases
 		} else {
 			slog.Error("Malformed govulncheck input; a finding without a OSV entry; assuming unkown severity.", "finding.osv", v.Finding.OSVID)
 			cve.ID = v.Finding.OSVID // Fallback to GO ID
@@ -120,6 +152,11 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error)
 		}
 		if len(v.Finding.Trace) == 0 {
 			slog.Error("Malformed govulncheck input; a finding with empty trace; ignoring.", "finding.osv", v.Finding.OSVID)
+			continue
+		}
+
+		if ignoreReason, ignored := isIgnoredCVE(v.Finding.OSVID, aliases, cve.ID, v.Finding.Trace[0].Module); ignored {
+			slog.Info("Ignoring vulnerability finding", "mod", v.Finding.Trace[0].Module, "reason", ignoreReason)
 			continue
 		}
 
