@@ -548,3 +548,333 @@ func TestSetConfigMapData(t *testing.T) {
 		}
 	}
 }
+
+func TestDeduplicateKSM(t *testing.T) {
+	systemLabels := map[string]string{
+		"app.kubernetes.io/part-of": "google-cloud-managed-prometheus",
+		"app.kubernetes.io/name":    "gke-managed-kube-state-metrics",
+	}
+	customerLabels := map[string]string{
+		"app.kubernetes.io/name": "self-deployed-kube-state-metrics",
+	}
+
+	testCases := []struct {
+		desc     string
+		input    []monitoringv1.ClusterPodMonitoring
+		expected []monitoringv1.ClusterPodMonitoring
+	}{
+		{
+			desc:     "empty input",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			desc: "only GKE KSM",
+			input: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+			},
+			expected: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "GKE collects everything (Customer is disabled)",
+			input: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "self-deployed-kube-state-metrics", Labels: customerLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+			},
+			expected: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "self-deployed-kube-state-metrics", Labels: customerLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector:  metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: nil, // Disabled because GKE collects everything
+					},
+				},
+			},
+		},
+		{
+			desc: "GKE has allowlist (Customer gets drop rules)",
+			input: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port: intstr.FromInt(8080),
+								Path: "/metrics",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{Action: "keep", SourceLabels: []string{"__name__"}, Regex: "^(kube_pod_info)$"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "self-deployed-kube-state-metrics", Labels: customerLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+			},
+			expected: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port: intstr.FromInt(8080),
+								Path: "/metrics",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{Action: "keep", SourceLabels: []string{"__name__"}, Regex: "^(kube_pod_info)$"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "self-deployed-kube-state-metrics", Labels: customerLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port: intstr.FromInt(8080),
+								Path: "/metrics",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{Action: "drop", SourceLabels: []string{"__name__"}, Regex: "^(kube_pod_info)$"}, // Drop rule added
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "untouched customer CR (mismatched labels)",
+			input: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "other-ksm", Labels: map[string]string{"app.kubernetes.io/name": "other-ksm"}}, // label mismatch
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+			},
+			expected: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "other-ksm", Labels: map[string]string{"app.kubernetes.io/name": "other-ksm"}},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "multiple customer KSMs match",
+			input: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port: intstr.FromInt(8080),
+								Path: "/metrics",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{Action: "keep", SourceLabels: []string{"__name__"}, Regex: "^(kube_pod_info)$"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "self-deployed-kube-state-metrics-1", Labels: customerLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "self-deployed-kube-state-metrics-2", Labels: customerLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+			},
+			expected: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port: intstr.FromInt(8080),
+								Path: "/metrics",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{Action: "keep", SourceLabels: []string{"__name__"}, Regex: "^(kube_pod_info)$"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "self-deployed-kube-state-metrics-1", Labels: customerLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port: intstr.FromInt(8080),
+								Path: "/metrics",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{Action: "drop", SourceLabels: []string{"__name__"}, Regex: "^(kube_pod_info)$"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "self-deployed-kube-state-metrics-2", Labels: customerLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port: intstr.FromInt(8080),
+								Path: "/metrics",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{Action: "drop", SourceLabels: []string{"__name__"}, Regex: "^(kube_pod_info)$"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "GKE collects everything, Customer has multiple endpoints (only KSM endpoint is disabled)",
+			input: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "self-deployed-kube-state-metrics", Labels: customerLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+							{Port: intstr.FromInt(8081), Path: "/status"},
+						},
+					},
+				},
+			},
+			expected: []monitoringv1.ClusterPodMonitoring{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "kube-state-metrics", Labels: systemLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8080), Path: "/metrics"},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "self-deployed-kube-state-metrics", Labels: customerLabels},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app.kubernetes.io/name": "gke-managed-kube-state-metrics"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{Port: intstr.FromInt(8081), Path: "/status"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			got := deduplicateKSM(tc.input)
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Errorf("deduplicateKSM() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
