@@ -111,17 +111,24 @@ func (c *PodMonitorConverter) convertFromPodLabels(logger *slog.Logger, pm *pomo
 	seenTargets := make(map[string]bool)
 
 	for _, l := range pm.Spec.PodTargetLabels {
-		mapping := monitoringv1.LabelMapping{From: l}
 		target := l
 		if protectedLabels[l] {
-			mapping.To = "exported_" + l
-			target = mapping.To
-			logger.Warn(fmt.Sprintf("Pod target label %q is protected in GMP. Renamed target to %q.", l, mapping.To))
+			target = "exported_" + l
 		}
+
 		if seenTargets[target] {
+			logger.Warn(fmt.Sprintf("Pod target label %q maps to target label %q which is already taken. Skipping.", l, target))
 			continue
 		}
+
 		seenTargets[target] = true
+		mapping := monitoringv1.LabelMapping{From: l}
+
+		if target != l {
+			mapping.To = target
+			logger.Warn(fmt.Sprintf("Pod target label %q is protected in GMP. Renamed target to %q.", l, target))
+		}
+
 		fromPod = append(fromPod, mapping)
 	}
 
