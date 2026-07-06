@@ -45,7 +45,7 @@ spec:
             properties:
               compression:
                 description: Compression enables compression of metrics collection
-                  data
+                  data.
                 enum:
                 - none
                 - gzip
@@ -276,7 +276,7 @@ spec:
                           type: string
                         authorization:
                           description: Authorization section for this alertmanager
-                            endpoint
+                            endpoint.
                           properties:
                             credentials:
                               description: The secret's key that contains the credentials
@@ -309,7 +309,7 @@ spec:
                             type:
                               description: |-
                                 Set the authentication type. Defaults to Bearer, Basic will cause an
-                                error
+                                error.
                               type: string
                           type: object
                         name:
@@ -647,7 +647,7 @@ spec:
                       A list Prometheus time series matchers. Every time series must match at least one
                       of the matchers to be exported. This field can be used equivalently to the match[]
                       parameter of the Prometheus federation endpoint to selectively export data.
-                      Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`
+                      Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`.
                     items:
                       type: string
                     type: array
@@ -685,11 +685,11 @@ spec:
                           type: string
                         authorization:
                           description: Authorization section for this alertmanager
-                            endpoint
+                            endpoint.
                           properties:
                             credentials:
                               description: The secret's key that contains the credentials
-                                of the request
+                                of the request.
                               properties:
                                 key:
                                   description: The key of the secret to select from.  Must
@@ -715,7 +715,7 @@ spec:
                             type:
                               description: |-
                                 Set the authentication type. Defaults to Bearer, Basic will cause an
-                                error
+                                error.
                               type: string
                           type: object
                         name:

@@ -1229,7 +1229,7 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 targetLabels:
-                  description: Labels to add to the Prometheus target for discovered endpoints
+                  description: Labels to add to the Prometheus target for discovered endpoints.
                   properties:
                     fromPod:
                       description: |-
@@ -1881,7 +1881,7 @@ spec:
                 scraping and an integrated export to Google Cloud Monitoring.
               properties:
                 compression:
-                  description: Compression enables compression of metrics collection data
+                  description: Compression enables compression of metrics collection data.
                   enum:
                     - none
                     - gzip
@@ -2104,7 +2104,7 @@ spec:
                               can be "v1" or "v2".
                             type: string
                           authorization:
-                            description: Authorization section for this alertmanager endpoint
+                            description: Authorization section for this alertmanager endpoint.
                             properties:
                               credentials:
                                 description: The secret's key that contains the credentials of the request
@@ -2134,7 +2134,7 @@ spec:
                               type:
                                 description: |-
                                   Set the authentication type. Defaults to Bearer, Basic will cause an
-                                  error
+                                  error.
                                 type: string
                             type: object
                           name:
@@ -2452,7 +2452,7 @@ spec:
                         A list Prometheus time series matchers. Every time series must match at least one
                         of the matchers to be exported. This field can be used equivalently to the match[]
                         parameter of the Prometheus federation endpoint to selectively export data.
-                        Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`
+                        Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`.
                       items:
                         type: string
                       type: array
@@ -2487,10 +2487,10 @@ spec:
                               can be "v1" or "v2".
                             type: string
                           authorization:
-                            description: Authorization section for this alertmanager endpoint
+                            description: Authorization section for this alertmanager endpoint.
                             properties:
                               credentials:
-                                description: The secret's key that contains the credentials of the request
+                                description: The secret's key that contains the credentials of the request.
                                 properties:
                                   key:
                                     description: The key of the secret to select from.  Must be a valid secret key.
@@ -2514,7 +2514,7 @@ spec:
                               type:
                                 description: |-
                                   Set the authentication type. Defaults to Bearer, Basic will cause an
-                                  error
+                                  error.
                                 type: string
                             type: object
                           name:
