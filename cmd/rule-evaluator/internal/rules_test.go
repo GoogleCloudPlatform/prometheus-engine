@@ -483,7 +483,7 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 			t.Parallel()
 			api := &API{logger: log.NewNopLogger()}
 			result := api.groupToAPIGroup(tt.args.group, tt.args.ruleFilters, tt.args.shouldReturnAlertRules, tt.args.shouldReturnRecordingRules, tt.args.shouldExcludeAlertsFromAlertRules)
-			// deep Eval
+			// deep Eval.
 			assert.Equal(t, tt.want.Name, result.Name)
 			assert.Equal(t, tt.want.File, result.File)
 			assert.Equal(t, tt.want.Interval, result.Interval) //nolint:testifylint // we want to assert exact equality, not delta equality here

@@ -454,14 +454,14 @@ func TestCRDValidation(t *testing.T) {
 				}
 				switch {
 				case err == nil && !tc.wantErr:
-					// OK
+					// OK.
 				case err != nil && !tc.wantErr:
 					t.Errorf("Unexpected error: %v", err)
 				case err == nil && tc.wantErr:
 					t.Error("Want error, but got none")
 				case err != nil && tc.wantErr:
 					t.Log(err)
-					// OK
+					// OK.
 				}
 			})
 		}

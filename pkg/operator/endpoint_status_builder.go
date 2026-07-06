@@ -125,7 +125,7 @@ type scrapePool struct {
 }
 
 func getNamespacedScrapePool(full string, split []string) scrapePool {
-	// Same as: len(strings.Join(split, "/")) for "kind/namespace/name"
+	// Same as: len(strings.Join(split, "/")) for "kind/namespace/name".
 	index := len(split[0]) + 1 + len(split[1]) + 1 + len(split[2])
 	return scrapePool{
 		key:   full[:index],
@@ -134,7 +134,7 @@ func getNamespacedScrapePool(full string, split []string) scrapePool {
 }
 
 func getClusterScopedScrapePool(full string, split []string) scrapePool {
-	// Same as: len(strings.Join(split, "/")) for "kind/namespace"
+	// Same as: len(strings.Join(split, "/")) for "kind/namespace".
 	index := len(split[0]) + 1 + len(split[1])
 	return scrapePool{
 		key:   full[:index],

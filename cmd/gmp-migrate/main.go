@@ -56,7 +56,7 @@ func main() {
 	}
 	flag.Parse()
 
-	// Reject unexpected positional arguments to prevent silent typos (like forgetting -f)
+	// Reject unexpected positional arguments to prevent silent typos (like forgetting -f).
 	if flag.NArg() > 0 {
 		slog.Error("Unexpected positional arguments.",
 			slog.Any("arguments", flag.Args()),
@@ -83,21 +83,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	// If any resource failed to convert in-memory, we print summary and abort
+	// If any resource failed to convert in-memory, we print summary and abort.
 	if report.FailedCount > 0 {
-		migrator.PrintSummary(report) // Still print the diagnostic summary to Stderr
+		migrator.PrintSummary(report) // Still print the diagnostic summary to Stderr.
 		slog.Error("Migration aborted: resources failed conversion. Zero manifests were written to Stdout.",
 			slog.Int("failures", report.FailedCount),
 		)
 		os.Exit(1)
 	}
 
-	// Write the converted GMP manifests using the migrator's Stdout stream
+	// Write the converted GMP manifests using the migrator's Stdout stream.
 	if err := migrator.WriteOutputs(report.Outputs); err != nil {
 		slog.Error("Failed to write outputs", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	// Print the successful complete summary to Stderr
+	// Print the successful complete summary to Stderr.
 	migrator.PrintSummary(report)
 }

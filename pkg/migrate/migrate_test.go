@@ -89,7 +89,7 @@ spec:
 	testConv := &TestPodMonitorConverter{}
 	migrator.RegisterConverter(testConv)
 
-	// Run migration
+	// Run migration.
 	report, err := migrator.Run(inputFilePath)
 	if err != nil {
 		t.Fatalf("Run failed: %v", err)
@@ -99,7 +99,7 @@ spec:
 		t.Errorf("expected TestPodMonitorConverter to be called 1 time, got %d", testConv.calls)
 	}
 
-	// Verify report stats
+	// Verify report stats.
 	if report.SuccessCount != 1 {
 		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
 	}
@@ -110,7 +110,7 @@ spec:
 		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
 	}
 
-	// Verify in-memory converted outputs
+	// Verify in-memory converted outputs.
 	if len(report.Outputs) != 1 {
 		t.Errorf("expected 1 output resource, got %d", len(report.Outputs))
 	} else {
@@ -175,7 +175,7 @@ func TestResourceCacheNamespaceScoping(t *testing.T) {
 func TestMigratorMalformedInput(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// YAML resource with a Kind but completely missing metadata.name
+	// YAML resource with a Kind but completely missing metadata.name.
 	malformedYAML := `
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -197,7 +197,7 @@ spec:
 	migrator.Stdout = &stdoutBuf
 	migrator.Stderr = &stderrBuf
 
-	// Run migration on the directory containing the malformed file
+	// Run migration on the directory containing the malformed file.
 	report, err := migrator.Run(tmpDir)
 	if err != nil {
 		t.Fatalf("Run should not return a fatal error for directory walks, got: %v", err)
@@ -217,7 +217,7 @@ spec:
 		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
 	}
 
-	// Verify that a [ERROR] log was printed to Stderr showing the file path and exact parse error
+	// Verify that a [ERROR] log was printed to Stderr showing the file path and exact parse error.
 	stderrLogs := stderrBuf.String()
 	if !strings.Contains(stderrLogs, "[ERROR] ["+inputFilePath+"] Skipping file due to parse error") {
 		t.Errorf("expected formatted [ERROR] log in Stderr, got: %q", stderrLogs)
@@ -230,7 +230,7 @@ spec:
 func TestMigratorSkippedResource(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Unsupported Prometheus Operator resource kind (Alertmanager)
+	// Unsupported Prometheus Operator resource kind (Alertmanager).
 	skippedYAML := `
 apiVersion: monitoring.coreos.com/v1
 kind: Alertmanager
@@ -250,13 +250,13 @@ spec:
 	migrator.Stdout = &stdoutBuf
 	migrator.Stderr = &stderrBuf
 
-	// Run migration on the directory containing the skipped file
+	// Run migration on the directory containing the skipped file.
 	report, err := migrator.Run(tmpDir)
 	if err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
-	// Verify report stats
+	// Verify report stats.
 	if report.SkippedCount != 1 {
 		t.Errorf("expected SkippedCount to be 1, got %d", report.SkippedCount)
 	}
@@ -270,7 +270,7 @@ spec:
 		t.Errorf("expected FailedCount to be 0, got %d", report.FailedCount)
 	}
 
-	// Verify that a [SKIPPED] log was printed to Stderr showing the resource details
+	// Verify that a [SKIPPED] log was printed to Stderr showing the resource details.
 	stderrLogs := stderrBuf.String()
 	if !strings.Contains(stderrLogs, "[SKIPPED] [Alertmanager:my-alertmanager] Skipping unsupported Prometheus Operator resource") {
 		t.Errorf("expected formatted [SKIPPED] log in Stderr, got: %q", stderrLogs)
@@ -280,7 +280,7 @@ spec:
 func TestMigratorMultipleInputs(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// 1. Write a Service manifest to a separate file
+	// 1. Write a Service manifest to a separate file.
 	serviceYAML := `
 apiVersion: v1
 kind: Service
@@ -296,7 +296,7 @@ spec:
 		t.Fatalf("failed to write service file: %v", err)
 	}
 
-	// 2. Write a PodMonitor manifest referencing that service to a separate file
+	// 2. Write a PodMonitor manifest referencing that service to a separate file.
 	podMonitorYAML := `
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -329,7 +329,7 @@ spec:
 		t.Errorf("expected TestPodMonitorConverter to be called 1 time, got %d", testConv.calls)
 	}
 
-	// Verify report stats
+	// Verify report stats.
 	if report.SuccessCount != 1 {
 		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
 	}
@@ -351,7 +351,7 @@ spec:
 }
 
 func TestMigratorPipedList(t *testing.T) {
-	// A standard v1.List containing a Service and a PodMonitor in its items array
+	// A standard v1.List containing a Service and a PodMonitor in its items array.
 	listYAML := `
 apiVersion: v1
 kind: List
@@ -385,7 +385,7 @@ items:
 	testConv := &TestPodMonitorConverter{}
 	migrator.RegisterConverter(testConv)
 
-	// Run migration using "-" (Stdin)
+	// Run migration using "-" (Stdin).
 	report, err := migrator.Run("-")
 	if err != nil {
 		t.Fatalf("Run failed: %v", err)
@@ -395,7 +395,7 @@ items:
 		t.Errorf("expected TestPodMonitorConverter to be called 1 time, got %d", testConv.calls)
 	}
 
-	// Verify report stats
+	// Verify report stats.
 	if report.SuccessCount != 1 {
 		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
 	}

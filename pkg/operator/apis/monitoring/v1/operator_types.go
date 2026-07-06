@@ -185,7 +185,7 @@ type CollectionSpec struct {
 	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 	// Configuration to scrape the metric endpoints of the Kubelets.
 	KubeletScraping *KubeletScraping `json:"kubeletScraping,omitempty"`
-	// Compression enables compression of metrics collection data
+	// Compression enables compression of metrics collection data.
 	Compression CompressionType `json:"compression,omitempty"`
 }
 
@@ -316,7 +316,7 @@ type AlertmanagerEndpoints struct {
 	PathPrefix string `json:"pathPrefix,omitempty"`
 	// TLS Config to use for alertmanager connection.
 	TLS *TLSConfig `json:"tls,omitempty"`
-	// Authorization section for this alertmanager endpoint
+	// Authorization section for this alertmanager endpoint.
 	Authorization *Authorization `json:"authorization,omitempty"`
 	// Version of the Alertmanager API that rule-evaluator uses to send alerts. It
 	// can be "v1" or "v2".
@@ -330,7 +330,7 @@ type AlertmanagerEndpoints struct {
 // safe for use in Endpoints (no CredentialsFile field).
 type Authorization struct {
 	// Set the authentication type. Defaults to Bearer, Basic will cause an
-	// error
+	// error.
 	Type string `json:"type,omitempty"`
 	// The secret's key that contains the credentials of the request
 	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="missing secret key selector name"

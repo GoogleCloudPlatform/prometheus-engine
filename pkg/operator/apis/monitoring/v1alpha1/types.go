@@ -85,7 +85,7 @@ type ExportFilters struct {
 	// A list Prometheus time series matchers. Every time series must match at least one
 	// of the matchers to be exported. This field can be used equivalently to the match[]
 	// parameter of the Prometheus federation endpoint to selectively export data.
-	// Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`
+	// Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`.
 	MatchOneOf []string `json:"matchOneOf,omitempty"`
 }
 
@@ -110,7 +110,7 @@ type AlertmanagerEndpoints struct {
 	PathPrefix string `json:"pathPrefix,omitempty"`
 	// TLS Config to use for alertmanager connection.
 	TLS *TLSConfig `json:"tls,omitempty"`
-	// Authorization section for this alertmanager endpoint
+	// Authorization section for this alertmanager endpoint.
 	Authorization *Authorization `json:"authorization,omitempty"`
 	// Version of the Alertmanager API that rule-evaluator uses to send alerts. It
 	// can be "v1" or "v2".
@@ -123,9 +123,9 @@ type AlertmanagerEndpoints struct {
 // safe for use in Endpoints (no CredentialsFile field).
 type Authorization struct {
 	// Set the authentication type. Defaults to Bearer, Basic will cause an
-	// error
+	// error.
 	Type string `json:"type,omitempty"`
-	// The secret's key that contains the credentials of the request
+	// The secret's key that contains the credentials of the request.
 	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
@@ -165,7 +165,7 @@ type PodMonitoring struct {
 	// Prometheus.
 	Spec PodMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional
+	// +optional.
 	Status PodMonitoringStatus `json:"status"`
 }
 
@@ -193,7 +193,7 @@ type ClusterPodMonitoring struct {
 	// Prometheus.
 	Spec ClusterPodMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional
+	// +optional.
 	Status PodMonitoringStatus `json:"status"`
 }
 
@@ -242,7 +242,7 @@ type ClusterPodMonitoringSpec struct {
 	Selector metav1.LabelSelector `json:"selector"`
 	// The endpoints to scrape on the selected pods.
 	Endpoints []ScrapeEndpoint `json:"endpoints"`
-	// Labels to add to the Prometheus target for discovered endpoints
+	// Labels to add to the Prometheus target for discovered endpoints.
 	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
@@ -323,7 +323,7 @@ type RelabelingRule struct {
 // PodMonitoringStatus holds status information of a PodMonitoring resource.
 type PodMonitoringStatus struct {
 	// The generation observed by the controller.
-	// +optional
+	// +optional.
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Represents the latest available observations of a podmonitor's current state.
 	Conditions []MonitoringCondition `json:"conditions,omitempty"`
@@ -344,16 +344,16 @@ type MonitoringCondition struct {
 	// Status of the condition, one of True, False, Unknown.
 	Status corev1.ConditionStatus `json:"status"`
 	// The last time this condition was updated.
-	// +optional
+	// +optional.
 	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
 	// Last time the condition transitioned from one status to another.
-	// +optional
+	// +optional.
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 	// The reason for the condition's last transition.
-	// +optional
+	// +optional.
 	Reason string `json:"reason,omitempty"`
 	// A human-readable message indicating details about the transition.
-	// +optional
+	// +optional.
 	Message string `json:"message,omitempty"`
 }
 
@@ -374,7 +374,7 @@ type Rules struct {
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional
+	// +optional.
 	Status RulesStatus `json:"status"`
 }
 
@@ -406,7 +406,7 @@ type ClusterRules struct {
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional
+	// +optional.
 	Status RulesStatus `json:"status"`
 }
 
@@ -437,7 +437,7 @@ type GlobalRules struct {
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional
+	// +optional.
 	Status RulesStatus `json:"status"`
 }
 

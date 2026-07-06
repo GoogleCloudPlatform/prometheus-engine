@@ -35,7 +35,7 @@ func TestBuildinfoHandlerFunc(t *testing.T) {
 	handleFunc(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 
-	// unmarshal into promapiv1.PrometheusVersion object
+	// unmarshal into promapiv1.PrometheusVersion object.
 	resp := Response[promapiv1.PrometheusVersion]{}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
 	defer recorder.Result().Body.Close()

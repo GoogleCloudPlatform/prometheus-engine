@@ -65,6 +65,10 @@ linters:
     - wsl
     - wsl_v5
   settings:
+    godot:
+      scope: all
+      exclude:
+        - '^\s*TODO'
     errcheck:
       # Report about not checking of errors in type assertions: `a := b.(MyStruct)`.
       # Such cases aren't reported by default.

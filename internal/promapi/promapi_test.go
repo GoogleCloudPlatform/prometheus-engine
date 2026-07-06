@@ -73,7 +73,7 @@ func Test_writeResponse(t *testing.T) {
 			name:             "json marshalling error returns prom-api compatible error",
 			httpResponseCode: http.StatusOK,
 			resp: Response[GenericResponseData]{
-				Data: recursor, // recursive struct will cause json marshalling error
+				Data: recursor, // recursive struct will cause json marshalling error.
 			},
 			wantBody:   `{"status":"error","ErrorType":"internal","error":"failed to marshal Response"}`,
 			wantStatus: http.StatusInternalServerError,

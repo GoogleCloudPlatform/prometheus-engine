@@ -141,7 +141,7 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient client.Clie
 			t.Fatalf("get operatorconfig: %s", err)
 		}
 
-		// Configure
+		// Configure.
 		config.Rules.ExternalLabels = map[string]string{
 			"external_key": "external_val",
 		}

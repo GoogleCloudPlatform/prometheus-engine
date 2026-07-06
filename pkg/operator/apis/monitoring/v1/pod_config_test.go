@@ -58,7 +58,7 @@ func TestTopLevelControllerRelabel(t *testing.T) {
 		wantKeep bool
 	}
 	tests := map[string]test{
-		// Base cases
+		// Base cases.
 		"Empty": {
 			input:    labels.Labels{},
 			want:     labels.Labels{},
@@ -76,7 +76,7 @@ func TestTopLevelControllerRelabel(t *testing.T) {
 			wantKeep: true,
 		},
 
-		// Controller types
+		// Controller types.
 		"CronJob": {
 			input: labels.Labels{
 				{Name: "__meta_kubernetes_pod_controller_kind", Value: "Job"},

@@ -1355,7 +1355,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 
 			kubeClient := clientBuilder.Build()
 
-			// fetchTargets(ctx, logger, opts, nil, targetFetchFromMap(prometheusTargetMap), kubeClient)
+			// fetchTargets(ctx, logger, opts, nil, targetFetchFromMap(prometheusTargetMap), kubeClient).
 			err := updateTargetStatus(t.Context(), testr.New(t), kubeClient, testCase.targets, testCase.getPodMonitoringCRDs())
 			if err != nil && (testCase.expErr == nil || !testCase.expErr(err)) {
 				t.Fatalf("unexpected error updating target status: %s", err)

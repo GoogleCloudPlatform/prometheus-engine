@@ -254,7 +254,7 @@ func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, httpCli
 		return nil, err
 	}
 
-	// Set up pod job queue and jobs
+	// Set up pod job queue and jobs.
 	podDiscoveryCh := make(chan prometheusPod)
 	wg := sync.WaitGroup{}
 	wg.Add(int(opts.TargetPollConcurrency))

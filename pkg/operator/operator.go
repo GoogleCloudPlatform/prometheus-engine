@@ -119,7 +119,7 @@ type Options struct {
 	TLSKey string
 	// Certificate authority in base 64.
 	CACert string
-	// CertDir is the path to a directory containing TLS certificates for the webhook server
+	// CertDir is the path to a directory containing TLS certificates for the webhook server.
 	CertDir string
 	// Webhook serving address.
 	ListenAddr string
@@ -379,7 +379,7 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 		case !apierrors.IsNotFound(err):
 			return fmt.Errorf("delete legacy ValidatingWebHookConfiguration failed: %w", err)
 		default:
-			// Noop
+			// Noop.
 		}
 	}
 
@@ -406,7 +406,7 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 			case !apierrors.IsNotFound(err):
 				return fmt.Errorf("cleanup collector failed: %w", err)
 			default:
-				// Noop
+				// Noop.
 			}
 		}
 	}
@@ -428,7 +428,7 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 			case !apierrors.IsNotFound(err):
 				return fmt.Errorf("cleanup rule-evaluator failed: %w", err)
 			default:
-				// Noop
+				// Noop.
 			}
 		}
 	}

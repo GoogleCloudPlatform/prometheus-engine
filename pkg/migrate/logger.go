@@ -29,10 +29,10 @@ import (
 type ResourceStatus int
 
 const (
-	StatusSuccess ResourceStatus = iota // 0 (Migrated Successfully)
-	StatusSkipped                       // 1 (Skipped / Unsupported)
-	StatusWarning                       // 2 (Migrated with Warnings)
-	StatusFailed                        // 3 (Failed)
+	StatusSuccess ResourceStatus = iota // 0 (Migrated Successfully).
+	StatusSkipped                       // 1 (Skipped / Unsupported).
+	StatusWarning                       // 2 (Migrated with Warnings).
+	StatusFailed                        // 3 (Failed).
 )
 
 // statusLevels maps slog.Levels to their corresponding ResourceStatus.
@@ -72,7 +72,7 @@ func NewConsoleHandler(out io.Writer) *ConsoleHandler {
 }
 
 func (h *ConsoleHandler) Enabled(_ context.Context, _ slog.Level) bool {
-	return true // Log everything
+	return true // Log everything.
 }
 
 func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
@@ -82,7 +82,7 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	var kind, namespace, name, file, migrationStatus string
 	var extraAttrs []string
 
-	// Helper to process and categorize attributes
+	// Helper to process and categorize attributes.
 	processAttr := func(a slog.Attr) {
 		val := a.Value.Resolve()
 		switch a.Key {
@@ -97,17 +97,17 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 		case "migration_status":
 			migrationStatus = val.String()
 		default:
-			// Collect all other attributes to print at the end of the line
+			// Collect all other attributes to print at the end of the line.
 			extraAttrs = append(extraAttrs, fmt.Sprintf("%s=%v", a.Key, val.Any()))
 		}
 	}
 
-	// Extract attributes bound to the logger instance
+	// Extract attributes bound to the logger instance.
 	for _, a := range h.attrs {
 		processAttr(a)
 	}
 
-	// Extract attributes passed in the individual log call
+	// Extract attributes passed in the individual log call.
 	r.Attrs(func(a slog.Attr) bool {
 		processAttr(a)
 		return true
@@ -131,7 +131,7 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 		levelStr = r.Level.String()
 	}
 
-	// Format prefix cleanly
+	// Format prefix cleanly.
 	var prefix string
 	if file != "" {
 		prefix = fmt.Sprintf("[%s] ", file)
@@ -153,7 +153,7 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 		return err
 	}
 
-	// 2. Track the migration status of the resource (for final report)
+	// 2. Track the migration status of the resource (for final report).
 	var key string
 	if kind != "" && name != "" {
 		if namespace == "" {

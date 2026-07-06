@@ -87,7 +87,7 @@ func TestSelect(t *testing.T) {
 		db          *queryAccess
 		want        *listSeriesSet
 	}{
-		// Success case
+		// Success case.
 		{
 			description: "success case",
 			db: &queryAccess{
@@ -115,7 +115,7 @@ func TestSelect(t *testing.T) {
 				}},
 			},
 		},
-		// Error cases
+		// Error cases.
 		{
 			description: "queryfunc returns an error",
 			db: &queryAccess{

@@ -43,16 +43,16 @@ type MonitoringCondition struct {
 	// Status of the condition, one of True, False, Unknown.
 	Status corev1.ConditionStatus `json:"status"`
 	// The last time this condition was updated.
-	// +optional
+	// +optional.
 	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
 	// Last time the condition transitioned from one status to another.
-	// +optional
+	// +optional.
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 	// The reason for the condition's last transition.
-	// +optional
+	// +optional.
 	Reason string `json:"reason,omitempty"`
 	// A human-readable message indicating details about the transition.
-	// +optional
+	// +optional.
 	Message string `json:"message,omitempty"`
 }
 
@@ -75,7 +75,7 @@ func (cond *MonitoringCondition) IsValid() bool {
 // MonitoringStatus holds status information of a monitoring resource.
 type MonitoringStatus struct {
 	// The generation observed by the controller.
-	// +optional
+	// +optional.
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Represents the latest available observations of a podmonitor's current state.
 	Conditions []MonitoringCondition `json:"conditions,omitempty"`

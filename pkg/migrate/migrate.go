@@ -36,11 +36,11 @@ import (
 
 // MigrationReport accumulates the statistics and payloads of the migration run.
 type MigrationReport struct {
-	SuccessCount int                          // Successfully migrated with no warnings
-	WarningCount int                          // Successfully migrated but had warnings
-	SkippedCount int                          // Bypassed because resource is unsupported/out-of-scope
-	FailedCount  int                          // Fatal failure, resource skipped
-	Outputs      []*unstructured.Unstructured // Converted GMP manifests in-memory
+	SuccessCount int                          // Successfully migrated with no warnings.
+	WarningCount int                          // Successfully migrated but had warnings.
+	SkippedCount int                          // Bypassed because resource is unsupported/out-of-scope.
+	FailedCount  int                          // Fatal failure, resource skipped.
+	Outputs      []*unstructured.Unstructured // Converted GMP manifests in-memory.
 }
 
 // Migrator orchestrates the migration process.
@@ -48,7 +48,7 @@ type Migrator struct {
 	converters map[string]ResourceConverter
 	cache      *ResourceCache
 
-	// Decoupled streams (defaults to os.Stdin/os.Stdout/os.Stderr)
+	// Decoupled streams (defaults to os.Stdin/os.Stdout/os.Stderr).
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
@@ -95,22 +95,22 @@ func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 
 	report := &MigrationReport{}
 
-	// Instantiate our custom ConsoleHandler
+	// Instantiate our custom ConsoleHandler.
 	handler := NewConsoleHandler(m.Stderr)
 	m.logger = slog.New(handler)
 
-	// 1. Parse all inputs
+	// 1. Parse all inputs.
 	for _, path := range inputPaths {
 		if err := m.parseInputs(path); err != nil {
 			return nil, fmt.Errorf("failed to parse input %q: %w", path, err)
 		}
 	}
 
-	// 2. Run converters across the cached resources
+	// 2. Run converters across the cached resources.
 	outputs := m.convertResources()
 	report.Outputs = outputs
 
-	// 4. Calculate final statistics from the handler's tracked statuses
+	// 4. Calculate final statistics from the handler's tracked statuses.
 	for _, status := range handler.ResourceStatuses() {
 		switch status {
 		case StatusSuccess:
@@ -179,10 +179,10 @@ func (m *Migrator) isRelevantKind(kind string) bool {
 
 // parseInputs reads files, directories, or stdin and loads them into the cache.
 func (m *Migrator) parseInputs(path string) error {
-	// 1. Handle Stdin Strm
+	// 1. Handle Stdin Strm.
 	if path == "-" {
 		if err := m.parseYAMLStream(m.Stdin); err != nil {
-			// Log and track the error
+			// Log and track the error.
 			m.logger.Error("Skipping stdin due to parse error",
 				slog.String("file", "-"),
 				slog.Any("error", err),
@@ -191,16 +191,16 @@ func (m *Migrator) parseInputs(path string) error {
 		return nil
 	}
 
-	// 2. Resolve system  errors
+	// 2. Resolve system  errors.
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
 	}
 
-	// 3. Handle Single Direct File
+	// 3. Handle Single Direct File.
 	if !info.IsDir() {
 		if err := m.parseFile(path); err != nil {
-			// Log and track the error
+			// Log and track the error.
 			m.logger.Error("Skipping file due to parse error",
 				slog.String("file", path),
 				slog.Any("error", err),
@@ -209,7 +209,7 @@ func (m *Migrator) parseInputs(path string) error {
 		return nil
 	}
 
-	// 4. Handle Directory Walk
+	// 4. Handle Directory Walk.
 	return filepath.WalkDir(path, func(fp string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -218,14 +218,14 @@ func (m *Migrator) parseInputs(path string) error {
 			if fp == path {
 				return nil
 			}
-			// Skip hidden subdirectories encountered during the walk
+			// Skip hidden subdirectories encountered during the walk.
 			if d.Name() != "." && d.Name() != ".." && strings.HasPrefix(d.Name(), ".") {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		// Skip hidden files encountered during the walk (e.g. .yamllint.yaml)
+		// Skip hidden files encountered during the walk (e.g. .yamllint.yaml).
 		if strings.HasPrefix(d.Name(), ".") {
 			return nil
 		}
@@ -233,7 +233,7 @@ func (m *Migrator) parseInputs(path string) error {
 		ext := strings.ToLower(filepath.Ext(fp))
 		if ext == ".yaml" || ext == ".yml" {
 			if err := m.parseFile(fp); err != nil {
-				// Log and track the error
+				// Log and track the error.
 				m.logger.Error("Skipping file due to parse error",
 					slog.String("file", fp),
 					slog.Any("error", err),
@@ -332,7 +332,7 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 		for _, key := range keys {
 			res := nsMap[key].DeepCopy()
 
-			// Create the resource logger
+			// Create the resource logger.
 			resourceLogger := m.logger.With(
 				slog.String("kind", kind),
 				slog.String("namespace", res.GetNamespace()),

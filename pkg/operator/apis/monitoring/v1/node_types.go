@@ -41,7 +41,7 @@ type ScrapeNodeEndpoint struct {
 	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
 	// +kubebuilder:validation:Format=duration
 	// +kubebuilder:default="1m"
-	// +required
+	// +required.
 	Interval string `json:"interval,omitempty"`
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
 	// Must not be larger then the scrape interval.
@@ -54,13 +54,13 @@ type ScrapeNodeEndpoint struct {
 	// +kubebuilder:validation:MaxItems=250
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
 	// TLS configures the scrape request's TLS settings.
-	// +optional
+	// +optional.
 	TLS *ClusterNodeTLS `json:"tls,omitempty"`
 }
 
 type ClusterNodeTLS struct {
 	// InsecureSkipVerify disables target certificate validation.
-	// +optional
+	// +optional.
 	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
 }
 
@@ -101,7 +101,7 @@ type ClusterNodeMonitoring struct {
 	// Prometheus.
 	Spec ClusterNodeMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional
+	// +optional.
 	Status MonitoringStatus `json:"status,omitempty"`
 }
 

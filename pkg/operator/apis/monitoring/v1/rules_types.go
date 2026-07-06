@@ -37,7 +37,7 @@ type Rules struct {
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional
+	// +optional.
 	Status RulesStatus `json:"status"`
 }
 
@@ -88,7 +88,7 @@ type ClusterRules struct {
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional
+	// +optional.
 	Status RulesStatus `json:"status"`
 }
 
@@ -138,7 +138,7 @@ type GlobalRules struct {
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional
+	// +optional.
 	Status RulesStatus `json:"status"`
 }
 
