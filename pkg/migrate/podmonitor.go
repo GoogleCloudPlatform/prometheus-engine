@@ -108,22 +108,33 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 
 func (c *PodMonitorConverter) convertFromPodLabels(logger *slog.Logger, pm *pomonitoringv1.PodMonitor) []monitoringv1.LabelMapping {
 	var fromPod []monitoringv1.LabelMapping
+	seenTargets := make(map[string]bool)
 
 	for _, l := range pm.Spec.PodTargetLabels {
 		mapping := monitoringv1.LabelMapping{From: l}
+		target := l
 		if protectedLabels[l] {
 			mapping.To = "exported_" + l
+			target = mapping.To
 			logger.Warn(fmt.Sprintf("Pod target label %q is protected in GMP. Renamed target to %q.", l, mapping.To))
 		}
+		if seenTargets[target] {
+			continue
+		}
+		seenTargets[target] = true
 		fromPod = append(fromPod, mapping)
 	}
 
 	if pm.Spec.JobLabel != "" {
-		logger.Warn(fmt.Sprintf("GMP does not support overriding the protected 'job' label. Value on label %q has been copied into the target label 'exported_job'.", pm.Spec.JobLabel))
-		fromPod = append(fromPod, monitoringv1.LabelMapping{
-			From: pm.Spec.JobLabel,
-			To:   "exported_job",
-		})
+		target := "exported_job"
+		if !seenTargets[target] {
+			logger.Warn(fmt.Sprintf("GMP does not support overriding the protected 'job' label. Value on label %q has been copied into the target label 'exported_job'.", pm.Spec.JobLabel))
+			fromPod = append(fromPod, monitoringv1.LabelMapping{
+				From: pm.Spec.JobLabel,
+				To:   target,
+			})
+			seenTargets[target] = true
+		}
 	}
 
 	return fromPod
