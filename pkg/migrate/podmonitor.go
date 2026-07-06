@@ -134,6 +134,8 @@ func (c *PodMonitorConverter) convertFromPodLabels(logger *slog.Logger, pm *pomo
 				To:   target,
 			})
 			seenTargets[target] = true
+		} else {
+			logger.Warn(fmt.Sprintf("Job label %q could not be mapped to 'exported_job' because 'exported_job' is already taken by another target label mapping.", pm.Spec.JobLabel))
 		}
 	}
 
