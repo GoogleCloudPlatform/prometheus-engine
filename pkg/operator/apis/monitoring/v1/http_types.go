@@ -29,7 +29,7 @@ import (
 // provider can be used at a time.
 type SecretSelector struct {
 	// Secret represents reference to a given key from certain Secret in a given namespace.
-	// +optional.
+	// +optional
 	Secret *SecretKeySelector `json:"secret,omitempty"`
 }
 
@@ -56,7 +56,7 @@ type SecretKeySelector struct {
 
 	// Namespace of the secret to select from.
 	// If empty the parent resource namespace will be chosen.
-	// +optional.
+	// +optional
 	Namespace string `json:"namespace,omitempty"`
 }
 
@@ -119,10 +119,10 @@ type Auth struct {
 	// Type is the authentication type. Defaults to Bearer.
 	// Basic will cause an error, as the BasicAuth object should be used instead.
 	// +kubebuilder:validation:XValidation:rule="self != 'Basic'",message="authorization type cannot be set to \"basic\", use \"basic_auth\" instead"
-	// +optional.
+	// +optional
 	Type string `json:"type,omitempty"`
 	// Credentials uses the secret as the credentials (token) for the authentication header.
-	// +optional.
+	// +optional
 	Credentials *SecretSelector `json:"credentials,omitempty"`
 }
 
@@ -142,10 +142,10 @@ func (c *Auth) ToPrometheusConfig(m PodMonitoringCRD, pool PrometheusSecretConfi
 // and password.
 type BasicAuth struct {
 	// Username is the BasicAuth username.
-	// +optional.
+	// +optional
 	Username string `json:"username,omitempty"`
 	// Password uses the secret as the BasicAuth password.
-	// +optional.
+	// +optional
 	Password *SecretSelector `json:"password,omitempty"`
 }
 
@@ -165,10 +165,10 @@ func (c *BasicAuth) ToPrometheusConfig(m PodMonitoringCRD, pool PrometheusSecret
 // +kubebuilder:validation:XValidation:rule=has(self.cert) == has(self.key),message="client cert and client key must be provided together, when either is provided"
 type TLS struct {
 	// ServerName is used to verify the hostname for the targets.
-	// +optional.
+	// +optional
 	ServerName string `json:"serverName,omitempty"`
 	// InsecureSkipVerify disables target certificate validation.
-	// +optional.
+	// +optional
 	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
 	// MinVersion is the minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
 	// TLS12 (TLS 1.2), TLS13 (TLS 1.3).
@@ -176,7 +176,7 @@ type TLS struct {
 	// If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
 	// See MinVersion in https://pkg.go.dev/crypto/tls#Config.
 	// +kubebuilder:validation:Enum=TLS10;TLS11;TLS12;TLS13
-	// +optional.
+	// +optional
 	MinVersion string `json:"minVersion,omitempty"`
 	// MaxVersion is the maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),
 	// TLS12 (TLS 1.2), TLS13 (TLS 1.3).
@@ -184,18 +184,18 @@ type TLS struct {
 	// If unset, Prometheus will use Go default minimum version, which is TLS 1.2.
 	// See MinVersion in https://pkg.go.dev/crypto/tls#Config.
 	// +kubebuilder:validation:Enum=TLS10;TLS11;TLS12;TLS13
-	// +optional.
+	// +optional
 	MaxVersion string `json:"maxVersion,omitempty"`
 
 	// CA uses the secret as the CA certificate to validate the server with.
-	// +optional.
+	// +optional
 
 	CA *SecretSelector `json:"ca,omitempty"`
 	// Cert uses the secret as the certificate for client authentication to the server.
-	// +optional.
+	// +optional
 	Cert *SecretSelector `json:"cert,omitempty"`
 	// Key uses the secret as the private key for client authentication to the server.
-	// +optional.
+	// +optional
 	Key *SecretSelector `json:"key,omitempty"`
 }
 
@@ -247,22 +247,22 @@ type OAuth2 struct {
 	ProxyConfig `json:",inline"`
 
 	// ClientID is the public identifier for the client.
-	// +optional.
+	// +optional
 	ClientID string `json:"clientID"`
 	// ClientSecret uses the secret as the client secret token.
-	// +optional.
+	// +optional
 	ClientSecret *SecretSelector `json:"clientSecret,omitempty"`
 	// Scopes represents the scopes for the token request.
-	// +optional.
+	// +optional
 	Scopes []string `json:"scopes,omitempty"`
 	// TokenURL is the URL to fetch the token from.
-	// +optional.
+	// +optional
 	TokenURL string `json:"tokenURL"`
 	// EndpointParams are additional parameters to append to the token URL.
-	// +optional.
+	// +optional
 	EndpointParams map[string]string `json:"endpointParams,omitempty"`
 	// TLS configures the token request's TLS settings.
-	// +optional.
+	// +optional
 	TLS *TLS `json:"tlsConfig,omitempty"`
 }
 
@@ -335,16 +335,16 @@ type HTTPClientConfig struct {
 	ProxyConfig `json:",inline"`
 
 	// Authorization is the HTTP authorization credentials for the targets.
-	// +optional.
+	// +optional
 	Authorization *Auth `json:"authorization,omitempty"`
 	// BasicAuth is the HTTP basic authentication credentials for the targets.
-	// +optional.
+	// +optional
 	BasicAuth *BasicAuth `json:"basicAuth,omitempty"`
 	// TLS configures the scrape request's TLS settings.
-	// +optional.
+	// +optional
 	TLS *TLS `json:"tls,omitempty"`
 	// OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.
-	// +optional.
+	// +optional
 	OAuth2 *OAuth2 `json:"oauth2,omitempty"`
 }
 

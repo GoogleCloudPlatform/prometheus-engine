@@ -69,6 +69,7 @@ linters:
       scope: all
       exclude:
         - '^\s*TODO'
+        - '^\s*\+'
     errcheck:
       # Report about not checking of errors in type assertions: `a := b.(MyStruct)`.
       # Such cases aren't reported by default.

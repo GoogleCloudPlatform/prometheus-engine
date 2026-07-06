@@ -61,7 +61,7 @@ type PodMonitoring struct {
 	// Prometheus.
 	Spec PodMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional.
+	// +optional
 	Status PodMonitoringStatus `json:"status"`
 }
 
@@ -110,7 +110,7 @@ type ClusterPodMonitoring struct {
 	// Prometheus.
 	Spec ClusterPodMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional.
+	// +optional
 	Status PodMonitoringStatus `json:"status"`
 }
 
@@ -223,7 +223,7 @@ type ScrapeEndpoint struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:XValidation:rule="self != 0",message="Port is required"
-	// +required.
+	// +required
 	Port intstr.IntOrString `json:"port,omitempty"`
 	// Protocol scheme to use to scrape.
 	// +kubebuilder:validation:Enum=http;https
@@ -234,7 +234,7 @@ type ScrapeEndpoint struct {
 	Params map[string][]string `json:"params,omitempty"`
 	// Interval at which to scrape metrics. Must be a valid Prometheus duration.
 	// +kubebuilder:validation:Format=duration
-	// +required.
+	// +required
 	Interval string `json:"interval"`
 	// Timeout for metrics scrapes. Must be a valid Prometheus duration.
 	// Must not be larger than the scrape interval.
@@ -352,7 +352,7 @@ type SampleGroup struct {
 	// Targets emitting the error message.
 	SampleTargets []SampleTarget `json:"sampleTargets,omitempty"`
 	// Total count of similar errors.
-	// +optional.
+	// +optional
 	Count *int32 `json:"count,omitempty"`
 }
 

@@ -165,7 +165,7 @@ type PodMonitoring struct {
 	// Prometheus.
 	Spec PodMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional.
+	// +optional
 	Status PodMonitoringStatus `json:"status"`
 }
 
@@ -193,7 +193,7 @@ type ClusterPodMonitoring struct {
 	// Prometheus.
 	Spec ClusterPodMonitoringSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional.
+	// +optional
 	Status PodMonitoringStatus `json:"status"`
 }
 
@@ -323,7 +323,7 @@ type RelabelingRule struct {
 // PodMonitoringStatus holds status information of a PodMonitoring resource.
 type PodMonitoringStatus struct {
 	// The generation observed by the controller.
-	// +optional.
+	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Represents the latest available observations of a podmonitor's current state.
 	Conditions []MonitoringCondition `json:"conditions,omitempty"`
@@ -344,16 +344,16 @@ type MonitoringCondition struct {
 	// Status of the condition, one of True, False, Unknown.
 	Status corev1.ConditionStatus `json:"status"`
 	// The last time this condition was updated.
-	// +optional.
+	// +optional
 	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
 	// Last time the condition transitioned from one status to another.
-	// +optional.
+	// +optional
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 	// The reason for the condition's last transition.
-	// +optional.
+	// +optional
 	Reason string `json:"reason,omitempty"`
 	// A human-readable message indicating details about the transition.
-	// +optional.
+	// +optional
 	Message string `json:"message,omitempty"`
 }
 
@@ -374,7 +374,7 @@ type Rules struct {
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional.
+	// +optional
 	Status RulesStatus `json:"status"`
 }
 
@@ -406,7 +406,7 @@ type ClusterRules struct {
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional.
+	// +optional
 	Status RulesStatus `json:"status"`
 }
 
@@ -437,7 +437,7 @@ type GlobalRules struct {
 	// Specification of rules to record and alert on.
 	Spec RulesSpec `json:"spec"`
 	// Most recently observed status of the resource.
-	// +optional.
+	// +optional
 	Status RulesStatus `json:"status"`
 }
 
