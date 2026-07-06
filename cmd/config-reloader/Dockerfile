@@ -48,6 +48,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/config-reloader/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260601.00_p0@sha256:1b74f92a381c5269d5018b08ce0464cfcb310b6b9b6d98767ba3300838483fc4
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260615.00_p0@sha256:57d7404dd1d7246cef57784b3532ee23d31ee8a13083f51bf37c15499e40b754
 COPY --from=buildbase /app/config-reloader /bin/config-reloader
 ENTRYPOINT ["/bin/config-reloader"]
