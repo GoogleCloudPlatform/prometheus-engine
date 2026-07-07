@@ -29,6 +29,18 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+// conversionContext groups common parameters passed down to conversion helper functions.
+type conversionContext struct {
+	// logger is used to log warnings when dropping unsupported features.
+	logger *slog.Logger
+	// cache provides access to dependent resources.
+	cache *ResourceCache
+	// namespace is the source namespace of the primary resource.
+	namespace string
+	// generatedSecrets accumulates created Secrets when migrating ConfigMaps.
+	generatedSecrets []*unstructured.Unstructured
+}
+
 // PodMonitorConverter implements ResourceConverter for PodMonitor resources.
 type PodMonitorConverter struct{}
 
@@ -38,7 +50,7 @@ func (c *PodMonitorConverter) ImportKey() string {
 }
 
 // Convert translates a Prometheus Operator PodMonitor into GMP resources.
-func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, unstruct *unstructured.Unstructured, _ *ResourceCache) ([]*unstructured.Unstructured, error) {
+func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, unstruct *unstructured.Unstructured, cache *ResourceCache) ([]*unstructured.Unstructured, error) {
 	if unstruct == nil || unstruct.Object == nil {
 		return nil, errors.New("cannot convert nil or uninitialized unstructured resource")
 	}
@@ -60,11 +72,13 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 	if nsSel.Any {
 		// Case A: namespaceSelector.any = true -> Single ClusterPodMonitoring.
 		logger.Info("namespaceSelector selects 'any: true'. Translated to 'ClusterPodMonitoring'")
-		u, err := c.convertToClusterPodMonitoring(&podMonitor, logger)
+		u, generatedSecrets, err := c.convertToClusterPodMonitoring(&podMonitor, logger, cache)
 		if err != nil {
 			return nil, err
 		}
-		return []*unstructured.Unstructured{u}, nil
+		outputs := []*unstructured.Unstructured{u}
+		outputs = append(outputs, generatedSecrets...)
+		return outputs, nil
 	}
 
 	if len(nsSel.MatchNames) > 0 {
@@ -83,7 +97,7 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 		}
 
 		// 2.2 Convert to a base namespaced PodMonitoring.
-		baseU, err := c.convertToPodMonitoring(&podMonitor, logger)
+		baseU, generatedSecrets, err := c.convertToPodMonitoring(&podMonitor, logger, cache)
 		if err != nil {
 			return nil, err
 		}
@@ -94,16 +108,24 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 			uClone := baseU.DeepCopy()
 			uClone.SetNamespace(ns)
 			outputs = append(outputs, uClone)
+			// Secrets needed per namespace.
+			for _, g := range generatedSecrets {
+				gClone := g.DeepCopy()
+				gClone.SetNamespace(ns)
+				outputs = append(outputs, gClone)
+			}
 		}
 		return outputs, nil
 	}
 
 	// Case C: namespaceSelector is empty/omitted -> Single PodMonitoring in local namespace.
-	u, err := c.convertToPodMonitoring(&podMonitor, logger)
+	u, generatedSecrets, err := c.convertToPodMonitoring(&podMonitor, logger, cache)
 	if err != nil {
 		return nil, err
 	}
-	return []*unstructured.Unstructured{u}, nil
+	outputs := []*unstructured.Unstructured{u}
+	outputs = append(outputs, generatedSecrets...)
+	return outputs, nil
 }
 
 func (c *PodMonitorConverter) convertFromPodLabels(logger *slog.Logger, pm *pomonitoringv1.PodMonitor) []monitoringv1.LabelMapping {
@@ -150,7 +172,7 @@ func (c *PodMonitorConverter) convertFromPodLabels(logger *slog.Logger, pm *pomo
 }
 
 func (c *PodMonitorConverter) convertEndpoints(
-	logger *slog.Logger,
+	convCtx *conversionContext,
 	endpoints []pomonitoringv1.PodMetricsEndpoint,
 ) ([]monitoringv1.ScrapeEndpoint, error) {
 	var gmpEndpoints []monitoringv1.ScrapeEndpoint
@@ -178,7 +200,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 
 		// TODO(M2): Inherit global scrape interval from Prometheus CR if empty.
 		if gmpEp.Interval == "" {
-			logger.Warn("Scrape interval is empty. Defaulting to '30s' as GMP requires this field.")
+			convCtx.logger.Warn("Scrape interval is empty. Defaulting to '30s' as GMP requires this field.")
 			gmpEp.Interval = "30s"
 		}
 
@@ -193,7 +215,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 				return nil, fmt.Errorf("endpoint [%d]: invalid scrapeTimeout %q: %w", i, gmpEp.Timeout, err)
 			}
 			if toDur > intDur {
-				logger.Warn(fmt.Sprintf("Scrape timeout %q is larger than scrape interval %q. Capping timeout to %q.",
+				convCtx.logger.Warn(fmt.Sprintf("Scrape timeout %q is larger than scrape interval %q. Capping timeout to %q.",
 					gmpEp.Timeout, gmpEp.Interval, gmpEp.Interval))
 				gmpEp.Timeout = gmpEp.Interval
 			}
@@ -202,22 +224,33 @@ func (c *PodMonitorConverter) convertEndpoints(
 
 		// 4. Relabeling Rules (MetricRelabelings).
 		if len(ep.MetricRelabelConfigs) > 0 {
-			rules, err := c.convertMetricRelabelings(logger, ep.MetricRelabelConfigs)
+			rules, err := c.convertMetricRelabelings(convCtx.logger, ep.MetricRelabelConfigs)
 			if err != nil {
 				return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 			}
 			gmpEp.MetricRelabeling = rules
 		}
 
+		// Proxy Settings.
+		if ep.ProxyURL != nil {
+			if strings.Contains(*ep.ProxyURL, "@") {
+				return nil, fmt.Errorf("endpoint [%d]: proxyUrl contains credentials (matches '@'), which is blocked by GMP API validation", i)
+			}
+			gmpEp.ProxyURL = *ep.ProxyURL
+		}
+
+		// noProxy, proxyConnectHeader, and proxyFromEnvironment fields are silently dropped.
+		// The pinned Prometheus Operator version lacks these fields, and GMP does not support them anyway.
+
 		// 5. Warnings for Unsupported Fields in Endpoint.
 		if ep.HonorLabels {
-			logger.Warn("Field 'honorLabels: true' is unsupported and dropped. GMP always overrides conflicting labels. Clashing metric labels will be renamed with the 'exported_' prefix.")
+			convCtx.logger.Warn("Field 'honorLabels: true' is unsupported and dropped. GMP always overrides conflicting labels. Clashing metric labels will be renamed with the 'exported_' prefix.")
 		}
 		if ep.HonorTimestamps != nil && *ep.HonorTimestamps {
-			logger.Warn("Field 'honorTimestamps: true' is unsupported and dropped. GMP always uses the scrape ingestion timestamp. Target metric timestamps will be ignored.")
+			convCtx.logger.Warn("Field 'honorTimestamps: true' is unsupported and dropped. GMP always uses the scrape ingestion timestamp. Target metric timestamps will be ignored.")
 		}
 		if ep.TrackTimestampsStaleness != nil {
-			logger.Warn("Field 'trackTimestampsStaleness' is unsupported in GMP and has been dropped.")
+			convCtx.logger.Warn("Field 'trackTimestampsStaleness' is unsupported in GMP and has been dropped.")
 		}
 
 		gmpEndpoints = append(gmpEndpoints, gmpEp)
@@ -279,10 +312,15 @@ func (c *PodMonitorConverter) convertMetricRelabelings(
 	return rules, nil
 }
 
-func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger) (*unstructured.Unstructured, error) {
-	endpoints, err := c.convertEndpoints(logger, pm.Spec.PodMetricsEndpoints)
+func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	convCtx := &conversionContext{
+		logger:    logger,
+		cache:     cache,
+		namespace: pm.Namespace,
+	}
+	endpoints, err := c.convertEndpoints(convCtx, pm.Spec.PodMetricsEndpoints)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	gmpPM := &monitoringv1.PodMonitoring{
@@ -299,20 +337,25 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 
 	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(gmpPM)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal PodMonitoring: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal PodMonitoring: %w", err)
 	}
 
 	u := &unstructured.Unstructured{Object: unstructuredMap}
 	u.SetAPIVersion(GMPAPIVersion)
 	u.SetKind(KindPodMonitoring)
 
-	return u, nil
+	return u, convCtx.generatedSecrets, nil
 }
 
-func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger) (*unstructured.Unstructured, error) {
-	endpoints, err := c.convertEndpoints(logger, pm.Spec.PodMetricsEndpoints)
+func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	convCtx := &conversionContext{
+		logger:    logger,
+		cache:     cache,
+		namespace: pm.Namespace,
+	}
+	endpoints, err := c.convertEndpoints(convCtx, pm.Spec.PodMetricsEndpoints)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	gmpCPM := &monitoringv1.ClusterPodMonitoring{
@@ -329,12 +372,12 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 
 	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(gmpCPM)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal ClusterPodMonitoring: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal ClusterPodMonitoring: %w", err)
 	}
 
 	u := &unstructured.Unstructured{Object: unstructuredMap}
 	u.SetAPIVersion(GMPAPIVersion)
 	u.SetKind(KindClusterPodMonitoring)
 
-	return u, nil
+	return u, convCtx.generatedSecrets, nil
 }
