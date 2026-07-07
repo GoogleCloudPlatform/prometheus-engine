@@ -96,13 +96,8 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 			uClone := baseU.DeepCopy()
 			uClone.SetNamespace(ns)
 			outputs = append(outputs, uClone)
-			// Secrets needed per namespace.
-			for _, g := range generatedSecrets {
-				gClone := g.DeepCopy()
-				gClone.SetNamespace(ns)
-				outputs = append(outputs, gClone)
-			}
 		}
+		outputs = append(outputs, generatedSecrets...)
 		return outputs, nil
 	}
 

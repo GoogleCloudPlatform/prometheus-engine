@@ -90,6 +90,11 @@ type conversionContext struct {
 
 // extractSecretKey extracts a string value from a Secret, returning a placeholder and warning if not found.
 func extractSecretKey(convCtx *conversionContext, sel corev1.SecretKeySelector) string {
+	if sel.Name == "" {
+		convCtx.logger.Warn(fmt.Sprintf("SecretKeySelector has empty name for key %q. Hardcoding placeholder.", sel.Key))
+		return fmt.Sprintf("<MISSING_SECRET_NAME_KEY_%s>", sel.Key)
+	}
+
 	obj, ok := convCtx.cache.Get("Secret", convCtx.namespace, sel.Name)
 	if !ok {
 		convCtx.logger.Warn(fmt.Sprintf("Secret %q not found. Cannot extract key %q. Hardcoding placeholder.", sel.Name, sel.Key))
@@ -117,6 +122,11 @@ func extractSecretKey(convCtx *conversionContext, sel corev1.SecretKeySelector) 
 
 // extractConfigMapKey extracts a string value from a ConfigMap, returning a placeholder and warning if not found.
 func extractConfigMapKey(convCtx *conversionContext, sel corev1.ConfigMapKeySelector) string {
+	if sel.Name == "" {
+		convCtx.logger.Warn(fmt.Sprintf("ConfigMapKeySelector has empty name for key %q. Hardcoding placeholder.", sel.Key))
+		return fmt.Sprintf("<MISSING_CONFIGMAP_NAME_KEY_%s>", sel.Key)
+	}
+
 	obj, ok := convCtx.cache.Get("ConfigMap", convCtx.namespace, sel.Name)
 	if !ok {
 		convCtx.logger.Warn(fmt.Sprintf("ConfigMap %q not found in cache. Cannot extract key %q. Hardcoding placeholder.", sel.Name, sel.Key))
@@ -136,6 +146,12 @@ func extractConfigMapKey(convCtx *conversionContext, sel corev1.ConfigMapKeySele
 func convertConfigMapToSecretSelector(convCtx *conversionContext, sel *corev1.ConfigMapKeySelector) *monitoringv1.SecretSelector {
 	if sel == nil {
 		return nil
+	}
+	if sel.Name == "" {
+		convCtx.logger.Warn(fmt.Sprintf("ConfigMap reference for key %q has an empty name. Hardcoding placeholder.", sel.Key))
+		return &monitoringv1.SecretSelector{
+			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_CONFIGMAP_NAME>", Key: sel.Key, Namespace: convCtx.namespace},
+		}
 	}
 
 	secretName := "secret-" + sel.Name
@@ -168,7 +184,8 @@ func convertConfigMapToSecretSelector(convCtx *conversionContext, sel *corev1.Co
 		convCtx.generatedSecrets = append(convCtx.generatedSecrets, newSecret)
 	}
 
-	return &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey}}
+	secretRef := &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey, Namespace: convCtx.namespace}
+	return &monitoringv1.SecretSelector{Secret: secretRef}
 }
 
 // convertSecretOrConfigMapToSecretSelector translates to a SecretSelector and warns on missing caches or optional configs.
@@ -189,10 +206,17 @@ func convertSecretSelector(convCtx *conversionContext, sel *corev1.SecretKeySele
 	if sel == nil {
 		return nil
 	}
+	if sel.Name == "" {
+		convCtx.logger.Warn(fmt.Sprintf("Secret reference for key %q has an empty name. Hardcoding placeholder.", sel.Key))
+		return &monitoringv1.SecretSelector{
+			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_SECRET_NAME>", Key: sel.Key, Namespace: convCtx.namespace},
+		}
+	}
 	if sel.Optional != nil && *sel.Optional {
 		convCtx.logger.Warn(fmt.Sprintf("Secret reference %q had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.", sel.Name))
 	}
-	return &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key}}
+	secretRef := &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key, Namespace: convCtx.namespace}
+	return &monitoringv1.SecretSelector{Secret: secretRef}
 }
 
 // convertBasicAuth maps PO BasicAuth to GMP BasicAuth, extracting the username string.
