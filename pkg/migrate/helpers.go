@@ -148,7 +148,7 @@ func convertConfigMapToSecretSelector(convCtx *conversionContext, sel *corev1.Co
 		return nil
 	}
 	if sel.Name == "" {
-		convCtx.logger.Warn(fmt.Sprintf("ConfigMap reference for key %q has an empty name. Hardcoding placeholder.", sel.Key))
+		convCtx.logger.Warn(fmt.Sprintf("ConfigMap reference for key %q has an empty name. Hardcoding placeholder and skipping Secret manifest generation. You must fix this reference and create the Secret.", sel.Key))
 		return &monitoringv1.SecretSelector{
 			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_CONFIGMAP_NAME>", Key: sel.Key, Namespace: convCtx.namespace},
 		}
@@ -207,7 +207,7 @@ func convertSecretSelector(convCtx *conversionContext, sel *corev1.SecretKeySele
 		return nil
 	}
 	if sel.Name == "" {
-		convCtx.logger.Warn(fmt.Sprintf("Secret reference for key %q has an empty name. Hardcoding placeholder.", sel.Key))
+		convCtx.logger.Warn(fmt.Sprintf("Secret reference for key %q has an empty name. Hardcoding placeholder. You must fix this reference and ensure the Secret is created before applying.", sel.Key))
 		return &monitoringv1.SecretSelector{
 			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_SECRET_NAME>", Key: sel.Key, Namespace: convCtx.namespace},
 		}
