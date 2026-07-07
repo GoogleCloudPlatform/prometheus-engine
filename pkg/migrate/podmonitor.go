@@ -158,7 +158,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 	for i, ep := range endpoints {
 		gmpEp := monitoringv1.ScrapeEndpoint{}
 
-		// 1. Port mapping
+		// 1. Port mapping.
 		if ep.Port != "" {
 			gmpEp.Port = intstr.FromString(ep.Port)
 		} else if ep.TargetPort != nil { // nolint:staticcheck // Map deprecated TargetPort for backwards compatibility.
@@ -167,12 +167,12 @@ func (c *PodMonitorConverter) convertEndpoints(
 			return nil, fmt.Errorf("endpoint [%d]: port or targetPort must be set", i)
 		}
 
-		// 2. Basic Fields
+		// 2. Basic Fields.
 		gmpEp.Path = ep.Path
 		gmpEp.Scheme = strings.ToLower(ep.Scheme)
 		gmpEp.Params = ep.Params
 
-		// 3. Scrape Intervals & Timeouts
+		// 3. Scrape Intervals & Timeouts.
 		gmpEp.Interval = string(ep.Interval)
 		gmpEp.Timeout = string(ep.ScrapeTimeout)
 
@@ -200,7 +200,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 		}
 		// TODO(M2): Inherit global scrape timeout from Prometheus CR if empty.
 
-		// 4. Relabeling Rules (MetricRelabelings)
+		// 4. Relabeling Rules (MetricRelabelings).
 		if len(ep.MetricRelabelConfigs) > 0 {
 			rules, err := c.convertMetricRelabelings(logger, ep.MetricRelabelConfigs)
 			if err != nil {
@@ -209,7 +209,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 			gmpEp.MetricRelabeling = rules
 		}
 
-		// 5. Warnings for Unsupported Fields in Endpoint
+		// 5. Warnings for Unsupported Fields in Endpoint.
 		if ep.HonorLabels {
 			logger.Warn("Field 'honorLabels: true' is unsupported and dropped. GMP always overrides conflicting labels. Clashing metric labels will be renamed with the 'exported_' prefix.")
 		}
