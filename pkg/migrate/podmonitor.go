@@ -29,18 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// conversionContext groups common parameters passed down to conversion helper functions.
-type conversionContext struct {
-	// logger is used to log warnings when dropping unsupported features.
-	logger *slog.Logger
-	// cache provides access to dependent resources.
-	cache *ResourceCache
-	// namespace is the source namespace of the primary resource.
-	namespace string
-	// generatedSecrets accumulates created Secrets when migrating ConfigMaps.
-	generatedSecrets []*unstructured.Unstructured
-}
-
 // PodMonitorConverter implements ResourceConverter for PodMonitor resources.
 type PodMonitorConverter struct{}
 
@@ -128,49 +116,6 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 	return outputs, nil
 }
 
-func (c *PodMonitorConverter) convertFromPodLabels(logger *slog.Logger, pm *pomonitoringv1.PodMonitor) []monitoringv1.LabelMapping {
-	var fromPod []monitoringv1.LabelMapping
-	seenTargets := make(map[string]bool)
-
-	for _, l := range pm.Spec.PodTargetLabels {
-		target := l
-		if protectedLabels[l] {
-			target = "exported_" + l
-		}
-
-		if seenTargets[target] {
-			logger.Warn(fmt.Sprintf("Pod target label %q maps to target label %q which is already taken. Skipping.", l, target))
-			continue
-		}
-
-		seenTargets[target] = true
-		mapping := monitoringv1.LabelMapping{From: l}
-
-		if target != l {
-			mapping.To = target
-			logger.Warn(fmt.Sprintf("Pod target label %q is protected in GMP. Renamed target to %q.", l, target))
-		}
-
-		fromPod = append(fromPod, mapping)
-	}
-
-	if pm.Spec.JobLabel != "" {
-		target := "exported_job"
-		if !seenTargets[target] {
-			logger.Warn(fmt.Sprintf("GMP does not support overriding the protected 'job' label. Value on label %q has been copied into the target label 'exported_job'.", pm.Spec.JobLabel))
-			fromPod = append(fromPod, monitoringv1.LabelMapping{
-				From: pm.Spec.JobLabel,
-				To:   target,
-			})
-			seenTargets[target] = true
-		} else {
-			logger.Warn(fmt.Sprintf("Job label %q could not be mapped to 'exported_job' because 'exported_job' is already taken by another target label mapping.", pm.Spec.JobLabel))
-		}
-	}
-
-	return fromPod
-}
-
 func (c *PodMonitorConverter) convertEndpoints(
 	convCtx *conversionContext,
 	endpoints []pomonitoringv1.PodMetricsEndpoint,
@@ -224,7 +169,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 
 		// 4. Relabeling Rules (MetricRelabelings).
 		if len(ep.MetricRelabelConfigs) > 0 {
-			rules, err := c.convertMetricRelabelings(convCtx.logger, ep.MetricRelabelConfigs)
+			rules, err := convertMetricRelabelings(convCtx.logger, ep.MetricRelabelConfigs)
 			if err != nil {
 				return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 			}
@@ -242,6 +187,29 @@ func (c *PodMonitorConverter) convertEndpoints(
 		// noProxy, proxyConnectHeader, and proxyFromEnvironment fields are silently dropped.
 		// The pinned Prometheus Operator version lacks these fields, and GMP does not support them anyway.
 
+		// Auth & TLS mappings.
+		if ep.BasicAuth != nil {
+			gmpEp.BasicAuth = convertBasicAuth(convCtx, ep.BasicAuth)
+		}
+		if ep.OAuth2 != nil {
+			gmpEp.OAuth2 = convertOAuth2(convCtx, ep.OAuth2)
+		}
+		if ep.TLSConfig != nil {
+			gmpEp.TLS = convertSafeTLSConfig(convCtx, ep.TLSConfig)
+		}
+		if ep.Authorization != nil {
+			gmpEp.Authorization = convertAuthorization(convCtx, ep.Authorization)
+		}
+
+		// Handle deprecated BearerTokenSecret -> Authorization.
+		if ep.BearerTokenSecret.Name != "" { // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
+			if gmpEp.Authorization != nil {
+				convCtx.logger.Warn(fmt.Sprintf("Endpoint [%d] has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.", i))
+			} else {
+				gmpEp.Authorization = convertAuthorization(convCtx, &pomonitoringv1.SafeAuthorization{Credentials: &ep.BearerTokenSecret})
+			}
+		}
+
 		// 5. Warnings for Unsupported Fields in Endpoint.
 		if ep.HonorLabels {
 			convCtx.logger.Warn("Field 'honorLabels: true' is unsupported and dropped. GMP always overrides conflicting labels. Clashing metric labels will be renamed with the 'exported_' prefix.")
@@ -257,59 +225,6 @@ func (c *PodMonitorConverter) convertEndpoints(
 	}
 
 	return gmpEndpoints, nil
-}
-
-func (c *PodMonitorConverter) convertMetricRelabelings(
-	logger *slog.Logger,
-	configs []pomonitoringv1.RelabelConfig,
-) ([]monitoringv1.RelabelingRule, error) {
-	var rules []monitoringv1.RelabelingRule
-
-	for _, config := range configs {
-		action := strings.ToLower(config.Action)
-		if action == "" {
-			action = "replace"
-		}
-
-		if action == "labelmap" {
-			logger.Warn("metricRelabelings rule uses 'action: labelmap' which is not supported by GMP and has been dropped.")
-			continue
-		}
-
-		targetLabel := config.TargetLabel
-		if action == "replace" || action == "hashmod" || action == "lowercase" || action == "uppercase" {
-			if protectedLabels[config.TargetLabel] {
-				targetLabel = "exported_" + config.TargetLabel
-				logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.",
-					config.TargetLabel, targetLabel))
-			}
-		}
-
-		rule := monitoringv1.RelabelingRule{
-			TargetLabel: targetLabel,
-			Regex:       config.Regex,
-			Modulus:     config.Modulus,
-			Action:      action,
-		}
-
-		if len(config.SourceLabels) > 0 {
-			rule.SourceLabels = make([]string, len(config.SourceLabels))
-			for i, sl := range config.SourceLabels {
-				rule.SourceLabels[i] = string(sl)
-			}
-		}
-
-		if config.Separator != nil {
-			rule.Separator = *config.Separator
-		}
-		if config.Replacement != nil {
-			rule.Replacement = *config.Replacement
-		}
-
-		rules = append(rules, rule)
-	}
-
-	return rules, nil
 }
 
 func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
@@ -330,7 +245,7 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 			Selector:  pm.Spec.Selector,
 			Endpoints: endpoints,
 			TargetLabels: monitoringv1.TargetLabels{
-				FromPod: c.convertFromPodLabels(logger, pm),
+				FromPod: convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"),
 			},
 		},
 	}
@@ -365,7 +280,7 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 			Selector:  pm.Spec.Selector,
 			Endpoints: endpoints,
 			TargetLabels: monitoringv1.ClusterTargetLabels{
-				FromPod: c.convertFromPodLabels(logger, pm),
+				FromPod: convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"),
 			},
 		},
 	}
