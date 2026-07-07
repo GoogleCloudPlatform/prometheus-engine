@@ -23,6 +23,7 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -455,6 +456,88 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Authorization and TLS Mapping",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "auth-monitor",
+					Namespace: "frontend",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "auth-app"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							BasicAuth: &pomonitoringv1.BasicAuth{
+								Username: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "user"},
+								Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "pass"},
+							},
+							BearerTokenSecret: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "token-secret"}, Key: "token"},
+							TLSConfig: &pomonitoringv1.SafeTLSConfig{
+								CA: pomonitoringv1.SecretOrConfigMap{
+									ConfigMap: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "ca-cm"}, Key: "ca.crt"},
+								},
+							},
+							OAuth2: &pomonitoringv1.OAuth2{
+								ClientID: pomonitoringv1.SecretOrConfigMap{
+									ConfigMap: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-cm"}, Key: "id"},
+								},
+								ClientSecret: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-secret"}, Key: "secret"},
+								TokenURL:     "https://auth.example.com/token",
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "auth-monitor",
+						Namespace: "frontend",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "auth-app",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									Authorization: &monitoringv1.Auth{
+										Credentials: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "token-secret", Key: "token"}},
+									},
+									BasicAuth: &monitoringv1.BasicAuth{
+										Username: "<MISSING_SECRET_auth-secret_KEY_user>",
+										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth-secret", Key: "pass"}},
+									},
+									TLS: &monitoringv1.TLS{
+										CA: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "secret-ca-cm", Key: "ca.crt"}},
+									},
+									OAuth2: &monitoringv1.OAuth2{
+										ClientID:     "<MISSING_CONFIGMAP_oauth-cm_KEY_id>",
+										ClientSecret: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "oauth-secret", Key: "secret"}},
+										TokenURL:     "https://auth.example.com/token",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	converter := &PodMonitorConverter{}
@@ -466,7 +549,7 @@ func TestPodMonitorConversion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			uInput := toUnstructured(t, tc.input)
 
-			actual, err := converter.Convert(context.Background(), logger, uInput, nil)
+			actual, err := converter.Convert(context.Background(), logger, uInput, NewResourceCache())
 
 			if tc.wantErr != "" {
 				if err == nil {
