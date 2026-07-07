@@ -66,19 +66,15 @@ func ruleGroupsConfig(ruleGroups []RuleGroup, labelSet map[string]string) (strin
 // Prometheus upstream validation logic.
 func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 	for _, g := range groups {
-		var rules []rulefmt.RuleNode
+		var rules []rulefmt.Rule
 
 		for _, r := range g.Rules {
-			rule := rulefmt.RuleNode{
+			rule := rulefmt.Rule{
+				Expr:        r.Expr,
+				Record:      r.Record,
+				Alert:       r.Alert,
 				Labels:      r.Labels,
 				Annotations: r.Annotations,
-			}
-			rule.Expr.SetString(r.Expr)
-			if r.Record != "" {
-				rule.Record.SetString(r.Record)
-			}
-			if r.Alert != "" {
-				rule.Alert.SetString(r.Alert)
 			}
 			if r.For != "" {
 				rule.For, err = model.ParseDuration(r.For)
@@ -118,9 +114,10 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 // are aggregated away.
 // An error is returned if metric selectors have a conflicting selector set.
 func scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
+	p := parser.NewParser(parser.Options{})
 	for _, g := range groups.Groups {
 		for i, r := range g.Rules {
-			expr, err := parser.ParseExpr(r.Expr.Value)
+			expr, err := p.ParseExpr(r.Expr)
 			if err != nil {
 				return fmt.Errorf("parse PromQL expression: %w", err)
 			}
@@ -140,7 +137,7 @@ func scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 			if err != nil {
 				return err
 			}
-			r.Expr.SetString(expr.String())
+			r.Expr = expr.String()
 
 			// Add labels to produced label sets (metrics or alerts) in case
 			// they got aggregated away.
@@ -156,7 +153,7 @@ func scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 	return nil
 }
 
-func setLabel(r *rulefmt.RuleNode, name, value string) error {
+func setLabel(r *rulefmt.Rule, name, value string) error {
 	if v, ok := r.Labels[name]; ok {
 		return fmt.Errorf("label %q already set on rule with unexpected value %q", name, v)
 	}

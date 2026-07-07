@@ -15,6 +15,8 @@
 package v1
 
 import (
+	"context"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -41,18 +43,17 @@ type Rules struct {
 	Status RulesStatus `json:"status"`
 }
 
-func (r *Rules) ValidateCreate() (admission.Warnings, error) {
+func (r *Rules) ValidateCreate(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	_, err := r.RuleGroupsConfig("", "", "")
 	return nil, err
 }
 
-func (r *Rules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+func (r *Rules) ValidateUpdate(ctx context.Context, _, _ runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
-	return r.ValidateCreate()
+	return r.ValidateCreate(ctx, nil)
 }
 
-func (*Rules) ValidateDelete() (admission.Warnings, error) {
-	// Deletions are always valid.
+func (*Rules) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
 
@@ -92,18 +93,17 @@ type ClusterRules struct {
 	Status RulesStatus `json:"status"`
 }
 
-func (r *ClusterRules) ValidateCreate() (admission.Warnings, error) {
+func (r *ClusterRules) ValidateCreate(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	_, err := r.RuleGroupsConfig("", "", "")
 	return nil, err
 }
 
-func (r *ClusterRules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+func (r *ClusterRules) ValidateUpdate(ctx context.Context, _, _ runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
-	return r.ValidateCreate()
+	return r.ValidateCreate(ctx, nil)
 }
 
-func (*ClusterRules) ValidateDelete() (admission.Warnings, error) {
-	// Deletions are always valid.
+func (*ClusterRules) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
 
@@ -142,18 +142,17 @@ type GlobalRules struct {
 	Status RulesStatus `json:"status"`
 }
 
-func (r *GlobalRules) ValidateCreate() (admission.Warnings, error) {
+func (r *GlobalRules) ValidateCreate(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	_, err := r.RuleGroupsConfig()
 	return nil, err
 }
 
-func (r *GlobalRules) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+func (r *GlobalRules) ValidateUpdate(ctx context.Context, _, _ runtime.Object) (admission.Warnings, error) {
 	// Validity does not depend on state changes.
-	return r.ValidateCreate()
+	return r.ValidateCreate(ctx, nil)
 }
 
-func (*GlobalRules) ValidateDelete() (admission.Warnings, error) {
-	// Deletions are always valid.
+func (*GlobalRules) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
 

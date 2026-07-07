@@ -20,9 +20,11 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	promforkconfig "github.com/prometheus/prometheus/config"
-	gcmconfig "github.com/prometheus/prometheus/google/config"
+	gcmconfig "github.com/prometheus/prometheus/google/export/config"
 	"github.com/prometheus/prometheus/google/export"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
@@ -51,6 +53,7 @@ google_cloud:
 	}
 
 	expected := promforkconfig.DefaultConfig
+	expected.StorageConfig = out.StorageConfig
 	expected.RuleFiles = []string{"/etc/rules/*.yaml"}
 	expected.GoogleCloud = gcmconfig.GoogleCloudConfig{
 		Export: gcmconfig.GoogleCloudExportConfig{
@@ -63,7 +66,7 @@ google_cloud:
 			CredentialsFile: "credentials2.json",
 		},
 	}
-	if diff := cmp.Diff(expected, out); diff != "" {
+	if diff := cmp.Diff(expected, out, cmp.Transformer("Labels", func(ls labels.Labels) string { return ls.String() }), cmpopts.IgnoreUnexported(promforkconfig.Config{})); diff != "" {
 		t.Fatalf("unexpected config from marshaling (-want, +got): %s", diff)
 	}
 
@@ -77,13 +80,32 @@ google_cloud:
 	expectedYAML := `global:
     scrape_interval: 1m
     scrape_timeout: 10s
-    scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText0.0.4
     evaluation_interval: 1m
+    metric_name_validation_scheme: utf8
+    metric_name_escaping_scheme: allow-utf-8
+    scrape_native_histograms: false
+    extra_scrape_metrics: false
 runtime:
-    gogc: 75` + configYAML
+    gogc: 75
+rule_files:
+    - /etc/rules/*.yaml
+storage:
+    tsdb:
+        outofordertimewindow: 0
+        retention: {}
+otlp:
+    translation_strategy: UnderscoreEscapingWithSuffixes
+    label_name_underscore_sanitization: true
+    label_name_preserve_multiple_underscores: true
+google_cloud:
+    export:
+        compression: gzip
+        credentials: credentials1.json
+    query:
+        project_id: abc123
+        generator_url: http://example.com/
+        credentials: credentials2.json
+`
 	if diff := cmp.Diff(expectedYAML, string(outBytes)); diff != "" {
 		t.Fatalf("unexpected output of the marshal (-want, +got): %s", diff)
 	}
@@ -93,7 +115,7 @@ runtime:
 	if err := yaml.Unmarshal(outBytes, &out); err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff(expected, out); diff != "" {
+	if diff := cmp.Diff(expected, out, cmp.Transformer("Labels", func(ls labels.Labels) string { return ls.String() }), cmpopts.IgnoreUnexported(promforkconfig.Config{})); diff != "" {
 		t.Fatalf("unexpected config after marshaling (-want, +got): %s", diff)
 	}
 }

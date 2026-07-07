@@ -29,6 +29,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
@@ -543,6 +544,10 @@ func (c *fakeScaleClient) Patch(ctx context.Context, obj client.Object, patch cl
 	}
 
 	return c.client.Patch(ctx, body, patch, &patchOptions.PatchOptions)
+}
+
+func (c *fakeScaleClient) Apply(_ context.Context, _ runtime.ApplyConfiguration, _ ...client.SubResourceApplyOption) error {
+	return errors.New("fakeScaleClient does not support apply")
 }
 
 func extractScale(obj client.Object) (autoscalingv1.Scale, error) {

@@ -21,7 +21,7 @@ import (
 	"path"
 	"strings"
 
-	gcmconfig "github.com/prometheus/prometheus/google/config"
+	gcmconfig "github.com/prometheus/prometheus/google/export/config"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
@@ -676,7 +676,7 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 		if am.Port.StrVal != "" {
 			re, err := relabel.NewRegexp(am.Port.String())
 			if err != nil {
-				return nil, nil, fmt.Errorf("cannot build regex from port %q: %w", am.Port, err)
+				return nil, nil, fmt.Errorf("cannot build regex from port %q: %w", am.Port.String(), err)
 			}
 			cfg.RelabelConfigs = append(cfg.RelabelConfigs, &relabel.Config{
 				Action:       relabel.Keep,

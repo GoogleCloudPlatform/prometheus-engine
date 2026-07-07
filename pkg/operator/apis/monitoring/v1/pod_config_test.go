@@ -43,6 +43,9 @@ func applyDefaultsToRelabelConfig(rules []*relabel.Config) {
 		if rules[i].Replacement == "" {
 			rules[i].Replacement = relabel.DefaultRelabelConfig.Replacement
 		}
+		if rules[i].NameValidationScheme == prommodel.UnsetValidation {
+			rules[i].NameValidationScheme = prommodel.LegacyValidation
+		}
 	}
 }
 
@@ -60,137 +63,138 @@ func TestTopLevelControllerRelabel(t *testing.T) {
 	tests := map[string]test{
 		// Base cases
 		"Empty": {
-			input:    labels.Labels{},
-			want:     labels.Labels{},
+			input:    labels.EmptyLabels(),
+			want:     labels.EmptyLabels(),
 			wantKeep: true,
 		},
 		"Pod": {
-			input: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: ""},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: ""},
-				{Name: "__meta_kubernetes_pod_name", Value: "pod_name"},
-			},
-			want: labels.Labels{
-				{Name: "__meta_kubernetes_pod_name", Value: "pod_name"},
-			},
+			input: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "",
+				"__meta_kubernetes_pod_controller_name", "",
+				"__meta_kubernetes_pod_name", "pod_name",
+			),
+			want: labels.FromStrings(
+				"__meta_kubernetes_pod_name", "pod_name",
+			),
 			wantKeep: true,
 		},
 
 		// Controller types
 		"CronJob": {
-			input: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "Job"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-cronjob-12345678"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-cronjob-12345678-abcde"},
-			},
-			want: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "Job"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-cronjob-12345678"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-cronjob-12345678-abcde"},
-				{Name: labelTopLevelControllerName, Value: "test-cronjob"},
-				{Name: labelTopLevelControllerType, Value: "CronJob"},
-			},
+			input: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "Job",
+				"__meta_kubernetes_pod_controller_name", "test-cronjob-12345678",
+				"__meta_kubernetes_pod_name", "test-cronjob-12345678-abcde",
+			),
+			want: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "Job",
+				"__meta_kubernetes_pod_controller_name", "test-cronjob-12345678",
+				"__meta_kubernetes_pod_name", "test-cronjob-12345678-abcde",
+				labelTopLevelControllerName, "test-cronjob",
+				labelTopLevelControllerType, "CronJob",
+			),
 			wantKeep: true,
 		},
 		"DaemonSet": {
-			input: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "DaemonSet"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-daemonset"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-daemonset-abcde"},
-			},
-			want: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "DaemonSet"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-daemonset"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-daemonset-abcde"},
-				{Name: labelTopLevelControllerName, Value: "test-daemonset"},
-				{Name: labelTopLevelControllerType, Value: "DaemonSet"},
-			},
+			input: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "DaemonSet",
+				"__meta_kubernetes_pod_controller_name", "test-daemonset",
+				"__meta_kubernetes_pod_name", "test-daemonset-abcde",
+			),
+			want: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "DaemonSet",
+				"__meta_kubernetes_pod_controller_name", "test-daemonset",
+				"__meta_kubernetes_pod_name", "test-daemonset-abcde",
+				labelTopLevelControllerName, "test-daemonset",
+				labelTopLevelControllerType, "DaemonSet",
+			),
 			wantKeep: true,
 		},
 		"Deployment": {
-			input: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicaSet"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-deployment-1234567890"},
-				{Name: "__meta_kubernetes_pod_labelpresent_pod_template_hash", Value: "true"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-deployment-012345789-abcde"},
-			},
-			want: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicaSet"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-deployment-1234567890"},
-				{Name: "__meta_kubernetes_pod_labelpresent_pod_template_hash", Value: "true"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-deployment-012345789-abcde"},
-				{Name: labelTopLevelControllerName, Value: "test-deployment"},
-				{Name: labelTopLevelControllerType, Value: "Deployment"},
-			},
+			input: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "ReplicaSet",
+				"__meta_kubernetes_pod_controller_name", "test-deployment-1234567890",
+				"__meta_kubernetes_pod_labelpresent_pod_template_hash", "true",
+				"__meta_kubernetes_pod_name", "test-deployment-012345789-abcde",
+			),
+			want: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "ReplicaSet",
+				"__meta_kubernetes_pod_controller_name", "test-deployment-1234567890",
+				"__meta_kubernetes_pod_labelpresent_pod_template_hash", "true",
+				"__meta_kubernetes_pod_name", "test-deployment-012345789-abcde",
+				labelTopLevelControllerName, "test-deployment",
+				labelTopLevelControllerType, "Deployment",
+			),
 			wantKeep: true,
 		},
 		"Job": {
-			input: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "Job"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-job"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-job-abcde"},
-			},
-			want: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "Job"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-job"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-job-abcde"},
-				{Name: labelTopLevelControllerName, Value: "test-job"},
-				{Name: labelTopLevelControllerType, Value: "Job"},
-			},
+			input: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "Job",
+				"__meta_kubernetes_pod_controller_name", "test-job",
+				"__meta_kubernetes_pod_name", "test-job-abcde",
+			),
+			want: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "Job",
+				"__meta_kubernetes_pod_controller_name", "test-job",
+				"__meta_kubernetes_pod_name", "test-job-abcde",
+				labelTopLevelControllerName, "test-job",
+				labelTopLevelControllerType, "Job",
+			),
 			wantKeep: true,
 		},
 		"ReplicaSet": {
-			input: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicaSet"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-replicaset"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-replicaset-abcde"},
-			},
-			want: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicaSet"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-replicaset"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-replicaset-abcde"},
-				{Name: labelTopLevelControllerName, Value: "test-replicaset"},
-				{Name: labelTopLevelControllerType, Value: "ReplicaSet"},
-			},
+			input: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "ReplicaSet",
+				"__meta_kubernetes_pod_controller_name", "test-replicaset",
+				"__meta_kubernetes_pod_name", "test-replicaset-abcde",
+			),
+			want: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "ReplicaSet",
+				"__meta_kubernetes_pod_controller_name", "test-replicaset",
+				"__meta_kubernetes_pod_name", "test-replicaset-abcde",
+				labelTopLevelControllerName, "test-replicaset",
+				labelTopLevelControllerType, "ReplicaSet",
+			),
 			wantKeep: true,
 		},
 		"ReplicationController": {
-			input: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicationController"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-replicationcontroller"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-replicationcontroller-abcde"},
-			},
-			want: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "ReplicationController"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-replicationcontroller"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-replicationcontroller-abcde"},
-				{Name: labelTopLevelControllerName, Value: "test-replicationcontroller"},
-				{Name: labelTopLevelControllerType, Value: "ReplicationController"},
-			},
+			input: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "ReplicationController",
+				"__meta_kubernetes_pod_controller_name", "test-replicationcontroller",
+				"__meta_kubernetes_pod_name", "test-replicationcontroller-abcde",
+			),
+			want: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "ReplicationController",
+				"__meta_kubernetes_pod_controller_name", "test-replicationcontroller",
+				"__meta_kubernetes_pod_name", "test-replicationcontroller-abcde",
+				labelTopLevelControllerName, "test-replicationcontroller",
+				labelTopLevelControllerType, "ReplicationController",
+			),
 			wantKeep: true,
 		},
 		"StatefulSet": {
-			input: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "StatefulSet"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-statefulset"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-statefulset-1234567890"},
-			},
-			want: labels.Labels{
-				{Name: "__meta_kubernetes_pod_controller_kind", Value: "StatefulSet"},
-				{Name: "__meta_kubernetes_pod_controller_name", Value: "test-statefulset"},
-				{Name: "__meta_kubernetes_pod_name", Value: "test-statefulset-1234567890"},
-				{Name: labelTopLevelControllerName, Value: "test-statefulset"},
-				{Name: labelTopLevelControllerType, Value: "StatefulSet"},
-			},
+			input: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "StatefulSet",
+				"__meta_kubernetes_pod_controller_name", "test-statefulset",
+				"__meta_kubernetes_pod_name", "test-statefulset-1234567890",
+			),
+			want: labels.FromStrings(
+				"__meta_kubernetes_pod_controller_kind", "StatefulSet",
+				"__meta_kubernetes_pod_controller_name", "test-statefulset",
+				"__meta_kubernetes_pod_name", "test-statefulset-1234567890",
+				labelTopLevelControllerName, "test-statefulset",
+				labelTopLevelControllerType, "StatefulSet",
+			),
 			wantKeep: true,
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			_ = tc
-			ret, keep := relabel.Process(tc.input, rules...)
-			if diff := cmp.Diff(tc.want, ret); diff != "" {
+			lb := labels.NewBuilder(tc.input)
+			keep := relabel.ProcessBuilder(lb, rules...)
+			ret := lb.Labels()
+			if diff := cmp.Diff(tc.want, ret, cmp.Transformer("Labels", func(ls labels.Labels) string { return ls.String() })); diff != "" {
 				t.Errorf("Relabeling does not produce expected result (-want, +got).\n%s\n", diff)
 			}
 			if tc.wantKeep != keep {

@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/rules"
 	apiv1 "github.com/prometheus/prometheus/web/api/v1"
 )
@@ -138,19 +139,11 @@ func alertsToAPIAlerts(alerts []*rules.Alert) []*apiv1.Alert {
 	}
 	// Sort for testability.
 	slices.SortFunc(apiAlerts, func(a, b *apiv1.Alert) int {
-		ha, hb := a.Labels.Hash(), b.Labels.Hash()
-		if ha != hb {
-			if ha > hb {
-				return -1
-			}
-			return 1
+		if cmp := labels.Compare(a.Labels, b.Labels); cmp != 0 {
+			return cmp
 		}
-		ha, hb = a.Annotations.Hash(), b.Annotations.Hash()
-		if ha != hb {
-			if ha > hb {
-				return -1
-			}
-			return 1
+		if cmp := labels.Compare(a.Annotations, b.Annotations); cmp != 0 {
+			return cmp
 		}
 		return strings.Compare(a.State, b.State)
 	})

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
@@ -138,12 +139,12 @@ func TestAPI_groupsToAPIGroups(t *testing.T) {
 					rules.NewGroup(rules.GroupOptions{
 						Name:  "test-group-1",
 						Opts:  &rules.ManagerOptions{},
-						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-1", &parser.NumberLiteral{Val: 11}, []labels.Label{})},
+						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-1", &parser.NumberLiteral{Val: 11}, labels.EmptyLabels())},
 					}),
 					rules.NewGroup(rules.GroupOptions{
 						Name:  "test-group-2",
 						Opts:  &rules.ManagerOptions{},
-						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{})},
+						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, labels.EmptyLabels())},
 					}),
 				},
 			},
@@ -163,7 +164,7 @@ func TestAPI_groupsToAPIGroups(t *testing.T) {
 					rules.NewGroup(rules.GroupOptions{
 						Name:  "test-group-2",
 						Opts:  &rules.ManagerOptions{},
-						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{})},
+						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, labels.EmptyLabels())},
 					}),
 				},
 			},
@@ -179,19 +180,19 @@ func TestAPI_groupsToAPIGroups(t *testing.T) {
 						Name:  "test-group-1",
 						File:  "test-file-1",
 						Opts:  &rules.ManagerOptions{},
-						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{})},
+						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, labels.EmptyLabels())},
 					}),
 					rules.NewGroup(rules.GroupOptions{
 						Name:  "test-group-2",
 						File:  "test-file-2",
 						Opts:  &rules.ManagerOptions{},
-						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{})},
+						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, labels.EmptyLabels())},
 					}),
 					rules.NewGroup(rules.GroupOptions{
 						Name:  "test-group-3",
 						File:  "test-file-1",
 						Opts:  &rules.ManagerOptions{},
-						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{})},
+						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, labels.EmptyLabels())},
 					}),
 				},
 				fileFilters: []string{"test-file-1", "test-file-3"},
@@ -209,25 +210,25 @@ func TestAPI_groupsToAPIGroups(t *testing.T) {
 						Name:  "test-group-1",
 						File:  "test-file-1",
 						Opts:  &rules.ManagerOptions{},
-						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{})},
+						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, labels.EmptyLabels())},
 					}),
 					rules.NewGroup(rules.GroupOptions{
 						Name:  "test-group-2",
 						File:  "test-file-2",
 						Opts:  &rules.ManagerOptions{},
-						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{})},
+						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, labels.EmptyLabels())},
 					}),
 					rules.NewGroup(rules.GroupOptions{
 						Name:  "test-group-1",
 						File:  "test-file-1",
 						Opts:  &rules.ManagerOptions{},
-						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{})},
+						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, labels.EmptyLabels())},
 					}),
 					rules.NewGroup(rules.GroupOptions{
 						Name:  "test-group-3",
 						File:  "test-file-3",
 						Opts:  &rules.ManagerOptions{},
-						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{})},
+						Rules: []rules.Rule{rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, labels.EmptyLabels())},
 					}),
 				},
 				groupFilters: []string{"test-group-1"},
@@ -294,10 +295,10 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 					Limit:    100,
 					Opts:     &rules.ManagerOptions{},
 					Rules: []rules.Rule{
-						rules.NewRecordingRule("test-recording-1", &parser.NumberLiteral{Val: 11}, []labels.Label{{Name: "foo", Value: "bar"}}),
-						rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, []labels.Label{{Name: "bar", Value: "baz"}}),
-						rules.NewAlertingRule("test-alert-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9090"}}, []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}}, nil, "", false, log.NewNopLogger()),
-						rules.NewAlertingRule("test-alert-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9091"}}, []labels.Label{{Name: "summary", Value: "Test alert 2"}, {Name: "description", Value: "This is a test alert 2"}}, nil, "", false, log.NewNopLogger()),
+						rules.NewRecordingRule("test-recording-1", &parser.NumberLiteral{Val: 11}, labels.FromStrings("foo", "bar")),
+						rules.NewRecordingRule("test-recording-2", &parser.NumberLiteral{Val: 22}, labels.FromStrings("bar", "baz")),
+						rules.NewAlertingRule("test-alert-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, labels.FromStrings("instance", "localhost:9090"), labels.FromStrings("summary", "Test alert 1", "description", "This is a test alert"), labels.EmptyLabels(), "", false, promslog.NewNopLogger()),
+						rules.NewAlertingRule("test-alert-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, labels.FromStrings("instance", "localhost:9091"), labels.FromStrings("summary", "Test alert 2", "description", "This is a test alert 2"), labels.EmptyLabels(), "", false, promslog.NewNopLogger()),
 					},
 				}),
 				ruleFilters:                       []string{},
@@ -313,16 +314,16 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 				EvaluationTime: 0,
 				LastEvaluation: time.Time{},
 				Rules: []apiv1.Rule{
-					&apiv1.RecordingRule{Name: "test-recording-1", Query: "11", Labels: []labels.Label{{Name: "foo", Value: "bar"}}, Type: ruleKindRecording},
-					&apiv1.RecordingRule{Name: "test-recording-2", Query: "22", Labels: []labels.Label{{Name: "bar", Value: "baz"}}, Type: ruleKindRecording},
+					&apiv1.RecordingRule{Name: "test-recording-1", Query: "11", Labels: labels.FromStrings("foo", "bar"), Type: ruleKindRecording},
+					&apiv1.RecordingRule{Name: "test-recording-2", Query: "22", Labels: labels.FromStrings("bar", "baz"), Type: ruleKindRecording},
 					&apiv1.AlertingRule{
 						State:         "inactive",
 						Name:          "test-alert-1",
 						Query:         "33",
 						Duration:      3600,
 						KeepFiringFor: 7200,
-						Labels:        []labels.Label{{Name: "instance", Value: "localhost:9090"}},
-						Annotations:   []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
+						Labels:        labels.FromStrings("instance", "localhost:9090"),
+						Annotations:   labels.FromStrings("summary", "Test alert 1", "description", "This is a test alert"),
 						Alerts:        []*apiv1.Alert{},
 						Health:        rules.HealthUnknown,
 						Type:          ruleKindAlerting,
@@ -333,8 +334,8 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 						Query:         "44",
 						Duration:      10800,
 						KeepFiringFor: 14400,
-						Labels:        []labels.Label{{Name: "instance", Value: "localhost:9091"}},
-						Annotations:   []labels.Label{{Name: "summary", Value: "Test alert 2"}, {Name: "description", Value: "This is a test alert 2"}},
+						Labels:        labels.FromStrings("instance", "localhost:9091"),
+						Annotations:   labels.FromStrings("summary", "Test alert 2", "description", "This is a test alert 2"),
 						Alerts:        []*apiv1.Alert{},
 						Health:        rules.HealthUnknown,
 						Type:          ruleKindAlerting,
@@ -352,12 +353,12 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 					Limit:    100,
 					Opts:     &rules.ManagerOptions{},
 					Rules: []rules.Rule{
-						rules.NewRecordingRule("test-1", &parser.NumberLiteral{Val: 11}, []labels.Label{{Name: "foo", Value: "bar"}}),
-						rules.NewRecordingRule("test-2", &parser.NumberLiteral{Val: 22}, []labels.Label{{Name: "bar", Value: "baz"}}),
-						rules.NewRecordingRule("test-3", &parser.NumberLiteral{Val: 22}, []labels.Label{{Name: "baz", Value: "quo"}}),
-						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, nil, nil, nil, "", false, log.NewNopLogger()),
-						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, nil, nil, nil, "", false, log.NewNopLogger()),
-						rules.NewAlertingRule("test-3", &parser.NumberLiteral{Val: 55}, time.Hour*3, time.Hour*4, nil, nil, nil, "", false, log.NewNopLogger()),
+						rules.NewRecordingRule("test-1", &parser.NumberLiteral{Val: 11}, labels.FromStrings("foo", "bar")),
+						rules.NewRecordingRule("test-2", &parser.NumberLiteral{Val: 22}, labels.FromStrings("bar", "baz")),
+						rules.NewRecordingRule("test-3", &parser.NumberLiteral{Val: 22}, labels.FromStrings("baz", "quo")),
+						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), "", false, promslog.NewNopLogger()),
+						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), "", false, promslog.NewNopLogger()),
+						rules.NewAlertingRule("test-3", &parser.NumberLiteral{Val: 55}, time.Hour*3, time.Hour*4, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), "", false, promslog.NewNopLogger()),
 					},
 				}),
 				ruleFilters:                       []string{"test-2"},
@@ -373,15 +374,15 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 				EvaluationTime: 0,
 				LastEvaluation: time.Time{},
 				Rules: []apiv1.Rule{
-					&apiv1.RecordingRule{Name: "test-2", Query: "22", Labels: []labels.Label{{Name: "bar", Value: "baz"}}, Type: ruleKindRecording},
+					&apiv1.RecordingRule{Name: "test-2", Query: "22", Labels: labels.FromStrings("bar", "baz"), Type: ruleKindRecording},
 					&apiv1.AlertingRule{
 						State:          "inactive",
 						Name:           "test-2",
 						Query:          "44",
 						Duration:       10800,
 						KeepFiringFor:  14400,
-						Labels:         []labels.Label{},
-						Annotations:    []labels.Label{},
+						Labels:         labels.EmptyLabels(),
+						Annotations:    labels.EmptyLabels(),
 						Alerts:         []*apiv1.Alert{},
 						Health:         rules.HealthUnknown,
 						LastError:      "",
@@ -402,10 +403,10 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 					Limit:    100,
 					Opts:     &rules.ManagerOptions{},
 					Rules: []rules.Rule{
-						rules.NewRecordingRule("test-1", &parser.NumberLiteral{Val: 11}, []labels.Label{{Name: "foo", Value: "bar"}}),
-						rules.NewRecordingRule("test-2", &parser.NumberLiteral{Val: 22}, []labels.Label{{Name: "bar", Value: "baz"}}),
-						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, nil, nil, nil, "", false, log.NewNopLogger()),
-						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, nil, nil, nil, "", false, log.NewNopLogger()),
+						rules.NewRecordingRule("test-1", &parser.NumberLiteral{Val: 11}, labels.FromStrings("foo", "bar")),
+						rules.NewRecordingRule("test-2", &parser.NumberLiteral{Val: 22}, labels.FromStrings("bar", "baz")),
+						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), "", false, promslog.NewNopLogger()),
+						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, time.Hour*3, time.Hour*4, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), "", false, promslog.NewNopLogger()),
 					},
 				}),
 				ruleFilters:                       []string{},
@@ -421,8 +422,8 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 				EvaluationTime: 0,
 				LastEvaluation: time.Time{},
 				Rules: []apiv1.Rule{
-					&apiv1.RecordingRule{Name: "test-1", Query: "11", Labels: []labels.Label{{Name: "foo", Value: "bar"}}, Type: ruleKindRecording},
-					&apiv1.RecordingRule{Name: "test-2", Query: "22", Labels: []labels.Label{{Name: "bar", Value: "baz"}}, Type: ruleKindRecording},
+					&apiv1.RecordingRule{Name: "test-1", Query: "11", Labels: labels.FromStrings("foo", "bar"), Type: ruleKindRecording},
+					&apiv1.RecordingRule{Name: "test-2", Query: "22", Labels: labels.FromStrings("bar", "baz"), Type: ruleKindRecording},
 				},
 			},
 		},
@@ -436,10 +437,10 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 					Limit:    100,
 					Opts:     &rules.ManagerOptions{},
 					Rules: []rules.Rule{
-						rules.NewRecordingRule("test-1", &parser.NumberLiteral{Val: 11}, []labels.Label{{Name: "foo", Value: "bar"}}),
-						rules.NewRecordingRule("test-2", &parser.NumberLiteral{Val: 22}, []labels.Label{{Name: "bar", Value: "baz"}}),
-						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, 0, 0, nil, nil, nil, "", false, log.NewNopLogger()),
-						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, 0, 0, nil, nil, nil, "", false, log.NewNopLogger()),
+						rules.NewRecordingRule("test-1", &parser.NumberLiteral{Val: 11}, labels.FromStrings("foo", "bar")),
+						rules.NewRecordingRule("test-2", &parser.NumberLiteral{Val: 22}, labels.FromStrings("bar", "baz")),
+						rules.NewAlertingRule("test-1", &parser.NumberLiteral{Val: 33}, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), "", false, promslog.NewNopLogger()),
+						rules.NewAlertingRule("test-2", &parser.NumberLiteral{Val: 44}, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), "", false, promslog.NewNopLogger()),
 					},
 				}),
 				ruleFilters:                       []string{},
@@ -459,8 +460,8 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 						State:       "inactive",
 						Name:        "test-1",
 						Query:       "33",
-						Labels:      []labels.Label{},
-						Annotations: []labels.Label{},
+						Labels:      labels.EmptyLabels(),
+						Annotations: labels.EmptyLabels(),
 						Alerts:      []*apiv1.Alert{},
 						Health:      rules.HealthUnknown,
 						Type:        ruleKindAlerting,
@@ -468,8 +469,8 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 						State:       "inactive",
 						Name:        "test-2",
 						Query:       "44",
-						Labels:      []labels.Label{},
-						Annotations: []labels.Label{},
+						Labels:      labels.EmptyLabels(),
+						Annotations: labels.EmptyLabels(),
 						Alerts:      []*apiv1.Alert{},
 						Health:      rules.HealthUnknown,
 						Type:        ruleKindAlerting,
@@ -506,7 +507,7 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 func Test_recordingRuleToAPIRule(t *testing.T) {
 	t.Parallel()
 	timestamp := time.Date(1998, time.February, 1, 2, 3, 4, 567, time.UTC)
-	rule := rules.NewRecordingRule("test-recording-1", &parser.NumberLiteral{Val: 13}, []labels.Label{{Name: "instance", Value: "localhost:9090"}})
+	rule := rules.NewRecordingRule("test-recording-1", &parser.NumberLiteral{Val: 13}, labels.FromStrings("instance", "localhost:9090"))
 	rule.SetLastError(fmt.Errorf("error for %s", "test-recording-1"))
 	rule.SetEvaluationDuration(time.Second * 5)
 	rule.SetEvaluationTimestamp(timestamp)
@@ -514,7 +515,7 @@ func Test_recordingRuleToAPIRule(t *testing.T) {
 	expected := &apiv1.RecordingRule{
 		Name:           "test-recording-1",
 		Query:          "13",
-		Labels:         []labels.Label{{Name: "instance", Value: "localhost:9090"}},
+		Labels:         labels.FromStrings("instance", "localhost:9090"),
 		LastError:      "error for test-recording-1",
 		EvaluationTime: 5,
 		LastEvaluation: timestamp,
@@ -534,9 +535,9 @@ func Test_alertingRuleToAPIRule(t *testing.T) {
 		&parser.NumberLiteral{Val: 7},
 		time.Hour,
 		time.Hour*2,
-		[]labels.Label{{Name: "instance", Value: "localhost:9090"}},
-		[]labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
-		nil, "", false, log.NewNopLogger(),
+		labels.FromStrings("instance", "localhost:9090"),
+		labels.FromStrings("summary", "Test alert 1", "description", "This is a test alert"),
+		labels.EmptyLabels(), "", false, promslog.NewNopLogger(),
 	)
 	rule.SetHealth(rules.HealthGood)
 	rule.SetLastError(fmt.Errorf("error for %s", "test-alert-1"))
@@ -549,8 +550,8 @@ func Test_alertingRuleToAPIRule(t *testing.T) {
 		Query:          "7",
 		Duration:       3600,
 		KeepFiringFor:  7200,
-		Labels:         []labels.Label{{Name: "instance", Value: "localhost:9090"}},
-		Annotations:    []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
+		Labels:         labels.FromStrings("instance", "localhost:9090"),
+		Annotations:    labels.FromStrings("summary", "Test alert 1", "description", "This is a test alert"),
 		Alerts:         []*apiv1.Alert{},
 		Health:         rules.HealthGood,
 		LastError:      "error for test-alert-1",

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -42,6 +43,7 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
 	versioninfo "github.com/prometheus/client_golang/prometheus/collectors/version"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/google/export"
 	exportsetup "github.com/prometheus/prometheus/google/export/setup"
@@ -177,6 +179,14 @@ func main() {
 		logger = level.NewFilter(logger, level.AllowInfo())
 	}
 
+	slogCfg := &promslog.Config{Style: promslog.GoKitStyle}
+	if *logLevel != "" {
+		_ = slogCfg.Level.Set(*logLevel)
+	}
+	slogCfg.Format = promslog.NewFormat()
+	_ = slogCfg.Format.Set("json")
+	slogLogger := promslog.New(slogCfg)
+
 	if err := defaultEvaluatorOpts.validate(); err != nil {
 		_ = level.Error(logger).Log("msg", "invalid command line argument", "err", err)
 		os.Exit(1)
@@ -193,14 +203,14 @@ func main() {
 	destination := export.NewStorage(exporter)
 
 	ctxDiscover, cancelDiscover := context.WithCancel(ctx)
-	discoveryManager := discovery.NewManager(ctxDiscover, log.With(logger, "component", "discovery manager notify"), reg, sdMetrics, discovery.Name("notify"))
+	discoveryManager := discovery.NewManager(ctxDiscover, slogLogger.With("component", "discovery manager notify"), reg, sdMetrics, discovery.Name("notify"))
 	notifierOptions := notifier.Options{
 		Registerer:    reg,
 		QueueCapacity: defaultEvaluatorOpts.QueueCapacity,
 	}
-	notificationManager := notifier.NewManager(&notifierOptions, log.With(logger, "component", "notifier"))
+	notificationManager := notifier.NewManager(&notifierOptions, model.LegacyValidation, slogLogger.With("component", "notifier"))
 	rulesMetrics := rules.NewGroupMetrics(reg)
-	ruleEvaluator, err := newRuleEvaluator(ctx, logger, &defaultEvaluatorOpts, version.Version, destination, notificationManager, rulesMetrics)
+	ruleEvaluator, err := newRuleEvaluator(ctx, logger, slogLogger, &defaultEvaluatorOpts, version.Version, destination, notificationManager, rulesMetrics)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "Create rule-evaluator", "err", err)
 		os.Exit(1)
@@ -730,17 +740,13 @@ func loadConfig(content []byte) (*promforkconfig.Config, error) {
 	return &conf, nil
 }
 
-// convertMetricToLabel converts model.Metric to labels.label.
+// convertMetricToLabel converts model.Metric to labels.Labels.
 func convertMetricToLabel(metric model.Metric) labels.Labels {
-	ls := make(labels.Labels, 0, len(metric))
+	lb := labels.NewBuilder(labels.EmptyLabels())
 	for name, value := range metric {
-		l := labels.Label{
-			Name:  string(name),
-			Value: string(value),
-		}
-		ls = append(ls, l)
+		lb.Set(string(name), string(value))
 	}
-	return ls
+	return lb.Labels()
 }
 
 // convertModelToPromQLValue converts model.Value type to promql type.
@@ -899,6 +905,7 @@ func (db *queryAccess) Close() error {
 type ruleEvaluator struct {
 	ctx             context.Context
 	logger          log.Logger
+	slogLogger      *slog.Logger
 	version         string
 	appendable      storage.Appendable
 	notifierManager *notifier.Manager
@@ -928,6 +935,7 @@ func getExternalURL(generatorURL *url.URL, projectID string) *url.URL {
 func newRuleEvaluator(
 	ctx context.Context,
 	logger log.Logger,
+	slogLogger *slog.Logger,
 	evaluatorOpts *evaluatorOptions,
 	version string,
 	appendable storage.Appendable,
@@ -948,7 +956,7 @@ func newRuleEvaluator(
 		Queryable: &queryStorage{
 			api: v1api,
 		},
-		Logger:     logger,
+		Logger:     slogLogger,
 		NotifyFunc: sendAlerts(notifierManager, evaluatorOpts.ProjectID, evaluatorOpts.GeneratorURL),
 		Metrics:    rulesMetrics,
 	})
@@ -956,6 +964,7 @@ func newRuleEvaluator(
 	evaluator := ruleEvaluator{
 		ctx:             ctx,
 		logger:          logger,
+		slogLogger:      slogLogger,
 		version:         version,
 		appendable:      appendable,
 		notifierManager: notifierManager,
@@ -987,7 +996,7 @@ func (e *ruleEvaluator) ApplyConfig(cfg *promforkconfig.Config, evaluatorOpts *e
 			Queryable: &queryStorage{
 				api: v1api,
 			},
-			Logger:     e.logger,
+			Logger:     e.slogLogger,
 			NotifyFunc: sendAlerts(e.notifierManager, evaluatorOpts.ProjectID, evaluatorOpts.GeneratorURL),
 			Metrics:    e.rulesMetrics,
 		})

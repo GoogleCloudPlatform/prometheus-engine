@@ -110,32 +110,32 @@ func TestFanoutForward_AlertsReturnSuccess(t *testing.T) {
 	activeAt2, _ := time.Parse(time.RFC3339Nano, "2022-02-22T22:22:22.999977773Z")
 	expected := []*promapiv1.Alert{ // 2 times called a client which each returned 2 alerts ==> 4 alerts
 		{
-			Labels:          []labels.Label{{Name: "labelKey1", Value: "labelVal1"}},
-			Annotations:     []labels.Label{{Name: "annoKey1", Value: "AnnoVal1"}},
+			Labels:          labels.FromStrings("labelKey1", "labelVal1"),
+			Annotations:     labels.FromStrings("annoKey1", "AnnoVal1"),
 			State:           "firing",
 			ActiveAt:        &activeAt1,
 			Value:           "1e+00",
 			KeepFiringSince: nil,
 		},
 		{
-			Labels:          []labels.Label{{Name: "labelKey2", Value: "labelVal2"}},
-			Annotations:     []labels.Label{{Name: "annoKey2", Value: "AnnoVal2"}},
+			Labels:          labels.FromStrings("labelKey2", "labelVal2"),
+			Annotations:     labels.FromStrings("annoKey2", "AnnoVal2"),
 			State:           "firing",
 			ActiveAt:        &activeAt2,
 			Value:           "2e+00",
 			KeepFiringSince: nil,
 		},
 		{
-			Labels:          []labels.Label{{Name: "labelKey1", Value: "labelVal1"}},
-			Annotations:     []labels.Label{{Name: "annoKey1", Value: "AnnoVal1"}},
+			Labels:          labels.FromStrings("labelKey1", "labelVal1"),
+			Annotations:     labels.FromStrings("annoKey1", "AnnoVal1"),
 			State:           "firing",
 			ActiveAt:        &activeAt1,
 			Value:           "1e+00",
 			KeepFiringSince: nil,
 		},
 		{
-			Labels:          []labels.Label{{Name: "labelKey2", Value: "labelVal2"}},
-			Annotations:     []labels.Label{{Name: "annoKey2", Value: "AnnoVal2"}},
+			Labels:          labels.FromStrings("labelKey2", "labelVal2"),
+			Annotations:     labels.FromStrings("annoKey2", "AnnoVal2"),
 			State:           "firing",
 			ActiveAt:        &activeAt2,
 			Value:           "2e+00",
@@ -182,16 +182,16 @@ func TestFanoutForward_AlertsTwoReturnSuccessWithOneOfTwoBrokenClients(t *testin
 	activeAt2, _ := time.Parse(time.RFC3339Nano, "2022-02-22T22:22:22.999977773Z")
 	expected := []*promapiv1.Alert{ // 2 times called a client which each returned 2 alerts ==> 4 alerts
 		{
-			Labels:          []labels.Label{{Name: "labelKey1", Value: "labelVal1"}},
-			Annotations:     []labels.Label{{Name: "annoKey1", Value: "AnnoVal1"}},
+			Labels:          labels.FromStrings("labelKey1", "labelVal1"),
+			Annotations:     labels.FromStrings("annoKey1", "AnnoVal1"),
 			State:           "firing",
 			ActiveAt:        &activeAt1,
 			Value:           "1e+00",
 			KeepFiringSince: nil,
 		},
 		{
-			Labels:          []labels.Label{{Name: "labelKey2", Value: "labelVal2"}},
-			Annotations:     []labels.Label{{Name: "annoKey2", Value: "AnnoVal2"}},
+			Labels:          labels.FromStrings("labelKey2", "labelVal2"),
+			Annotations:     labels.FromStrings("annoKey2", "AnnoVal2"),
 			State:           "firing",
 			ActiveAt:        &activeAt2,
 			Value:           "2e+00",
@@ -271,15 +271,15 @@ func TestProxy_Alerts(t *testing.T) {
 					require.Equal(t, "http://localhost:8080/with-prefix", baseURL.String())
 					return []*promapiv1.Alert{
 						{
-							Labels:      []labels.Label{{Name: "labelKey1", Value: "labelVal1"}},
-							Annotations: []labels.Label{{Name: "annoKey1", Value: "AnnoVal1"}},
+							Labels:      labels.FromStrings("labelKey1", "labelVal1"),
+							Annotations: labels.FromStrings("annoKey1", "AnnoVal1"),
 							State:       "firing",
 							ActiveAt:    &activeAt1,
 							Value:       "1e+00",
 						},
 						{
-							Labels:      []labels.Label{{Name: "labelKey2", Value: "labelVal2"}},
-							Annotations: []labels.Label{{Name: "annoKey2", Value: "AnnoVal2"}},
+							Labels:      labels.FromStrings("labelKey2", "labelVal2"),
+							Annotations: labels.FromStrings("annoKey2", "AnnoVal2"),
 							State:       "firing",
 							ActiveAt:    &activeAt2,
 							Value:       "2e+00",
