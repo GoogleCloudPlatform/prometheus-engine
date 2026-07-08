@@ -108,58 +108,67 @@ func (c *conversionContext) getGeneratedSecrets() []*unstructured.Unstructured {
 	return secrets
 }
 
-// extractSecretKey extracts a string value from a Secret, returning a placeholder and warning if not found.
-func extractSecretKey(convCtx *conversionContext, sel corev1.SecretKeySelector) string {
-	if sel.Name == "" {
-		convCtx.logger.Warn(fmt.Sprintf("SecretKeySelector has empty name for key %q. Hardcoding placeholder.", sel.Key))
-		return fmt.Sprintf("<MISSING_SECRET_NAME_KEY_%s>", sel.Key)
+// extractResourceKey is a consolidated helper that fetches a key from a ConfigMap or Secret.
+func extractResourceKey(convCtx *conversionContext, kind, name, key string) string {
+	kindUpper := strings.ToUpper(kind)
+	if name == "" {
+		convCtx.logger.Warn(fmt.Sprintf("%sKeySelector has empty name for key %q. Hardcoding placeholder.", kind, key))
+		return fmt.Sprintf("<MISSING_%s_NAME_KEY_%s>", kindUpper, key)
 	}
 
-	obj, ok := convCtx.cache.Get("Secret", convCtx.namespace, sel.Name)
+	obj, ok := convCtx.cache.Get(kind, convCtx.namespace, name)
 	if !ok {
-		convCtx.logger.Warn(fmt.Sprintf("Secret %q not found. Cannot extract key %q. Hardcoding placeholder.", sel.Name, sel.Key))
-		return fmt.Sprintf("<MISSING_SECRET_%s_KEY_%s>", sel.Name, sel.Key)
+		convCtx.logger.Warn(fmt.Sprintf("%s %q not found in cache. Cannot extract key %q. Hardcoding placeholder.", kind, name, key))
+		return fmt.Sprintf("<MISSING_%s_%s_KEY_%s>", kindUpper, name, key)
 	}
 
-	val, found, _ := unstructured.NestedString(obj.Object, "stringData", sel.Key)
+	// Secrets support unencoded stringData.
+	if kind == KindSecret {
+		val, found, _ := unstructured.NestedString(obj.Object, "stringData", key)
+		if found {
+			return val
+		}
+	}
+
+	// Check standard data field (plain string for ConfigMap, base64 for Secret).
+	val, found, _ := unstructured.NestedString(obj.Object, "data", key)
 	if found {
+		if kind == KindSecret {
+			decoded, err := base64.StdEncoding.DecodeString(val)
+			if err != nil {
+				convCtx.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in secret %q. Hardcoding placeholder.", key, name))
+				return fmt.Sprintf("<MALFORMED_SECRET_%s_KEY_%s>", name, key)
+			}
+			return string(decoded)
+		}
 		return val
 	}
 
-	val, found, _ = unstructured.NestedString(obj.Object, "data", sel.Key)
-	if found {
-		decoded, err := base64.StdEncoding.DecodeString(val)
-		if err != nil {
-			convCtx.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in secret %q. Hardcoding placeholder.", sel.Key, sel.Name))
-			return fmt.Sprintf("<MALFORMED_SECRET_%s_KEY_%s>", sel.Name, sel.Key)
+	// ConfigMaps can store base64 binaryData.
+	if kind == KindConfigMap {
+		val, found, _ = unstructured.NestedString(obj.Object, "binaryData", key)
+		if found {
+			decoded, err := base64.StdEncoding.DecodeString(val)
+			if err != nil {
+				convCtx.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in configmap %q. Hardcoding placeholder.", key, name))
+				return fmt.Sprintf("<MALFORMED_CONFIGMAP_%s_KEY_%s>", name, key)
+			}
+			return string(decoded)
 		}
-		return string(decoded)
 	}
 
-	convCtx.logger.Warn(fmt.Sprintf("Key %q not found in secret %q. Hardcoding placeholder.", sel.Key, sel.Name))
-	return fmt.Sprintf("<MISSING_KEY_%s_IN_SECRET_%s>", sel.Key, sel.Name)
+	convCtx.logger.Warn(fmt.Sprintf("Key %q not found in %s %q. Hardcoding placeholder.", key, strings.ToLower(kind), name))
+	return fmt.Sprintf("<MISSING_KEY_%s_IN_%s_%s>", key, kindUpper, name)
+}
+
+// extractSecretKey extracts a string value from a Secret, returning a placeholder and warning if not found.
+func extractSecretKey(convCtx *conversionContext, sel corev1.SecretKeySelector) string {
+	return extractResourceKey(convCtx, KindSecret, sel.Name, sel.Key)
 }
 
 // extractConfigMapKey extracts a string value from a ConfigMap, returning a placeholder and warning if not found.
 func extractConfigMapKey(convCtx *conversionContext, sel corev1.ConfigMapKeySelector) string {
-	if sel.Name == "" {
-		convCtx.logger.Warn(fmt.Sprintf("ConfigMapKeySelector has empty name for key %q. Hardcoding placeholder.", sel.Key))
-		return fmt.Sprintf("<MISSING_CONFIGMAP_NAME_KEY_%s>", sel.Key)
-	}
-
-	obj, ok := convCtx.cache.Get("ConfigMap", convCtx.namespace, sel.Name)
-	if !ok {
-		convCtx.logger.Warn(fmt.Sprintf("ConfigMap %q not found in cache. Cannot extract key %q. Hardcoding placeholder.", sel.Name, sel.Key))
-		return fmt.Sprintf("<MISSING_CONFIGMAP_%s_KEY_%s>", sel.Name, sel.Key)
-	}
-
-	val, found, _ := unstructured.NestedString(obj.Object, "data", sel.Key)
-	if found {
-		return val
-	}
-
-	convCtx.logger.Warn(fmt.Sprintf("Key %q not found in configmap %q. Hardcoding placeholder.", sel.Key, sel.Name))
-	return fmt.Sprintf("<MISSING_KEY_%s_IN_CONFIGMAP_%s>", sel.Key, sel.Name)
+	return extractResourceKey(convCtx, KindConfigMap, sel.Name, sel.Key)
 }
 
 func convertConfigMapToSecretSelector(convCtx *conversionContext, sel *corev1.ConfigMapKeySelector) *monitoringv1.SecretSelector {
@@ -306,10 +315,11 @@ func convertOAuth2(convCtx *conversionContext, oa *pomonitoringv1.OAuth2) *monit
 	}
 
 	return &monitoringv1.OAuth2{
-		ClientID:     clientID,
-		ClientSecret: convertSecretSelector(convCtx, &oa.ClientSecret),
-		TokenURL:     oa.TokenURL,
-		Scopes:       oa.Scopes,
+		ClientID:       clientID,
+		ClientSecret:   convertSecretSelector(convCtx, &oa.ClientSecret),
+		TokenURL:       oa.TokenURL,
+		Scopes:         oa.Scopes,
+		EndpointParams: oa.EndpointParams,
 	}
 }
 
