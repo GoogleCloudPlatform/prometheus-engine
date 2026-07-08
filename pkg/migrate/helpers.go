@@ -134,7 +134,7 @@ func extractResourceKey(convCtx *conversionContext, kind, name, key string) stri
 	val, found, _ := unstructured.NestedString(obj.Object, "data", key)
 	if found {
 		if kind == KindSecret {
-			decoded, err := base64.StdEncoding.DecodeString(val)
+			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(val))
 			if err != nil {
 				convCtx.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in secret %q. Hardcoding placeholder.", key, name))
 				return fmt.Sprintf("<MALFORMED_SECRET_%s_KEY_%s>", name, key)
@@ -148,7 +148,7 @@ func extractResourceKey(convCtx *conversionContext, kind, name, key string) stri
 	if kind == KindConfigMap {
 		val, found, _ = unstructured.NestedString(obj.Object, "binaryData", key)
 		if found {
-			decoded, err := base64.StdEncoding.DecodeString(val)
+			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(val))
 			if err != nil {
 				convCtx.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in configmap %q. Hardcoding placeholder.", key, name))
 				return fmt.Sprintf("<MALFORMED_CONFIGMAP_%s_KEY_%s>", name, key)
@@ -200,7 +200,7 @@ func convertConfigMapToSecretSelector(convCtx *conversionContext, sel *corev1.Co
 	}
 
 	if _, exists := convCtx.generatedSecrets[secretName]; !exists {
-		obj, ok := convCtx.cache.Get("ConfigMap", convCtx.namespace, sel.Name)
+		obj, ok := convCtx.cache.Get(KindConfigMap, convCtx.namespace, sel.Name)
 		if !ok {
 			convCtx.logger.Warn(fmt.Sprintf("TLS ConfigMap reference %q was not found in the inputs. Updated reference to GMP Secret %q, but you must manually convert your ConfigMap to a Secret with this name in GMP.", sel.Name, secretName))
 		} else {
@@ -208,7 +208,7 @@ func convertConfigMapToSecretSelector(convCtx *conversionContext, sel *corev1.Co
 
 			newSecret := &unstructured.Unstructured{}
 			newSecret.SetAPIVersion("v1")
-			newSecret.SetKind("Secret")
+			newSecret.SetKind(KindSecret)
 			newSecret.SetName(secretName)
 			newSecret.SetNamespace(convCtx.namespace)
 
