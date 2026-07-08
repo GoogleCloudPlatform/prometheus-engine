@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -53,6 +54,13 @@ type Migrator struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	logger *slog.Logger
+}
+
+type generatedResource struct {
+	res          *unstructured.Unstructured
+	srcKind      string
+	srcNamespace string
+	srcName      string
 }
 
 // NewMigrator creates a new Migrator.
@@ -315,11 +323,10 @@ func (m *Migrator) processUnstructured(u *unstructured.Unstructured) error {
 }
 
 func (m *Migrator) convertResources() []*unstructured.Unstructured {
-	var allOutputs []*unstructured.Unstructured
 	ctx := context.Background()
 
-	// Track generated outputs to detect name collisions.
-	seenOutputs := make(map[string]string)
+	// Track generated outputs by unique key to deduplicate identical secrets and detect name collisions.
+	outputsMap := make(map[string]generatedResource)
 
 	kinds := slices.AppendSeq(make([]string, 0, len(m.cache.resources)), maps.Keys(m.cache.resources))
 	slices.Sort(kinds)
@@ -351,26 +358,27 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 				continue
 			}
 
-			if err := m.checkCollisions(outputs, seenOutputs, kind, res.GetNamespace(), res.GetName()); err != nil {
+			if err := m.accumulateOutputs(resourceLogger, outputsMap, outputs, kind, res.GetNamespace(), res.GetName()); err != nil {
 				resourceLogger.Error(err.Error())
 				continue
 			}
 
-			allOutputs = append(allOutputs, outputs...)
-
 			resourceLogger.Info("Converted successfully", slog.String("migration_status", "success"))
 		}
+	}
+
+	outputKeys := slices.AppendSeq(make([]string, 0, len(outputsMap)), maps.Keys(outputsMap))
+	slices.Sort(outputKeys)
+
+	allOutputs := make([]*unstructured.Unstructured, 0, len(outputKeys))
+	for _, k := range outputKeys {
+		allOutputs = append(allOutputs, outputsMap[k].res)
 	}
 	return allOutputs
 }
 
-// checkCollisions verifies that none of the generated outputs conflict with previously generated outputs.
-func (m *Migrator) checkCollisions(outputs []*unstructured.Unstructured, seen map[string]string, srcKind, srcNamespace, srcName string) error {
-	srcKey := fmt.Sprintf("%s/%s/%s", srcKind, srcNamespace, srcName)
-
-	// Store verified keys.
-	verifiedKeys := make([]string, 0, len(outputs))
-	// Verify and collect keys.
+// accumulateOutputs adds generated resources to outputsMap, deduplicating identical Secrets and erroring on collisions.
+func (m *Migrator) accumulateOutputs(logger *slog.Logger, outputsMap map[string]generatedResource, outputs []*unstructured.Unstructured, srcKind, srcNamespace, srcName string) error {
 	for _, out := range outputs {
 		if out == nil {
 			continue
@@ -378,15 +386,28 @@ func (m *Migrator) checkCollisions(outputs []*unstructured.Unstructured, seen ma
 		gvk := out.GroupVersionKind()
 		key := fmt.Sprintf("%s/%s/%s", gvk.String(), out.GetNamespace(), out.GetName())
 
-		if originalSrc, exists := seen[key]; exists {
-			return fmt.Errorf("conflict detected: both %s and %s generate the same target resource %q",
-				srcKey, originalSrc, key)
+		existing, exists := outputsMap[key]
+		if exists {
+			if out.GetKind() == KindSecret {
+				// If object contents are identical, silently deduplicate.
+				// (two monitors referencing same ConfigMap generate duplicate Secrets).
+				if reflect.DeepEqual(existing.res.Object, out.Object) {
+					continue
+				}
+				// Warn and keep the existing secret on content conflict.
+				logger.Warn(fmt.Sprintf("Secret %q in namespace %q already exists with different contents. Keeping original Secret and skipping conflicting definition.", out.GetName(), out.GetNamespace()))
+				continue
+			}
+			srcKey := fmt.Sprintf("%s/%s/%s", srcKind, srcNamespace, srcName)
+			existingSrcKey := fmt.Sprintf("%s/%s/%s", existing.srcKind, existing.srcNamespace, existing.srcName)
+			return fmt.Errorf("conflict detected: both %s and %s generate the same target resource %q", existingSrcKey, srcKey, key)
 		}
-		verifiedKeys = append(verifiedKeys, key)
-	}
-	// Add verified keys.
-	for _, key := range verifiedKeys {
-		seen[key] = srcKey
+		outputsMap[key] = generatedResource{
+			res:          out,
+			srcKind:      srcKind,
+			srcNamespace: srcNamespace,
+			srcName:      srcName,
+		}
 	}
 	return nil
 }
