@@ -84,8 +84,20 @@ type conversionContext struct {
 	cache *ResourceCache
 	// namespace is the source namespace of the primary resource.
 	namespace string
-	// generatedSecrets accumulates created Secrets when migrating ConfigMaps.
-	generatedSecrets []*unstructured.Unstructured
+	// generatedSecrets accumulates created Secrets when migrating ConfigMaps, keyed by Secret name.
+	generatedSecrets map[string]*unstructured.Unstructured
+}
+
+// getGeneratedSecrets returns the generated secrets accumulated in the context as a slice.
+func (c *conversionContext) getGeneratedSecrets() []*unstructured.Unstructured {
+	if len(c.generatedSecrets) == 0 {
+		return nil
+	}
+	secrets := make([]*unstructured.Unstructured, 0, len(c.generatedSecrets))
+	for _, sec := range c.generatedSecrets {
+		secrets = append(secrets, sec)
+	}
+	return secrets
 }
 
 // extractSecretKey extracts a string value from a Secret, returning a placeholder and warning if not found.
@@ -161,27 +173,33 @@ func convertConfigMapToSecretSelector(convCtx *conversionContext, sel *corev1.Co
 		convCtx.logger.Warn(fmt.Sprintf("ConfigMap reference %q had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.", sel.Name))
 	}
 
-	obj, ok := convCtx.cache.Get("ConfigMap", convCtx.namespace, sel.Name)
-	if !ok {
-		convCtx.logger.Warn(fmt.Sprintf("TLS ConfigMap reference %q was not found in the inputs. Updated reference to GMP Secret %q, but you must manually convert your ConfigMap to a Secret with this name in GMP.", sel.Name, secretName))
-	} else {
-		convCtx.logger.Info(fmt.Sprintf("Translated TLS ConfigMap reference %q to GMP Secret. Generated new Secret manifest %q.", sel.Name, secretName))
+	if convCtx.generatedSecrets == nil {
+		convCtx.generatedSecrets = make(map[string]*unstructured.Unstructured)
+	}
 
-		newSecret := &unstructured.Unstructured{}
-		newSecret.SetAPIVersion("v1")
-		newSecret.SetKind("Secret")
-		newSecret.SetName(secretName)
-		newSecret.SetNamespace(convCtx.namespace)
+	if _, exists := convCtx.generatedSecrets[secretName]; !exists {
+		obj, ok := convCtx.cache.Get("ConfigMap", convCtx.namespace, sel.Name)
+		if !ok {
+			convCtx.logger.Warn(fmt.Sprintf("TLS ConfigMap reference %q was not found in the inputs. Updated reference to GMP Secret %q, but you must manually convert your ConfigMap to a Secret with this name in GMP.", sel.Name, secretName))
+		} else {
+			convCtx.logger.Info(fmt.Sprintf("Translated TLS ConfigMap reference %q to GMP Secret. Generated new Secret manifest %q.", sel.Name, secretName))
 
-		data, found, _ := unstructured.NestedMap(obj.Object, "data")
-		if found {
-			_ = unstructured.SetNestedMap(newSecret.Object, data, "stringData")
+			newSecret := &unstructured.Unstructured{}
+			newSecret.SetAPIVersion("v1")
+			newSecret.SetKind("Secret")
+			newSecret.SetName(secretName)
+			newSecret.SetNamespace(convCtx.namespace)
+
+			data, found, _ := unstructured.NestedMap(obj.Object, "data")
+			if found {
+				_ = unstructured.SetNestedMap(newSecret.Object, data, "stringData")
+			}
+			binaryData, found, _ := unstructured.NestedMap(obj.Object, "binaryData")
+			if found {
+				_ = unstructured.SetNestedMap(newSecret.Object, binaryData, "data")
+			}
+			convCtx.generatedSecrets[secretName] = newSecret
 		}
-		binaryData, found, _ := unstructured.NestedMap(obj.Object, "binaryData")
-		if found {
-			_ = unstructured.SetNestedMap(newSecret.Object, binaryData, "data")
-		}
-		convCtx.generatedSecrets = append(convCtx.generatedSecrets, newSecret)
 	}
 
 	secretRef := &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey, Namespace: convCtx.namespace}

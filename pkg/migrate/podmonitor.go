@@ -254,7 +254,7 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	u.SetAPIVersion(GMPAPIVersion)
 	u.SetKind(KindPodMonitoring)
 
-	return u, convCtx.generatedSecrets, nil
+	return u, convCtx.getGeneratedSecrets(), nil
 }
 
 func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
@@ -289,5 +289,5 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 	u.SetAPIVersion(GMPAPIVersion)
 	u.SetKind(KindClusterPodMonitoring)
 
-	return u, convCtx.generatedSecrets, nil
+	return u, convCtx.getGeneratedSecrets(), nil
 }

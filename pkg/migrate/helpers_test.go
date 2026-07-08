@@ -203,10 +203,11 @@ func TestConvertConfigMapToSecretSelector(t *testing.T) {
 			}
 
 			if tc.expectGeneratedSecret {
-				if len(ctx.generatedSecrets) != 1 {
-					t.Fatalf("expected 1 generated secret, got %d", len(ctx.generatedSecrets))
+				genSecrets := ctx.getGeneratedSecrets()
+				if len(genSecrets) != 1 {
+					t.Fatalf("expected 1 generated secret, got %d", len(genSecrets))
 				}
-				gen := ctx.generatedSecrets[0]
+				gen := genSecrets[0]
 				if gen.GetName() != tc.expectedSecretName {
 					t.Errorf("expected generated secret name %s, got %s", tc.expectedSecretName, gen.GetName())
 				}
@@ -341,5 +342,36 @@ func TestConvertSafeTLSConfig(t *testing.T) {
 				t.Errorf("expected server name %s, got %s", tc.expectedServerName, gmpTLS.ServerName)
 			}
 		})
+	}
+}
+
+func TestConvertConfigMapToSecretSelectorDeduplication(t *testing.T) {
+	ctx := newTestConversionContext()
+	err := addConfigMapToCache(ctx.cache, "default", "tls-cm", "ca.crt", "cert-data")
+	if err != nil {
+		t.Fatalf("failed to setup cache: %v", err)
+	}
+
+	selector := &corev1.ConfigMapKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"},
+		Key:                  "ca.crt",
+	}
+
+	// Call first time.
+	gmpSel1 := convertConfigMapToSecretSelector(ctx, selector)
+	if gmpSel1 == nil || gmpSel1.Secret.Name != "secret-tls-cm" {
+		t.Fatalf("first call failed to translate selector")
+	}
+
+	// Call second time.
+	gmpSel2 := convertConfigMapToSecretSelector(ctx, selector)
+	if gmpSel2 == nil || gmpSel2.Secret.Name != "secret-tls-cm" {
+		t.Fatalf("second call failed to translate selector")
+	}
+
+	// Ensure only one secret was generated in total.
+	genSecrets := ctx.getGeneratedSecrets()
+	if len(genSecrets) != 1 {
+		t.Fatalf("expected exactly 1 generated secret due to deduplication, got %d", len(genSecrets))
 	}
 }
