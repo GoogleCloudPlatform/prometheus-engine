@@ -360,13 +360,13 @@ func TestConvertConfigMapToSecretSelectorDeduplication(t *testing.T) {
 	// Call first time.
 	gmpSel1 := convertConfigMapToSecretSelector(ctx, selector)
 	if gmpSel1 == nil || gmpSel1.Secret.Name != "secret-tls-cm" {
-		t.Fatalf("first call failed to translate selector")
+		t.Fatal("first call failed to translate selector")
 	}
 
 	// Call second time.
 	gmpSel2 := convertConfigMapToSecretSelector(ctx, selector)
 	if gmpSel2 == nil || gmpSel2.Secret.Name != "secret-tls-cm" {
-		t.Fatalf("second call failed to translate selector")
+		t.Fatal("second call failed to translate selector")
 	}
 
 	// Ensure only one secret was generated in total.
