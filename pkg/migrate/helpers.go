@@ -18,7 +18,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
@@ -99,7 +99,7 @@ func (c *conversionContext) getGeneratedSecrets() []*unstructured.Unstructured {
 	for name := range c.generatedSecrets {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 
 	secrets := make([]*unstructured.Unstructured, 0, len(c.generatedSecrets))
 	for _, name := range names {
