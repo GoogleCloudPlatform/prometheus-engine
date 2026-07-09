@@ -108,6 +108,40 @@ func (c *conversionContext) getGeneratedSecrets() []*unstructured.Unstructured {
 	return secrets
 }
 
+// convertPreScrapeRelabelings evaluates pre-scrape relabelings and drops unsupported rules with warnings.
+func convertPreScrapeRelabelings(convCtx *conversionContext, configs []pomonitoringv1.RelabelConfig) {
+	for i, config := range configs {
+		action := strings.ToLower(config.Action)
+		if action == "" {
+			action = "replace"
+		}
+
+		if action == "labelmap" || action == "labelkeep" || action == "labeldrop" {
+			convCtx.logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
+			continue
+		}
+
+		// Relabeling rules on annotations cannot be migrated.
+		var anno string
+		for _, sl := range config.SourceLabels {
+			if strings.HasPrefix(string(sl), "__meta_kubernetes_pod_annotation_") {
+				anno = string(sl)
+				break
+			}
+		}
+		if anno != "" {
+			convCtx.logger.Warn(fmt.Sprintf("Relabeling rule referencing pod annotation %q is unsupported in GMP. The rule has been dropped.", anno))
+			continue
+		}
+
+		if protectedLabels[config.TargetLabel] {
+			oldTarget := config.TargetLabel
+			configs[i].TargetLabel = "exported_" + oldTarget
+			convCtx.logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.", oldTarget, configs[i].TargetLabel))
+		}
+	}
+}
+
 // extractResourceKey is a consolidated helper that fetches a key from a ConfigMap or Secret.
 // It returns an error if the reference is malformed or if data is corrupt.
 // It returns a placeholder and logs a warning if the resource itself is not found in the cache.
