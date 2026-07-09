@@ -538,6 +538,65 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Pre-Scrape Relabelings: drop unsupported actions and pod annotations with warning",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "warn-relabel-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									// Pod annotation reference (should be dropped with warning).
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_annotation_commit"},
+									TargetLabel:  "commit",
+									Action:       "replace",
+								},
+								{
+									// Protected target label rename (should warn and rename to exported_instance).
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
+									TargetLabel:  "instance",
+									Action:       "replace",
+								},
+								{
+									// Unsupported action labelmap (should be dropped with warning).
+									Action: "labelmap",
+									Regex:  "app_(.*)",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "warn-relabel-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "test"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	converter := &PodMonitorConverter{}
