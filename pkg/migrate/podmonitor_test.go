@@ -593,6 +593,11 @@ func TestPodMonitorConversion(t *testing.T) {
 								Interval: "30s",
 							},
 						},
+						TargetLabels: monitoringv1.TargetLabels{
+							FromPod: []monitoringv1.LabelMapping{
+								{From: "env", To: "exported_instance"},
+							},
+						},
 					},
 				},
 			},
