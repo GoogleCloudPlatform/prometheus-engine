@@ -163,6 +163,11 @@ func (c *PodMonitorConverter) convertEndpoints(
 		}
 		// TODO(M2): Inherit global scrape timeout from Prometheus CR if empty.
 
+		// Evaluate Pre-Scrape Relabeling Rules (RelabelConfigs).
+		if len(ep.RelabelConfigs) > 0 {
+			convertPreScrapeRelabelings(convCtx, ep.RelabelConfigs)
+		}
+
 		// 4. Relabeling Rules (MetricRelabelings).
 		if len(ep.MetricRelabelConfigs) > 0 {
 			rules, err := convertMetricRelabelings(convCtx.logger, ep.MetricRelabelConfigs)
