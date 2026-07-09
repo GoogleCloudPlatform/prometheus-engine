@@ -42,6 +42,16 @@ var protectedLabels = map[string]bool{
 	"__address__":               true,
 }
 
+// metadataLabelMap contains the list of PO metadata labels and their GMP equivalent.
+var metadataLabelMap = map[string]string{
+	"__meta_kubernetes_pod_name":            "pod",
+	"__meta_kubernetes_pod_container_name":  "container",
+	"__meta_kubernetes_pod_node_name":       "node",
+	"__meta_kubernetes_namespace":           "namespace",
+	"__meta_kubernetes_pod_controller_name": "top_level_controller_name",
+	"__meta_kubernetes_pod_controller_kind": "top_level_controller_type",
+}
+
 // BuildTypeMeta constructs standard TypeMeta for a GMP resource Kind.
 func BuildTypeMeta(kind string) metav1.TypeMeta {
 	return metav1.TypeMeta{
@@ -108,8 +118,11 @@ func (c *conversionContext) getGeneratedSecrets() []*unstructured.Unstructured {
 	return secrets
 }
 
-// convertPreScrapeRelabelings evaluates pre-scrape relabelings and drops unsupported rules with warnings.
-func convertPreScrapeRelabelings(convCtx *conversionContext, configs []pomonitoringv1.RelabelConfig) {
+// convertPreScrapeRelabelings evaluates pre-scrape relabelings and extracts pod and metadata label mappings.
+func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.RelabelConfig) ([]monitoringv1.LabelMapping, []string) {
+	var fromPod []monitoringv1.LabelMapping
+	var metadata []string
+
 	for i, config := range configs {
 		action := strings.ToLower(config.Action)
 		if action == "" {
@@ -117,7 +130,7 @@ func convertPreScrapeRelabelings(convCtx *conversionContext, configs []pomonitor
 		}
 
 		if action == "labelmap" || action == "labelkeep" || action == "labeldrop" {
-			convCtx.logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
+			logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
 			continue
 		}
 
@@ -130,16 +143,107 @@ func convertPreScrapeRelabelings(convCtx *conversionContext, configs []pomonitor
 			}
 		}
 		if anno != "" {
-			convCtx.logger.Warn(fmt.Sprintf("Relabeling rule referencing pod annotation %q is unsupported in GMP. The rule has been dropped.", anno))
+			logger.Warn(fmt.Sprintf("Relabeling rule referencing pod annotation %q is unsupported in GMP. The rule has been dropped.", anno))
 			continue
 		}
 
 		if protectedLabels[config.TargetLabel] {
 			oldTarget := config.TargetLabel
 			configs[i].TargetLabel = "exported_" + oldTarget
-			convCtx.logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.", oldTarget, configs[i].TargetLabel))
+			logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.", oldTarget, configs[i].TargetLabel))
+		}
+
+		// Relabeling rule equivalent of simply copying over a label.
+		isSimpleCopy := len(config.SourceLabels) == 1 &&
+			(config.Regex == "" || config.Regex == "(.*)") &&
+			(config.Replacement == nil || *config.Replacement == "" || *config.Replacement == "$1") &&
+			action == "replace"
+
+		if isSimpleCopy {
+			source := string(config.SourceLabels[0])
+			target := configs[i].TargetLabel
+
+			// Simple pod target label transfer.
+			if fromLabel, found := strings.CutPrefix(source, "__meta_kubernetes_pod_label_"); found {
+				mapping := monitoringv1.LabelMapping{From: fromLabel}
+				if target != fromLabel {
+					mapping.To = target
+				}
+				fromPod = append(fromPod, mapping)
+				logger.Info(fmt.Sprintf("Translated simple label copy relabeling rule (%q -> %q) to 'targetLabels.fromPod'.", source, target))
+				continue
+			}
+
+			// Simple metadata label transfer.
+			if gmpMeta, ok := metadataLabelMap[source]; ok {
+				metadata = append(metadata, gmpMeta)
+				logger.Info(fmt.Sprintf("Translated metadata label copy (%q) to 'targetLabels.metadata' (as label: %q).", source, gmpMeta))
+				continue
+			}
 		}
 	}
+	return fromPod, metadata
+}
+
+// extractPreScrapeTargetLabels loops through endpoints to extract all pre-scrape target label mappings.
+func extractPreScrapeTargetLabels(logger *slog.Logger, endpoints []pomonitoringv1.PodMetricsEndpoint) ([]monitoringv1.LabelMapping, *[]string) {
+	var allFromPod []monitoringv1.LabelMapping
+	var allMetadata []string
+	for _, ep := range endpoints {
+		if len(ep.RelabelConfigs) > 0 {
+			fp, md := convertPreScrapeRelabelings(logger, ep.RelabelConfigs)
+			allFromPod = append(allFromPod, fp...)
+			allMetadata = append(allMetadata, md...)
+		}
+	}
+
+	if len(allMetadata) == 0 {
+		return allFromPod, nil
+	}
+
+	// Deduplicate metadata labels (multiple endpoints transferring same metadata).
+	unique := make(map[string]bool)
+	var sortedMd []string
+	for _, m := range allMetadata {
+		if !unique[m] {
+			unique[m] = true
+			sortedMd = append(sortedMd, m)
+		}
+	}
+	slices.Sort(sortedMd)
+	return allFromPod, &sortedMd
+}
+
+// mergeFromPod merges target label mappings and deduplicates by target label name.
+func mergeFromPod(logger *slog.Logger, base []monitoringv1.LabelMapping, extra []monitoringv1.LabelMapping) []monitoringv1.LabelMapping {
+	seenTargets := make(map[string]string)
+	var res []monitoringv1.LabelMapping
+
+	for _, m := range base {
+		target := m.From
+		if m.To != "" {
+			target = m.To
+		}
+		seenTargets[target] = m.From
+		res = append(res, m)
+	}
+
+	for _, m := range extra {
+		target := m.From
+		if m.To != "" {
+			target = m.To
+		}
+		if existingFrom, exists := seenTargets[target]; exists {
+			if existingFrom == m.From {
+				continue
+			}
+			logger.Warn(fmt.Sprintf("Target label %q is already mapped from %q. Skipping conflicting mapping from %q.", target, existingFrom, m.From))
+			continue
+		}
+		seenTargets[target] = m.From
+		res = append(res, m)
+	}
+	return res
 }
 
 // extractResourceKey is a consolidated helper that fetches a key from a ConfigMap or Secret.
