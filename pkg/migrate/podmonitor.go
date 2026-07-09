@@ -163,11 +163,6 @@ func (c *PodMonitorConverter) convertEndpoints(
 		}
 		// TODO(M2): Inherit global scrape timeout from Prometheus CR if empty.
 
-		// Evaluate Pre-Scrape Relabeling Rules (RelabelConfigs).
-		if len(ep.RelabelConfigs) > 0 {
-			convertPreScrapeRelabelings(convCtx, ep.RelabelConfigs)
-		}
-
 		// 4. Relabeling Rules (MetricRelabelings).
 		if len(ep.MetricRelabelConfigs) > 0 {
 			rules, err := convertMetricRelabelings(convCtx.logger, ep.MetricRelabelConfigs)
@@ -261,6 +256,9 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		return nil, nil, err
 	}
 
+	fromPod, metadata := extractPreScrapeTargetLabels(logger, pm.Spec.PodMetricsEndpoints)
+	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), fromPod)
+
 	gmpPM := &monitoringv1.PodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
 		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, pm.Namespace, logger),
@@ -268,7 +266,8 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 			Selector:  pm.Spec.Selector,
 			Endpoints: endpoints,
 			TargetLabels: monitoringv1.TargetLabels{
-				FromPod: convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"),
+				FromPod:  mergedFromPod,
+				Metadata: metadata,
 			},
 		},
 	}
@@ -296,6 +295,9 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		return nil, nil, err
 	}
 
+	fromPod, metadata := extractPreScrapeTargetLabels(logger, pm.Spec.PodMetricsEndpoints)
+	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), fromPod)
+
 	gmpCPM := &monitoringv1.ClusterPodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
 		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, "", logger),
@@ -303,7 +305,8 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 			Selector:  pm.Spec.Selector,
 			Endpoints: endpoints,
 			TargetLabels: monitoringv1.ClusterTargetLabels{
-				FromPod: convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"),
+				FromPod:  mergedFromPod,
+				Metadata: metadata,
 			},
 		},
 	}
