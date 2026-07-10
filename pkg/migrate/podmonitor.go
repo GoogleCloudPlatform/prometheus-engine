@@ -256,18 +256,19 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		return nil, nil, err
 	}
 
-	fromPod, metadata := extractPreScrapeTargetLabels(logger, pm.Spec.PodMetricsEndpoints)
-	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), fromPod)
+	extracted := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
+	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), extracted.FromPod)
+	mergedSelector := mergeLabelSelector(logger, pm.Spec.Selector, extracted.MatchLabels, extracted.MatchExpressions)
 
 	gmpPM := &monitoringv1.PodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
 		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, pm.Namespace, logger),
 		Spec: monitoringv1.PodMonitoringSpec{
-			Selector:  pm.Spec.Selector,
+			Selector:  mergedSelector,
 			Endpoints: endpoints,
 			TargetLabels: monitoringv1.TargetLabels{
 				FromPod:  mergedFromPod,
-				Metadata: metadata,
+				Metadata: extracted.Metadata,
 			},
 		},
 	}
@@ -295,18 +296,19 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		return nil, nil, err
 	}
 
-	fromPod, metadata := extractPreScrapeTargetLabels(logger, pm.Spec.PodMetricsEndpoints)
-	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), fromPod)
+	extracted := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
+	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), extracted.FromPod)
+	mergedSelector := mergeLabelSelector(logger, pm.Spec.Selector, extracted.MatchLabels, extracted.MatchExpressions)
 
 	gmpCPM := &monitoringv1.ClusterPodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
 		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, "", logger),
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
-			Selector:  pm.Spec.Selector,
+			Selector:  mergedSelector,
 			Endpoints: endpoints,
 			TargetLabels: monitoringv1.ClusterTargetLabels{
 				FromPod:  mergedFromPod,
-				Metadata: metadata,
+				Metadata: extracted.Metadata,
 			},
 		},
 	}
