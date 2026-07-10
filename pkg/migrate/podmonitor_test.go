@@ -602,6 +602,58 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Pre-Scrape Relabelings: target filtering keep and drop rules translated to Pod Selector",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "filter-relabel-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									// Exact keep -> matchLabels.
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
+									Regex:        "^production$",
+									Action:       "keep",
+								},
+								{
+									// Set drop -> matchExpressions NotIn.
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_tier"},
+									Regex:        "(test|staging)",
+									Action:       "drop",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "filter-relabel-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "test", "env": "production"},
+							MatchExpressions: []metav1.LabelSelectorRequirement{
+								{Key: "tier", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"test", "staging"}},
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{{Port: intstr.FromString("metrics"), Interval: "30s"}},
+					},
+				},
+			},
+		},
 	}
 
 	converter := &PodMonitorConverter{}
