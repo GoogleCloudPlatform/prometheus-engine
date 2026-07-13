@@ -114,6 +114,7 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 func (c *PodMonitorConverter) convertEndpoints(
 	convCtx *conversionContext,
 	endpoints []pomonitoringv1.PodMetricsEndpoint,
+	epResults []PreScrapeRelabelingResult,
 ) ([]monitoringv1.ScrapeEndpoint, error) {
 	var gmpEndpoints []monitoringv1.ScrapeEndpoint
 
@@ -163,14 +164,16 @@ func (c *PodMonitorConverter) convertEndpoints(
 		}
 		// TODO(M2): Inherit global scrape timeout from Prometheus CR if empty.
 
-		// 4. Relabeling Rules (MetricRelabelings).
+		// 4. Relabeling Rules (Promoted Pre-Scrape + MetricRelabelings).
+		allRules := epResults[i].PromotedRules
 		if len(ep.MetricRelabelConfigs) > 0 {
 			rules, err := convertMetricRelabelings(convCtx.logger, ep.MetricRelabelConfigs)
 			if err != nil {
 				return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 			}
-			gmpEp.MetricRelabeling = rules
+			allRules = append(allRules, rules...)
 		}
+		gmpEp.MetricRelabeling = allRules
 
 		// Proxy Settings.
 		if ep.ProxyURL != nil {
@@ -251,14 +254,14 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		cache:     cache,
 		namespace: pm.Namespace,
 	}
-	endpoints, err := c.convertEndpoints(convCtx, pm.Spec.PodMetricsEndpoints)
+	rules := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
+	endpoints, err := c.convertEndpoints(convCtx, pm.Spec.PodMetricsEndpoints, rules.PerEndpoint)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	extracted := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
-	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), extracted.FromPod)
-	mergedSelector := mergeLabelSelector(logger, pm.Spec.Selector, extracted.MatchLabels, extracted.MatchExpressions)
+	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), rules.ResourceCombined.FromPod)
+	mergedSelector := mergeLabelSelector(logger, pm.Spec.Selector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
 
 	gmpPM := &monitoringv1.PodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
@@ -268,7 +271,7 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 			Endpoints: endpoints,
 			TargetLabels: monitoringv1.TargetLabels{
 				FromPod:  mergedFromPod,
-				Metadata: extracted.Metadata,
+				Metadata: rules.ResourceCombined.Metadata,
 			},
 		},
 	}
@@ -291,14 +294,14 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		cache:     cache,
 		namespace: pm.Namespace,
 	}
-	endpoints, err := c.convertEndpoints(convCtx, pm.Spec.PodMetricsEndpoints)
+	rules := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
+	endpoints, err := c.convertEndpoints(convCtx, pm.Spec.PodMetricsEndpoints, rules.PerEndpoint)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	extracted := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
-	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), extracted.FromPod)
-	mergedSelector := mergeLabelSelector(logger, pm.Spec.Selector, extracted.MatchLabels, extracted.MatchExpressions)
+	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), rules.ResourceCombined.FromPod)
+	mergedSelector := mergeLabelSelector(logger, pm.Spec.Selector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
 
 	gmpCPM := &monitoringv1.ClusterPodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
@@ -308,7 +311,7 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 			Endpoints: endpoints,
 			TargetLabels: monitoringv1.ClusterTargetLabels{
 				FromPod:  mergedFromPod,
-				Metadata: extracted.Metadata,
+				Metadata: rules.ResourceCombined.Metadata,
 			},
 		},
 	}
