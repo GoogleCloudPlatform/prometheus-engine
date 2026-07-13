@@ -162,43 +162,63 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.", oldTarget, configs[i].TargetLabel))
 		}
 
-		// Translate target filtering ("keep" and "drop") rules on pod labels to Kubernetes label selectors.
-		if (action == "keep" || action == "drop") && len(config.SourceLabels) == 1 {
-			source := string(config.SourceLabels[0])
-			if labelName, found := strings.CutPrefix(source, "__meta_kubernetes_pod_label_"); found {
-				// Strip optional regex start (^) and end ($) anchors (ex. "^production$" -> "production").
-				clean := strings.Trim(strings.TrimSpace(config.Regex), "^$")
-				// Strip outer grouping parentheses around literal lists (ex. "(test|staging)" -> "test|staging").
-				if strings.HasPrefix(clean, "(") && strings.HasSuffix(clean, ")") {
-					clean = clean[1 : len(clean)-1]
-				}
-				// Verify that the remaining string contains no regex metacharacters (*, +, ?, [, ], etc.).
-				// TODO: Defer to post-scrape metricRelabeling in that case.
-				if clean != "" && !strings.ContainsAny(clean, "*+?[]{}()\\^$.") {
-					parts := strings.Split(clean, "|")
-					// A single value with "action: keep" translates to matchLabels.
-					if action == "keep" && len(parts) == 1 {
-						if res.MatchLabels == nil {
-							res.MatchLabels = make(map[string]string)
-						}
-						res.MatchLabels[labelName] = parts[0]
-						logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %q) to Pod Selector (matchLabels).", source, parts[0]))
-						continue
-					}
+		// Resolve all source labels upfront and intercept unsupported internal discovery labels.
+		var podSources []string
+		var metaSources []string
+		var unsupportedInternal bool
 
-					// Multiple values (or any "action: drop" set) translate to matchExpressions (In / NotIn).
-					op := metav1.LabelSelectorOpIn
-					if action == "drop" {
-						op = metav1.LabelSelectorOpNotIn
+		for _, sl := range config.SourceLabels {
+			s := string(sl)
+			if labelName, found := strings.CutPrefix(s, "__meta_kubernetes_pod_label_"); found {
+				podSources = append(podSources, labelName)
+			} else if gmpMeta, ok := metadataLabelMap[s]; ok {
+				metaSources = append(metaSources, gmpMeta)
+			} else if strings.HasPrefix(s, "__") {
+				logger.Warn(fmt.Sprintf("Relabeling rule references internal label %q which is not available in post-scrape metricRelabeling. The rule cannot be migrated and has been dropped.", s))
+				unsupportedInternal = true
+				break
+			}
+		}
+		if unsupportedInternal {
+			continue
+		}
+
+		// Translate target filtering ("keep" and "drop") rules on pod labels to Kubernetes label selectors.
+		if (action == "keep" || action == "drop") && len(podSources) == 1 && len(config.SourceLabels) == 1 {
+			source := string(config.SourceLabels[0])
+			labelName := podSources[0]
+			// Strip optional regex start (^) and end ($) anchors (ex. "^production$" -> "production").
+			clean := strings.Trim(strings.TrimSpace(config.Regex), "^$")
+			// Strip outer grouping parentheses around literal lists (ex. "(test|staging)" -> "test|staging").
+			if strings.HasPrefix(clean, "(") && strings.HasSuffix(clean, ")") {
+				clean = clean[1 : len(clean)-1]
+			}
+			// Verify that the remaining string contains no regex metacharacters (*, +, ?, [, ], etc.).
+			// TODO: Defer to post-scrape metricRelabeling in that case.
+			if clean != "" && !strings.ContainsAny(clean, "*+?[]{}()\\^$.") {
+				parts := strings.Split(clean, "|")
+				// A single value with "action: keep" translates to matchLabels.
+				if action == "keep" && len(parts) == 1 {
+					if res.MatchLabels == nil {
+						res.MatchLabels = make(map[string]string)
 					}
-					res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
-						Key:      labelName,
-						Operator: op,
-						Values:   parts,
-					})
-					logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %s) to Pod Selector (matchExpressions).", source, op))
+					res.MatchLabels[labelName] = parts[0]
+					logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %q) to Pod Selector (matchLabels).", source, parts[0]))
 					continue
 				}
+
+				// Multiple values (or any "action: drop" set) translate to matchExpressions (In / NotIn).
+				op := metav1.LabelSelectorOpIn
+				if action == "drop" {
+					op = metav1.LabelSelectorOpNotIn
+				}
+				res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
+					Key:      labelName,
+					Operator: op,
+					Values:   parts,
+				})
+				logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %s) to Pod Selector (matchExpressions).", source, op))
+				continue
 			}
 		}
 
@@ -213,9 +233,9 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			target := configs[i].TargetLabel
 
 			// Simple pod target label transfer.
-			if fromLabel, found := strings.CutPrefix(source, "__meta_kubernetes_pod_label_"); found {
-				mapping := monitoringv1.LabelMapping{From: fromLabel}
-				if target != fromLabel {
+			if len(podSources) == 1 {
+				mapping := monitoringv1.LabelMapping{From: podSources[0]}
+				if target != podSources[0] {
 					mapping.To = target
 				}
 				res.FromPod = append(res.FromPod, mapping)
@@ -224,9 +244,9 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			}
 
 			// Simple metadata label transfer.
-			if gmpMeta, ok := metadataLabelMap[source]; ok {
-				rawMetadata = append(rawMetadata, gmpMeta)
-				logger.Info(fmt.Sprintf("Translated metadata label copy (%q) to 'targetLabels.metadata' (as label: %q).", source, gmpMeta))
+			if len(metaSources) == 1 {
+				rawMetadata = append(rawMetadata, metaSources[0])
+				logger.Info(fmt.Sprintf("Translated metadata label copy (%q) to 'targetLabels.metadata' (as label: %q).", source, metaSources[0]))
 				continue
 			}
 		}
