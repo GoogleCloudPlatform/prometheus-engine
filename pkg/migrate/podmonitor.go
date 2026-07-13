@@ -184,16 +184,16 @@ func (c *PodMonitorConverter) convertEndpoints(
 
 		// Auth & TLS mappings.
 		if ep.BasicAuth != nil {
-			gmpEp.BasicAuth = convertBasicAuth(convCtx, ep.BasicAuth)
+			gmpEp.BasicAuth = convCtx.convertBasicAuth(ep.BasicAuth)
 		}
 		if ep.OAuth2 != nil {
-			gmpEp.OAuth2 = convertOAuth2(convCtx, ep.OAuth2)
+			gmpEp.OAuth2 = convCtx.convertOAuth2(ep.OAuth2)
 		}
 		if ep.TLSConfig != nil {
-			gmpEp.TLS = convertSafeTLSConfig(convCtx, ep.TLSConfig)
+			gmpEp.TLS = convCtx.convertSafeTLSConfig(ep.TLSConfig)
 		}
 		if ep.Authorization != nil {
-			gmpEp.Authorization = convertAuthorization(convCtx, ep.Authorization)
+			gmpEp.Authorization = convCtx.convertAuthorization(ep.Authorization)
 		}
 
 		// Handle deprecated BearerTokenSecret -> Authorization.
@@ -202,7 +202,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 				convCtx.logger.Warn(fmt.Sprintf("Endpoint [%d] has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.", i))
 			} else {
 				tokenSecret := ep.BearerTokenSecret // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
-				gmpEp.Authorization = convertAuthorization(convCtx, &pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})
+				gmpEp.Authorization = convCtx.convertAuthorization(&pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})
 			}
 		}
 

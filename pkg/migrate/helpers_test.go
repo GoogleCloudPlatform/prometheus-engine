@@ -104,7 +104,7 @@ func TestExtractSecretKey(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			val := extractSecretKey(ctx, tc.selector)
+			val := ctx.extractSecretKey(tc.selector)
 			if val != tc.expectedVal {
 				t.Errorf("expected %s, got %s", tc.expectedVal, val)
 			}
@@ -142,7 +142,7 @@ func TestExtractConfigMapKey(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			val := extractConfigMapKey(ctx, tc.selector)
+			val := ctx.extractConfigMapKey(tc.selector)
 			if val != tc.expectedVal {
 				t.Errorf("expected %s, got %s", tc.expectedVal, val)
 			}
@@ -189,7 +189,7 @@ func TestConvertConfigMapToSecretSelector(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			gmpSel := convertConfigMapToSecretSelector(ctx, tc.selector)
+			gmpSel := ctx.convertConfigMapToSecretSelector(tc.selector)
 
 			if tc.selector == nil {
 				if gmpSel != nil {
@@ -252,7 +252,7 @@ func TestConvertBasicAuth(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			gmpBA := convertBasicAuth(ctx, tc.basicAuth)
+			gmpBA := ctx.convertBasicAuth(tc.basicAuth)
 
 			if tc.basicAuth == nil {
 				if gmpBA != nil {
@@ -320,7 +320,7 @@ func TestConvertSafeTLSConfig(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			gmpTLS := convertSafeTLSConfig(ctx, tc.tlsConfig)
+			gmpTLS := ctx.convertSafeTLSConfig(tc.tlsConfig)
 
 			if tc.tlsConfig == nil {
 				if gmpTLS != nil {
@@ -358,13 +358,13 @@ func TestConvertConfigMapToSecretSelectorDeduplication(t *testing.T) {
 	}
 
 	// Call first time.
-	gmpSel1 := convertConfigMapToSecretSelector(ctx, selector)
+	gmpSel1 := ctx.convertConfigMapToSecretSelector(selector)
 	if gmpSel1 == nil || gmpSel1.Secret.Name != "secret-tls-cm" {
 		t.Fatal("first call failed to translate selector")
 	}
 
 	// Call second time.
-	gmpSel2 := convertConfigMapToSecretSelector(ctx, selector)
+	gmpSel2 := ctx.convertConfigMapToSecretSelector(selector)
 	if gmpSel2 == nil || gmpSel2.Secret.Name != "secret-tls-cm" {
 		t.Fatal("second call failed to translate selector")
 	}

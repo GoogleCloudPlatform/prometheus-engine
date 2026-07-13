@@ -109,16 +109,16 @@ func (c *conversionContext) getGeneratedSecrets() []*unstructured.Unstructured {
 }
 
 // extractResourceKey is a consolidated helper that fetches a key from a ConfigMap or Secret.
-func extractResourceKey(convCtx *conversionContext, kind, name, key string) string {
+func (c *conversionContext) extractResourceKey(kind, name, key string) string {
 	kindUpper := strings.ToUpper(kind)
 	if name == "" {
-		convCtx.logger.Warn(fmt.Sprintf("%sKeySelector has empty name for key %q. Hardcoding placeholder.", kind, key))
+		c.logger.Warn(fmt.Sprintf("%sKeySelector has empty name for key %q. Hardcoding placeholder.", kind, key))
 		return fmt.Sprintf("<MISSING_%s_NAME_KEY_%s>", kindUpper, key)
 	}
 
-	obj, ok := convCtx.cache.Get(kind, convCtx.namespace, name)
+	obj, ok := c.cache.Get(kind, c.namespace, name)
 	if !ok {
-		convCtx.logger.Warn(fmt.Sprintf("%s %q not found in cache. Cannot extract key %q. Hardcoding placeholder.", kind, name, key))
+		c.logger.Warn(fmt.Sprintf("%s %q not found in cache. Cannot extract key %q. Hardcoding placeholder.", kind, name, key))
 		return fmt.Sprintf("<MISSING_%s_%s_KEY_%s>", kindUpper, name, key)
 	}
 
@@ -136,7 +136,7 @@ func extractResourceKey(convCtx *conversionContext, kind, name, key string) stri
 		if kind == KindSecret {
 			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(val))
 			if err != nil {
-				convCtx.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in secret %q. Hardcoding placeholder.", key, name))
+				c.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in secret %q. Hardcoding placeholder.", key, name))
 				return fmt.Sprintf("<MALFORMED_SECRET_%s_KEY_%s>", name, key)
 			}
 			return string(decoded)
@@ -150,41 +150,41 @@ func extractResourceKey(convCtx *conversionContext, kind, name, key string) stri
 		if found {
 			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(val))
 			if err != nil {
-				convCtx.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in configmap %q. Hardcoding placeholder.", key, name))
+				c.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in configmap %q. Hardcoding placeholder.", key, name))
 				return fmt.Sprintf("<MALFORMED_CONFIGMAP_%s_KEY_%s>", name, key)
 			}
 			return string(decoded)
 		}
 	}
 
-	convCtx.logger.Warn(fmt.Sprintf("Key %q not found in %s %q. Hardcoding placeholder.", key, strings.ToLower(kind), name))
+	c.logger.Warn(fmt.Sprintf("Key %q not found in %s %q. Hardcoding placeholder.", key, strings.ToLower(kind), name))
 	return fmt.Sprintf("<MISSING_KEY_%s_IN_%s_%s>", key, kindUpper, name)
 }
 
 // extractSecretKey extracts a string value from a Secret, returning a placeholder and warning if not found.
-func extractSecretKey(convCtx *conversionContext, sel corev1.SecretKeySelector) string {
-	return extractResourceKey(convCtx, KindSecret, sel.Name, sel.Key)
+func (c *conversionContext) extractSecretKey(sel corev1.SecretKeySelector) string {
+	return c.extractResourceKey(KindSecret, sel.Name, sel.Key)
 }
 
 // extractConfigMapKey extracts a string value from a ConfigMap, returning a placeholder and warning if not found.
-func extractConfigMapKey(convCtx *conversionContext, sel corev1.ConfigMapKeySelector) string {
-	return extractResourceKey(convCtx, KindConfigMap, sel.Name, sel.Key)
+func (c *conversionContext) extractConfigMapKey(sel corev1.ConfigMapKeySelector) string {
+	return c.extractResourceKey(KindConfigMap, sel.Name, sel.Key)
 }
 
-func convertConfigMapToSecretSelector(convCtx *conversionContext, sel *corev1.ConfigMapKeySelector) *monitoringv1.SecretSelector {
+func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigMapKeySelector) *monitoringv1.SecretSelector {
 	if sel == nil || (sel.Name == "" && sel.Key == "") {
 		return nil
 	}
 	if sel.Name == "" {
-		convCtx.logger.Warn(fmt.Sprintf("ConfigMap reference for key %q has an empty name. Hardcoding placeholder and skipping Secret manifest generation. You must fix this reference and ensure the Secret is created before applying.", sel.Key))
+		c.logger.Warn(fmt.Sprintf("ConfigMap reference for key %q has an empty name. Hardcoding placeholder and skipping Secret manifest generation. You must fix this reference and ensure the Secret is created before applying.", sel.Key))
 		return &monitoringv1.SecretSelector{
-			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_CONFIGMAP_NAME>", Key: sel.Key, Namespace: convCtx.namespace},
+			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_CONFIGMAP_NAME>", Key: sel.Key, Namespace: c.namespace},
 		}
 	}
 	if sel.Key == "" {
-		convCtx.logger.Warn(fmt.Sprintf("ConfigMap reference %q has an empty key. Hardcoding placeholder. You must fix this reference before applying.", sel.Name))
+		c.logger.Warn(fmt.Sprintf("ConfigMap reference %q has an empty key. Hardcoding placeholder. You must fix this reference before applying.", sel.Name))
 		return &monitoringv1.SecretSelector{
-			Secret: &monitoringv1.SecretKeySelector{Name: "secret-" + sel.Name, Key: "<MISSING_CONFIGMAP_KEY>", Namespace: convCtx.namespace},
+			Secret: &monitoringv1.SecretKeySelector{Name: "secret-" + sel.Name, Key: "<MISSING_CONFIGMAP_KEY>", Namespace: c.namespace},
 		}
 	}
 
@@ -192,25 +192,25 @@ func convertConfigMapToSecretSelector(convCtx *conversionContext, sel *corev1.Co
 	secretKey := sel.Key
 
 	if sel.Optional != nil && *sel.Optional {
-		convCtx.logger.Warn(fmt.Sprintf("ConfigMap reference %q had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.", sel.Name))
+		c.logger.Warn(fmt.Sprintf("ConfigMap reference %q had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.", sel.Name))
 	}
 
-	if convCtx.generatedSecrets == nil {
-		convCtx.generatedSecrets = make(map[string]*unstructured.Unstructured)
+	if c.generatedSecrets == nil {
+		c.generatedSecrets = make(map[string]*unstructured.Unstructured)
 	}
 
-	if _, exists := convCtx.generatedSecrets[secretName]; !exists {
-		obj, ok := convCtx.cache.Get(KindConfigMap, convCtx.namespace, sel.Name)
+	if _, exists := c.generatedSecrets[secretName]; !exists {
+		obj, ok := c.cache.Get(KindConfigMap, c.namespace, sel.Name)
 		if !ok {
-			convCtx.logger.Warn(fmt.Sprintf("TLS ConfigMap reference %q was not found in the inputs. Updated reference to GMP Secret %q, but you must manually convert your ConfigMap to a Secret with this name in GMP.", sel.Name, secretName))
+			c.logger.Warn(fmt.Sprintf("TLS ConfigMap reference %q was not found in the inputs. Updated reference to GMP Secret %q, but you must manually convert your ConfigMap to a Secret with this name in GMP.", sel.Name, secretName))
 		} else {
-			convCtx.logger.Info(fmt.Sprintf("Translated TLS ConfigMap reference %q to GMP Secret. Generated new Secret manifest %q.", sel.Name, secretName))
+			c.logger.Info(fmt.Sprintf("Translated TLS ConfigMap reference %q to GMP Secret. Generated new Secret manifest %q.", sel.Name, secretName))
 
 			newSecret := &unstructured.Unstructured{}
 			newSecret.SetAPIVersion("v1")
 			newSecret.SetKind(KindSecret)
 			newSecret.SetName(secretName)
-			newSecret.SetNamespace(convCtx.namespace)
+			newSecret.SetNamespace(c.namespace)
 
 			data, found, _ := unstructured.NestedMap(obj.Object, "data")
 			if found {
@@ -220,63 +220,63 @@ func convertConfigMapToSecretSelector(convCtx *conversionContext, sel *corev1.Co
 			if found {
 				_ = unstructured.SetNestedMap(newSecret.Object, binaryData, "data")
 			}
-			convCtx.generatedSecrets[secretName] = newSecret
+			c.generatedSecrets[secretName] = newSecret
 		}
 	}
 
-	secretRef := &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey, Namespace: convCtx.namespace}
+	secretRef := &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey, Namespace: c.namespace}
 	return &monitoringv1.SecretSelector{Secret: secretRef}
 }
 
 // convertSecretOrConfigMapToSecretSelector translates to a SecretSelector and warns on missing caches or optional configs.
-func convertSecretOrConfigMapToSecretSelector(convCtx *conversionContext, sel pomonitoringv1.SecretOrConfigMap) *monitoringv1.SecretSelector {
+func (c *conversionContext) convertSecretOrConfigMapToSecretSelector(sel pomonitoringv1.SecretOrConfigMap) *monitoringv1.SecretSelector {
 	if sel.Secret != nil {
-		return convertSecretSelector(convCtx, sel.Secret)
+		return c.convertSecretSelector(sel.Secret)
 	}
 
 	if sel.ConfigMap != nil {
-		return convertConfigMapToSecretSelector(convCtx, sel.ConfigMap)
+		return c.convertConfigMapToSecretSelector(sel.ConfigMap)
 	}
 
 	return nil
 }
 
-func convertSecretSelector(convCtx *conversionContext, sel *corev1.SecretKeySelector) *monitoringv1.SecretSelector {
+func (c *conversionContext) convertSecretSelector(sel *corev1.SecretKeySelector) *monitoringv1.SecretSelector {
 	if sel == nil || (sel.Name == "" && sel.Key == "") {
 		return nil
 	}
 	if sel.Name == "" {
-		convCtx.logger.Warn(fmt.Sprintf("Secret reference for key %q has an empty name. Hardcoding placeholder. You must fix this reference and ensure the Secret is created before applying.", sel.Key))
+		c.logger.Warn(fmt.Sprintf("Secret reference for key %q has an empty name. Hardcoding placeholder. You must fix this reference and ensure the Secret is created before applying.", sel.Key))
 		return &monitoringv1.SecretSelector{
-			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_SECRET_NAME>", Key: sel.Key, Namespace: convCtx.namespace},
+			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_SECRET_NAME>", Key: sel.Key, Namespace: c.namespace},
 		}
 	}
 	if sel.Key == "" {
-		convCtx.logger.Warn(fmt.Sprintf("Secret reference %q has an empty key. Hardcoding placeholder. You must fix this reference before applying.", sel.Name))
+		c.logger.Warn(fmt.Sprintf("Secret reference %q has an empty key. Hardcoding placeholder. You must fix this reference before applying.", sel.Name))
 		return &monitoringv1.SecretSelector{
-			Secret: &monitoringv1.SecretKeySelector{Name: sel.Name, Key: "<MISSING_SECRET_KEY>", Namespace: convCtx.namespace},
+			Secret: &monitoringv1.SecretKeySelector{Name: sel.Name, Key: "<MISSING_SECRET_KEY>", Namespace: c.namespace},
 		}
 	}
 	if sel.Optional != nil && *sel.Optional {
-		convCtx.logger.Warn(fmt.Sprintf("Secret reference %q had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.", sel.Name))
+		c.logger.Warn(fmt.Sprintf("Secret reference %q had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.", sel.Name))
 	}
-	secretRef := &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key, Namespace: convCtx.namespace}
+	secretRef := &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key, Namespace: c.namespace}
 	return &monitoringv1.SecretSelector{Secret: secretRef}
 }
 
 // convertBasicAuth maps PO BasicAuth to GMP BasicAuth, extracting the username string.
-func convertBasicAuth(convCtx *conversionContext, ba *pomonitoringv1.BasicAuth) *monitoringv1.BasicAuth {
+func (c *conversionContext) convertBasicAuth(ba *pomonitoringv1.BasicAuth) *monitoringv1.BasicAuth {
 	if ba == nil {
 		return nil
 	}
 	return &monitoringv1.BasicAuth{
-		Username: extractSecretKey(convCtx, ba.Username),
-		Password: convertSecretSelector(convCtx, &ba.Password),
+		Username: c.extractSecretKey(ba.Username),
+		Password: c.convertSecretSelector(&ba.Password),
 	}
 }
 
 // convertSafeTLSConfig maps PO SafeTLSConfig to GMP TLS, wrapping ConfigMaps into Secrets.
-func convertSafeTLSConfig(convCtx *conversionContext, tls *pomonitoringv1.SafeTLSConfig) *monitoringv1.TLS {
+func (c *conversionContext) convertSafeTLSConfig(tls *pomonitoringv1.SafeTLSConfig) *monitoringv1.TLS {
 	if tls == nil {
 		return nil
 	}
@@ -288,35 +288,35 @@ func convertSafeTLSConfig(convCtx *conversionContext, tls *pomonitoringv1.SafeTL
 		gmpTLS.ServerName = *tls.ServerName
 	}
 	if tls.CA.Secret != nil || tls.CA.ConfigMap != nil {
-		gmpTLS.CA = convertSecretOrConfigMapToSecretSelector(convCtx, tls.CA)
+		gmpTLS.CA = c.convertSecretOrConfigMapToSecretSelector(tls.CA)
 	}
 	if tls.Cert.Secret != nil || tls.Cert.ConfigMap != nil {
-		gmpTLS.Cert = convertSecretOrConfigMapToSecretSelector(convCtx, tls.Cert)
+		gmpTLS.Cert = c.convertSecretOrConfigMapToSecretSelector(tls.Cert)
 	}
 	if tls.KeySecret != nil {
-		gmpTLS.Key = convertSecretSelector(convCtx, tls.KeySecret)
+		gmpTLS.Key = c.convertSecretSelector(tls.KeySecret)
 	}
 	return gmpTLS
 }
 
 // convertOAuth2 maps PO OAuth2 to GMP OAuth2, extracting the clientID string.
-func convertOAuth2(convCtx *conversionContext, oa *pomonitoringv1.OAuth2) *monitoringv1.OAuth2 {
+func (c *conversionContext) convertOAuth2(oa *pomonitoringv1.OAuth2) *monitoringv1.OAuth2 {
 	if oa == nil {
 		return nil
 	}
 	clientID := ""
 	if oa.ClientID.Secret != nil {
-		clientID = extractSecretKey(convCtx, *oa.ClientID.Secret)
+		clientID = c.extractSecretKey(*oa.ClientID.Secret)
 	} else if oa.ClientID.ConfigMap != nil {
-		clientID = extractConfigMapKey(convCtx, *oa.ClientID.ConfigMap)
+		clientID = c.extractConfigMapKey(*oa.ClientID.ConfigMap)
 	} else {
-		convCtx.logger.Warn("OAuth2 clientID neither defined as Secret nor ConfigMap. Hardcoding placeholder.")
+		c.logger.Warn("OAuth2 clientID neither defined as Secret nor ConfigMap. Hardcoding placeholder.")
 		clientID = "<MISSING_OAUTH2_CLIENT_ID>"
 	}
 
 	return &monitoringv1.OAuth2{
 		ClientID:       clientID,
-		ClientSecret:   convertSecretSelector(convCtx, &oa.ClientSecret),
+		ClientSecret:   c.convertSecretSelector(&oa.ClientSecret),
 		TokenURL:       oa.TokenURL,
 		Scopes:         oa.Scopes,
 		EndpointParams: oa.EndpointParams,
@@ -324,13 +324,13 @@ func convertOAuth2(convCtx *conversionContext, oa *pomonitoringv1.OAuth2) *monit
 }
 
 // convertAuthorization maps PO SafeAuthorization to GMP Auth.
-func convertAuthorization(convCtx *conversionContext, auth *pomonitoringv1.SafeAuthorization) *monitoringv1.Auth {
+func (c *conversionContext) convertAuthorization(auth *pomonitoringv1.SafeAuthorization) *monitoringv1.Auth {
 	if auth == nil {
 		return nil
 	}
 	return &monitoringv1.Auth{
 		Type:        auth.Type,
-		Credentials: convertSecretSelector(convCtx, auth.Credentials),
+		Credentials: c.convertSecretSelector(auth.Credentials),
 	}
 }
 
@@ -346,13 +346,12 @@ func convertMetricRelabelings(
 			action = "replace"
 		}
 
-		if action == "labelmap" {
+		targetLabel := config.TargetLabel
+		switch action {
+		case "labelmap":
 			logger.Warn("metricRelabelings rule uses 'action: labelmap' which is not supported by GMP and has been dropped.")
 			continue
-		}
-
-		targetLabel := config.TargetLabel
-		if action == "replace" || action == "hashmod" || action == "lowercase" || action == "uppercase" {
+		case "replace", "hashmod", "lowercase", "uppercase":
 			if protectedLabels[config.TargetLabel] {
 				targetLabel = "exported_" + config.TargetLabel
 				logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.",
