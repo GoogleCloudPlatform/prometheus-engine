@@ -58,6 +58,15 @@ type PreScrapeRelabelingResult struct {
 	Metadata         *[]string
 	MatchLabels      map[string]string
 	MatchExpressions []metav1.LabelSelectorRequirement
+	PromotedRules    []monitoringv1.RelabelingRule
+}
+
+// ExtractedPreScrapeRules holds all translated rules, separated by where they belong in GMP.
+type ExtractedPreScrapeRules struct {
+	// PerEndpoint contains the rules (like promoted metric relabelings) specific to each scrape endpoint.
+	PerEndpoint []PreScrapeRelabelingResult
+	// ResourceCombined contains target labels and selectors merged across all endpoints.
+	ResourceCombined PreScrapeRelabelingResult
 }
 
 // BuildTypeMeta constructs standard TypeMeta for a GMP resource Kind.
@@ -165,18 +174,23 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		// Resolve all source labels upfront and intercept unsupported internal discovery labels.
 		var podSources []string
 		var metaSources []string
+		var rewrittenSources []string
 		var unsupportedInternal bool
 
 		for _, sl := range config.SourceLabels {
 			s := string(sl)
 			if labelName, found := strings.CutPrefix(s, "__meta_kubernetes_pod_label_"); found {
 				podSources = append(podSources, labelName)
+				rewrittenSources = append(rewrittenSources, labelName)
 			} else if gmpMeta, ok := metadataLabelMap[s]; ok {
 				metaSources = append(metaSources, gmpMeta)
+				rewrittenSources = append(rewrittenSources, gmpMeta)
 			} else if strings.HasPrefix(s, "__") {
 				logger.Warn(fmt.Sprintf("Relabeling rule references internal label %q which is not available in post-scrape metricRelabeling. The rule cannot be migrated and has been dropped.", s))
 				unsupportedInternal = true
 				break
+			} else {
+				rewrittenSources = append(rewrittenSources, s)
 			}
 		}
 		if unsupportedInternal {
@@ -194,7 +208,6 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 				clean = clean[1 : len(clean)-1]
 			}
 			// Verify that the remaining string contains no regex metacharacters (*, +, ?, [, ], etc.).
-			// TODO: Defer to post-scrape metricRelabeling in that case.
 			if clean != "" && !strings.ContainsAny(clean, "*+?[]{}()\\^$.") {
 				parts := strings.Split(clean, "|")
 				// A single value with "action: keep" translates to matchLabels.
@@ -250,6 +263,33 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 				continue
 			}
 		}
+
+		// Phase 3: Promote complex or value-changing rules to post-scrape metricRelabeling.
+		for _, p := range podSources {
+			res.FromPod = append(res.FromPod, monitoringv1.LabelMapping{From: p})
+		}
+		rawMetadata = append(rawMetadata, metaSources...)
+
+		targetLabel := config.TargetLabel
+		if protectedLabels[targetLabel] {
+			targetLabel = "exported_" + targetLabel
+		}
+
+		promoted := monitoringv1.RelabelingRule{
+			SourceLabels: rewrittenSources,
+			TargetLabel:  targetLabel,
+			Regex:        config.Regex,
+			Modulus:      config.Modulus,
+			Action:       action,
+		}
+		if config.Separator != nil {
+			promoted.Separator = *config.Separator
+		}
+		if config.Replacement != nil {
+			promoted.Replacement = *config.Replacement
+		}
+		res.PromotedRules = append(res.PromotedRules, promoted)
+		logger.Info(fmt.Sprintf("Complex relabeling rule (target: %q) promoted from pre-scrape 'relabelings' to post-scrape 'metricRelabeling'.", targetLabel))
 	}
 
 	if len(rawMetadata) > 0 {
@@ -258,25 +298,28 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 	return res
 }
 
-// extractPreScrapeRelabelings loops through endpoints to extract all pre-scrape target label and selector rules.
-func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1.PodMetricsEndpoint) PreScrapeRelabelingResult {
-	var res PreScrapeRelabelingResult
+// extractPreScrapeRelabelings evaluates pre-scrape rules once per endpoint, returning consolidated endpoint and resource-level results.
+func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1.PodMetricsEndpoint) ExtractedPreScrapeRules {
+	var epResults []PreScrapeRelabelingResult
+	var combined PreScrapeRelabelingResult
 	var rawMetadata []string
 	for _, ep := range endpoints {
+		var r PreScrapeRelabelingResult
 		if len(ep.RelabelConfigs) > 0 {
-			r := convertPreScrapeRelabelings(logger, ep.RelabelConfigs)
-			res.FromPod = append(res.FromPod, r.FromPod...)
+			r = convertPreScrapeRelabelings(logger, ep.RelabelConfigs)
+			combined.FromPod = append(combined.FromPod, r.FromPod...)
 			if r.Metadata != nil {
 				rawMetadata = append(rawMetadata, *r.Metadata...)
 			}
-			if len(r.MatchLabels) > 0 && res.MatchLabels == nil {
-				res.MatchLabels = make(map[string]string)
+			if len(r.MatchLabels) > 0 && combined.MatchLabels == nil {
+				combined.MatchLabels = make(map[string]string)
 			}
 			for k, v := range r.MatchLabels {
-				res.MatchLabels[k] = v
+				combined.MatchLabels[k] = v
 			}
-			res.MatchExpressions = append(res.MatchExpressions, r.MatchExpressions...)
+			combined.MatchExpressions = append(combined.MatchExpressions, r.MatchExpressions...)
 		}
+		epResults = append(epResults, r)
 	}
 
 	if len(rawMetadata) > 0 {
@@ -289,9 +332,12 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1
 			}
 		}
 		slices.Sort(sortedMd)
-		res.Metadata = &sortedMd
+		combined.Metadata = &sortedMd
 	}
-	return res
+	return ExtractedPreScrapeRules{
+		PerEndpoint:      epResults,
+		ResourceCombined: combined,
+	}
 }
 
 // mergeLabelSelector combines base selector requirements with extracted pre-scrape filtering rules.

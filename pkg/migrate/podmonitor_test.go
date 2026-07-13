@@ -654,6 +654,59 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Pre-Scrape Relabelings: complex regex substring extraction promoted to post-scrape metricRelabeling",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "complex-relabel-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_app_versioned"},
+									Regex:        "(.*)-v[0-9]+",
+									Replacement:  ptrTo("$1"),
+									TargetLabel:  "app_name",
+									Action:       "replace",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "complex-relabel-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+						TargetLabels: monitoringv1.TargetLabels{
+							FromPod: []monitoringv1.LabelMapping{{From: "app_versioned"}},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{SourceLabels: []string{"app_versioned"}, Regex: "(.*)-v[0-9]+", Replacement: "$1", TargetLabel: "app_name", Action: "replace"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	converter := &PodMonitorConverter{}
