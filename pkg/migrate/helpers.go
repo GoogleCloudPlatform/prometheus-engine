@@ -18,6 +18,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 
@@ -314,9 +315,7 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1
 			if len(r.MatchLabels) > 0 && combined.MatchLabels == nil {
 				combined.MatchLabels = make(map[string]string)
 			}
-			for k, v := range r.MatchLabels {
-				combined.MatchLabels[k] = v
-			}
+			maps.Copy(combined.MatchLabels, r.MatchLabels)
 			combined.MatchExpressions = append(combined.MatchExpressions, r.MatchExpressions...)
 		}
 		epResults = append(epResults, r)
