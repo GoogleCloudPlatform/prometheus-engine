@@ -155,8 +155,9 @@ func (c *PodMonitorConverter) convertEndpoints(
 				return nil, fmt.Errorf("endpoint [%d]: invalid scrapeTimeout %q: %w", i, gmpEp.Timeout, err)
 			}
 			if toDur > intDur {
-				convCtx.logger.Warn(fmt.Sprintf("Scrape timeout %q is larger than scrape interval %q. Capping timeout to %q.",
-					gmpEp.Timeout, gmpEp.Interval, gmpEp.Interval))
+				convCtx.logger.Warn("Scrape timeout is larger than scrape interval. Capping timeout to interval.",
+					slog.String("timeout", gmpEp.Timeout),
+					slog.String("interval", gmpEp.Interval))
 				gmpEp.Timeout = gmpEp.Interval
 			}
 		}
@@ -199,7 +200,8 @@ func (c *PodMonitorConverter) convertEndpoints(
 		// Handle deprecated BearerTokenSecret -> Authorization.
 		if ep.BearerTokenSecret.Name != "" { // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 			if gmpEp.Authorization != nil {
-				convCtx.logger.Warn(fmt.Sprintf("Endpoint [%d] has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.", i))
+				convCtx.logger.Warn("Endpoint has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.",
+					slog.Int("endpoint_index", i))
 			} else {
 				tokenSecret := ep.BearerTokenSecret // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 				gmpEp.Authorization = convCtx.convertAuthorization(&pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})

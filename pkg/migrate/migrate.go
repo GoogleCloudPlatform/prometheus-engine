@@ -395,7 +395,9 @@ func (m *Migrator) accumulateOutputs(logger *slog.Logger, outputsMap map[string]
 					continue
 				}
 				// Warn and keep the existing secret on content conflict.
-				logger.Warn(fmt.Sprintf("Secret %q in namespace %q already exists with different contents. Keeping original Secret and skipping conflicting definition.", out.GetName(), out.GetNamespace()))
+				logger.Warn("Secret already exists with different contents. Keeping original Secret and skipping conflicting definition.",
+					slog.String("secret", out.GetName()),
+					slog.String("namespace", out.GetNamespace()))
 				continue
 			}
 			srcKey := fmt.Sprintf("%s/%s/%s", srcKind, srcNamespace, srcName)

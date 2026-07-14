@@ -112,13 +112,18 @@ func (c *conversionContext) getGeneratedSecrets() []*unstructured.Unstructured {
 func (c *conversionContext) extractResourceKey(kind, name, key string) string {
 	kindUpper := strings.ToUpper(kind)
 	if name == "" {
-		c.logger.Warn(fmt.Sprintf("%sKeySelector has empty name for key %q. Hardcoding placeholder.", kind, key))
+		c.logger.Warn("KeySelector has empty name. Hardcoding placeholder.",
+			slog.String("selector_kind", kind),
+			slog.String("key", key))
 		return fmt.Sprintf("<MISSING_%s_NAME_KEY_%s>", kindUpper, key)
 	}
 
 	obj, ok := c.cache.Get(kind, c.namespace, name)
 	if !ok {
-		c.logger.Warn(fmt.Sprintf("%s %q not found in cache. Cannot extract key %q. Hardcoding placeholder.", kind, name, key))
+		c.logger.Warn("Resource not found in cache. Cannot extract key. Hardcoding placeholder.",
+			slog.String("referenced_kind", kind),
+			slog.String("referenced_name", name),
+			slog.String("key", key))
 		return fmt.Sprintf("<MISSING_%s_%s_KEY_%s>", kindUpper, name, key)
 	}
 
@@ -136,7 +141,9 @@ func (c *conversionContext) extractResourceKey(kind, name, key string) string {
 		if kind == KindSecret {
 			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(val))
 			if err != nil {
-				c.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in secret %q. Hardcoding placeholder.", key, name))
+				c.logger.Warn("Failed to decode base64 data. Hardcoding placeholder.",
+					slog.String("key", key),
+					slog.String("secret", name))
 				return fmt.Sprintf("<MALFORMED_SECRET_%s_KEY_%s>", name, key)
 			}
 			return string(decoded)
@@ -150,14 +157,19 @@ func (c *conversionContext) extractResourceKey(kind, name, key string) string {
 		if found {
 			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(val))
 			if err != nil {
-				c.logger.Warn(fmt.Sprintf("Failed to decode base64 data for key %q in configmap %q. Hardcoding placeholder.", key, name))
+				c.logger.Warn("Failed to decode base64 data. Hardcoding placeholder.",
+					slog.String("key", key),
+					slog.String("configmap", name))
 				return fmt.Sprintf("<MALFORMED_CONFIGMAP_%s_KEY_%s>", name, key)
 			}
 			return string(decoded)
 		}
 	}
 
-	c.logger.Warn(fmt.Sprintf("Key %q not found in %s %q. Hardcoding placeholder.", key, strings.ToLower(kind), name))
+	c.logger.Warn("Key not found in resource. Hardcoding placeholder.",
+		slog.String("key", key),
+		slog.String("referenced_kind", kind),
+		slog.String("referenced_name", name))
 	return fmt.Sprintf("<MISSING_KEY_%s_IN_%s_%s>", key, kindUpper, name)
 }
 
@@ -176,13 +188,15 @@ func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigM
 		return nil
 	}
 	if sel.Name == "" {
-		c.logger.Warn(fmt.Sprintf("ConfigMap reference for key %q has an empty name. Hardcoding placeholder and skipping Secret manifest generation. You must fix this reference and ensure the Secret is created before applying.", sel.Key))
+		c.logger.Warn("ConfigMap reference has an empty name. Hardcoding placeholder and skipping Secret manifest generation. You must fix this reference and ensure the Secret is created before applying.",
+			slog.String("key", sel.Key))
 		return &monitoringv1.SecretSelector{
 			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_CONFIGMAP_NAME>", Key: sel.Key, Namespace: c.namespace},
 		}
 	}
 	if sel.Key == "" {
-		c.logger.Warn(fmt.Sprintf("ConfigMap reference %q has an empty key. Hardcoding placeholder. You must fix this reference before applying.", sel.Name))
+		c.logger.Warn("ConfigMap reference has an empty key. Hardcoding placeholder. You must fix this reference before applying.",
+			slog.String("configmap", sel.Name))
 		return &monitoringv1.SecretSelector{
 			Secret: &monitoringv1.SecretKeySelector{Name: "secret-" + sel.Name, Key: "<MISSING_CONFIGMAP_KEY>", Namespace: c.namespace},
 		}
@@ -192,7 +206,8 @@ func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigM
 	secretKey := sel.Key
 
 	if sel.Optional != nil && *sel.Optional {
-		c.logger.Warn(fmt.Sprintf("ConfigMap reference %q had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.", sel.Name))
+		c.logger.Warn("ConfigMap reference had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.",
+			slog.String("configmap", sel.Name))
 	}
 
 	if c.generatedSecrets == nil {
@@ -202,9 +217,13 @@ func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigM
 	if _, exists := c.generatedSecrets[secretName]; !exists {
 		obj, ok := c.cache.Get(KindConfigMap, c.namespace, sel.Name)
 		if !ok {
-			c.logger.Warn(fmt.Sprintf("TLS ConfigMap reference %q was not found in the inputs. Updated reference to GMP Secret %q, but you must manually convert your ConfigMap to a Secret with this name in GMP.", sel.Name, secretName))
+			c.logger.Warn("TLS ConfigMap reference was not found in the inputs. Updated reference to GMP Secret, but you must manually convert your ConfigMap to a Secret with this name in GMP.",
+				slog.String("configmap", sel.Name),
+				slog.String("expected_secret", secretName))
 		} else {
-			c.logger.Info(fmt.Sprintf("Translated TLS ConfigMap reference %q to GMP Secret. Generated new Secret manifest %q.", sel.Name, secretName))
+			c.logger.Info("Translated TLS ConfigMap reference to GMP Secret. Generated new Secret manifest.",
+				slog.String("configmap", sel.Name),
+				slog.String("generated_secret", secretName))
 
 			newSecret := &unstructured.Unstructured{}
 			newSecret.SetAPIVersion("v1")
@@ -246,19 +265,22 @@ func (c *conversionContext) convertSecretSelector(sel *corev1.SecretKeySelector)
 		return nil
 	}
 	if sel.Name == "" {
-		c.logger.Warn(fmt.Sprintf("Secret reference for key %q has an empty name. Hardcoding placeholder. You must fix this reference and ensure the Secret is created before applying.", sel.Key))
+		c.logger.Warn("Secret reference has an empty name. Hardcoding placeholder. You must fix this reference and ensure the Secret is created before applying.",
+			slog.String("key", sel.Key))
 		return &monitoringv1.SecretSelector{
 			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_SECRET_NAME>", Key: sel.Key, Namespace: c.namespace},
 		}
 	}
 	if sel.Key == "" {
-		c.logger.Warn(fmt.Sprintf("Secret reference %q has an empty key. Hardcoding placeholder. You must fix this reference before applying.", sel.Name))
+		c.logger.Warn("Secret reference has an empty key. Hardcoding placeholder. You must fix this reference before applying.",
+			slog.String("secret", sel.Name))
 		return &monitoringv1.SecretSelector{
 			Secret: &monitoringv1.SecretKeySelector{Name: sel.Name, Key: "<MISSING_SECRET_KEY>", Namespace: c.namespace},
 		}
 	}
 	if sel.Optional != nil && *sel.Optional {
-		c.logger.Warn(fmt.Sprintf("Secret reference %q had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.", sel.Name))
+		c.logger.Warn("Secret reference had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.",
+			slog.String("secret", sel.Name))
 	}
 	secretRef := &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key, Namespace: c.namespace}
 	return &monitoringv1.SecretSelector{Secret: secretRef}
@@ -354,8 +376,9 @@ func convertMetricRelabelings(
 		case "replace", "hashmod", "lowercase", "uppercase":
 			if protectedLabels[config.TargetLabel] {
 				targetLabel = "exported_" + config.TargetLabel
-				logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.",
-					config.TargetLabel, targetLabel))
+				logger.Warn("Relabeling rule attempts to write to protected target label. Renamed target.",
+					slog.String("protected_label", config.TargetLabel),
+					slog.String("renamed_target", targetLabel))
 			}
 		}
 
@@ -397,7 +420,10 @@ func convertTargetLabels(logger *slog.Logger, sourceLabels []string, jobLabel st
 		}
 
 		if seenTargets[target] {
-			logger.Warn(fmt.Sprintf("%s target label %q maps to target label %q which is already taken. Skipping.", labelKind, l, target))
+			logger.Warn("Target label mapping collision. Skipping.",
+				slog.String("label_kind", labelKind),
+				slog.String("source_label", l),
+				slog.String("target_label", target))
 			continue
 		}
 
@@ -406,7 +432,10 @@ func convertTargetLabels(logger *slog.Logger, sourceLabels []string, jobLabel st
 
 		if target != l {
 			mapping.To = target
-			logger.Warn(fmt.Sprintf("%s target label %q is protected in GMP. Renamed target to %q.", labelKind, l, target))
+			logger.Warn("Target label is protected in GMP. Renamed target.",
+				slog.String("label_kind", labelKind),
+				slog.String("source_label", l),
+				slog.String("renamed_target", target))
 		}
 
 		fromPod = append(fromPod, mapping)
@@ -415,14 +444,16 @@ func convertTargetLabels(logger *slog.Logger, sourceLabels []string, jobLabel st
 	if jobLabel != "" {
 		target := "exported_job"
 		if !seenTargets[target] {
-			logger.Warn(fmt.Sprintf("GMP does not support overriding the protected 'job' label. Value on label %q has been copied into the target label 'exported_job'.", jobLabel))
+			logger.Warn("GMP does not support overriding the protected 'job' label. Value has been copied into the target label 'exported_job'.",
+				slog.String("source_label", jobLabel))
 			fromPod = append(fromPod, monitoringv1.LabelMapping{
 				From: jobLabel,
 				To:   target,
 			})
 			seenTargets[target] = true
 		} else {
-			logger.Warn(fmt.Sprintf("Job label %q could not be mapped to 'exported_job' because 'exported_job' is already taken by another target label mapping.", jobLabel))
+			logger.Warn("Job label could not be mapped to 'exported_job' because 'exported_job' is already taken.",
+				slog.String("source_label", jobLabel))
 		}
 	}
 
