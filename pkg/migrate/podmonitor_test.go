@@ -694,6 +694,7 @@ func TestPodMonitorConversion(t *testing.T) {
 						TargetLabels: monitoringv1.TargetLabels{
 							FromPod: []monitoringv1.LabelMapping{{From: "app_versioned"}},
 						},
+
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Port:     intstr.FromString("metrics"),
@@ -701,6 +702,64 @@ func TestPodMonitorConversion(t *testing.T) {
 								MetricRelabeling: []monitoringv1.RelabelingRule{
 									{SourceLabels: []string{"app_versioned"}, Regex: "(.*)-v[0-9]+", Replacement: "$1", TargetLabel: "app_name", Action: "replace"},
 								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Pre-Scrape Relabelings: target filtering rules fall through to metricRelabeling in multi-endpoint resource to prevent cross-endpoint restriction",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "multi-endpoint-filter-relabel",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics-alpha",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
+									Regex:        "^production$",
+									Action:       "keep",
+								},
+							},
+						},
+						{
+							Port: "metrics-beta",
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "multi-endpoint-filter-relabel", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}}, // Remains unchanged!
+						TargetLabels: monitoringv1.TargetLabels{
+							FromPod: []monitoringv1.LabelMapping{{From: "env"}},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics-alpha"),
+								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{SourceLabels: []string{"env"}, Regex: "^production$", TargetLabel: "", Action: "keep"},
+								},
+							},
+							{
+								Port:     intstr.FromString("metrics-beta"),
+								Interval: "30s",
 							},
 						},
 					},

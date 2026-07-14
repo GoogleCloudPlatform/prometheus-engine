@@ -137,11 +137,11 @@ func (c *conversionContext) getGeneratedSecrets() []*unstructured.Unstructured {
 }
 
 // convertPreScrapeRelabelings evaluates pre-scrape relabelings on a single endpoint and extracts target label and selector rules.
-func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.RelabelConfig) PreScrapeRelabelingResult {
+func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.RelabelConfig, isSingleEndpoint bool) PreScrapeRelabelingResult {
 	var res PreScrapeRelabelingResult
 	var rawMetadata []string
 
-	for i, config := range configs {
+	for _, config := range configs {
 		action := strings.ToLower(config.Action)
 		if action == "" {
 			action = "replace"
@@ -166,10 +166,11 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		// Change protected labels to exported_<label>.
-		if protectedLabels[config.TargetLabel] {
-			oldTarget := config.TargetLabel
-			configs[i].TargetLabel = "exported_" + oldTarget
-			logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.", oldTarget, configs[i].TargetLabel))
+		targetLabel := config.TargetLabel
+		if protectedLabels[targetLabel] {
+			oldTarget := targetLabel
+			targetLabel = "exported_" + oldTarget
+			logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.", oldTarget, targetLabel))
 		}
 
 		// Resolve all source labels upfront and intercept unsupported internal discovery labels.
@@ -199,7 +200,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		// Translate target filtering ("keep" and "drop") rules on pod labels to Kubernetes label selectors.
-		if (action == "keep" || action == "drop") && len(podSources) == 1 && len(config.SourceLabels) == 1 {
+		if isSingleEndpoint && (action == "keep" || action == "drop") && len(podSources) == 1 && len(config.SourceLabels) == 1 {
 			source := string(config.SourceLabels[0])
 			labelName := podSources[0]
 			// Strip optional regex start (^) and end ($) anchors (ex. "^production$" -> "production").
@@ -211,28 +212,30 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			// Verify that the remaining string contains no regex metacharacters (*, +, ?, [, ], etc.).
 			if clean != "" && !strings.ContainsAny(clean, "*+?[]{}()\\^$.") {
 				parts := strings.Split(clean, "|")
-				// A single value with "action: keep" translates to matchLabels.
-				if action == "keep" && len(parts) == 1 {
-					if res.MatchLabels == nil {
-						res.MatchLabels = make(map[string]string)
+				if !slices.Contains(parts, "") {
+					// A single value with "action: keep" translates to matchLabels.
+					if action == "keep" && len(parts) == 1 {
+						if res.MatchLabels == nil {
+							res.MatchLabels = make(map[string]string)
+						}
+						res.MatchLabels[labelName] = parts[0]
+						logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %q) to Pod Selector (matchLabels).", source, parts[0]))
+						continue
 					}
-					res.MatchLabels[labelName] = parts[0]
-					logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %q) to Pod Selector (matchLabels).", source, parts[0]))
+
+					// Multiple values (or any "action: drop" set) translate to matchExpressions (In / NotIn).
+					op := metav1.LabelSelectorOpIn
+					if action == "drop" {
+						op = metav1.LabelSelectorOpNotIn
+					}
+					res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
+						Key:      labelName,
+						Operator: op,
+						Values:   parts,
+					})
+					logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %s) to Pod Selector (matchExpressions).", source, op))
 					continue
 				}
-
-				// Multiple values (or any "action: drop" set) translate to matchExpressions (In / NotIn).
-				op := metav1.LabelSelectorOpIn
-				if action == "drop" {
-					op = metav1.LabelSelectorOpNotIn
-				}
-				res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
-					Key:      labelName,
-					Operator: op,
-					Values:   parts,
-				})
-				logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %s) to Pod Selector (matchExpressions).", source, op))
-				continue
 			}
 		}
 
@@ -244,7 +247,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 
 		if isSimpleCopy {
 			source := string(config.SourceLabels[0])
-			target := configs[i].TargetLabel
+			target := targetLabel
 
 			// Simple pod target label transfer.
 			if len(podSources) == 1 {
@@ -270,11 +273,6 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			res.FromPod = append(res.FromPod, monitoringv1.LabelMapping{From: p})
 		}
 		rawMetadata = append(rawMetadata, metaSources...)
-
-		targetLabel := config.TargetLabel
-		if protectedLabels[targetLabel] {
-			targetLabel = "exported_" + targetLabel
-		}
 
 		promoted := monitoringv1.RelabelingRule{
 			SourceLabels: rewrittenSources,
@@ -307,7 +305,7 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1
 	for _, ep := range endpoints {
 		var r PreScrapeRelabelingResult
 		if len(ep.RelabelConfigs) > 0 {
-			r = convertPreScrapeRelabelings(logger, ep.RelabelConfigs)
+			r = convertPreScrapeRelabelings(logger, ep.RelabelConfigs, len(endpoints) == 1)
 			combined.FromPod = append(combined.FromPod, r.FromPod...)
 			if r.Metadata != nil {
 				rawMetadata = append(rawMetadata, *r.Metadata...)
