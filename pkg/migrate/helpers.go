@@ -311,10 +311,12 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1
 			if r.Metadata != nil {
 				rawMetadata = append(rawMetadata, *r.Metadata...)
 			}
-			if len(r.MatchLabels) > 0 && combined.MatchLabels == nil {
-				combined.MatchLabels = make(map[string]string)
+			if len(r.MatchLabels) > 0 {
+				if combined.MatchLabels == nil {
+					combined.MatchLabels = make(map[string]string)
+				}
+				maps.Copy(combined.MatchLabels, r.MatchLabels)
 			}
-			maps.Copy(combined.MatchLabels, r.MatchLabels)
 			combined.MatchExpressions = append(combined.MatchExpressions, r.MatchExpressions...)
 		}
 		epResults = append(epResults, r)
