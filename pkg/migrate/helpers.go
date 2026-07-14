@@ -147,7 +147,8 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			action = "replace"
 		}
 
-		if action == "labelmap" || action == "labelkeep" || action == "labeldrop" {
+		switch action {
+		case "labelmap", "labelkeep", "labeldrop":
 			logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
 			continue
 		}
