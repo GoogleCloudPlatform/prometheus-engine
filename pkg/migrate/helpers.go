@@ -40,31 +40,48 @@ const (
 	actionHashMod   = "hashmod"
 	actionLowercase = "lowercase"
 	actionUppercase = "uppercase"
+
+	labelCluster                = "cluster"
+	labelLocation               = "location"
+	labelProjectID              = "project_id"
+	labelNamespace              = "namespace"
+	labelJob                    = "job"
+	labelInstance               = "instance"
+	labelContainer              = "container"
+	labelNode                   = "node"
+	labelPod                    = "pod"
+	labelTopLevelController     = "top_level_controller"
+	labelTopLevelControllerName = "top_level_controller_name"
+	labelTopLevelControllerType = "top_level_controller_type"
+	labelAddress                = "__address__"
 )
 
-// protectedLabels contains the list of labels that are protected by GMP and cannot
-// be overwritten by targetLabels or relabeling rules.
-var protectedLabels = map[string]bool{
-	"project_id":                true,
-	"location":                  true,
-	"cluster":                   true,
-	"namespace":                 true,
-	"job":                       true,
-	"instance":                  true,
-	"top_level_controller":      true,
-	"top_level_controller_type": true,
-	"__address__":               true,
-}
+var (
+	// protectedLabels contains the list of labels that are protected by GMP and cannot
+	// be overwritten by targetLabels or relabeling rules.
+	protectedLabels = map[string]bool{
+		labelProjectID:              true,
+		labelLocation:               true,
+		labelCluster:                true,
+		labelNamespace:              true,
+		labelJob:                    true,
+		labelInstance:               true,
+		labelTopLevelController:     true,
+		labelTopLevelControllerName: true,
+		labelTopLevelControllerType: true,
+		labelAddress:                true,
+	}
 
-// metadataLabelMap contains the list of PO metadata labels and their GMP equivalent.
-var metadataLabelMap = map[string]string{
-	"__meta_kubernetes_pod_name":            "pod",
-	"__meta_kubernetes_pod_container_name":  "container",
-	"__meta_kubernetes_pod_node_name":       "node",
-	"__meta_kubernetes_namespace":           "namespace",
-	"__meta_kubernetes_pod_controller_name": "top_level_controller_name",
-	"__meta_kubernetes_pod_controller_kind": "top_level_controller_type",
-}
+	// metadataLabelMap contains the list of PO metadata labels and their GMP equivalent.
+	metadataLabelMap = map[string]string{
+		"__meta_kubernetes_pod_name":            labelPod,
+		"__meta_kubernetes_pod_container_name":  labelContainer,
+		"__meta_kubernetes_pod_node_name":       labelNode,
+		"__meta_kubernetes_namespace":           labelNamespace,
+		"__meta_kubernetes_pod_controller_name": labelTopLevelControllerName,
+		"__meta_kubernetes_pod_controller_kind": labelTopLevelControllerType,
+	}
+)
 
 // PreScrapeRelabelingResult holds the label mappings and selector rules extracted from pre-scrape relabelings.
 type PreScrapeRelabelingResult struct {
