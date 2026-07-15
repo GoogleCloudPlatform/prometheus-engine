@@ -205,7 +205,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			source := string(config.SourceLabels[0])
 			labelName := podSources[0]
 			// Strip optional regex start (^) and end ($) anchors (ex. "^production$" -> "production").
-			clean := strings.Trim(strings.TrimSpace(config.Regex), "^$")
+			clean := strings.TrimPrefix(strings.TrimSuffix(strings.TrimSpace(config.Regex), "$"), "^")
 			// Strip outer grouping parentheses around literal lists (ex. "(test|staging)" -> "test|staging").
 			if strings.HasPrefix(clean, "(") && strings.HasSuffix(clean, ")") {
 				clean = clean[1 : len(clean)-1]
@@ -262,7 +262,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			}
 
 			// Simple metadata label transfer.
-			if len(metaSources) == 1 {
+			if len(metaSources) == 1 && target == metaSources[0] {
 				rawMetadata = append(rawMetadata, metaSources[0])
 				logger.Info(fmt.Sprintf("Translated metadata label copy (%q) to 'targetLabels.metadata' (as label: %q).", source, metaSources[0]))
 				continue
