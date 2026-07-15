@@ -911,3 +911,24 @@ func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingDa
 	res.PromotedRules = append(res.PromotedRules, promoted)
 	logger.Info(fmt.Sprintf("Complex relabeling rule (target: %q) promoted from pre-scrape 'relabelings' to post-scrape 'metricRelabeling'.", data.targetLabel))
 }
+
+// convertLimits maps PodMonitor limit settings to GMP ScrapeLimits.
+func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLengthLimit *uint64) *monitoringv1.ScrapeLimits {
+	if sampleLimit == nil && labelLimit == nil && labelNameLengthLimit == nil && labelValueLengthLimit == nil {
+		return nil
+	}
+	limits := &monitoringv1.ScrapeLimits{}
+	if sampleLimit != nil {
+		limits.Samples = *sampleLimit
+	}
+	if labelLimit != nil {
+		limits.Labels = *labelLimit
+	}
+	if labelNameLengthLimit != nil {
+		limits.LabelNameLength = *labelNameLengthLimit
+	}
+	if labelValueLengthLimit != nil {
+		limits.LabelValueLength = *labelValueLengthLimit
+	}
+	return limits
+}

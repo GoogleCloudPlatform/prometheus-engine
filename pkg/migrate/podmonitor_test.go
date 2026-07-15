@@ -1449,6 +1449,66 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Limits, AttachMetadata.Node, and FilterRunning conversion",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "advanced-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					AttachMetadata: &pomonitoringv1.AttachMetadata{
+						Node: ptrTo(true),
+					},
+					SampleLimit:           ptrTo(uint64(5000)),
+					LabelLimit:            ptrTo(uint64(50)),
+					LabelNameLengthLimit:  ptrTo(uint64(100)),
+					LabelValueLengthLimit: ptrTo(uint64(200)),
+					ScrapeClassName:       ptrTo("custom-class"),
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "advanced"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port:            "web",
+							Interval:        "15s",
+							FilterRunning:   ptrTo(false),
+							FollowRedirects: ptrTo(false),
+							EnableHttp2:     ptrTo(false),
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "advanced-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "advanced"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web"),
+								Interval: "15s",
+							},
+						},
+						TargetLabels: monitoringv1.TargetLabels{
+							Metadata: &[]string{"node"},
+						},
+						Limits: &monitoringv1.ScrapeLimits{
+							Samples:          5000,
+							Labels:           50,
+							LabelNameLength:  100,
+							LabelValueLength: 200,
+						},
+						FilterRunning: ptrTo(false),
+					},
+				},
+			},
+		},
 	}
 
 	converter := &PodMonitorConverter{}
