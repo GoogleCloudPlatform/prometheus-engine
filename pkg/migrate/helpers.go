@@ -27,6 +27,19 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/validation"
+)
+
+const (
+	actionReplace   = "replace"
+	actionKeep      = "keep"
+	actionDrop      = "drop"
+	actionLabelMap  = "labelmap"
+	actionLabelKeep = "labelkeep"
+	actionLabelDrop = "labeldrop"
+	actionHashMod   = "hashmod"
+	actionLowercase = "lowercase"
+	actionUppercase = "uppercase"
 )
 
 // protectedLabels contains the list of labels that are protected by GMP and cannot
@@ -136,6 +149,16 @@ func (c *conversionContext) getGeneratedSecrets() []*unstructured.Unstructured {
 	return secrets
 }
 
+// isValidLabelValues checks whether all strings in parts satisfy Kubernetes label value validation.
+func isValidLabelValues(parts []string) bool {
+	for _, p := range parts {
+		if errs := validation.IsValidLabelValue(p); len(errs) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // convertPreScrapeRelabelings evaluates pre-scrape relabelings on a single endpoint and extracts target label and selector rules.
 func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.RelabelConfig, isSingleEndpoint bool) PreScrapeRelabelingResult {
 	var res PreScrapeRelabelingResult
@@ -144,11 +167,11 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 	for _, config := range configs {
 		action := strings.ToLower(config.Action)
 		if action == "" {
-			action = "replace"
+			action = actionReplace
 		}
 
 		switch action {
-		case "labelmap", "labelkeep", "labeldrop":
+		case actionLabelMap, actionLabelKeep, actionLabelDrop:
 			logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
 			continue
 		}
@@ -201,7 +224,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		// Translate target filtering ("keep" and "drop") rules on pod labels to Kubernetes label selectors.
-		if isSingleEndpoint && (action == "keep" || action == "drop") && len(podSources) == 1 && len(config.SourceLabels) == 1 {
+		if isSingleEndpoint && (action == actionKeep || action == actionDrop) && len(podSources) == 1 && len(config.SourceLabels) == 1 {
 			source := string(config.SourceLabels[0])
 			labelName := podSources[0]
 			// Strip optional regex start (^) and end ($) anchors (ex. "^production$" -> "production").
@@ -210,41 +233,39 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			if strings.HasPrefix(clean, "(") && strings.HasSuffix(clean, ")") {
 				clean = clean[1 : len(clean)-1]
 			}
-			// Verify that the remaining string contains no regex metacharacters (*, +, ?, [, ], etc.).
-			if clean != "" && !strings.ContainsAny(clean, "*+?[]{}()\\^$.") {
-				parts := strings.Split(clean, "|")
-				if !slices.Contains(parts, "") {
-					// A single value with "action: keep" translates to matchLabels.
-					if action == "keep" && len(parts) == 1 {
-						if res.MatchLabels == nil {
-							res.MatchLabels = make(map[string]string)
-						}
-						res.MatchLabels[labelName] = parts[0]
-						logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %q) to Pod Selector (matchLabels).", source, parts[0]))
-						continue
+			parts := strings.Split(clean, "|")
+			// Verify that the remaining string contains no regex metacharacters (*, +, ?, [, ], etc.) and valid K8s label values.
+			if !strings.ContainsAny(clean, "*+?[]{}()\\^$.") && !slices.Contains(parts, "") && isValidLabelValues(parts) {
+				// A single value with "action: keep" translates to matchLabels.
+				if action == actionKeep && len(parts) == 1 {
+					if res.MatchLabels == nil {
+						res.MatchLabels = make(map[string]string)
 					}
-
-					// Multiple values (or any "action: drop" set) translate to matchExpressions (In / NotIn).
-					op := metav1.LabelSelectorOpIn
-					if action == "drop" {
-						op = metav1.LabelSelectorOpNotIn
-					}
-					res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
-						Key:      labelName,
-						Operator: op,
-						Values:   parts,
-					})
-					logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %s) to Pod Selector (matchExpressions).", source, op))
+					res.MatchLabels[labelName] = parts[0]
+					logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %q) to Pod Selector (matchLabels).", source, parts[0]))
 					continue
 				}
+
+				// Multiple values (or any "action: drop" set) translate to matchExpressions (In / NotIn).
+				op := metav1.LabelSelectorOpIn
+				if action == actionDrop {
+					op = metav1.LabelSelectorOpNotIn
+				}
+				res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
+					Key:      labelName,
+					Operator: op,
+					Values:   parts,
+				})
+				logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %s) to Pod Selector (matchExpressions).", source, op))
+				continue
 			}
 		}
 
 		// Relabeling rule equivalent of simply copying over a label.
 		isSimpleCopy := len(config.SourceLabels) == 1 &&
 			(config.Regex == "" || config.Regex == "(.*)") &&
-			(config.Replacement == nil || *config.Replacement == "" || *config.Replacement == "$1") &&
-			action == "replace"
+			(config.Replacement == nil || *config.Replacement == "$1") &&
+			action == actionReplace
 
 		if isSimpleCopy {
 			source := string(config.SourceLabels[0])
@@ -679,15 +700,15 @@ func convertMetricRelabelings(
 	for _, config := range configs {
 		action := strings.ToLower(config.Action)
 		if action == "" {
-			action = "replace"
+			action = actionReplace
 		}
 
 		targetLabel := config.TargetLabel
 		switch action {
-		case "labelmap":
+		case actionLabelMap:
 			logger.Warn("metricRelabelings rule uses 'action: labelmap' which is not supported by GMP and has been dropped.")
 			continue
-		case "replace", "hashmod", "lowercase", "uppercase":
+		case actionReplace, actionHashMod, actionLowercase, actionUppercase:
 			if protectedLabels[config.TargetLabel] {
 				targetLabel = "exported_" + config.TargetLabel
 				logger.Warn("Relabeling rule attempts to write to protected target label. Renamed target.",

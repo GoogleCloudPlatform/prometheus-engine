@@ -745,7 +745,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
 					ObjectMeta: metav1.ObjectMeta{Name: "multi-endpoint-filter-relabel", Namespace: "default"},
 					Spec: monitoringv1.PodMonitoringSpec{
-						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}}, // Remains unchanged!
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}}, // Remains unchanged.
 						TargetLabels: monitoringv1.TargetLabels{
 							FromPod: []monitoringv1.LabelMapping{{From: "env"}},
 						},
@@ -760,6 +760,108 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("metrics-beta"),
 								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Pre-Scrape Relabelings: metadata label copy with renamed target falls through to metricRelabeling",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "metadata-rename-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_name"},
+									TargetLabel:  "custom_pod_name",
+									Action:       "replace",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "metadata-rename-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+						TargetLabels: monitoringv1.TargetLabels{
+							Metadata: &[]string{"pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{SourceLabels: []string{"pod"}, TargetLabel: "custom_pod_name", Action: "replace"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Pre-Scrape Relabelings: target filtering rules with invalid k8s label values fall through to metricRelabeling",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-selector-value-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
+									Regex:        "^prod v1$", // Contains space - invalid for k8s label value.
+									Action:       "keep",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "invalid-selector-value-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+						TargetLabels: monitoringv1.TargetLabels{
+							FromPod: []monitoringv1.LabelMapping{{From: "env"}},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{SourceLabels: []string{"env"}, Regex: "^prod v1$", TargetLabel: "", Action: "keep"},
+								},
 							},
 						},
 					},
