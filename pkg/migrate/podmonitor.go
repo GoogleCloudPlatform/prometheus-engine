@@ -248,6 +248,13 @@ func (c *PodMonitorConverter) convertEndpoints(
 		}
 
 		// 5. Warnings for Unsupported Fields in Endpoint.
+		if ep.FollowRedirects != nil && !*ep.FollowRedirects {
+			convCtx.logger.Warn("Field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always follow redirects.")
+		}
+		if ep.EnableHttp2 != nil && !*ep.EnableHttp2 {
+			convCtx.logger.Warn("Field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always negotiate HTTP/2 for TLS connections.")
+		}
+
 		if ep.HonorLabels {
 			convCtx.logger.Warn("Field 'honorLabels: true' is unsupported and dropped. GMP always overrides conflicting labels. Clashing metric labels will be renamed with the 'exported_' prefix.")
 		}
@@ -288,6 +295,18 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		logger.Warn("Resulting PodMonitoring selector is empty. It will select and scrape all pods in this namespace. Verify if this is intended.")
 	}
 
+	// Spec-level warnings for unsupported fields.
+	// TODO(M2): Resolve and merge ScrapeClass configurations from Prometheus CR if scrapeClassName is specified.
+	if pm.Spec.ScrapeClassName != nil && *pm.Spec.ScrapeClassName != "" {
+		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
+	}
+	for _, sp := range pm.Spec.ScrapeProtocols {
+		if strings.Contains(strings.ToLower(string(sp)), "protobuf") {
+			logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
+			break
+		}
+	}
+
 	var filteredMetadata *[]string
 	if rules.ResourceCombined.Metadata != nil {
 		union := unionMetadata(*rules.ResourceCombined.Metadata, namespacedMetadataDefaults)
@@ -304,6 +323,18 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		}
 	}
 
+	var filterRunning *bool
+	for _, ep := range pm.Spec.PodMetricsEndpoints {
+		if ep.FilterRunning != nil && !*ep.FilterRunning {
+			falseVal := false
+			filterRunning = &falseVal
+			logger.Warn("Endpoint-level configuration conflict detected: at least one endpoint is configured with 'filterRunning: false', but GMP only supports 'filterRunning' at the resource level. Set 'filterRunning: false' globally on the PodMonitoring resource.")
+			break
+		}
+	}
+
+	limits := convertLimits(pm.Spec.SampleLimit, pm.Spec.LabelLimit, pm.Spec.LabelNameLengthLimit, pm.Spec.LabelValueLengthLimit)
+
 	gmpPM := &monitoringv1.PodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
 		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, pm.Namespace, logger),
@@ -314,6 +345,8 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 				FromPod:  mergedFromPod,
 				Metadata: filteredMetadata,
 			},
+			Limits:        limits,
+			FilterRunning: filterRunning,
 		},
 	}
 
@@ -353,11 +386,35 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		logger.Warn("Resulting ClusterPodMonitoring selector is empty. It will select and scrape all pods across all namespaces. Verify if this is intended.")
 	}
 
+	// Spec-level warnings for unsupported fields.
+	// TODO(M2): Resolve and merge ScrapeClass configurations from Prometheus CR if scrapeClassName is specified.
+	if pm.Spec.ScrapeClassName != nil && *pm.Spec.ScrapeClassName != "" {
+		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the pre-scanned inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
+	}
+	for _, sp := range pm.Spec.ScrapeProtocols {
+		if strings.Contains(strings.ToLower(string(sp)), "protobuf") {
+			logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
+			break
+		}
+	}
+
 	var filteredMetadata *[]string
 	if rules.ResourceCombined.Metadata != nil {
 		union := unionMetadata(*rules.ResourceCombined.Metadata, clusterMetadataDefaults)
 		filteredMetadata = &union
 	}
+
+	var filterRunning *bool
+	for _, ep := range pm.Spec.PodMetricsEndpoints {
+		if ep.FilterRunning != nil && !*ep.FilterRunning {
+			falseVal := false
+			filterRunning = &falseVal
+			logger.Warn("Endpoint-level configuration conflict detected: at least one endpoint is configured with 'filterRunning: false', but GMP only supports 'filterRunning' at the resource level. Set 'filterRunning: false' globally on the PodMonitoring resource.")
+			break
+		}
+	}
+
+	limits := convertLimits(pm.Spec.SampleLimit, pm.Spec.LabelLimit, pm.Spec.LabelNameLengthLimit, pm.Spec.LabelValueLengthLimit)
 
 	gmpCPM := &monitoringv1.ClusterPodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
@@ -369,6 +426,8 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 				FromPod:  mergedFromPod,
 				Metadata: filteredMetadata,
 			},
+			Limits:        limits,
+			FilterRunning: filterRunning,
 		},
 	}
 
