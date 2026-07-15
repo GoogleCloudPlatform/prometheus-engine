@@ -811,3 +811,24 @@ func convertTargetLabels(logger *slog.Logger, sourceLabels []string, jobLabel st
 
 	return fromPod
 }
+
+// convertLimits maps PodMonitor limit settings to GMP ScrapeLimits.
+func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLengthLimit *uint64) *monitoringv1.ScrapeLimits {
+	if sampleLimit == nil && labelLimit == nil && labelNameLengthLimit == nil && labelValueLengthLimit == nil {
+		return nil
+	}
+	limits := &monitoringv1.ScrapeLimits{}
+	if sampleLimit != nil {
+		limits.Samples = *sampleLimit
+	}
+	if labelLimit != nil {
+		limits.Labels = *labelLimit
+	}
+	if labelNameLengthLimit != nil {
+		limits.LabelNameLength = *labelNameLengthLimit
+	}
+	if labelValueLengthLimit != nil {
+		limits.LabelValueLength = *labelValueLengthLimit
+	}
+	return limits
+}
