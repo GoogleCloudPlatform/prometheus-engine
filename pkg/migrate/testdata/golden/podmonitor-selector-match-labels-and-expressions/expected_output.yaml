@@ -1,0 +1,22 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: defaultPodMonitor
+  namespace: default
+spec:
+  endpoints:
+  - interval: 30s
+    port: web
+  selector:
+    matchExpressions:
+    - key: group
+      operator: In
+      values:
+      - group2
+    - key: groupb
+      operator: DoesNotExist
+    matchLabels:
+      group: group1
+  targetLabels: {}
+status:
+  observedGeneration: 0

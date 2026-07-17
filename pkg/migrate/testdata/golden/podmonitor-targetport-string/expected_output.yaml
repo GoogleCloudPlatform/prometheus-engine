@@ -1,0 +1,13 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: testpodmonitor-targetport-string
+  namespace: default
+spec:
+  endpoints:
+  - interval: 30s
+    port: "10240"
+  selector: {}
+  targetLabels: {}
+status:
+  observedGeneration: 0

@@ -337,6 +337,7 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal PodMonitoring: %w", err)
 	}
+	removeNilFields(unstructuredMap)
 
 	u := &unstructured.Unstructured{Object: unstructuredMap}
 	u.SetAPIVersion(GMPAPIVersion)
@@ -421,6 +422,7 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal ClusterPodMonitoring: %w", err)
 	}
+	removeNilFields(unstructuredMap)
 
 	u := &unstructured.Unstructured{Object: unstructuredMap}
 	u.SetAPIVersion(GMPAPIVersion)

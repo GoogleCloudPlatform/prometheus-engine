@@ -1,0 +1,16 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: testpodmonitor1
+  namespace: default
+spec:
+  endpoints:
+  - interval: 30s
+    port: web
+  selector: {}
+  targetLabels:
+    fromPod:
+    - from: example
+    - from: env
+status:
+  observedGeneration: 0

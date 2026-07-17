@@ -832,3 +832,22 @@ func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLeng
 	}
 	return limits
 }
+
+// removeNilFields recursively traverses a map and deletes any keys that have nil/null values.
+func removeNilFields(m map[string]any) {
+	for k, v := range m {
+		if v == nil {
+			delete(m, k)
+			continue
+		}
+		if subMap, ok := v.(map[string]any); ok {
+			removeNilFields(subMap)
+		} else if slice, ok := v.([]any); ok {
+			for _, item := range slice {
+				if itemMap, ok := item.(map[string]any); ok {
+					removeNilFields(itemMap)
+				}
+			}
+		}
+	}
+}

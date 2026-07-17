@@ -1,0 +1,4 @@
+[INFO] [PodMonitor:pod-monitor-ns/testpodmonitor1] Successfully decoded PodMonitor
+[WARNING] [PodMonitor:pod-monitor-ns/testpodmonitor1] Field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always follow redirects.
+[WARNING] [PodMonitor:pod-monitor-ns/testpodmonitor1] Stripped all metadata labels and annotations. Reconfigure them manually if needed
+[SUCCESS] [PodMonitor:pod-monitor-ns/testpodmonitor1] Converted successfully
