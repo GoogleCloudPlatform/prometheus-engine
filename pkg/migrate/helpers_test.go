@@ -72,12 +72,14 @@ func TestExtractSecretKey(t *testing.T) {
 		setupCache  func(cache *ResourceCache) error
 		selector    corev1.SecretKeySelector
 		expectedVal string
+		wantErr     bool
 	}{
 		{
 			name:        "Missing secret",
 			setupCache:  func(_ *ResourceCache) error { return nil }, // Empty cache.
 			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing"}, Key: "user"},
 			expectedVal: "<MISSING_SECRET_missing_KEY_user>",
+			wantErr:     false,
 		},
 		{
 			name: "Secret with StringData",
@@ -86,6 +88,7 @@ func TestExtractSecretKey(t *testing.T) {
 			},
 			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}, Key: "user"},
 			expectedVal: "admin",
+			wantErr:     false,
 		},
 		{
 			name: "Secret with Base64 Data",
@@ -94,6 +97,52 @@ func TestExtractSecretKey(t *testing.T) {
 			},
 			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret-2"}, Key: "pass"},
 			expectedVal: "supersecret",
+			wantErr:     false,
+		},
+		{
+			name:        "Secret reference with empty Name",
+			setupCache:  func(_ *ResourceCache) error { return nil },
+			selector:    corev1.SecretKeySelector{Key: "user"},
+			expectedVal: "",
+			wantErr:     true,
+		},
+		{
+			name:        "Secret reference with empty Key",
+			setupCache:  func(_ *ResourceCache) error { return nil },
+			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}},
+			expectedVal: "",
+			wantErr:     true,
+		},
+		{
+			name: "Secret exists but key missing",
+			setupCache: func(cache *ResourceCache) error {
+				return addSecretToCache(cache, "default", "my-secret", "user", "admin", true)
+			},
+			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}, Key: "password"},
+			expectedVal: "",
+			wantErr:     true,
+		},
+		{
+			name: "Secret exists but data corrupted",
+			setupCache: func(cache *ResourceCache) error {
+				secret := &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "v1",
+						"kind":       "Secret",
+						"metadata": map[string]any{
+							"name":      "corrupted-secret",
+							"namespace": "default",
+						},
+						"data": map[string]any{
+							"pass": "not-base64-data-with-invalid-chars-@!#",
+						},
+					},
+				}
+				return cache.Add(secret)
+			},
+			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "corrupted-secret"}, Key: "pass"},
+			expectedVal: "",
+			wantErr:     true,
 		},
 	}
 
@@ -104,8 +153,11 @@ func TestExtractSecretKey(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			val := ctx.extractSecretKey(tc.selector)
-			if val != tc.expectedVal {
+			val, err := ctx.extractSecretKey(tc.selector)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("extractSecretKey() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if !tc.wantErr && val != tc.expectedVal {
 				t.Errorf("expected %s, got %s", tc.expectedVal, val)
 			}
 		})
@@ -118,12 +170,14 @@ func TestExtractConfigMapKey(t *testing.T) {
 		setupCache  func(cache *ResourceCache) error
 		selector    corev1.ConfigMapKeySelector
 		expectedVal string
+		wantErr     bool
 	}{
 		{
 			name:        "Missing configmap",
 			setupCache:  func(_ *ResourceCache) error { return nil }, // Empty cache.
 			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing"}, Key: "user"},
 			expectedVal: "<MISSING_CONFIGMAP_missing_KEY_user>",
+			wantErr:     false,
 		},
 		{
 			name: "Found configmap",
@@ -132,6 +186,30 @@ func TestExtractConfigMapKey(t *testing.T) {
 			},
 			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}, Key: "id"},
 			expectedVal: "client-123",
+			wantErr:     false,
+		},
+		{
+			name:        "Configmap reference with empty Name",
+			setupCache:  func(_ *ResourceCache) error { return nil },
+			selector:    corev1.ConfigMapKeySelector{Key: "user"},
+			expectedVal: "",
+			wantErr:     true,
+		},
+		{
+			name:        "Configmap reference with empty Key",
+			setupCache:  func(_ *ResourceCache) error { return nil },
+			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}},
+			expectedVal: "",
+			wantErr:     true,
+		},
+		{
+			name: "Configmap exists but key missing",
+			setupCache: func(cache *ResourceCache) error {
+				return addConfigMapToCache(cache, "default", "my-cm", "id", "client-123")
+			},
+			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}, Key: "secret"},
+			expectedVal: "",
+			wantErr:     true,
 		},
 	}
 
@@ -142,8 +220,11 @@ func TestExtractConfigMapKey(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			val := ctx.extractConfigMapKey(tc.selector)
-			if val != tc.expectedVal {
+			val, err := ctx.extractConfigMapKey(tc.selector)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("extractConfigMapKey() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if !tc.wantErr && val != tc.expectedVal {
 				t.Errorf("expected %s, got %s", tc.expectedVal, val)
 			}
 		})
@@ -158,6 +239,7 @@ func TestConvertConfigMapToSecretSelector(t *testing.T) {
 		expectedSecretName    string
 		expectedSecretKey     string
 		expectGeneratedSecret bool
+		wantErr               bool
 	}{
 		{
 			name: "Convert ConfigMap to Secret",
@@ -171,6 +253,7 @@ func TestConvertConfigMapToSecretSelector(t *testing.T) {
 			expectedSecretName:    "secret-tls-cm",
 			expectedSecretKey:     "ca.crt",
 			expectGeneratedSecret: true,
+			wantErr:               false,
 		},
 		{
 			name:                  "Nil selector",
@@ -179,6 +262,25 @@ func TestConvertConfigMapToSecretSelector(t *testing.T) {
 			expectedSecretName:    "",
 			expectedSecretKey:     "",
 			expectGeneratedSecret: false,
+			wantErr:               false,
+		},
+		{
+			name:                  "Empty name reference",
+			setupCache:            func(_ *ResourceCache) error { return nil },
+			selector:              &corev1.ConfigMapKeySelector{Key: "ca.crt"},
+			expectedSecretName:    "",
+			expectedSecretKey:     "",
+			expectGeneratedSecret: false,
+			wantErr:               true,
+		},
+		{
+			name:                  "Empty key reference",
+			setupCache:            func(_ *ResourceCache) error { return nil },
+			selector:              &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"}},
+			expectedSecretName:    "",
+			expectedSecretKey:     "",
+			expectGeneratedSecret: false,
+			wantErr:               true,
 		},
 	}
 
@@ -189,12 +291,18 @@ func TestConvertConfigMapToSecretSelector(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			gmpSel := ctx.convertConfigMapToSecretSelector(tc.selector)
+			gmpSel, err := ctx.convertConfigMapToSecretSelector(tc.selector)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("convertConfigMapToSecretSelector() error = %v, wantErr %v", err, tc.wantErr)
+			}
 
 			if tc.selector == nil {
 				if gmpSel != nil {
 					t.Errorf("expected nil result for nil selector, got %+v", gmpSel)
 				}
+				return
+			}
+			if tc.wantErr {
 				return
 			}
 
@@ -224,6 +332,7 @@ func TestConvertBasicAuth(t *testing.T) {
 		expectedUser     string
 		expectedPassName string
 		expectedPassKey  string
+		wantErr          bool
 	}{
 		{
 			name: "Valid BasicAuth conversion",
@@ -237,11 +346,22 @@ func TestConvertBasicAuth(t *testing.T) {
 			expectedUser:     "myuser",
 			expectedPassName: "auth-secret",
 			expectedPassKey:  "pass",
+			wantErr:          false,
 		},
 		{
 			name:       "Nil BasicAuth",
 			setupCache: func(_ *ResourceCache) error { return nil },
 			basicAuth:  nil,
+			wantErr:    false,
+		},
+		{
+			name:       "Malformed Username reference",
+			setupCache: func(_ *ResourceCache) error { return nil },
+			basicAuth: &pomonitoringv1.BasicAuth{
+				Username: corev1.SecretKeySelector{Key: "user"},
+				Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "pass"},
+			},
+			wantErr: true,
 		},
 	}
 
@@ -252,12 +372,18 @@ func TestConvertBasicAuth(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			gmpBA := ctx.convertBasicAuth(tc.basicAuth)
+			gmpBA, err := ctx.convertBasicAuth(tc.basicAuth)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("convertBasicAuth() error = %v, wantErr %v", err, tc.wantErr)
+			}
 
 			if tc.basicAuth == nil {
 				if gmpBA != nil {
 					t.Errorf("expected nil result for nil BasicAuth, got %+v", gmpBA)
 				}
+				return
+			}
+			if tc.wantErr {
 				return
 			}
 
@@ -283,6 +409,7 @@ func TestConvertSafeTLSConfig(t *testing.T) {
 		expectedCertKey    string
 		expectedSkipVerify bool
 		expectedServerName string
+		wantErr            bool
 	}{
 		{
 			name: "Full TLS Config Conversion",
@@ -305,11 +432,23 @@ func TestConvertSafeTLSConfig(t *testing.T) {
 			expectedCertKey:    "tls.crt",
 			expectedSkipVerify: true,
 			expectedServerName: "my-server",
+			wantErr:            false,
 		},
 		{
 			name:       "Nil TLS Config",
 			setupCache: func(_ *ResourceCache) error { return nil },
 			tlsConfig:  nil,
+			wantErr:    false,
+		},
+		{
+			name:       "Malformed CA reference",
+			setupCache: func(_ *ResourceCache) error { return nil },
+			tlsConfig: &pomonitoringv1.SafeTLSConfig{
+				CA: pomonitoringv1.SecretOrConfigMap{
+					ConfigMap: &corev1.ConfigMapKeySelector{Key: "ca.crt"},
+				},
+			},
+			wantErr: true,
 		},
 	}
 
@@ -320,12 +459,18 @@ func TestConvertSafeTLSConfig(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			gmpTLS := ctx.convertSafeTLSConfig(tc.tlsConfig)
+			gmpTLS, err := ctx.convertSafeTLSConfig(tc.tlsConfig)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("convertSafeTLSConfig() error = %v, wantErr %v", err, tc.wantErr)
+			}
 
 			if tc.tlsConfig == nil {
 				if gmpTLS != nil {
 					t.Errorf("expected nil result for nil TLS config, got %+v", gmpTLS)
 				}
+				return
+			}
+			if tc.wantErr {
 				return
 			}
 
@@ -358,13 +503,19 @@ func TestConvertConfigMapToSecretSelectorDeduplication(t *testing.T) {
 	}
 
 	// Call first time.
-	gmpSel1 := ctx.convertConfigMapToSecretSelector(selector)
+	gmpSel1, err := ctx.convertConfigMapToSecretSelector(selector)
+	if err != nil {
+		t.Fatalf("first call failed with error: %v", err)
+	}
 	if gmpSel1 == nil || gmpSel1.Secret.Name != "secret-tls-cm" {
 		t.Fatal("first call failed to translate selector")
 	}
 
 	// Call second time.
-	gmpSel2 := ctx.convertConfigMapToSecretSelector(selector)
+	gmpSel2, err := ctx.convertConfigMapToSecretSelector(selector)
+	if err != nil {
+		t.Fatalf("second call failed with error: %v", err)
+	}
 	if gmpSel2 == nil || gmpSel2.Secret.Name != "secret-tls-cm" {
 		t.Fatal("second call failed to translate selector")
 	}
@@ -372,6 +523,6 @@ func TestConvertConfigMapToSecretSelectorDeduplication(t *testing.T) {
 	// Ensure only one secret was generated in total.
 	genSecrets := ctx.getGeneratedSecrets()
 	if len(genSecrets) != 1 {
-		t.Fatalf("expected exactly 1 generated secret due to deduplication, got %d", len(genSecrets))
+		t.Fatalf("expected exactly 1 generated secret due to duplication, got %d", len(genSecrets))
 	}
 }

@@ -109,13 +109,18 @@ func (c *conversionContext) getGeneratedSecrets() []*unstructured.Unstructured {
 }
 
 // extractResourceKey is a consolidated helper that fetches a key from a ConfigMap or Secret.
-func (c *conversionContext) extractResourceKey(kind, name, key string) string {
+// It returns an error if the reference is malformed or if data is corrupt.
+// It returns a placeholder and logs a warning if the resource itself is not found in the cache.
+func (c *conversionContext) extractResourceKey(kind, name, key string) (string, error) {
 	kindUpper := strings.ToUpper(kind)
+	if name == "" && key == "" {
+		return "", nil
+	}
 	if name == "" {
-		c.logger.Warn("KeySelector has empty name. Hardcoding placeholder.",
-			slog.String("selector_kind", kind),
-			slog.String("key", key))
-		return fmt.Sprintf("<MISSING_%s_NAME_KEY_%s>", kindUpper, key)
+		return "", fmt.Errorf("%s reference has an empty name for key %q", kindUpper, key)
+	}
+	if key == "" {
+		return "", fmt.Errorf("%s reference has an empty key for name %q", kindUpper, name)
 	}
 
 	obj, ok := c.cache.Get(kind, c.namespace, name)
@@ -124,14 +129,14 @@ func (c *conversionContext) extractResourceKey(kind, name, key string) string {
 			slog.String("referenced_kind", kind),
 			slog.String("referenced_name", name),
 			slog.String("key", key))
-		return fmt.Sprintf("<MISSING_%s_%s_KEY_%s>", kindUpper, name, key)
+		return fmt.Sprintf("<MISSING_%s_%s_KEY_%s>", kindUpper, name, key), nil
 	}
 
 	// Secrets support unencoded stringData.
 	if kind == KindSecret {
 		val, found, _ := unstructured.NestedString(obj.Object, "stringData", key)
 		if found {
-			return val
+			return val, nil
 		}
 	}
 
@@ -141,14 +146,11 @@ func (c *conversionContext) extractResourceKey(kind, name, key string) string {
 		if kind == KindSecret {
 			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(val))
 			if err != nil {
-				c.logger.Warn("Failed to decode base64 data. Hardcoding placeholder.",
-					slog.String("key", key),
-					slog.String("secret", name))
-				return fmt.Sprintf("<MALFORMED_SECRET_%s_KEY_%s>", name, key)
+				return "", fmt.Errorf("failed to decode base64 data for key %q in secret %q: %w", key, name, err)
 			}
-			return string(decoded)
+			return string(decoded), nil
 		}
-		return val
+		return val, nil
 	}
 
 	// ConfigMaps can store base64 binaryData.
@@ -157,49 +159,44 @@ func (c *conversionContext) extractResourceKey(kind, name, key string) string {
 		if found {
 			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(val))
 			if err != nil {
-				c.logger.Warn("Failed to decode base64 data. Hardcoding placeholder.",
-					slog.String("key", key),
-					slog.String("configmap", name))
-				return fmt.Sprintf("<MALFORMED_CONFIGMAP_%s_KEY_%s>", name, key)
+				return "", fmt.Errorf("failed to decode base64 binaryData for key %q in configmap %q: %w", key, name, err)
 			}
-			return string(decoded)
+			return string(decoded), nil
 		}
 	}
 
-	c.logger.Warn("Key not found in resource. Hardcoding placeholder.",
-		slog.String("key", key),
-		slog.String("referenced_kind", kind),
-		slog.String("referenced_name", name))
-	return fmt.Sprintf("<MISSING_KEY_%s_IN_%s_%s>", key, kindUpper, name)
+	return "", fmt.Errorf("key %q not found in %s %q", key, kindUpper, name)
 }
 
-// extractSecretKey extracts a string value from a Secret, returning a placeholder and warning if not found.
-func (c *conversionContext) extractSecretKey(sel corev1.SecretKeySelector) string {
+// extractSecretKey extracts a string value from a Secret.
+// It returns an error if the reference or data is malformed, or a placeholder if the resource is not found.
+func (c *conversionContext) extractSecretKey(sel corev1.SecretKeySelector) (string, error) {
+	if sel.Name == "" && sel.Key == "" {
+		return "", nil
+	}
 	return c.extractResourceKey(KindSecret, sel.Name, sel.Key)
 }
 
-// extractConfigMapKey extracts a string value from a ConfigMap, returning a placeholder and warning if not found.
-func (c *conversionContext) extractConfigMapKey(sel corev1.ConfigMapKeySelector) string {
+// extractConfigMapKey extracts a string value from a ConfigMap.
+// It returns an error if the reference or data is malformed, or a placeholder if the resource is not found.
+func (c *conversionContext) extractConfigMapKey(sel corev1.ConfigMapKeySelector) (string, error) {
+	if sel.Name == "" && sel.Key == "" {
+		return "", nil
+	}
 	return c.extractResourceKey(KindConfigMap, sel.Name, sel.Key)
 }
 
-func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigMapKeySelector) *monitoringv1.SecretSelector {
+// convertConfigMapToSecretSelector translates a ConfigMapKeySelector to a SecretSelector.
+// It returns an error if the reference is malformed.
+func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigMapKeySelector) (*monitoringv1.SecretSelector, error) {
 	if sel == nil || (sel.Name == "" && sel.Key == "") {
-		return nil
+		return nil, nil
 	}
 	if sel.Name == "" {
-		c.logger.Warn("ConfigMap reference has an empty name. Hardcoding placeholder and skipping Secret manifest generation. You must fix this reference and ensure the Secret is created before applying.",
-			slog.String("key", sel.Key))
-		return &monitoringv1.SecretSelector{
-			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_CONFIGMAP_NAME>", Key: sel.Key, Namespace: c.namespace},
-		}
+		return nil, fmt.Errorf("configmap reference has an empty name for key %q", sel.Key)
 	}
 	if sel.Key == "" {
-		c.logger.Warn("ConfigMap reference has an empty key. Hardcoding placeholder. You must fix this reference before applying.",
-			slog.String("configmap", sel.Name))
-		return &monitoringv1.SecretSelector{
-			Secret: &monitoringv1.SecretKeySelector{Name: "secret-" + sel.Name, Key: "<MISSING_CONFIGMAP_KEY>", Namespace: c.namespace},
-		}
+		return nil, fmt.Errorf("configmap reference has an empty key for name %q", sel.Name)
 	}
 
 	secretName := "secret-" + sel.Name
@@ -244,11 +241,12 @@ func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigM
 	}
 
 	secretRef := &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey, Namespace: c.namespace}
-	return &monitoringv1.SecretSelector{Secret: secretRef}
+	return &monitoringv1.SecretSelector{Secret: secretRef}, nil
 }
 
-// convertSecretOrConfigMapToSecretSelector translates to a SecretSelector and warns on missing caches or optional configs.
-func (c *conversionContext) convertSecretOrConfigMapToSecretSelector(sel pomonitoringv1.SecretOrConfigMap) *monitoringv1.SecretSelector {
+// convertSecretOrConfigMapToSecretSelector translates a SecretOrConfigMap to a SecretSelector.
+// It returns an error if the selected configuration reference is malformed.
+func (c *conversionContext) convertSecretOrConfigMapToSecretSelector(sel pomonitoringv1.SecretOrConfigMap) (*monitoringv1.SecretSelector, error) {
 	if sel.Secret != nil {
 		return c.convertSecretSelector(sel.Secret)
 	}
@@ -257,50 +255,54 @@ func (c *conversionContext) convertSecretOrConfigMapToSecretSelector(sel pomonit
 		return c.convertConfigMapToSecretSelector(sel.ConfigMap)
 	}
 
-	return nil
+	return nil, nil
 }
 
-func (c *conversionContext) convertSecretSelector(sel *corev1.SecretKeySelector) *monitoringv1.SecretSelector {
+// convertSecretSelector translates a SecretKeySelector to a SecretSelector.
+// It returns an error if the reference is malformed.
+func (c *conversionContext) convertSecretSelector(sel *corev1.SecretKeySelector) (*monitoringv1.SecretSelector, error) {
 	if sel == nil || (sel.Name == "" && sel.Key == "") {
-		return nil
+		return nil, nil
 	}
 	if sel.Name == "" {
-		c.logger.Warn("Secret reference has an empty name. Hardcoding placeholder. You must fix this reference and ensure the Secret is created before applying.",
-			slog.String("key", sel.Key))
-		return &monitoringv1.SecretSelector{
-			Secret: &monitoringv1.SecretKeySelector{Name: "<MISSING_SECRET_NAME>", Key: sel.Key, Namespace: c.namespace},
-		}
+		return nil, fmt.Errorf("secret reference has an empty name for key %q", sel.Key)
 	}
 	if sel.Key == "" {
-		c.logger.Warn("Secret reference has an empty key. Hardcoding placeholder. You must fix this reference before applying.",
-			slog.String("secret", sel.Name))
-		return &monitoringv1.SecretSelector{
-			Secret: &monitoringv1.SecretKeySelector{Name: sel.Name, Key: "<MISSING_SECRET_KEY>", Namespace: c.namespace},
-		}
+		return nil, fmt.Errorf("secret reference has an empty key for name %q", sel.Name)
 	}
 	if sel.Optional != nil && *sel.Optional {
 		c.logger.Warn("Secret reference had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.",
 			slog.String("secret", sel.Name))
 	}
 	secretRef := &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key, Namespace: c.namespace}
-	return &monitoringv1.SecretSelector{Secret: secretRef}
+	return &monitoringv1.SecretSelector{Secret: secretRef}, nil
 }
 
 // convertBasicAuth maps PO BasicAuth to GMP BasicAuth, extracting the username string.
-func (c *conversionContext) convertBasicAuth(ba *pomonitoringv1.BasicAuth) *monitoringv1.BasicAuth {
+// It returns an error if either the username or password secret reference is malformed or invalid.
+func (c *conversionContext) convertBasicAuth(ba *pomonitoringv1.BasicAuth) (*monitoringv1.BasicAuth, error) {
 	if ba == nil {
-		return nil
+		return nil, nil
+	}
+	username, err := c.extractSecretKey(ba.Username)
+	if err != nil {
+		return nil, err
+	}
+	password, err := c.convertSecretSelector(&ba.Password)
+	if err != nil {
+		return nil, err
 	}
 	return &monitoringv1.BasicAuth{
-		Username: c.extractSecretKey(ba.Username),
-		Password: c.convertSecretSelector(&ba.Password),
-	}
+		Username: username,
+		Password: password,
+	}, nil
 }
 
 // convertSafeTLSConfig maps PO SafeTLSConfig to GMP TLS, wrapping ConfigMaps into Secrets.
-func (c *conversionContext) convertSafeTLSConfig(tls *pomonitoringv1.SafeTLSConfig) *monitoringv1.TLS {
+// It returns an error if any referenced certificate secret or configmap is malformed.
+func (c *conversionContext) convertSafeTLSConfig(tls *pomonitoringv1.SafeTLSConfig) (*monitoringv1.TLS, error) {
 	if tls == nil {
-		return nil
+		return nil, nil
 	}
 	gmpTLS := &monitoringv1.TLS{}
 	if tls.InsecureSkipVerify != nil {
@@ -310,50 +312,81 @@ func (c *conversionContext) convertSafeTLSConfig(tls *pomonitoringv1.SafeTLSConf
 		gmpTLS.ServerName = *tls.ServerName
 	}
 	if tls.CA.Secret != nil || tls.CA.ConfigMap != nil {
-		gmpTLS.CA = c.convertSecretOrConfigMapToSecretSelector(tls.CA)
+		ca, err := c.convertSecretOrConfigMapToSecretSelector(tls.CA)
+		if err != nil {
+			return nil, err
+		}
+		gmpTLS.CA = ca
 	}
 	if tls.Cert.Secret != nil || tls.Cert.ConfigMap != nil {
-		gmpTLS.Cert = c.convertSecretOrConfigMapToSecretSelector(tls.Cert)
+		cert, err := c.convertSecretOrConfigMapToSecretSelector(tls.Cert)
+		if err != nil {
+			return nil, err
+		}
+		gmpTLS.Cert = cert
 	}
 	if tls.KeySecret != nil {
-		gmpTLS.Key = c.convertSecretSelector(tls.KeySecret)
+		key, err := c.convertSecretSelector(tls.KeySecret)
+		if err != nil {
+			return nil, err
+		}
+		gmpTLS.Key = key
 	}
-	return gmpTLS
+	return gmpTLS, nil
 }
 
 // convertOAuth2 maps PO OAuth2 to GMP OAuth2, extracting the clientID string.
-func (c *conversionContext) convertOAuth2(oa *pomonitoringv1.OAuth2) *monitoringv1.OAuth2 {
+// It returns an error if any secret or configmap reference is malformed or invalid.
+func (c *conversionContext) convertOAuth2(oa *pomonitoringv1.OAuth2) (*monitoringv1.OAuth2, error) {
 	if oa == nil {
-		return nil
+		return nil, nil
 	}
 	clientID := ""
+	var err error
 	if oa.ClientID.Secret != nil {
-		clientID = c.extractSecretKey(*oa.ClientID.Secret)
+		clientID, err = c.extractSecretKey(*oa.ClientID.Secret)
 	} else if oa.ClientID.ConfigMap != nil {
-		clientID = c.extractConfigMapKey(*oa.ClientID.ConfigMap)
+		clientID, err = c.extractConfigMapKey(*oa.ClientID.ConfigMap)
 	} else {
 		c.logger.Warn("OAuth2 clientID neither defined as Secret nor ConfigMap. Hardcoding placeholder.")
 		clientID = "<MISSING_OAUTH2_CLIENT_ID>"
 	}
+	if err != nil {
+		return nil, err
+	}
+
+	clientSecret, err := c.convertSecretSelector(&oa.ClientSecret)
+	if err != nil {
+		return nil, err
+	}
 
 	return &monitoringv1.OAuth2{
 		ClientID:       clientID,
-		ClientSecret:   c.convertSecretSelector(&oa.ClientSecret),
+		ClientSecret:   clientSecret,
 		TokenURL:       oa.TokenURL,
 		Scopes:         oa.Scopes,
 		EndpointParams: oa.EndpointParams,
-	}
+	}, nil
 }
 
 // convertAuthorization maps PO SafeAuthorization to GMP Auth.
-func (c *conversionContext) convertAuthorization(auth *pomonitoringv1.SafeAuthorization) *monitoringv1.Auth {
+// It returns an error if the credentials secret reference is malformed.
+func (c *conversionContext) convertAuthorization(auth *pomonitoringv1.SafeAuthorization) (*monitoringv1.Auth, error) {
 	if auth == nil {
-		return nil
+		return nil, nil
+	}
+	var credentials *monitoringv1.SecretSelector
+	var err error
+	if auth.Credentials != nil {
+		credentials, err = c.convertSecretSelector(auth.Credentials)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &monitoringv1.Auth{
 		Type:        auth.Type,
-		Credentials: c.convertSecretSelector(auth.Credentials),
-	}
+		Credentials: credentials,
+	}, nil
 }
 
 func convertMetricRelabelings(

@@ -185,16 +185,32 @@ func (c *PodMonitorConverter) convertEndpoints(
 
 		// Auth & TLS mappings.
 		if ep.BasicAuth != nil {
-			gmpEp.BasicAuth = convCtx.convertBasicAuth(ep.BasicAuth)
+			ba, err := convCtx.convertBasicAuth(ep.BasicAuth)
+			if err != nil {
+				return nil, fmt.Errorf("endpoint [%d]: basicAuth: %w", i, err)
+			}
+			gmpEp.BasicAuth = ba
 		}
 		if ep.OAuth2 != nil {
-			gmpEp.OAuth2 = convCtx.convertOAuth2(ep.OAuth2)
+			oa, err := convCtx.convertOAuth2(ep.OAuth2)
+			if err != nil {
+				return nil, fmt.Errorf("endpoint [%d]: oAuth2: %w", i, err)
+			}
+			gmpEp.OAuth2 = oa
 		}
 		if ep.TLSConfig != nil {
-			gmpEp.TLS = convCtx.convertSafeTLSConfig(ep.TLSConfig)
+			tls, err := convCtx.convertSafeTLSConfig(ep.TLSConfig)
+			if err != nil {
+				return nil, fmt.Errorf("endpoint [%d]: tlsConfig: %w", i, err)
+			}
+			gmpEp.TLS = tls
 		}
 		if ep.Authorization != nil {
-			gmpEp.Authorization = convCtx.convertAuthorization(ep.Authorization)
+			auth, err := convCtx.convertAuthorization(ep.Authorization)
+			if err != nil {
+				return nil, fmt.Errorf("endpoint [%d]: authorization: %w", i, err)
+			}
+			gmpEp.Authorization = auth
 		}
 
 		// Handle deprecated BearerTokenSecret -> Authorization.
@@ -204,7 +220,11 @@ func (c *PodMonitorConverter) convertEndpoints(
 					slog.Int("endpoint_index", i))
 			} else {
 				tokenSecret := ep.BearerTokenSecret // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
-				gmpEp.Authorization = convCtx.convertAuthorization(&pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})
+				auth, err := convCtx.convertAuthorization(&pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})
+				if err != nil {
+					return nil, fmt.Errorf("endpoint [%d]: bearerTokenSecret: %w", i, err)
+				}
+				gmpEp.Authorization = auth
 			}
 		}
 
