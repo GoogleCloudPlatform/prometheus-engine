@@ -271,7 +271,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 	return gmpEndpoints, nil
 }
 
-func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache, isCluster bool) (*commonMonitorSpec, error) {
 	convCtx := &conversionContext{
 		logger:    logger,
 		cache:     cache,
@@ -279,17 +279,17 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	}
 	rules, err := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	endpoints, err := c.convertEndpoints(convCtx, pm.Spec.PodMetricsEndpoints, rules.PerEndpoint)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), rules.ResourceCombined.FromPod)
 	mergedSelector, err := mergeLabelSelector(pm.Spec.Selector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if len(mergedSelector.MatchLabels) == 0 && len(mergedSelector.MatchExpressions) == 0 {
 		logger.Warn("Resulting PodMonitoring selector is empty. It will select and scrape all pods in this namespace. Verify if this is intended.")
@@ -307,18 +307,34 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	}
 
 	var filteredMetadata *[]string
-	if rules.ResourceCombined.Metadata != nil {
-		union := unionMetadata(*rules.ResourceCombined.Metadata, namespacedMetadataDefaults)
-		var md []string
-		for _, m := range union {
-			if m != export.KeyNamespace {
-				md = append(md, m)
+	if isCluster {
+		if rules.ResourceCombined.Metadata != nil {
+			union := unionMetadata(*rules.ResourceCombined.Metadata, clusterMetadataDefaults)
+			filteredMetadata = &union
+		}
+		if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
+			if filteredMetadata == nil {
+				union := unionMetadata([]string{labelNode}, clusterMetadataDefaults)
+				filteredMetadata = &union
 			} else {
-				logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The metadata entry has been omitted .")
+				union := unionMetadata([]string{labelNode}, *filteredMetadata)
+				filteredMetadata = &union
 			}
 		}
-		if len(md) > 0 {
-			filteredMetadata = &md
+	} else {
+		if rules.ResourceCombined.Metadata != nil {
+			union := unionMetadata(*rules.ResourceCombined.Metadata, namespacedMetadataDefaults)
+			var md []string
+			for _, m := range union {
+				if m != export.KeyNamespace {
+					md = append(md, m)
+				} else {
+					logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The metadata entry has been omitted .")
+				}
+			}
+			if len(md) > 0 {
+				filteredMetadata = &md
+			}
 		}
 	}
 
@@ -348,137 +364,49 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		falseVal := false
 		filterRunning = &falseVal
 		if hasTrue {
-			logger.Warn("Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true' (or default), but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally on the PodMonitoring resource.")
+			logger.Warn("Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true' (or default), but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally.")
 		}
 	}
 
 	limits := convertLimits(pm.Spec.SampleLimit, pm.Spec.LabelLimit, pm.Spec.LabelNameLengthLimit, pm.Spec.LabelValueLengthLimit)
 
-	gmpPM := &monitoringv1.PodMonitoring{
-		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, pm.Namespace, logger),
-		Spec: monitoringv1.PodMonitoringSpec{
-			Selector:  mergedSelector,
-			Endpoints: endpoints,
-			TargetLabels: monitoringv1.TargetLabels{
-				FromPod:  mergedFromPod,
-				Metadata: filteredMetadata,
-			},
-			Limits:        limits,
-			FilterRunning: filterRunning,
-		},
-	}
+	return &commonMonitorSpec{
+		endpoints:        endpoints,
+		mergedFromPod:    mergedFromPod,
+		mergedSelector:   mergedSelector,
+		metadata:         filteredMetadata,
+		filterRunning:    filterRunning,
+		limits:           limits,
+		generatedSecrets: convCtx.getGeneratedSecrets(),
+	}, nil
+}
 
-	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(gmpPM)
+func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	res, err := c.convertMonitorSpec(pm, logger, cache, false)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal PodMonitoring: %w", err)
+		return nil, nil, err
 	}
 
-	u := &unstructured.Unstructured{Object: unstructuredMap}
-	u.SetAPIVersion(GMPAPIVersion)
-	u.SetKind(KindPodMonitoring)
+	u, err := buildPodMonitoring(pm.ObjectMeta, pm.Namespace, res, logger)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	return u, convCtx.getGeneratedSecrets(), nil
+	return u, res.generatedSecrets, nil
 }
 
 func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	convCtx := &conversionContext{
-		logger:    logger,
-		cache:     cache,
-		namespace: pm.Namespace,
-	}
-	rules, err := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
-	if err != nil {
-		return nil, nil, err
-	}
-	endpoints, err := c.convertEndpoints(convCtx, pm.Spec.PodMetricsEndpoints, rules.PerEndpoint)
+	res, err := c.convertMonitorSpec(pm, logger, cache, true)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), rules.ResourceCombined.FromPod)
-	mergedSelector, err := mergeLabelSelector(pm.Spec.Selector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
+	u, err := buildClusterPodMonitoring(pm.ObjectMeta, res, logger)
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(mergedSelector.MatchLabels) == 0 && len(mergedSelector.MatchExpressions) == 0 {
-		logger.Warn("Resulting ClusterPodMonitoring selector is empty. It will select and scrape all pods across all namespaces. Verify if this is intended.")
-	}
 
-	// Spec-level warnings for unsupported fields.
-	warnUnsupportedSpecFields(logger, &pm.Spec)
-	// TODO(M2): Resolve and merge ScrapeClass configurations from Prometheus CR if scrapeClassName is specified.
-	if pm.Spec.ScrapeClassName != nil && *pm.Spec.ScrapeClassName != "" {
-		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
-	}
-	// Check against the PrometheusProto enum value.
-	if slices.Contains(pm.Spec.ScrapeProtocols, scrapeProtocolPrometheusProto) {
-		logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
-	}
-
-	var filteredMetadata *[]string
-	if rules.ResourceCombined.Metadata != nil {
-		union := unionMetadata(*rules.ResourceCombined.Metadata, clusterMetadataDefaults)
-		filteredMetadata = &union
-	}
-
-	// In GMP, Metadata: nil on a ClusterPodMonitoring defaults to emitting namespace and other cluster defaults.
-	// When setting Metadata explicitly for AttachMetadata.Node, we must merge clusterMetadataDefaults so that namespace is not dropped.
-	if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
-		if filteredMetadata == nil {
-			union := unionMetadata([]string{labelNode}, clusterMetadataDefaults)
-			filteredMetadata = &union
-		} else {
-			union := unionMetadata([]string{labelNode}, *filteredMetadata)
-			filteredMetadata = &union
-		}
-	}
-
-	var hasFalse, hasTrue bool
-	for _, ep := range pm.Spec.PodMetricsEndpoints {
-		if ep.FilterRunning != nil && !*ep.FilterRunning {
-			hasFalse = true
-		} else {
-			hasTrue = true
-		}
-	}
-	// A nil filterRunning defaults to true in the GMP operator.
-	var filterRunning *bool
-	if hasFalse {
-		falseVal := false
-		filterRunning = &falseVal
-		if hasTrue {
-			logger.Warn("Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true' (or default), but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally on the ClusterPodMonitoring resource.")
-		}
-	}
-
-	limits := convertLimits(pm.Spec.SampleLimit, pm.Spec.LabelLimit, pm.Spec.LabelNameLengthLimit, pm.Spec.LabelValueLengthLimit)
-
-	gmpCPM := &monitoringv1.ClusterPodMonitoring{
-		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
-		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, "", logger),
-		Spec: monitoringv1.ClusterPodMonitoringSpec{
-			Selector:  mergedSelector,
-			Endpoints: endpoints,
-			TargetLabels: monitoringv1.ClusterTargetLabels{
-				FromPod:  mergedFromPod,
-				Metadata: filteredMetadata,
-			},
-			Limits:        limits,
-			FilterRunning: filterRunning,
-		},
-	}
-
-	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(gmpCPM)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal ClusterPodMonitoring: %w", err)
-	}
-
-	u := &unstructured.Unstructured{Object: unstructuredMap}
-	u.SetAPIVersion(GMPAPIVersion)
-	u.SetKind(KindClusterPodMonitoring)
-
-	return u, convCtx.getGeneratedSecrets(), nil
+	return u, res.generatedSecrets, nil
 }
 
 func unionMetadata(extracted []string, defaults []string) []string {

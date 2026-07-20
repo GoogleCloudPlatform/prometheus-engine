@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -962,4 +963,71 @@ func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLeng
 		return nil
 	}
 	return limits
+}
+
+// buildPodMonitoring constructs a GMP PodMonitoring resource from common spec.
+func buildPodMonitoring(
+	srcMeta metav1.ObjectMeta,
+	targetNamespace string,
+	spec *commonMonitorSpec,
+	logger *slog.Logger,
+) (*unstructured.Unstructured, error) {
+	gmpPM := &monitoringv1.PodMonitoring{
+		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+		ObjectMeta: CopyObjectMeta(srcMeta, targetNamespace, logger),
+		Spec: monitoringv1.PodMonitoringSpec{
+			Selector:  spec.mergedSelector,
+			Endpoints: spec.endpoints,
+			TargetLabels: monitoringv1.TargetLabels{
+				FromPod:  spec.mergedFromPod,
+				Metadata: spec.metadata,
+			},
+			Limits:        spec.limits,
+			FilterRunning: spec.filterRunning,
+		},
+	}
+
+	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(gmpPM)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal PodMonitoring: %w", err)
+	}
+
+	u := &unstructured.Unstructured{Object: unstructuredMap}
+	u.SetAPIVersion(GMPAPIVersion)
+	u.SetKind(KindPodMonitoring)
+
+	return u, nil
+}
+
+// buildClusterPodMonitoring constructs a GMP ClusterPodMonitoring resource from common spec.
+func buildClusterPodMonitoring(
+	srcMeta metav1.ObjectMeta,
+	spec *commonMonitorSpec,
+	logger *slog.Logger,
+) (*unstructured.Unstructured, error) {
+	gmpCPM := &monitoringv1.ClusterPodMonitoring{
+		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
+		ObjectMeta: CopyObjectMeta(srcMeta, "", logger),
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Selector:  spec.mergedSelector,
+			Endpoints: spec.endpoints,
+			TargetLabels: monitoringv1.ClusterTargetLabels{
+				FromPod:  spec.mergedFromPod,
+				Metadata: spec.metadata,
+			},
+			Limits:        spec.limits,
+			FilterRunning: spec.filterRunning,
+		},
+	}
+
+	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(gmpCPM)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal ClusterPodMonitoring: %w", err)
+	}
+
+	u := &unstructured.Unstructured{Object: unstructuredMap}
+	u.SetAPIVersion(GMPAPIVersion)
+	u.SetKind(KindClusterPodMonitoring)
+
+	return u, nil
 }
