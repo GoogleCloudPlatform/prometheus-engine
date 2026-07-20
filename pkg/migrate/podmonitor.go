@@ -289,23 +289,30 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	}
 
 	metadata := rules.ResourceCombined.Metadata
+	var metadataCopy []string
 	if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
 		if metadata == nil {
 			metadata = &[]string{"node"}
 		} else if !slices.Contains(*metadata, "node") {
-			cp := slices.Clone(*metadata)
-			cp = append(cp, "node")
-			metadata = &cp
+			metadataCopy = append(slices.Clone(*metadata), "node")
+			metadata = &metadataCopy
 		}
 	}
 
-	var filterRunning *bool
+	var hasFalse, hasTrue bool
 	for _, ep := range pm.Spec.PodMetricsEndpoints {
 		if ep.FilterRunning != nil && !*ep.FilterRunning {
-			falseVal := false
-			filterRunning = &falseVal
-			logger.Warn("Endpoint-level configuration conflict detected: at least one endpoint is configured with 'filterRunning: false', but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally on the PodMonitoring resource.")
-			break
+			hasFalse = true
+		} else {
+			hasTrue = true
+		}
+	}
+	var filterRunning *bool
+	if hasFalse {
+		falseVal := false
+		filterRunning = &falseVal
+		if hasTrue {
+			logger.Warn("Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true' (or default), but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally on the PodMonitoring resource.")
 		}
 	}
 
@@ -366,23 +373,30 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 	}
 
 	metadata := rules.ResourceCombined.Metadata
+	var metadataCopy []string
 	if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
 		if metadata == nil {
 			metadata = &[]string{"node"}
 		} else if !slices.Contains(*metadata, "node") {
-			cp := slices.Clone(*metadata)
-			cp = append(cp, "node")
-			metadata = &cp
+			metadataCopy = append(slices.Clone(*metadata), "node")
+			metadata = &metadataCopy
 		}
 	}
 
-	var filterRunning *bool
+	var hasFalse, hasTrue bool
 	for _, ep := range pm.Spec.PodMetricsEndpoints {
 		if ep.FilterRunning != nil && !*ep.FilterRunning {
-			falseVal := false
-			filterRunning = &falseVal
-			logger.Warn("Endpoint-level configuration conflict detected: at least one endpoint is configured with 'filterRunning: false', but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally on the ClusterPodMonitoring resource.")
-			break
+			hasFalse = true
+		} else {
+			hasTrue = true
+		}
+	}
+	var filterRunning *bool
+	if hasFalse {
+		falseVal := false
+		filterRunning = &falseVal
+		if hasTrue {
+			logger.Warn("Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true' (or default), but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally on the ClusterPodMonitoring resource.")
 		}
 	}
 
