@@ -328,7 +328,7 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		if ep.FilterRunning != nil && !*ep.FilterRunning {
 			falseVal := false
 			filterRunning = &falseVal
-			logger.Warn("Endpoint-level configuration conflict detected: at least one endpoint is configured with 'filterRunning: false', but GMP only supports 'filterRunning' at the resource level. Set 'filterRunning: false' globally on the PodMonitoring resource.")
+			logger.Warn("Endpoint-level configuration conflict detected: at least one endpoint is configured with 'filterRunning: false', but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally on the PodMonitoring resource.")
 			break
 		}
 	}
@@ -409,7 +409,7 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		if ep.FilterRunning != nil && !*ep.FilterRunning {
 			falseVal := false
 			filterRunning = &falseVal
-			logger.Warn("Endpoint-level configuration conflict detected: at least one endpoint is configured with 'filterRunning: false', but GMP only supports 'filterRunning' at the resource level. Set 'filterRunning: false' globally on the PodMonitoring resource.")
+			logger.Warn("Endpoint-level configuration conflict detected: at least one endpoint is configured with 'filterRunning: false', but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally on the ClusterPodMonitoring resource.")
 			break
 		}
 	}
