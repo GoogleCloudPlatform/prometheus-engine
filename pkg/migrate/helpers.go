@@ -1156,7 +1156,6 @@ func buildClusterPodMonitoring(
 
 // resolveScrapeClass handles ScrapeClass resolution.
 // Logs a warning that ScrapeClass settings will be lost.
-// TODO(M2): Lookup ScrapeClass from Prometheus CR and merge its settings.
 func resolveScrapeClass(name *string, logger *slog.Logger) {
 	if name != nil && *name != "" {
 		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *name))
