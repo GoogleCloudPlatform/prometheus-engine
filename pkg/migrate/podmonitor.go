@@ -293,7 +293,9 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		if metadata == nil {
 			metadata = &[]string{"node"}
 		} else if !slices.Contains(*metadata, "node") {
-			*metadata = append(*metadata, "node")
+			cp := slices.Clone(*metadata)
+			cp = append(cp, "node")
+			metadata = &cp
 		}
 	}
 
@@ -368,7 +370,9 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		if metadata == nil {
 			metadata = &[]string{"node"}
 		} else if !slices.Contains(*metadata, "node") {
-			*metadata = append(*metadata, "node")
+			cp := slices.Clone(*metadata)
+			cp = append(cp, "node")
+			metadata = &cp
 		}
 	}
 
