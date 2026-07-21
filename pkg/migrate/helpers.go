@@ -16,6 +16,7 @@ package migrate
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -972,6 +973,9 @@ func buildPodMonitoring(
 	spec *commonMonitorSpec,
 	logger *slog.Logger,
 ) (*unstructured.Unstructured, error) {
+	if spec == nil {
+		return nil, errors.New("spec cannot be nil")
+	}
 	gmpPM := &monitoringv1.PodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
 		ObjectMeta: CopyObjectMeta(srcMeta, targetNamespace, logger),
@@ -1005,6 +1009,10 @@ func buildClusterPodMonitoring(
 	spec *commonMonitorSpec,
 	logger *slog.Logger,
 ) (*unstructured.Unstructured, error) {
+	if spec == nil {
+		return nil, errors.New("spec cannot be nil")
+	}
+
 	gmpCPM := &monitoringv1.ClusterPodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
 		ObjectMeta: CopyObjectMeta(srcMeta, "", logger),
