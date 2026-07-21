@@ -297,29 +297,14 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 
 	// Spec-level warnings for unsupported fields.
 	warnUnsupportedSpecFields(logger, &pm.Spec)
-	// TODO(M2): Resolve and merge ScrapeClass configurations from Prometheus CR if scrapeClassName is specified.
-	if pm.Spec.ScrapeClassName != nil && *pm.Spec.ScrapeClassName != "" {
-		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
-	}
-	// Check against the PrometheusProto enum value.
-	if slices.Contains(pm.Spec.ScrapeProtocols, scrapeProtocolPrometheusProto) {
-		logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
-	}
+	resolveScrapeClass(pm.Spec.ScrapeClassName, logger)
+	validateScrapeProtocols(pm.Spec.ScrapeProtocols, logger)
 
 	var filteredMetadata *[]string
 	if isCluster {
 		if rules.ResourceCombined.Metadata != nil {
 			union := unionMetadata(*rules.ResourceCombined.Metadata, clusterMetadataDefaults)
 			filteredMetadata = &union
-		}
-		if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
-			if filteredMetadata == nil {
-				union := unionMetadata([]string{labelNode}, clusterMetadataDefaults)
-				filteredMetadata = &union
-			} else {
-				union := unionMetadata([]string{labelNode}, *filteredMetadata)
-				filteredMetadata = &union
-			}
 		}
 	} else {
 		if rules.ResourceCombined.Metadata != nil {
@@ -349,24 +334,13 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 			filteredMetadata = &union
 		}
 	}
+	filteredMetadata = resolveAttachMetadata(pm.Spec.AttachMetadata, filteredMetadata, isCluster)
 
-	var hasFalse, hasTrue bool
+	var filterRunnings []*bool
 	for _, ep := range pm.Spec.PodMetricsEndpoints {
-		if ep.FilterRunning != nil && !*ep.FilterRunning {
-			hasFalse = true
-		} else {
-			hasTrue = true
-		}
+		filterRunnings = append(filterRunnings, ep.FilterRunning)
 	}
-	// A nil filterRunning defaults to true in the GMP operator.
-	var filterRunning *bool
-	if hasFalse {
-		falseVal := false
-		filterRunning = &falseVal
-		if hasTrue {
-			logger.Warn("Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true' (or default), but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally.")
-		}
-	}
+	filterRunning := resolveFilterRunning(filterRunnings, logger, isCluster)
 
 	limits := convertLimits(pm.Spec.SampleLimit, pm.Spec.LabelLimit, pm.Spec.LabelNameLengthLimit, pm.Spec.LabelValueLengthLimit)
 

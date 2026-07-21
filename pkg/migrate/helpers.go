@@ -1031,3 +1031,64 @@ func buildClusterPodMonitoring(
 
 	return u, nil
 }
+
+// resolveScrapeClass handles ScrapeClass resolution.
+// Logs a warning that ScrapeClass settings will be lost.
+// TODO(M2): Lookup ScrapeClass from Prometheus CR and merge its settings.
+func resolveScrapeClass(name *string, logger *slog.Logger) {
+	if name != nil && *name != "" {
+		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *name))
+	}
+}
+
+// validateScrapeProtocols logs a warning if any scrape protocol requires Protobuf.
+func validateScrapeProtocols(protocols []pomonitoringv1.ScrapeProtocol, logger *slog.Logger) {
+	for _, sp := range protocols {
+		if sp == scrapeProtocolPrometheusProto || strings.Contains(strings.ToLower(string(sp)), "proto") {
+			logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
+			break
+		}
+	}
+}
+
+// resolveAttachMetadata appends "node" to metadata if attachMetadata.node is enabled.
+func resolveAttachMetadata(attachMetadata *pomonitoringv1.AttachMetadata, baseMetadata *[]string, isCluster bool) *[]string {
+	if attachMetadata != nil && attachMetadata.Node != nil && *attachMetadata.Node {
+		if baseMetadata == nil {
+			if isCluster {
+				union := unionMetadata([]string{labelNode}, clusterMetadataDefaults)
+				return &union
+			}
+			return &[]string{labelNode}
+		}
+		if !slices.Contains(*baseMetadata, labelNode) {
+			metadataCopy := append(slices.Clone(*baseMetadata), labelNode)
+			return &metadataCopy
+		}
+	}
+	return baseMetadata
+}
+
+// resolveFilterRunning evaluates filterRunning settings across endpoints and resolves them to a single resource-level setting.
+func resolveFilterRunning(filterRunnings []*bool, logger *slog.Logger, isCluster bool) *bool {
+	var hasFalse, hasTrue bool
+	for _, fr := range filterRunnings {
+		if fr != nil && !*fr {
+			hasFalse = true
+		} else {
+			hasTrue = true
+		}
+	}
+	if hasFalse {
+		falseVal := false
+		if hasTrue {
+			if isCluster {
+				logger.Warn("Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true' (or default), but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally on the ClusterPodMonitoring resource.")
+			} else {
+				logger.Warn("Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true' (or default), but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally.")
+			}
+		}
+		return &falseVal
+	}
+	return nil
+}
