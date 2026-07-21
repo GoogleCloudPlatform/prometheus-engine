@@ -1,0 +1,7 @@
+[INFO] [PodMonitor:default/testpodmonitor-relabel-warn] Successfully decoded PodMonitor
+[WARNING] [PodMonitor:default/testpodmonitor-relabel-warn] Relabeling rule attempts to write to protected target label "job". Renamed target to "exported_job".
+[INFO] [PodMonitor:default/testpodmonitor-relabel-warn] Translated simple label copy relabeling rule ("__meta_kubernetes_pod_label_project" -> "exported_job") to 'targetLabels.fromPod'.
+[WARNING] [PodMonitor:default/testpodmonitor-relabel-warn] Relabeling rule referencing pod annotation "__meta_kubernetes_pod_annotation_owner" is unsupported in GMP. The rule has been dropped.
+[WARNING] [PodMonitor:default/testpodmonitor-relabel-warn] Relabeling rule uses 'action: labelmap' which is not supported by GMP and has been dropped.
+[WARNING] [PodMonitor:default/testpodmonitor-relabel-warn] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
+[SUCCESS] [PodMonitor:default/testpodmonitor-relabel-warn] Converted successfully

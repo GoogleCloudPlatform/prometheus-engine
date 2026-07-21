@@ -1,0 +1,27 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: testpodmonitor-relabel-ok
+  namespace: default
+spec:
+  endpoints:
+  - interval: 30s
+    metricRelabeling:
+    - action: replace
+      regex: v1\.(.*)
+      replacement: version-1-$1
+      sourceLabels:
+      - version
+      targetLabel: version
+    port: web
+  selector:
+    matchLabels:
+      env: production
+  targetLabels:
+    fromPod:
+    - from: app
+    - from: version
+    metadata:
+    - node
+status:
+  observedGeneration: 0

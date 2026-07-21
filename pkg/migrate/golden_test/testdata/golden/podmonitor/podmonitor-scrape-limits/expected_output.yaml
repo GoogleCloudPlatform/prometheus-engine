@@ -1,0 +1,18 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: testpodmonitor-limits
+  namespace: default
+spec:
+  endpoints:
+  - interval: 30s
+    port: web
+  limits:
+    labelNameLength: 64
+    labelValueLength: 128
+    labels: 50
+    samples: 1000
+  selector: {}
+  targetLabels: {}
+status:
+  observedGeneration: 0

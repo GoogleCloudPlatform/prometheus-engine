@@ -1,0 +1,3 @@
+[INFO] [PodMonitor:default/testpodmonitor-auth] Successfully decoded PodMonitor
+[WARNING] [PodMonitor:default/testpodmonitor-auth] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
+[SUCCESS] [PodMonitor:default/testpodmonitor-auth] Converted successfully

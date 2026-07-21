@@ -1,0 +1,51 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: testpodmonitor-auth
+  namespace: default
+spec:
+  endpoints:
+  - basicAuth:
+      password:
+        secret:
+          key: pass
+          name: my-basic-secret
+          namespace: default
+      username: my-username
+    interval: 30s
+    oauth2:
+      clientID: my-client-id
+      clientSecret:
+        secret:
+          key: client-secret
+          name: oauth-secret
+          namespace: default
+      endpointParams:
+        audience: my-audience
+      scopes:
+      - read
+      - write
+      tokenURL: https://auth.example.com/token
+    port: web
+    tls:
+      ca:
+        secret:
+          key: ca.crt
+          name: my-tls-secret
+          namespace: default
+      cert:
+        secret:
+          key: cert.crt
+          name: my-tls-secret
+          namespace: default
+      insecureSkipVerify: true
+      key:
+        secret:
+          key: cert.key
+          name: my-tls-secret
+          namespace: default
+      serverName: my-server
+  selector: {}
+  targetLabels: {}
+status:
+  observedGeneration: 0

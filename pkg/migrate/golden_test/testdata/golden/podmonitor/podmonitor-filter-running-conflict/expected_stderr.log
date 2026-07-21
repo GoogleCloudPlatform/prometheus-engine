@@ -1,0 +1,5 @@
+[INFO] [PodMonitor:default/testpodmonitor-conflict] Successfully decoded PodMonitor
+[WARNING] [PodMonitor:default/testpodmonitor-conflict] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
+[WARNING] [PodMonitor:default/testpodmonitor-conflict] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
+[WARNING] [PodMonitor:default/testpodmonitor-conflict] Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true' (or default), but GMP only supports 'filterRunning' at the resource level. Setting 'filterRunning: false' globally on the PodMonitoring resource.
+[SUCCESS] [PodMonitor:default/testpodmonitor-conflict] Converted successfully

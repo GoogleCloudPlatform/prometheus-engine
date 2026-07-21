@@ -1,0 +1,25 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: testpodmonitor-http
+  namespace: default
+spec:
+  endpoints:
+  - interval: 30s
+    metricRelabeling:
+    - action: keep
+      regex: up
+      sourceLabels:
+      - __name__
+      targetLabel: __name__
+    params:
+      collect[]:
+      - foo
+      - bar
+    path: /metrics/v2
+    port: web
+    scheme: https
+  selector: {}
+  targetLabels: {}
+status:
+  observedGeneration: 0

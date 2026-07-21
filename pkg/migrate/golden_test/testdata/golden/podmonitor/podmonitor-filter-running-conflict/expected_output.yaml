@@ -1,0 +1,16 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: testpodmonitor-conflict
+  namespace: default
+spec:
+  endpoints:
+  - interval: 30s
+    port: web
+  - interval: 30s
+    port: metrics
+  filterRunning: false
+  selector: {}
+  targetLabels: {}
+status:
+  observedGeneration: 0

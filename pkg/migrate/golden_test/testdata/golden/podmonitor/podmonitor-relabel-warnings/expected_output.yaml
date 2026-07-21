@@ -1,0 +1,16 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: testpodmonitor-relabel-warn
+  namespace: default
+spec:
+  endpoints:
+  - interval: 30s
+    port: web
+  selector: {}
+  targetLabels:
+    fromPod:
+    - from: project
+      to: exported_job
+status:
+  observedGeneration: 0

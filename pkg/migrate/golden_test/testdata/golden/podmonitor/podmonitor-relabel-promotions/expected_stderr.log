@@ -1,0 +1,7 @@
+[INFO] [PodMonitor:default/testpodmonitor-relabel-ok] Successfully decoded PodMonitor
+[INFO] [PodMonitor:default/testpodmonitor-relabel-ok] Translated target filtering relabeling rule ("__meta_kubernetes_pod_label_env" -> "production") to Pod Selector (matchLabels).
+[INFO] [PodMonitor:default/testpodmonitor-relabel-ok] Translated simple label copy relabeling rule ("__meta_kubernetes_pod_label_app" -> "app") to 'targetLabels.fromPod'.
+[INFO] [PodMonitor:default/testpodmonitor-relabel-ok] Translated metadata label copy ("__meta_kubernetes_pod_node_name") to 'targetLabels.metadata' (as label: "node").
+[INFO] [PodMonitor:default/testpodmonitor-relabel-ok] Complex relabeling rule (target: "version") promoted from pre-scrape 'relabelings' to post-scrape 'metricRelabeling'.
+[WARNING] [PodMonitor:default/testpodmonitor-relabel-ok] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
+[SUCCESS] [PodMonitor:default/testpodmonitor-relabel-ok] Converted successfully
