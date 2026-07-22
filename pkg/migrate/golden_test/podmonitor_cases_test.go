@@ -645,4 +645,43 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 			},
 		},
 	},
+
+	// Custom Case: Test namespace selector splitting into multiple namespaces.
+	{
+		name: "podmonitor-namespace-split",
+		input: &monitoringv1.PodMonitor{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "podmonitor-namespace-split",
+				Namespace: "default",
+			},
+			Spec: monitoringv1.PodMonitorSpec{
+				NamespaceSelector: monitoringv1.NamespaceSelector{
+					MatchNames: []string{"test1", "test2"},
+				},
+				PodMetricsEndpoints: []monitoringv1.PodMetricsEndpoint{
+					{Port: "web"},
+				},
+			},
+		},
+	},
+
+
+	// Custom Case: Test cluster-scoped conversion (Any: true) to ClusterPodMonitoring.
+	{
+		name: "podmonitor-cluster-scoping",
+		input: &monitoringv1.PodMonitor{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "podmonitor-cluster-scoping",
+				Namespace: "default",
+			},
+			Spec: monitoringv1.PodMonitorSpec{
+				NamespaceSelector: monitoringv1.NamespaceSelector{
+					Any: true,
+				},
+				PodMetricsEndpoints: []monitoringv1.PodMetricsEndpoint{
+					{Port: "web"},
+				},
+			},
+		},
+	},
 }

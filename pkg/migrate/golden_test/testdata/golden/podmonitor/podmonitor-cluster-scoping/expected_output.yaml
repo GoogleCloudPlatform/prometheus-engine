@@ -1,0 +1,12 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: ClusterPodMonitoring
+metadata:
+  name: podmonitor-cluster-scoping
+spec:
+  endpoints:
+  - interval: 30s
+    port: web
+  selector: {}
+  targetLabels: {}
+status:
+  observedGeneration: 0

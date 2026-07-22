@@ -1,0 +1,4 @@
+[INFO] [PodMonitor:default/podmonitor-cluster-scoping] Successfully decoded PodMonitor
+[INFO] [PodMonitor:default/podmonitor-cluster-scoping] namespaceSelector selects 'any: true'. Translated to 'ClusterPodMonitoring'
+[WARNING] [PodMonitor:default/podmonitor-cluster-scoping] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
+[SUCCESS] [PodMonitor:default/podmonitor-cluster-scoping] Converted successfully

@@ -1,0 +1,4 @@
+[INFO] [PodMonitor:default/podmonitor-namespace-split] Successfully decoded PodMonitor
+[INFO] [PodMonitor:default/podmonitor-namespace-split] namespaceSelector targets multiple namespaces. Generating separate PodMonitoring resources for each namespace namespaces=[test1 test2]
+[WARNING] [PodMonitor:default/podmonitor-namespace-split] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
+[SUCCESS] [PodMonitor:default/podmonitor-namespace-split] Converted successfully
