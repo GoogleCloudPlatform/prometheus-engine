@@ -349,6 +349,33 @@ release-lib::dockerfile_go_version() {
 	return 1
 }
 
+release-lib::image_latest_tag() {
+	local image=${1}
+	if [[ -z "${image}" ]]; then
+		log_err "image arg is required."
+		return 1
+	fi
+
+	local tag_prefix=${2:-}
+
+	# Use gcrane (over crane) for --json.
+	local all_tags=$(gcrane ls "${image}" --json | jq --raw-output '.tags[]' | sort -V)
+	# Exclude RC images.
+	all_tags=$(echo "${all_tags}" | grep -v "rc.*" || true)
+	# Exclude arch-specific tags.
+	all_tags=$(echo "${all_tags}" | grep -E -v "(-linux-|-arm64|-amd64)" || true)
+	if [[ -n "${tag_prefix}" ]]; then
+		# Prefix allows sticking to e.g. latest minor or distroless prefix.
+		all_tags=$(echo "${all_tags}" | grep "${tag_prefix}" || true)
+	fi
+	local latest_tag=$(echo "${all_tags}" | tail -n1)
+	if [[ -z "${latest_tag}" ]]; then
+		log_err "could not find any valid tag for image ${image} (prefix: ${tag_prefix})"
+		return 1
+	fi
+	echo "${latest_tag}"
+}
+
 # TODO(bwplotka): Move params to envvars for consistency.
 release-lib::dockerfile_update_image() {
 	local dockerfile=${1}
@@ -374,16 +401,7 @@ release-lib::dockerfile_update_image() {
 		return 1
 	fi
 
-	# Use gcrane (over crane) for --json.
-	local all_tags=$(gcrane ls "${image}" --json | jq --raw-output '.tags[]' | sort -V)
-	# Exclude RC images.
-	all_tags=$(echo "${all_tags}" | grep -v "rc.*")
-	# Exclude arch-specific tags.
-	all_tags=$(echo "${all_tags}" | grep -E -v "(-linux-|-arm64|-amd64)")
-	# Prefix allows sticking to e.g. latest minor.
-	all_tags=$(echo "${all_tags}" | grep "${tag_prefix}")
-	local latest_tag=$(echo "${all_tags}" | tail -n1)
-
+	local latest_tag=$(release-lib::image_latest_tag "${image}" "${tag_prefix}")
 	local latest_digest=$(gcrane digest "${image}:${latest_tag}")
 	local latest_image="${image}:${latest_tag}@${latest_digest}"
 
@@ -413,8 +431,7 @@ release-lib::idemp::manifests_bash_image_bump() {
 	# TODO: Not enough, this has to check actual manifests.
 	local bash_tag=$(yq '.images.bash.tag' "${values_file}")
 
-	# Use gcrane (over crane) for --json.
-	local latest_bash_tag=$(gcrane ls "gke.gcr.io/gke-distroless/bash" --json | jq --raw-output '.tags[]' | grep "gke_distroless_" | sort -V | tail -n1)
+	local latest_bash_tag=$(release-lib::image_latest_tag "gke.gcr.io/gke-distroless/bash" "gke_distroless_")
 	if [[ "${bash_tag}" == "${latest_bash_tag}" ]]; then
 		echo "✅  Nothing to do; ${values_file} already uses ${latest_bash_tag}"
 		return 0
