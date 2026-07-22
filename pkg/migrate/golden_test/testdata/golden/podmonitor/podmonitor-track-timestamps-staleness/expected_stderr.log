@@ -1,3 +1,3 @@
-[INFO] [PodMonitor:default/testpodmonitor1] Successfully decoded PodMonitor
-[WARNING] [PodMonitor:default/testpodmonitor1] Field 'trackTimestampsStaleness' is unsupported in GMP and has been dropped.
-[SUCCESS] [PodMonitor:default/testpodmonitor1] Converted successfully
+[INFO] [PodMonitor:default/podmonitor-track-timestamps-staleness] Successfully decoded PodMonitor
+[WARNING] [PodMonitor:default/podmonitor-track-timestamps-staleness] Field 'trackTimestampsStaleness' is unsupported in GMP and has been dropped.
+[SUCCESS] [PodMonitor:default/podmonitor-track-timestamps-staleness] Converted successfully

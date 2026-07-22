@@ -1,3 +1,3 @@
-[INFO] [PodMonitor:default/testpodmonitor-port-name] Successfully decoded PodMonitor
-[WARNING] [PodMonitor:default/testpodmonitor-port-name] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
-[SUCCESS] [PodMonitor:default/testpodmonitor-port-name] Converted successfully
+[INFO] [PodMonitor:default/podmonitor-port-name] Successfully decoded PodMonitor
+[WARNING] [PodMonitor:default/podmonitor-port-name] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
+[SUCCESS] [PodMonitor:default/podmonitor-port-name] Converted successfully

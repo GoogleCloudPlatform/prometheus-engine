@@ -1,7 +1,7 @@
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
-  name: testpodmonitor1
+  name: podmonitor-setting-honor-timestamps
   namespace: default
 spec:
   endpoints:

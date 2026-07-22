@@ -35,7 +35,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-namespace-selection",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor1",
+				Name:      "podmonitor-namespace-selection",
 				Namespace: "default",
 				Labels:    map[string]string{"group": "group1"},
 			},
@@ -55,7 +55,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-setting-honor-timestamps",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor1",
+				Name:      "podmonitor-setting-honor-timestamps",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -77,7 +77,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-track-timestamps-staleness",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor1",
+				Name:      "podmonitor-track-timestamps-staleness",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -99,7 +99,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-scrape-protocols",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor1",
+				Name:      "podmonitor-scrape-protocols",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -125,7 +125,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-pod-target-labels",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor1",
+				Name:      "podmonitor-pod-target-labels",
 				Namespace: "default",
 				Labels:    map[string]string{"group": "group1"},
 			},
@@ -144,7 +144,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-follow-redirects",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor1",
+				Name:      "podmonitor-follow-redirects",
 				Namespace: "pod-monitor-ns",
 				Labels:    map[string]string{"group": "group1"},
 			},
@@ -167,7 +167,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-phase-filter",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor1",
+				Name:      "podmonitor-phase-filter",
 				Namespace: "default",
 				Labels:    map[string]string{"group": "group1"},
 			},
@@ -188,7 +188,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-http2-enablement",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor1",
+				Name:      "podmonitor-http2-enablement",
 				Namespace: "pod-monitor-ns",
 				Labels:    map[string]string{"group": "group1"},
 			},
@@ -211,7 +211,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-port-name",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor-port-name",
+				Name:      "podmonitor-port-name",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -231,7 +231,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-port-number-with-name",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor-port-num-name",
+				Name:      "podmonitor-port-number-with-name",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -250,7 +250,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-targetport-int",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor-targetport-int",
+				Name:      "podmonitor-targetport-int",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -269,7 +269,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-targetport-string",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor-targetport-string",
+				Name:      "podmonitor-targetport-string",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -288,7 +288,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-selector-match-labels",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "defaultPodMonitor",
+				Name:      "podmonitor-selector-match-labels",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -313,7 +313,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-selector-match-expressions",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "defaultPodMonitor",
+				Name:      "podmonitor-selector-match-expressions",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -342,7 +342,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-selector-match-labels-and-expressions",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "defaultPodMonitor",
+				Name:      "podmonitor-selector-match-labels-and-expressions",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -385,7 +385,7 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-scrape-limits",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor-limits",
+				Name:      "podmonitor-scrape-limits",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -400,12 +400,12 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 		},
 	},
 
-	// Custom Case: Test mapping of Authorization, BasicAuth, OAuth2, and TLS Config.
+	// Custom Case: Test mapping of Authorization, BasicAuth, OAuth2, and TLS Config with Secret and ConfigMap lookups.
 	{
 		name: "podmonitor-auth-and-tls",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor-auth",
+				Name:      "podmonitor-auth-and-tls",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -424,8 +424,8 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 						},
 						TLSConfig: &monitoringv1.SafeTLSConfig{
 							CA: monitoringv1.SecretOrConfigMap{
-								Secret: &corev1.SecretKeySelector{
-									LocalObjectReference: corev1.LocalObjectReference{Name: "my-tls-secret"},
+								ConfigMap: &corev1.ConfigMapKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{Name: "my-tls-configmap"},
 									Key:                  "ca.crt",
 								},
 							},
@@ -492,6 +492,19 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 					},
 				},
 			},
+			{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "ConfigMap",
+					"metadata": map[string]interface{}{
+						"name":      "my-tls-configmap",
+						"namespace": "default",
+					},
+					"data": map[string]interface{}{
+						"ca.crt": "my-ca-cert-data",
+					},
+				},
+			},
 		},
 	},
 
@@ -500,7 +513,7 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-http-customizations",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor-http",
+				Name:      "podmonitor-http-customizations",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -531,7 +544,7 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-relabel-promotions",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor-relabel-ok",
+				Name:      "podmonitor-relabel-promotions",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -578,7 +591,7 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-relabel-warnings",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor-relabel-warn",
+				Name:      "podmonitor-relabel-warnings",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{
@@ -615,7 +628,7 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 		name: "podmonitor-filter-running-conflict",
 		input: &monitoringv1.PodMonitor{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testpodmonitor-conflict",
+				Name:      "podmonitor-filter-running-conflict",
 				Namespace: "default",
 			},
 			Spec: monitoringv1.PodMonitorSpec{

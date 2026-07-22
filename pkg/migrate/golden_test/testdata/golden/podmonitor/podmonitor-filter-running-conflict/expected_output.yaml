@@ -1,7 +1,7 @@
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
-  name: testpodmonitor-conflict
+  name: podmonitor-filter-running-conflict
   namespace: default
 spec:
   endpoints:

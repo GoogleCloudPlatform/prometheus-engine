@@ -1,3 +1,3 @@
-[INFO] [PodMonitor:default/testpodmonitor1] Successfully decoded PodMonitor
-[WARNING] [PodMonitor:default/testpodmonitor1] Stripped all metadata labels and annotations. Reconfigure them manually if needed
-[SUCCESS] [PodMonitor:default/testpodmonitor1] Converted successfully
+[INFO] [PodMonitor:default/podmonitor-pod-target-labels] Successfully decoded PodMonitor
+[WARNING] [PodMonitor:default/podmonitor-pod-target-labels] Stripped all metadata labels and annotations. Reconfigure them manually if needed
+[SUCCESS] [PodMonitor:default/podmonitor-pod-target-labels] Converted successfully

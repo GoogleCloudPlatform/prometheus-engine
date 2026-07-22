@@ -1,3 +1,4 @@
-[INFO] [PodMonitor:default/testpodmonitor-auth] Successfully decoded PodMonitor
-[WARNING] [PodMonitor:default/testpodmonitor-auth] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
-[SUCCESS] [PodMonitor:default/testpodmonitor-auth] Converted successfully
+[INFO] [PodMonitor:default/podmonitor-auth-and-tls] Successfully decoded PodMonitor
+[WARNING] [PodMonitor:default/podmonitor-auth-and-tls] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
+[INFO] [PodMonitor:default/podmonitor-auth-and-tls] Translated TLS ConfigMap reference to GMP Secret. Generated new Secret manifest. configmap=my-tls-configmap generated_secret=secret-my-tls-configmap
+[SUCCESS] [PodMonitor:default/podmonitor-auth-and-tls] Converted successfully

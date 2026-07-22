@@ -1,2 +1,2 @@
-[INFO] [PodMonitor:default/defaultPodMonitor] Successfully decoded PodMonitor
-[SUCCESS] [PodMonitor:default/defaultPodMonitor] Converted successfully
+[INFO] [PodMonitor:default/podmonitor-selector-match-labels] Successfully decoded PodMonitor
+[SUCCESS] [PodMonitor:default/podmonitor-selector-match-labels] Converted successfully

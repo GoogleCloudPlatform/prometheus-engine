@@ -1,7 +1,15 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-my-tls-configmap
+  namespace: default
+stringData:
+  ca.crt: my-ca-cert-data
+---
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
-  name: testpodmonitor-auth
+  name: podmonitor-auth-and-tls
   namespace: default
 spec:
   endpoints:
@@ -31,7 +39,7 @@ spec:
       ca:
         secret:
           key: ca.crt
-          name: my-tls-secret
+          name: secret-my-tls-configmap
           namespace: default
       cert:
         secret:

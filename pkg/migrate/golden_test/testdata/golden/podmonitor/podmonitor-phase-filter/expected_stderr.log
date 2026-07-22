@@ -1,4 +1,4 @@
-[INFO] [PodMonitor:default/testpodmonitor1] Successfully decoded PodMonitor
-[WARNING] [PodMonitor:default/testpodmonitor1] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
-[WARNING] [PodMonitor:default/testpodmonitor1] Stripped all metadata labels and annotations. Reconfigure them manually if needed
-[SUCCESS] [PodMonitor:default/testpodmonitor1] Converted successfully
+[INFO] [PodMonitor:default/podmonitor-phase-filter] Successfully decoded PodMonitor
+[WARNING] [PodMonitor:default/podmonitor-phase-filter] Scrape interval is empty. Defaulting to '30s' as GMP requires this field.
+[WARNING] [PodMonitor:default/podmonitor-phase-filter] Stripped all metadata labels and annotations. Reconfigure them manually if needed
+[SUCCESS] [PodMonitor:default/podmonitor-phase-filter] Converted successfully
