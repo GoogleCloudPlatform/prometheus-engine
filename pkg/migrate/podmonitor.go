@@ -24,7 +24,6 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	prommodel "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/google/export"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -147,123 +146,38 @@ func (c *PodMonitorConverter) convertEndpoints(
 		gmpEp.Params = ep.Params
 
 		// 3. Scrape Intervals & Timeouts.
-		gmpEp.Interval = string(ep.Interval)
-		gmpEp.Timeout = string(ep.ScrapeTimeout)
-
-		// TODO(M2): Inherit global scrape interval from Prometheus CR if empty.
-		if gmpEp.Interval == "" {
-			convCtx.logger.Warn("Scrape interval is empty. Defaulting to '30s' as GMP requires this field.")
-			gmpEp.Interval = "30s"
-		}
-
-		intDur, err := prommodel.ParseDuration(gmpEp.Interval)
+		interval, timeout, err := resolveScrapeIntervalAndTimeout(convCtx.logger, string(ep.Interval), string(ep.ScrapeTimeout))
 		if err != nil {
-			return nil, fmt.Errorf("endpoint [%d]: invalid interval %q: %w", i, gmpEp.Interval, err)
+			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 		}
-
-		if gmpEp.Timeout != "" {
-			toDur, err := prommodel.ParseDuration(gmpEp.Timeout)
-			if err != nil {
-				return nil, fmt.Errorf("endpoint [%d]: invalid scrapeTimeout %q: %w", i, gmpEp.Timeout, err)
-			}
-			if toDur > intDur {
-				convCtx.logger.Warn("Scrape timeout is larger than scrape interval. Capping timeout to interval.",
-					slog.String("timeout", gmpEp.Timeout),
-					slog.String("interval", gmpEp.Interval))
-				gmpEp.Timeout = gmpEp.Interval
-			}
-		}
-		// TODO(M2): Inherit global scrape timeout from Prometheus CR if empty.
+		gmpEp.Interval = interval
+		gmpEp.Timeout = timeout
 
 		// 4. Relabeling Rules (Promoted Pre-Scrape + MetricRelabelings).
-		totalRules := len(epResults[i].PromotedRules) + len(ep.MetricRelabelConfigs)
-		var allRules []monitoringv1.RelabelingRule
-		if totalRules > 0 {
-			allRules = make([]monitoringv1.RelabelingRule, 0, totalRules)
-			allRules = append(allRules, epResults[i].PromotedRules...)
-			if len(ep.MetricRelabelConfigs) > 0 {
-				rules, err := convertMetricRelabelings(convCtx.logger, ep.MetricRelabelConfigs)
-				if err != nil {
-					return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
-				}
-				allRules = append(allRules, rules...)
-			}
+		relabelings, err := combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
+		if err != nil {
+			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 		}
-		gmpEp.MetricRelabeling = allRules
+		gmpEp.MetricRelabeling = relabelings
 
 		// Proxy Settings.
-		if ep.ProxyURL != nil {
-			if strings.Contains(*ep.ProxyURL, "@") {
-				return nil, fmt.Errorf("endpoint [%d]: proxyUrl contains credentials (matches '@'), which is blocked by GMP API validation", i)
-			}
-			gmpEp.ProxyURL = *ep.ProxyURL
+		proxyURL, err := convertProxyURL(ep.ProxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 		}
+		gmpEp.ProxyURL = proxyURL
 
 		// noProxy, proxyConnectHeader, and proxyFromEnvironment fields are silently dropped.
 		// The pinned Prometheus Operator version lacks these fields, and GMP does not support them anyway.
 
 		// Auth & TLS mappings.
-		if ep.BasicAuth != nil {
-			ba, err := convCtx.convertBasicAuth(ep.BasicAuth)
-			if err != nil {
-				return nil, fmt.Errorf("endpoint [%d]: basicAuth: %w", i, err)
-			}
-			gmpEp.BasicAuth = ba
-		}
-		if ep.OAuth2 != nil {
-			oa, err := convCtx.convertOAuth2(ep.OAuth2)
-			if err != nil {
-				return nil, fmt.Errorf("endpoint [%d]: oAuth2: %w", i, err)
-			}
-			gmpEp.OAuth2 = oa
-		}
-		if ep.TLSConfig != nil {
-			tls, err := convCtx.convertSafeTLSConfig(ep.TLSConfig)
-			if err != nil {
-				return nil, fmt.Errorf("endpoint [%d]: tlsConfig: %w", i, err)
-			}
-			gmpEp.TLS = tls
-		}
-		if ep.Authorization != nil {
-			auth, err := convCtx.convertAuthorization(ep.Authorization)
-			if err != nil {
-				return nil, fmt.Errorf("endpoint [%d]: authorization: %w", i, err)
-			}
-			gmpEp.Authorization = auth
-		}
-
-		// Handle deprecated BearerTokenSecret -> Authorization.
-		if ep.BearerTokenSecret.Name != "" { // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
-			if gmpEp.Authorization != nil {
-				convCtx.logger.Warn("Endpoint has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.",
-					slog.Int("endpoint_index", i))
-			} else {
-				tokenSecret := ep.BearerTokenSecret // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
-				auth, err := convCtx.convertAuthorization(&pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})
-				if err != nil {
-					return nil, fmt.Errorf("endpoint [%d]: bearerTokenSecret: %w", i, err)
-				}
-				gmpEp.Authorization = auth
-			}
+		err = convCtx.applyAuthAndTLS(i, &gmpEp, ep.BasicAuth, ep.OAuth2, ep.TLSConfig, ep.Authorization, ep.BearerTokenSecret)
+		if err != nil {
+			return nil, err
 		}
 
 		// 5. Warnings for Unsupported Fields in Endpoint.
-		if ep.FollowRedirects != nil && !*ep.FollowRedirects {
-			convCtx.logger.Warn(fmt.Sprintf("endpoint [%d]: field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always follow redirects.", i))
-		}
-		if ep.EnableHttp2 != nil && !*ep.EnableHttp2 {
-			convCtx.logger.Warn(fmt.Sprintf("endpoint [%d]: field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always negotiate HTTP/2 for TLS connections.", i))
-		}
-
-		if ep.HonorLabels {
-			convCtx.logger.Warn("Field 'honorLabels: true' is unsupported and dropped. GMP always overrides conflicting labels. Clashing metric labels will be renamed with the 'exported_' prefix.")
-		}
-		if ep.HonorTimestamps != nil && *ep.HonorTimestamps {
-			convCtx.logger.Warn("Field 'honorTimestamps: true' is unsupported and dropped. GMP always uses the scrape ingestion timestamp. Target metric timestamps will be ignored.")
-		}
-		if ep.TrackTimestampsStaleness != nil {
-			convCtx.logger.Warn("Field 'trackTimestampsStaleness' is unsupported in GMP and has been dropped.")
-		}
+		warnUnsupportedEndpointFields(convCtx.logger, ep.FollowRedirects, ep.EnableHttp2, ep.HonorLabels, ep.HonorTimestamps, ep.TrackTimestampsStaleness, i)
 
 		gmpEndpoints = append(gmpEndpoints, gmpEp)
 	}
