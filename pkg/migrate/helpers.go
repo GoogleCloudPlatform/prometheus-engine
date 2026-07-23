@@ -658,6 +658,10 @@ func (c *conversionContext) applyAuthAndTLS(
 	authorization *pomonitoringv1.SafeAuthorization,
 	bearerTokenSecret corev1.SecretKeySelector,
 ) error {
+	if gmpEp == nil {
+		return errors.New("scrape endpoint cannot be nil")
+	}
+
 	if basicAuth != nil {
 		ba, err := c.convertBasicAuth(basicAuth)
 		if err != nil {
@@ -1041,12 +1045,12 @@ func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLeng
 // toStrictUnstructured converts a struct to a strictly JSON-compatible unstructured map.
 // uses JSON to silently convert unsupported Go primitives (like uint64) into safe float64 numbers.
 // ensures the resulting map will not panic on DeepCopy.
-func toStrictUnstructured(obj interface{}) (map[string]interface{}, error) {
+func toStrictUnstructured(obj any) (map[string]any, error) {
 	b, err := json.Marshal(obj)
 	if err != nil {
 		return nil, err
 	}
-	var u map[string]interface{}
+	var u map[string]any
 	if err := json.Unmarshal(b, &u); err != nil {
 		return nil, err
 	}
