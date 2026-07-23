@@ -24,6 +24,7 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	prommodel "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/google/export"
 	"github.com/prometheus/prometheus/model/relabel"
 	corev1 "k8s.io/api/core/v1"
@@ -632,6 +633,62 @@ func (c *conversionContext) convertAuthorization(auth *pomonitoringv1.SafeAuthor
 	}, nil
 }
 
+// applyAuthAndTLS converts credentials and TLS settings for a generic endpoint.
+func (c *conversionContext) applyAuthAndTLS(
+	i int,
+	gmpEp *monitoringv1.ScrapeEndpoint,
+	basicAuth *pomonitoringv1.BasicAuth,
+	oAuth2 *pomonitoringv1.OAuth2,
+	tlsConfig *pomonitoringv1.SafeTLSConfig,
+	authorization *pomonitoringv1.SafeAuthorization,
+	bearerTokenSecret corev1.SecretKeySelector,
+) error {
+	if basicAuth != nil {
+		ba, err := c.convertBasicAuth(basicAuth)
+		if err != nil {
+			return fmt.Errorf("endpoint [%d]: basicAuth: %w", i, err)
+		}
+		gmpEp.BasicAuth = ba
+	}
+	if oAuth2 != nil {
+		oa, err := c.convertOAuth2(oAuth2)
+		if err != nil {
+			return fmt.Errorf("endpoint [%d]: oAuth2: %w", i, err)
+		}
+		gmpEp.OAuth2 = oa
+	}
+	if tlsConfig != nil {
+		tls, err := c.convertSafeTLSConfig(tlsConfig)
+		if err != nil {
+			return fmt.Errorf("endpoint [%d]: tlsConfig: %w", i, err)
+		}
+		gmpEp.TLS = tls
+	}
+	if authorization != nil {
+		auth, err := c.convertAuthorization(authorization)
+		if err != nil {
+			return fmt.Errorf("endpoint [%d]: authorization: %w", i, err)
+		}
+		gmpEp.Authorization = auth
+	}
+
+	// Handle deprecated BearerTokenSecret -> Authorization.
+	if bearerTokenSecret.Name != "" { // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
+		if gmpEp.Authorization != nil {
+			c.logger.Warn("Endpoint has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.",
+				slog.Int("endpoint_index", i))
+		} else {
+			tokenSecret := bearerTokenSecret // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
+			auth, err := c.convertAuthorization(&pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})
+			if err != nil {
+				return fmt.Errorf("endpoint [%d]: bearerTokenSecret: %w", i, err)
+			}
+			gmpEp.Authorization = auth
+		}
+	}
+	return nil
+}
+
 func convertMetricRelabelings(
 	logger *slog.Logger,
 	configs []pomonitoringv1.RelabelConfig,
@@ -1099,4 +1156,84 @@ func resolveFilterRunning(filterRunnings []*bool, logger *slog.Logger, isCluster
 		return &falseVal
 	}
 	return nil
+}
+
+// resolveScrapeIntervalAndTimeout validates and caps timeout to interval if needed.
+func resolveScrapeIntervalAndTimeout(logger *slog.Logger, interval, timeout string) (string, string, error) {
+	// TODO(M2): Inherit global scrape interval from Prometheus CR if empty.
+	if interval == "" {
+		logger.Warn("Scrape interval is empty. Defaulting to '30s' as GMP requires this field.")
+		interval = "30s"
+	}
+
+	intDur, err := prommodel.ParseDuration(interval)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid interval %q: %w", interval, err)
+	}
+
+	// TODO(M2): Inherit global scrape timeout from Prometheus CR if empty.
+	if timeout != "" {
+		toDur, err := prommodel.ParseDuration(timeout)
+		if err != nil {
+			return "", "", fmt.Errorf("invalid scrapeTimeout %q: %w", timeout, err)
+		}
+		if toDur > intDur {
+			logger.Warn("Scrape timeout is larger than scrape interval. Capping timeout to interval.",
+				slog.String("timeout", timeout),
+				slog.String("interval", interval))
+			timeout = interval
+		}
+	}
+	return interval, timeout, nil
+}
+
+// convertProxyURL verifies proxy URL credentials.
+func convertProxyURL(proxyURL *string) (string, error) {
+	if proxyURL == nil {
+		return "", nil
+	}
+	if strings.Contains(*proxyURL, "@") {
+		return "", errors.New("proxyUrl contains credentials (matches '@'), which is blocked by GMP API validation")
+	}
+	return *proxyURL, nil
+}
+
+// warnUnsupportedEndpointFields logs warnings for fields that GMP does not support.
+func warnUnsupportedEndpointFields(logger *slog.Logger, followRedirects *bool, enableHTTP2 *bool, honorLabels bool, honorTimestamps *bool, trackTimestampsStaleness *bool, i int) {
+	if followRedirects != nil && !*followRedirects {
+		logger.Warn(fmt.Sprintf("endpoint [%d]: field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always follow redirects.", i))
+	}
+	if enableHTTP2 != nil && !*enableHTTP2 {
+		logger.Warn(fmt.Sprintf("endpoint [%d]: field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always negotiate HTTP/2 for TLS connections.", i))
+	}
+	if honorLabels {
+		logger.Warn(fmt.Sprintf("endpoint [%d]: field 'honorLabels: true' is unsupported and dropped. GMP always overrides conflicting labels. Clashing metric labels will be renamed with the 'exported_' prefix.", i))
+	}
+	if honorTimestamps != nil && *honorTimestamps {
+		logger.Warn(fmt.Sprintf("endpoint [%d]: field 'honorTimestamps: true' is unsupported and dropped. GMP always uses the scrape ingestion timestamp. Target metric timestamps will be ignored.", i))
+	}
+	if trackTimestampsStaleness != nil {
+		logger.Warn(fmt.Sprintf("endpoint [%d]: fField 'trackTimestampsStaleness' is unsupported in GMP and has been dropped.", i))
+	}
+}
+
+// combineAndConvertRelabelings combines promoted pre-scrape rules and converts metricRelabelings.
+func combineAndConvertRelabelings(logger *slog.Logger, promoted []monitoringv1.RelabelingRule, configs []pomonitoringv1.RelabelConfig) ([]monitoringv1.RelabelingRule, error) {
+	totalRules := len(promoted) + len(configs)
+	if totalRules == 0 {
+		return nil, nil
+	}
+
+	allRules := make([]monitoringv1.RelabelingRule, 0, totalRules)
+	allRules = append(allRules, promoted...)
+
+	if len(configs) > 0 {
+		rules, err := convertMetricRelabelings(logger, configs)
+		if err != nil {
+			return nil, err
+		}
+		allRules = append(allRules, rules...)
+	}
+
+	return allRules, nil
 }
