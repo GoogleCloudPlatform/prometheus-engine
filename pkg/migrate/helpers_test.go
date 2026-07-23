@@ -17,8 +17,11 @@ package migrate
 import (
 	"log/slog"
 	"os"
+	"reflect"
 	"testing"
 
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/google/go-cmp/cmp"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -525,4 +528,198 @@ func TestConvertConfigMapToSecretSelectorDeduplication(t *testing.T) {
 	if len(genSecrets) != 1 {
 		t.Fatalf("expected exactly 1 generated secret due to duplication, got %d", len(genSecrets))
 	}
+}
+
+func TestParseAndCleanNamespaces(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		expected []string
+	}{
+		{
+			name:     "Deduplication and Trimming",
+			input:    []string{"ns-a", " ns-a ", "  ns-a", "", "   ", "ns-b ", "ns-c"},
+			expected: []string{"ns-a", "ns-b", "ns-c"},
+		},
+		{
+			name:     "Empty list",
+			input:    []string{},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := ParseAndCleanNamespaces(tc.input)
+			if !reflect.DeepEqual(actual, tc.expected) {
+				if len(actual) == 0 && len(tc.expected) == 0 {
+					return
+				}
+				t.Fatalf("expected %v, got %v", tc.expected, actual)
+			}
+		})
+	}
+}
+
+func TestConvertPreScrapeRelabelings_TargetFiltering(t *testing.T) {
+	tests := []struct {
+		name              string
+		configs           []pomonitoringv1.RelabelConfig
+		expectMatchLabels map[string]string
+		expectExprLen     int
+		expectExprKey     string
+		expectExprOp      metav1.LabelSelectorOperator
+		expectExprValues  []string
+	}{
+		{
+			name: "Keep exact match to MatchLabels",
+			configs: []pomonitoringv1.RelabelConfig{
+				{
+					SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
+					Regex:        "^production$",
+					Action:       "keep",
+				},
+			},
+			expectMatchLabels: map[string]string{"env": "production"},
+		},
+		{
+			name: "Drop set match to MatchExpressions",
+			configs: []pomonitoringv1.RelabelConfig{
+				{
+					SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_tier"},
+					Regex:        "(test|staging)",
+					Action:       "drop",
+				},
+			},
+			expectMatchLabels: nil,
+			expectExprLen:     1,
+			expectExprKey:     "tier",
+			expectExprOp:      metav1.LabelSelectorOpNotIn,
+			expectExprValues:  []string{"test", "staging"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+			result := convertPreScrapeRelabelings(logger, tc.configs, true)
+
+			if !reflect.DeepEqual(result.MatchLabels, tc.expectMatchLabels) {
+				if len(result.MatchLabels) != 0 || len(tc.expectMatchLabels) != 0 {
+					t.Errorf("expected MatchLabels %v, got %v", tc.expectMatchLabels, result.MatchLabels)
+				}
+			}
+
+			if len(result.MatchExpressions) != tc.expectExprLen {
+				t.Fatalf("expected %d MatchExpressions, got %d", tc.expectExprLen, len(result.MatchExpressions))
+			}
+
+			if tc.expectExprLen > 0 {
+				expr := result.MatchExpressions[0]
+				if expr.Key != tc.expectExprKey || expr.Operator != tc.expectExprOp || !reflect.DeepEqual(expr.Values, tc.expectExprValues) {
+					t.Errorf("unexpected MatchExpression: %+v", expr)
+				}
+			}
+		})
+	}
+}
+
+func TestConvertRelabelings_ProtectedLabels(t *testing.T) {
+	tests := []struct {
+		name           string
+		configs        []pomonitoringv1.RelabelConfig
+		expectedTarget string
+	}{
+		{
+			name: "Rename protected project_id",
+			configs: []pomonitoringv1.RelabelConfig{
+				{SourceLabels: []pomonitoringv1.LabelName{"custom_id"}, TargetLabel: "project_id", Action: "replace"},
+			},
+			expectedTarget: "exported_project_id",
+		},
+		{
+			name: "Rename protected namespace",
+			configs: []pomonitoringv1.RelabelConfig{
+				{SourceLabels: []pomonitoringv1.LabelName{"ns"}, TargetLabel: "namespace", Action: "replace"},
+			},
+			expectedTarget: "exported_namespace",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+			// Test Pre-Scrape promotion.
+			res := convertPreScrapeRelabelings(logger, tc.configs, true)
+			if len(res.PromotedRules) != 1 || res.PromotedRules[0].TargetLabel != tc.expectedTarget {
+				t.Errorf("expected promoted target label %q, got %v", tc.expectedTarget, res.PromotedRules)
+			}
+
+			// Test Post-Scrape modification.
+			modRules, _ := convertMetricRelabelings(logger, tc.configs)
+			if len(modRules) != 1 || modRules[0].TargetLabel != tc.expectedTarget {
+				t.Errorf("expected modified metric target label %q, got %v", tc.expectedTarget, modRules)
+			}
+		})
+	}
+}
+
+func TestConvertPreScrapeRelabelings_UnsupportedActions(t *testing.T) {
+	tests := []struct {
+		name    string
+		configs []pomonitoringv1.RelabelConfig
+	}{
+		{
+			name: "Drop unsupported label actions",
+			configs: []pomonitoringv1.RelabelConfig{
+				{SourceLabels: []pomonitoringv1.LabelName{"t"}, Action: "labelmap"},
+				{SourceLabels: []pomonitoringv1.LabelName{"t"}, Action: "labelkeep"},
+				{SourceLabels: []pomonitoringv1.LabelName{"t"}, Action: "labeldrop"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+			res := convertPreScrapeRelabelings(logger, tc.configs, true)
+			if len(res.PromotedRules) != 0 {
+				t.Errorf("expected all rules to be skipped, got %d rules", len(res.PromotedRules))
+			}
+		})
+	}
+}
+
+func TestMergeCollisionWarnings(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	t.Run("mergeLabelSelector", func(t *testing.T) {
+		baseSelector := metav1.LabelSelector{MatchLabels: map[string]string{"env": "prod"}}
+		extraLabels := map[string]string{"env": "qa", "tier": "backend"} // env conflicts.
+
+		mergedSel := mergeLabelSelector(logger, baseSelector, extraLabels, nil)
+		if mergedSel.MatchLabels["env"] != "prod" {
+			t.Errorf("expected env=prod (retained), got %s", mergedSel.MatchLabels["env"])
+		}
+		if mergedSel.MatchLabels["tier"] != "backend" {
+			t.Errorf("expected tier=backend (merged), got %s", mergedSel.MatchLabels["tier"])
+		}
+	})
+
+	t.Run("mergeFromPod", func(t *testing.T) {
+		baseMapping := []monitoringv1.LabelMapping{{From: "app"}}
+		extraMapping := []monitoringv1.LabelMapping{{From: "service", To: "app"}, {From: "version"}} // To: app conflicts.
+
+		mergedMap := mergeFromPod(logger, baseMapping, extraMapping)
+		if len(mergedMap) != 2 {
+			t.Fatalf("expected 2 merged mappings (collision skipped), got %d", len(mergedMap))
+		}
+		if diff := cmp.Diff(baseMapping[0], mergedMap[0]); diff != "" {
+			t.Errorf("expected first mapping untouched: %s", diff)
+		}
+		if mergedMap[1].From != "version" {
+			t.Errorf("expected second mapping from=version, got %s", mergedMap[1].From)
+		}
+	})
 }

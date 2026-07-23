@@ -25,7 +25,7 @@ import (
 
 // ============================================================================
 // Section A: Upstream Prometheus Operator Test Cases (v0.75.0)
-// ============================================================================
+// ============================================================================.
 
 // upstreamPodMonitorTestCases maps exact upstream test scenarios from pkg/prometheus/promcfg_test.go.
 var upstreamPodMonitorTestCases = []podMonitorTestCase{
@@ -206,7 +206,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 	},
 
 	// Upstream Function: TestPodMonitorPortNumber
-	// Case: PodMonitor with Pod Name
+	// Case: PodMonitor with Pod Name.
 	{
 		name: "podmonitor-port-name",
 		input: &monitoringv1.PodMonitor{
@@ -226,7 +226,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 	},
 
 	// Upstream Function: TestPodMonitorPortNumber
-	// Case: PodMonitor with Pod Port Number
+	// Case: PodMonitor with Pod Port Number.
 	{
 		name: "podmonitor-port-number-with-name",
 		input: &monitoringv1.PodMonitor{
@@ -244,8 +244,8 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 		},
 	},
 
-	// Upstream Function: TestPodMonitorPortNumber
-	// Case: PodMonitor with TargetPort Int
+	// Upstream Function: TestPodMonitorPortNumber.
+	// Case: PodMonitor with TargetPort Int.
 	{
 		name: "podmonitor-targetport-int",
 		input: &monitoringv1.PodMonitor{
@@ -264,7 +264,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 	},
 
 	// Upstream Function: TestPodMonitorPortNumber
-	// Case: PodMonitor with TargetPort string
+	// Case: PodMonitor with TargetPort string.
 	{
 		name: "podmonitor-targetport-string",
 		input: &monitoringv1.PodMonitor{
@@ -283,7 +283,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 	},
 
 	// Upstream Function: TestPodMonitorSelectors
-	// Case: PodMonitor with Match Label Selector
+	// Case: PodMonitor with Match Label Selector.
 	{
 		name: "podmonitor-selector-match-labels",
 		input: &monitoringv1.PodMonitor{
@@ -308,7 +308,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 	},
 
 	// Upstream Function: TestPodMonitorSelectors
-	// Case: PodMonitor with Match Expression Selector
+	// Case: PodMonitor with Match Expression Selector.
 	{
 		name: "podmonitor-selector-match-expressions",
 		input: &monitoringv1.PodMonitor{
@@ -337,7 +337,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 	},
 
 	// Upstream Function: TestPodMonitorSelectors
-	// Case: PodMonitor with selector and match expression selector (multiple criteria)
+	// Case: PodMonitor with selector and match expression selector (multiple criteria).
 	{
 		name: "podmonitor-selector-match-labels-and-expressions",
 		input: &monitoringv1.PodMonitor{
@@ -375,7 +375,7 @@ var upstreamPodMonitorTestCases = []podMonitorTestCase{
 
 // ============================================================================
 // Section B: Custom GMP Migration Test Cases (Limits, Auth, TLS, HTTP)
-// ============================================================================
+// ============================================================================.
 
 // customPodMonitorTestCases maps Google Managed Service for Prometheus (GMP) specific mapping gaps
 // and edge cases that are not validated by the upstream Prometheus Operator test suite.
@@ -465,42 +465,42 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 		},
 		extraInputs: []*unstructured.Unstructured{
 			{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "Secret",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "my-basic-secret",
 						"namespace": "default",
 					},
-					"stringData": map[string]interface{}{
+					"stringData": map[string]any{
 						"user": "my-username",
 						"pass": "my-password",
 					},
 				},
 			},
 			{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "Secret",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "oauth-secret",
 						"namespace": "default",
 					},
-					"stringData": map[string]interface{}{
+					"stringData": map[string]any{
 						"client-id":     "my-client-id",
 						"client-secret": "my-client-secret",
 					},
 				},
 			},
 			{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "v1",
 					"kind":       "ConfigMap",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name":      "my-tls-configmap",
 						"namespace": "default",
 					},
-					"data": map[string]interface{}{
+					"data": map[string]any{
 						"ca.crt": "my-ca-cert-data",
 					},
 				},
@@ -552,26 +552,26 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 					{
 						Port: "web",
 						RelabelConfigs: []monitoringv1.RelabelConfig{
-							// A. Should translate to selector.matchLabels
+							// A. Should translate to selector.matchLabels.
 							{
 								SourceLabels: []monitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
 								TargetLabel:  "env",
 								Regex:        "^production$",
 								Action:       "keep",
 							},
-							// B. Should translate to targetLabels.fromPod
+							// B. Should translate to targetLabels.fromPod.
 							{
 								SourceLabels: []monitoringv1.LabelName{"__meta_kubernetes_pod_label_app"},
 								TargetLabel:  "app",
 								Action:       "replace",
 							},
-							// C. Should translate to targetLabels.metadata
+							// C. Should translate to targetLabels.metadata.
 							{
 								SourceLabels: []monitoringv1.LabelName{"__meta_kubernetes_pod_node_name"},
 								TargetLabel:  "node",
 								Action:       "replace",
 							},
-							// D. Complex replacement -> should promote to metricRelabeling
+							// D. Complex replacement -> should promote to metricRelabeling.
 							{
 								SourceLabels: []monitoringv1.LabelName{"__meta_kubernetes_pod_label_version"},
 								TargetLabel:  "version",
@@ -599,19 +599,19 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 					{
 						Port: "web",
 						RelabelConfigs: []monitoringv1.RelabelConfig{
-							// A. Protected target rename: job -> exported_job
+							// A. Protected target rename: job -> exported_job.
 							{
 								SourceLabels: []monitoringv1.LabelName{"__meta_kubernetes_pod_label_project"},
 								TargetLabel:  "job",
 								Action:       "replace",
 							},
-							// B. Unsupported annotation source: dropped
+							// B. Unsupported annotation source: dropped.
 							{
 								SourceLabels: []monitoringv1.LabelName{"__meta_kubernetes_pod_annotation_owner"},
 								TargetLabel:  "owner",
 								Action:       "replace",
 							},
-							// C. Unsupported action: dropped
+							// C. Unsupported action: dropped.
 							{
 								SourceLabels: []monitoringv1.LabelName{"__meta_kubernetes_pod_label_tier"},
 								Action:       "labelmap",
@@ -664,7 +664,6 @@ var customPodMonitorTestCases = []podMonitorTestCase{
 			},
 		},
 	},
-
 
 	// Custom Case: Test cluster-scoped conversion (Any: true) to ClusterPodMonitoring.
 	{
