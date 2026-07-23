@@ -61,10 +61,12 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 	// TODO(M2): Override local namespace scoping if Prometheus CR specifies ignoreNamespaceSelectors.
 
 	// 2. Determine Scoping based on namespaceSelector.
-	nsSel := podMonitor.Spec.NamespaceSelector
+	targetNamespaces, isClusterScoped, err := determineNamespaceScoping(podMonitor.Spec.NamespaceSelector, podMonitor.Namespace)
+	if err != nil {
+		return nil, err
+	}
 
-	if nsSel.Any {
-		// Case A: namespaceSelector.any = true -> Single ClusterPodMonitoring.
+	if isClusterScoped {
 		logger.Info("namespaceSelector selects 'any: true'. Translated to 'ClusterPodMonitoring'")
 		u, generatedSecrets, err := c.convertToClusterPodMonitoring(&podMonitor, logger, cache)
 		if err != nil {
@@ -75,44 +77,23 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 		return outputs, nil
 	}
 
-	if len(nsSel.MatchNames) > 0 {
-		// Case B: namespaceSelector.matchNames listed -> Multiple PodMonitoring resources (one per namespace).
-		targetNamespaces := ParseAndCleanNamespaces(nsSel.MatchNames)
-
-		// 2.1 Fail if all provided names were empty/whitespace (broken config).
-		if len(targetNamespaces) == 0 {
-			return nil, errors.New("namespaceSelector.matchNames contains only empty or invalid values")
-		}
-
-		if len(targetNamespaces) > 1 {
-			logger.Info("namespaceSelector targets multiple namespaces. Generating separate PodMonitoring resources for each namespace",
-				slog.Any("namespaces", targetNamespaces),
-			)
-		}
-
-		// 2.2 Convert to a base namespaced PodMonitoring.
-		baseU, generatedSecrets, err := c.convertToPodMonitoring(&podMonitor, logger, cache)
-		if err != nil {
-			return nil, err
-		}
-
-		// 2.3 Clone and apply target namespaces.
-		var outputs []*unstructured.Unstructured
-		for _, ns := range targetNamespaces {
-			uClone := baseU.DeepCopy()
-			uClone.SetNamespace(ns)
-			outputs = append(outputs, uClone)
-		}
-		outputs = append(outputs, generatedSecrets...)
-		return outputs, nil
+	if len(targetNamespaces) > 1 {
+		logger.Info("namespaceSelector targets multiple namespaces. Generating separate PodMonitoring resources for each namespace",
+			slog.Any("namespaces", targetNamespaces),
+		)
 	}
 
-	// Case C: namespaceSelector is empty/omitted -> Single PodMonitoring in local namespace.
-	u, generatedSecrets, err := c.convertToPodMonitoring(&podMonitor, logger, cache)
+	baseU, generatedSecrets, err := c.convertToPodMonitoring(&podMonitor, logger, cache)
 	if err != nil {
 		return nil, err
 	}
-	outputs := []*unstructured.Unstructured{u}
+
+	var outputs []*unstructured.Unstructured
+	for _, ns := range targetNamespaces {
+		uClone := baseU.DeepCopy()
+		uClone.SetNamespace(ns)
+		outputs = append(outputs, uClone)
+	}
 	outputs = append(outputs, generatedSecrets...)
 	return outputs, nil
 }

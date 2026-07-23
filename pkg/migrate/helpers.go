@@ -16,6 +16,7 @@ package migrate
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -30,7 +31,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -125,8 +125,8 @@ func CopyObjectMeta(src metav1.ObjectMeta, targetNamespace string, logger *slog.
 	return dst
 }
 
-// ParseAndCleanNamespaces trims whitespace, filters out empty strings, and deduplicates namespaces.
-func ParseAndCleanNamespaces(namespaces []string) []string {
+// parseAndCleanNamespaces trims whitespace, filters out empty strings, and deduplicates namespaces.
+func parseAndCleanNamespaces(namespaces []string) []string {
 	unique := make(map[string]bool)
 	var cleaned []string
 	for _, ns := range namespaces {
@@ -137,6 +137,21 @@ func ParseAndCleanNamespaces(namespaces []string) []string {
 		}
 	}
 	return cleaned
+}
+
+// determineNamespaceScoping resolves the target namespaces from a NamespaceSelector.
+func determineNamespaceScoping(nsSel pomonitoringv1.NamespaceSelector, defaultNS string) ([]string, bool, error) {
+	if nsSel.Any {
+		return nil, true, nil
+	}
+	if len(nsSel.MatchNames) > 0 {
+		targetNamespaces := parseAndCleanNamespaces(nsSel.MatchNames)
+		if len(targetNamespaces) == 0 {
+			return nil, false, errors.New("namespaceSelector.matchNames contains only empty or invalid values")
+		}
+		return targetNamespaces, false, nil
+	}
+	return []string{defaultNS}, false, nil
 }
 
 // conversionContext groups common parameters passed down to conversion helper functions.
@@ -1023,6 +1038,21 @@ func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLeng
 	return limits
 }
 
+// toStrictUnstructured converts a struct to a strictly JSON-compatible unstructured map.
+// uses JSON to silently convert unsupported Go primitives (like uint64) into safe float64 numbers.
+// ensures the resulting map will not panic on DeepCopy.
+func toStrictUnstructured(obj interface{}) (map[string]interface{}, error) {
+	b, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	var u map[string]interface{}
+	if err := json.Unmarshal(b, &u); err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
 // buildPodMonitoring constructs a GMP PodMonitoring resource from common spec.
 func buildPodMonitoring(
 	srcMeta metav1.ObjectMeta,
@@ -1048,7 +1078,7 @@ func buildPodMonitoring(
 		},
 	}
 
-	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(gmpPM)
+	unstructuredMap, err := toStrictUnstructured(gmpPM)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal PodMonitoring: %w", err)
 	}
@@ -1085,7 +1115,7 @@ func buildClusterPodMonitoring(
 		},
 	}
 
-	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(gmpCPM)
+	unstructuredMap, err := toStrictUnstructured(gmpCPM)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal ClusterPodMonitoring: %w", err)
 	}
