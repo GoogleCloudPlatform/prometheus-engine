@@ -171,7 +171,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 		// The pinned Prometheus Operator version lacks these fields, and GMP does not support them anyway.
 
 		// Auth & TLS mappings.
-		err = convCtx.applyAuthAndTLS(i, &gmpEp, ep.BasicAuth, ep.OAuth2, ep.TLSConfig, ep.Authorization, ep.BearerTokenSecret)
+		err = convCtx.applyAuthAndTLS(i, &gmpEp, ep.BasicAuth, ep.OAuth2, ep.TLSConfig, ep.Authorization, ep.BearerTokenSecret) // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 		if err != nil {
 			return nil, err
 		}
