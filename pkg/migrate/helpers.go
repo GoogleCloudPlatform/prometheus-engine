@@ -1159,7 +1159,7 @@ func resolveFilterRunning(filterRunnings []*bool, logger *slog.Logger, isCluster
 }
 
 // resolveScrapeIntervalAndTimeout validates and caps timeout to interval if needed.
-func resolveScrapeIntervalAndTimeout(logger *slog.Logger, interval, timeout string) (string, string, error) {
+func resolveScrapeIntervalAndTimeout(logger *slog.Logger, interval, timeout string) (resolvedInterval, resolvedTimeout string, err error) {
 	// TODO(M2): Inherit global scrape interval from Prometheus CR if empty.
 	if interval == "" {
 		logger.Warn("Scrape interval is empty. Defaulting to '30s' as GMP requires this field.")
