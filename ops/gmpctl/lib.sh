@@ -474,7 +474,6 @@ release-lib::manifests_regen() {
 
 	echo "🔄 Regenerating manifests..."
 	YQ="$(command -v yq)" HELM="$(command -v helm)" ADDLICENSE="$(command -v addlicense)" bash "${dir}/hack/presubmit.sh" manifests
-
 	if [[ -f "${dir}/.bingo/variables.env.bak" ]]; then
 		mv "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env"
 		trap - EXIT

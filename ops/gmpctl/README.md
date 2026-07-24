@@ -30,6 +30,7 @@ Available options:
 * `dir`: Base directory for gmpctl work, project clones, and git worktrees (default: `./data`).
 * `vuln_ignored_modules`: List of Go module paths to ignore during module upgrades (e.g. `vulnfix`).
   Example:
+
   ```yaml
   dir: "./data"
   vuln_ignored_modules:
