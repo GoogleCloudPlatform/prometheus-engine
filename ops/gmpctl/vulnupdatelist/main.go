@@ -15,16 +15,14 @@
 // package main implements vulnupdatelist script.
 //
 // Run this script to list all the vulnerable Go modules to upgrade.
-// Compared to govulncheck binary, it also checks severity and groups the results
-// into clear table per module to upgrade.
+// Compared to govulncheck binary, it groups the results into clear table per module to upgrade.
 //
 // Example use:
 //
 //	go run ./... \
 //		-go-version=1.23.0 \
 //		-only-fixed \
-//		-dir=../../../prometheus \
-//		-nvd-api-key="$(cat ./api.text)" | tee vuln.txt
+//		-dir=../../../prometheus | tee vuln.txt
 package main
 
 import (
@@ -43,17 +41,14 @@ import (
 var (
 	goVersion = flag.String("go-version", "", "Go version to test vulnerabilities in (stdlib). Otherwise the `go env GOVERSION` is used")
 	dir       = flag.String("dir", ".", "Where to run the script from")
-	nvdAPIKey = flag.String("nvd-api-key", "", "API Key for avoiding rate-limiting on severity checks; see https://nvd.nist.gov/developers/request-an-api-key")
 	onlyFixed = flag.Bool("only-fixed", false, "Don't print vulnerable modules without fixed version; note: fixed version often means sometimes that a new major version contains a fix.")
 )
 
 // UpdateList presents the minimum version to upgrade to solve all CVEs with
-// a fixed version. The CVE refers to the important CVE.
-// For example critical CVE 1 is fixed in v0.5.1 and low is fixed in v0.10.1.
-// TODO(bwplotka): Logically, there might be cases where low contains heavy breaking changes that we can't fix easily; add option to print those too.
+// a fixed version.
 type UpdateList struct {
-	CVE            CVE // If CVE has +<number> suffix, it means the top CVE.
-	AdditionalCVEs int // Lower priority CVEs included in the "fixed" version.
+	CVEID          string
+	AdditionalCVEs int // Additional CVEs included in the "fixed" version.
 	Module         string
 	FixedVersion   *semver.Version
 	Version        string
@@ -65,9 +60,9 @@ func (u UpdateList) String() string {
 		fixedVersion = "v" + u.FixedVersion.String()
 	}
 	if u.AdditionalCVEs > 0 {
-		return fmt.Sprintf("%s %s@%s %s(+%d more) now@%s", u.CVE.Severity, u.Module, fixedVersion, u.CVE.ID, u.AdditionalCVEs, u.Version)
+		return fmt.Sprintf("%s@%s %s(+%d more) now@%s", u.Module, fixedVersion, u.CVEID, u.AdditionalCVEs, u.Version)
 	}
-	return fmt.Sprintf("%s %s@%s %s now@%s", u.CVE.Severity, u.Module, fixedVersion, u.CVE.ID, u.Version)
+	return fmt.Sprintf("%s@%s %s now@%s", u.Module, fixedVersion, u.CVEID, u.Version)
 }
 
 func main() {
