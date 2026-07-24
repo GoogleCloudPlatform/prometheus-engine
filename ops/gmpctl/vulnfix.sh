@@ -33,9 +33,6 @@ fi
 
 source "${SCRIPT_DIR}/lib.sh"
 
-# TODO: Find better way. Go tool grane is tricky as we run in different directory.
-go install github.com/google/go-containerregistry/cmd/gcrane@latest
-
 # Also accepts SYNC_DOCKERFILES_FROM.
 
 if [[ -z "${DIR}" ]]; then

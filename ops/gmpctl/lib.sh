@@ -407,8 +407,6 @@ release-lib::idemp::manifests_bash_image_bump() {
 		return 1
 	fi
 
-	go install github.com/mikefarah/yq/v4@latest
-
 	local values_file="${dir}/charts/values.global.yaml"
 	# TODO: Not enough, this has to check actual manifests.
 	local bash_tag=$(yq '.images.bash.tag' "${values_file}")
@@ -442,17 +440,17 @@ release-lib::manifests_regen() {
 		return 1
 	fi
 
-	# TODO(bwplotka): Manage deps better. It's getting confusing what bins we should use (worktree bingo? script bingo?).
-	go install helm.sh/helm/v3/cmd/helm@latest
-	go install github.com/google/addlicense@latest
-	go install github.com/mikefarah/yq/v4@latest
+	# Hack: Do the bingo variable swap. This allows injecting our local
+	# dependencies, instead the ones populated by bingo on old versions.
+	# NOTE: Only needed before 0.19.
+	if [[ -f "${dir}/.bingo/variables.env" ]]; then
+    cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
+    trap 'mv "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env" 2>/dev/null || true' EXIT
+    echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
+  fi
 
-	# Hack: Do the bingo variable swap. This allows injecting our own.
-	# This is faster than running requiring bingo and running bingo get.
-	cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
-	echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
-	YQ="$(which yq)" HELM="$(which helm)" ADDLICENSE="$(which addlicense)" bash "${dir}/hack/presubmit.sh" manifests
-	cp "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env"
+  echo "🔄 Regenerating manifests..."
+  YQ="$(command -v yq)" HELM="$(command -v helm)" ADDLICENSE="$(command -v addlicense)" bash "${dir}/hack/presubmit.sh" manifests
 
 	echo "✅  Manifests regenerated"
 	return 0
