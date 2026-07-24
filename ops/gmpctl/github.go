@@ -16,7 +16,6 @@ package main
 
 import (
 	"encoding/json"
-	"strings"
 )
 
 type prInfo struct {
@@ -53,7 +52,7 @@ func mustEnsurePullRequest(dir, baseBranch, headBranch, title, body string) {
 
 	// gh pr create --title <title> --body <body> --base <base> --head <head>
 	prURL, err := runCommand(
-		&cmdOpts{Dir: dir},
+		&cmdOpts{Dir: dir, HideOutputs: true},
 		"gh", "pr", "create",
 		"--title", title,
 		"--body", body,
@@ -63,5 +62,5 @@ func mustEnsurePullRequest(dir, baseBranch, headBranch, title, body string) {
 	if err != nil {
 		panicf("failed to create pull request: %v", err)
 	}
-	logf("Pull request created: %v", strings.TrimSpace(prURL))
+	logf("Pull request created: %v", prURL)
 }
