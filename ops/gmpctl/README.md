@@ -12,13 +12,15 @@ It's a starting point for smaller or bigger automation on OSS side (e.g. releasi
 1. To start using `gmpctl` you need to have a clone of `prometheus-engine` on your machine (you probably have already one!
    to fetch the latest `main` for the best experience (latest scripts).
 
-2. Ensure you have installed:
+2. The next this is to obtain NVD API key to avoid rate-limits when querying CVE DB. [Request an API Key](https://nvd.nist.gov/developers/request-an-api-key) and save this key to `ops/vulnupdatelist/api.text`
+
+3. Ensure you have installed:
    * new-ish `bash` (MacOS: `brew install bash`)
    * `gsed` (MacOS: `brew install gsed`)
    * `gcloud` (https://docs.cloud.google.com/sdk/docs/install-sdk) (and `gcloud auth login`)
    * `gpg` (MacOS: `brew install gpg`)
 
-3. You can configure different work directory for gmpctl via `-c` flag. By default, `gmpctl` does the work in `ops/gmpctl/.data`)
+4. You can configure different work directory for gmpctl via `-c` flag. By default, `gmpctl` does the work in `ops/gmpctl/.data`)
 
 Enjoy!
 
@@ -108,6 +110,7 @@ Some rules to follow:
 ## TODO / Known issues
 
 * [ ] Port bash to Go for stable commands.
+* [ ] Ability to configure NVD API key in gmpctl config.
 * [ ] Port fork-sync script from the old PR.
 * [ ] Generate some on-demand query of vulnerabilities for all releases (aka dashboard.)
 * [ ] Fix NPM vulns (although it's rate).
