@@ -111,7 +111,8 @@ release-lib::vulnlist() {
 	go run "./..." \
 		-go-version="${go_version}" \
 		-only-fixed \
-		-dir="${dir}" | tee "${vuln_file}"
+		-dir="${dir}" \
+		-vuln-ignore-modules="${VULN_IGNORED_MODULES:-}" | tee "${vuln_file}"
 	if [[ -z $(cat "${vuln_file}") ]]; then
 		# Print this, otherwise error on the above might keep this file mistakenly empty.
 		echo "no vulnerabilities" >"${vuln_file}"

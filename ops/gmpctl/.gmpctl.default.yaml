@@ -13,3 +13,10 @@
 # limitations under the License.
 
 dir: "./data"
+
+# Go modules to ignore during dependency upgrades (e.g., vulnfix).
+vuln_ignored_modules:
+  # Until unfork, upgrading prometheus is non-trivial and its vulnerabilities
+  # are typically not related to us. Skip it in vulnerability fixes, and produce warning.
+  - "github.com/prometheus/prometheus"
+

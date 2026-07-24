@@ -19,6 +19,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 var (
@@ -78,6 +79,7 @@ func vulnfix() error {
 		fmt.Sprintf("DIR=%v", dir),
 		fmt.Sprintf("BRANCH=%v", branch),
 		fmt.Sprintf("PROJECT=%v", proj.Name),
+		fmt.Sprintf("VULN_IGNORED_MODULES=%v", strings.Join(cfg.VulnIgnoredModules, ",")),
 	}
 	if *vulnfixSyncDockerfilesFrom {
 		opts = append(opts, "SYNC_DOCKERFILES_FROM=true")
