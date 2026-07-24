@@ -18,7 +18,7 @@ It's a starting point for smaller or bigger automation on OSS side (e.g. releasi
    * `gcloud` (https://docs.cloud.google.com/sdk/docs/install-sdk) (and `gcloud auth login`)
    * `gpg` (MacOS: `brew install gpg`)
 
-3. You can configure different work directory for gmpctl via `-c` flag. By default, `gmpctl` does the work in `ops/gmpctl/.data`)
+3. You can configure different work directory for gmpctl via `-c` flag. By default, `gmpctl` does the work in `ops/gmpctl/.data`
 
 Enjoy!
 

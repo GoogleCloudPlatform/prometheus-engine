@@ -109,7 +109,7 @@ release-lib::vulnlist() {
 	pushd "${SCRIPT_DIR}/vulnupdatelist/"
 
 	go run "./..." \
-		-go-version=${go_version} \
+		-go-version="${go_version}" \
 		-only-fixed \
 		-dir="${dir}" | tee "${vuln_file}"
 	if [[ -z $(cat "${vuln_file}") ]]; then
