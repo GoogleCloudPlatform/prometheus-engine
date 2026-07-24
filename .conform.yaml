@@ -51,4 +51,5 @@ policies:
           - datasource-syncer
           - config-reloader
           - rule-evaluator
+          - ops
         descriptionLength: 80
