@@ -444,13 +444,13 @@ release-lib::manifests_regen() {
 	# dependencies, instead the ones populated by bingo on old versions.
 	# NOTE: Only needed before 0.19.
 	if [[ -f "${dir}/.bingo/variables.env" ]]; then
-    cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
-    trap "mv \"${dir}/.bingo/variables.env.bak\" \"${dir}/.bingo/variables.env\" 2>/dev/null || true" EXIT
-    echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
-  fi
+		cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
+		trap "mv \"${dir}/.bingo/variables.env.bak\" \"${dir}/.bingo/variables.env\" 2>/dev/null || true" EXIT
+		echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
+	fi
 
-  echo "🔄 Regenerating manifests..."
-  YQ="$(command -v yq)" HELM="$(command -v helm)" ADDLICENSE="$(command -v addlicense)" bash "${dir}/hack/presubmit.sh" manifests
+	echo "🔄 Regenerating manifests..."
+	YQ="${GOBIN}/yq" HELM="${GOBIN}/helm" ADDLICENSE="${GOBIN}/addlicense" bash "${dir}/hack/presubmit.sh" manifests
 
 	echo "✅  Manifests regenerated"
 	return 0
