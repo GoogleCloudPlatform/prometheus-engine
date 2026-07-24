@@ -82,7 +82,7 @@ type FindingTrace struct {
 
 // compileUpdateList decodes the JSON stream from govulncheck and extracts
 // a list of modules that need to be updated to a fixed version.
-func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error) {
+func compileUpdateList(jsonData io.Reader, onlyFixed bool, ignoredModules []string) ([]UpdateList, error) {
 	updates := make(map[string]UpdateList)
 	osvs := make(map[string]*OSV)
 	decoder := json.NewDecoder(jsonData)
@@ -109,10 +109,8 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error)
 		// We assume OSVs are printed first.
 		osv := osvs[v.Finding.OSVID]
 		cveID := v.Finding.OSVID
-		allCVEs := v.Finding.OSVID
 		if osv != nil {
 			cveID = getCVEID(*osv)
-			allCVEs = osv.CVEs()
 		} else {
 			slog.Error("Malformed govulncheck input; a finding without an OSV entry.", "finding.osv", v.Finding.OSVID)
 		}
@@ -132,25 +130,18 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error)
 			}
 		}
 
-		if onlyFixed && fixVersion == nil {
-			slog.Warn("IMPORTANT: Found Go vulnerability without a fixed version. Ignoring this module, given the -only-fixed flag...", "mod", module, "cve", cveID)
-			continue
-		}
-
 		up, ok := updates[module]
 		if !ok {
-			slog.Info("Found Go vulnerability with a fix; queuing...", "mod", module, "CVEs", allCVEs)
 			updates[module] = UpdateList{
 				CVEID:        cveID,
 				Module:       module,
 				FixedVersion: fixVersion,
 				Version:      v.Finding.Trace[0].Version,
+				Ignored:      slices.Contains(ignoredModules, module),
 			}
 			continue
 		}
 
-		// Check if there are more CVE IDs corresponding to the vulnerability, which can give more context.
-		slog.Debug("Found Go vulnerability with a fix, the module was already queued; resolving version...", "mod", module, "CVEs", allCVEs)
 		up.AdditionalCVEs++
 		if fixVersion != nil {
 			if up.FixedVersion == nil || fixVersion.GreaterThan(up.FixedVersion) {
@@ -160,10 +151,26 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error)
 		updates[module] = up
 	}
 
-	updateList := slices.Collect(maps.Values(updates))
-	sort.Slice(updateList, func(i, j int) bool {
-		return updateList[i].Module < updateList[j].Module
+	allUpdates := slices.Collect(maps.Values(updates))
+	sort.Slice(allUpdates, func(i, j int) bool {
+		return allUpdates[i].Module < allUpdates[j].Module
 	})
+
+	var updateList []UpdateList
+	for _, up := range allUpdates {
+		if up.Ignored {
+			slog.Info("Ignoring module upgrade due to configuration", "module", up.Module)
+			continue
+		}
+
+		if onlyFixed && up.FixedVersion == nil {
+			slog.Warn("IMPORTANT: Found Go vulnerability without a fixed version. Ignoring this module, given the -only-fixed flag...", "mod", up.Module, "cve", up.CVEID)
+			continue
+		}
+
+		slog.Info("Found Go vulnerability with a fix; queuing...", "mod", up.Module, "fixedVersion", up.FixedVersion, "cve", up.CVEID)
+		updateList = append(updateList, up)
+	}
 	return updateList, nil
 }
 

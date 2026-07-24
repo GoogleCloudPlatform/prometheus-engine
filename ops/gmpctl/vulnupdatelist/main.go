@@ -34,14 +34,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 )
 
 var (
-	goVersion = flag.String("go-version", "", "Go version to test vulnerabilities in (stdlib). Otherwise the `go env GOVERSION` is used")
-	dir       = flag.String("dir", ".", "Where to run the script from")
-	onlyFixed = flag.Bool("only-fixed", false, "Don't print vulnerable modules without fixed version; note: fixed version often means sometimes that a new major version contains a fix.")
+	goVersion     = flag.String("go-version", "", "Go version to test vulnerabilities in (stdlib). Otherwise the `go env GOVERSION` is used")
+	dir           = flag.String("dir", ".", "Where to run the script from")
+	onlyFixed     = flag.Bool("only-fixed", false, "Don't print vulnerable modules without fixed version; note: fixed version often means sometimes that a new major version contains a fix.")
+	vulnIgnoreModules = flag.String("vuln-ignore-modules", "", "Comma-separated list of Go module paths to ignore for upgrades due to known issues.")
 )
 
 // UpdateList presents the minimum version to upgrade to solve all CVEs with
@@ -52,6 +54,7 @@ type UpdateList struct {
 	Module         string
 	FixedVersion   *semver.Version
 	Version        string
+	Ignored        bool
 }
 
 func (u UpdateList) String() string {
@@ -89,8 +92,18 @@ func main() {
 		os.Exit(0)
 	}
 
+	var ignored []string
+	if *vulnIgnoreModules != "" {
+		for _, m := range strings.Split(*vulnIgnoreModules, ",") {
+			m = strings.TrimSpace(m)
+			if m != "" {
+				ignored = append(ignored, m)
+			}
+		}
+	}
+
 	slog.Info("Parsing vulnerabilities and finding updates...")
-	updates, err := compileUpdateList(bytes.NewReader(vulnJSON), *onlyFixed)
+	updates, err := compileUpdateList(bytes.NewReader(vulnJSON), *onlyFixed, ignored)
 	if err != nil {
 		log.Fatalf("Error parsing govulncheck output: %v", err)
 	}

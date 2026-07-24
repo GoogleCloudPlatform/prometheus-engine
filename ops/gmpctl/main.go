@@ -36,6 +36,8 @@ var (
 type Config struct {
 	// Directory for the gmpctl work, notably for project clones and git worktrees.
 	Directory string `yaml:"dir"`
+	// VulnIgnoredModules contains Go module paths to ignore during upgrades (e.g. vulnfix).
+	VulnIgnoredModules []string `yaml:"vuln_ignored_modules"`
 }
 
 func loadConfig() (ret *Config, _ error) {
