@@ -7,15 +7,15 @@ GO     ?= $(shell which go)
 
 # Below generated variables ensure that every time a tool under each variable is invoked, the correct version
 # will be used; reinstalling only if needed.
-# For example for addlicense variable:
+# For example for controller-gen variable:
 #
 # In your main Makefile (for non array binaries):
 #
 #include .bingo/Variables.mk # Assuming -dir was set to .bingo .
 #
-#command: $(ADDLICENSE)
-#	@echo "Running addlicense"
-#	@$(ADDLICENSE) <flags/args..>
+#command: $(CONTROLLER_GEN)
+#	@echo "Running controller-gen"
+#	@$(CONTROLLER_GEN) <flags/args..>
 #
 CONTROLLER_GEN := $(GOBIN)/controller-gen-v0.17.1-0.20250103184936-50893dee96da
 $(CONTROLLER_GEN): $(BINGO_DIR)/controller-gen.mod
