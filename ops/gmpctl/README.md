@@ -61,6 +61,8 @@ Usage: gmpctl [COMMAND] [FLAGS]
     	Release branch to work on; Project is auto-detected from this
   -patch
     	If true, and --tag is empty, forces a new patch version as a new TAG.
+  -skip-tag-signing
+    	If true, creates an unsigned annotated tag instead of a GPG signed tag.
   -t string
     	Tag to release. If empty, next TAG version will be auto-detected (double check this!)
 
