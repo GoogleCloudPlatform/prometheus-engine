@@ -107,17 +107,11 @@ release-lib::vulnlist() {
 
 	echo "🔄  Detecting Go ${go_version} vulnerabilities to fix..."
 	pushd "${SCRIPT_DIR}/vulnupdatelist/"
-	if [[ ! -f "./api.text" ]]; then
-		echo "Please create an NVD API key. See https://nvd.nist.gov/developers/request-an-api-key"
-		read -p "NVD API Key: " NVD_API_KEY
-		echo ${NVD_API_KEY} >./api.text
-	fi
 
 	go run "./..." \
 		-go-version=${go_version} \
 		-only-fixed \
-		-dir="${dir}" \
-		-nvd-api-key="$(cat "./api.text")" | tee "${vuln_file}"
+		-dir="${dir}" | tee "${vuln_file}"
 	if [[ -z $(cat "${vuln_file}") ]]; then
 		# Print this, otherwise error on the above might keep this file mistakenly empty.
 		echo "no vulnerabilities" >"${vuln_file}"
