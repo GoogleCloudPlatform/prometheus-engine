@@ -445,7 +445,7 @@ release-lib::manifests_regen() {
 	# NOTE: Only needed before 0.19.
 	if [[ -f "${dir}/.bingo/variables.env" ]]; then
     cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
-    trap 'mv "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env" 2>/dev/null || true' EXIT
+    trap "mv \"${dir}/.bingo/variables.env.bak\" \"${dir}/.bingo/variables.env\" 2>/dev/null || true" EXIT
     echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
   fi
 
