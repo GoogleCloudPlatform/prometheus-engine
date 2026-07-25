@@ -39,6 +39,8 @@ updates:
           # allow dependabot to bump it to let us know it's possible, just not
           # in a single group.
           - "gke.gcr.io/prometheus-engine/*"
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     directory: /tools
@@ -52,6 +54,8 @@ updates:
       tools:
         patterns:
           - "*"
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     directory: /
@@ -78,6 +82,8 @@ updates:
         patterns:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
+    cooldown:
+      default-days: 7
 
   # Config for release/0.19
   - package-ecosystem: docker
@@ -105,6 +111,8 @@ updates:
         exclude-patterns:
           - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.19
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -120,6 +128,8 @@ updates:
         patterns:
           - "*"
     target-branch: release/0.19
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -145,6 +155,8 @@ updates:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
     target-branch: release/0.19
+    cooldown:
+      default-days: 7
 
   # Config for release/0.18
   - package-ecosystem: docker
@@ -172,6 +184,8 @@ updates:
         exclude-patterns:
           - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.18
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -187,6 +201,8 @@ updates:
         patterns:
           - "*"
     target-branch: release/0.18
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -212,6 +228,8 @@ updates:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
     target-branch: release/0.18
+    cooldown:
+      default-days: 7
 
   # Config for release/0.17
   - package-ecosystem: docker
@@ -239,6 +257,8 @@ updates:
         exclude-patterns:
           - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.17
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -254,6 +274,8 @@ updates:
         patterns:
           - "*"
     target-branch: release/0.17
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -279,6 +301,8 @@ updates:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
     target-branch: release/0.17
+    cooldown:
+      default-days: 7
 
   # Config for release/0.16
   - package-ecosystem: docker
@@ -306,6 +330,8 @@ updates:
         exclude-patterns:
           - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.16
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -321,6 +347,8 @@ updates:
         patterns:
           - "*"
     target-branch: release/0.16
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -346,6 +374,8 @@ updates:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
     target-branch: release/0.16
+    cooldown:
+      default-days: 7
 
   # Config for release/0.15
   - package-ecosystem: docker
@@ -373,6 +403,8 @@ updates:
         exclude-patterns:
           - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.15
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -388,6 +420,8 @@ updates:
         patterns:
           - "*"
     target-branch: release/0.15
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -413,6 +447,8 @@ updates:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
     target-branch: release/0.15
+    cooldown:
+      default-days: 7
 
   # Config for release/0.14
   - package-ecosystem: docker
@@ -440,6 +476,8 @@ updates:
         exclude-patterns:
           - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.14
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -455,6 +493,8 @@ updates:
         patterns:
           - "*"
     target-branch: release/0.14
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -480,6 +520,8 @@ updates:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
     target-branch: release/0.14
+    cooldown:
+      default-days: 7
 
   # Config for release/0.13
   - package-ecosystem: docker
@@ -507,6 +549,8 @@ updates:
         exclude-patterns:
           - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.13
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -522,6 +566,8 @@ updates:
         patterns:
           - "*"
     target-branch: release/0.13
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: gomod
     open-pull-requests-limit: 0 # Security updates only
@@ -547,3 +593,5 @@ updates:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
     target-branch: release/0.13
+    cooldown:
+      default-days: 7
