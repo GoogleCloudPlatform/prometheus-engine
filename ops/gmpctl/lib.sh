@@ -373,6 +373,8 @@ release-lib::dockerfile_update_image() {
 	local all_tags=$(gcrane ls "${image}" --json | jq --raw-output '.tags[]' | sort -V)
 	# Exclude RC images.
 	all_tags=$(echo "${all_tags}" | grep -v "rc.*")
+	# Ignore -linux-* architecture suffixes (e.g. -linux-arm64).
+	all_tags=$(echo "${all_tags}" | grep -v -e "-linux-")
 	# Prefix allows sticking to e.g. latest minor.
 	all_tags=$(echo "${all_tags}" | grep "${tag_prefix}")
 	local latest_tag=$(echo "${all_tags}" | tail -n1)
@@ -406,8 +408,8 @@ release-lib::idemp::manifests_bash_image_bump() {
 	# TODO: Not enough, this has to check actual manifests.
 	local bash_tag=$(yq '.images.bash.tag' "${values_file}")
 
-	# Use gcrane (over crane) for --json.
-	local latest_bash_tag=$(gcrane ls "gke.gcr.io/gke-distroless/bash" --json | jq --raw-output '.tags[]' | grep "gke_distroless_" | sort -V | tail -n1)
+	# Use gcrane (over crane) for --json. Ignore -linux-* architecture suffixes.
+	local latest_bash_tag=$(gcrane ls "gke.gcr.io/gke-distroless/bash" --json | jq --raw-output '.tags[]' | grep "gke_distroless_" | grep -v -e "-linux-" | sort -V | tail -n1)
 	if [[ "${bash_tag}" == "${latest_bash_tag}" ]]; then
 		echo "✅  Nothing to do; ${values_file} already uses ${latest_bash_tag}"
 		return 0
@@ -415,7 +417,7 @@ release-lib::idemp::manifests_bash_image_bump() {
 
 	# Upgrade.
 	echo "🔄  Ensuring ${latest_bash_tag} on ${values_file}..."
-	if ! ${SED} -i -E "s#tag: ${bash_tag}#tag: ${latest_bash_tag}#g" "${values_file}"; then
+	if ! ${SED} -i -E "s#tag: \"?${bash_tag}\"?#tag: \"${latest_bash_tag}\"#g" "${values_file}"; then
 		# TODO: This is flaky, no failing actually on no match. Common bug is
 		log_err "sed didn't replace?"
 		return 1
@@ -446,6 +448,10 @@ release-lib::manifests_regen() {
 
 	echo "🔄 Regenerating manifests..."
 	YQ="$(command -v yq)" HELM="$(command -v helm)" ADDLICENSE="$(command -v addlicense)" bash "${dir}/hack/presubmit.sh" manifests
+	if [[ -f "${dir}/.bingo/variables.env.bak" ]]; then
+		mv "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env"
+		trap - EXIT
+	fi
 
 	echo "✅  Manifests regenerated"
 	return 0
