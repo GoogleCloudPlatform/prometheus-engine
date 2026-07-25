@@ -145,13 +145,14 @@ release-lib::gomod_vulnfix() {
 
 	# Read the vulnerability file line by line.
 	# The `|| [[ -n "$line" ]]` part handles the case where the last line doesn't have a newline.
+	pushd "${dir}"
 	while IFS= read -r line || [[ -n "$line" ]]; do
 		# Skip any empty lines in the input file.
 		if [ -z "$line" ]; then
 			continue
 		fi
 
-		mod=$(echo "$line" | awk '{print $2}')
+		mod=$(echo "$line" | awk '{print $1}')
 		mod_path=$(echo "${mod}" | cut -d'@' -f1)
 		desired_version=$(echo "${mod}" | cut -d'@' -f2)
 
@@ -160,11 +161,35 @@ release-lib::gomod_vulnfix() {
 			continue
 		fi
 
-		echo "🔄 Updating module '${mod_path}' to version '${desired_version}'..."
-		${SED} -i "s|\(	${mod_path} \).*|\1${desired_version}|" "${dir}/go.mod"
+		if [[ "${mod_path}" == go.opentelemetry.io/otel* ]]; then
+			# OpenTelemetry core API/SDK modules share versions and schema URLs across packages (e.g. otel, otel/sdk, otel/trace, otel/metric).
+			# Upgrade core otel modules present in the module graph together to avoid conflicting schema URL errors.
+			otel_mods=$(go list -m all 2>/dev/null | awk '{print $1}' | grep -E '^go\.opentelemetry\.io/otel($|/sdk$|/trace$|/metric$|/sdk/metric$|/log$|/sdk/log$)')
+			all_otel=$(echo "${mod_path} ${otel_mods}" | tr ' ' '\n' | sort -u)
+			otel_args=""
+			for m in $(echo "${all_otel}" | tr ' ' '\n'); do
+				if go list -m "${m}@${desired_version}" >/dev/null 2>&1; then
+					otel_args="${otel_args} ${m}@${desired_version}"
+				fi
+			done
+			echo "🔄 Updating OpenTelemetry modules simultaneously:${otel_args}..."
+			go get ${otel_args}
+
+			# OpenTelemetry SDK resource detectors (e.g. WithProcessRuntimeDescription, WithTelemetrySDK)
+			# use the semconv version imported by otel/sdk/resource. We update hardcoded semconv imports in Go
+			# files to match the SDK semconv package version to prevent conflicting Schema URL errors during tracer provider
+			# initialization (e.g. "failed to install a new tracer provider: error detecting resource: conflicting Schema URL:...").
+			sdk_semconv=$(go list -e -f '{{ join .Imports "\n" }}' go.opentelemetry.io/otel/sdk/resource 2>/dev/null | grep 'go.opentelemetry.io/otel/semconv/v' | head -n1)
+			if [[ -n "${sdk_semconv}" ]]; then
+				echo "🔄 Updating semconv imports in Go files to match SDK (${sdk_semconv})..."
+				find . -name "*.go" -not -path "*/vendor/*" -exec ${SED} -i -E "s#go\.opentelemetry\.io/otel/semconv/v1\.[0-9]+\.[0-9]+#${sdk_semconv}#g" {} +
+			fi
+		else
+			echo "🔄 Updating module '${mod_path}' to version '${desired_version}'..."
+			go get "${mod_path}@${desired_version}"
+		fi
 	done <"${vuln_file}"
 	echo "🔄 Resolving ${dir}/go.mod..."
-	pushd "${dir}"
 	go mod tidy
 	popd
 }
