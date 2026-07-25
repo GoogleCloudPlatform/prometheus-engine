@@ -41,7 +41,6 @@ updates:
           - "gke.gcr.io/prometheus-engine/*"
 
   - package-ecosystem: gomod
-    open-pull-requests-limit: 0 # Security updates only
     directory: /tools
     schedule:
       interval: weekly
@@ -55,7 +54,6 @@ updates:
           - "*"
 
   - package-ecosystem: gomod
-    open-pull-requests-limit: 0 # Security updates only
     directory: /
     ignore:
       # Skip Prometheus as we need to have it pinned carefully.
