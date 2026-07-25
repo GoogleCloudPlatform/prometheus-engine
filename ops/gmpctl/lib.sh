@@ -111,7 +111,8 @@ release-lib::vulnlist() {
 	go run "./..." \
 		-go-version="${go_version}" \
 		-only-fixed \
-		-dir="${dir}" | tee "${vuln_file}"
+		-dir="${dir}" \
+		-vuln-ignore-modules="${VULN_IGNORED_MODULES:-}" | tee "${vuln_file}"
 	if [[ -z $(cat "${vuln_file}") ]]; then
 		# Print this, otherwise error on the above might keep this file mistakenly empty.
 		echo "no vulnerabilities" >"${vuln_file}"
@@ -145,13 +146,14 @@ release-lib::gomod_vulnfix() {
 
 	# Read the vulnerability file line by line.
 	# The `|| [[ -n "$line" ]]` part handles the case where the last line doesn't have a newline.
+	pushd "${dir}"
 	while IFS= read -r line || [[ -n "$line" ]]; do
 		# Skip any empty lines in the input file.
 		if [ -z "$line" ]; then
 			continue
 		fi
 
-		mod=$(echo "$line" | awk '{print $2}')
+		mod=$(echo "$line" | awk '{print $1}')
 		mod_path=$(echo "${mod}" | cut -d'@' -f1)
 		desired_version=$(echo "${mod}" | cut -d'@' -f2)
 
@@ -161,10 +163,9 @@ release-lib::gomod_vulnfix() {
 		fi
 
 		echo "🔄 Updating module '${mod_path}' to version '${desired_version}'..."
-		${SED} -i "s|\(	${mod_path} \).*|\1${desired_version}|" "${dir}/go.mod"
+		go get "${mod_path}@${desired_version}"
 	done <"${vuln_file}"
 	echo "🔄 Resolving ${dir}/go.mod..."
-	pushd "${dir}"
 	go mod tidy
 	popd
 }
@@ -438,13 +439,13 @@ release-lib::manifests_regen() {
 	# dependencies, instead the ones populated by bingo on old versions.
 	# NOTE: Only needed before 0.19.
 	if [[ -f "${dir}/.bingo/variables.env" ]]; then
-    cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
-    trap "mv \"${dir}/.bingo/variables.env.bak\" \"${dir}/.bingo/variables.env\" 2>/dev/null || true" EXIT
-    echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
-  fi
+		cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
+		trap "mv \"${dir}/.bingo/variables.env.bak\" \"${dir}/.bingo/variables.env\" 2>/dev/null || true" EXIT
+		echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
+	fi
 
-  echo "🔄 Regenerating manifests..."
-  YQ="$(command -v yq)" HELM="$(command -v helm)" ADDLICENSE="$(command -v addlicense)" bash "${dir}/hack/presubmit.sh" manifests
+	echo "🔄 Regenerating manifests..."
+	YQ="$(command -v yq)" HELM="$(command -v helm)" ADDLICENSE="$(command -v addlicense)" bash "${dir}/hack/presubmit.sh" manifests
 
 	echo "✅  Manifests regenerated"
 	return 0

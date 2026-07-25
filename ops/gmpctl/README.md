@@ -18,9 +18,25 @@ It's a starting point for smaller or bigger automation on OSS side (e.g. releasi
    * `gcloud` (https://docs.cloud.google.com/sdk/docs/install-sdk) (and `gcloud auth login`)
    * `gpg` (MacOS: `brew install gpg`)
 
-3. You can configure different work directory for gmpctl via `-c` flag. By default, `gmpctl` does the work in `ops/gmpctl/.data`
+3. You can configure different work directory and settings for gmpctl via `-c` flag (default configuration file: `.gmpctl.default.yaml`).
 
 Enjoy!
+
+## Configuration
+
+`gmpctl` reads configuration from a YAML file specified by the `-c` flag (defaults to `.gmpctl.default.yaml`).
+
+Available options:
+
+* `dir`: Base directory for gmpctl work, project clones, and git worktrees (default: `./data`).
+* `vuln_ignored_modules`: List of Go module paths to ignore during module upgrades (e.g. `vulnfix`).
+  Example:
+
+  ```yaml
+  dir: "./data"
+  vuln_ignored_modules:
+    - "github.com/prometheus/prometheus"
+  ```
 
 ## Usage
 
