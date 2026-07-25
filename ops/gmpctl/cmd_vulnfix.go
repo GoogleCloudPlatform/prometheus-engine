@@ -112,6 +112,7 @@ func vulnfix() error {
 		// We are in detached state, so be explicit what to push and from where, by recreating the local prBranch.
 		mustRecreateBranch(dir, prBranch)
 		mustForcePush(dir, prBranch)
+		mustEnsurePullRequest(dir, branch, prBranch, msg, "Updating Go and image vulnerabilities using"+wrapCode("./gmpctl.sh vulnfix"))
 	} else {
 		return errors.New("aborting")
 	}
@@ -120,4 +121,8 @@ func vulnfix() error {
 		proj.RemoveWorkDir(cfg.Directory, dir)
 	}
 	return nil
+}
+
+func wrapCode(s string) string {
+	return "\n```\n" + s + "\n```\n"
 }
