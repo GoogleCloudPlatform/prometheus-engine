@@ -24,6 +24,7 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/prometheus/prometheus/google/export"
 	"github.com/prometheus/prometheus/model/relabel"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,12 +33,6 @@ import (
 )
 
 const (
-	labelCluster                = "cluster"
-	labelLocation               = "location"
-	labelProjectID              = "project_id"
-	labelNamespace              = "namespace"
-	labelJob                    = "job"
-	labelInstance               = "instance"
 	labelContainer              = "container"
 	labelNode                   = "node"
 	labelPod                    = "pod"
@@ -51,12 +46,12 @@ var (
 	// protectedLabels contains the list of labels that are protected by GMP and cannot
 	// be overwritten by targetLabels or relabeling rules.
 	protectedLabels = map[string]bool{
-		labelProjectID:              true,
-		labelLocation:               true,
-		labelCluster:                true,
-		labelNamespace:              true,
-		labelJob:                    true,
-		labelInstance:               true,
+		export.KeyProjectID:         true,
+		export.KeyLocation:          true,
+		export.KeyCluster:           true,
+		export.KeyNamespace:         true,
+		export.KeyJob:               true,
+		export.KeyInstance:          true,
 		labelTopLevelController:     true,
 		labelTopLevelControllerName: true,
 		labelTopLevelControllerType: true,
@@ -68,7 +63,7 @@ var (
 		"__meta_kubernetes_pod_name":            labelPod,
 		"__meta_kubernetes_pod_container_name":  labelContainer,
 		"__meta_kubernetes_pod_node_name":       labelNode,
-		"__meta_kubernetes_namespace":           labelNamespace,
+		"__meta_kubernetes_namespace":           export.KeyNamespace,
 		"__meta_kubernetes_pod_controller_name": labelTopLevelControllerName,
 		"__meta_kubernetes_pod_controller_kind": labelTopLevelControllerType,
 	}
