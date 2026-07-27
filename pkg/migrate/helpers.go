@@ -32,7 +32,6 @@ import (
 )
 
 const (
-
 	labelCluster                = "cluster"
 	labelLocation               = "location"
 	labelProjectID              = "project_id"
@@ -74,6 +73,15 @@ var (
 		"__meta_kubernetes_pod_controller_kind": labelTopLevelControllerType,
 	}
 )
+
+type relabelingData struct {
+	config           pomonitoringv1.RelabelConfig
+	action           relabel.Action
+	targetLabel      string
+	podSources       []string
+	metaSources      []string
+	rewrittenSources []string
+}
 
 // PreScrapeRelabelingResult holds the label mappings and selector rules extracted from pre-scrape relabelings.
 type PreScrapeRelabelingResult struct {
@@ -175,29 +183,15 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		rawMetadata []string
 	)
 
+relabelLoop:
 	for _, config := range configs {
 		action := relabel.Action(strings.ToLower(config.Action))
 		if action == "" {
 			action = relabel.Replace
 		}
 
-		switch action {
-		case relabel.LabelMap, relabel.LabelKeep, relabel.LabelDrop:
-			logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
-			continue
-		}
-
-		// Relabeling rules on annotations cannot be migrated.
-		var anno string
-		for _, sl := range config.SourceLabels {
-			if strings.HasPrefix(string(sl), "__meta_kubernetes_pod_annotation_") {
-				anno = string(sl)
-				break
-			}
-		}
-		if anno != "" {
-			logger.Warn(fmt.Sprintf("Relabeling rule referencing pod annotation %q is unsupported in GMP. The rule has been dropped.", anno))
-			continue
+		if shouldSkipRelabelConfig(logger, config, action) {
+			continue relabelLoop
 		}
 
 		// Change protected labels to exported_<label>.
@@ -209,121 +203,32 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		// Resolve all source labels upfront and intercept unsupported internal discovery labels.
-		var (
-			podSources          []string
-			metaSources         []string
-			rewrittenSources    []string
-			unsupportedInternal bool
-		)
-
-		for _, sl := range config.SourceLabels {
-			s := string(sl)
-			if labelName, found := strings.CutPrefix(s, "__meta_kubernetes_pod_label_"); found {
-				podSources = append(podSources, labelName)
-				rewrittenSources = append(rewrittenSources, labelName)
-			} else if gmpMeta, ok := metadataLabelMap[s]; ok {
-				metaSources = append(metaSources, gmpMeta)
-				rewrittenSources = append(rewrittenSources, gmpMeta)
-			} else if strings.HasPrefix(s, "__") {
-				logger.Warn(fmt.Sprintf("Relabeling rule references internal label %q which is not available in post-scrape metricRelabeling. The rule cannot be migrated and has been dropped.", s))
-				unsupportedInternal = true
-				break
-			} else {
-				rewrittenSources = append(rewrittenSources, s)
-			}
-		}
-		if unsupportedInternal {
-			continue
+		podSources, metaSources, rewrittenSources, unsupported := resolveSourceLabels(logger, config.SourceLabels)
+		if unsupported {
+			continue relabelLoop
 		}
 
-		// Translate target filtering ("keep" and "drop") rules on pod labels to Kubernetes label selectors.
-		if isSingleEndpoint && (action == relabel.Keep || action == relabel.Drop) && len(podSources) == 1 && len(config.SourceLabels) == 1 {
-			source := string(config.SourceLabels[0])
-			labelName := podSources[0]
-			// Strip optional regex start (^) and end ($) anchors (ex. "^production$" -> "production").
-			clean := strings.TrimPrefix(strings.TrimSuffix(strings.TrimSpace(config.Regex), "$"), "^")
-			// Strip outer grouping parentheses around literal lists (ex. "(test|staging)" -> "test|staging").
-			if strings.HasPrefix(clean, "(") && strings.HasSuffix(clean, ")") {
-				clean = clean[1 : len(clean)-1]
-			}
-			parts := strings.Split(clean, "|")
-			// Verify that the remaining string contains no regex metacharacters (*, +, ?, [, ], etc.) and valid K8s label values.
-			if !strings.ContainsAny(clean, "*+?[]{}()\\^$.") && !slices.Contains(parts, "") && isValidLabelValues(parts) {
-				// A single value with "action: keep" translates to matchLabels.
-				if action == relabel.Keep && len(parts) == 1 {
-					if res.MatchLabels == nil {
-						res.MatchLabels = make(map[string]string)
-					}
-					res.MatchLabels[labelName] = parts[0]
-					logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %q) to Pod Selector (matchLabels).", source, parts[0]))
-					continue
-				}
-
-				// Multiple values (or any "action: drop" set) translate to matchExpressions (In / NotIn).
-				op := metav1.LabelSelectorOpIn
-				if action == relabel.Drop {
-					op = metav1.LabelSelectorOpNotIn
-				}
-				res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
-					Key:      labelName,
-					Operator: op,
-					Values:   parts,
-				})
-				logger.Info(fmt.Sprintf("Translated target filtering relabeling rule (%q -> %s) to Pod Selector (matchExpressions).", source, op))
-				continue
-			}
+		data := &relabelingData{
+			config:           config,
+			action:           action,
+			targetLabel:      targetLabel,
+			podSources:       podSources,
+			metaSources:      metaSources,
+			rewrittenSources: rewrittenSources,
 		}
 
-		// Relabeling rule equivalent of simply copying over a label.
-		isSimpleCopy := len(config.SourceLabels) == 1 &&
-			(config.Regex == "" || config.Regex == "(.*)") &&
-			(config.Replacement == nil || *config.Replacement == "$1") &&
-			action == relabel.Replace
-
-		if isSimpleCopy {
-			source := string(config.SourceLabels[0])
-			target := targetLabel
-
-			// Simple pod target label transfer.
-			if len(podSources) == 1 {
-				mapping := monitoringv1.LabelMapping{From: podSources[0]}
-				if target != podSources[0] {
-					mapping.To = target
-				}
-				res.FromPod = append(res.FromPod, mapping)
-				logger.Info(fmt.Sprintf("Translated simple label copy relabeling rule (%q -> %q) to 'targetLabels.fromPod'.", source, target))
-				continue
-			}
-
-			// Simple metadata label transfer.
-			if len(metaSources) == 1 && target == metaSources[0] {
-				rawMetadata = append(rawMetadata, metaSources[0])
-				logger.Info(fmt.Sprintf("Translated metadata label copy (%q) to 'targetLabels.metadata' (as label: %q).", source, metaSources[0]))
-				continue
-			}
+		// Convert target filtering ("keep" and "drop") rules on pod labels to Kubernetes label selectors.
+		if convertRelabelingToSelector(logger, data, isSingleEndpoint, &res) {
+			continue relabelLoop
 		}
 
-		// Phase 3: Promote complex or value-changing rules to post-scrape metricRelabeling.
-		for _, p := range podSources {
-			res.FromPod = append(res.FromPod, monitoringv1.LabelMapping{From: p})
+		// Convert simple label copy rules to targetLabels (fromPod or metadata).
+		if convertRelabelingToSimpleCopy(logger, data, &res, &rawMetadata) {
+			continue relabelLoop
 		}
-		rawMetadata = append(rawMetadata, metaSources...)
 
-		promoted := monitoringv1.RelabelingRule{
-			SourceLabels: rewrittenSources,
-			TargetLabel:  targetLabel,
-			Regex:        config.Regex,
-			Modulus:      config.Modulus,
-			Action:       string(action),
-		}
-		if config.Separator != nil {
-			promoted.Separator = *config.Separator
-		}
-		if config.Replacement != nil {
-			promoted.Replacement = *config.Replacement
-		}
-		res.PromotedRules = append(res.PromotedRules, promoted)
-		logger.Info(fmt.Sprintf("Complex relabeling rule (target: %q) promoted from pre-scrape 'relabelings' to post-scrape 'metricRelabeling'.", targetLabel))
+		// Convert complex or value-changing rules to post-scrape metricRelabeling.
+		convertRelabelingToMetricRelabeling(logger, data, &res, &rawMetadata)
 	}
 
 	if len(rawMetadata) > 0 {
@@ -810,4 +715,141 @@ func convertTargetLabels(logger *slog.Logger, sourceLabels []string, jobLabel st
 	}
 
 	return fromPod
+}
+
+// shouldSkipRelabelConfig checks if the relabel config uses unsupported actions or references annotations.
+func shouldSkipRelabelConfig(logger *slog.Logger, config pomonitoringv1.RelabelConfig, action relabel.Action) bool {
+	switch action {
+	case relabel.LabelMap, relabel.LabelKeep, relabel.LabelDrop:
+		logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
+		return true
+	}
+
+	for _, sl := range config.SourceLabels {
+		if strings.HasPrefix(string(sl), "__meta_kubernetes_pod_annotation_") {
+			logger.Warn(fmt.Sprintf("Relabeling rule referencing pod annotation %q is unsupported in GMP. The rule has been dropped.", string(sl)))
+			return true
+		}
+	}
+	return false
+}
+
+// resolveSourceLabels resolves source labels to pod labels, metadata labels, and rewritten labels.
+// Returns unsupported=true if it encounters an unsupported internal label.
+func resolveSourceLabels(logger *slog.Logger, sourceLabels []pomonitoringv1.LabelName) (podSources []string, metaSources []string, rewrittenSources []string, unsupported bool) {
+	for _, sl := range sourceLabels {
+		s := string(sl)
+		if labelName, found := strings.CutPrefix(s, "__meta_kubernetes_pod_label_"); found {
+			podSources = append(podSources, labelName)
+			rewrittenSources = append(rewrittenSources, labelName)
+			continue
+		}
+		if gmpMeta, ok := metadataLabelMap[s]; ok {
+			metaSources = append(metaSources, gmpMeta)
+			rewrittenSources = append(rewrittenSources, gmpMeta)
+			continue
+		}
+		// TODO(kunnikrishnan): Support __meta_kubernetes_pod_labelpresent_<labelname> in the future.
+		if strings.HasPrefix(s, "__") {
+			logger.Warn(fmt.Sprintf("Relabeling rule referencing internal label %q is unsupported in GMP. The rule has been dropped.", s))
+			return nil, nil, nil, true
+		}
+		rewrittenSources = append(rewrittenSources, s)
+	}
+	return podSources, metaSources, rewrittenSources, false
+}
+
+// convertRelabelingToSelector attempts to convert target filtering (keep/drop) rules to pod selectors.
+func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSingleEndpoint bool, res *PreScrapeRelabelingResult) bool {
+	if !isSingleEndpoint || (data.action != relabel.Keep && data.action != relabel.Drop) || len(data.podSources) != 1 || len(data.config.SourceLabels) != 1 {
+		return false
+	}
+	source := string(data.config.SourceLabels[0])
+	labelName := data.podSources[0]
+	clean := strings.TrimPrefix(strings.TrimSuffix(strings.TrimSpace(data.config.Regex), "$"), "^")
+	if strings.HasPrefix(clean, "(") && strings.HasSuffix(clean, ")") {
+		clean = clean[1 : len(clean)-1]
+	}
+	parts := strings.Split(clean, "|")
+	if strings.ContainsAny(clean, "*+?[]{}()\\^$.") || slices.Contains(parts, "") || !isValidLabelValues(parts) {
+		return false
+	}
+
+	if data.action == relabel.Keep && len(parts) == 1 {
+		if res.MatchLabels == nil {
+			res.MatchLabels = make(map[string]string)
+		}
+		res.MatchLabels[labelName] = parts[0]
+		logger.Info(fmt.Sprintf("Converted target filtering relabeling rule (%q -> %q) to Pod Selector (matchLabels).", source, parts[0]))
+		return true
+	}
+
+	op := metav1.LabelSelectorOpIn
+	if data.action == relabel.Drop {
+		op = metav1.LabelSelectorOpNotIn
+	}
+	res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
+		Key:      labelName,
+		Operator: op,
+		Values:   parts,
+	})
+	logger.Info(fmt.Sprintf("Converted target filtering relabeling rule (%q -> %s) to Pod Selector (matchExpressions).", source, op))
+	return true
+}
+
+// convertRelabelingToSimpleCopy attempts to convert simple label copy rules to targetLabels (fromPod or metadata).
+func convertRelabelingToSimpleCopy(logger *slog.Logger, data *relabelingData, res *PreScrapeRelabelingResult, rawMetadata *[]string) bool {
+	isSimpleCopy := len(data.config.SourceLabels) == 1 &&
+		(data.config.Regex == "" || data.config.Regex == "(.*)") &&
+		(data.config.Replacement == nil || *data.config.Replacement == "$1") &&
+		data.action == relabel.Replace
+
+	if !isSimpleCopy {
+		return false
+	}
+
+	source := string(data.config.SourceLabels[0])
+	target := data.targetLabel
+
+	if len(data.podSources) == 1 {
+		mapping := monitoringv1.LabelMapping{From: data.podSources[0]}
+		if target != data.podSources[0] {
+			mapping.To = target
+		}
+		res.FromPod = append(res.FromPod, mapping)
+		logger.Info(fmt.Sprintf("Converted simple label copy relabeling rule (%q -> %q) to 'targetLabels.fromPod'.", source, target))
+		return true
+	}
+
+	if len(data.metaSources) == 1 && target == data.metaSources[0] {
+		*rawMetadata = append(*rawMetadata, data.metaSources[0])
+		logger.Info(fmt.Sprintf("Converted metadata label copy (%q) to 'targetLabels.metadata' (as label: %q).", source, data.metaSources[0]))
+		return true
+	}
+
+	return false
+}
+
+// convertRelabelingToMetricRelabeling converts a rule to post-scrape metricRelabeling.
+func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingData, res *PreScrapeRelabelingResult, rawMetadata *[]string) {
+	for _, p := range data.podSources {
+		res.FromPod = append(res.FromPod, monitoringv1.LabelMapping{From: p})
+	}
+	*rawMetadata = append(*rawMetadata, data.metaSources...)
+
+	promoted := monitoringv1.RelabelingRule{
+		SourceLabels: data.rewrittenSources,
+		TargetLabel:  data.targetLabel,
+		Regex:        data.config.Regex,
+		Modulus:      data.config.Modulus,
+		Action:       string(data.action),
+	}
+	if data.config.Separator != nil {
+		promoted.Separator = *data.config.Separator
+	}
+	if data.config.Replacement != nil {
+		promoted.Replacement = *data.config.Replacement
+	}
+	res.PromotedRules = append(res.PromotedRules, promoted)
+	logger.Info(fmt.Sprintf("Complex relabeling rule (target: %q) promoted from pre-scrape 'relabelings' to post-scrape 'metricRelabeling'.", data.targetLabel))
 }
