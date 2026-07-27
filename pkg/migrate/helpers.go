@@ -24,6 +24,7 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/prometheus/prometheus/model/relabel"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,15 +32,6 @@ import (
 )
 
 const (
-	actionReplace   = "replace"
-	actionKeep      = "keep"
-	actionDrop      = "drop"
-	actionLabelMap  = "labelmap"
-	actionLabelKeep = "labelkeep"
-	actionLabelDrop = "labeldrop"
-	actionHashMod   = "hashmod"
-	actionLowercase = "lowercase"
-	actionUppercase = "uppercase"
 
 	labelCluster                = "cluster"
 	labelLocation               = "location"
@@ -178,17 +170,19 @@ func isValidLabelValues(parts []string) bool {
 
 // convertPreScrapeRelabelings evaluates pre-scrape relabelings on a single endpoint and extracts target label and selector rules.
 func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.RelabelConfig, isSingleEndpoint bool) PreScrapeRelabelingResult {
-	var res PreScrapeRelabelingResult
-	var rawMetadata []string
+	var (
+		res         PreScrapeRelabelingResult
+		rawMetadata []string
+	)
 
 	for _, config := range configs {
-		action := strings.ToLower(config.Action)
+		action := relabel.Action(strings.ToLower(config.Action))
 		if action == "" {
-			action = actionReplace
+			action = relabel.Replace
 		}
 
 		switch action {
-		case actionLabelMap, actionLabelKeep, actionLabelDrop:
+		case relabel.LabelMap, relabel.LabelKeep, relabel.LabelDrop:
 			logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
 			continue
 		}
@@ -215,10 +209,12 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		// Resolve all source labels upfront and intercept unsupported internal discovery labels.
-		var podSources []string
-		var metaSources []string
-		var rewrittenSources []string
-		var unsupportedInternal bool
+		var (
+			podSources          []string
+			metaSources         []string
+			rewrittenSources    []string
+			unsupportedInternal bool
+		)
 
 		for _, sl := range config.SourceLabels {
 			s := string(sl)
@@ -241,7 +237,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		// Translate target filtering ("keep" and "drop") rules on pod labels to Kubernetes label selectors.
-		if isSingleEndpoint && (action == actionKeep || action == actionDrop) && len(podSources) == 1 && len(config.SourceLabels) == 1 {
+		if isSingleEndpoint && (action == relabel.Keep || action == relabel.Drop) && len(podSources) == 1 && len(config.SourceLabels) == 1 {
 			source := string(config.SourceLabels[0])
 			labelName := podSources[0]
 			// Strip optional regex start (^) and end ($) anchors (ex. "^production$" -> "production").
@@ -254,7 +250,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			// Verify that the remaining string contains no regex metacharacters (*, +, ?, [, ], etc.) and valid K8s label values.
 			if !strings.ContainsAny(clean, "*+?[]{}()\\^$.") && !slices.Contains(parts, "") && isValidLabelValues(parts) {
 				// A single value with "action: keep" translates to matchLabels.
-				if action == actionKeep && len(parts) == 1 {
+				if action == relabel.Keep && len(parts) == 1 {
 					if res.MatchLabels == nil {
 						res.MatchLabels = make(map[string]string)
 					}
@@ -265,7 +261,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 
 				// Multiple values (or any "action: drop" set) translate to matchExpressions (In / NotIn).
 				op := metav1.LabelSelectorOpIn
-				if action == actionDrop {
+				if action == relabel.Drop {
 					op = metav1.LabelSelectorOpNotIn
 				}
 				res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
@@ -282,7 +278,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		isSimpleCopy := len(config.SourceLabels) == 1 &&
 			(config.Regex == "" || config.Regex == "(.*)") &&
 			(config.Replacement == nil || *config.Replacement == "$1") &&
-			action == actionReplace
+			action == relabel.Replace
 
 		if isSimpleCopy {
 			source := string(config.SourceLabels[0])
@@ -318,7 +314,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			TargetLabel:  targetLabel,
 			Regex:        config.Regex,
 			Modulus:      config.Modulus,
-			Action:       action,
+			Action:       string(action),
 		}
 		if config.Separator != nil {
 			promoted.Separator = *config.Separator
@@ -338,9 +334,11 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 
 // extractPreScrapeRelabelings evaluates pre-scrape rules once per endpoint, returning consolidated endpoint and resource-level results.
 func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1.PodMetricsEndpoint) ExtractedPreScrapeRules {
-	var epResults []PreScrapeRelabelingResult
-	var combined PreScrapeRelabelingResult
-	var rawMetadata []string
+	var (
+		epResults   []PreScrapeRelabelingResult
+		combined    PreScrapeRelabelingResult
+		rawMetadata []string
+	)
 	for _, ep := range endpoints {
 		var r PreScrapeRelabelingResult
 		if len(ep.RelabelConfigs) > 0 {
@@ -694,8 +692,10 @@ func (c *conversionContext) convertAuthorization(auth *pomonitoringv1.SafeAuthor
 	if auth == nil {
 		return nil, nil
 	}
-	var credentials *monitoringv1.SecretSelector
-	var err error
+	var (
+		credentials *monitoringv1.SecretSelector
+		err         error
+	)
 	if auth.Credentials != nil {
 		credentials, err = c.convertSecretSelector(auth.Credentials)
 		if err != nil {
@@ -715,17 +715,17 @@ func convertMetricRelabelings(
 	var rules []monitoringv1.RelabelingRule
 
 	for _, config := range configs {
-		action := strings.ToLower(config.Action)
+		action := relabel.Action(strings.ToLower(config.Action))
 		if action == "" {
-			action = actionReplace
+			action = relabel.Replace
 		}
 
 		targetLabel := config.TargetLabel
 		switch action {
-		case actionLabelMap:
+		case relabel.LabelMap:
 			logger.Warn("metricRelabelings rule uses 'action: labelmap' which is not supported by GMP and has been dropped.")
 			continue
-		case actionReplace, actionHashMod, actionLowercase, actionUppercase:
+		case relabel.Replace, relabel.HashMod, relabel.Lowercase, relabel.Uppercase:
 			if protectedLabels[config.TargetLabel] {
 				targetLabel = "exported_" + config.TargetLabel
 				logger.Warn("Relabeling rule attempts to write to protected target label. Renamed target.",
@@ -738,7 +738,7 @@ func convertMetricRelabelings(
 			TargetLabel: targetLabel,
 			Regex:       config.Regex,
 			Modulus:     config.Modulus,
-			Action:      action,
+			Action:      string(action),
 		}
 
 		if len(config.SourceLabels) > 0 {
