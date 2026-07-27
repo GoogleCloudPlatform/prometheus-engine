@@ -911,6 +911,58 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Pre-Scrape Relabelings: custom relabel rule overrides static podTargetLabels",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "override-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodTargetLabels: []string{"env"}, // Static copy env -> env.
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_custom_env"},
+									TargetLabel:  "env", // Custom rule maps custom_env -> env.
+									Action:       "replace",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "override-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+						TargetLabels: monitoringv1.TargetLabels{
+							// Only the custom one should survive because it overrides the static 'env' mapping.
+							FromPod: []monitoringv1.LabelMapping{
+								{From: "custom_env", To: "env"},
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	converter := &PodMonitorConverter{}
