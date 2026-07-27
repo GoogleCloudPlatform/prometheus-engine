@@ -278,6 +278,9 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1
 
 // mergeLabelSelector combines base selector requirements with extracted pre-scrape filtering rules.
 func mergeLabelSelector(logger *slog.Logger, base metav1.LabelSelector, extraLabels map[string]string, extraExprs []metav1.LabelSelectorRequirement) metav1.LabelSelector {
+	if len(extraLabels) == 0 && len(extraExprs) == 0 {
+		return base
+	}
 	res := base.DeepCopy()
 	if len(extraLabels) > 0 && res.MatchLabels == nil {
 		res.MatchLabels = make(map[string]string)
@@ -295,6 +298,9 @@ func mergeLabelSelector(logger *slog.Logger, base metav1.LabelSelector, extraLab
 
 // mergeFromPod merges target label mappings and deduplicates by target label name.
 func mergeFromPod(logger *slog.Logger, base []monitoringv1.LabelMapping, extra []monitoringv1.LabelMapping) []monitoringv1.LabelMapping {
+	if len(extra) == 0 {
+		return base
+	}
 	seenTargets := make(map[string]string)
 	var res []monitoringv1.LabelMapping
 
