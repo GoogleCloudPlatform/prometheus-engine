@@ -304,15 +304,7 @@ func mergeFromPod(logger *slog.Logger, base []monitoringv1.LabelMapping, extra [
 	seenTargets := make(map[string]string)
 	var res []monitoringv1.LabelMapping
 
-	for _, m := range base {
-		target := m.From
-		if m.To != "" {
-			target = m.To
-		}
-		seenTargets[target] = m.From
-		res = append(res, m)
-	}
-
+	// Process custom relabel configs first (higher precedence).
 	for _, m := range extra {
 		target := m.From
 		if m.To != "" {
@@ -322,7 +314,24 @@ func mergeFromPod(logger *slog.Logger, base []monitoringv1.LabelMapping, extra [
 			if existingFrom == m.From {
 				continue
 			}
-			logger.Warn(fmt.Sprintf("Target label %q is already mapped from %q. Skipping conflicting mapping from %q.", target, existingFrom, m.From))
+			logger.Warn(fmt.Sprintf("Conflict in relabel configs: target label %q is already mapped from %q. Skipping conflicting mapping from %q.", target, existingFrom, m.From))
+			continue
+		}
+		seenTargets[target] = m.From
+		res = append(res, m)
+	}
+
+	// Process static podTargetLabels second (lower precedence, overridden by extra).
+	for _, m := range base {
+		target := m.From
+		if m.To != "" {
+			target = m.To
+		}
+		if existingFrom, exists := seenTargets[target]; exists {
+			if existingFrom == m.From {
+				continue
+			}
+			logger.Info(fmt.Sprintf("Static podTargetLabels mapping for target %q (from %q) is overridden by custom relabel config (from %q).", target, m.From, existingFrom))
 			continue
 		}
 		seenTargets[target] = m.From
