@@ -545,9 +545,9 @@ func TestMergeFromPod(t *testing.T) {
 	merged := mergeFromPod(logger, staticTargetLabels, relabelFromPod)
 
 	expected := []monitoringv1.LabelMapping{
-		{From: "app", To: "application"},
 		{From: "env"},
 		{From: "tier"},
+		{From: "app", To: "application"},
 	}
 
 	if diff := cmp.Diff(expected, merged); diff != "" {
