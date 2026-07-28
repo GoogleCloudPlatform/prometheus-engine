@@ -188,8 +188,12 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		// Resolve all source labels upfront and intercept unsupported internal discovery labels.
-		podSources, metaSources, rewrittenSources, unsupported := resolveSourceLabels(logger, config.SourceLabels)
+		podSources, metaSources, rewrittenSources, unsupported := resolveSourceLabels(config.SourceLabels)
 		if unsupported {
+			logger.Warn(fmt.Sprintf("Relabeling rule (action %q on %v) dropped due to unsupported internal labels (e.g. annotations).", action, config.SourceLabels))
+			if action == relabel.Keep || action == relabel.Drop {
+				logger.Warn("Scraping scope expanded: targets previously excluded by this rule will now be scraped. Adjust pod selectors to compensate.")
+			}
 			continue
 		}
 
@@ -213,7 +217,7 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		// Convert complex or value-changing rules to post-scrape metricRelabeling.
-		convertRelabelingToMetricRelabeling(logger, data, &res, &rawMetadata)
+		convertRelabelingToMetricRelabeling(logger, data, isSingleEndpoint, &res, &rawMetadata)
 	}
 
 	if len(rawMetadata) > 0 {
@@ -737,7 +741,7 @@ func shouldSkipRelabelConfig(logger *slog.Logger, config pomonitoringv1.RelabelC
 
 // resolveSourceLabels resolves source labels to pod labels, metadata labels, and rewritten labels.
 // Returns unsupported=true if it encounters an unsupported internal label.
-func resolveSourceLabels(logger *slog.Logger, sourceLabels []pomonitoringv1.LabelName) (podSources []string, metaSources []string, rewrittenSources []string, unsupported bool) {
+func resolveSourceLabels(sourceLabels []pomonitoringv1.LabelName) (podSources []string, metaSources []string, rewrittenSources []string, unsupported bool) {
 	for _, sl := range sourceLabels {
 		s := string(sl)
 		if labelName, found := strings.CutPrefix(s, "__meta_kubernetes_pod_label_"); found {
@@ -752,7 +756,6 @@ func resolveSourceLabels(logger *slog.Logger, sourceLabels []pomonitoringv1.Labe
 		}
 		// TODO(kunnikrishnan): Support __meta_kubernetes_pod_labelpresent_<labelname> in the future.
 		if strings.HasPrefix(s, "__") {
-			logger.Warn(fmt.Sprintf("Relabeling rule referencing internal label %q is unsupported in GMP. The rule has been dropped.", s))
 			return nil, nil, nil, true
 		}
 		rewrittenSources = append(rewrittenSources, s)
@@ -848,15 +851,23 @@ func convertRelabelingToSimpleCopy(logger *slog.Logger, data *relabelingData, re
 }
 
 // convertRelabelingToMetricRelabeling converts a rule to post-scrape metricRelabeling.
-func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingData, res *preScrapeRelabelingResult, rawMetadata *[]string) {
+func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingData, isSingleEndpoint bool, res *preScrapeRelabelingResult, rawMetadata *[]string) {
 	if data.action == relabel.Keep || data.action == relabel.Drop {
 		logger.Warn(fmt.Sprintf("Target filtering rule (action %q on %v) promoted to post-scrape metricRelabeling; target is still scraped but metrics are dropped. Use labelSelector instead to avoid scraping overhead.", data.action, data.config.SourceLabels))
 	}
 
 	for _, p := range data.podSources {
 		res.FromPod = append(res.FromPod, monitoringv1.LabelMapping{From: p})
+		if !isSingleEndpoint {
+			logger.Warn(fmt.Sprintf("Promoted relabeling rule requires pod label %q, which is added to 'targetLabels.fromPod'. Because this resource has multiple endpoints, this label will also be attached to metrics scraped from all other endpoints.", p))
+		}
 	}
-	*rawMetadata = append(*rawMetadata, data.metaSources...)
+	for _, m := range data.metaSources {
+		*rawMetadata = append(*rawMetadata, m)
+		if !isSingleEndpoint {
+			logger.Warn(fmt.Sprintf("Promoted relabeling rule requires metadata label %q, which is added to 'targetLabels.metadata'. Because this resource has multiple endpoints, this label will also be attached to metrics scraped from all other endpoints.", m))
+		}
+	}
 
 	targetLabel := data.targetLabel
 	if protectedLabels[targetLabel] {
