@@ -323,6 +323,15 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		}
 	}
 
+	if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
+		if filteredMetadata == nil {
+			filteredMetadata = &[]string{"node"}
+		} else if !slices.Contains(*filteredMetadata, "node") {
+			metadataCopy := append(slices.Clone(*filteredMetadata), "node")
+			filteredMetadata = &metadataCopy
+		}
+	}
+
 	var hasFalse, hasTrue bool
 	for _, ep := range pm.Spec.PodMetricsEndpoints {
 		if ep.FilterRunning != nil && !*ep.FilterRunning {
@@ -409,6 +418,15 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 	if rules.ResourceCombined.Metadata != nil {
 		union := unionMetadata(*rules.ResourceCombined.Metadata, clusterMetadataDefaults)
 		filteredMetadata = &union
+	}
+
+	if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
+		if filteredMetadata == nil {
+			filteredMetadata = &[]string{"node"}
+		} else if !slices.Contains(*filteredMetadata, "node") {
+			metadataCopy := append(slices.Clone(*filteredMetadata), "node")
+			filteredMetadata = &metadataCopy
+		}
 	}
 
 	var hasFalse, hasTrue bool
