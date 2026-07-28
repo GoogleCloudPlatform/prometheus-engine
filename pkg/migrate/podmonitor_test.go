@@ -403,6 +403,27 @@ func TestPodMonitorConversion(t *testing.T) {
 									Regex:        "api-.*",
 									Action:       "drop",
 								},
+								{
+									// Supported action labeldrop (should be kept).
+									Action: "labeldrop",
+									Regex:  "temp_(.*)",
+								},
+								{
+									// Supported action labelkeep (should be kept).
+									Action: "labelkeep",
+									Regex:  "(project_id|location|cluster|namespace|job|instance|__address__|must_keep_.*)",
+								},
+								{
+									// Unsupported action lowercase (should be dropped).
+									SourceLabels: []pomonitoringv1.LabelName{"__name__"},
+									TargetLabel:  "instance",
+									Action:       "lowercase",
+								},
+								{
+									// Unsupported action keepequal (should be dropped).
+									SourceLabels: []pomonitoringv1.LabelName{"namespace", "job"},
+									Action:       "keepequal",
+								},
 							},
 						},
 					},
@@ -449,6 +470,14 @@ func TestPodMonitorConversion(t *testing.T) {
 										Regex:        "api-.*",
 										Action:       "drop",
 									},
+									{
+										Action: "labeldrop",
+										Regex:  "temp_(.*)",
+									},
+									{
+										Action: "labelkeep",
+										Regex:  "(project_id|location|cluster|namespace|job|instance|__address__|must_keep_.*)",
+									},
 								},
 							},
 						},
@@ -473,17 +502,23 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: "metrics-basic",
 							BasicAuth: &pomonitoringv1.BasicAuth{
 								Username: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "user"},
 								Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "pass"},
 							},
-							BearerTokenSecret: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "token-secret"}, Key: "token"},
 							TLSConfig: &pomonitoringv1.SafeTLSConfig{
 								CA: pomonitoringv1.SecretOrConfigMap{
 									ConfigMap: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "ca-cm"}, Key: "ca.crt"},
 								},
 							},
+						},
+						{
+							Port:              "metrics-bearer",
+							BearerTokenSecret: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "token-secret"}, Key: "token"},
+						},
+						{
+							Port: "metrics-oauth",
 							OAuth2: &pomonitoringv1.OAuth2{
 								ClientID: pomonitoringv1.SecretOrConfigMap{
 									ConfigMap: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-cm"}, Key: "id"},
@@ -513,12 +548,9 @@ func TestPodMonitorConversion(t *testing.T) {
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
-								Port:     intstr.FromString("metrics"),
+								Port:     intstr.FromString("metrics-basic"),
 								Interval: "30s",
 								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									Authorization: &monitoringv1.Auth{
-										Credentials: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "token-secret", Key: "token", Namespace: "frontend"}},
-									},
 									BasicAuth: &monitoringv1.BasicAuth{
 										Username: "<MISSING_SECRET_auth-secret_KEY_user>",
 										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth-secret", Key: "pass", Namespace: "frontend"}},
@@ -526,6 +558,21 @@ func TestPodMonitorConversion(t *testing.T) {
 									TLS: &monitoringv1.TLS{
 										CA: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "secret-ca-cm", Key: "ca.crt", Namespace: "frontend"}},
 									},
+								},
+							},
+							{
+								Port:     intstr.FromString("metrics-bearer"),
+								Interval: "30s",
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									Authorization: &monitoringv1.Auth{
+										Credentials: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "token-secret", Key: "token", Namespace: "frontend"}},
+									},
+								},
+							},
+							{
+								Port:     intstr.FromString("metrics-oauth"),
+								Interval: "30s",
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
 									OAuth2: &monitoringv1.OAuth2{
 										ClientID:     "<MISSING_CONFIGMAP_oauth-cm_KEY_id>",
 										ClientSecret: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "oauth-secret", Key: "secret", Namespace: "frontend"}},
@@ -574,6 +621,34 @@ func TestPodMonitorConversion(t *testing.T) {
 									Action: "labelmap",
 									Regex:  "app_(.*)",
 								},
+								{
+									// Supported action labeldrop (should be kept and promoted).
+									Action: "labeldrop",
+									Regex:  "temp_(.*)",
+								},
+								{
+									// Supported action labelkeep (should be kept and promoted).
+									Action: "labelkeep",
+									Regex:  "(project_id|location|cluster|namespace|job|instance|__address__|must_keep_.*)",
+								},
+								{
+									// Supported action hashmod (should be kept and promoted).
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_app"},
+									TargetLabel:  "shard",
+									Modulus:      4,
+									Action:       "hashmod",
+								},
+								{
+									// Unsupported action lowercase (should be dropped).
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_app"},
+									TargetLabel:  "app",
+									Action:       "lowercase",
+								},
+								{
+									// Unsupported action keepequal (should be dropped).
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_app", "__meta_kubernetes_pod_label_env"},
+									Action:       "keepequal",
+								},
 							},
 						},
 					},
@@ -591,11 +666,28 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("metrics"),
 								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										Action: "labeldrop",
+										Regex:  "temp_(.*)",
+									},
+									{
+										Action: "labelkeep",
+										Regex:  "(project_id|location|cluster|namespace|job|instance|__address__|must_keep_.*)",
+									},
+									{
+										SourceLabels: []string{"app"},
+										TargetLabel:  "shard",
+										Modulus:      4,
+										Action:       "hashmod",
+									},
+								},
 							},
 						},
 						TargetLabels: monitoringv1.TargetLabels{
 							FromPod: []monitoringv1.LabelMapping{
 								{From: "env", To: "exported_instance"},
+								{From: "app"},
 							},
 						},
 					},
@@ -645,11 +737,85 @@ func TestPodMonitorConversion(t *testing.T) {
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test", "env": "production"},
-							MatchExpressions: []metav1.LabelSelectorRequirement{
-								{Key: "tier", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"test", "staging"}},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										SourceLabels: []string{"tier"},
+										Regex:        "(test|staging)",
+										Action:       "drop",
+									},
+								},
 							},
 						},
-						Endpoints: []monitoringv1.ScrapeEndpoint{{Port: intstr.FromString("metrics"), Interval: "30s"}},
+						TargetLabels: monitoringv1.TargetLabels{
+							FromPod: []monitoringv1.LabelMapping{
+								{From: "tier"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Pre-Scrape Relabelings: sanitized label names in keep rules not converted to selectors",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "sanitized-relabel-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									// Contains underscore (potentially sanitized app.kubernetes.io/name) -> should not become selector.
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_app_kubernetes_io_name"},
+									Regex:        "^frontend$",
+									Action:       "keep",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "sanitized-relabel-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "test"}, // app_kubernetes_io_name is NOT here.
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										SourceLabels: []string{"app_kubernetes_io_name"},
+										Regex:        "^frontend$",
+										Action:       "keep",
+									},
+								},
+							},
+						},
+						TargetLabels: monitoringv1.TargetLabels{
+							FromPod: []monitoringv1.LabelMapping{
+								{From: "app_kubernetes_io_name"},
+							},
+						},
 					},
 				},
 			},
@@ -1012,6 +1178,21 @@ func TestPodMonitorConversion(t *testing.T) {
 
 				if diff := cmp.Diff(tc.expected[i], gotObj); diff != "" {
 					t.Errorf("mismatch at index %d (-want +got):\n%s", i, diff)
+				}
+
+				// Verify that the generated resource compiles successfully
+				// inside the GMP Operator's own config generator.
+				switch obj := gotObj.(type) {
+				case *monitoringv1.PodMonitoring:
+					_, err = obj.ScrapeConfigs("test-project", "test-location", "test-cluster", nil)
+					if err != nil {
+						t.Errorf("Generated PodMonitoring failed operator compilation check: %v", err)
+					}
+				case *monitoringv1.ClusterPodMonitoring:
+					_, err = obj.ScrapeConfigs("test-project", "test-location", "test-cluster", nil)
+					if err != nil {
+						t.Errorf("Generated ClusterPodMonitoring failed operator compilation check: %v", err)
+					}
 				}
 			}
 		})
