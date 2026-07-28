@@ -635,12 +635,13 @@ func convertMetricRelabelings(
 			action = relabel.Replace
 		}
 
+		if shouldSkipRelabelConfig(logger, config, action) {
+			continue
+		}
+
 		targetLabel := config.TargetLabel
 		switch action {
-		case relabel.LabelMap:
-			logger.Warn("metricRelabelings rule uses 'action: labelmap' which is not supported by GMP and has been dropped.")
-			continue
-		case relabel.Replace, relabel.HashMod, relabel.Lowercase, relabel.Uppercase:
+		case relabel.Replace, relabel.HashMod:
 			if protectedLabels[config.TargetLabel] {
 				targetLabel = "exported_" + config.TargetLabel
 				logger.Warn("Relabeling rule attempts to write to protected target label. Renamed target.",
@@ -730,8 +731,13 @@ func convertTargetLabels(logger *slog.Logger, sourceLabels []string, jobLabel st
 // shouldSkipRelabelConfig checks if the relabel config uses unsupported actions or references annotations.
 func shouldSkipRelabelConfig(logger *slog.Logger, config pomonitoringv1.RelabelConfig, action relabel.Action) bool {
 	switch action {
-	case relabel.LabelMap, relabel.LabelKeep, relabel.LabelDrop:
+	case relabel.Replace, relabel.Keep, relabel.Drop, relabel.HashMod, relabel.LabelDrop, relabel.LabelKeep, "":
+		// Supported actions.
+	case relabel.LabelMap, relabel.Lowercase, relabel.Uppercase, relabel.KeepEqual, relabel.DropEqual:
 		logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
+		return true
+	default:
+		logger.Warn(fmt.Sprintf("Relabeling rule uses unknown 'action: %s' which is not supported by GMP and has been dropped.", action))
 		return true
 	}
 
@@ -771,11 +777,18 @@ func resolveSourceLabels(logger *slog.Logger, sourceLabels []pomonitoringv1.Labe
 
 // convertRelabelingToSelector attempts to convert target filtering (keep/drop) rules to pod selectors.
 func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSingleEndpoint bool, res *PreScrapeRelabelingResult) bool {
-	if !isSingleEndpoint || (data.action != relabel.Keep && data.action != relabel.Drop) || len(data.podSources) != 1 || len(data.config.SourceLabels) != 1 {
+	if !isSingleEndpoint || data.action != relabel.Keep || len(data.podSources) != 1 || len(data.config.SourceLabels) != 1 {
 		return false
 	}
 	source := string(data.config.SourceLabels[0])
 	labelName := data.podSources[0]
+
+	// If the label contains an underscore, it might have been sanitized from '.', '/', or '-'.
+	// Since we cannot recover the original key, we skip selector conversion to avoid mismatch.
+	if strings.Contains(labelName, "_") {
+		return false
+	}
+
 	clean := strings.TrimPrefix(strings.TrimSuffix(strings.TrimSpace(data.config.Regex), "$"), "^")
 	if strings.HasPrefix(clean, "(") && strings.HasSuffix(clean, ")") {
 		clean = clean[1 : len(clean)-1]
@@ -785,7 +798,7 @@ func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSi
 		return false
 	}
 
-	if data.action == relabel.Keep && len(parts) == 1 {
+	if len(parts) == 1 {
 		if res.MatchLabels == nil {
 			res.MatchLabels = make(map[string]string)
 		}
@@ -794,16 +807,12 @@ func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSi
 		return true
 	}
 
-	op := metav1.LabelSelectorOpIn
-	if data.action == relabel.Drop {
-		op = metav1.LabelSelectorOpNotIn
-	}
 	res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
 		Key:      labelName,
-		Operator: op,
+		Operator: metav1.LabelSelectorOpIn,
 		Values:   parts,
 	})
-	logger.Info(fmt.Sprintf("Converted target filtering relabeling rule (%q -> %s) to Pod Selector (matchExpressions).", source, op))
+	logger.Info(fmt.Sprintf("Converted target filtering relabeling rule (%q -> In) to Pod Selector (matchExpressions).", source))
 	return true
 }
 
