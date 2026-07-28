@@ -19,14 +19,21 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
+	"github.com/prometheus/prometheus/google/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	prommodel "github.com/prometheus/common/model"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+)
+
+var (
+	namespacedMetadataDefaults = []string{labelContainer, labelPod, labelTopLevelControllerName, labelTopLevelControllerType}
+	clusterMetadataDefaults    = []string{labelContainer, export.KeyNamespace, labelPod, labelTopLevelControllerName, labelTopLevelControllerType}
 )
 
 // PodMonitorConverter implements ResourceConverter for PodMonitor resources.
@@ -271,6 +278,22 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		logger.Warn("Resulting PodMonitoring selector is empty. It will select and scrape all pods in this namespace. Verify if this is intended.")
 	}
 
+	var filteredMetadata *[]string
+	if rules.ResourceCombined.Metadata != nil {
+		union := unionMetadata(*rules.ResourceCombined.Metadata, namespacedMetadataDefaults)
+		var md []string
+		for _, m := range union {
+			if m != export.KeyNamespace {
+				md = append(md, m)
+			} else {
+				logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The rule has been dropped.")
+			}
+		}
+		if len(md) > 0 {
+			filteredMetadata = &md
+		}
+	}
+
 	gmpPM := &monitoringv1.PodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindPodMonitoring),
 		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, pm.Namespace, logger),
@@ -279,7 +302,7 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 			Endpoints: endpoints,
 			TargetLabels: monitoringv1.TargetLabels{
 				FromPod:  mergedFromPod,
-				Metadata: rules.ResourceCombined.Metadata,
+				Metadata: filteredMetadata,
 			},
 		},
 	}
@@ -314,6 +337,12 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		logger.Warn("Resulting ClusterPodMonitoring selector is empty. It will select and scrape all pods across all namespaces. Verify if this is intended.")
 	}
 
+	var filteredMetadata *[]string
+	if rules.ResourceCombined.Metadata != nil {
+		union := unionMetadata(*rules.ResourceCombined.Metadata, clusterMetadataDefaults)
+		filteredMetadata = &union
+	}
+
 	gmpCPM := &monitoringv1.ClusterPodMonitoring{
 		TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
 		ObjectMeta: CopyObjectMeta(pm.ObjectMeta, "", logger),
@@ -322,7 +351,7 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 			Endpoints: endpoints,
 			TargetLabels: monitoringv1.ClusterTargetLabels{
 				FromPod:  mergedFromPod,
-				Metadata: rules.ResourceCombined.Metadata,
+				Metadata: filteredMetadata,
 			},
 		},
 	}
@@ -337,4 +366,20 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 	u.SetKind(KindClusterPodMonitoring)
 
 	return u, convCtx.getGeneratedSecrets(), nil
+}
+
+func unionMetadata(extracted []string, defaults []string) []string {
+	unique := make(map[string]bool)
+	for _, m := range defaults {
+		unique[m] = true
+	}
+	for _, m := range extracted {
+		unique[m] = true
+	}
+	var res []string
+	for k := range unique {
+		res = append(res, k)
+	}
+	slices.Sort(res)
+	return res
 }

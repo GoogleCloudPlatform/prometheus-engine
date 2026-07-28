@@ -189,14 +189,6 @@ relabelLoop:
 			continue relabelLoop
 		}
 
-		// Change protected labels to exported_<label>.
-		targetLabel := config.TargetLabel
-		if protectedLabels[targetLabel] {
-			oldTarget := targetLabel
-			targetLabel = "exported_" + oldTarget
-			logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.", oldTarget, targetLabel))
-		}
-
 		// Resolve all source labels upfront and intercept unsupported internal discovery labels.
 		podSources, metaSources, rewrittenSources, unsupported := resolveSourceLabels(logger, config.SourceLabels)
 		if unsupported {
@@ -206,7 +198,7 @@ relabelLoop:
 		data := &relabelingData{
 			config:           config,
 			action:           action,
-			targetLabel:      targetLabel,
+			targetLabel:      config.TargetLabel,
 			podSources:       podSources,
 			metaSources:      metaSources,
 			rewrittenSources: rewrittenSources,
@@ -831,8 +823,17 @@ func convertRelabelingToSimpleCopy(logger *slog.Logger, data *relabelingData, re
 	target := data.targetLabel
 
 	if len(data.podSources) == 1 {
-		mapping := monitoringv1.LabelMapping{From: data.podSources[0]}
-		if target != data.podSources[0] {
+		source := data.podSources[0]
+		target := data.targetLabel
+
+		if protectedLabels[target] {
+			oldTarget := target
+			target = "exported_" + oldTarget
+			logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.", oldTarget, target))
+		}
+
+		mapping := monitoringv1.LabelMapping{From: source}
+		if target != source {
 			mapping.To = target
 		}
 		res.FromPod = append(res.FromPod, mapping)
@@ -856,9 +857,16 @@ func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingDa
 	}
 	*rawMetadata = append(*rawMetadata, data.metaSources...)
 
+	targetLabel := data.targetLabel
+	if protectedLabels[targetLabel] {
+		oldTarget := targetLabel
+		targetLabel = "exported_" + oldTarget
+		logger.Warn(fmt.Sprintf("Relabeling rule attempts to write to protected target label %q. Renamed target to %q.", oldTarget, targetLabel))
+	}
+
 	promoted := monitoringv1.RelabelingRule{
 		SourceLabels: data.rewrittenSources,
-		TargetLabel:  data.targetLabel,
+		TargetLabel:  targetLabel,
 		Regex:        data.config.Regex,
 		Modulus:      data.config.Modulus,
 		Action:       string(data.action),
