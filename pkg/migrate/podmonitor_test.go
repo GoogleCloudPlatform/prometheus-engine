@@ -1320,14 +1320,13 @@ func TestPodMonitorConversion(t *testing.T) {
 							FromPod: []monitoringv1.LabelMapping{
 								{From: "env"},
 							},
-							Metadata: ptrTo([]string{"container", "pod", "top_level_controller_name", "top_level_controller_type"}),
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "Pre-Scrape Relabelings: lowercase action rule promoted to metricRelabelings",
+			name: "Pre-Scrape Relabelings: hashmod action rule promoted to metricRelabelings",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -1348,7 +1347,8 @@ func TestPodMonitorConversion(t *testing.T) {
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
 									TargetLabel:  "env",
-									Action:       "lowercase",
+									Action:       "hashmod",
+									Modulus:      1000,
 								},
 							},
 						},
@@ -1374,7 +1374,8 @@ func TestPodMonitorConversion(t *testing.T) {
 									{
 										SourceLabels: []string{"env"},
 										TargetLabel:  "env",
-										Action:       "lowercase",
+										Action:       "hashmod",
+										Modulus:      1000,
 									},
 								},
 							},
@@ -1383,7 +1384,6 @@ func TestPodMonitorConversion(t *testing.T) {
 							FromPod: []monitoringv1.LabelMapping{
 								{From: "env"},
 							},
-							Metadata: ptrTo([]string{"container", "pod", "top_level_controller_name", "top_level_controller_type"}),
 						},
 					},
 				},
