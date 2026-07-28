@@ -1232,6 +1232,37 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Selector conflict: keep rule value conflicts with base matchLabels value",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "conflict-selector-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "frontend"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_app"},
+									Regex:        "backend",
+									Action:       "keep",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: "selector conflict: label \"app\" has conflicting values \"frontend\" (base selector) and \"backend\" (relabeling rule)",
+		},
 	}
 
 	converter := &PodMonitorConverter{}

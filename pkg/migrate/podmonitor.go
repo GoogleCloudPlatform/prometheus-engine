@@ -22,10 +22,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/prometheus/prometheus/google/export"
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	prommodel "github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/google/export"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -121,7 +121,7 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 func (c *PodMonitorConverter) convertEndpoints(
 	convCtx *conversionContext,
 	endpoints []pomonitoringv1.PodMetricsEndpoint,
-	epResults []PreScrapeRelabelingResult,
+	epResults []preScrapeRelabelingResult,
 ) ([]monitoringv1.ScrapeEndpoint, error) {
 	var gmpEndpoints []monitoringv1.ScrapeEndpoint
 
@@ -273,7 +273,10 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	}
 
 	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), rules.ResourceCombined.FromPod)
-	mergedSelector := mergeLabelSelector(logger, pm.Spec.Selector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
+	mergedSelector, err := mergeLabelSelector(pm.Spec.Selector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
+	if err != nil {
+		return nil, nil, err
+	}
 	if len(mergedSelector.MatchLabels) == 0 && len(mergedSelector.MatchExpressions) == 0 {
 		logger.Warn("Resulting PodMonitoring selector is empty. It will select and scrape all pods in this namespace. Verify if this is intended.")
 	}
@@ -332,7 +335,10 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 	}
 
 	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), rules.ResourceCombined.FromPod)
-	mergedSelector := mergeLabelSelector(logger, pm.Spec.Selector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
+	mergedSelector, err := mergeLabelSelector(pm.Spec.Selector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
+	if err != nil {
+		return nil, nil, err
+	}
 	if len(mergedSelector.MatchLabels) == 0 && len(mergedSelector.MatchExpressions) == 0 {
 		logger.Warn("Resulting ClusterPodMonitoring selector is empty. It will select and scrape all pods across all namespaces. Verify if this is intended.")
 	}
