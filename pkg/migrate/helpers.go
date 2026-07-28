@@ -18,7 +18,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"maps"
 	"slices"
 	"strings"
 
@@ -230,37 +229,33 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1
 		combined    preScrapeRelabelingResult
 		rawMetadata []string
 	)
+	isSingleEndpoint := len(endpoints) == 1
+
 	for _, ep := range endpoints {
 		var r preScrapeRelabelingResult
 		if len(ep.RelabelConfigs) > 0 {
-			r = convertPreScrapeRelabelings(logger, ep.RelabelConfigs, len(endpoints) == 1)
+			r = convertPreScrapeRelabelings(logger, ep.RelabelConfigs, isSingleEndpoint)
 			combined.FromPod = append(combined.FromPod, r.FromPod...)
 			if r.Metadata != nil {
 				rawMetadata = append(rawMetadata, *r.Metadata...)
 			}
-			if len(r.MatchLabels) > 0 {
-				if combined.MatchLabels == nil {
-					combined.MatchLabels = make(map[string]string)
-				}
-				maps.Copy(combined.MatchLabels, r.MatchLabels)
-			}
-			combined.MatchExpressions = append(combined.MatchExpressions, r.MatchExpressions...)
 		}
 		epResults = append(epResults, r)
 	}
 
 	if len(rawMetadata) > 0 {
-		unique := make(map[string]bool)
-		var sortedMd []string
-		for _, m := range rawMetadata {
-			if !unique[m] {
-				unique[m] = true
-				sortedMd = append(sortedMd, m)
-			}
-		}
-		slices.Sort(sortedMd)
-		combined.Metadata = &sortedMd
+		slices.Sort(rawMetadata)
+		rawMetadata = slices.Compact(rawMetadata)
+		combined.Metadata = &rawMetadata
 	}
+
+	// Since we only convert selectors for single-endpoint resources,
+	// the combined selector is simply the selector from the first (and only) endpoint.
+	if isSingleEndpoint && len(epResults) == 1 {
+		combined.MatchLabels = epResults[0].MatchLabels
+		combined.MatchExpressions = epResults[0].MatchExpressions
+	}
+
 	return extractedPreScrapeRules{
 		PerEndpoint:      epResults,
 		ResourceCombined: combined,

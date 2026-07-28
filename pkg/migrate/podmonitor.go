@@ -123,6 +123,10 @@ func (c *PodMonitorConverter) convertEndpoints(
 	endpoints []pomonitoringv1.PodMetricsEndpoint,
 	epResults []preScrapeRelabelingResult,
 ) ([]monitoringv1.ScrapeEndpoint, error) {
+	if len(epResults) != len(endpoints) {
+		return nil, fmt.Errorf("internal error: pre-scrape relabeling results length (%d) does not match endpoints length (%d)", len(epResults), len(endpoints))
+	}
+
 	var gmpEndpoints []monitoringv1.ScrapeEndpoint
 
 	for i, ep := range endpoints {
