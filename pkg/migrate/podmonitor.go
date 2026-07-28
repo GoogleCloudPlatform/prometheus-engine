@@ -256,7 +256,26 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		return nil, nil, err
 	}
 
-	u, err := buildPodMonitoring(pm.ObjectMeta, pm.Namespace, res, logger)
+	var filteredMetadata *[]string
+	if res.metadata != nil {
+		union := unionMetadata(*res.metadata, namespacedMetadataDefaults)
+		var md []string
+		for _, m := range union {
+			if m != export.KeyNamespace {
+				md = append(md, m)
+			} else {
+				logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The rule has been dropped.")
+			}
+		}
+		if len(md) > 0 {
+			filteredMetadata = &md
+		}
+	}
+
+	resCopy := *res
+	resCopy.metadata = filteredMetadata
+
+	u, err := buildPodMonitoring(pm.ObjectMeta, pm.Namespace, &resCopy, logger)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -270,7 +289,16 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		return nil, nil, err
 	}
 
-	u, err := buildClusterPodMonitoring(pm.ObjectMeta, res, logger)
+	var filteredMetadata *[]string
+	if res.metadata != nil {
+		union := unionMetadata(*res.metadata, clusterMetadataDefaults)
+		filteredMetadata = &union
+	}
+
+	resCopy := *res
+	resCopy.metadata = filteredMetadata
+
+	u, err := buildClusterPodMonitoring(pm.ObjectMeta, &resCopy, logger)
 	if err != nil {
 		return nil, nil, err
 	}
