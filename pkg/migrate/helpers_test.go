@@ -19,6 +19,8 @@ import (
 	"os"
 	"testing"
 
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/google/go-cmp/cmp"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -524,5 +526,31 @@ func TestConvertConfigMapToSecretSelectorDeduplication(t *testing.T) {
 	genSecrets := ctx.getGeneratedSecrets()
 	if len(genSecrets) != 1 {
 		t.Fatalf("expected exactly 1 generated secret due to duplication, got %d", len(genSecrets))
+	}
+}
+
+func TestMergeFromPod(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	staticTargetLabels := []monitoringv1.LabelMapping{
+		{From: "app", To: "application"},
+		{From: "env"},
+	}
+
+	relabelFromPod := []monitoringv1.LabelMapping{
+		{From: "env"}, // Duplicate, should be deduplicated.
+		{From: "tier"},
+	}
+
+	merged := mergeFromPod(logger, staticTargetLabels, relabelFromPod)
+
+	expected := []monitoringv1.LabelMapping{
+		{From: "app", To: "application"},
+		{From: "env"},
+		{From: "tier"},
+	}
+
+	if diff := cmp.Diff(expected, merged); diff != "" {
+		t.Errorf("mergeFromPod mismatch (-want +got):\n%s", diff)
 	}
 }
