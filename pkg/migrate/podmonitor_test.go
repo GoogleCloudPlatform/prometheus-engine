@@ -968,7 +968,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
 						TargetLabels: monitoringv1.TargetLabels{
-							Metadata: &[]string{"pod"},
+							Metadata: &[]string{"container", "pod", "top_level_controller_name", "top_level_controller_type"},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1124,6 +1124,109 @@ func TestPodMonitorConversion(t *testing.T) {
 								Port:     intstr.FromString("metrics"),
 								Interval: "30s",
 							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Scope-aware Metadata: namespace metadata mapping dropped in namespaced PodMonitoring",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "namespaced-metadata-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_namespace"},
+									TargetLabel:  "namespace",
+									Action:       "replace",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "namespaced-metadata-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "test"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+							},
+						},
+						TargetLabels: monitoringv1.TargetLabels{
+							Metadata: &[]string{"container", "pod", "top_level_controller_name", "top_level_controller_type"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Scope-aware Metadata: namespace metadata mapping kept in ClusterPodMonitoring",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster-metadata-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						Any: true,
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_namespace"},
+									TargetLabel:  "namespace",
+									Action:       "replace",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.ClusterPodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "cluster-metadata-monitor"},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "test"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+							},
+						},
+						TargetLabels: monitoringv1.ClusterTargetLabels{
+							Metadata: ptrTo([]string{"container", "namespace", "pod", "top_level_controller_name", "top_level_controller_type"}),
 						},
 					},
 				},
