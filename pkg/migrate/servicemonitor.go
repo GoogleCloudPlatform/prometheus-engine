@@ -242,7 +242,10 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, sm.Spec.PodTargetLabels, sm.Spec.JobLabel, "Pod"), rules.ResourceCombined.FromPod)
 
 	baseSelector := metav1.LabelSelector{MatchLabels: group.Selector}
-	mergedSelector := mergeLabelSelector(logger, baseSelector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
+	mergedSelector, err := mergeLabelSelector(baseSelector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
+	if err != nil {
+		return nil, err
+	}
 
 	// Spec-level warnings.
 	resolveScrapeClass(sm.Spec.ScrapeClassName, logger)
