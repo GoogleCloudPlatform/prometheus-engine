@@ -1509,6 +1509,94 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "ScrapeProtocols protobuf warning",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "scrape-protocols-warn",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					ScrapeProtocols: []pomonitoringv1.ScrapeProtocol{
+						"application/openmetrics-text",
+						"application/vnd.google.protobuf",
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "scrape-protocols"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "web",
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "scrape-protocols-warn", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "scrape-protocols"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "FilterRunning conflict resolution",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "filter-running-conflict",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port:          "web-1",
+							FilterRunning: ptrTo(false),
+						},
+						{
+							Port:          "web-2",
+							FilterRunning: ptrTo(true),
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "filter-running-conflict", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web-1"),
+								Interval: "30s",
+							},
+							{
+								Port:     intstr.FromString("web-2"),
+								Interval: "30s",
+							},
+						},
+						FilterRunning: ptrTo(false),
+					},
+				},
+			},
+		},
 	}
 
 	converter := &PodMonitorConverter{}
