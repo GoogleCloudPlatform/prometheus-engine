@@ -80,14 +80,11 @@ Flags:
                                  targets. Prefer setting the external label
                                  "cluster" in the Prometheus configuration if
                                  not using the auto-discovered default.
-      --export.match= ...        A Prometheus time series matcher. Can be
-                                 repeated. Every time series must match at
-                                 least one of the matchers to be exported.
-                                 This flag can be used equivalently to the
-                                 match[] parameter of the Prometheus federation
-                                 endpoint to selectively export data.
-                                 (Example: --export.match='{job="prometheus"}'
-                                 --export.match='{__name__=~"job:.*"})
+      --export.debug.log-match= ...  
+                                 A Prometheus time series matcher for debugging
+                                 gRPC requests. Logs exact gRPC requests
+                                 containing any time series matching these
+                                 matchers. Can be repeated.
       --export.debug.metric-prefix="prometheus.googleapis.com"  
                                  Google Cloud Monitoring metric prefix to use.
       --[no-]export.debug.disable-auth  
