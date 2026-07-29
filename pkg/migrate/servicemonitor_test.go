@@ -20,6 +20,8 @@ import (
 	"os"
 	"testing"
 
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
+	"github.com/google/go-cmp/cmp"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -378,4 +380,37 @@ func addServiceWithSelectorToCache(cache *ResourceCache, namespace, name string,
 
 func addServiceWithLabelsAndSelectorToCache(cache *ResourceCache, namespace, name string, labels map[string]string, selector map[string]string, ports []corev1.ServicePort) error {
 	return addServiceWithSelectorToCache(cache, namespace, name, labels, selector, ports)
+}
+
+// TestConvertStaticTargetLabels tests that protected labels are renamed to exported_<label>.
+func TestConvertStaticTargetLabels(t *testing.T) {
+	logger := slog.Default()
+	labels := map[string]string{
+		"app":       "my-app",
+		"job":       "my-job",
+		"namespace": "my-ns",
+	}
+
+	rules := convertStaticTargetLabels(logger, labels)
+	expected := []monitoringv1.RelabelingRule{
+		{
+			TargetLabel: "app",
+			Replacement: "my-app",
+			Action:      "replace",
+		},
+		{
+			TargetLabel: "exported_job",
+			Replacement: "my-job",
+			Action:      "replace",
+		},
+		{
+			TargetLabel: "exported_namespace",
+			Replacement: "my-ns",
+			Action:      "replace",
+		},
+	}
+
+	if diff := cmp.Diff(expected, rules); diff != "" {
+		t.Errorf("convertStaticTargetLabels() mismatch (-want +got):\n%s", diff)
+	}
 }
