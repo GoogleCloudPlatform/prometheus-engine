@@ -468,6 +468,7 @@ func (g *ServiceGroup) canMergeWith(
 	return true
 }
 
+// convertStaticTargetLabels maps Service target labels to static metricRelabeling rules.
 func convertStaticTargetLabels(logger *slog.Logger, labels map[string]string) []monitoringv1.RelabelingRule {
 	var rules []monitoringv1.RelabelingRule
 	var keys []string
@@ -478,8 +479,15 @@ func convertStaticTargetLabels(logger *slog.Logger, labels map[string]string) []
 
 	for _, k := range keys {
 		v := labels[k]
+		target := k
+		if protectedLabels[k] {
+			target = "exported_" + k
+			logger.Warn("Service targetLabel matches protected label. Renamed target.",
+				slog.String("label", k),
+				slog.String("renamed_target", target))
+		}
 		rule := monitoringv1.RelabelingRule{
-			TargetLabel: k,
+			TargetLabel: target,
 			Replacement: v,
 			Action:      "replace",
 		}
