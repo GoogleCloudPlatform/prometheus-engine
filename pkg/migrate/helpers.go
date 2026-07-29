@@ -178,6 +178,8 @@ type conversionContext struct {
 	targetNamespace string
 	// generatedSecrets accumulates created Secrets when migrating ConfigMaps, keyed by Secret name.
 	generatedSecrets map[string]*unstructured.Unstructured
+	// isClusterScoped indicates if the target resource is cluster-scoped (ClusterPodMonitoring).
+	isClusterScoped bool
 }
 
 // getGeneratedSecrets returns the generated secrets accumulated in the context as a slice.
@@ -281,19 +283,19 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 }
 
 // extractPreScrapeRelabelings evaluates pre-scrape rules once per endpoint, returning consolidated endpoint and resource-level results.
-func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1.PodMetricsEndpoint) (extractedPreScrapeRules, error) {
+func extractPreScrapeRelabelings(logger *slog.Logger, endpointsRelabelConfigs [][]pomonitoringv1.RelabelConfig) (extractedPreScrapeRules, error) {
 	var (
 		epResults   []preScrapeRelabelingResult
 		combined    preScrapeRelabelingResult
 		rawMetadata []string
 	)
-	isSingleEndpoint := len(endpoints) == 1
+	isSingleEndpoint := len(endpointsRelabelConfigs) == 1
 
-	for _, ep := range endpoints {
+	for _, relabelConfigs := range endpointsRelabelConfigs {
 		var r preScrapeRelabelingResult
-		if len(ep.RelabelConfigs) > 0 {
+		if len(relabelConfigs) > 0 {
 			var err error
-			r, err = convertPreScrapeRelabelings(logger, ep.RelabelConfigs, isSingleEndpoint)
+			r, err = convertPreScrapeRelabelings(logger, relabelConfigs, isSingleEndpoint)
 			if err != nil {
 				return extractedPreScrapeRules{}, err
 			}
@@ -512,7 +514,11 @@ func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigM
 		}
 	}
 
-	secretRef := &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey, Namespace: c.targetNamespace}
+	var ns string
+	if c.isClusterScoped {
+		ns = c.targetNamespace
+	}
+	secretRef := &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey, Namespace: ns}
 	return &monitoringv1.SecretSelector{Secret: secretRef}, nil
 }
 
@@ -546,7 +552,11 @@ func (c *conversionContext) convertSecretSelector(sel *corev1.SecretKeySelector)
 		c.logger.Warn("Secret reference had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.",
 			slog.String("secret", sel.Name))
 	}
-	secretRef := &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key, Namespace: c.targetNamespace}
+	var ns string
+	if c.isClusterScoped {
+		ns = c.targetNamespace
+	}
+	secretRef := &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key, Namespace: ns}
 	return &monitoringv1.SecretSelector{Secret: secretRef}, nil
 }
 
@@ -1173,6 +1183,30 @@ func validateScrapeProtocols(protocols []pomonitoringv1.ScrapeProtocol, logger *
 			break
 		}
 	}
+}
+
+// filterMetadata applies namespaced or cluster metadata defaults and strips namespace metadata in namespaced resources.
+func filterMetadata(metadata *[]string, isCluster bool, logger *slog.Logger) *[]string {
+	if metadata == nil {
+		return nil
+	}
+	if isCluster {
+		union := unionMetadata(*metadata, clusterMetadataDefaults)
+		return &union
+	}
+	union := unionMetadata(*metadata, namespacedMetadataDefaults)
+	var md []string
+	for _, m := range union {
+		if m != export.KeyNamespace {
+			md = append(md, m)
+		} else {
+			logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The metadata entry has been omitted.")
+		}
+	}
+	if len(md) > 0 {
+		return &md
+	}
+	return nil
 }
 
 // resolveAttachMetadata appends "node" to metadata if attachMetadata.node is enabled.

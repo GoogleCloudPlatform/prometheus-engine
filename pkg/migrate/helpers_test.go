@@ -925,6 +925,7 @@ func TestDecoupledNamespaces(t *testing.T) {
 	ctx := newTestConversionContext()
 	ctx.sourceNamespace = "source-ns"
 	ctx.targetNamespace = "target-ns"
+	ctx.isClusterScoped = true
 
 	// Verify that secret extraction reads from sourceNamespace.
 	if err := addSecretToCache(ctx.cache, "source-ns", "my-secret", "user", "admin", true); err != nil {

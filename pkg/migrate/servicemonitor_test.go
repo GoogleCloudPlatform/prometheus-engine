@@ -83,7 +83,7 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					t.Fatal("failed to cast endpoint")
 				}
 				port, found, _ := unstructured.NestedFieldNoCopy(ep, "port")
-				if !found || port != float64(8080) {
+				if !found || port != int64(8080) {
 					t.Errorf("expected port 8080, got %v", port)
 				}
 			},
