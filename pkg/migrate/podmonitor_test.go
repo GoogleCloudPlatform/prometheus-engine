@@ -229,7 +229,7 @@ func TestPodMonitorConversion(t *testing.T) {
 								HTTPClientConfig: monitoringv1.HTTPClientConfig{
 									BasicAuth: &monitoringv1.BasicAuth{
 										Username: "<MISSING_SECRET_auth_KEY_user>",
-										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass", Namespace: "ns-1"}},
+										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass"}},
 									},
 								},
 							},
@@ -256,7 +256,7 @@ func TestPodMonitorConversion(t *testing.T) {
 								HTTPClientConfig: monitoringv1.HTTPClientConfig{
 									BasicAuth: &monitoringv1.BasicAuth{
 										Username: "<MISSING_SECRET_auth_KEY_user>",
-										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass", Namespace: "ns-2"}},
+										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass"}},
 									},
 								},
 							},
@@ -643,10 +643,10 @@ func TestPodMonitorConversion(t *testing.T) {
 								HTTPClientConfig: monitoringv1.HTTPClientConfig{
 									BasicAuth: &monitoringv1.BasicAuth{
 										Username: "<MISSING_SECRET_auth-secret_KEY_user>",
-										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth-secret", Key: "pass", Namespace: "frontend"}},
+										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth-secret", Key: "pass"}},
 									},
 									TLS: &monitoringv1.TLS{
-										CA: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "secret-ca-cm", Key: "ca.crt", Namespace: "frontend"}},
+										CA: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "secret-ca-cm", Key: "ca.crt"}},
 									},
 								},
 							},
@@ -655,7 +655,7 @@ func TestPodMonitorConversion(t *testing.T) {
 								Interval: "30s",
 								HTTPClientConfig: monitoringv1.HTTPClientConfig{
 									Authorization: &monitoringv1.Auth{
-										Credentials: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "token-secret", Key: "token", Namespace: "frontend"}},
+										Credentials: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "token-secret", Key: "token"}},
 									},
 								},
 							},
@@ -665,7 +665,7 @@ func TestPodMonitorConversion(t *testing.T) {
 								HTTPClientConfig: monitoringv1.HTTPClientConfig{
 									OAuth2: &monitoringv1.OAuth2{
 										ClientID:     "<MISSING_CONFIGMAP_oauth-cm_KEY_id>",
-										ClientSecret: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "oauth-secret", Key: "secret", Namespace: "frontend"}},
+										ClientSecret: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "oauth-secret", Key: "secret"}},
 										TokenURL:     "https://auth.example.com/token",
 									},
 								},

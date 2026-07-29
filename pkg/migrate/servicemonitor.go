@@ -39,7 +39,7 @@ type ServiceGroup struct {
 	Selector     map[string]string
 	PortMap      map[string]intstr.IntOrString
 	TargetLabels map[string]string
-	Services     []*unstructured.Unstructured
+	Services     []*corev1.Service
 }
 
 // ServiceMonitorConverter implements ResourceConverter for ServiceMonitor resources.
@@ -103,7 +103,13 @@ func (c *ServiceMonitorConverter) Convert(_ context.Context, logger *slog.Logger
 			outputs = append(outputs, uClone)
 		}
 	}
-	outputs = append(outputs, generatedSecrets...)
+	for _, secret := range generatedSecrets {
+		for _, ns := range targetNamespaces {
+			uClone := secret.DeepCopy()
+			uClone.SetNamespace(ns)
+			outputs = append(outputs, uClone)
+		}
+	}
 	return outputs, nil
 }
 
@@ -123,7 +129,7 @@ func (c *ServiceMonitorConverter) convertToPodMonitoring(
 	}
 
 	// 2. Group Services by configuration compatibility to detect conflicts.
-	groups, err := groupServices(svcs, sm.Spec.Endpoints, sm.Spec.TargetLabels)
+	groups, err := groupServices(logger, svcs, sm.Spec.Endpoints, sm.Spec.TargetLabels)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to group Services: %w", err)
 	}
@@ -136,7 +142,7 @@ func (c *ServiceMonitorConverter) convertToPodMonitoring(
 
 	// 3. Construct a separate PodMonitoring resource for each compatible group.
 	for _, group := range groups {
-		res, err := c.buildSpecForGroup(sm, logger, cache, group)
+		res, err := c.buildSpecForGroup(sm, logger, cache, group, false)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -175,7 +181,7 @@ func (c *ServiceMonitorConverter) convertToClusterPodMonitoring(
 		return nil, nil, errors.New("corresponding Kubernetes Service was not found. Selector and port mappings cannot be resolved")
 	}
 
-	groups, err := groupServices(svcs, sm.Spec.Endpoints, sm.Spec.TargetLabels)
+	groups, err := groupServices(logger, svcs, sm.Spec.Endpoints, sm.Spec.TargetLabels)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to group Services: %w", err)
 	}
@@ -188,7 +194,7 @@ func (c *ServiceMonitorConverter) convertToClusterPodMonitoring(
 			slog.String("used_group_service", groups[0].Services[0].GetName()))
 	}
 
-	res, err := c.buildSpecForGroup(sm, logger, cache, groups[0])
+	res, err := c.buildSpecForGroup(sm, logger, cache, groups[0], true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -206,11 +212,14 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	logger *slog.Logger,
 	cache *ResourceCache,
 	group *ServiceGroup,
+	isClusterScoped bool,
 ) (*commonMonitorSpec, error) {
 	convCtx := &conversionContext{
-		logger:    logger,
-		cache:     cache,
-		namespace: sm.Namespace,
+		logger:          logger,
+		cache:           cache,
+		sourceNamespace: sm.Namespace,
+		targetNamespace: sm.Namespace,
+		isClusterScoped: isClusterScoped,
 	}
 
 	// Extract pre-scrape relabelings.
@@ -218,7 +227,10 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	for _, ep := range sm.Spec.Endpoints {
 		relabelConfigs = append(relabelConfigs, ep.RelabelConfigs)
 	}
-	rules := extractPreScrapeRelabelings(logger, relabelConfigs)
+	rules, err := extractPreScrapeRelabelings(logger, relabelConfigs)
+	if err != nil {
+		return nil, err
+	}
 
 	// Convert endpoints using group's resolved ports.
 	endpoints, err := c.convertEndpointsForGroup(convCtx, sm.Spec.Endpoints, rules.PerEndpoint, group)
@@ -251,13 +263,14 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	resolveScrapeClass(sm.Spec.ScrapeClassName, logger)
 	validateScrapeProtocols(sm.Spec.ScrapeProtocols, logger)
 
-	metadata := resolveAttachMetadata(sm.Spec.AttachMetadata, rules.ResourceCombined.Metadata)
+	filteredMetadata := filterMetadata(rules.ResourceCombined.Metadata, isClusterScoped, logger)
+	metadata := resolveAttachMetadata(sm.Spec.AttachMetadata, filteredMetadata, isClusterScoped)
 
 	var filterRunnings []*bool
 	for _, ep := range sm.Spec.Endpoints {
 		filterRunnings = append(filterRunnings, ep.FilterRunning)
 	}
-	filterRunning := resolveFilterRunning(filterRunnings, logger)
+	filterRunning := resolveFilterRunning(filterRunnings, logger, isClusterScoped)
 
 	limits := convertLimits(sm.Spec.SampleLimit, sm.Spec.LabelLimit, sm.Spec.LabelNameLengthLimit, sm.Spec.LabelValueLengthLimit)
 
@@ -275,7 +288,7 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 	convCtx *conversionContext,
 	endpoints []pomonitoringv1.Endpoint,
-	epResults []PreScrapeRelabelingResult,
+	epResults []preScrapeRelabelingResult,
 	group *ServiceGroup,
 ) ([]monitoringv1.ScrapeEndpoint, error) {
 	var gmpEndpoints []monitoringv1.ScrapeEndpoint
@@ -308,7 +321,7 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 		gmpEp.Timeout = timeout
 
 		// 4. Relabeling Rules.
-		relabelings, err := combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
+		relabelings := combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
 		if err != nil {
 			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 		}
@@ -343,13 +356,13 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 			// nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 			bearerTokenSecret = *ep.BearerTokenSecret
 		}
-		err = convCtx.applyAuthAndTLS(i, &gmpEp, ep.BasicAuth, ep.OAuth2, safeTLS, ep.Authorization, bearerTokenSecret) // nolint:staticcheck
+		err = convCtx.applyAuthAndTLS(&gmpEp, ep.BasicAuth, ep.OAuth2, safeTLS, ep.Authorization, bearerTokenSecret) // nolint:staticcheck
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 		}
 
 		// Warnings for Unsupported Fields.
-		warnUnsupportedEndpointFields(convCtx.logger, ep.FollowRedirects, ep.EnableHttp2, ep.HonorLabels, ep.HonorTimestamps, ep.TrackTimestampsStaleness)
+		warnUnsupportedEndpointFields(convCtx.logger, ep.FollowRedirects, ep.EnableHttp2, ep.HonorLabels, ep.HonorTimestamps, ep.TrackTimestampsStaleness, i)
 
 		gmpEndpoints = append(gmpEndpoints, gmpEp)
 	}
@@ -359,7 +372,8 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 
 // groupServices groups matched Services by their resolved target selectors and port/label mappings.
 func groupServices(
-	svcs []*unstructured.Unstructured,
+	logger *slog.Logger,
+	svcs []*corev1.Service,
 	endpoints []pomonitoringv1.Endpoint,
 	targetLabels []string,
 ) ([]*ServiceGroup, error) {
@@ -367,11 +381,8 @@ func groupServices(
 
 	for _, svc := range svcs {
 		// 1. Extract and validate selector.
-		selectorString, found, err := unstructured.NestedStringMap(svc.Object, "spec", "selector")
-		if err != nil {
-			return nil, fmt.Errorf("failed to read selector for Service %q: %w", svc.GetName(), err)
-		}
-		if !found || len(selectorString) == 0 {
+		selectorString := svc.Spec.Selector
+		if len(selectorString) == 0 {
 			return nil, fmt.Errorf("service %q has no selector (targets external or static endpoints). GMP Managed Collection only supports scraping in-cluster Pod targets", svc.GetName())
 		}
 
@@ -381,7 +392,7 @@ func groupServices(
 			if ep.Port == "" {
 				continue
 			}
-			resolvedPort, err := resolveServicePort(svc, ep.Port)
+			resolvedPort, err := resolveServicePort(logger, svc, ep.Port)
 			if err != nil {
 				return nil, fmt.Errorf("service %q: failed to resolve port %q: %w", svc.GetName(), ep.Port, err)
 			}
@@ -391,11 +402,7 @@ func groupServices(
 		// 3. Resolve target labels for this Service.
 		resolvedLabels := make(map[string]string)
 		for _, labelName := range targetLabels {
-			val, found, err := unstructured.NestedString(svc.Object, "metadata", "labels", labelName)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read label %q from Service %q: %w", labelName, svc.GetName(), err)
-			}
-			if found {
+			if val, found := svc.Labels[labelName]; found {
 				resolvedLabels[labelName] = val
 			}
 		}
@@ -420,7 +427,7 @@ func groupServices(
 				Selector:     selectorString,
 				PortMap:      portMap,
 				TargetLabels: resolvedLabels,
-				Services:     []*unstructured.Unstructured{svc},
+				Services:     []*corev1.Service{svc},
 			})
 		}
 	}

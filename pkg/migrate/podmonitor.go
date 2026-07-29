@@ -166,7 +166,11 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 		sourceNamespace: pm.Namespace,
 		targetNamespace: targetNamespace,
 	}
-	rules, err := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
+	var relabelConfigs [][]pomonitoringv1.RelabelConfig
+	for _, ep := range pm.Spec.PodMetricsEndpoints {
+		relabelConfigs = append(relabelConfigs, ep.RelabelConfigs)
+	}
+	rules, err := extractPreScrapeRelabelings(logger, relabelConfigs)
 	if err != nil {
 		return nil, err
 	}
@@ -213,27 +217,6 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 		limits:           limits,
 		generatedSecrets: convCtx.getGeneratedSecrets(),
 	}, nil
-}
-
-// filterMetadata applies namespaced or cluster metadata defaults and strips namespace metadata in namespaced resources.
-func filterMetadata(metadata *[]string, isCluster bool, logger *slog.Logger) *[]string {
-	if metadata == nil {
-		return nil
-	}
-	if isCluster {
-		union := unionMetadata(*metadata, clusterMetadataDefaults)
-		return &union
-	}
-	union := unionMetadata(*metadata, namespacedMetadataDefaults)
-	var md []string
-	for _, m := range union {
-		if m != export.KeyNamespace {
-			md = append(md, m)
-		} else {
-			logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The metadata entry has been omitted.")
-		}
-	}
-	return &md
 }
 
 // convertToMonitoringResource is a parameterized helper that converts a PodMonitor to either a PodMonitoring or ClusterPodMonitoring resource.
