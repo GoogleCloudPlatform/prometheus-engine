@@ -34,8 +34,14 @@ KIND_CLUSTER=${KIND_CLUSTER}-${KIND_CLUSTER_HASH}
 KUBECTL="kubectl --context kind-${KIND_CLUSTER}"
 # Ensure a unique label on any test data sent to GCM.
 GMP_CLUSTER=$TAG_NAME
-if [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
+if [[ -n "${GCM_SECRET:-}" ]]; then
+  echo ">>> using GCM_SECRET credentials; running with GCM validation with explicit credentials"
+  PROJECT_ID=$(echo "${GCM_SECRET}" | jq -r '.project_id')
+  export GOOGLE_APPLICATION_CREDENTIALS=""
+elif [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
+  echo ">>> using GOOGLE_APPLICATION_CREDENTIALS credentials; running with GCM validation"
   PROJECT_ID=$(jq -r '.project_id' "${GOOGLE_APPLICATION_CREDENTIALS}")
+  export GCM_EXPORT=""
 else
   echo ">>> no credentials specified. running without GCM validation"
   TEST_ARGS="${TEST_ARGS} -skip-gcm"
@@ -123,6 +129,7 @@ connect_registry
 echo ">>> executing gmp e2e tests: ${GO_TEST}"
 # Note: a test failure here should exit non-zero and leave the cluster running
 # for debugging.
+
 go test -v -timeout 10m "${REPO_ROOT}/e2e" -run "${GO_TEST:-.}" -args ${TEST_ARGS}
 
 # Delete cluster if it's not set to clean up post-test.
