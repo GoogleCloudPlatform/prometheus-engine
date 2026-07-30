@@ -622,12 +622,12 @@ func TestPodMonitorConversion(t *testing.T) {
 									Regex:  "app_(.*)",
 								},
 								{
-									// Supported action labeldrop (should be kept and promoted).
+									// Unsupported pre-scrape action labeldrop (should be dropped with warning).
 									Action: "labeldrop",
 									Regex:  "temp_(.*)",
 								},
 								{
-									// Supported action labelkeep (should be kept and promoted).
+									// Unsupported pre-scrape action labelkeep (should be dropped with warning).
 									Action: "labelkeep",
 									Regex:  "(project_id|location|cluster|namespace|job|instance|__address__|must_keep_.*)",
 								},
@@ -667,14 +667,6 @@ func TestPodMonitorConversion(t *testing.T) {
 								Port:     intstr.FromString("metrics"),
 								Interval: "30s",
 								MetricRelabeling: []monitoringv1.RelabelingRule{
-									{
-										Action: "labeldrop",
-										Regex:  "temp_(.*)",
-									},
-									{
-										Action: "labelkeep",
-										Regex:  "(project_id|location|cluster|namespace|job|instance|__address__|must_keep_.*)",
-									},
 									{
 										SourceLabels: []string{"app"},
 										TargetLabel:  "shard",
@@ -1262,6 +1254,42 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 			wantErr: "selector conflict: label \"app\" has conflicting values \"frontend\" (base selector) and \"backend\" (relabeling rule)",
+		},
+		{
+			name: "Pre-Scrape Relabelings: conflicting keep rules on same pod label return error",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "conflicting-keep-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
+									Regex:        "production",
+									Action:       "keep",
+								},
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
+									Regex:        "staging",
+									Action:       "keep",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: "conflicting keep rules for label \"env\": cannot require both \"production\" and \"staging\" simultaneously",
 		},
 		{
 			name: "Pre-Scrape Relabelings: drop action rule on pod label falls through to metricRelabelings",
