@@ -780,12 +780,6 @@ func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSi
 	source := string(data.config.SourceLabels[0])
 	labelName := data.podSources[0]
 
-	// If the label contains an underscore, it might have been sanitized from '.', '/', or '-'.
-	// Since we cannot recover the original key, we skip selector conversion to avoid mismatch.
-	if strings.Contains(labelName, "_") {
-		return false, nil
-	}
-
 	if errs := validation.IsQualifiedName(labelName); len(errs) > 0 {
 		return false, nil
 	}
