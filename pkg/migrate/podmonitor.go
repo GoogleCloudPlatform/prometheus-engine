@@ -249,10 +249,10 @@ func (c *PodMonitorConverter) convertEndpoints(
 
 		// 5. Warnings for Unsupported Fields in Endpoint.
 		if ep.FollowRedirects != nil && !*ep.FollowRedirects {
-			convCtx.logger.Warn("Field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always follow redirects.")
+			convCtx.logger.Warn(fmt.Sprintf("endpoint [%d]: field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always follow redirects.", i))
 		}
 		if ep.EnableHttp2 != nil && !*ep.EnableHttp2 {
-			convCtx.logger.Warn("Field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always negotiate HTTP/2 for TLS connections.")
+			convCtx.logger.Warn(fmt.Sprintf("endpoint [%d]: field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always negotiate HTTP/2 for TLS connections.", i))
 		}
 
 		if ep.HonorLabels {
@@ -296,6 +296,7 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	}
 
 	// Spec-level warnings for unsupported fields.
+	warnUnsupportedSpecFields(logger, pm.Spec)
 	// TODO(M2): Resolve and merge ScrapeClass configurations from Prometheus CR if scrapeClassName is specified.
 	if pm.Spec.ScrapeClassName != nil && *pm.Spec.ScrapeClassName != "" {
 		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
@@ -341,6 +342,7 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 			hasTrue = true
 		}
 	}
+	// A nil filterRunning defaults to true in the GMP operator.
 	var filterRunning *bool
 	if hasFalse {
 		falseVal := false
@@ -404,6 +406,7 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 	}
 
 	// Spec-level warnings for unsupported fields.
+	warnUnsupportedSpecFields(logger, pm.Spec)
 	// TODO(M2): Resolve and merge ScrapeClass configurations from Prometheus CR if scrapeClassName is specified.
 	if pm.Spec.ScrapeClassName != nil && *pm.Spec.ScrapeClassName != "" {
 		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
@@ -442,6 +445,7 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 			hasTrue = true
 		}
 	}
+	// A nil filterRunning defaults to true in the GMP operator.
 	var filterRunning *bool
 	if hasFalse {
 		falseVal := false

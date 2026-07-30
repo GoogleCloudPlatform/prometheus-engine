@@ -69,6 +69,7 @@ var (
 		"__meta_kubernetes_pod_name":            labelPod,
 		"__meta_kubernetes_pod_container_name":  labelContainer,
 		"__meta_kubernetes_pod_node_name":       labelNode,
+		"__meta_kubernetes_node_name":           labelNode,
 		"__meta_kubernetes_namespace":           export.KeyNamespace,
 		"__meta_kubernetes_pod_controller_name": labelTopLevelControllerName,
 		"__meta_kubernetes_pod_controller_kind": labelTopLevelControllerType,
@@ -759,6 +760,10 @@ func shouldSkipRelabelConfig(logger *slog.Logger, config pomonitoringv1.RelabelC
 			logger.Warn(fmt.Sprintf("Relabeling rule referencing pod annotation %q is unsupported in GMP. The rule has been dropped.", string(sl)))
 			return true
 		}
+		if strings.HasPrefix(string(sl), "__meta_kubernetes_node_label_") {
+			logger.Warn(fmt.Sprintf("Relabeling rule referencing node label %q is unsupported in GMP (only node name is supported). The rule has been dropped.", string(sl)))
+			return true
+		}
 	}
 	return false
 }
@@ -920,6 +925,19 @@ func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingDa
 	logger.Info(fmt.Sprintf("Complex relabeling rule (target: %q) promoted from pre-scrape 'relabelings' to post-scrape 'metricRelabeling'.", data.targetLabel))
 }
 
+// warnUnsupportedSpecFields logs warnings for spec-level fields that GMP does not support or need.
+func warnUnsupportedSpecFields(logger *slog.Logger, spec pomonitoringv1.PodMonitorSpec) {
+	if spec.TargetLimit != nil {
+		logger.Warn("Field 'targetLimit' is unnecessary in GMP Managed Collection and has been dropped. Target discovery and scaling are managed automatically by GKE.")
+	}
+	if spec.KeepDroppedTargets != nil {
+		logger.Warn("Field 'keepDroppedTargets' is unnecessary in GMP Managed Collection and has been dropped.")
+	}
+	if spec.BodySizeLimit != nil {
+		logger.Warn("Field 'bodySizeLimit' is unsupported by GMP Managed Collection and has been dropped. Scrape response buffer limits are managed automatically by GMP.")
+	}
+}
+
 // convertLimits maps PodMonitor limit settings to GMP ScrapeLimits.
 func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLengthLimit *uint64) *monitoringv1.ScrapeLimits {
 	if sampleLimit == nil && labelLimit == nil && labelNameLengthLimit == nil && labelValueLengthLimit == nil {
@@ -937,6 +955,10 @@ func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLeng
 	}
 	if labelValueLengthLimit != nil {
 		limits.LabelValueLength = *labelValueLengthLimit
+	}
+	// Return nil if all limit fields are zero to avoid emitting empty limits objects in YAML.
+	if *limits == (monitoringv1.ScrapeLimits{}) {
+		return nil
 	}
 	return limits
 }
