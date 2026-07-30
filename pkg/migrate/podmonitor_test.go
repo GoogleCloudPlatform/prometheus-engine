@@ -687,7 +687,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "Pre-Scrape Relabelings: target filtering keep and drop rules translated to Pod Selector",
+			name: "Pre-Scrape Relabelings: target filtering keep rule translated to Pod Selector, drop rule falls through to metricRelabeling",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -712,7 +712,7 @@ func TestPodMonitorConversion(t *testing.T) {
 									Action:       "keep",
 								},
 								{
-									// Set drop -> matchExpressions NotIn.
+									// Drop rule falls through to post-scrape metricRelabeling.
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_tier"},
 									Regex:        "(test|staging)",
 									Action:       "drop",
@@ -753,7 +753,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "Pre-Scrape Relabelings: sanitized label names in keep rules not converted to selectors",
+			name: "Pre-Scrape Relabelings: label names with underscores in keep rules are converted to selectors",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -772,7 +772,7 @@ func TestPodMonitorConversion(t *testing.T) {
 							Port: "metrics",
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
-									// Contains underscore (potentially sanitized app.kubernetes.io/name) -> should not become selector.
+									// Contains underscore (e.g. app_kubernetes_io_name) -> converted to matchLabels selector.
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_app_kubernetes_io_name"},
 									Regex:        "^frontend$",
 									Action:       "keep",
@@ -788,24 +788,15 @@ func TestPodMonitorConversion(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Name: "sanitized-relabel-monitor", Namespace: "default"},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
-							MatchLabels: map[string]string{"app": "test"}, // app_kubernetes_io_name is NOT here.
+							MatchLabels: map[string]string{
+								"app":                    "test",
+								"app_kubernetes_io_name": "frontend",
+							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Port:     intstr.FromString("metrics"),
 								Interval: "30s",
-								MetricRelabeling: []monitoringv1.RelabelingRule{
-									{
-										SourceLabels: []string{"app_kubernetes_io_name"},
-										Regex:        "^frontend$",
-										Action:       "keep",
-									},
-								},
-							},
-						},
-						TargetLabels: monitoringv1.TargetLabels{
-							FromPod: []monitoringv1.LabelMapping{
-								{From: "app_kubernetes_io_name"},
 							},
 						},
 					},

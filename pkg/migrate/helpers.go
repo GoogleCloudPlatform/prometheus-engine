@@ -52,7 +52,6 @@ var (
 		export.KeyJob:               true,
 		export.KeyInstance:          true,
 		labelTopLevelController:     true,
-		labelTopLevelControllerName: true,
 		labelTopLevelControllerType: true,
 		labelAddress:                true,
 	}
@@ -726,8 +725,13 @@ func convertTargetLabels(logger *slog.Logger, sourceLabels []string, jobLabel st
 // shouldSkipRelabelConfig checks if the relabel config uses unsupported actions or references annotations.
 func shouldSkipRelabelConfig(logger *slog.Logger, config pomonitoringv1.RelabelConfig, action relabel.Action) bool {
 	switch action {
-	case relabel.Replace, relabel.Keep, relabel.Drop, relabel.HashMod, relabel.LabelDrop, relabel.LabelKeep, "":
-		// Supported actions.
+	case relabel.Replace, relabel.HashMod, "":
+		if config.TargetLabel == "" {
+			logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' with an empty 'targetLabel', which is invalid in Prometheus and has been dropped.", action))
+			return true
+		}
+	case relabel.Keep, relabel.Drop, relabel.LabelDrop, relabel.LabelKeep:
+		// Supported actions that do not require targetLabel.
 	case relabel.LabelMap, relabel.Lowercase, relabel.Uppercase, relabel.KeepEqual, relabel.DropEqual:
 		logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
 		return true
@@ -825,12 +829,10 @@ func convertRelabelingToSimpleCopy(logger *slog.Logger, data *relabelingData, re
 		return false
 	}
 
-	source := string(data.config.SourceLabels[0])
 	target := data.targetLabel
 
 	if len(data.podSources) == 1 {
 		source := data.podSources[0]
-		target := data.targetLabel
 
 		if protectedLabels[target] {
 			oldTarget := target
@@ -848,6 +850,7 @@ func convertRelabelingToSimpleCopy(logger *slog.Logger, data *relabelingData, re
 	}
 
 	if len(data.metaSources) == 1 && target == data.metaSources[0] {
+		source := string(data.config.SourceLabels[0])
 		*rawMetadata = append(*rawMetadata, data.metaSources[0])
 		logger.Info(fmt.Sprintf("Converted metadata label copy (%q) to 'targetLabels.metadata' (as label: %q).", source, data.metaSources[0]))
 		return true
