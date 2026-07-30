@@ -270,7 +270,10 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		cache:     cache,
 		namespace: pm.Namespace,
 	}
-	rules := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
+	rules, err := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
+	if err != nil {
+		return nil, nil, err
+	}
 	endpoints, err := c.convertEndpoints(convCtx, pm.Spec.PodMetricsEndpoints, rules.PerEndpoint)
 	if err != nil {
 		return nil, nil, err
@@ -332,7 +335,10 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		cache:     cache,
 		namespace: pm.Namespace,
 	}
-	rules := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
+	rules, err := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
+	if err != nil {
+		return nil, nil, err
+	}
 	endpoints, err := c.convertEndpoints(convCtx, pm.Spec.PodMetricsEndpoints, rules.PerEndpoint)
 	if err != nil {
 		return nil, nil, err

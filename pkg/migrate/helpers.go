@@ -171,7 +171,7 @@ func isValidLabelValues(parts []string) bool {
 }
 
 // convertPreScrapeRelabelings evaluates pre-scrape relabelings on a single endpoint and extracts target label and selector rules.
-func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.RelabelConfig, isSingleEndpoint bool) preScrapeRelabelingResult {
+func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.RelabelConfig, isSingleEndpoint bool) (preScrapeRelabelingResult, error) {
 	var (
 		res         preScrapeRelabelingResult
 		rawMetadata []string
@@ -184,6 +184,13 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		if shouldSkipRelabelConfig(logger, config, action) {
+			continue
+		}
+
+		// Pre-scrape labeldrop and labelkeep filter service-discovery meta labels; there is
+		// no post-scrape equivalent, so they cannot be promoted.
+		if action == relabel.LabelDrop || action == relabel.LabelKeep {
+			logger.Warn(fmt.Sprintf("Pre-scrape relabeling rule uses 'action: %s', which filters service discovery labels and has no GMP equivalent. The rule has been dropped.", action))
 			continue
 		}
 
@@ -207,7 +214,9 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		// Convert target filtering ("keep" and "drop") rules on pod labels to Kubernetes label selectors.
-		if convertRelabelingToSelector(logger, data, isSingleEndpoint, &res) {
+		if converted, err := convertRelabelingToSelector(logger, data, isSingleEndpoint, &res); err != nil {
+			return preScrapeRelabelingResult{}, err
+		} else if converted {
 			continue
 		}
 
@@ -217,17 +226,17 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 		}
 
 		// Convert complex or value-changing rules to post-scrape metricRelabeling.
-		convertRelabelingToMetricRelabeling(logger, data, isSingleEndpoint, &res, &rawMetadata)
+		convertRelabelingToMetricRelabeling(logger, data, &res, &rawMetadata)
 	}
 
 	if len(rawMetadata) > 0 {
 		res.Metadata = &rawMetadata
 	}
-	return res
+	return res, nil
 }
 
 // extractPreScrapeRelabelings evaluates pre-scrape rules once per endpoint, returning consolidated endpoint and resource-level results.
-func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1.PodMetricsEndpoint) extractedPreScrapeRules {
+func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1.PodMetricsEndpoint) (extractedPreScrapeRules, error) {
 	var (
 		epResults   []preScrapeRelabelingResult
 		combined    preScrapeRelabelingResult
@@ -238,7 +247,11 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1
 	for _, ep := range endpoints {
 		var r preScrapeRelabelingResult
 		if len(ep.RelabelConfigs) > 0 {
-			r = convertPreScrapeRelabelings(logger, ep.RelabelConfigs, isSingleEndpoint)
+			var err error
+			r, err = convertPreScrapeRelabelings(logger, ep.RelabelConfigs, isSingleEndpoint)
+			if err != nil {
+				return extractedPreScrapeRules{}, err
+			}
 			combined.FromPod = append(combined.FromPod, r.FromPod...)
 			if r.Metadata != nil {
 				rawMetadata = append(rawMetadata, *r.Metadata...)
@@ -263,7 +276,7 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1
 	return extractedPreScrapeRules{
 		PerEndpoint:      epResults,
 		ResourceCombined: combined,
-	}
+	}, nil
 }
 
 // mergeLabelSelector combines base selector requirements with extracted pre-scrape filtering rules.
@@ -298,13 +311,6 @@ func mergeFromPod(logger *slog.Logger, base []monitoringv1.LabelMapping, extra [
 		target := m.From
 		if m.To != "" {
 			target = m.To
-		}
-		if existingFrom, exists := seenTargets[target]; exists {
-			if existingFrom == m.From {
-				continue
-			}
-			logger.Warn(fmt.Sprintf("Conflict in relabel configs: target label %q is already mapped from %q. Skipping conflicting mapping from %q.", target, existingFrom, m.From))
-			continue
 		}
 		seenTargets[target] = m.From
 		res = append(res, m)
@@ -746,6 +752,9 @@ func resolveSourceLabels(sourceLabels []pomonitoringv1.LabelName) (podSources []
 		s := string(sl)
 		if labelName, found := strings.CutPrefix(s, "__meta_kubernetes_pod_label_"); found {
 			podSources = append(podSources, labelName)
+			if protectedLabels[labelName] {
+				labelName = "exported_" + labelName
+			}
 			rewrittenSources = append(rewrittenSources, labelName)
 			continue
 		}
@@ -764,9 +773,9 @@ func resolveSourceLabels(sourceLabels []pomonitoringv1.LabelName) (podSources []
 }
 
 // convertRelabelingToSelector attempts to convert target filtering (keep/drop) rules to pod selectors.
-func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSingleEndpoint bool, res *preScrapeRelabelingResult) bool {
+func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSingleEndpoint bool, res *preScrapeRelabelingResult) (bool, error) {
 	if !isSingleEndpoint || data.action != relabel.Keep || len(data.podSources) != 1 || len(data.config.SourceLabels) != 1 {
-		return false
+		return false, nil
 	}
 	source := string(data.config.SourceLabels[0])
 	labelName := data.podSources[0]
@@ -774,11 +783,11 @@ func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSi
 	// If the label contains an underscore, it might have been sanitized from '.', '/', or '-'.
 	// Since we cannot recover the original key, we skip selector conversion to avoid mismatch.
 	if strings.Contains(labelName, "_") {
-		return false
+		return false, nil
 	}
 
 	if errs := validation.IsQualifiedName(labelName); len(errs) > 0 {
-		return false
+		return false, nil
 	}
 
 	clean := strings.TrimPrefix(strings.TrimSuffix(data.config.Regex, "$"), "^")
@@ -787,16 +796,19 @@ func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSi
 	}
 	parts := strings.Split(clean, "|")
 	if strings.ContainsAny(clean, "*+?[]{}()\\^$.") || slices.Contains(parts, "") || !isValidLabelValues(parts) {
-		return false
+		return false, nil
 	}
 
 	if len(parts) == 1 {
 		if res.MatchLabels == nil {
 			res.MatchLabels = make(map[string]string)
 		}
+		if existing, exists := res.MatchLabels[labelName]; exists && existing != parts[0] {
+			return false, fmt.Errorf("conflicting keep rules for label %q: cannot require both %q and %q simultaneously", labelName, existing, parts[0])
+		}
 		res.MatchLabels[labelName] = parts[0]
 		logger.Info(fmt.Sprintf("Converted target filtering relabeling rule (%q -> %q) to Pod Selector (matchLabels).", source, parts[0]))
-		return true
+		return true, nil
 	}
 
 	res.MatchExpressions = append(res.MatchExpressions, metav1.LabelSelectorRequirement{
@@ -805,7 +817,7 @@ func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSi
 		Values:   parts,
 	})
 	logger.Info(fmt.Sprintf("Converted target filtering relabeling rule (%q -> In) to Pod Selector (matchExpressions).", source))
-	return true
+	return true, nil
 }
 
 // convertRelabelingToSimpleCopy attempts to convert simple label copy rules to targetLabels (fromPod or metadata).
@@ -851,22 +863,22 @@ func convertRelabelingToSimpleCopy(logger *slog.Logger, data *relabelingData, re
 }
 
 // convertRelabelingToMetricRelabeling converts a rule to post-scrape metricRelabeling.
-func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingData, isSingleEndpoint bool, res *preScrapeRelabelingResult, rawMetadata *[]string) {
+func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingData, res *preScrapeRelabelingResult, rawMetadata *[]string) {
 	if data.action == relabel.Keep || data.action == relabel.Drop {
 		logger.Warn(fmt.Sprintf("Target filtering rule (action %q on %v) promoted to post-scrape metricRelabeling; target is still scraped but metrics are dropped. Use labelSelector instead to avoid scraping overhead.", data.action, data.config.SourceLabels))
 	}
 
 	for _, p := range data.podSources {
-		res.FromPod = append(res.FromPod, monitoringv1.LabelMapping{From: p})
-		if !isSingleEndpoint {
-			logger.Warn(fmt.Sprintf("Promoted relabeling rule requires pod label %q, which is added to 'targetLabels.fromPod'. Because this resource has multiple endpoints, this label will also be attached to metrics scraped from all other endpoints.", p))
+		mapping := monitoringv1.LabelMapping{From: p}
+		if protectedLabels[p] {
+			mapping.To = "exported_" + p
 		}
+		res.FromPod = append(res.FromPod, mapping)
+		logger.Warn(fmt.Sprintf("Promoted relabeling rule requires pod label %q, which is added to 'targetLabels.fromPod'. This label will be attached to all metrics scraped by this resource across all endpoints.", p))
 	}
 	for _, m := range data.metaSources {
 		*rawMetadata = append(*rawMetadata, m)
-		if !isSingleEndpoint {
-			logger.Warn(fmt.Sprintf("Promoted relabeling rule requires metadata label %q, which is added to 'targetLabels.metadata'. Because this resource has multiple endpoints, this label will also be attached to metrics scraped from all other endpoints.", m))
-		}
+		logger.Warn(fmt.Sprintf("Promoted relabeling rule requires metadata label %q, which is added to 'targetLabels.metadata'. This label will be attached to all metrics scraped by this resource across all endpoints.", m))
 	}
 
 	targetLabel := data.targetLabel
