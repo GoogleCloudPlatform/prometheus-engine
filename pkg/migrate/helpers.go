@@ -41,6 +41,14 @@ const (
 	labelAddress                = "__address__"
 )
 
+// Constants representing the supported ScrapeProtocol enum values defined in upstream Prometheus Operator.
+const (
+	scrapeProtocolOpenMetricsText001 = pomonitoringv1.ScrapeProtocol("OpenMetricsText0.0.1")
+	scrapeProtocolOpenMetricsText100 = pomonitoringv1.ScrapeProtocol("OpenMetricsText1.0.0")
+	scrapeProtocolPrometheusProto    = pomonitoringv1.ScrapeProtocol("PrometheusProto")
+	scrapeProtocolPrometheusText004  = pomonitoringv1.ScrapeProtocol("PrometheusText0.0.4")
+)
+
 var (
 	// protectedLabels contains the list of labels that are protected by GMP and cannot
 	// be overwritten by targetLabels or relabeling rules.
