@@ -597,3 +597,321 @@ func TestConvertLimits(t *testing.T) {
 		})
 	}
 }
+
+func TestDetermineNamespaceScoping(t *testing.T) {
+	tests := []struct {
+		name              string
+		nsSel             pomonitoringv1.NamespaceSelector
+		defaultNS         string
+		expectedNS        []string
+		expectedIsCluster bool
+		expectErr         bool
+	}{
+		{
+			name:              "any namespace true",
+			nsSel:             pomonitoringv1.NamespaceSelector{Any: true},
+			defaultNS:         "default",
+			expectedNS:        nil,
+			expectedIsCluster: true,
+			expectErr:         false,
+		},
+		{
+			name:              "specific matchNames",
+			nsSel:             pomonitoringv1.NamespaceSelector{MatchNames: []string{"ns1", "ns2"}},
+			defaultNS:         "default",
+			expectedNS:        []string{"ns1", "ns2"},
+			expectedIsCluster: false,
+			expectErr:         false,
+		},
+		{
+			name:              "empty matchNames fallback to default",
+			nsSel:             pomonitoringv1.NamespaceSelector{},
+			defaultNS:         "default",
+			expectedNS:        []string{"default"},
+			expectedIsCluster: false,
+			expectErr:         false,
+		},
+		{
+			name:      "invalid matchNames",
+			nsSel:     pomonitoringv1.NamespaceSelector{MatchNames: []string{""}},
+			defaultNS: "default",
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ns, isCluster, err := determineNamespaceScoping(tc.nsSel, tc.defaultNS)
+			if (err != nil) != tc.expectErr {
+				t.Fatalf("determineNamespaceScoping() error = %v, expectErr = %v", err, tc.expectErr)
+			}
+			if tc.expectErr {
+				return
+			}
+			if isCluster != tc.expectedIsCluster {
+				t.Errorf("determineNamespaceScoping() isCluster = %v, want %v", isCluster, tc.expectedIsCluster)
+			}
+			if diff := cmp.Diff(tc.expectedNS, ns); diff != "" {
+				t.Errorf("determineNamespaceScoping() namespaces mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestResolveScrapeIntervalAndTimeout(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	tests := []struct {
+		name            string
+		interval        string
+		timeout         string
+		expectedInt     string
+		expectedTimeout string
+		expectErr       bool
+	}{
+		{
+			name:            "empty defaults to 30s",
+			interval:        "",
+			timeout:         "",
+			expectedInt:     "30s",
+			expectedTimeout: "",
+			expectErr:       false,
+		},
+		{
+			name:            "valid interval and timeout",
+			interval:        "15s",
+			timeout:         "10s",
+			expectedInt:     "15s",
+			expectedTimeout: "10s",
+			expectErr:       false,
+		},
+		{
+			name:            "timeout larger than interval is capped",
+			interval:        "10s",
+			timeout:         "20s",
+			expectedInt:     "10s",
+			expectedTimeout: "10s",
+			expectErr:       false,
+		},
+		{
+			name:      "invalid interval duration",
+			interval:  "invalid",
+			expectErr: true,
+		},
+		{
+			name:      "invalid timeout duration",
+			interval:  "15s",
+			timeout:   "invalid",
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			intVal, toVal, err := resolveScrapeIntervalAndTimeout(logger, tc.interval, tc.timeout)
+			if (err != nil) != tc.expectErr {
+				t.Fatalf("resolveScrapeIntervalAndTimeout() error = %v, expectErr = %v", err, tc.expectErr)
+			}
+			if tc.expectErr {
+				return
+			}
+			if intVal != tc.expectedInt {
+				t.Errorf("resolveScrapeIntervalAndTimeout() interval = %v, want %v", intVal, tc.expectedInt)
+			}
+			if toVal != tc.expectedTimeout {
+				t.Errorf("resolveScrapeIntervalAndTimeout() timeout = %v, want %v", toVal, tc.expectedTimeout)
+			}
+		})
+	}
+}
+
+func TestConvertProxyURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		proxyURL    *string
+		expectedURL string
+		expectErr   bool
+	}{
+		{
+			name:        "nil proxyURL",
+			proxyURL:    nil,
+			expectedURL: "",
+			expectErr:   false,
+		},
+		{
+			name:        "valid proxyURL without credentials",
+			proxyURL:    ptrTo("http://proxy.example.com"),
+			expectedURL: "http://proxy.example.com",
+			expectErr:   false,
+		},
+		{
+			name:      "proxyURL with credentials returns error",
+			proxyURL:  ptrTo("http://user:pass@proxy.example.com"),
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			url, err := convertProxyURL(tc.proxyURL)
+			if (err != nil) != tc.expectErr {
+				t.Fatalf("convertProxyURL() error = %v, expectErr = %v", err, tc.expectErr)
+			}
+			if tc.expectErr {
+				return
+			}
+			if url != tc.expectedURL {
+				t.Errorf("convertProxyURL() = %v, want %v", url, tc.expectedURL)
+			}
+		})
+	}
+}
+
+func TestResolveFilterRunning(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	tests := []struct {
+		name           string
+		filterRunnings []*bool
+		isCluster      bool
+		expected       *bool
+	}{
+		{
+			name:           "empty cluster monitor defaults to nil",
+			filterRunnings: nil,
+			isCluster:      true,
+			expected:       nil,
+		},
+		{
+			name:           "empty namespaced monitor defaults to nil",
+			filterRunnings: nil,
+			isCluster:      false,
+			expected:       nil,
+		},
+		{
+			name:           "all true resolves to nil (GMP default)",
+			filterRunnings: []*bool{ptrTo(true), ptrTo(true)},
+			isCluster:      false,
+			expected:       nil,
+		},
+		{
+			name:           "all false resolves to false",
+			filterRunnings: []*bool{ptrTo(false), ptrTo(false)},
+			isCluster:      false,
+			expected:       ptrTo(false),
+		},
+		{
+			name:           "mixed true and false resolves to false",
+			filterRunnings: []*bool{ptrTo(true), ptrTo(false)},
+			isCluster:      false,
+			expected:       ptrTo(false),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := resolveFilterRunning(tc.filterRunnings, logger, tc.isCluster)
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Errorf("resolveFilterRunning() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestResolveAttachMetadata(t *testing.T) {
+	tests := []struct {
+		name           string
+		attachMetadata *pomonitoringv1.AttachMetadata
+		base           *[]string
+		isCluster      bool
+		expected       *[]string
+	}{
+		{
+			name:           "nil attachMetadata returns base",
+			attachMetadata: nil,
+			base:           &[]string{"pod"},
+			isCluster:      false,
+			expected:       &[]string{"pod"},
+		},
+		{
+			name:           "attachMetadata node false returns base",
+			attachMetadata: &pomonitoringv1.AttachMetadata{Node: ptrTo(false)},
+			base:           nil,
+			isCluster:      false,
+			expected:       nil,
+		},
+		{
+			name:           "namespaced monitor with nil base returns node",
+			attachMetadata: &pomonitoringv1.AttachMetadata{Node: ptrTo(true)},
+			base:           nil,
+			isCluster:      false,
+			expected:       &[]string{"node"},
+		},
+		{
+			name:           "cluster monitor with nil base returns node plus cluster defaults",
+			attachMetadata: &pomonitoringv1.AttachMetadata{Node: ptrTo(true)},
+			base:           nil,
+			isCluster:      true,
+			expected:       &[]string{"container", "namespace", "node", "pod", "top_level_controller_name", "top_level_controller_type"},
+		},
+		{
+			name:           "namespaced monitor with existing base appends node",
+			attachMetadata: &pomonitoringv1.AttachMetadata{Node: ptrTo(true)},
+			base:           &[]string{"pod"},
+			isCluster:      false,
+			expected:       &[]string{"pod", "node"},
+		},
+		{
+			name:           "namespaced monitor with node already present does not duplicate",
+			attachMetadata: &pomonitoringv1.AttachMetadata{Node: ptrTo(true)},
+			base:           &[]string{"pod", "node"},
+			isCluster:      false,
+			expected:       &[]string{"pod", "node"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := resolveAttachMetadata(tc.attachMetadata, tc.base, tc.isCluster)
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Errorf("resolveAttachMetadata() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestToStrictUnstructured(t *testing.T) {
+	tests := []struct {
+		name      string
+		obj       any
+		expectErr bool
+	}{
+		{
+			name: "scrape limits with uint64 converts to int64",
+			obj: &monitoringv1.ScrapeLimits{
+				Samples: 5000,
+				Labels:  100,
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			u, err := toStrictUnstructured(tc.obj)
+			if (err != nil) != tc.expectErr {
+				t.Fatalf("toStrictUnstructured() error = %v, expectErr = %v", err, tc.expectErr)
+			}
+			if tc.expectErr {
+				return
+			}
+			// Verify uint64 fields are converted to int64.
+			if val, ok := u["samples"]; ok {
+				if _, isInt64 := val.(int64); !isInt64 {
+					t.Errorf("expected samples to be int64, got %T", val)
+				}
+			}
+			// Verify DeepCopy does not panic.
+			unstruct := &unstructured.Unstructured{Object: u}
+			_ = unstruct.DeepCopy()
+		})
+	}
+}

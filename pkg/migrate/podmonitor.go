@@ -135,11 +135,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 		gmpEp.Timeout = timeout
 
 		// 4. Relabeling Rules (Promoted Pre-Scrape + MetricRelabelings).
-		relabelings, err := combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
-		if err != nil {
-			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
-		}
-		gmpEp.MetricRelabeling = relabelings
+		gmpEp.MetricRelabeling = combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
 
 		// Proxy Settings.
 		proxyURL, err := convertProxyURL(ep.ProxyURL)
@@ -152,9 +148,9 @@ func (c *PodMonitorConverter) convertEndpoints(
 		// The pinned Prometheus Operator version lacks these fields, and GMP does not support them anyway.
 
 		// Auth & TLS mappings.
-		err = convCtx.applyAuthAndTLS(i, &gmpEp, ep.BasicAuth, ep.OAuth2, ep.TLSConfig, ep.Authorization, ep.BearerTokenSecret) // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
+		err = convCtx.applyAuthAndTLS(&gmpEp, ep.BasicAuth, ep.OAuth2, ep.TLSConfig, ep.Authorization, ep.BearerTokenSecret) // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 		}
 
 		// 5. Warnings for Unsupported Fields in Endpoint.
@@ -187,7 +183,11 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 		return nil, err
 	}
 	if len(mergedSelector.MatchLabels) == 0 && len(mergedSelector.MatchExpressions) == 0 {
-		logger.Warn("Resulting PodMonitoring selector is empty. It will select and scrape all pods in this namespace. Verify if this is intended.")
+		if isCluster {
+			logger.Warn("Resulting ClusterPodMonitoring selector is empty. It will select and scrape all pods across all namespaces. Verify if this is intended.")
+		} else {
+			logger.Warn("Resulting PodMonitoring selector is empty. It will select and scrape all pods in this namespace. Verify if this is intended.")
+		}
 	}
 
 	// Spec-level warnings for unsupported fields.
@@ -250,32 +250,52 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 	}, nil
 }
 
-func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	res, err := c.convertMonitorSpec(pm, logger, cache, false)
+// filterMetadata applies namespaced or cluster metadata defaults and strips namespace metadata in namespaced resources.
+func filterMetadata(metadata *[]string, isCluster bool, logger *slog.Logger) *[]string {
+	if metadata == nil {
+		return nil
+	}
+	if isCluster {
+		union := unionMetadata(*metadata, clusterMetadataDefaults)
+		return &union
+	}
+	union := unionMetadata(*metadata, namespacedMetadataDefaults)
+	var md []string
+	for _, m := range union {
+		if m != export.KeyNamespace {
+			md = append(md, m)
+		} else {
+			logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The rule has been dropped.")
+		}
+	}
+	if len(md) > 0 {
+		return &md
+	}
+	return nil
+}
+
+// convertToMonitoringResource is a parameterized helper that converts a PodMonitor to either a PodMonitoring or ClusterPodMonitoring resource.
+func (c *PodMonitorConverter) convertToMonitoringResource(
+	pm *pomonitoringv1.PodMonitor,
+	logger *slog.Logger,
+	cache *ResourceCache,
+	isCluster bool,
+) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	res, err := c.convertMonitorSpec(pm, logger, cache, isCluster)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var filteredMetadata *[]string
-	if res.metadata != nil {
-		union := unionMetadata(*res.metadata, namespacedMetadataDefaults)
-		var md []string
-		for _, m := range union {
-			if m != export.KeyNamespace {
-				md = append(md, m)
-			} else {
-				logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The rule has been dropped.")
-			}
-		}
-		if len(md) > 0 {
-			filteredMetadata = &md
-		}
-	}
-
 	resCopy := *res
-	resCopy.metadata = filteredMetadata
+	resCopy.metadata = filterMetadata(res.metadata, isCluster, logger)
+	resCopy.metadata = resolveAttachMetadata(pm.Spec.AttachMetadata, resCopy.metadata, isCluster)
 
-	u, err := buildPodMonitoring(pm.ObjectMeta, pm.Namespace, &resCopy, logger)
+	var u *unstructured.Unstructured
+	if isCluster {
+		u, err = buildClusterPodMonitoring(pm.ObjectMeta, &resCopy, logger)
+	} else {
+		u, err = buildPodMonitoring(pm.ObjectMeta, pm.Namespace, &resCopy, logger)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -283,27 +303,12 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	return u, res.generatedSecrets, nil
 }
 
+func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	return c.convertToMonitoringResource(pm, logger, cache, false)
+}
+
 func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	res, err := c.convertMonitorSpec(pm, logger, cache, true)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var filteredMetadata *[]string
-	if res.metadata != nil {
-		union := unionMetadata(*res.metadata, clusterMetadataDefaults)
-		filteredMetadata = &union
-	}
-
-	resCopy := *res
-	resCopy.metadata = filteredMetadata
-
-	u, err := buildClusterPodMonitoring(pm.ObjectMeta, &resCopy, logger)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return u, res.generatedSecrets, nil
+	return c.convertToMonitoringResource(pm, logger, cache, true)
 }
 
 func unionMetadata(extracted []string, defaults []string) []string {

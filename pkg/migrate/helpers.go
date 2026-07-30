@@ -16,7 +16,6 @@ package migrate
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -31,6 +30,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -650,7 +650,6 @@ func (c *conversionContext) convertAuthorization(auth *pomonitoringv1.SafeAuthor
 
 // applyAuthAndTLS converts credentials and TLS settings for a generic endpoint.
 func (c *conversionContext) applyAuthAndTLS(
-	i int,
 	gmpEp *monitoringv1.ScrapeEndpoint,
 	basicAuth *pomonitoringv1.BasicAuth,
 	oAuth2 *pomonitoringv1.OAuth2,
@@ -665,28 +664,28 @@ func (c *conversionContext) applyAuthAndTLS(
 	if basicAuth != nil {
 		ba, err := c.convertBasicAuth(basicAuth)
 		if err != nil {
-			return fmt.Errorf("endpoint [%d]: basicAuth: %w", i, err)
+			return fmt.Errorf("basicAuth: %w", err)
 		}
 		gmpEp.BasicAuth = ba
 	}
 	if oAuth2 != nil {
 		oa, err := c.convertOAuth2(oAuth2)
 		if err != nil {
-			return fmt.Errorf("endpoint [%d]: oAuth2: %w", i, err)
+			return fmt.Errorf("oAuth2: %w", err)
 		}
 		gmpEp.OAuth2 = oa
 	}
 	if tlsConfig != nil {
 		tls, err := c.convertSafeTLSConfig(tlsConfig)
 		if err != nil {
-			return fmt.Errorf("endpoint [%d]: tlsConfig: %w", i, err)
+			return fmt.Errorf("tlsConfig: %w", err)
 		}
 		gmpEp.TLS = tls
 	}
 	if authorization != nil {
 		auth, err := c.convertAuthorization(authorization)
 		if err != nil {
-			return fmt.Errorf("endpoint [%d]: authorization: %w", i, err)
+			return fmt.Errorf("authorization: %w", err)
 		}
 		gmpEp.Authorization = auth
 	}
@@ -694,13 +693,12 @@ func (c *conversionContext) applyAuthAndTLS(
 	// Handle deprecated BearerTokenSecret -> Authorization.
 	if bearerTokenSecret.Name != "" { // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 		if gmpEp.Authorization != nil {
-			c.logger.Warn("Endpoint has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.",
-				slog.Int("endpoint_index", i))
+			c.logger.Warn("Endpoint has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.")
 		} else {
 			tokenSecret := bearerTokenSecret // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 			auth, err := c.convertAuthorization(&pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})
 			if err != nil {
-				return fmt.Errorf("endpoint [%d]: bearerTokenSecret: %w", i, err)
+				return fmt.Errorf("bearerTokenSecret: %w", err)
 			}
 			gmpEp.Authorization = auth
 		}
@@ -711,7 +709,7 @@ func (c *conversionContext) applyAuthAndTLS(
 func convertMetricRelabelings(
 	logger *slog.Logger,
 	configs []pomonitoringv1.RelabelConfig,
-) ([]monitoringv1.RelabelingRule, error) {
+) []monitoringv1.RelabelingRule {
 	var rules []monitoringv1.RelabelingRule
 
 	for _, config := range configs {
@@ -759,7 +757,7 @@ func convertMetricRelabelings(
 		rules = append(rules, rule)
 	}
 
-	return rules, nil
+	return rules
 }
 
 func convertTargetLabels(logger *slog.Logger, sourceLabels []string, jobLabel string, labelKind string) []monitoringv1.LabelMapping {
@@ -1042,19 +1040,31 @@ func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLeng
 	return limits
 }
 
-// toStrictUnstructured converts a struct to a strictly JSON-compatible unstructured map.
-// uses JSON to silently convert unsupported Go primitives (like uint64) into safe float64 numbers.
-// ensures the resulting map will not panic on DeepCopy.
+// toStrictUnstructured converts a struct to an unstructured map and normalizes uint64 fields to int64.
+// This prevents unstructured.DeepCopy from panicking without losing integer precision.
 func toStrictUnstructured(obj any) (map[string]any, error) {
-	b, err := json.Marshal(obj)
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	if err != nil {
 		return nil, err
 	}
-	var u map[string]any
-	if err := json.Unmarshal(b, &u); err != nil {
-		return nil, err
+	return sanitizeUInt64(u).(map[string]any), nil
+}
+
+// sanitizeUInt64 recursively converts uint64 primitives to int64 for unstructured compatibility.
+func sanitizeUInt64(val any) any {
+	switch v := val.(type) {
+	case uint64:
+		return int64(v)
+	case map[string]any:
+		for k, child := range v {
+			v[k] = sanitizeUInt64(child)
+		}
+	case []any:
+		for i, child := range v {
+			v[i] = sanitizeUInt64(child)
+		}
 	}
-	return u, nil
+	return val
 }
 
 // buildPodMonitoring constructs a GMP PodMonitoring resource from common spec.
@@ -1252,22 +1262,19 @@ func warnUnsupportedEndpointFields(logger *slog.Logger, followRedirects *bool, e
 }
 
 // combineAndConvertRelabelings combines promoted pre-scrape rules and converts metricRelabelings.
-func combineAndConvertRelabelings(logger *slog.Logger, promoted []monitoringv1.RelabelingRule, configs []pomonitoringv1.RelabelConfig) ([]monitoringv1.RelabelingRule, error) {
+func combineAndConvertRelabelings(logger *slog.Logger, promoted []monitoringv1.RelabelingRule, configs []pomonitoringv1.RelabelConfig) []monitoringv1.RelabelingRule {
 	totalRules := len(promoted) + len(configs)
 	if totalRules == 0 {
-		return nil, nil
+		return nil
 	}
 
 	allRules := make([]monitoringv1.RelabelingRule, 0, totalRules)
 	allRules = append(allRules, promoted...)
 
 	if len(configs) > 0 {
-		rules, err := convertMetricRelabelings(logger, configs)
-		if err != nil {
-			return nil, err
-		}
+		rules := convertMetricRelabelings(logger, configs)
 		allRules = append(allRules, rules...)
 	}
 
-	return allRules, nil
+	return allRules
 }
