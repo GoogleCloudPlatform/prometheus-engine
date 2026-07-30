@@ -15,7 +15,9 @@
 package migrate
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -32,10 +34,11 @@ import (
 
 func TestPodMonitorConversion(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    *pomonitoringv1.PodMonitor
-		expected []runtime.Object
-		wantErr  string
+		name         string
+		input        *pomonitoringv1.PodMonitor
+		expected     []runtime.Object
+		wantErr      string
+		wantWarnings []string
 	}{
 		{
 			name: "Case A: Cluster-Scoped (Any Namespace)",
@@ -1207,6 +1210,56 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
+			name: "Scope-aware Metadata: AttachMetadata.Node seeds from clusterMetadataDefaults in ClusterPodMonitoring",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster-node-metadata-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						Any: true,
+					},
+					AttachMetadata: &pomonitoringv1.AttachMetadata{
+						Node: ptrTo(true),
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port:     "metrics",
+							Interval: "30s",
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.ClusterPodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "cluster-node-metadata-monitor"},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "test"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+							},
+						},
+						TargetLabels: monitoringv1.ClusterTargetLabels{
+							Metadata: ptrTo([]string{"container", "namespace", labelNode, "pod", "top_level_controller_name", "top_level_controller_type"}),
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "Selector conflict: keep rule value conflicts with base matchLabels value",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
@@ -1496,7 +1549,80 @@ func TestPodMonitorConversion(t *testing.T) {
 							},
 						},
 						TargetLabels: monitoringv1.TargetLabels{
-							Metadata: &[]string{"node"},
+							Metadata: &[]string{labelNode},
+						},
+						Limits: &monitoringv1.ScrapeLimits{
+							Samples:          5000,
+							Labels:           50,
+							LabelNameLength:  100,
+							LabelValueLength: 200,
+						},
+						FilterRunning: ptrTo(false),
+					},
+				},
+			},
+			wantWarnings: []string{
+				"Field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped.",
+				"Field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped.",
+				"was not found in the inputs. The 'scrapeClassName' field has been dropped",
+			},
+		},
+		{
+			name: "Limits, AttachMetadata.Node, and FilterRunning conversion in ClusterPodMonitoring",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster-advanced-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						Any: true,
+					},
+					AttachMetadata: &pomonitoringv1.AttachMetadata{
+						Node: ptrTo(true),
+					},
+					SampleLimit:           ptrTo(uint64(5000)),
+					LabelLimit:            ptrTo(uint64(50)),
+					LabelNameLengthLimit:  ptrTo(uint64(100)),
+					LabelValueLengthLimit: ptrTo(uint64(200)),
+					ScrapeClassName:       ptrTo("custom-class"),
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "advanced"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port:            "web",
+							Interval:        "15s",
+							FilterRunning:   ptrTo(false),
+							FollowRedirects: ptrTo(false),
+							EnableHttp2:     ptrTo(false),
+						},
+					},
+				},
+			},
+			wantWarnings: []string{
+				"Field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped.",
+				"Field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped.",
+				"was not found in the inputs. The 'scrapeClassName' field has been dropped",
+			},
+			expected: []runtime.Object{
+				&monitoringv1.ClusterPodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "cluster-advanced-monitor"},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "advanced"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web"),
+								Interval: "15s",
+							},
+						},
+						TargetLabels: monitoringv1.ClusterTargetLabels{
+							Metadata: ptrTo([]string{"container", "namespace", labelNode, "pod", "top_level_controller_name", "top_level_controller_type"}),
 						},
 						Limits: &monitoringv1.ScrapeLimits{
 							Samples:          5000,
@@ -1522,8 +1648,8 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 				Spec: pomonitoringv1.PodMonitorSpec{
 					ScrapeProtocols: []pomonitoringv1.ScrapeProtocol{
-						"application/openmetrics-text",
-						"application/vnd.google.protobuf",
+						scrapeProtocolOpenMetricsText100,
+						scrapeProtocolPrometheusProto,
 					},
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "scrape-protocols"},
@@ -1549,6 +1675,57 @@ func TestPodMonitorConversion(t *testing.T) {
 						},
 					},
 				},
+			},
+			wantWarnings: []string{
+				"Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.",
+			},
+		},
+		{
+			name: "ScrapeProtocols protobuf warning in ClusterPodMonitoring",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster-scrape-protocols-warn",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						Any: true,
+					},
+					ScrapeProtocols: []pomonitoringv1.ScrapeProtocol{
+						scrapeProtocolOpenMetricsText100,
+						scrapeProtocolPrometheusProto,
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "scrape-protocols"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "web",
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.ClusterPodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "cluster-scrape-protocols-warn"},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "scrape-protocols"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+			wantWarnings: []string{
+				"Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.",
 			},
 		},
 		{
@@ -1596,16 +1773,73 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 				},
 			},
+			wantWarnings: []string{
+				"Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true'",
+			},
+		},
+		{
+			name: "FilterRunning conflict resolution in ClusterPodMonitoring",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster-filter-running-conflict",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						Any: true,
+					},
+					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port:          "web-1",
+							FilterRunning: ptrTo(false),
+						},
+						{
+							Port:          "web-2",
+							FilterRunning: ptrTo(true),
+						},
+					},
+				},
+			},
+			wantWarnings: []string{
+				"Endpoint-level configuration conflict detected: some endpoints are configured with 'filterRunning: false' and others with 'true'",
+			},
+			expected: []runtime.Object{
+				&monitoringv1.ClusterPodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "cluster-filter-running-conflict"},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web-1"),
+								Interval: "30s",
+							},
+							{
+								Port:     intstr.FromString("web-2"),
+								Interval: "30s",
+							},
+						},
+						FilterRunning: ptrTo(false),
+					},
+				},
+			},
 		},
 	}
 
 	converter := &PodMonitorConverter{}
-	logger := slog.New(slog.NewTextHandler(&testingWriter{t}, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(io.MultiWriter(&buf, &testingWriter{t}), &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			}))
+
 			uInput := toUnstructured(t, tc.input)
 
 			actual, err := converter.Convert(context.Background(), logger, uInput, NewResourceCache())
@@ -1622,6 +1856,16 @@ func TestPodMonitorConversion(t *testing.T) {
 
 			if err != nil {
 				t.Fatalf("Convert failed: %v", err)
+			}
+
+			// Check that all expected warning substrings appear in the log output.
+			if len(tc.wantWarnings) > 0 {
+				outStr := buf.String()
+				for _, wantWarn := range tc.wantWarnings {
+					if !strings.Contains(outStr, wantWarn) {
+						t.Errorf("expected warning containing %q, got logs:\n%s", wantWarn, outStr)
+					}
+				}
 			}
 
 			if len(actual) != len(tc.expected) {

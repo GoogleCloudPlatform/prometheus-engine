@@ -300,8 +300,9 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	if pm.Spec.ScrapeClassName != nil && *pm.Spec.ScrapeClassName != "" {
 		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
 	}
+	// Check against the PrometheusProto enum value or the substring proto.
 	for _, sp := range pm.Spec.ScrapeProtocols {
-		if strings.Contains(strings.ToLower(string(sp)), "protobuf") {
+		if sp == scrapeProtocolPrometheusProto || strings.Contains(strings.ToLower(string(sp)), "proto") {
 			logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
 			break
 		}
@@ -325,9 +326,9 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 
 	if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
 		if filteredMetadata == nil {
-			filteredMetadata = &[]string{"node"}
-		} else if !slices.Contains(*filteredMetadata, "node") {
-			metadataCopy := append(slices.Clone(*filteredMetadata), "node")
+			filteredMetadata = &[]string{labelNode}
+		} else if !slices.Contains(*filteredMetadata, labelNode) {
+			metadataCopy := append(slices.Clone(*filteredMetadata), labelNode)
 			filteredMetadata = &metadataCopy
 		}
 	}
@@ -405,10 +406,11 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 	// Spec-level warnings for unsupported fields.
 	// TODO(M2): Resolve and merge ScrapeClass configurations from Prometheus CR if scrapeClassName is specified.
 	if pm.Spec.ScrapeClassName != nil && *pm.Spec.ScrapeClassName != "" {
-		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the pre-scanned inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
+		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
 	}
+	// Check against the PrometheusProto enum value or the substring proto.
 	for _, sp := range pm.Spec.ScrapeProtocols {
-		if strings.Contains(strings.ToLower(string(sp)), "protobuf") {
+		if sp == scrapeProtocolPrometheusProto || strings.Contains(strings.ToLower(string(sp)), "proto") {
 			logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
 			break
 		}
@@ -420,12 +422,15 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		filteredMetadata = &union
 	}
 
+	// In GMP, Metadata: nil on a ClusterPodMonitoring defaults to emitting namespace and other cluster defaults.
+	// When setting Metadata explicitly for AttachMetadata.Node, we must merge clusterMetadataDefaults so that namespace is not dropped.
 	if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
 		if filteredMetadata == nil {
-			filteredMetadata = &[]string{"node"}
-		} else if !slices.Contains(*filteredMetadata, "node") {
-			metadataCopy := append(slices.Clone(*filteredMetadata), "node")
-			filteredMetadata = &metadataCopy
+			union := unionMetadata([]string{labelNode}, clusterMetadataDefaults)
+			filteredMetadata = &union
+		} else {
+			union := unionMetadata([]string{labelNode}, *filteredMetadata)
+			filteredMetadata = &union
 		}
 	}
 
