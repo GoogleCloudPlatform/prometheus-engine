@@ -296,7 +296,7 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 			if m != export.KeyNamespace {
 				md = append(md, m)
 			} else {
-				logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The rule has been dropped.")
+				logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The metadata entry has been omitted .")
 			}
 		}
 		if len(md) > 0 {
