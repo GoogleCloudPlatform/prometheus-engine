@@ -681,6 +681,61 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
+			name: "Pre-Scrape Relabelings: drop relabeling rule referencing node Kubernetes labels with warning",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "node-relabel-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_node_label_topology_kubernetes_io_zone"},
+									TargetLabel:  "zone",
+									Action:       "replace",
+								},
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_node_label_kubernetes_io_hostname"},
+									TargetLabel:  "hostname",
+									Action:       "replace",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantWarnings: []string{
+				"is unsupported in GMP (only node name is supported). The rule has been dropped.",
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "node-relabel-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "test"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "Pre-Scrape Relabelings: target filtering keep rule translated to Pod Selector, drop rule falls through to metricRelabeling",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
@@ -1518,9 +1573,12 @@ func TestPodMonitorConversion(t *testing.T) {
 						Node: ptrTo(true),
 					},
 					SampleLimit:           ptrTo(uint64(5000)),
+					TargetLimit:           ptrTo(uint64(100)),
+					KeepDroppedTargets:    ptrTo(uint64(50)),
 					LabelLimit:            ptrTo(uint64(50)),
 					LabelNameLengthLimit:  ptrTo(uint64(100)),
 					LabelValueLengthLimit: ptrTo(uint64(200)),
+					BodySizeLimit:         ptrTo(pomonitoringv1.ByteSize("10MB")),
 					ScrapeClassName:       ptrTo("custom-class"),
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "advanced"},
@@ -1562,8 +1620,11 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 			wantWarnings: []string{
-				"Field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped.",
-				"Field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped.",
+				"Field 'targetLimit' is unnecessary in GMP Managed Collection and has been dropped. Target discovery and scaling are managed automatically by GKE.",
+				"Field 'keepDroppedTargets' is unnecessary in GMP Managed Collection and has been dropped.",
+				"Field 'bodySizeLimit' is unsupported by GMP Managed Collection and has been dropped. Scrape response buffer limits are managed automatically by GMP.",
+				"endpoint [0]: field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped.",
+				"endpoint [0]: field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped.",
 				"was not found in the inputs. The 'scrapeClassName' field has been dropped",
 			},
 		},
@@ -1586,9 +1647,12 @@ func TestPodMonitorConversion(t *testing.T) {
 						Node: ptrTo(true),
 					},
 					SampleLimit:           ptrTo(uint64(5000)),
+					TargetLimit:           ptrTo(uint64(100)),
+					KeepDroppedTargets:    ptrTo(uint64(50)),
 					LabelLimit:            ptrTo(uint64(50)),
 					LabelNameLengthLimit:  ptrTo(uint64(100)),
 					LabelValueLengthLimit: ptrTo(uint64(200)),
+					BodySizeLimit:         ptrTo(pomonitoringv1.ByteSize("10MB")),
 					ScrapeClassName:       ptrTo("custom-class"),
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "advanced"},
@@ -1605,8 +1669,11 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 			wantWarnings: []string{
-				"Field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped.",
-				"Field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped.",
+				"Field 'targetLimit' is unnecessary in GMP Managed Collection and has been dropped. Target discovery and scaling are managed automatically by GKE.",
+				"Field 'keepDroppedTargets' is unnecessary in GMP Managed Collection and has been dropped.",
+				"Field 'bodySizeLimit' is unsupported by GMP Managed Collection and has been dropped. Scrape response buffer limits are managed automatically by GMP.",
+				"endpoint [0]: field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped.",
+				"endpoint [0]: field 'enableHttp2: false' is unsupported by GMP Managed Collection and has been dropped.",
 				"was not found in the inputs. The 'scrapeClassName' field has been dropped",
 			},
 			expected: []runtime.Object{
