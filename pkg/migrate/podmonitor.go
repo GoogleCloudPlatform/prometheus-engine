@@ -322,12 +322,15 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		}
 	}
 
+	// In GMP, Metadata: nil on a PodMonitoring defaults to emitting namespaced defaults (container, pod, etc.).
+	// When setting Metadata explicitly for AttachMetadata.Node, we must merge namespacedMetadataDefaults so that default metadata is not dropped.
 	if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
 		if filteredMetadata == nil {
-			filteredMetadata = &[]string{labelNode}
-		} else if !slices.Contains(*filteredMetadata, labelNode) {
-			metadataCopy := append(slices.Clone(*filteredMetadata), labelNode)
-			filteredMetadata = &metadataCopy
+			union := unionMetadata([]string{labelNode}, namespacedMetadataDefaults)
+			filteredMetadata = &union
+		} else {
+			union := unionMetadata([]string{labelNode}, *filteredMetadata)
+			filteredMetadata = &union
 		}
 	}
 

@@ -554,3 +554,48 @@ func TestMergeFromPod(t *testing.T) {
 		t.Errorf("mergeFromPod mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestConvertLimits(t *testing.T) {
+	tests := []struct {
+		name                  string
+		sampleLimit           *uint64
+		labelLimit            *uint64
+		labelNameLengthLimit  *uint64
+		labelValueLengthLimit *uint64
+		expected              *monitoringv1.ScrapeLimits
+	}{
+		{
+			name:     "All nil inputs return nil",
+			expected: nil,
+		},
+		{
+			name:        "Explicit zero value is preserved",
+			sampleLimit: ptrTo(uint64(0)),
+			expected: &monitoringv1.ScrapeLimits{
+				Samples: 0,
+			},
+		},
+		{
+			name:                  "Non-zero limits are converted",
+			sampleLimit:           ptrTo(uint64(5000)),
+			labelLimit:            ptrTo(uint64(50)),
+			labelNameLengthLimit:  ptrTo(uint64(100)),
+			labelValueLengthLimit: ptrTo(uint64(200)),
+			expected: &monitoringv1.ScrapeLimits{
+				Samples:          5000,
+				Labels:           50,
+				LabelNameLength:  100,
+				LabelValueLength: 200,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := convertLimits(tc.sampleLimit, tc.labelLimit, tc.labelNameLengthLimit, tc.labelValueLengthLimit)
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Errorf("convertLimits() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
