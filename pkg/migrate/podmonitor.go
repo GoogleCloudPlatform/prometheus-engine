@@ -302,11 +302,8 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
 	}
 	// Check against the PrometheusProto enum value.
-	for _, sp := range pm.Spec.ScrapeProtocols {
-		if sp == scrapeProtocolPrometheusProto {
-			logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
-			break
-		}
+	if slices.Contains(pm.Spec.ScrapeProtocols, scrapeProtocolPrometheusProto) {
+		logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
 	}
 
 	var filteredMetadata *[]string
@@ -412,11 +409,8 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
 	}
 	// Check against the PrometheusProto enum value.
-	for _, sp := range pm.Spec.ScrapeProtocols {
-		if sp == scrapeProtocolPrometheusProto {
-			logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
-			break
-		}
+	if slices.Contains(pm.Spec.ScrapeProtocols, scrapeProtocolPrometheusProto) {
+		logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
 	}
 
 	var filteredMetadata *[]string
