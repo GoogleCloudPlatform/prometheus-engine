@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 
@@ -30,7 +31,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -86,7 +89,7 @@ type relabelingData struct {
 	rewrittenSources []string
 }
 
-// preScrapeRelabelingResult holds the label mappings and selector rules extracted from pre-scrape relabelings.
+// PreScrapeRelabelingResult holds the label mappings and selector rules extracted from pre-scrape relabelings.
 type preScrapeRelabelingResult struct {
 	FromPod          []monitoringv1.LabelMapping
 	Metadata         *[]string
@@ -95,7 +98,7 @@ type preScrapeRelabelingResult struct {
 	PromotedRules    []monitoringv1.RelabelingRule
 }
 
-// extractedPreScrapeRules holds all translated rules, separated by where they belong in GMP.
+// ExtractedPreScrapeRules holds all translated rules, separated by where they belong in GMP.
 type extractedPreScrapeRules struct {
 	// PerEndpoint contains the rules (like promoted metric relabelings) specific to each scrape endpoint.
 	PerEndpoint []preScrapeRelabelingResult
@@ -1293,4 +1296,164 @@ func combineAndConvertRelabelings(logger *slog.Logger, promoted []monitoringv1.R
 		return nil
 	}
 	return allRules
+}
+
+// findServicesBySelector finds Services matching the selector in target namespaces (all if empty).
+func (c *ResourceCache) findServicesBySelector(selector metav1.LabelSelector, namespaces []string) ([]*unstructured.Unstructured, error) {
+	sel, err := metav1.LabelSelectorAsSelector(&selector)
+	if err != nil {
+		return nil, fmt.Errorf("invalid selector: %w", err)
+	}
+
+	var matched []*unstructured.Unstructured
+
+	if c == nil || c.resources == nil {
+		return nil, nil
+	}
+
+	services, ok := c.resources[KindService]
+	if !ok {
+		return nil, nil
+	}
+
+	// To make output deterministic, we sort the keys before iterating.
+	keys := slices.AppendSeq(make([]string, 0, len(services)), maps.Keys(services))
+	slices.Sort(keys)
+
+	for _, key := range keys {
+		svc := services[key]
+		svcNS := svc.GetNamespace()
+
+		if len(namespaces) > 0 && !slices.Contains(namespaces, svcNS) {
+			continue
+		}
+
+		svcLabels := svc.GetLabels()
+		if sel.Matches(labels.Set(svcLabels)) {
+			matched = append(matched, svc)
+		}
+	}
+	return matched, nil
+}
+
+// asInt32 coerces various Go numeric types into an int32.
+func asInt32(val any) (int32, bool) {
+	switch v := val.(type) {
+	case int:
+		return int32(v), true
+	case int32:
+		return v, true
+	case int64:
+		return int32(v), true
+	case float32:
+		return int32(v), true
+	case float64:
+		return int32(v), true
+	}
+	return 0, false
+}
+
+// resolveServicePort resolves a Service port to the backing Pod's target port.
+func resolveServicePort(svc *unstructured.Unstructured, portStr string) (intstr.IntOrString, error) {
+	if portStr == "" {
+		return intstr.IntOrString{}, errors.New("port string cannot be empty")
+	}
+	if svc == nil || svc.Object == nil {
+		return intstr.IntOrString{}, errors.New("cannot resolve port on nil or uninitialized Service")
+	}
+
+	ports, found, err := unstructured.NestedSlice(svc.Object, "spec", "ports")
+	if err != nil {
+		return intstr.IntOrString{}, fmt.Errorf("failed to read Service ports: %w", err)
+	}
+	if !found {
+		return intstr.IntOrString{}, errors.New("service has no ports defined in spec")
+	}
+
+	for _, p := range ports {
+		portMap, ok := p.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		name, _, _ := unstructured.NestedString(portMap, "name")
+		portVal, foundField, err := unstructured.NestedFieldNoCopy(portMap, "port")
+		if err != nil {
+			return intstr.IntOrString{}, fmt.Errorf("failed to read port field: %w", err)
+		}
+		if !foundField {
+			return intstr.IntOrString{}, errors.New("service port spec is missing the port number")
+		}
+		portNum, ok := asInt32(portVal)
+		if !ok {
+			return intstr.IntOrString{}, fmt.Errorf("invalid port number type in Service spec: %T", portVal)
+		}
+
+		// Match by name or port number (as string).
+		if name == portStr || fmt.Sprintf("%d", portNum) == portStr {
+			targetPort, found, err := unstructured.NestedFieldNoCopy(portMap, "targetPort")
+			if err != nil {
+				return intstr.IntOrString{}, fmt.Errorf("failed to read targetPort: %w", err)
+			}
+			if !found {
+				// If targetPort is omitted, it defaults to the port number.
+				return intstr.FromInt32(portNum), nil
+			}
+
+			// targetPort can be int, float64, or string.
+			if valStr, ok := targetPort.(string); ok {
+				return intstr.FromString(valStr), nil
+			}
+
+			if valNum, ok := asInt32(targetPort); ok {
+				if valNum == 0 {
+					return intstr.FromInt32(portNum), nil
+				}
+				return intstr.FromInt32(valNum), nil
+			}
+
+			return intstr.IntOrString{}, fmt.Errorf("invalid targetPort type: %T", targetPort)
+		}
+	}
+
+	return intstr.IntOrString{}, fmt.Errorf("port %q not found in Service spec", portStr)
+}
+
+// convertServiceTargetLabels maps Service labels to static metricRelabeling rules.
+func convertServiceTargetLabels(logger *slog.Logger, svc *unstructured.Unstructured, targetLabels []string) []monitoringv1.RelabelingRule {
+	if svc == nil || len(targetLabels) == 0 {
+		return nil
+	}
+
+	svcLabels := svc.GetLabels()
+	var rules []monitoringv1.RelabelingRule
+
+	for _, l := range targetLabels {
+		val, ok := svcLabels[l]
+		if !ok {
+			logger.Warn("Service-level targetLabel was not found on Service. Skipping mapping.",
+				slog.String("label", l),
+				slog.String("service", svc.GetName()))
+			continue
+		}
+
+		target := l
+		if protectedLabels[l] {
+			target = "exported_" + l
+			logger.Warn("Service targetLabel matches protected label. Renamed target.",
+				slog.String("label", l),
+				slog.String("renamed_target", target))
+		}
+
+		rules = append(rules, monitoringv1.RelabelingRule{
+			TargetLabel: target,
+			Replacement: val,
+			Action:      string(relabel.Replace),
+		})
+
+		logger.Info("Service label mapped statically to metricRelabeling. Note: Changes to the Service label will not be dynamically reflected on metrics.",
+			slog.String("label", fmt.Sprintf("%s: %s", l, val)))
+	}
+
+	return rules
 }
