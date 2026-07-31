@@ -14,7 +14,7 @@ Validate manifests against a pinned release of this repository:
 ```bash
 kubeconform -kubernetes-version 1.32.0 \
   -schema-location default \
-  -schema-location 'https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/v0.17.3/schemas/{{ .ResourceKind | lower }}-monitoring-{{ .ResourceAPIVersion }}.json' \
+  -schema-location 'https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/v0.17.3/schemas/{{ .ResourceKind }}-monitoring-{{ .ResourceAPIVersion }}.json' \
   -summary \
   examples/
 ```
@@ -24,7 +24,7 @@ For a local checkout, point `-schema-location` at this directory:
 ```bash
 kubeconform -kubernetes-version 1.32.0 \
   -schema-location default \
-  -schema-location 'schemas/{{ .ResourceKind | lower }}-monitoring-{{ .ResourceAPIVersion }}.json' \
+  -schema-location 'schemas/{{ .ResourceKind }}-monitoring-{{ .ResourceAPIVersion }}.json' \
   -summary \
   examples/
 ```
