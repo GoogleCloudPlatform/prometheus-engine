@@ -42,7 +42,7 @@ func TestPodMonitorConversion(t *testing.T) {
 		dontWantWarnings []string
 	}{
 		{
-			name: "Case A: Cluster-Scoped (Any Namespace)",
+			name: "Cluster-Scoped (Any Namespace)",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -83,7 +83,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "Case B: Multi-Namespace Split",
+			name: "Multi-Namespace Split",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -140,7 +140,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "Case B.2: Namespace Deduplication & Trimming",
+			name: "Namespace Deduplication & Trimming",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -180,7 +180,93 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "Case B.3: Broken Config",
+			name: "Multiple Target Namespaces sets SecretReferences to target namespace upon creation",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "secret-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						MatchNames: []string{"ns-1", "ns-2"},
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "secret-app"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							BasicAuth: &pomonitoringv1.BasicAuth{
+								Username: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth"}, Key: "user"},
+								Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth"}, Key: "pass"},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "secret-monitor",
+						Namespace: "ns-1",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "secret-app"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									BasicAuth: &monitoringv1.BasicAuth{
+										Username: "<MISSING_SECRET_auth_KEY_user>",
+										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass", Namespace: "ns-1"}},
+									},
+								},
+							},
+						},
+					},
+				},
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "secret-monitor",
+						Namespace: "ns-2",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "secret-app"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									BasicAuth: &monitoringv1.BasicAuth{
+										Username: "<MISSING_SECRET_auth_KEY_user>",
+										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass", Namespace: "ns-2"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Broken Config",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -202,7 +288,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			wantErr: "namespaceSelector.matchNames contains only empty or invalid values",
 		},
 		{
-			name: "Case C: Local Scoping (Omitted Selector)",
+			name: "Local Scoping (Omitted Selector)",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",

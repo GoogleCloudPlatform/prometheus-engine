@@ -1256,7 +1256,7 @@ func warnUnsupportedEndpointFields(logger *slog.Logger, followRedirects *bool, e
 		logger.Warn(fmt.Sprintf("endpoint [%d]: field 'honorTimestamps: true' is unsupported and dropped. GMP always uses the scrape ingestion timestamp. Target metric timestamps will be ignored.", i))
 	}
 	if trackTimestampsStaleness != nil {
-		logger.Warn(fmt.Sprintf("endpoint [%d]: fField 'trackTimestampsStaleness' is unsupported in GMP and has been dropped.", i))
+		logger.Warn(fmt.Sprintf("endpoint [%d]: field 'trackTimestampsStaleness' is unsupported in GMP and has been dropped.", i))
 	}
 }
 
@@ -1275,5 +1275,8 @@ func combineAndConvertRelabelings(logger *slog.Logger, promoted []monitoringv1.R
 		allRules = append(allRules, rules...)
 	}
 
+	if len(allRules) == 0 {
+		return nil
+	}
 	return allRules
 }
