@@ -83,18 +83,17 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 		)
 	}
 
-	baseU, generatedSecrets, err := c.convertToPodMonitoring(&podMonitor, logger, cache)
-	if err != nil {
-		return nil, err
-	}
-
 	var outputs []*unstructured.Unstructured
 	for _, ns := range targetNamespaces {
-		uClone := baseU.DeepCopy()
-		uClone.SetNamespace(ns)
-		outputs = append(outputs, uClone)
+		pmCopy := podMonitor.DeepCopy()
+		pmCopy.Namespace = ns
+		u, generatedSecrets, err := c.convertToPodMonitoring(pmCopy, logger, cache)
+		if err != nil {
+			return nil, err
+		}
+		outputs = append(outputs, u)
+		outputs = append(outputs, generatedSecrets...)
 	}
-	outputs = append(outputs, generatedSecrets...)
 	return outputs, nil
 }
 
