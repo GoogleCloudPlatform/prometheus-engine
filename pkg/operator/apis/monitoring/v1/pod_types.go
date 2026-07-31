@@ -36,6 +36,9 @@ type PodMonitoringCRD interface {
 	// GetEndpoints returns the endpoints scraped by this CRD.
 	GetEndpoints() []ScrapeEndpoint
 
+	// ReferencedSecrets returns Kubernetes Secrets referenced by this CRD's endpoints.
+	ReferencedSecrets() []SecretReference
+
 	// GetPodMonitoringStatus returns this CRD's status sub-resource, which must
 	// be available at the top-level.
 	GetPodMonitoringStatus() *PodMonitoringStatus
@@ -75,6 +78,10 @@ func (p *PodMonitoring) GetKey() string {
 
 func (p *PodMonitoring) GetEndpoints() []ScrapeEndpoint {
 	return p.Spec.Endpoints
+}
+
+func (p *PodMonitoring) ReferencedSecrets() []SecretReference {
+	return referencedSecretsFromEndpoints(p, p.Spec.Endpoints)
 }
 
 func (p *PodMonitoring) GetPodMonitoringStatus() *PodMonitoringStatus {
@@ -124,6 +131,10 @@ func (c *ClusterPodMonitoring) GetKey() string {
 
 func (c *ClusterPodMonitoring) GetEndpoints() []ScrapeEndpoint {
 	return c.Spec.Endpoints
+}
+
+func (c *ClusterPodMonitoring) ReferencedSecrets() []SecretReference {
+	return referencedSecretsFromEndpoints(c, c.Spec.Endpoints)
 }
 
 func (c *ClusterPodMonitoring) GetPodMonitoringStatus() *PodMonitoringStatus {

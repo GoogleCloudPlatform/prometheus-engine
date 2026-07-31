@@ -18,12 +18,19 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sort"
 
 	"github.com/prometheus/common/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/prometheus/prometheus/google/secrets"
 )
+
+// SecretReference identifies a Kubernetes Secret referenced by a monitoring resource.
+type SecretReference struct {
+	Namespace string
+	Name      string
+}
 
 // SecretSelector references a secret from a secret provider e.g. Kubernetes Secret. Only one
 // provider can be used at a time.
@@ -393,4 +400,80 @@ func (c *HTTPClientConfig) ToPrometheusConfig(m PodMonitoringCRD, pool Prometheu
 		}
 	}
 	return clientConfig, errors.Join(errs...)
+}
+
+func (s *SecretKeySelector) collectSecretRef(m PodMonitoringCRD, refs map[string]SecretReference) {
+	if s == nil {
+		return
+	}
+	ns := s.Namespace
+	if ns == "" {
+		if m.IsNamespaceScoped() {
+			ns = m.GetNamespace()
+		} else {
+			ns = metav1.NamespaceDefault
+		}
+	}
+	key := ns + "/" + s.Name
+	refs[key] = SecretReference{Namespace: ns, Name: s.Name}
+}
+
+func (s *SecretSelector) collectSecretRefs(m PodMonitoringCRD, refs map[string]SecretReference) {
+	if s == nil || s.Secret == nil {
+		return
+	}
+	s.Secret.collectSecretRef(m, refs)
+}
+
+func (c *HTTPClientConfig) collectSecretRefs(m PodMonitoringCRD, refs map[string]SecretReference) {
+	if c.Authorization != nil && c.Authorization.Credentials != nil {
+		c.Authorization.Credentials.collectSecretRefs(m, refs)
+	}
+	if c.BasicAuth != nil && c.BasicAuth.Password != nil {
+		c.BasicAuth.Password.collectSecretRefs(m, refs)
+	}
+	if c.TLS != nil {
+		if c.TLS.CA != nil {
+			c.TLS.CA.collectSecretRefs(m, refs)
+		}
+		if c.TLS.Cert != nil {
+			c.TLS.Cert.collectSecretRefs(m, refs)
+		}
+		if c.TLS.Key != nil {
+			c.TLS.Key.collectSecretRefs(m, refs)
+		}
+	}
+	if c.OAuth2 != nil {
+		if c.OAuth2.ClientSecret != nil {
+			c.OAuth2.ClientSecret.collectSecretRefs(m, refs)
+		}
+		if c.OAuth2.TLS != nil {
+			if c.OAuth2.TLS.CA != nil {
+				c.OAuth2.TLS.CA.collectSecretRefs(m, refs)
+			}
+			if c.OAuth2.TLS.Cert != nil {
+				c.OAuth2.TLS.Cert.collectSecretRefs(m, refs)
+			}
+			if c.OAuth2.TLS.Key != nil {
+				c.OAuth2.TLS.Key.collectSecretRefs(m, refs)
+			}
+		}
+	}
+}
+
+func referencedSecretsFromEndpoints(m PodMonitoringCRD, endpoints []ScrapeEndpoint) []SecretReference {
+	refs := make(map[string]SecretReference)
+	for _, ep := range endpoints {
+		ep.HTTPClientConfig.collectSecretRefs(m, refs)
+	}
+	keys := make([]string, 0, len(refs))
+	for k := range refs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	result := make([]SecretReference, 0, len(keys))
+	for _, k := range keys {
+		result = append(result, refs[k])
+	}
+	return result
 }
