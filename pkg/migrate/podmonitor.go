@@ -195,40 +195,7 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 	resolveScrapeClass(pm.Spec.ScrapeClassName, logger)
 	validateScrapeProtocols(pm.Spec.ScrapeProtocols, logger)
 
-	var filteredMetadata *[]string
-	if isCluster {
-		if rules.ResourceCombined.Metadata != nil {
-			union := unionMetadata(*rules.ResourceCombined.Metadata, clusterMetadataDefaults)
-			filteredMetadata = &union
-		}
-	} else {
-		if rules.ResourceCombined.Metadata != nil {
-			union := unionMetadata(*rules.ResourceCombined.Metadata, namespacedMetadataDefaults)
-			var md []string
-			for _, m := range union {
-				if m != export.KeyNamespace {
-					md = append(md, m)
-				} else {
-					logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The metadata entry has been omitted .")
-				}
-			}
-			if len(md) > 0 {
-				filteredMetadata = &md
-			}
-		}
-	}
-
-	// In GMP, Metadata: nil on a PodMonitoring defaults to emitting namespaced defaults (container, pod, etc.).
-	// When setting Metadata explicitly for AttachMetadata.Node, we must merge namespacedMetadataDefaults so that default metadata is not dropped.
-	if pm.Spec.AttachMetadata != nil && pm.Spec.AttachMetadata.Node != nil && *pm.Spec.AttachMetadata.Node {
-		if filteredMetadata == nil {
-			union := unionMetadata([]string{labelNode}, namespacedMetadataDefaults)
-			filteredMetadata = &union
-		} else {
-			union := unionMetadata([]string{labelNode}, *filteredMetadata)
-			filteredMetadata = &union
-		}
-	}
+	filteredMetadata := filterMetadata(rules.ResourceCombined.Metadata, isCluster, logger)
 	filteredMetadata = resolveAttachMetadata(pm.Spec.AttachMetadata, filteredMetadata, isCluster)
 
 	var filterRunnings []*bool
@@ -265,7 +232,7 @@ func filterMetadata(metadata *[]string, isCluster bool, logger *slog.Logger) *[]
 		if m != export.KeyNamespace {
 			md = append(md, m)
 		} else {
-			logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The rule has been dropped.")
+			logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The metadata entry has been omitted.")
 		}
 	}
 	if len(md) > 0 {
@@ -286,15 +253,11 @@ func (c *PodMonitorConverter) convertToMonitoringResource(
 		return nil, nil, err
 	}
 
-	resCopy := *res
-	resCopy.metadata = filterMetadata(res.metadata, isCluster, logger)
-	resCopy.metadata = resolveAttachMetadata(pm.Spec.AttachMetadata, resCopy.metadata, isCluster)
-
 	var u *unstructured.Unstructured
 	if isCluster {
-		u, err = buildClusterPodMonitoring(pm.ObjectMeta, &resCopy, logger)
+		u, err = buildClusterPodMonitoring(pm.ObjectMeta, res, logger)
 	} else {
-		u, err = buildPodMonitoring(pm.ObjectMeta, pm.Namespace, &resCopy, logger)
+		u, err = buildPodMonitoring(pm.ObjectMeta, pm.Namespace, res, logger)
 	}
 	if err != nil {
 		return nil, nil, err
