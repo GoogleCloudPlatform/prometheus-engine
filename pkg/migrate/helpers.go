@@ -1164,16 +1164,15 @@ func validateScrapeProtocols(protocols []pomonitoringv1.ScrapeProtocol, logger *
 func resolveAttachMetadata(attachMetadata *pomonitoringv1.AttachMetadata, baseMetadata *[]string, isCluster bool) *[]string {
 	if attachMetadata != nil && attachMetadata.Node != nil && *attachMetadata.Node {
 		if baseMetadata == nil {
+			defaults := namespacedMetadataDefaults
 			if isCluster {
-				union := unionMetadata([]string{labelNode}, clusterMetadataDefaults)
-				return &union
+				defaults = clusterMetadataDefaults
 			}
-			return &[]string{labelNode}
+			union := unionMetadata([]string{labelNode}, defaults)
+			return &union
 		}
-		if !slices.Contains(*baseMetadata, labelNode) {
-			metadataCopy := append(slices.Clone(*baseMetadata), labelNode)
-			return &metadataCopy
-		}
+		union := unionMetadata([]string{labelNode}, *baseMetadata)
+		return &union
 	}
 	return baseMetadata
 }

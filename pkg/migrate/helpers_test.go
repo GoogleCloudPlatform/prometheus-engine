@@ -22,6 +22,7 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/prometheus/prometheus/google/export"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -827,9 +828,9 @@ func TestResolveAttachMetadata(t *testing.T) {
 		{
 			name:           "nil attachMetadata returns base",
 			attachMetadata: nil,
-			base:           &[]string{"pod"},
+			base:           &[]string{labelPod},
 			isCluster:      false,
-			expected:       &[]string{"pod"},
+			expected:       &[]string{labelPod},
 		},
 		{
 			name:           "attachMetadata node false returns base",
@@ -843,28 +844,28 @@ func TestResolveAttachMetadata(t *testing.T) {
 			attachMetadata: &pomonitoringv1.AttachMetadata{Node: ptrTo(true)},
 			base:           nil,
 			isCluster:      false,
-			expected:       &[]string{"node"},
+			expected:       &[]string{labelContainer, labelNode, labelPod, labelTopLevelControllerName, labelTopLevelControllerType},
 		},
 		{
 			name:           "cluster monitor with nil base returns node plus cluster defaults",
 			attachMetadata: &pomonitoringv1.AttachMetadata{Node: ptrTo(true)},
 			base:           nil,
 			isCluster:      true,
-			expected:       &[]string{"container", "namespace", "node", "pod", "top_level_controller_name", "top_level_controller_type"},
+			expected:       &[]string{labelContainer, export.KeyNamespace, labelNode, labelPod, labelTopLevelControllerName, labelTopLevelControllerType},
 		},
 		{
 			name:           "namespaced monitor with existing base appends node",
 			attachMetadata: &pomonitoringv1.AttachMetadata{Node: ptrTo(true)},
-			base:           &[]string{"pod"},
+			base:           &[]string{labelPod},
 			isCluster:      false,
-			expected:       &[]string{"pod", "node"},
+			expected:       &[]string{labelNode, labelPod},
 		},
 		{
 			name:           "namespaced monitor with node already present does not duplicate",
 			attachMetadata: &pomonitoringv1.AttachMetadata{Node: ptrTo(true)},
-			base:           &[]string{"pod", "node"},
+			base:           &[]string{labelNode, labelPod},
 			isCluster:      false,
-			expected:       &[]string{"pod", "node"},
+			expected:       &[]string{labelNode, labelPod},
 		},
 	}
 
