@@ -926,7 +926,10 @@ func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingDa
 }
 
 // warnUnsupportedSpecFields logs warnings for spec-level fields that GMP does not support or need.
-func warnUnsupportedSpecFields(logger *slog.Logger, spec pomonitoringv1.PodMonitorSpec) {
+func warnUnsupportedSpecFields(logger *slog.Logger, spec *pomonitoringv1.PodMonitorSpec) {
+	if spec == nil {
+		return
+	}
 	if spec.TargetLimit != nil {
 		logger.Warn("Field 'targetLimit' is unnecessary in GMP Managed Collection and has been dropped. Target discovery and scaling are managed automatically by GKE.")
 	}
