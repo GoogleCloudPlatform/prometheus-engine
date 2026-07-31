@@ -632,7 +632,7 @@ func TestPodMonitorConversion(t *testing.T) {
 									Regex:  "(project_id|location|cluster|namespace|job|instance|__address__|must_keep_.*)",
 								},
 								{
-									// Supported action hashmod (should be kept and promoted).
+									// Pre-scrape hashmod action is dropped with warning since GMP handles sharding.
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_app"},
 									TargetLabel:  "shard",
 									Modulus:      4,
@@ -666,20 +666,11 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("metrics"),
 								Interval: "30s",
-								MetricRelabeling: []monitoringv1.RelabelingRule{
-									{
-										SourceLabels: []string{"app"},
-										TargetLabel:  "shard",
-										Modulus:      4,
-										Action:       "hashmod",
-									},
-								},
 							},
 						},
 						TargetLabels: monitoringv1.TargetLabels{
 							FromPod: []monitoringv1.LabelMapping{
 								{From: "env", To: "exported_instance"},
-								{From: "app"},
 							},
 						},
 					},
@@ -1345,7 +1336,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "Pre-Scrape Relabelings: hashmod action rule promoted to metricRelabelings",
+			name: "Pre-Scrape Relabelings: hashmod action rule is dropped with warning as GMP handles sharding",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -1389,19 +1380,69 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("metrics"),
 								Interval: "30s",
-								MetricRelabeling: []monitoringv1.RelabelingRule{
-									{
-										SourceLabels: []string{"env"},
-										TargetLabel:  "env",
-										Action:       "hashmod",
-										Modulus:      1000,
-									},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Pre-Scrape Relabelings: simple copy with anchored default regex ^(.*)$ and ^.*$ is converted to fromPod",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "anchored-regex-copy-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "frontend"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
+									Regex:        "^(.*)$",
+									TargetLabel:  "env",
+									Action:       "replace",
 								},
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_region"},
+									Regex:        "^.*$",
+									TargetLabel:  "region",
+									Action:       "replace",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "anchored-regex-copy-monitor",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "frontend"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
 							},
 						},
 						TargetLabels: monitoringv1.TargetLabels{
 							FromPod: []monitoringv1.LabelMapping{
 								{From: "env"},
+								{From: "region"},
 							},
 						},
 					},

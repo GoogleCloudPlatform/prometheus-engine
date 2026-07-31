@@ -193,6 +193,12 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			continue
 		}
 
+		// Pre-scrape hashmod is used for target sharding, which GMP automatically handles.
+		if action == relabel.HashMod {
+			logger.Warn("Pre-scrape relabeling rule uses 'action: hashmod'. GMP automatically handles target sharding; this rule has been dropped.")
+			continue
+		}
+
 		// Resolve all source labels upfront and intercept unsupported internal discovery labels.
 		podSources, metaSources, rewrittenSources, unsupported := resolveSourceLabels(config.SourceLabels)
 		if unsupported {
@@ -281,7 +287,7 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpoints []pomonitoringv1
 // mergeLabelSelector combines base selector requirements with extracted pre-scrape filtering rules.
 func mergeLabelSelector(base metav1.LabelSelector, extraLabels map[string]string, extraExprs []metav1.LabelSelectorRequirement) (metav1.LabelSelector, error) {
 	if len(extraLabels) == 0 && len(extraExprs) == 0 {
-		return base, nil
+		return *base.DeepCopy(), nil
 	}
 	res := base.DeepCopy()
 	if len(extraLabels) > 0 && res.MatchLabels == nil {
@@ -820,8 +826,12 @@ func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSi
 
 // convertRelabelingToSimpleCopy attempts to convert simple label copy rules to targetLabels (fromPod or metadata).
 func convertRelabelingToSimpleCopy(logger *slog.Logger, data *relabelingData, res *preScrapeRelabelingResult, rawMetadata *[]string) bool {
+	isDefaultRegex := data.config.Regex == "" ||
+		data.config.Regex == "(.*)" ||
+		data.config.Regex == "^(.*)$" ||
+		data.config.Regex == "^.*$"
 	isSimpleCopy := len(data.config.SourceLabels) == 1 &&
-		(data.config.Regex == "" || data.config.Regex == "(.*)") &&
+		isDefaultRegex &&
 		(data.config.Replacement == nil || *data.config.Replacement == "$1") &&
 		data.action == relabel.Replace
 
