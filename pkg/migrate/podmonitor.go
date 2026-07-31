@@ -296,14 +296,14 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 	}
 
 	// Spec-level warnings for unsupported fields.
-	warnUnsupportedSpecFields(logger, pm.Spec)
+	warnUnsupportedSpecFields(logger, &pm.Spec)
 	// TODO(M2): Resolve and merge ScrapeClass configurations from Prometheus CR if scrapeClassName is specified.
 	if pm.Spec.ScrapeClassName != nil && *pm.Spec.ScrapeClassName != "" {
 		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
 	}
-	// Check against the PrometheusProto enum value or the substring proto.
+	// Check against the PrometheusProto enum value.
 	for _, sp := range pm.Spec.ScrapeProtocols {
-		if sp == scrapeProtocolPrometheusProto || strings.Contains(strings.ToLower(string(sp)), "proto") {
+		if sp == scrapeProtocolPrometheusProto {
 			logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
 			break
 		}
@@ -406,14 +406,14 @@ func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.P
 	}
 
 	// Spec-level warnings for unsupported fields.
-	warnUnsupportedSpecFields(logger, pm.Spec)
+	warnUnsupportedSpecFields(logger, &pm.Spec)
 	// TODO(M2): Resolve and merge ScrapeClass configurations from Prometheus CR if scrapeClassName is specified.
 	if pm.Spec.ScrapeClassName != nil && *pm.Spec.ScrapeClassName != "" {
 		logger.Warn(fmt.Sprintf("ScrapeClass %q was not found in the inputs. The 'scrapeClassName' field has been dropped and inherited settings will be lost.", *pm.Spec.ScrapeClassName))
 	}
-	// Check against the PrometheusProto enum value or the substring proto.
+	// Check against the PrometheusProto enum value.
 	for _, sp := range pm.Spec.ScrapeProtocols {
-		if sp == scrapeProtocolPrometheusProto || strings.Contains(strings.ToLower(string(sp)), "proto") {
+		if sp == scrapeProtocolPrometheusProto {
 			logger.Warn("Scrape protocol settings (scrapeProtocols) requiring Protobuf are unsupported. Scrapes may fail if target lacks text fallback.")
 			break
 		}
