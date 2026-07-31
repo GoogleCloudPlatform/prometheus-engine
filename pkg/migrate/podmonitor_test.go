@@ -34,11 +34,12 @@ import (
 
 func TestPodMonitorConversion(t *testing.T) {
 	tests := []struct {
-		name         string
-		input        *pomonitoringv1.PodMonitor
-		expected     []runtime.Object
-		wantErr      string
-		wantWarnings []string
+		name             string
+		input            *pomonitoringv1.PodMonitor
+		expected         []runtime.Object
+		wantErr          string
+		wantWarnings     []string
+		dontWantWarnings []string
 	}{
 		{
 			name: "Case A: Cluster-Scoped (Any Namespace)",
@@ -1943,6 +1944,55 @@ func TestPodMonitorConversion(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "All endpoints set filterRunning: false (no conflict warning emitted)",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "filter-running-consistent-false",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port:          "web-1",
+							FilterRunning: ptrTo(false),
+						},
+						{
+							Port:          "web-2",
+							FilterRunning: ptrTo(false),
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "filter-running-consistent-false", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web-1"),
+								Interval: "30s",
+							},
+							{
+								Port:     intstr.FromString("web-2"),
+								Interval: "30s",
+							},
+						},
+						FilterRunning: ptrTo(false),
+					},
+				},
+			},
+			dontWantWarnings: []string{
+				"Endpoint-level configuration conflict detected",
+			},
+		},
 	}
 
 	converter := &PodMonitorConverter{}
@@ -1978,6 +2028,16 @@ func TestPodMonitorConversion(t *testing.T) {
 				for _, wantWarn := range tc.wantWarnings {
 					if !strings.Contains(outStr, wantWarn) {
 						t.Errorf("expected warning containing %q, got logs:\n%s", wantWarn, outStr)
+					}
+				}
+			}
+
+			// Check that no unwanted warning substrings appear in the log output.
+			if len(tc.dontWantWarnings) > 0 {
+				outStr := buf.String()
+				for _, dontWantWarn := range tc.dontWantWarnings {
+					if strings.Contains(outStr, dontWantWarn) {
+						t.Errorf("expected no warning containing %q, got logs:\n%s", dontWantWarn, outStr)
 					}
 				}
 			}
