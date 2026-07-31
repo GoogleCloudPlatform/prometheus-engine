@@ -397,7 +397,13 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
 
-		updateStatus := pmon.Status.SetMonitoringCondition(pmon.GetGeneration(), metav1.Now(), cond)
+		updateStatus := applyMonitoringConditions(
+			pmon.GetGeneration(),
+			metav1.Now(),
+			&pmon.Status.MonitoringStatus,
+			cond,
+			r.collectorSecretAccessCondition(ctx, &pmon),
+		)
 		if updateStatus {
 			updates = append(updates, update{
 				object: &pmon,
@@ -430,7 +436,13 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 			cfg.ScrapeConfigs = append(cfg.ScrapeConfigs, cfgs...)
 		}
 
-		updateStatus := cmon.Status.SetMonitoringCondition(cmon.GetGeneration(), metav1.Now(), cond)
+		updateStatus := applyMonitoringConditions(
+			cmon.GetGeneration(),
+			metav1.Now(),
+			&cmon.Status.MonitoringStatus,
+			cond,
+			r.collectorSecretAccessCondition(ctx, &cmon),
+		)
 		if updateStatus {
 			updates = append(updates, update{
 				object: &cmon,
@@ -439,8 +451,7 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 		}
 	}
 
-	// TODO(bwplotka): Warn about missing RBAC policies.
-	// https://github.com/GoogleCloudPlatform/prometheus-engine/issues/789
+	// Register referenced secrets in the collector Prometheus configuration.
 	cfg.SecretConfigs = usedSecrets.SecretConfigs()
 
 	if err := r.client.List(ctx, &clusterNodeMons); err != nil {

@@ -35,6 +35,9 @@ const (
 	// ConfigurationCreateSuccess indicates that the config generated from the
 	// monitoring resource was created successfully.
 	ConfigurationCreateSuccess MonitoringConditionType = "ConfigurationCreateSuccess"
+	// CollectorSecretAccess indicates whether the collector ServiceAccount can
+	// access Kubernetes Secrets referenced by this monitoring resource.
+	CollectorSecretAccess MonitoringConditionType = "CollectorSecretAccess"
 )
 
 // MonitoringCondition describes the condition of a PodMonitoring.
