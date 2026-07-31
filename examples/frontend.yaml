@@ -45,7 +45,7 @@ spec:
         - args:
             - "--web.listen-address=:9090"
             - "--query.project-id=$PROJECT_ID"
-          image: gke.gcr.io/prometheus-engine/frontend:v0.15.3-gke.0
+          image: gke.gcr.io/prometheus-engine/frontend:v0.17.3-gke.0
           livenessProbe:
             httpGet:
               path: /-/healthy
