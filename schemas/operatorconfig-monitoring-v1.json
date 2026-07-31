@@ -1,0 +1,556 @@
+{
+  "description": "OperatorConfig defines configuration of the gmp-operator.",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": "string"
+    },
+    "collection": {
+      "description": "Collection specifies how the operator configures collection, including\nscraping and an integrated export to Google Cloud Monitoring.",
+      "type": "object",
+      "properties": {
+        "compression": {
+          "description": "Compression enables compression of metrics collection data.",
+          "type": "string",
+          "enum": [
+            "none",
+            "gzip"
+          ]
+        },
+        "credentials": {
+          "description": "A reference to GCP service account credentials with which Prometheus collectors\nare run. It needs to have metric write permissions for all project IDs to which\ndata is written.\nWithin GKE, this can typically be left empty if the compute default\nservice account has the required permissions.",
+          "type": "object",
+          "required": [
+            "key"
+          ],
+          "properties": {
+            "key": {
+              "description": "The key of the secret to select from.  Must be a valid secret key.",
+              "type": "string"
+            },
+            "name": {
+              "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+              "type": "string",
+              "default": ""
+            },
+            "optional": {
+              "description": "Specify whether the Secret or its key must be defined",
+              "type": "boolean"
+            }
+          },
+          "x-kubernetes-map-type": "atomic",
+          "x-kubernetes-validations": [
+            {
+              "rule": "has(self.name) \u0026\u0026 self.name != ''",
+              "message": "missing secret key selector name"
+            }
+          ]
+        },
+        "externalLabels": {
+          "description": "ExternalLabels specifies external labels that are attached to all scraped\ndata before being written to Google Cloud Monitoring or any other additional exports\nspecified in the OperatorConfig. The precedence behavior matches that of Prometheus.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "filter": {
+          "description": "Filter limits which metric data is sent to Cloud Monitoring (it doesn't apply to additional exports).",
+          "type": "object",
+          "properties": {
+            "enableMatchOneOf": {
+              "description": "EnableMatchOneOf allows additional control over MatchOneOf filtering.\n\nAvailable settings:\n* not set: The MatchOneOf settings are ignored, default is used.\n* false: MatchOneOf feature is explicitly disabled; export is forced to match all series.\n* true: The MatchOneOf settings are used, overwriting a default.\n\nSee MatchOneOf IMPORTANT section to learn about the MatchOneOf default.",
+              "type": "boolean"
+            },
+            "matchOneOf": {
+              "description": "MatchOneOf, if EnableMatchOneOf is true, controls the export filtering setting.\n\nMatchOneOf expects a list of Prometheus time series matchers. Every time series\nmust match at least one of the matchers to be exported. This field can be used\nequivalently to the match[] parameter of the Prometheus federation endpoint to\nselectively export data.\n\nExample: `[\"{job!='foobar'}\", \"{__name__!~'container_foo.*|container_bar.*'}\"]`\n\nIMPORTANT: MatchOneOf is guarded by the additional flag (EnableMatchOneOf)\nand removed from the public docs. Replacements: https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#filter-metrics.\n\nRationales:\n* This option is prone to misconfiguration, e.g. you need to manually\n  match important built-in metrics (up, scrape_samples_added, etc.).\n* Unmatched metrics are still in the local collector memory\n  (this filters on export only).\n* Typically, the default (empty array), means match all metrics. However,\n  for the clusters that were using MatchOneOf filtering before the GMP 0.14.x,\n  version, the default is what has been configured back then in the orphaned\n  collector DaemonSet EXTRA_ARGS environment variable. If you are impacted:\n  * use EnableMatchOneOf = false to reset the default\n  * use EnableMatchOneOf = true to apply this configuration's MatchOneOf\n  * Remove EXTRA_ARGS environment variable from the collector DaemonSet (it's safe to do so).",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "kubeletScraping": {
+          "description": "Configuration to scrape the metric endpoints of the Kubelets.",
+          "type": "object",
+          "required": [
+            "interval"
+          ],
+          "properties": {
+            "interval": {
+              "description": "The interval at which the metric endpoints are scraped.",
+              "type": "string",
+              "format": "duration"
+            },
+            "tlsInsecureSkipVerify": {
+              "description": "TLSInsecureSkipVerify disables verifying the target cert.\nThis can be useful for clusters provisioned with kubeadm.",
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "exports": {
+      "description": "Exports is an EXPERIMENTAL feature that specifies additional, optional endpoints to export to,\non top of Google Cloud Monitoring collection.\nNote: To disable integrated export to Google Cloud Monitoring specify a non-matching filter in the \"collection.filter\" field.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "description": "The URL of the endpoint that supports Prometheus Remote Write to export samples to.",
+            "type": "string",
+            "format": "uri",
+            "x-kubernetes-validations": [
+              {
+                "rule": "self == '' || isURL(self)",
+                "message": "url must be a valid URL"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "features": {
+      "description": "Features holds configuration for optional managed-collection features.",
+      "type": "object",
+      "properties": {
+        "config": {
+          "description": "Settings for the collector configuration propagation.",
+          "type": "object",
+          "properties": {
+            "compression": {
+              "description": "Compression enables compression of the config data propagated by the operator to collectors\nand the rule-evaluator. It is recommended to use the gzip option when using a large number of\nClusterPodMonitoring, PodMonitoring, GlobalRules, ClusterRules, and/or Rules.",
+              "type": "string",
+              "enum": [
+                "none",
+                "gzip"
+              ]
+            }
+          }
+        },
+        "targetStatus": {
+          "description": "Configuration of target status reporting.",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "description": "Enable target status reporting.",
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": "string"
+    },
+    "managedAlertmanager": {
+      "description": "ManagedAlertmanager holds information for configuring the managed instance of Alertmanager.",
+      "type": "object",
+      "default": {
+        "configSecret": {
+          "key": "alertmanager.yaml",
+          "name": "alertmanager"
+        }
+      },
+      "properties": {
+        "configSecret": {
+          "description": "ConfigSecret refers to the name of a single-key Secret in the public namespace that\nholds the managed Alertmanager config file.",
+          "type": "object",
+          "required": [
+            "key"
+          ],
+          "properties": {
+            "key": {
+              "description": "The key of the secret to select from.  Must be a valid secret key.",
+              "type": "string"
+            },
+            "name": {
+              "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+              "type": "string",
+              "default": ""
+            },
+            "optional": {
+              "description": "Specify whether the Secret or its key must be defined",
+              "type": "boolean"
+            }
+          },
+          "x-kubernetes-map-type": "atomic",
+          "x-kubernetes-validations": [
+            {
+              "rule": "has(self.name) \u0026\u0026 self.name != ''",
+              "message": "missing secret key selector name"
+            }
+          ]
+        },
+        "externalURL": {
+          "description": "ExternalURL is the URL under which Alertmanager is externally reachable (for example, if\nAlertmanager is served via a reverse proxy). Used for generating relative and absolute\nlinks back to Alertmanager itself. If the URL has a path portion, it will be used to\nprefix all HTTP endpoints served by Alertmanager, otherwise relevant URL components will\nbe derived automatically.\n\nIf no URL is provided, Alertmanager will point to the Google Cloud Metric Explorer page.",
+          "type": "string",
+          "format": "uri",
+          "x-kubernetes-validations": [
+            {
+              "rule": "self == '' || isURL(self)",
+              "message": "externalURL must be a valid URL"
+            }
+          ]
+        }
+      }
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "rules": {
+      "description": "Rules specifies how the operator configures and deploys rule-evaluator.",
+      "type": "object",
+      "properties": {
+        "alerting": {
+          "description": "Alerting contains how the rule-evaluator configures alerting.",
+          "type": "object",
+          "properties": {
+            "alertmanagers": {
+              "description": "Alertmanagers contains endpoint configuration for designated Alertmanagers.",
+              "type": "array",
+              "items": {
+                "description": "AlertmanagerEndpoints defines a selection of a single Endpoints object\ncontaining alertmanager IPs to fire alerts against.",
+                "type": "object",
+                "required": [
+                  "name",
+                  "namespace",
+                  "port"
+                ],
+                "properties": {
+                  "apiVersion": {
+                    "description": "Version of the Alertmanager API that rule-evaluator uses to send alerts. It\ncan be \"v1\" or \"v2\".",
+                    "type": "string"
+                  },
+                  "authorization": {
+                    "description": "Authorization section for this alertmanager endpoint.",
+                    "type": "object",
+                    "properties": {
+                      "credentials": {
+                        "description": "The secret's key that contains the credentials of the request",
+                        "type": "object",
+                        "required": [
+                          "key"
+                        ],
+                        "properties": {
+                          "key": {
+                            "description": "The key of the secret to select from.  Must be a valid secret key.",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                            "type": "string",
+                            "default": ""
+                          },
+                          "optional": {
+                            "description": "Specify whether the Secret or its key must be defined",
+                            "type": "boolean"
+                          }
+                        },
+                        "x-kubernetes-map-type": "atomic",
+                        "x-kubernetes-validations": [
+                          {
+                            "rule": "has(self.name) \u0026\u0026 self.name != ''",
+                            "message": "missing secret key selector name"
+                          }
+                        ]
+                      },
+                      "type": {
+                        "description": "Set the authentication type. Defaults to Bearer, Basic will cause an\nerror.",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "name": {
+                    "description": "Name of Endpoints object in Namespace.",
+                    "type": "string"
+                  },
+                  "namespace": {
+                    "description": "Namespace of Endpoints object.",
+                    "type": "string"
+                  },
+                  "pathPrefix": {
+                    "description": "Prefix for the HTTP path alerts are pushed to.",
+                    "type": "string"
+                  },
+                  "port": {
+                    "description": "Port the Alertmanager API is exposed on.",
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "x-kubernetes-int-or-string": true
+                  },
+                  "scheme": {
+                    "description": "Scheme to use when firing alerts.",
+                    "type": "string"
+                  },
+                  "timeout": {
+                    "description": "Timeout is a per-target Alertmanager timeout when pushing alerts.",
+                    "type": "string",
+                    "format": "duration"
+                  },
+                  "tls": {
+                    "description": "TLS Config to use for alertmanager connection.",
+                    "type": "object",
+                    "properties": {
+                      "ca": {
+                        "description": "Struct containing the CA cert to use for the targets.",
+                        "type": "object",
+                        "properties": {
+                          "configMap": {
+                            "description": "ConfigMap containing data to use for the targets.",
+                            "type": "object",
+                            "required": [
+                              "key"
+                            ],
+                            "properties": {
+                              "key": {
+                                "description": "The key to select.",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                                "type": "string",
+                                "default": ""
+                              },
+                              "optional": {
+                                "description": "Specify whether the ConfigMap or its key must be defined",
+                                "type": "boolean"
+                              }
+                            },
+                            "x-kubernetes-map-type": "atomic"
+                          },
+                          "secret": {
+                            "description": "Secret containing data to use for the targets.",
+                            "type": "object",
+                            "required": [
+                              "key"
+                            ],
+                            "properties": {
+                              "key": {
+                                "description": "The key of the secret to select from.  Must be a valid secret key.",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                                "type": "string",
+                                "default": ""
+                              },
+                              "optional": {
+                                "description": "Specify whether the Secret or its key must be defined",
+                                "type": "boolean"
+                              }
+                            },
+                            "x-kubernetes-map-type": "atomic",
+                            "x-kubernetes-validations": [
+                              {
+                                "rule": "has(self.name) \u0026\u0026 self.name != ''",
+                                "message": "missing secret key selector name"
+                              }
+                            ]
+                          }
+                        },
+                        "x-kubernetes-validations": [
+                          {
+                            "rule": "!(has(self.secret) \u0026\u0026 has(self.configMap))",
+                            "message": "SecretOrConfigMap fields are mutually exclusive"
+                          }
+                        ]
+                      },
+                      "cert": {
+                        "description": "Struct containing the client cert file for the targets.",
+                        "type": "object",
+                        "properties": {
+                          "configMap": {
+                            "description": "ConfigMap containing data to use for the targets.",
+                            "type": "object",
+                            "required": [
+                              "key"
+                            ],
+                            "properties": {
+                              "key": {
+                                "description": "The key to select.",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                                "type": "string",
+                                "default": ""
+                              },
+                              "optional": {
+                                "description": "Specify whether the ConfigMap or its key must be defined",
+                                "type": "boolean"
+                              }
+                            },
+                            "x-kubernetes-map-type": "atomic"
+                          },
+                          "secret": {
+                            "description": "Secret containing data to use for the targets.",
+                            "type": "object",
+                            "required": [
+                              "key"
+                            ],
+                            "properties": {
+                              "key": {
+                                "description": "The key of the secret to select from.  Must be a valid secret key.",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                                "type": "string",
+                                "default": ""
+                              },
+                              "optional": {
+                                "description": "Specify whether the Secret or its key must be defined",
+                                "type": "boolean"
+                              }
+                            },
+                            "x-kubernetes-map-type": "atomic",
+                            "x-kubernetes-validations": [
+                              {
+                                "rule": "has(self.name) \u0026\u0026 self.name != ''",
+                                "message": "missing secret key selector name"
+                              }
+                            ]
+                          }
+                        },
+                        "x-kubernetes-validations": [
+                          {
+                            "rule": "!(has(self.secret) \u0026\u0026 has(self.configMap))",
+                            "message": "SecretOrConfigMap fields are mutually exclusive"
+                          }
+                        ]
+                      },
+                      "insecureSkipVerify": {
+                        "description": "Disable target certificate validation.",
+                        "type": "boolean"
+                      },
+                      "keySecret": {
+                        "description": "Secret containing the client key file for the targets.",
+                        "type": "object",
+                        "required": [
+                          "key"
+                        ],
+                        "properties": {
+                          "key": {
+                            "description": "The key of the secret to select from.  Must be a valid secret key.",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+                            "type": "string",
+                            "default": ""
+                          },
+                          "optional": {
+                            "description": "Specify whether the Secret or its key must be defined",
+                            "type": "boolean"
+                          }
+                        },
+                        "x-kubernetes-map-type": "atomic",
+                        "x-kubernetes-validations": [
+                          {
+                            "rule": "has(self.name) \u0026\u0026 self.name != ''",
+                            "message": "missing secret key selector name"
+                          }
+                        ]
+                      },
+                      "maxVersion": {
+                        "description": "Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).\nIf unset, Prometheus will use Go default minimum version, which is TLS 1.2.\nSee MinVersion in https://pkg.go.dev/crypto/tls#Config.",
+                        "type": "string"
+                      },
+                      "minVersion": {
+                        "description": "Minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).\nIf unset, Prometheus will use Go default minimum version, which is TLS 1.2.\nSee MinVersion in https://pkg.go.dev/crypto/tls#Config.",
+                        "type": "string"
+                      },
+                      "serverName": {
+                        "description": "Used to verify the hostname for the targets.",
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "credentials": {
+          "description": "A reference to GCP service account credentials with which the rule\nevaluator container is run. It needs to have metric read permissions\nagainst queryProjectId and metric write permissions against all projects\nto which rule results are written.\nWithin GKE, this can typically be left empty if the compute default\nservice account has the required permissions.",
+          "type": "object",
+          "required": [
+            "key"
+          ],
+          "properties": {
+            "key": {
+              "description": "The key of the secret to select from.  Must be a valid secret key.",
+              "type": "string"
+            },
+            "name": {
+              "description": "Name of the referent.\nThis field is effectively required, but due to backwards compatibility is\nallowed to be empty. Instances of this type with an empty value here are\nalmost certainly wrong.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names",
+              "type": "string",
+              "default": ""
+            },
+            "optional": {
+              "description": "Specify whether the Secret or its key must be defined",
+              "type": "boolean"
+            }
+          },
+          "x-kubernetes-map-type": "atomic",
+          "x-kubernetes-validations": [
+            {
+              "rule": "has(self.name) \u0026\u0026 self.name != ''",
+              "message": "missing secret key selector name"
+            }
+          ]
+        },
+        "externalLabels": {
+          "description": "ExternalLabels specifies external labels that are attached to any rule\nresults and alerts produced by rules. The precedence behavior matches that\nof Prometheus.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "generatorUrl": {
+          "description": "The base URL used for the generator URL in the alert notification payload.\nShould point to an instance of a query frontend that gives access to queryProjectID.",
+          "type": "string",
+          "format": "uri",
+          "x-kubernetes-validations": [
+            {
+              "rule": "self == '' || isURL(self)",
+              "message": "generatorUrl must be a valid URL"
+            }
+          ]
+        },
+        "queryProjectID": {
+          "description": "QueryProjectID is the GCP project ID to evaluate rules against.\nIf left blank, the rule-evaluator will try attempt to infer the Project ID\nfrom the environment.",
+          "type": "string"
+        }
+      }
+    },
+    "scaling": {
+      "description": "Scaling contains configuration options for scaling GMP.",
+      "type": "object",
+      "properties": {
+        "vpa": {
+          "description": "VPASpec defines configuration options for vertical pod autoscaling.",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "description": "Enabled configures whether the operator configures Vertical Pod Autoscaling for GMP workloads.\nIn GKE, installing Vertical Pod Autoscaling requires a cluster restart, and therefore it also results in an operator restart.\nIn other environments, the operator may need to be restarted to enable VPA to run the following check again and watch for the objects.",
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  }
+}

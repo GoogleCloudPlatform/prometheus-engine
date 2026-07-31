@@ -1,0 +1,876 @@
+{
+  "description": "PodMonitoring defines monitoring for a set of pods, scoped to pods\nwithin the PodMonitoring's namespace.",
+  "type": "object",
+  "required": [
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": "string"
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "description": "Specification of desired Pod selection for target discovery by\nPrometheus.",
+      "type": "object",
+      "required": [
+        "endpoints",
+        "selector"
+      ],
+      "properties": {
+        "endpoints": {
+          "description": "The endpoints to scrape on the selected pods.",
+          "type": "array",
+          "maxItems": 10,
+          "minItems": 1,
+          "items": {
+            "description": "ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.",
+            "type": "object",
+            "required": [
+              "interval",
+              "port"
+            ],
+            "properties": {
+              "authorization": {
+                "description": "Authorization is the HTTP authorization credentials for the targets.",
+                "type": "object",
+                "properties": {
+                  "credentials": {
+                    "description": "Credentials uses the secret as the credentials (token) for the authentication header.",
+                    "type": "object",
+                    "properties": {
+                      "secret": {
+                        "description": "Secret represents reference to a given key from certain Secret in a given namespace.",
+                        "type": "object",
+                        "required": [
+                          "key",
+                          "name"
+                        ],
+                        "properties": {
+                          "key": {
+                            "description": "Key of the secret to select from. Must be a valid secret key.",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "Name of the secret to select from.",
+                            "type": "string"
+                          },
+                          "namespace": {
+                            "description": "Namespace of the secret to select from.\nIf empty the parent resource namespace will be chosen.",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "type": {
+                    "description": "Type is the authentication type. Defaults to Bearer.\nBasic will cause an error, as the BasicAuth object should be used instead.",
+                    "type": "string",
+                    "x-kubernetes-validations": [
+                      {
+                        "rule": "self != 'Basic'",
+                        "message": "authorization type cannot be set to \"basic\", use \"basic_auth\" instead"
+                      }
+                    ]
+                  }
+                }
+              },
+              "basicAuth": {
+                "description": "BasicAuth is the HTTP basic authentication credentials for the targets.",
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "description": "Password uses the secret as the BasicAuth password.",
+                    "type": "object",
+                    "properties": {
+                      "secret": {
+                        "description": "Secret represents reference to a given key from certain Secret in a given namespace.",
+                        "type": "object",
+                        "required": [
+                          "key",
+                          "name"
+                        ],
+                        "properties": {
+                          "key": {
+                            "description": "Key of the secret to select from. Must be a valid secret key.",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "Name of the secret to select from.",
+                            "type": "string"
+                          },
+                          "namespace": {
+                            "description": "Namespace of the secret to select from.\nIf empty the parent resource namespace will be chosen.",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "username": {
+                    "description": "Username is the BasicAuth username.",
+                    "type": "string"
+                  }
+                }
+              },
+              "interval": {
+                "description": "Interval at which to scrape metrics. Must be a valid Prometheus duration.",
+                "type": "string",
+                "format": "duration"
+              },
+              "metricRelabeling": {
+                "description": "Relabeling rules for metrics scraped from this endpoint. Relabeling rules that\noverride protected target labels (project_id, location, cluster, namespace, job,\ninstance, top_level_controller, top_level_controller_type, or __address__) are\nnot permitted. The labelmap action is not permitted in general.",
+                "type": "array",
+                "maxItems": 250,
+                "items": {
+                  "description": "RelabelingRule defines a single Prometheus relabeling rule.",
+                  "type": "object",
+                  "properties": {
+                    "action": {
+                      "description": "Action to perform based on regex matching. Defaults to 'replace'.",
+                      "type": "string",
+                      "enum": [
+                        "replace",
+                        "lowercase",
+                        "uppercase",
+                        "keep",
+                        "drop",
+                        "keepequal",
+                        "dropequal",
+                        "hashmod",
+                        "labeldrop",
+                        "labelkeep"
+                      ]
+                    },
+                    "modulus": {
+                      "description": "Modulus to take of the hash of the source label values.",
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "regex": {
+                      "description": "Regular expression against which the extracted value is matched. Defaults to '(.*)'.",
+                      "type": "string",
+                      "maxLength": 10000
+                    },
+                    "replacement": {
+                      "description": "Replacement value against which a regex replace is performed if the\nregular expression matches. Regex capture groups are available. Defaults to '$1'.",
+                      "type": "string"
+                    },
+                    "separator": {
+                      "description": "Separator placed between concatenated source label values. Defaults to ';'.",
+                      "type": "string"
+                    },
+                    "sourceLabels": {
+                      "description": "The source labels select values from existing labels. Their content is concatenated\nusing the configured separator and matched against the configured regular expression\nfor the replace, keep, and drop actions.",
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+                      }
+                    },
+                    "targetLabel": {
+                      "description": "Label to which the resulting value is written in a replace action.\nIt is mandatory for replace actions. Regex capture groups are available.",
+                      "type": "string",
+                      "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+                      "x-kubernetes-validations": [
+                        {
+                          "rule": "self != 'project_id' \u0026\u0026 self != 'location' \u0026\u0026 self != 'cluster' \u0026\u0026 self != 'namespace' \u0026\u0026 self != 'job' \u0026\u0026 self != 'instance' \u0026\u0026 self != 'top_level_controller' \u0026\u0026 self != 'top_level_controller_type' \u0026\u0026 self != '__address__'",
+                          "messageExpression": "'cannot relabel onto protected label \"%s\"'.format([self])"
+                        }
+                      ]
+                    }
+                  },
+                  "x-kubernetes-validations": [
+                    {
+                      "rule": "!has(self.action) ||  self.action != 'labeldrop' || has(self.regex)"
+                    }
+                  ]
+                }
+              },
+              "oauth2": {
+                "description": "OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.",
+                "type": "object",
+                "properties": {
+                  "clientID": {
+                    "description": "ClientID is the public identifier for the client.",
+                    "type": "string"
+                  },
+                  "clientSecret": {
+                    "description": "ClientSecret uses the secret as the client secret token.",
+                    "type": "object",
+                    "properties": {
+                      "secret": {
+                        "description": "Secret represents reference to a given key from certain Secret in a given namespace.",
+                        "type": "object",
+                        "required": [
+                          "key",
+                          "name"
+                        ],
+                        "properties": {
+                          "key": {
+                            "description": "Key of the secret to select from. Must be a valid secret key.",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "Name of the secret to select from.",
+                            "type": "string"
+                          },
+                          "namespace": {
+                            "description": "Namespace of the secret to select from.\nIf empty the parent resource namespace will be chosen.",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "endpointParams": {
+                    "description": "EndpointParams are additional parameters to append to the token URL.",
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "proxyUrl": {
+                    "description": "ProxyURL is the HTTP proxy server to use to connect to the targets.\n\nEncoded passwords are not supported.",
+                    "type": "string",
+                    "maxLength": 2000,
+                    "x-kubernetes-validations": [
+                      {
+                        "rule": "isURL(self) \u0026\u0026 !self.matches('@')"
+                      }
+                    ]
+                  },
+                  "scopes": {
+                    "description": "Scopes represents the scopes for the token request.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "tlsConfig": {
+                    "description": "TLS configures the token request's TLS settings.",
+                    "type": "object",
+                    "properties": {
+                      "ca": {
+                        "description": "SecretSelector references a secret from a secret provider e.g. Kubernetes Secret. Only one\nprovider can be used at a time.",
+                        "type": "object",
+                        "properties": {
+                          "secret": {
+                            "description": "Secret represents reference to a given key from certain Secret in a given namespace.",
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "name"
+                            ],
+                            "properties": {
+                              "key": {
+                                "description": "Key of the secret to select from. Must be a valid secret key.",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "Name of the secret to select from.",
+                                "type": "string"
+                              },
+                              "namespace": {
+                                "description": "Namespace of the secret to select from.\nIf empty the parent resource namespace will be chosen.",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "cert": {
+                        "description": "Cert uses the secret as the certificate for client authentication to the server.",
+                        "type": "object",
+                        "properties": {
+                          "secret": {
+                            "description": "Secret represents reference to a given key from certain Secret in a given namespace.",
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "name"
+                            ],
+                            "properties": {
+                              "key": {
+                                "description": "Key of the secret to select from. Must be a valid secret key.",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "Name of the secret to select from.",
+                                "type": "string"
+                              },
+                              "namespace": {
+                                "description": "Namespace of the secret to select from.\nIf empty the parent resource namespace will be chosen.",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "insecureSkipVerify": {
+                        "description": "InsecureSkipVerify disables target certificate validation.",
+                        "type": "boolean"
+                      },
+                      "key": {
+                        "description": "Key uses the secret as the private key for client authentication to the server.",
+                        "type": "object",
+                        "properties": {
+                          "secret": {
+                            "description": "Secret represents reference to a given key from certain Secret in a given namespace.",
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "name"
+                            ],
+                            "properties": {
+                              "key": {
+                                "description": "Key of the secret to select from. Must be a valid secret key.",
+                                "type": "string"
+                              },
+                              "name": {
+                                "description": "Name of the secret to select from.",
+                                "type": "string"
+                              },
+                              "namespace": {
+                                "description": "Namespace of the secret to select from.\nIf empty the parent resource namespace will be chosen.",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "maxVersion": {
+                        "description": "MaxVersion is the maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),\nTLS12 (TLS 1.2), TLS13 (TLS 1.3).\n\nIf unset, Prometheus will use Go default minimum version, which is TLS 1.2.\nSee MinVersion in https://pkg.go.dev/crypto/tls#Config.",
+                        "type": "string",
+                        "enum": [
+                          "TLS10",
+                          "TLS11",
+                          "TLS12",
+                          "TLS13"
+                        ]
+                      },
+                      "minVersion": {
+                        "description": "MinVersion is the minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),\nTLS12 (TLS 1.2), TLS13 (TLS 1.3).\n\nIf unset, Prometheus will use Go default minimum version, which is TLS 1.2.\nSee MinVersion in https://pkg.go.dev/crypto/tls#Config.",
+                        "type": "string",
+                        "enum": [
+                          "TLS10",
+                          "TLS11",
+                          "TLS12",
+                          "TLS13"
+                        ]
+                      },
+                      "serverName": {
+                        "description": "ServerName is used to verify the hostname for the targets.",
+                        "type": "string"
+                      }
+                    },
+                    "x-kubernetes-validations": [
+                      {
+                        "rule": "has(self.cert) == has(self.key)",
+                        "message": "client cert and client key must be provided together, when either is provided"
+                      }
+                    ]
+                  },
+                  "tokenURL": {
+                    "description": "TokenURL is the URL to fetch the token from.",
+                    "type": "string"
+                  }
+                }
+              },
+              "params": {
+                "description": "HTTP GET params to use when scraping.",
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "path": {
+                "description": "HTTP path to scrape metrics from. Defaults to \"/metrics\".",
+                "type": "string"
+              },
+              "port": {
+                "description": "Name or number of the port to scrape.\nThe container metadata label is only populated if the port is referenced by name\nbecause port numbers are not unique across containers.",
+                "maxLength": 253,
+                "minLength": 1,
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "x-kubernetes-int-or-string": true,
+                "x-kubernetes-validations": [
+                  {
+                    "rule": "self != 0",
+                    "message": "Port is required"
+                  }
+                ]
+              },
+              "proxyUrl": {
+                "description": "ProxyURL is the HTTP proxy server to use to connect to the targets.\n\nEncoded passwords are not supported.",
+                "type": "string",
+                "maxLength": 2000,
+                "x-kubernetes-validations": [
+                  {
+                    "rule": "isURL(self) \u0026\u0026 !self.matches('@')"
+                  }
+                ]
+              },
+              "scheme": {
+                "description": "Protocol scheme to use to scrape.",
+                "type": "string",
+                "enum": [
+                  "http",
+                  "https"
+                ]
+              },
+              "timeout": {
+                "description": "Timeout for metrics scrapes. Must be a valid Prometheus duration.\nMust not be larger than the scrape interval.",
+                "type": "string",
+                "format": "duration"
+              },
+              "tls": {
+                "description": "TLS configures the scrape request's TLS settings.",
+                "type": "object",
+                "properties": {
+                  "ca": {
+                    "description": "SecretSelector references a secret from a secret provider e.g. Kubernetes Secret. Only one\nprovider can be used at a time.",
+                    "type": "object",
+                    "properties": {
+                      "secret": {
+                        "description": "Secret represents reference to a given key from certain Secret in a given namespace.",
+                        "type": "object",
+                        "required": [
+                          "key",
+                          "name"
+                        ],
+                        "properties": {
+                          "key": {
+                            "description": "Key of the secret to select from. Must be a valid secret key.",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "Name of the secret to select from.",
+                            "type": "string"
+                          },
+                          "namespace": {
+                            "description": "Namespace of the secret to select from.\nIf empty the parent resource namespace will be chosen.",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "cert": {
+                    "description": "Cert uses the secret as the certificate for client authentication to the server.",
+                    "type": "object",
+                    "properties": {
+                      "secret": {
+                        "description": "Secret represents reference to a given key from certain Secret in a given namespace.",
+                        "type": "object",
+                        "required": [
+                          "key",
+                          "name"
+                        ],
+                        "properties": {
+                          "key": {
+                            "description": "Key of the secret to select from. Must be a valid secret key.",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "Name of the secret to select from.",
+                            "type": "string"
+                          },
+                          "namespace": {
+                            "description": "Namespace of the secret to select from.\nIf empty the parent resource namespace will be chosen.",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "insecureSkipVerify": {
+                    "description": "InsecureSkipVerify disables target certificate validation.",
+                    "type": "boolean"
+                  },
+                  "key": {
+                    "description": "Key uses the secret as the private key for client authentication to the server.",
+                    "type": "object",
+                    "properties": {
+                      "secret": {
+                        "description": "Secret represents reference to a given key from certain Secret in a given namespace.",
+                        "type": "object",
+                        "required": [
+                          "key",
+                          "name"
+                        ],
+                        "properties": {
+                          "key": {
+                            "description": "Key of the secret to select from. Must be a valid secret key.",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "Name of the secret to select from.",
+                            "type": "string"
+                          },
+                          "namespace": {
+                            "description": "Namespace of the secret to select from.\nIf empty the parent resource namespace will be chosen.",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "maxVersion": {
+                    "description": "MaxVersion is the maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),\nTLS12 (TLS 1.2), TLS13 (TLS 1.3).\n\nIf unset, Prometheus will use Go default minimum version, which is TLS 1.2.\nSee MinVersion in https://pkg.go.dev/crypto/tls#Config.",
+                    "type": "string",
+                    "enum": [
+                      "TLS10",
+                      "TLS11",
+                      "TLS12",
+                      "TLS13"
+                    ]
+                  },
+                  "minVersion": {
+                    "description": "MinVersion is the minimum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1),\nTLS12 (TLS 1.2), TLS13 (TLS 1.3).\n\nIf unset, Prometheus will use Go default minimum version, which is TLS 1.2.\nSee MinVersion in https://pkg.go.dev/crypto/tls#Config.",
+                    "type": "string",
+                    "enum": [
+                      "TLS10",
+                      "TLS11",
+                      "TLS12",
+                      "TLS13"
+                    ]
+                  },
+                  "serverName": {
+                    "description": "ServerName is used to verify the hostname for the targets.",
+                    "type": "string"
+                  }
+                },
+                "x-kubernetes-validations": [
+                  {
+                    "rule": "has(self.cert) == has(self.key)",
+                    "message": "client cert and client key must be provided together, when either is provided"
+                  }
+                ]
+              }
+            },
+            "x-kubernetes-validations": [
+              {
+                "rule": "!has(self.timeout) || self.timeout \u003c= self.interval",
+                "messageExpression": "'scrape timeout (%s) must not be greater than scrape interval (%s)'.format([self.timeout, self.interval])"
+              },
+              {
+                "rule": "((has(self.authorization) ? 1 : 0) + (has(self.basicAuth) ? 1 : 0) + (has(self.oauth2) ? 1 : 0)) \u003c= 1"
+              }
+            ]
+          }
+        },
+        "filterRunning": {
+          "description": "FilterRunning will drop any pods that are in the \"Failed\" or \"Succeeded\"\npod lifecycle.\nSee: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase",
+          "type": "boolean"
+        },
+        "limits": {
+          "description": "Limits to apply at scrape time.",
+          "type": "object",
+          "properties": {
+            "labelNameLength": {
+              "description": "Maximum label name length.\nUses Prometheus default if left unspecified.",
+              "type": "integer",
+              "format": "int64"
+            },
+            "labelValueLength": {
+              "description": "Maximum label value length.\nUses Prometheus default if left unspecified.",
+              "type": "integer",
+              "format": "int64"
+            },
+            "labels": {
+              "description": "Maximum number of labels accepted for a single sample.\nUses Prometheus default if left unspecified.",
+              "type": "integer",
+              "format": "int64"
+            },
+            "samples": {
+              "description": "Maximum number of samples accepted within a single scrape.\nUses Prometheus default if left unspecified.",
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        },
+        "selector": {
+          "description": "Label selector that specifies which pods are selected for this monitoring\nconfiguration.",
+          "type": "object",
+          "properties": {
+            "matchExpressions": {
+              "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
+              "type": "array",
+              "items": {
+                "description": "A label selector requirement is a selector that contains values, a key, and an operator that\nrelates the key and values.",
+                "type": "object",
+                "required": [
+                  "key",
+                  "operator"
+                ],
+                "properties": {
+                  "key": {
+                    "description": "key is the label key that the selector applies to.",
+                    "type": "string"
+                  },
+                  "operator": {
+                    "description": "operator represents a key's relationship to a set of values.\nValid operators are In, NotIn, Exists and DoesNotExist.",
+                    "type": "string"
+                  },
+                  "values": {
+                    "description": "values is an array of string values. If the operator is In or NotIn,\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\nthe values array must be empty. This array is replaced during a strategic\nmerge patch.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "x-kubernetes-list-type": "atomic"
+                  }
+                }
+              },
+              "x-kubernetes-list-type": "atomic"
+            },
+            "matchLabels": {
+              "description": "matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels\nmap is equivalent to an element of matchExpressions, whose key field is \"key\", the\noperator is \"In\", and the values array contains only \"value\". The requirements are ANDed.",
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "x-kubernetes-map-type": "atomic"
+        },
+        "targetLabels": {
+          "description": "Labels to add to the Prometheus target for discovered endpoints.\nThe `instance` label is always set to `\u003cpod_name\u003e:\u003cport\u003e` or `\u003cnode_name\u003e:\u003cport\u003e`\nif the scraped pod is controlled by a DaemonSet.",
+          "type": "object",
+          "default": {},
+          "properties": {
+            "fromPod": {
+              "description": "Labels to transfer from the Kubernetes Pod to Prometheus target labels.\nMappings are applied in order.",
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "description": "LabelMapping specifies how to transfer a label from a Kubernetes resource\nonto a Prometheus target.",
+                "type": "object",
+                "required": [
+                  "from"
+                ],
+                "properties": {
+                  "from": {
+                    "description": "Kubernetes resource label to remap.",
+                    "type": "string"
+                  },
+                  "to": {
+                    "description": "Remapped Prometheus target label.\nDefaults to the same name as `From`.",
+                    "type": "string",
+                    "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+                    "x-kubernetes-validations": [
+                      {
+                        "rule": "self != 'project_id' \u0026\u0026 self != 'location' \u0026\u0026 self != 'cluster' \u0026\u0026 self != 'namespace' \u0026\u0026 self != 'job' \u0026\u0026 self != 'instance' \u0026\u0026 self != 'top_level_controller' \u0026\u0026 self != 'top_level_controller_type' \u0026\u0026 self != '__address__'",
+                        "messageExpression": "'cannot relabel onto protected label \"%s\"'.format([self])"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "metadata": {
+              "description": "Pod metadata labels that are set on all scraped targets.\nPermitted keys are `container`, `node`, `pod`, `top_level_controller_name`,\nand `top_level_controller_type`. The `container`\nlabel is only populated if the scrape port is referenced by name.\nDefaults to [container, pod, top_level_controller_name, top_level_controller_type].\nIf set to null, it will be interpreted as the empty list.\nThis is for backwards-compatibility only.",
+              "type": "array",
+              "default": [
+                "container",
+                "pod",
+                "top_level_controller_name",
+                "top_level_controller_type"
+              ],
+              "items": {
+                "type": "string",
+                "enum": [
+                  "container",
+                  "node",
+                  "pod",
+                  "top_level_controller_name",
+                  "top_level_controller_type"
+                ]
+              },
+              "x-kubernetes-list-type": "set"
+            }
+          }
+        }
+      }
+    },
+    "status": {
+      "description": "Most recently observed status of the resource.",
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "description": "Represents the latest available observations of a podmonitor's current state.",
+          "type": "array",
+          "items": {
+            "description": "MonitoringCondition describes the condition of a PodMonitoring.",
+            "type": "object",
+            "required": [
+              "status",
+              "type"
+            ],
+            "properties": {
+              "lastTransitionTime": {
+                "description": "Last time the condition transitioned from one status to another.",
+                "type": "string",
+                "format": "date-time"
+              },
+              "lastUpdateTime": {
+                "description": "The last time this condition was updated.",
+                "type": "string",
+                "format": "date-time"
+              },
+              "message": {
+                "description": "A human-readable message indicating details about the transition.",
+                "type": "string"
+              },
+              "reason": {
+                "description": "The reason for the condition's last transition.",
+                "type": "string"
+              },
+              "status": {
+                "description": "Status of the condition, one of True, False, Unknown.",
+                "type": "string"
+              },
+              "type": {
+                "description": "MonitoringConditionType is the type of MonitoringCondition.",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "endpointStatuses": {
+          "description": "Represents the latest available observations of target state for each ScrapeEndpoint.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "activeTargets": {
+                "description": "Total number of active targets.",
+                "type": "integer",
+                "format": "int64"
+              },
+              "collectorsFraction": {
+                "description": "Fraction of collectors included in status, bounded [0,1].\nIdeally, this should always be 1. Anything less can\nbe considered a problem and should be investigated.",
+                "type": "string"
+              },
+              "lastUpdateTime": {
+                "description": "Last time this status was updated.",
+                "type": "string",
+                "format": "date-time"
+              },
+              "name": {
+                "description": "The name of the ScrapeEndpoint.",
+                "type": "string"
+              },
+              "sampleGroups": {
+                "description": "A fixed sample of targets grouped by error type.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "description": "Total count of similar errors.",
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "sampleTargets": {
+                      "description": "Targets emitting the error message.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "health": {
+                            "description": "Health status.",
+                            "type": "string"
+                          },
+                          "labels": {
+                            "description": "The label set, keys and values, of the target.",
+                            "type": "object",
+                            "additionalProperties": {
+                              "description": "A LabelValue is an associated value for a LabelName.",
+                              "type": "string"
+                            }
+                          },
+                          "lastError": {
+                            "description": "Error message.",
+                            "type": "string"
+                          },
+                          "lastScrapeDurationSeconds": {
+                            "description": "Scrape duration in seconds.",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "unhealthyTargets": {
+                "description": "Total number of active, unhealthy targets.",
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          }
+        },
+        "observedGeneration": {
+          "description": "The generation observed by the controller.",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    }
+  },
+  "x-kubernetes-validations": [
+    {
+      "rule": "self.spec.endpoints.all(e, !has(e.authorization) || !has(e.authorization.credentials) || !has(e.authorization.credentials.secret) || !has(e.authorization.credentials.secret.__namespace__))",
+      "message": "Namespace not allowed on PodMonitoring secret references.",
+      "reason": "FieldValueForbidden"
+    },
+    {
+      "rule": "self.spec.endpoints.all(e, !has(e.basicAuth) || !has(e.basicAuth.password) || !has(e.basicAuth.password.secret) || !has(e.basicAuth.password.secret.__namespace__))",
+      "message": "Namespace not allowed on PodMonitoring secret references.",
+      "reason": "FieldValueForbidden"
+    },
+    {
+      "rule": "self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.ca) || !has(e.tls.ca.secret) || !has(e.tls.ca.secret.__namespace__))",
+      "message": "Namespace not allowed on PodMonitoring secret references.",
+      "reason": "FieldValueForbidden"
+    },
+    {
+      "rule": "self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.cert) || !has(e.tls.cert.secret) || !has(e.tls.cert.secret.__namespace__))",
+      "message": "Namespace not allowed on PodMonitoring secret references.",
+      "reason": "FieldValueForbidden"
+    },
+    {
+      "rule": "self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.key) || !has(e.tls.key.secret) || !has(e.tls.key.secret.__namespace__))",
+      "message": "Namespace not allowed on PodMonitoring secret references.",
+      "reason": "FieldValueForbidden"
+    },
+    {
+      "rule": "self.spec.endpoints.all(e, !has(e.oauth2) || !has(e.oauth2.clientSecret) || !has(e.oauth2.clientSecret.secret) || !has(e.oauth2.clientSecret.secret.__namespace__))",
+      "message": "Namespace not allowed on PodMonitoring secret references.",
+      "reason": "FieldValueForbidden"
+    }
+  ]
+}

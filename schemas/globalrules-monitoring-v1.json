@@ -1,0 +1,160 @@
+{
+  "description": "GlobalRules defines Prometheus alerting and recording rules that are scoped\nto all data in the queried project.\nIf the project_id or location labels are not preserved by the rule, they default to\nthe values of the cluster.",
+  "type": "object",
+  "required": [
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+      "type": "string"
+    },
+    "kind": {
+      "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "description": "Specification of rules to record and alert on.",
+      "type": "object",
+      "required": [
+        "groups"
+      ],
+      "properties": {
+        "groups": {
+          "description": "A list of Prometheus rule groups.",
+          "type": "array",
+          "items": {
+            "description": "RuleGroup declares rules in the Prometheus format:\nhttps://prometheus.io/docs/prometheus/latest/configuration/recording_rules/",
+            "type": "object",
+            "required": [
+              "name",
+              "rules"
+            ],
+            "properties": {
+              "interval": {
+                "description": "The interval at which to evaluate the rules. Must be a valid Prometheus duration.",
+                "type": "string",
+                "format": "duration",
+                "default": "1m"
+              },
+              "name": {
+                "description": "The name of the rule group.",
+                "type": "string"
+              },
+              "rules": {
+                "description": "A list of rules that are executed sequentially as part of this group.",
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "description": "Rule is a single rule in the Prometheus format:\nhttps://prometheus.io/docs/prometheus/latest/configuration/recording_rules/",
+                  "type": "object",
+                  "required": [
+                    "expr"
+                  ],
+                  "properties": {
+                    "alert": {
+                      "description": "Name of the alert to evaluate the expression as.\nOnly one of `record` and `alert` must be set.",
+                      "type": "string"
+                    },
+                    "annotations": {
+                      "description": "A set of annotations to attach to alerts produced by the query expression.\nOnly valid if `alert` is set.",
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "expr": {
+                      "description": "The PromQL expression to evaluate.",
+                      "type": "string"
+                    },
+                    "for": {
+                      "description": "The duration to wait before a firing alert produced by this rule is sent to Alertmanager.\nOnly valid if `alert` is set.",
+                      "type": "string",
+                      "format": "duration"
+                    },
+                    "labels": {
+                      "description": "A set of labels to attach to the result of the query expression.",
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "record": {
+                      "description": "Record the result of the expression to this metric name.\nOnly one of `record` and `alert` must be set.",
+                      "type": "string",
+                      "pattern": "^[a-zA-Z_:][a-zA-Z0-9_:]*$"
+                    }
+                  },
+                  "x-kubernetes-validations": [
+                    {
+                      "rule": "(has(self.record) ? 1 : 0) + (has(self.alert) ? 1 : 0) == 1",
+                      "message": "Must set exactly one of Record or Alert"
+                    },
+                    {
+                      "rule": "!has(self.annotations) || has(self.alert)",
+                      "message": "Annotations are only allowed for alerting rules"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "status": {
+      "description": "Most recently observed status of the resource.",
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "description": "Represents the latest available observations of a podmonitor's current state.",
+          "type": "array",
+          "items": {
+            "description": "MonitoringCondition describes the condition of a PodMonitoring.",
+            "type": "object",
+            "required": [
+              "status",
+              "type"
+            ],
+            "properties": {
+              "lastTransitionTime": {
+                "description": "Last time the condition transitioned from one status to another.",
+                "type": "string",
+                "format": "date-time"
+              },
+              "lastUpdateTime": {
+                "description": "The last time this condition was updated.",
+                "type": "string",
+                "format": "date-time"
+              },
+              "message": {
+                "description": "A human-readable message indicating details about the transition.",
+                "type": "string"
+              },
+              "reason": {
+                "description": "The reason for the condition's last transition.",
+                "type": "string"
+              },
+              "status": {
+                "description": "Status of the condition, one of True, False, Unknown.",
+                "type": "string"
+              },
+              "type": {
+                "description": "MonitoringConditionType is the type of MonitoringCondition.",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "observedGeneration": {
+          "description": "The generation observed by the controller.",
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    }
+  }
+}

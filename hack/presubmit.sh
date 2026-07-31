@@ -24,7 +24,7 @@ fi
 
 usage() {
 	cat >&2 <<EOF
-usage: $(basename "$0") [all] [codegen] [crdgen] [diff] [docgen] [manifests] [format] [test]
+usage: $(basename "$0") [all] [codegen] [crdgen] [jsonschemas] [diff] [docgen] [manifests] [format] [test]
   $(basename "$0") executes presubmit tasks on the respository to prepare code
   before submitting changes. Running with no arguments runs every check
   (i.e. the 'all' subcommand).
@@ -86,6 +86,11 @@ update_crdgen() {
 	done
 
 	combine ${CRD_DIR} ${REPO_ROOT}/manifests/setup.yaml
+}
+
+update_jsonschemas() {
+	echo ">>> generating CRD JSON schemas"
+	go run "${REPO_ROOT}/hack/gen-jsonschemas" "${CRD_DIR}" "${REPO_ROOT}/schemas"
 }
 
 update_docgen() {
@@ -154,6 +159,7 @@ exit_msg() {
 update_all() {
 	reformat
 	update_crdgen
+	update_jsonschemas
 	update_manifests
 	update_docgen
 }
@@ -172,6 +178,10 @@ main() {
 				;;
 			crdgen)
 				update_crdgen
+				update_jsonschemas
+				;;
+			jsonschemas)
+				update_jsonschemas
 				;;
 			diff)
 				git diff --exit-code go.mod go.sum '*.md' '*.go' '*.yml' '*.yaml' ||
