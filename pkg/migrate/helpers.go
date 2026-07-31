@@ -43,10 +43,8 @@ const (
 
 // Constants representing the supported ScrapeProtocol enum values defined in upstream Prometheus Operator.
 const (
-	scrapeProtocolOpenMetricsText001 = pomonitoringv1.ScrapeProtocol("OpenMetricsText0.0.1")
 	scrapeProtocolOpenMetricsText100 = pomonitoringv1.ScrapeProtocol("OpenMetricsText1.0.0")
 	scrapeProtocolPrometheusProto    = pomonitoringv1.ScrapeProtocol("PrometheusProto")
-	scrapeProtocolPrometheusText004  = pomonitoringv1.ScrapeProtocol("PrometheusText0.0.4")
 )
 
 var (
@@ -958,10 +956,6 @@ func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLeng
 	}
 	if labelValueLengthLimit != nil {
 		limits.LabelValueLength = *labelValueLengthLimit
-	}
-	// Return nil if all limit fields are zero to avoid emitting empty limits objects in YAML.
-	if *limits == (monitoringv1.ScrapeLimits{}) {
-		return nil
 	}
 	return limits
 }

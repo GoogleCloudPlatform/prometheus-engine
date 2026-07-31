@@ -1265,6 +1265,53 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
+			name: "Scope-aware Metadata: AttachMetadata.Node seeds from namespacedMetadataDefaults in PodMonitoring",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "node-metadata-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					AttachMetadata: &pomonitoringv1.AttachMetadata{
+						Node: ptrTo(true),
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "test"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port:     "metrics",
+							Interval: "30s",
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{Name: "node-metadata-monitor", Namespace: "default"},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "test"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+							},
+						},
+						TargetLabels: monitoringv1.TargetLabels{
+							Metadata: ptrTo([]string{labelContainer, labelNode, labelPod, labelTopLevelControllerName, labelTopLevelControllerType}),
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "Scope-aware Metadata: AttachMetadata.Node seeds from clusterMetadataDefaults in ClusterPodMonitoring",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
@@ -1607,7 +1654,7 @@ func TestPodMonitorConversion(t *testing.T) {
 							},
 						},
 						TargetLabels: monitoringv1.TargetLabels{
-							Metadata: &[]string{labelNode},
+							Metadata: ptrTo([]string{labelContainer, labelNode, labelPod, labelTopLevelControllerName, labelTopLevelControllerType}),
 						},
 						Limits: &monitoringv1.ScrapeLimits{
 							Samples:          5000,
