@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func newTestConversionContext() *conversionContext {
@@ -956,4 +957,326 @@ func TestDecoupledNamespaces(t *testing.T) {
 	if genSecrets[0].GetNamespace() != "target-ns" {
 		t.Errorf("expected generated secret namespace %q, got %q", "target-ns", genSecrets[0].GetNamespace())
 	}
+}
+func TestFindServicesBySelector(t *testing.T) {
+	tests := []struct {
+		name       string
+		setupCache func(cache *ResourceCache) error
+		selector   metav1.LabelSelector
+		namespaces []string
+		expected   []string
+		wantErr    bool
+	}{
+		{
+			name: "Match single service by label",
+			setupCache: func(cache *ResourceCache) error {
+				return addServiceToCache(cache, "default", "svc-a", map[string]string{"app": "foo"})
+			},
+			selector:   metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+			namespaces: []string{"default"},
+			expected:   []string{"svc-a"},
+			wantErr:    false,
+		},
+		{
+			name: "Match multiple services",
+			setupCache: func(cache *ResourceCache) error {
+				if err := addServiceToCache(cache, "default", "svc-a", map[string]string{"app": "foo"}); err != nil {
+					return err
+				}
+				return addServiceToCache(cache, "default", "svc-b", map[string]string{"app": "foo", "env": "prod"})
+			},
+			selector:   metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+			namespaces: []string{"default"},
+			expected:   []string{"svc-a", "svc-b"},
+			wantErr:    false,
+		},
+		{
+			name: "Filter by namespace",
+			setupCache: func(cache *ResourceCache) error {
+				if err := addServiceToCache(cache, "ns-a", "svc-a", map[string]string{"app": "foo"}); err != nil {
+					return err
+				}
+				return addServiceToCache(cache, "ns-b", "svc-b", map[string]string{"app": "foo"})
+			},
+			selector:   metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+			namespaces: []string{"ns-a"},
+			expected:   []string{"svc-a"},
+			wantErr:    false,
+		},
+		{
+			name: "Match any namespace",
+			setupCache: func(cache *ResourceCache) error {
+				if err := addServiceToCache(cache, "ns-a", "svc-a", map[string]string{"app": "foo"}); err != nil {
+					return err
+				}
+				return addServiceToCache(cache, "ns-b", "svc-b", map[string]string{"app": "foo"})
+			},
+			selector:   metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+			namespaces: nil,
+			expected:   []string{"svc-a", "svc-b"},
+			wantErr:    false,
+		},
+		{
+			name: "No match",
+			setupCache: func(cache *ResourceCache) error {
+				return addServiceToCache(cache, "default", "svc-a", map[string]string{"app": "bar"})
+			},
+			selector:   metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+			namespaces: []string{"default"},
+			expected:   nil,
+			wantErr:    false,
+		},
+		{
+			name:       "Invalid selector",
+			setupCache: func(_ *ResourceCache) error { return nil },
+			selector: metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "app",
+						Operator: "InvalidOperator",
+					},
+				},
+			},
+			namespaces: []string{"default"},
+			expected:   nil,
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := NewResourceCache()
+			if err := tc.setupCache(cache); err != nil {
+				t.Fatalf("failed to setup cache: %v", err)
+			}
+
+			matched, err := cache.findServicesBySelector(tc.selector, tc.namespaces)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("findServicesBySelector() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if tc.wantErr {
+				return
+			}
+
+			if len(matched) != len(tc.expected) {
+				t.Fatalf("expected %d matches, got %d", len(tc.expected), len(matched))
+			}
+
+			for i, svc := range matched {
+				if svc.GetName() != tc.expected[i] {
+					t.Errorf("expected matched service at index %d to be %s, got %s", i, tc.expected[i], svc.GetName())
+				}
+			}
+		})
+	}
+}
+
+func TestResolveServicePort(t *testing.T) {
+	tests := []struct {
+		name     string
+		service  *unstructured.Unstructured
+		portStr  string
+		expected intstr.IntOrString
+		wantErr  bool
+	}{
+		{
+			name: "Resolve by name to int",
+			service: makeTestService("default", "my-svc", []corev1.ServicePort{
+				{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+			}),
+			portStr:  "web",
+			expected: intstr.FromInt32(8080),
+			wantErr:  false,
+		},
+		{
+			name: "Resolve by name to string",
+			service: makeTestService("default", "my-svc", []corev1.ServicePort{
+				{Name: "web", Port: 80, TargetPort: intstr.FromString("http-web")},
+			}),
+			portStr:  "web",
+			expected: intstr.FromString("http-web"),
+			wantErr:  false,
+		},
+		{
+			name: "Resolve by port number to targetPort int",
+			service: makeTestService("default", "my-svc", []corev1.ServicePort{
+				{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+			}),
+			portStr:  "80",
+			expected: intstr.FromInt32(8080),
+			wantErr:  false,
+		},
+		{
+			name: "Resolve by port number (float64 port and targetPort)",
+			service: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "v1",
+					"kind":       "Service",
+					"metadata": map[string]any{
+						"name":      "my-svc",
+						"namespace": "default",
+					},
+					"spec": map[string]any{
+						"ports": []any{
+							map[string]any{
+								"name":       "web",
+								"port":       float64(80),
+								"targetPort": float64(8080),
+							},
+						},
+					},
+				},
+			},
+			portStr:  "80",
+			expected: intstr.FromInt32(8080),
+			wantErr:  false,
+		},
+		{
+			name: "Resolve with omitted targetPort",
+			service: makeTestService("default", "my-svc", []corev1.ServicePort{
+				{Name: "web", Port: 80},
+			}),
+			portStr:  "web",
+			expected: intstr.FromInt32(80),
+			wantErr:  false,
+		},
+		{
+			name: "Port not found",
+			service: makeTestService("default", "my-svc", []corev1.ServicePort{
+				{Name: "web", Port: 80},
+			}),
+			portStr:  "admin",
+			expected: intstr.IntOrString{},
+			wantErr:  true,
+		},
+		{
+			name:     "Nil service",
+			service:  nil,
+			portStr:  "web",
+			expected: intstr.IntOrString{},
+			wantErr:  true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resolveServicePort(tc.service, tc.portStr)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("resolveServicePort() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if tc.wantErr {
+				return
+			}
+			if got != tc.expected {
+				t.Errorf("expected %+v, got %+v", tc.expected, got)
+			}
+		})
+	}
+}
+
+func TestConvertServiceTargetLabels(t *testing.T) {
+	tests := []struct {
+		name         string
+		service      *unstructured.Unstructured
+		targetLabels []string
+		expected     []monitoringv1.RelabelingRule
+	}{
+		{
+			name: "Map service labels",
+			service: makeTestServiceWithLabels("default", "my-svc", map[string]string{
+				"app": "foo",
+				"env": "prod",
+			}),
+			targetLabels: []string{"app", "env"},
+			expected: []monitoringv1.RelabelingRule{
+				{TargetLabel: "app", Replacement: "foo", Action: "replace"},
+				{TargetLabel: "env", Replacement: "prod", Action: "replace"},
+			},
+		},
+		{
+			name: "Map service labels with protected rename",
+			service: makeTestServiceWithLabels("default", "my-svc", map[string]string{
+				"job": "foo",
+			}),
+			targetLabels: []string{"job"},
+			expected: []monitoringv1.RelabelingRule{
+				{TargetLabel: "exported_job", Replacement: "foo", Action: "replace"},
+			},
+		},
+		{
+			name: "Missing label on service",
+			service: makeTestServiceWithLabels("default", "my-svc", map[string]string{
+				"app": "foo",
+			}),
+			targetLabels: []string{"app", "team"},
+			expected: []monitoringv1.RelabelingRule{
+				{TargetLabel: "app", Replacement: "foo", Action: "replace"},
+			},
+		},
+		{
+			name:         "Nil service",
+			service:      nil,
+			targetLabels: []string{"app"},
+			expected:     nil,
+		},
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := convertServiceTargetLabels(logger, tc.service, tc.targetLabels)
+			if len(got) != len(tc.expected) {
+				t.Fatalf("expected %d rules, got %d", len(tc.expected), len(got))
+			}
+			for i, r := range got {
+				if r.TargetLabel != tc.expected[i].TargetLabel ||
+					r.Replacement != tc.expected[i].Replacement ||
+					r.Action != tc.expected[i].Action {
+					t.Errorf("expected rule at %d to be %+v, got %+v", i, tc.expected[i], r)
+				}
+			}
+		})
+	}
+}
+
+func addServiceToCache(cache *ResourceCache, namespace, name string, labels map[string]string) error {
+	svc := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+	}
+	u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(svc)
+	return cache.Add(&unstructured.Unstructured{Object: u})
+}
+
+func makeTestService(namespace, name string, ports []corev1.ServicePort) *unstructured.Unstructured {
+	svc := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: ports,
+		},
+	}
+	u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(svc)
+	return &unstructured.Unstructured{Object: u}
+}
+
+func makeTestServiceWithLabels(namespace, name string, labels map[string]string) *unstructured.Unstructured {
+	svc := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+	}
+	u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(svc)
+	return &unstructured.Unstructured{Object: u}
 }
