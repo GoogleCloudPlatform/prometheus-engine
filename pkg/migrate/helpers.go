@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"slices"
 	"strings"
 
@@ -28,10 +27,10 @@ import (
 	prommodel "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/google/export"
 	"github.com/prometheus/prometheus/model/relabel"
+	"github.com/prometheus/prometheus/util/strutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -1298,63 +1297,31 @@ func combineAndConvertRelabelings(logger *slog.Logger, promoted []monitoringv1.R
 	return allRules
 }
 
-// findServicesBySelector finds Services matching the selector in target namespaces (all if empty).
-func (c *ResourceCache) findServicesBySelector(selector metav1.LabelSelector, namespaces []string) ([]*unstructured.Unstructured, error) {
-	sel, err := metav1.LabelSelectorAsSelector(&selector)
-	if err != nil {
-		return nil, fmt.Errorf("invalid selector: %w", err)
-	}
-
-	var matched []*unstructured.Unstructured
-
-	if c == nil || c.resources == nil {
-		return nil, nil
-	}
-
-	services, ok := c.resources[KindService]
-	if !ok {
-		return nil, nil
-	}
-
-	// To make output deterministic, we sort the keys before iterating.
-	keys := slices.AppendSeq(make([]string, 0, len(services)), maps.Keys(services))
-	slices.Sort(keys)
-
-	for _, key := range keys {
-		svc := services[key]
-		svcNS := svc.GetNamespace()
-
-		if len(namespaces) > 0 && !slices.Contains(namespaces, svcNS) {
-			continue
-		}
-
-		svcLabels := svc.GetLabels()
-		if sel.Matches(labels.Set(svcLabels)) {
-			matched = append(matched, svc)
-		}
-	}
-	return matched, nil
-}
-
-// asInt32 coerces various Go numeric types into an int32.
+// asInt32 coerces various Go numeric types into an int32 within the valid port range [0, 65535].
 func asInt32(val any) (int32, bool) {
+	var n int64
 	switch v := val.(type) {
 	case int:
-		return int32(v), true
+		n = int64(v)
 	case int32:
-		return v, true
+		n = int64(v)
 	case int64:
-		return int32(v), true
+		n = v
 	case float32:
-		return int32(v), true
+		n = int64(v)
 	case float64:
-		return int32(v), true
+		n = int64(v)
+	default:
+		return 0, false
 	}
-	return 0, false
+	if n < 0 || n > 65535 {
+		return 0, false
+	}
+	return int32(n), true
 }
 
 // resolveServicePort resolves a Service port to the backing Pod's target port.
-func resolveServicePort(svc *unstructured.Unstructured, portStr string) (intstr.IntOrString, error) {
+func resolveServicePort(logger *slog.Logger, svc *unstructured.Unstructured, portStr string) (intstr.IntOrString, error) {
 	if portStr == "" {
 		return intstr.IntOrString{}, errors.New("port string cannot be empty")
 	}
@@ -1373,27 +1340,36 @@ func resolveServicePort(svc *unstructured.Unstructured, portStr string) (intstr.
 	for _, p := range ports {
 		portMap, ok := p.(map[string]any)
 		if !ok {
+			logger.Warn("Service port entry is not a valid map. Skipping malformed entry.",
+				slog.String("service", svc.GetName()))
 			continue
 		}
 
 		name, _, _ := unstructured.NestedString(portMap, "name")
 		portVal, foundField, err := unstructured.NestedFieldNoCopy(portMap, "port")
-		if err != nil {
-			return intstr.IntOrString{}, fmt.Errorf("failed to read port field: %w", err)
-		}
-		if !foundField {
-			return intstr.IntOrString{}, errors.New("service port spec is missing the port number")
+		if err != nil || !foundField {
+			logger.Warn("Service port spec is missing the port number. Skipping malformed entry.",
+				slog.String("service", svc.GetName()),
+				slog.String("port_name", name))
+			continue
 		}
 		portNum, ok := asInt32(portVal)
-		if !ok {
-			return intstr.IntOrString{}, fmt.Errorf("invalid port number type in Service spec: %T", portVal)
+		if !ok || portNum < 1 {
+			logger.Warn("Service port entry has an invalid or out-of-range port number. Skipping malformed entry.",
+				slog.String("service", svc.GetName()),
+				slog.String("port_name", name),
+				slog.Any("port_value", portVal))
+			continue
 		}
 
 		// Match by name or port number (as string).
 		if name == portStr || fmt.Sprintf("%d", portNum) == portStr {
 			targetPort, found, err := unstructured.NestedFieldNoCopy(portMap, "targetPort")
 			if err != nil {
-				return intstr.IntOrString{}, fmt.Errorf("failed to read targetPort: %w", err)
+				logger.Warn("Failed to read targetPort from Service port spec. Skipping malformed entry.",
+					slog.String("service", svc.GetName()),
+					slog.String("port_name", name))
+				continue
 			}
 			if !found {
 				// If targetPort is omitted, it defaults to the port number.
@@ -1402,6 +1378,9 @@ func resolveServicePort(svc *unstructured.Unstructured, portStr string) (intstr.
 
 			// targetPort can be int, float64, or string.
 			if valStr, ok := targetPort.(string); ok {
+				if valStr == "" {
+					return intstr.FromInt32(portNum), nil
+				}
 				return intstr.FromString(valStr), nil
 			}
 
@@ -1412,7 +1391,11 @@ func resolveServicePort(svc *unstructured.Unstructured, portStr string) (intstr.
 				return intstr.FromInt32(valNum), nil
 			}
 
-			return intstr.IntOrString{}, fmt.Errorf("invalid targetPort type: %T", targetPort)
+			logger.Warn("Service port entry has an invalid targetPort type. Skipping malformed entry.",
+				slog.String("service", svc.GetName()),
+				slog.String("port_name", name),
+				slog.Any("target_port", targetPort))
+			continue
 		}
 	}
 
@@ -1437,9 +1420,9 @@ func convertServiceTargetLabels(logger *slog.Logger, svc *unstructured.Unstructu
 			continue
 		}
 
-		target := l
-		if protectedLabels[l] {
-			target = "exported_" + l
+		target := strutil.SanitizeLabelName(l)
+		if protectedLabels[target] {
+			target = "exported_" + target
 			logger.Warn("Service targetLabel matches protected label. Renamed target.",
 				slog.String("label", l),
 				slog.String("renamed_target", target))

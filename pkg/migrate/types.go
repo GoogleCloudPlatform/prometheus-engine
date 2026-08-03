@@ -19,8 +19,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 const (
@@ -110,4 +113,44 @@ func (c *ResourceCache) Get(kind, namespace, name string) (*unstructured.Unstruc
 	key := fmt.Sprintf("%s/%s", namespace, name)
 	r, ok := nsMap[key]
 	return r, ok
+}
+
+// findServicesBySelector finds Services matching the label selector within the specified namespaces.
+// Note for callers: passing nil or an empty namespaces slice matches Services across every namespace.
+// Callers should use determineNamespaceScoping to resolve default namespace rules before calling this method.
+func (c *ResourceCache) findServicesBySelector(selector metav1.LabelSelector, namespaces []string) ([]*unstructured.Unstructured, error) {
+	if c == nil || c.resources == nil {
+		return nil, nil
+	}
+
+	sel, err := metav1.LabelSelectorAsSelector(&selector)
+	if err != nil {
+		return nil, fmt.Errorf("invalid selector: %w", err)
+	}
+
+	var matched []*unstructured.Unstructured
+
+	services, ok := c.resources[KindService]
+	if !ok {
+		return nil, nil
+	}
+
+	// To make output deterministic, we sort the keys before iterating.
+	keys := slices.AppendSeq(make([]string, 0, len(services)), maps.Keys(services))
+	slices.Sort(keys)
+
+	for _, key := range keys {
+		svc := services[key]
+		svcNS := svc.GetNamespace()
+
+		if len(namespaces) > 0 && !slices.Contains(namespaces, svcNS) {
+			continue
+		}
+
+		svcLabels := svc.GetLabels()
+		if sel.Matches(labels.Set(svcLabels)) {
+			matched = append(matched, svc)
+		}
+	}
+	return matched, nil
 }
