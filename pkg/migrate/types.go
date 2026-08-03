@@ -22,8 +22,11 @@ import (
 	"maps"
 	"slices"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 const (
@@ -118,7 +121,7 @@ func (c *ResourceCache) Get(kind, namespace, name string) (*unstructured.Unstruc
 // findServicesBySelector finds Services matching the label selector within the specified namespaces.
 // Note for callers: passing nil or an empty namespaces slice matches Services across every namespace.
 // Callers should use determineNamespaceScoping to resolve default namespace rules before calling this method.
-func (c *ResourceCache) findServicesBySelector(selector metav1.LabelSelector, namespaces []string) ([]*unstructured.Unstructured, error) {
+func (c *ResourceCache) findServicesBySelector(selector metav1.LabelSelector, namespaces []string) ([]*corev1.Service, error) {
 	if c == nil || c.resources == nil {
 		return nil, nil
 	}
@@ -128,7 +131,7 @@ func (c *ResourceCache) findServicesBySelector(selector metav1.LabelSelector, na
 		return nil, fmt.Errorf("invalid selector: %w", err)
 	}
 
-	var matched []*unstructured.Unstructured
+	var matched []*corev1.Service
 
 	services, ok := c.resources[KindService]
 	if !ok {
@@ -149,7 +152,11 @@ func (c *ResourceCache) findServicesBySelector(selector metav1.LabelSelector, na
 
 		svcLabels := svc.GetLabels()
 		if sel.Matches(labels.Set(svcLabels)) {
-			matched = append(matched, svc)
+			var typedSvc corev1.Service
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(svc.Object, &typedSvc); err != nil {
+				return nil, fmt.Errorf("failed to convert Service %s/%s to corev1.Service: %w", svc.GetNamespace(), svc.GetName(), err)
+			}
+			matched = append(matched, &typedSvc)
 		}
 	}
 	return matched, nil
