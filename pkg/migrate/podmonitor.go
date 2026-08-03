@@ -80,6 +80,9 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 		logger.Info("namespaceSelector targets multiple namespaces. Generating separate PodMonitoring resources for each namespace",
 			slog.Any("namespaces", targetNamespaces),
 		)
+		logger.Warn("Multi-namespace conversion does not copy existing referenced Kubernetes Secrets. Ensure any referenced Secrets are manually replicated into all target namespaces.",
+			slog.Any("target_namespaces", targetNamespaces),
+		)
 	}
 
 	var outputs []*unstructured.Unstructured
