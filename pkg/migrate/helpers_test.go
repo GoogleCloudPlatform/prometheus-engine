@@ -1070,8 +1070,8 @@ func TestFindServicesBySelector(t *testing.T) {
 			}
 
 			for i, svc := range matched {
-				if svc.GetName() != tc.expected[i] {
-					t.Errorf("expected matched service at index %d to be %s, got %s", i, tc.expected[i], svc.GetName())
+				if svc.Name != tc.expected[i] {
+					t.Errorf("expected matched service at index %d to be %s, got %s", i, tc.expected[i], svc.Name)
 				}
 			}
 		})
