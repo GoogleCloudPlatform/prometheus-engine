@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
@@ -197,8 +196,7 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 	resolveScrapeClass(pm.Spec.ScrapeClassName, logger)
 	validateScrapeProtocols(pm.Spec.ScrapeProtocols, logger)
 
-	filteredMetadata := filterMetadata(rules.ResourceCombined.Metadata, isCluster, logger)
-	filteredMetadata = resolveAttachMetadata(pm.Spec.AttachMetadata, filteredMetadata, isCluster)
+	metadata := resolveMetadata(rules.ResourceCombined.Metadata, pm.Spec.AttachMetadata, isCluster, logger)
 
 	var filterRunnings []*bool
 	for _, ep := range pm.Spec.PodMetricsEndpoints {
@@ -212,7 +210,7 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 		endpoints:        endpoints,
 		mergedFromPod:    mergedFromPod,
 		mergedSelector:   mergedSelector,
-		metadata:         filteredMetadata,
+		metadata:         metadata,
 		filterRunning:    filterRunning,
 		limits:           limits,
 		generatedSecrets: convCtx.getGeneratedSecrets(),
@@ -251,20 +249,4 @@ func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonit
 
 func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor, targetNamespace string, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	return c.convertToMonitoringResource(pm, targetNamespace, logger, cache, true)
-}
-
-func unionMetadata(extracted []string, defaults []string) []string {
-	unique := make(map[string]bool)
-	for _, m := range defaults {
-		unique[m] = true
-	}
-	for _, m := range extracted {
-		unique[m] = true
-	}
-	var res []string
-	for k := range unique {
-		res = append(res, k)
-	}
-	slices.Sort(res)
-	return res
 }

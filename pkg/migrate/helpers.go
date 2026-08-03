@@ -1185,6 +1185,29 @@ func validateScrapeProtocols(protocols []pomonitoringv1.ScrapeProtocol, logger *
 	}
 }
 
+// unionMetadata merges two slices of metadata labels, removing duplicates and returning a sorted slice.
+func unionMetadata(extracted []string, defaults []string) []string {
+	unique := make(map[string]bool)
+	for _, m := range defaults {
+		unique[m] = true
+	}
+	for _, m := range extracted {
+		unique[m] = true
+	}
+	var res []string
+	for k := range unique {
+		res = append(res, k)
+	}
+	slices.Sort(res)
+	return res
+}
+
+// resolveMetadata applies default metadata unioning, namespace label stripping, and attachMetadata node resolution.
+func resolveMetadata(baseMetadata *[]string, attachMetadata *pomonitoringv1.AttachMetadata, isCluster bool, logger *slog.Logger) *[]string {
+	filtered := filterMetadata(baseMetadata, isCluster, logger)
+	return resolveAttachMetadata(attachMetadata, filtered, isCluster)
+}
+
 // filterMetadata applies namespaced or cluster metadata defaults and strips namespace metadata in namespaced resources.
 func filterMetadata(metadata *[]string, isCluster bool, logger *slog.Logger) *[]string {
 	if metadata == nil {
