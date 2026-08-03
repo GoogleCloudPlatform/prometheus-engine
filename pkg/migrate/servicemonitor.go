@@ -102,6 +102,9 @@ func (c *ServiceMonitorConverter) Convert(_ context.Context, logger *slog.Logger
 		logger.Info("namespaceSelector targets multiple namespaces. Generating separate PodMonitoring resources for each namespace",
 			slog.Any("namespaces", targetNamespaces),
 		)
+		logger.Warn("Multi-namespace conversion does not copy existing referenced Kubernetes Secrets. Ensure any referenced Secrets are manually replicated into all target namespaces.",
+			slog.Any("target_namespaces", targetNamespaces),
+		)
 	}
 
 	// 3. Resolve backing Services and generate PodMonitoring resources per group and namespace.
@@ -143,7 +146,7 @@ func (c *ServiceMonitorConverter) convertToPodMonitoring(
 		name := sm.Name
 		if len(groups) > 1 {
 			// Suffix with the Service name to guarantee resource uniqueness when split.
-			name = fmt.Sprintf("%s-%s", sm.Name, group.Services[0].Name)
+			name = makeUniqueResourceName(sm.Name, group.Services[0].Name)
 		}
 
 		meta := sm.ObjectMeta.DeepCopy()
@@ -482,13 +485,10 @@ func (g *ServiceGroup) canMergeWith(
 		}
 	}
 
-	// 3. Check for target label conflicts.
-	for labelName, labelVal := range targetLabels {
-		if existingVal, exists := g.TargetLabels[labelName]; exists {
-			if existingVal != labelVal {
-				return false
-			}
-		}
+	// 3. Target label mappings must match exactly across merged Services.
+	// Otherwise, unlabeled or partially labeled Services would incorrectly inherit static target label values from other Services in the group.
+	if !maps.Equal(g.TargetLabels, targetLabels) {
+		return false
 	}
 
 	return true

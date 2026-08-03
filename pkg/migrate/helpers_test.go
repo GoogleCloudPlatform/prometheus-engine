@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 func newTestConversionContext() *conversionContext {
@@ -1385,4 +1386,38 @@ func makeTestService(t *testing.T, namespace, name string, labels map[string]str
 func addServiceToCache(t *testing.T, cache *ResourceCache, namespace, name string, labels map[string]string) error {
 	t.Helper()
 	return cache.Add(makeTestService(t, namespace, name, labels, nil))
+}
+
+func TestMakeUniqueResourceName(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     string
+		suffix   string
+		expected string
+	}{
+		{
+			name:     "Short names unchanged",
+			base:     "my-monitor",
+			suffix:   "service-a",
+			expected: "my-monitor-service-a",
+		},
+		{
+			name:     "Long name truncated with hash",
+			base:     "my-very-long-servicemonitor-name-for-production-apps-in-cluster",
+			suffix:   "my-service-alpha-backend",
+			expected: "my-very-long-servicemonitor-name-for-production-apps-in-38a12b",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := makeUniqueResourceName(tc.base, tc.suffix)
+			if got != tc.expected {
+				t.Errorf("makeUniqueResourceName() = %q, want %q", got, tc.expected)
+			}
+			if len(got) > validation.DNS1123LabelMaxLength {
+				t.Errorf("makeUniqueResourceName() length %d exceeds 63 characters", len(got))
+			}
+		})
+	}
 }

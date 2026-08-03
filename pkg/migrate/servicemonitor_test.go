@@ -348,6 +348,93 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Split when labeled and unlabeled Services match selector",
+			setupCache: func(cache *ResourceCache) error {
+				if err := addServiceWithSelectorToCache(cache, "default", "service-labeled",
+					map[string]string{"app": "foo", "team": "alpha"},
+					map[string]string{"app": "foo-pod"},
+					[]corev1.ServicePort{
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+					},
+				); err != nil {
+					return err
+				}
+				return addServiceWithSelectorToCache(cache, "default", "service-unlabeled",
+					map[string]string{"app": "foo"},
+					map[string]string{"app": "foo-pod"},
+					[]corev1.ServicePort{
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+					},
+				)
+			},
+			inputSM: &pomonitoringv1.ServiceMonitor{
+				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.ServiceMonitorSpec{
+					Selector:     metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+					TargetLabels: []string{"team"},
+					Endpoints: []pomonitoringv1.Endpoint{
+						{Port: "web"},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor-service-labeled",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										TargetLabel: "team",
+										Replacement: "alpha",
+										Action:      string(relabel.Replace),
+									},
+								},
+							},
+						},
+					},
+				},
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor-service-unlabeled",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "Merge compatible services",
 			setupCache: func(cache *ResourceCache) error {
 				// Headless and ClusterIP targeting same pods with same port mapping.

@@ -18,6 +18,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"slices"
 	"strings"
@@ -1444,4 +1445,30 @@ func convertServiceTargetLabels(logger *slog.Logger, svc *corev1.Service, target
 	}
 
 	return rules
+}
+
+const (
+	// resourceNameHashLength is the number of hexadecimal characters used for the deterministic suffix hash.
+	resourceNameHashLength = 6
+	// resourceNameSuffixLength is the total length of the hyphen (1 character) plus the hash appended to truncated resource names.
+	resourceNameSuffixLength = 1 + resourceNameHashLength
+)
+
+// makeUniqueResourceName joins a base name and suffix with a hyphen.
+// If the resulting name exceeds validation.DNS1123LabelMaxLength (63 characters),
+// it truncates the base name and appends a 6-character deterministic hash of the suffix.
+func makeUniqueResourceName(base, suffix string) string {
+	name := fmt.Sprintf("%s-%s", base, suffix)
+	if len(name) <= validation.DNS1123LabelMaxLength {
+		return name
+	}
+	h := fnv.New32a()
+	h.Write([]byte(suffix))
+	hashStr := fmt.Sprintf("%08x", h.Sum32())
+	hashSuffix := hashStr[:resourceNameHashLength]
+
+	// Prevent out-of-bounds slicing when base is shorter than 56 characters but suffix is very long.
+	maxBase := min(len(base), validation.DNS1123LabelMaxLength-resourceNameSuffixLength)
+	trimmedBase := strings.TrimRight(base[:maxBase], "-")
+	return fmt.Sprintf("%s-%s", trimmedBase, hashSuffix)
 }
