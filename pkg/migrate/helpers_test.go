@@ -1115,7 +1115,16 @@ func TestResolveServicePort(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name: "Resolve by port number to targetPort string",
+			name: "Resolve by targetPort string when port name omitted",
+			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
+				{Name: "web", Port: 80, TargetPort: intstr.FromString("http-metrics")},
+			}),
+			portStr:  "http-metrics",
+			expected: intstr.FromString("http-metrics"),
+			wantErr:  false,
+		},
+		{
+			name: "Resolve by port number",
 			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromString("http-web")},
 			}),

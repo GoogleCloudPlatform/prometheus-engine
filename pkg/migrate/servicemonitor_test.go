@@ -591,6 +591,55 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "ServiceMonitor with TargetPort fallback",
+			setupCache: func(cache *ResourceCache) error {
+				return addServiceWithSelectorToCache(cache, "default", "my-service",
+					map[string]string{"app": "foo"},
+					map[string]string{"app": "foo-pod"},
+					[]corev1.ServicePort{
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+					},
+				)
+			},
+			inputSM: &pomonitoringv1.ServiceMonitor{
+				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.ServiceMonitorSpec{
+					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+					Endpoints: []pomonitoringv1.Endpoint{
+						{TargetPort: &intstr.IntOrString{Type: intstr.Int, IntVal: 8080}},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))

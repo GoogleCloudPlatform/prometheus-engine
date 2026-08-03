@@ -1354,6 +1354,18 @@ func combineAndConvertRelabelings(logger *slog.Logger, promoted []monitoringv1.R
 	return allRules
 }
 
+// endpointPortKey returns a string representation of the endpoint's Port or TargetPort for port resolution and map lookups.
+func endpointPortKey(ep pomonitoringv1.Endpoint) string {
+	if ep.Port != "" {
+		return ep.Port
+	}
+	// nolint:staticcheck // Support deprecated TargetPort fallback for backwards compatibility.
+	if ep.TargetPort != nil {
+		return ep.TargetPort.String()
+	}
+	return ""
+}
+
 // resolveServicePort resolves a Service port to the backing Pod's target port.
 func resolveServicePort(logger *slog.Logger, svc *corev1.Service, portStr string) (intstr.IntOrString, error) {
 	if portStr == "" {
@@ -1375,7 +1387,7 @@ func resolveServicePort(logger *slog.Logger, svc *corev1.Service, portStr string
 			continue
 		}
 
-		if p.Name == portStr || fmt.Sprintf("%d", p.Port) == portStr {
+		if p.Name == portStr || fmt.Sprintf("%d", p.Port) == portStr || p.TargetPort.String() == portStr {
 			if p.TargetPort.IntVal == 0 && p.TargetPort.StrVal == "" {
 				return intstr.FromInt32(p.Port), nil
 			}

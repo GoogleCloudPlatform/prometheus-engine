@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"reflect"
 	"slices"
 	"strings"
 
@@ -123,19 +122,9 @@ func (c *ServiceMonitorConverter) convertToPodMonitoring(
 	cache *ResourceCache,
 	targetNamespaces []string,
 ) (podMonitorings, generatedSecrets []*unstructured.Unstructured, err error) {
-	// 1. Query the cache for all Services matching the selector.
-	svcs, err := cache.findServicesBySelector(sm.Spec.Selector, targetNamespaces)
+	groups, err := c.findAndGroupServices(sm, targetNamespaces, logger, cache)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to search for Services matching selector: %w", err)
-	}
-	if len(svcs) == 0 {
-		return nil, nil, errors.New("corresponding Kubernetes Service was not found. Selector and port mappings cannot be resolved")
-	}
-
-	// 2. Group Services by configuration compatibility to detect conflicts.
-	groups, err := groupServices(logger, sm.Spec.TargetLabels, sm, svcs)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to group Services: %w", err)
 	}
 
 	if len(groups) > 1 {
@@ -177,23 +166,39 @@ func (c *ServiceMonitorConverter) convertToPodMonitoring(
 	return podMonitorings, generatedSecrets, nil
 }
 
+// findAndGroupServices queries the cache for Services matching the selector and groups them by configuration compatibility.
+func (c *ServiceMonitorConverter) findAndGroupServices(
+	sm *pomonitoringv1.ServiceMonitor,
+	targetNamespaces []string,
+	logger *slog.Logger,
+	cache *ResourceCache,
+) ([]*ServiceGroup, error) {
+	svcs, err := cache.findServicesBySelector(sm.Spec.Selector, targetNamespaces)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search for Services matching selector: %w", err)
+	}
+	if len(svcs) == 0 {
+		return nil, errors.New("corresponding Kubernetes Service was not found. Selector and port mappings cannot be resolved")
+	}
+
+	groups, err := groupServices(logger, sm.Spec.TargetLabels, sm, svcs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to group Services: %w", err)
+	}
+	if len(groups) == 0 {
+		return nil, errors.New("no valid Kubernetes Service groups found. Selector and port mappings cannot be resolved")
+	}
+	return groups, nil
+}
+
 func (c *ServiceMonitorConverter) convertToClusterPodMonitoring(
 	sm *pomonitoringv1.ServiceMonitor,
 	logger *slog.Logger,
 	cache *ResourceCache,
 ) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	// Search all namespaces for Services targeting ClusterPodMonitoring.
-	svcs, err := cache.findServicesBySelector(sm.Spec.Selector, nil)
+	groups, err := c.findAndGroupServices(sm, nil, logger, cache)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to search for Services matching selector: %w", err)
-	}
-	if len(svcs) == 0 {
-		return nil, nil, errors.New("corresponding Kubernetes Service was not found. Selector and port mappings cannot be resolved")
-	}
-
-	groups, err := groupServices(logger, sm.Spec.TargetLabels, sm, svcs)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to group Services: %w", err)
 	}
 
 	// ClusterPodMonitoring is cluster-scoped and cannot be split by namespace.
@@ -256,7 +261,7 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 
 	if len(serviceTargetLabelRules) > 0 {
 		for i := range endpoints {
-			endpoints[i].MetricRelabeling = append(endpoints[i].MetricRelabeling, serviceTargetLabelRules...)
+			endpoints[i].MetricRelabeling = append(slices.Clone(serviceTargetLabelRules), endpoints[i].MetricRelabeling...)
 		}
 	}
 
@@ -300,19 +305,24 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 	epResults []preScrapeRelabelingResult,
 	group *ServiceGroup,
 ) ([]monitoringv1.ScrapeEndpoint, error) {
+	if len(epResults) != len(endpoints) {
+		return nil, fmt.Errorf("internal error: pre-scrape relabeling results length (%d) does not match endpoints length (%d)", len(epResults), len(endpoints))
+	}
+
 	var gmpEndpoints []monitoringv1.ScrapeEndpoint
 
 	for i, ep := range endpoints {
 		gmpEp := monitoringv1.ScrapeEndpoint{}
 
 		// 1. Port mapping (Use pre-resolved port from group).
-		if ep.Port == "" {
-			return nil, fmt.Errorf("endpoint [%d]: port must be set", i)
+		portKey := endpointPortKey(ep)
+		if portKey == "" {
+			return nil, fmt.Errorf("endpoint [%d]: port or targetPort must be set", i)
 		}
 
-		resolvedPort, exists := group.PortMap[ep.Port]
+		resolvedPort, exists := group.PortMap[portKey]
 		if !exists {
-			return nil, fmt.Errorf("endpoint [%d]: port %q was not resolved for this group", i, ep.Port)
+			return nil, fmt.Errorf("endpoint [%d]: port %q was not resolved for this group", i, portKey)
 		}
 		gmpEp.Port = resolvedPort
 
@@ -394,14 +404,15 @@ func groupServices(
 		// 2. Resolve ports for this Service.
 		portMap := make(map[string]intstr.IntOrString)
 		for _, ep := range sm.Spec.Endpoints {
-			if ep.Port == "" {
+			portKey := endpointPortKey(ep)
+			if portKey == "" {
 				continue
 			}
-			resolvedPort, err := resolveServicePort(logger, svc, ep.Port)
+			resolvedPort, err := resolveServicePort(logger, svc, portKey)
 			if err != nil {
-				return nil, fmt.Errorf("service %q: failed to resolve port %q: %w", svc.Name, ep.Port, err)
+				return nil, fmt.Errorf("service %q: failed to resolve port %q: %w", svc.Name, portKey, err)
 			}
-			portMap[ep.Port] = resolvedPort
+			portMap[portKey] = resolvedPort
 		}
 
 		// 3. Resolve target labels for this Service.
@@ -458,14 +469,14 @@ func (g *ServiceGroup) canMergeWith(
 	targetLabels map[string]string,
 ) bool {
 	// 1. Selector must match exactly.
-	if !reflect.DeepEqual(g.Selector, selector) {
+	if !maps.Equal(g.Selector, selector) {
 		return false
 	}
 
 	// 2. Check for port mapping conflicts.
 	for portName, targetPort := range portMap {
 		if existingTargetPort, exists := g.PortMap[portName]; exists {
-			if !reflect.DeepEqual(existingTargetPort, targetPort) {
+			if existingTargetPort != targetPort {
 				return false
 			}
 		}
@@ -486,13 +497,7 @@ func (g *ServiceGroup) canMergeWith(
 // convertStaticTargetLabels maps Service target labels to static metricRelabeling rules.
 func convertStaticTargetLabels(logger *slog.Logger, labels map[string]string) []monitoringv1.RelabelingRule {
 	var rules []monitoringv1.RelabelingRule
-	var keys []string
-	for k := range labels {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(labels)) {
 		v := labels[k]
 		target := strutil.SanitizeLabelName(k)
 		if protectedLabels[target] {
