@@ -1081,14 +1081,14 @@ func TestFindServicesBySelector(t *testing.T) {
 func TestResolveServicePort(t *testing.T) {
 	tests := []struct {
 		name     string
-		service  *unstructured.Unstructured
+		service  *corev1.Service
 		portStr  string
 		expected intstr.IntOrString
 		wantErr  bool
 	}{
 		{
 			name: "Resolve by name to int",
-			service: makeTestService(t, "default", "my-svc", nil, []corev1.ServicePort{
+			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
 			}),
 			portStr:  "web",
@@ -1097,7 +1097,7 @@ func TestResolveServicePort(t *testing.T) {
 		},
 		{
 			name: "Resolve by name to string",
-			service: makeTestService(t, "default", "my-svc", nil, []corev1.ServicePort{
+			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromString("http-web")},
 			}),
 			portStr:  "web",
@@ -1106,7 +1106,7 @@ func TestResolveServicePort(t *testing.T) {
 		},
 		{
 			name: "Resolve by port number to targetPort int",
-			service: makeTestService(t, "default", "my-svc", nil, []corev1.ServicePort{
+			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
 			}),
 			portStr:  "80",
@@ -1114,33 +1114,17 @@ func TestResolveServicePort(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name: "Resolve by port number (float64 port and targetPort)",
-			service: &unstructured.Unstructured{
-				Object: map[string]any{
-					"apiVersion": "v1",
-					"kind":       "Service",
-					"metadata": map[string]any{
-						"name":      "my-svc",
-						"namespace": "default",
-					},
-					"spec": map[string]any{
-						"ports": []any{
-							map[string]any{
-								"name":       "web",
-								"port":       float64(80),
-								"targetPort": float64(8080),
-							},
-						},
-					},
-				},
-			},
+			name: "Resolve by port number",
+			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
+				{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+			}),
 			portStr:  "80",
 			expected: intstr.FromInt32(8080),
 			wantErr:  false,
 		},
 		{
 			name: "Resolve with omitted targetPort",
-			service: makeTestService(t, "default", "my-svc", nil, []corev1.ServicePort{
+			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80},
 			}),
 			portStr:  "web",
@@ -1149,7 +1133,7 @@ func TestResolveServicePort(t *testing.T) {
 		},
 		{
 			name: "Port not found",
-			service: makeTestService(t, "default", "my-svc", nil, []corev1.ServicePort{
+			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80},
 			}),
 			portStr:  "admin",
@@ -1165,25 +1149,12 @@ func TestResolveServicePort(t *testing.T) {
 		},
 		{
 			name: "Skip malformed port entry and resolve valid later entry",
-			service: &unstructured.Unstructured{
-				Object: map[string]any{
-					"apiVersion": "v1",
-					"kind":       "Service",
-					"metadata": map[string]any{
-						"name":      "my-svc",
-						"namespace": "default",
-					},
-					"spec": map[string]any{
-						"ports": []any{
-							map[string]any{
-								"name": "malformed",
-							},
-							map[string]any{
-								"name":       "web",
-								"port":       int64(80),
-								"targetPort": int64(8080),
-							},
-						},
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-svc", Namespace: "default"},
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{Name: "malformed", Port: 0},
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
 					},
 				},
 			},
@@ -1193,24 +1164,12 @@ func TestResolveServicePort(t *testing.T) {
 		},
 		{
 			name: "All ports malformed returns error",
-			service: &unstructured.Unstructured{
-				Object: map[string]any{
-					"apiVersion": "v1",
-					"kind":       "Service",
-					"metadata": map[string]any{
-						"name":      "my-svc",
-						"namespace": "default",
-					},
-					"spec": map[string]any{
-						"ports": []any{
-							map[string]any{
-								"name": "malformed1",
-							},
-							map[string]any{
-								"name": "malformed2",
-								"port": "invalid-string-port",
-							},
-						},
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-svc", Namespace: "default"},
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{Name: "malformed1", Port: 0},
+						{Name: "malformed2", Port: -1},
 					},
 				},
 			},
@@ -1220,26 +1179,12 @@ func TestResolveServicePort(t *testing.T) {
 		},
 		{
 			name: "Out of range port number is rejected",
-			service: &unstructured.Unstructured{
-				Object: map[string]any{
-					"apiVersion": "v1",
-					"kind":       "Service",
-					"metadata": map[string]any{
-						"name":      "my-svc",
-						"namespace": "default",
-					},
-					"spec": map[string]any{
-						"ports": []any{
-							map[string]any{
-								"name": "overflow-port",
-								"port": int64(4294967297),
-							},
-							map[string]any{
-								"name":       "web",
-								"port":       int64(80),
-								"targetPort": int64(8080),
-							},
-						},
+			service: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-svc", Namespace: "default"},
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{Name: "overflow-port", Port: -5},
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
 					},
 				},
 			},
@@ -1249,7 +1194,7 @@ func TestResolveServicePort(t *testing.T) {
 		},
 		{
 			name: "Resolve with empty string targetPort defaults to port number",
-			service: makeTestService(t, "default", "my-svc", nil, []corev1.ServicePort{
+			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromString("")},
 			}),
 			portStr:  "web",
@@ -1279,13 +1224,13 @@ func TestResolveServicePort(t *testing.T) {
 func TestConvertServiceTargetLabels(t *testing.T) {
 	tests := []struct {
 		name         string
-		service      *unstructured.Unstructured
+		service      *corev1.Service
 		targetLabels []string
 		expected     []monitoringv1.RelabelingRule
 	}{
 		{
 			name: "Map service labels",
-			service: makeTestService(t, "default", "my-svc", map[string]string{
+			service: makeTestTypedService("default", "my-svc", map[string]string{
 				"app": "foo",
 				"env": "prod",
 			}, nil),
@@ -1297,7 +1242,7 @@ func TestConvertServiceTargetLabels(t *testing.T) {
 		},
 		{
 			name: "Map service labels with protected rename",
-			service: makeTestService(t, "default", "my-svc", map[string]string{
+			service: makeTestTypedService("default", "my-svc", map[string]string{
 				"job": "foo",
 			}, nil),
 			targetLabels: []string{"job"},
@@ -1307,7 +1252,7 @@ func TestConvertServiceTargetLabels(t *testing.T) {
 		},
 		{
 			name: "Missing label on service",
-			service: makeTestService(t, "default", "my-svc", map[string]string{
+			service: makeTestTypedService("default", "my-svc", map[string]string{
 				"app": "foo",
 			}, nil),
 			targetLabels: []string{"app", "team"},
@@ -1317,7 +1262,7 @@ func TestConvertServiceTargetLabels(t *testing.T) {
 		},
 		{
 			name: "Map service labels with sanitization",
-			service: makeTestService(t, "default", "my-svc", map[string]string{
+			service: makeTestTypedService("default", "my-svc", map[string]string{
 				"app.kubernetes.io/name":    "foo",
 				"app.kubernetes.io/part-of": "bar",
 			}, nil),
@@ -1329,7 +1274,7 @@ func TestConvertServiceTargetLabels(t *testing.T) {
 		},
 		{
 			name: "Map service labels with sanitization and protected rename",
-			service: makeTestService(t, "default", "my-svc", map[string]string{
+			service: makeTestTypedService("default", "my-svc", map[string]string{
 				"project.id": "my-project",
 			}, nil),
 			targetLabels: []string{"project.id"},
@@ -1375,6 +1320,21 @@ func TestConvertServiceTargetLabels(t *testing.T) {
 				t.Errorf("Generated RelabelingRules failed operator compilation check: %v", err)
 			}
 		})
+	}
+}
+
+// makeTestTypedService builds a corev1.Service object from labels and ports.
+func makeTestTypedService(namespace, name string, labels map[string]string, ports []corev1.ServicePort) *corev1.Service {
+	return &corev1.Service{
+		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: ports,
+		},
 	}
 }
 

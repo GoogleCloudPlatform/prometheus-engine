@@ -1297,105 +1297,32 @@ func combineAndConvertRelabelings(logger *slog.Logger, promoted []monitoringv1.R
 	return allRules
 }
 
-// asInt32 coerces various Go numeric types into an int32 within the valid port range [0, 65535].
-func asInt32(val any) (int32, bool) {
-	var n int64
-	switch v := val.(type) {
-	case int:
-		n = int64(v)
-	case int32:
-		n = int64(v)
-	case int64:
-		n = v
-	case float32:
-		n = int64(v)
-	case float64:
-		n = int64(v)
-	default:
-		return 0, false
-	}
-	if n < 0 || n > 65535 {
-		return 0, false
-	}
-	return int32(n), true
-}
-
 // resolveServicePort resolves a Service port to the backing Pod's target port.
-func resolveServicePort(logger *slog.Logger, svc *unstructured.Unstructured, portStr string) (intstr.IntOrString, error) {
+func resolveServicePort(logger *slog.Logger, svc *corev1.Service, portStr string) (intstr.IntOrString, error) {
 	if portStr == "" {
 		return intstr.IntOrString{}, errors.New("port string cannot be empty")
 	}
-	if svc == nil || svc.Object == nil {
+	if svc == nil {
 		return intstr.IntOrString{}, errors.New("cannot resolve port on nil or uninitialized Service")
 	}
-
-	ports, found, err := unstructured.NestedSlice(svc.Object, "spec", "ports")
-	if err != nil {
-		return intstr.IntOrString{}, fmt.Errorf("failed to read Service ports: %w", err)
-	}
-	if !found {
+	if len(svc.Spec.Ports) == 0 {
 		return intstr.IntOrString{}, errors.New("service has no ports defined in spec")
 	}
 
-	for _, p := range ports {
-		portMap, ok := p.(map[string]any)
-		if !ok {
-			logger.Warn("Service port entry is not a valid map. Skipping malformed entry.",
-				slog.String("service", svc.GetName()))
-			continue
-		}
-
-		name, _, _ := unstructured.NestedString(portMap, "name")
-		portVal, foundField, err := unstructured.NestedFieldNoCopy(portMap, "port")
-		if err != nil || !foundField {
-			logger.Warn("Service port spec is missing the port number. Skipping malformed entry.",
-				slog.String("service", svc.GetName()),
-				slog.String("port_name", name))
-			continue
-		}
-		portNum, ok := asInt32(portVal)
-		if !ok || portNum < 1 {
+	for _, p := range svc.Spec.Ports {
+		if p.Port < 1 {
 			logger.Warn("Service port entry has an invalid or out-of-range port number. Skipping malformed entry.",
-				slog.String("service", svc.GetName()),
-				slog.String("port_name", name),
-				slog.Any("port_value", portVal))
+				slog.String("service", svc.Name),
+				slog.String("port_name", p.Name),
+				slog.Int("port_value", int(p.Port)))
 			continue
 		}
 
-		// Match by name or port number (as string).
-		if name == portStr || fmt.Sprintf("%d", portNum) == portStr {
-			targetPort, found, err := unstructured.NestedFieldNoCopy(portMap, "targetPort")
-			if err != nil {
-				logger.Warn("Failed to read targetPort from Service port spec. Skipping malformed entry.",
-					slog.String("service", svc.GetName()),
-					slog.String("port_name", name))
-				continue
+		if p.Name == portStr || fmt.Sprintf("%d", p.Port) == portStr {
+			if p.TargetPort.IntVal == 0 && p.TargetPort.StrVal == "" {
+				return intstr.FromInt32(p.Port), nil
 			}
-			if !found {
-				// If targetPort is omitted, it defaults to the port number.
-				return intstr.FromInt32(portNum), nil
-			}
-
-			// targetPort can be int, float64, or string.
-			if valStr, ok := targetPort.(string); ok {
-				if valStr == "" {
-					return intstr.FromInt32(portNum), nil
-				}
-				return intstr.FromString(valStr), nil
-			}
-
-			if valNum, ok := asInt32(targetPort); ok {
-				if valNum == 0 {
-					return intstr.FromInt32(portNum), nil
-				}
-				return intstr.FromInt32(valNum), nil
-			}
-
-			logger.Warn("Service port entry has an invalid targetPort type. Skipping malformed entry.",
-				slog.String("service", svc.GetName()),
-				slog.String("port_name", name),
-				slog.Any("target_port", targetPort))
-			continue
+			return p.TargetPort, nil
 		}
 	}
 
@@ -1403,20 +1330,19 @@ func resolveServicePort(logger *slog.Logger, svc *unstructured.Unstructured, por
 }
 
 // convertServiceTargetLabels maps Service labels to static metricRelabeling rules.
-func convertServiceTargetLabels(logger *slog.Logger, svc *unstructured.Unstructured, targetLabels []string) []monitoringv1.RelabelingRule {
+func convertServiceTargetLabels(logger *slog.Logger, svc *corev1.Service, targetLabels []string) []monitoringv1.RelabelingRule {
 	if svc == nil || len(targetLabels) == 0 {
 		return nil
 	}
 
-	svcLabels := svc.GetLabels()
 	var rules []monitoringv1.RelabelingRule
 
 	for _, l := range targetLabels {
-		val, ok := svcLabels[l]
+		val, ok := svc.Labels[l]
 		if !ok {
 			logger.Warn("Service-level targetLabel was not found on Service. Skipping mapping.",
 				slog.String("label", l),
-				slog.String("service", svc.GetName()))
+				slog.String("service", svc.Name))
 			continue
 		}
 
