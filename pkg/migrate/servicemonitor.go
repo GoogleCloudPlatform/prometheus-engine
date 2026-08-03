@@ -49,7 +49,7 @@ func (g *ServiceGroup) Namespaces() []string {
 	unique := make(map[string]bool)
 	var ns []string
 	for _, svc := range g.Services {
-		n := svc.GetNamespace()
+		n := svc.Namespace
 		if !unique[n] {
 			unique[n] = true
 			ns = append(ns, n)
@@ -133,7 +133,7 @@ func (c *ServiceMonitorConverter) convertToPodMonitoring(
 	}
 
 	// 2. Group Services by configuration compatibility to detect conflicts.
-	groups, err := groupServices(logger, svcs, sm.Spec.Endpoints, sm.Spec.TargetLabels)
+	groups, err := groupServices(logger, sm.Spec.TargetLabels, sm, svcs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to group Services: %w", err)
 	}
@@ -154,7 +154,7 @@ func (c *ServiceMonitorConverter) convertToPodMonitoring(
 		name := sm.Name
 		if len(groups) > 1 {
 			// Suffix with the Service name to guarantee resource uniqueness when split.
-			name = fmt.Sprintf("%s-%s", sm.Name, group.Services[0].GetName())
+			name = fmt.Sprintf("%s-%s", sm.Name, group.Services[0].Name)
 		}
 
 		meta := sm.ObjectMeta.DeepCopy()
@@ -191,7 +191,7 @@ func (c *ServiceMonitorConverter) convertToClusterPodMonitoring(
 		return nil, nil, errors.New("corresponding Kubernetes Service was not found. Selector and port mappings cannot be resolved")
 	}
 
-	groups, err := groupServices(logger, svcs, sm.Spec.Endpoints, sm.Spec.TargetLabels)
+	groups, err := groupServices(logger, sm.Spec.TargetLabels, sm, svcs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to group Services: %w", err)
 	}
@@ -201,7 +201,7 @@ func (c *ServiceMonitorConverter) convertToClusterPodMonitoring(
 	if len(groups) > 1 {
 		logger.Warn("Multiple incompatible Service groups found for ClusterPodMonitoring. Using the first group and ignoring others.",
 			slog.Int("total_groups", len(groups)),
-			slog.String("used_group_service", groups[0].Services[0].GetName()))
+			slog.String("used_group_service", groups[0].Services[0].Name))
 	}
 
 	res, err := c.buildSpecForGroup(sm, logger, cache, groups[0], true)
@@ -261,7 +261,7 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	}
 
 	// Merge Pod target labels and selector.
-	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, sm.Spec.PodTargetLabels, sm.Spec.JobLabel, "Pod"), rules.ResourceCombined.FromPod)
+	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, sm.Spec.PodTargetLabels, "", "Pod"), rules.ResourceCombined.FromPod)
 
 	baseSelector := metav1.LabelSelector{MatchLabels: group.Selector}
 	mergedSelector, err := mergeLabelSelector(baseSelector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
@@ -378,9 +378,9 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 // groupServices groups matched Services by their resolved target selectors and port/label mappings.
 func groupServices(
 	logger *slog.Logger,
-	svcs []*corev1.Service,
-	endpoints []pomonitoringv1.Endpoint,
 	targetLabels []string,
+	sm *pomonitoringv1.ServiceMonitor,
+	svcs []*corev1.Service,
 ) ([]*ServiceGroup, error) {
 	var groups []*ServiceGroup
 
@@ -393,13 +393,13 @@ func groupServices(
 
 		// 2. Resolve ports for this Service.
 		portMap := make(map[string]intstr.IntOrString)
-		for _, ep := range endpoints {
+		for _, ep := range sm.Spec.Endpoints {
 			if ep.Port == "" {
 				continue
 			}
 			resolvedPort, err := resolveServicePort(logger, svc, ep.Port)
 			if err != nil {
-				return nil, fmt.Errorf("service %q: failed to resolve port %q: %w", svc.GetName(), ep.Port, err)
+				return nil, fmt.Errorf("service %q: failed to resolve port %q: %w", svc.Name, ep.Port, err)
 			}
 			portMap[ep.Port] = resolvedPort
 		}
@@ -412,10 +412,20 @@ func groupServices(
 			}
 		}
 
+		if sm.Spec.JobLabel != "" {
+			if val, found := svc.Labels[sm.Spec.JobLabel]; found {
+				resolvedLabels["job"] = val
+			} else {
+				logger.Warn("Service-level jobLabel was not found on Service. Skipping job mapping.",
+					slog.String("job_label", sm.Spec.JobLabel),
+					slog.String("service", svc.Name))
+			}
+		}
+
 		// 4. Find a compatible group.
 		var matchedGroup *ServiceGroup
 		for _, g := range groups {
-			if g.canMergeWith(selectorString, portMap, resolvedLabels) {
+			if g.canMergeWith(svc.Spec.Selector, portMap, resolvedLabels) {
 				matchedGroup = g
 				break
 			}
@@ -429,7 +439,7 @@ func groupServices(
 			maps.Copy(matchedGroup.TargetLabels, resolvedLabels)
 		} else {
 			groups = append(groups, &ServiceGroup{
-				Selector:     selectorString,
+				Selector:     svc.Spec.Selector,
 				PortMap:      portMap,
 				TargetLabels: resolvedLabels,
 				Services:     []*corev1.Service{svc},
