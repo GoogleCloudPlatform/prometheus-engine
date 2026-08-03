@@ -1156,11 +1156,106 @@ func TestResolveServicePort(t *testing.T) {
 			expected: intstr.IntOrString{},
 			wantErr:  true,
 		},
+		{
+			name: "Skip malformed port entry and resolve valid later entry",
+			service: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "v1",
+					"kind":       "Service",
+					"metadata": map[string]any{
+						"name":      "my-svc",
+						"namespace": "default",
+					},
+					"spec": map[string]any{
+						"ports": []any{
+							map[string]any{
+								"name": "malformed",
+							},
+							map[string]any{
+								"name":       "web",
+								"port":       int64(80),
+								"targetPort": int64(8080),
+							},
+						},
+					},
+				},
+			},
+			portStr:  "web",
+			expected: intstr.FromInt32(8080),
+			wantErr:  false,
+		},
+		{
+			name: "All ports malformed returns error",
+			service: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "v1",
+					"kind":       "Service",
+					"metadata": map[string]any{
+						"name":      "my-svc",
+						"namespace": "default",
+					},
+					"spec": map[string]any{
+						"ports": []any{
+							map[string]any{
+								"name": "malformed1",
+							},
+							map[string]any{
+								"name": "malformed2",
+								"port": "invalid-string-port",
+							},
+						},
+					},
+				},
+			},
+			portStr:  "web",
+			expected: intstr.IntOrString{},
+			wantErr:  true,
+		},
+		{
+			name: "Out of range port number is rejected",
+			service: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "v1",
+					"kind":       "Service",
+					"metadata": map[string]any{
+						"name":      "my-svc",
+						"namespace": "default",
+					},
+					"spec": map[string]any{
+						"ports": []any{
+							map[string]any{
+								"name": "overflow-port",
+								"port": int64(4294967297),
+							},
+							map[string]any{
+								"name":       "web",
+								"port":       int64(80),
+								"targetPort": int64(8080),
+							},
+						},
+					},
+				},
+			},
+			portStr:  "web",
+			expected: intstr.FromInt32(8080),
+			wantErr:  false,
+		},
+		{
+			name: "Resolve with empty string targetPort defaults to port number",
+			service: makeTestService("default", "my-svc", []corev1.ServicePort{
+				{Name: "web", Port: 80, TargetPort: intstr.FromString("")},
+			}),
+			portStr:  "web",
+			expected: intstr.FromInt32(80),
+			wantErr:  false,
+		},
 	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolveServicePort(tc.service, tc.portStr)
+			got, err := resolveServicePort(logger, tc.service, tc.portStr)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("resolveServicePort() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -1211,6 +1306,28 @@ func TestConvertServiceTargetLabels(t *testing.T) {
 			targetLabels: []string{"app", "team"},
 			expected: []monitoringv1.RelabelingRule{
 				{TargetLabel: "app", Replacement: "foo", Action: "replace"},
+			},
+		},
+		{
+			name: "Map service labels with sanitization",
+			service: makeTestServiceWithLabels("default", "my-svc", map[string]string{
+				"app.kubernetes.io/name":    "foo",
+				"app.kubernetes.io/part-of": "bar",
+			}),
+			targetLabels: []string{"app.kubernetes.io/name", "app.kubernetes.io/part-of"},
+			expected: []monitoringv1.RelabelingRule{
+				{TargetLabel: "app_kubernetes_io_name", Replacement: "foo", Action: "replace"},
+				{TargetLabel: "app_kubernetes_io_part_of", Replacement: "bar", Action: "replace"},
+			},
+		},
+		{
+			name: "Map service labels with sanitization and protected rename",
+			service: makeTestServiceWithLabels("default", "my-svc", map[string]string{
+				"project.id": "my-project",
+			}),
+			targetLabels: []string{"project.id"},
+			expected: []monitoringv1.RelabelingRule{
+				{TargetLabel: "exported_project_id", Replacement: "my-project", Action: "replace"},
 			},
 		},
 		{
