@@ -23,6 +23,7 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/google/go-cmp/cmp"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/prometheus/prometheus/model/relabel"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -532,6 +533,63 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			name: "JobLabel conversion from Service",
+			setupCache: func(cache *ResourceCache) error {
+				return addServiceWithSelectorToCache(cache, "default", "my-service",
+					map[string]string{"app": "foo", "job-key": "my-custom-job"},
+					map[string]string{"app": "foo-pod"},
+					[]corev1.ServicePort{
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+					},
+				)
+			},
+			inputSM: &pomonitoringv1.ServiceMonitor{
+				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.ServiceMonitorSpec{
+					JobLabel: "job-key",
+					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+					Endpoints: []pomonitoringv1.Endpoint{
+						{Port: "web"},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										TargetLabel: "exported_job",
+										Replacement: "my-custom-job",
+										Action:      string(relabel.Replace),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
 		},
 	}
 
