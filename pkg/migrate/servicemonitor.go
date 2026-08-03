@@ -26,6 +26,8 @@ import (
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	pomonitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/prometheus/prometheus/model/relabel"
+	"github.com/prometheus/prometheus/util/strutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -40,6 +42,21 @@ type ServiceGroup struct {
 	PortMap      map[string]intstr.IntOrString
 	TargetLabels map[string]string
 	Services     []*corev1.Service
+}
+
+// Namespaces returns a sorted slice of unique namespaces where Services in this group reside.
+func (g *ServiceGroup) Namespaces() []string {
+	unique := make(map[string]bool)
+	var ns []string
+	for _, svc := range g.Services {
+		n := svc.GetNamespace()
+		if !unique[n] {
+			unique[n] = true
+			ns = append(ns, n)
+		}
+	}
+	slices.Sort(ns)
+	return ns
 }
 
 // ServiceMonitorConverter implements ResourceConverter for ServiceMonitor resources.
@@ -88,28 +105,15 @@ func (c *ServiceMonitorConverter) Convert(_ context.Context, logger *slog.Logger
 		)
 	}
 
-	// 3. Resolve backing Services and generate base resources (handles splitting).
-	baseResources, generatedSecrets, err := c.convertToPodMonitoring(&serviceMonitor, logger, cache, targetNamespaces)
+	// 3. Resolve backing Services and generate PodMonitoring resources per group and namespace.
+	podMonitorings, generatedSecrets, err := c.convertToPodMonitoring(&serviceMonitor, logger, cache, targetNamespaces)
 	if err != nil {
 		return nil, err
 	}
 
-	// 4. Clone base resources for each target namespace.
 	var outputs []*unstructured.Unstructured
-	for _, base := range baseResources {
-		for _, ns := range targetNamespaces {
-			uClone := base.DeepCopy()
-			uClone.SetNamespace(ns)
-			outputs = append(outputs, uClone)
-		}
-	}
-	for _, secret := range generatedSecrets {
-		for _, ns := range targetNamespaces {
-			uClone := secret.DeepCopy()
-			uClone.SetNamespace(ns)
-			outputs = append(outputs, uClone)
-		}
-	}
+	outputs = append(outputs, podMonitorings...)
+	outputs = append(outputs, generatedSecrets...)
 	return outputs, nil
 }
 
@@ -156,12 +160,18 @@ func (c *ServiceMonitorConverter) convertToPodMonitoring(
 		meta := sm.ObjectMeta.DeepCopy()
 		meta.Name = name
 
-		u, err := buildPodMonitoring(*meta, sm.Namespace, res, logger)
-		if err != nil {
-			return nil, nil, err
+		for _, ns := range group.Namespaces() {
+			u, err := buildPodMonitoring(*meta, ns, res, logger)
+			if err != nil {
+				return nil, nil, err
+			}
+			podMonitorings = append(podMonitorings, u)
+			for _, secret := range res.generatedSecrets {
+				sClone := secret.DeepCopy()
+				sClone.SetNamespace(ns)
+				generatedSecrets = append(generatedSecrets, sClone)
+			}
 		}
-		podMonitorings = append(podMonitorings, u)
-		generatedSecrets = append(generatedSecrets, res.generatedSecrets...)
 	}
 
 	return podMonitorings, generatedSecrets, nil
@@ -263,8 +273,7 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	resolveScrapeClass(sm.Spec.ScrapeClassName, logger)
 	validateScrapeProtocols(sm.Spec.ScrapeProtocols, logger)
 
-	filteredMetadata := filterMetadata(rules.ResourceCombined.Metadata, isClusterScoped, logger)
-	metadata := resolveAttachMetadata(sm.Spec.AttachMetadata, filteredMetadata, isClusterScoped)
+	metadata := resolveMetadata(rules.ResourceCombined.Metadata, sm.Spec.AttachMetadata, isClusterScoped, logger)
 
 	var filterRunnings []*bool
 	for _, ep := range sm.Spec.Endpoints {
@@ -321,11 +330,7 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 		gmpEp.Timeout = timeout
 
 		// 4. Relabeling Rules.
-		relabelings := combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
-		if err != nil {
-			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
-		}
-		gmpEp.MetricRelabeling = relabelings
+		gmpEp.MetricRelabeling = combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
 
 		// Proxy Settings.
 		proxyURL, err := convertProxyURL(ep.ProxyURL)
@@ -479,9 +484,9 @@ func convertStaticTargetLabels(logger *slog.Logger, labels map[string]string) []
 
 	for _, k := range keys {
 		v := labels[k]
-		target := k
-		if protectedLabels[k] {
-			target = "exported_" + k
+		target := strutil.SanitizeLabelName(k)
+		if protectedLabels[target] {
+			target = "exported_" + target
 			logger.Warn("Service targetLabel matches protected label. Renamed target.",
 				slog.String("label", k),
 				slog.String("renamed_target", target))
@@ -489,7 +494,7 @@ func convertStaticTargetLabels(logger *slog.Logger, labels map[string]string) []
 		rule := monitoringv1.RelabelingRule{
 			TargetLabel: target,
 			Replacement: v,
-			Action:      "replace",
+			Action:      string(relabel.Replace),
 		}
 		rules = append(rules, rule)
 		logger.Info("Service label mapped statically to metricRelabeling",

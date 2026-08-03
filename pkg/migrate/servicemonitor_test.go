@@ -32,14 +32,11 @@ import (
 
 func TestServiceMonitorConverter_Convert(t *testing.T) {
 	tests := []struct {
-		name         string
-		setupCache   func(cache *ResourceCache) error
-		inputSM      *pomonitoringv1.ServiceMonitor
-		expectedGVK  string
-		expectedNS   string
-		expectedName string
-		verify       func(t *testing.T, outputs []*unstructured.Unstructured)
-		wantErr      bool
+		name       string
+		setupCache func(cache *ResourceCache) error
+		inputSM    *pomonitoringv1.ServiceMonitor
+		expected   []runtime.Object
+		wantErr    bool
 	}{
 		{
 			name: "Basic ServiceMonitor conversion",
@@ -65,29 +62,28 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 			},
-			verify: func(t *testing.T, outputs []*unstructured.Unstructured) {
-				if len(outputs) != 1 {
-					t.Fatalf("expected 1 output, got %d", len(outputs))
-				}
-				pm := outputs[0]
-
-				sel, found, _ := unstructured.NestedMap(pm.Object, "spec", "selector", "matchLabels")
-				if !found || sel["app"] != "foo-pod" {
-					t.Errorf("expected selector app=foo-pod, got %v", sel)
-				}
-
-				ports, found, _ := unstructured.NestedSlice(pm.Object, "spec", "endpoints")
-				if !found || len(ports) != 1 {
-					t.Fatalf("expected 1 endpoint, got %v", ports)
-				}
-				ep, ok := ports[0].(map[string]any)
-				if !ok {
-					t.Fatal("failed to cast endpoint")
-				}
-				port, found, _ := unstructured.NestedFieldNoCopy(ep, "port")
-				if !found || port != int64(8080) {
-					t.Errorf("expected port 8080, got %v", port)
-				}
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+							},
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -127,31 +123,49 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 			},
-			verify: func(t *testing.T, outputs []*unstructured.Unstructured) {
-				// We expect 2 PodMonitorings because selectors conflict.
-				if len(outputs) != 2 {
-					t.Fatalf("expected 2 outputs due to split, got %d", len(outputs))
-				}
-
-				// Check first output (should suffix with service-a).
-				pmA := outputs[0]
-				if pmA.GetName() != "my-monitor-service-a" {
-					t.Errorf("expected name my-monitor-service-a, got %s", pmA.GetName())
-				}
-				selA, _, _ := unstructured.NestedMap(pmA.Object, "spec", "selector", "matchLabels")
-				if selA["app"] != "foo-pod" {
-					t.Errorf("expected selector app=foo-pod, got %v", selA)
-				}
-
-				// Check second output (should suffix with service-b).
-				pmB := outputs[1]
-				if pmB.GetName() != "my-monitor-service-b" {
-					t.Errorf("expected name my-monitor-service-b, got %s", pmB.GetName())
-				}
-				selB, _, _ := unstructured.NestedMap(pmB.Object, "spec", "selector", "matchLabels")
-				if selB["app"] != "bar-pod" {
-					t.Errorf("expected selector app=bar-pod, got %v", selB)
-				}
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor-service-a",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor-service-b",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "bar-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+							},
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -190,11 +204,49 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 			},
-			verify: func(t *testing.T, outputs []*unstructured.Unstructured) {
-				// We expect 2 PodMonitorings because port mappings conflict.
-				if len(outputs) != 2 {
-					t.Fatalf("expected 2 outputs due to split, got %d", len(outputs))
-				}
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor-service-a",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor-service-b",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(9090),
+								Interval: "30s",
+							},
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -234,11 +286,63 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 			},
-			verify: func(t *testing.T, outputs []*unstructured.Unstructured) {
-				// We expect 2 PodMonitorings because target labels conflict.
-				if len(outputs) != 2 {
-					t.Fatalf("expected 2 outputs due to split, got %d", len(outputs))
-				}
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor-service-a",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										TargetLabel: "team",
+										Replacement: "alpha",
+										Action:      "replace",
+									},
+								},
+							},
+						},
+					},
+				},
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor-service-b",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+								MetricRelabeling: []monitoringv1.RelabelingRule{
+									{
+										TargetLabel: "team",
+										Replacement: "beta",
+										Action:      "replace",
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -277,11 +381,111 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 			},
-			verify: func(t *testing.T, outputs []*unstructured.Unstructured) {
-				// We expect only 1 output because the Services are compatible.
-				if len(outputs) != 1 {
-					t.Fatalf("expected 1 output (merged), got %d", len(outputs))
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "redis-monitor",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "redis-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(6379),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Split across multiple namespaces",
+			setupCache: func(cache *ResourceCache) error {
+				err := addServiceWithSelectorToCache(cache, "ns-1", "service-a",
+					map[string]string{"app": "foo"},
+					map[string]string{"app": "foo-pod-1"},
+					[]corev1.ServicePort{
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+					},
+				)
+				if err != nil {
+					return err
 				}
+				return addServiceWithSelectorToCache(cache, "ns-2", "service-b",
+					map[string]string{"app": "foo"},
+					map[string]string{"app": "foo-pod-2"},
+					[]corev1.ServicePort{
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+					},
+				)
+			},
+			inputSM: &pomonitoringv1.ServiceMonitor{
+				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.ServiceMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						MatchNames: []string{"ns-1", "ns-2"},
+					},
+					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+					Endpoints: []pomonitoringv1.Endpoint{
+						{Port: "web"},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor-service-a",
+						Namespace: "ns-1",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod-1"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "PodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor-service-b",
+						Namespace: "ns-2",
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod-2"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+							},
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -354,8 +558,30 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				return
 			}
 
-			if tc.verify != nil {
-				tc.verify(t, outputs)
+			if tc.expected != nil {
+				if len(outputs) != len(tc.expected) {
+					t.Fatalf("expected %d outputs, got %d", len(tc.expected), len(outputs))
+				}
+				for i := range tc.expected {
+					var gotObj runtime.Object
+					switch tc.expected[i].(type) {
+					case *monitoringv1.PodMonitoring:
+						gotObj = &monitoringv1.PodMonitoring{}
+					case *monitoringv1.ClusterPodMonitoring:
+						gotObj = &monitoringv1.ClusterPodMonitoring{}
+					default:
+						t.Fatalf("expected object at index %d must be a pointer to a recognized monitoring type, got %T", i, tc.expected[i])
+					}
+
+					err := runtime.DefaultUnstructuredConverter.FromUnstructured(outputs[i].Object, gotObj)
+					if err != nil {
+						t.Fatalf("failed to convert actual to struct: %v", err)
+					}
+
+					if diff := cmp.Diff(tc.expected[i], gotObj); diff != "" {
+						t.Errorf("mismatch at index %d (-want +got):\n%s", i, diff)
+					}
+				}
 			}
 		})
 	}
@@ -382,13 +608,15 @@ func addServiceWithLabelsAndSelectorToCache(cache *ResourceCache, namespace, nam
 	return addServiceWithSelectorToCache(cache, namespace, name, labels, selector, ports)
 }
 
-// TestConvertStaticTargetLabels tests that protected labels are renamed to exported_<label>.
+// TestConvertStaticTargetLabels tests that label keys are sanitized and protected labels are renamed to exported_<label>.
 func TestConvertStaticTargetLabels(t *testing.T) {
 	logger := slog.Default()
 	labels := map[string]string{
-		"app":       "my-app",
-		"job":       "my-job",
-		"namespace": "my-ns",
+		"app":                    "my-app",
+		"app.kubernetes.io/name": "my-k8s-app",
+		"job":                    "my-job",
+		"namespace":              "my-ns",
+		"project.id":             "my-project",
 	}
 
 	rules := convertStaticTargetLabels(logger, labels)
@@ -399,6 +627,11 @@ func TestConvertStaticTargetLabels(t *testing.T) {
 			Action:      "replace",
 		},
 		{
+			TargetLabel: "app_kubernetes_io_name",
+			Replacement: "my-k8s-app",
+			Action:      "replace",
+		},
+		{
 			TargetLabel: "exported_job",
 			Replacement: "my-job",
 			Action:      "replace",
@@ -406,6 +639,11 @@ func TestConvertStaticTargetLabels(t *testing.T) {
 		{
 			TargetLabel: "exported_namespace",
 			Replacement: "my-ns",
+			Action:      "replace",
+		},
+		{
+			TargetLabel: "exported_project_id",
+			Replacement: "my-project",
 			Action:      "replace",
 		},
 	}
