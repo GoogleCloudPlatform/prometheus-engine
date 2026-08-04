@@ -1114,12 +1114,12 @@ func TestResolveServicePort(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name: "Resolve by port number",
+			name: "Resolve by port number to targetPort string",
 			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
-				{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+				{Name: "web", Port: 80, TargetPort: intstr.FromString("http-web")},
 			}),
 			portStr:  "80",
-			expected: intstr.FromInt32(8080),
+			expected: intstr.FromString("http-web"),
 			wantErr:  false,
 		},
 		{
@@ -1184,6 +1184,7 @@ func TestResolveServicePort(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{Name: "overflow-port", Port: -5},
+						{Name: "high-port", Port: 70000},
 						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
 					},
 				},
@@ -1280,6 +1281,17 @@ func TestConvertServiceTargetLabels(t *testing.T) {
 			targetLabels: []string{"project.id"},
 			expected: []monitoringv1.RelabelingRule{
 				{TargetLabel: "exported_project_id", Replacement: "my-project", Action: "replace"},
+			},
+		},
+		{
+			name: "Map service labels with collision skip",
+			service: makeTestTypedService("default", "my-svc", map[string]string{
+				"app.kubernetes.io/name": "foo",
+				"app_kubernetes_io_name": "bar",
+			}, nil),
+			targetLabels: []string{"app.kubernetes.io/name", "app_kubernetes_io_name"},
+			expected: []monitoringv1.RelabelingRule{
+				{TargetLabel: "app_kubernetes_io_name", Replacement: "foo", Action: "replace"},
 			},
 		},
 		{
