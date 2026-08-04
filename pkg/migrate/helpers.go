@@ -1310,7 +1310,7 @@ func resolveServicePort(logger *slog.Logger, svc *corev1.Service, portStr string
 	}
 
 	for _, p := range svc.Spec.Ports {
-		if p.Port < 1 {
+		if p.Port < 1 || p.Port > 65535 {
 			logger.Warn("Service port entry has an invalid or out-of-range port number. Skipping malformed entry.",
 				slog.String("service", svc.Name),
 				slog.String("port_name", p.Name),
@@ -1336,6 +1336,7 @@ func convertServiceTargetLabels(logger *slog.Logger, svc *corev1.Service, target
 	}
 
 	var rules []monitoringv1.RelabelingRule
+	seenTargets := make(map[string]bool)
 
 	for _, l := range targetLabels {
 		val, ok := svc.Labels[l]
@@ -1353,6 +1354,15 @@ func convertServiceTargetLabels(logger *slog.Logger, svc *corev1.Service, target
 				slog.String("label", l),
 				slog.String("renamed_target", target))
 		}
+
+		if seenTargets[target] {
+			logger.Warn("Service targetLabel mapping collision. Skipping.",
+				slog.String("service", svc.Name),
+				slog.String("source_label", l),
+				slog.String("target_label", target))
+			continue
+		}
+		seenTargets[target] = true
 
 		rules = append(rules, monitoringv1.RelabelingRule{
 			TargetLabel: target,
