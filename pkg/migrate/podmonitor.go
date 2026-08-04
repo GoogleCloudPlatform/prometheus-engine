@@ -234,10 +234,7 @@ func filterMetadata(metadata *[]string, isCluster bool, logger *slog.Logger) *[]
 			logger.Warn("Relabeling rule referencing namespace metadata is unsupported in namespaced PodMonitoring (it is only allowed in ClusterPodMonitoring). The metadata entry has been omitted.")
 		}
 	}
-	if len(md) > 0 {
-		return &md
-	}
-	return nil
+	return &md
 }
 
 // convertToMonitoringResource is a parameterized helper that converts a PodMonitor to either a PodMonitoring or ClusterPodMonitoring resource.
