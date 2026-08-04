@@ -24,6 +24,11 @@ updates:
       - /cmd/rule-evaluator
       - /examples/instrumentation/go-synthetic
       - /hack
+    ignore:
+      # Stop upgrading prometheus-engine images as those are handled by manifest command (e.g. make regen)
+      - dependency-name: "gke.gcr.io/prometheus-engine/*"
+      - dependency-name: "gke-release/prometheus-engine/*"
+      - dependency-name: "gcr.io/gke-release/prometheus-engine/*"
     schedule:
       interval: weekly
     commit-message:
@@ -34,11 +39,6 @@ updates:
       docker:
         patterns:
           - "*"
-        exclude-patterns:
-          # To change those we need to do make regen. Still
-          # allow dependabot to bump it to let us know it's possible, just not
-          # in a single group.
-          - "gke.gcr.io/prometheus-engine/*"
     cooldown:
       default-days: 7
 
@@ -96,8 +96,10 @@ updates:
       - /examples/instrumentation/go-synthetic
       - /hack
     ignore:
+      # Stop upgrading prometheus-engine images as those are handled by manifest command
       - dependency-name: "gke.gcr.io/prometheus-engine/*"
-        versions: [ ">=0.20.0" ]
+      - dependency-name: "gke-release/prometheus-engine/*"
+      - dependency-name: "gcr.io/gke-release/prometheus-engine/*"
     schedule:
       interval: weekly
     commit-message:
@@ -108,8 +110,6 @@ updates:
       docker:
         patterns:
           - "*"
-        exclude-patterns:
-          - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.19
     cooldown:
       default-days: 7
@@ -169,8 +169,10 @@ updates:
       - /examples/instrumentation/go-synthetic
       - /hack
     ignore:
+      # Stop upgrading prometheus-engine images as those are handled by manifest command
       - dependency-name: "gke.gcr.io/prometheus-engine/*"
-        versions: [ ">=0.19.0" ]
+      - dependency-name: "gke-release/prometheus-engine/*"
+      - dependency-name: "gcr.io/gke-release/prometheus-engine/*"
     schedule:
       interval: weekly
     commit-message:
@@ -181,8 +183,6 @@ updates:
       docker:
         patterns:
           - "*"
-        exclude-patterns:
-          - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.18
     cooldown:
       default-days: 7
@@ -242,8 +242,10 @@ updates:
       - /examples/instrumentation/go-synthetic
       - /hack
     ignore:
+      # Stop upgrading prometheus-engine images as those are handled by manifest command
       - dependency-name: "gke.gcr.io/prometheus-engine/*"
-        versions: [ ">=0.18.0" ]
+      - dependency-name: "gke-release/prometheus-engine/*"
+      - dependency-name: "gcr.io/gke-release/prometheus-engine/*"
     schedule:
       interval: weekly
     commit-message:
@@ -254,8 +256,6 @@ updates:
       docker:
         patterns:
           - "*"
-        exclude-patterns:
-          - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.17
     cooldown:
       default-days: 7
@@ -315,8 +315,10 @@ updates:
       - /examples/instrumentation/go-synthetic
       - /hack
     ignore:
+      # Stop upgrading prometheus-engine images as those are handled by manifest command
       - dependency-name: "gke.gcr.io/prometheus-engine/*"
-        versions: [ ">=0.17.0" ]
+      - dependency-name: "gke-release/prometheus-engine/*"
+      - dependency-name: "gcr.io/gke-release/prometheus-engine/*"
     schedule:
       interval: weekly
     commit-message:
@@ -327,8 +329,6 @@ updates:
       docker:
         patterns:
           - "*"
-        exclude-patterns:
-          - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.16
     cooldown:
       default-days: 7
@@ -388,8 +388,10 @@ updates:
       - /examples/instrumentation/go-synthetic
       - /hack
     ignore:
+      # Stop upgrading prometheus-engine images as those are handled by manifest command
       - dependency-name: "gke.gcr.io/prometheus-engine/*"
-        versions: [ ">=0.16.0" ]
+      - dependency-name: "gke-release/prometheus-engine/*"
+      - dependency-name: "gcr.io/gke-release/prometheus-engine/*"
     schedule:
       interval: weekly
     commit-message:
@@ -400,8 +402,6 @@ updates:
       docker:
         patterns:
           - "*"
-        exclude-patterns:
-          - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.15
     cooldown:
       default-days: 7
@@ -461,8 +461,10 @@ updates:
       - /examples/instrumentation/go-synthetic
       - /hack
     ignore:
+      # Stop upgrading prometheus-engine images as those are handled by manifest command
       - dependency-name: "gke.gcr.io/prometheus-engine/*"
-        versions: [ ">=0.15.0" ]
+      - dependency-name: "gke-release/prometheus-engine/*"
+      - dependency-name: "gcr.io/gke-release/prometheus-engine/*"
     schedule:
       interval: weekly
     commit-message:
@@ -473,8 +475,6 @@ updates:
       docker:
         patterns:
           - "*"
-        exclude-patterns:
-          - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.14
     cooldown:
       default-days: 7
@@ -534,8 +534,10 @@ updates:
       - /examples/instrumentation/go-synthetic
       - /hack
     ignore:
+      # Stop upgrading prometheus-engine images as those are handled by manifest command
       - dependency-name: "gke.gcr.io/prometheus-engine/*"
-        versions: [ ">=0.14.0" ]
+      - dependency-name: "gke-release/prometheus-engine/*"
+      - dependency-name: "gcr.io/gke-release/prometheus-engine/*"
     schedule:
       interval: weekly
     commit-message:
@@ -546,8 +548,6 @@ updates:
       docker:
         patterns:
           - "*"
-        exclude-patterns:
-          - "gke.gcr.io/prometheus-engine/*"
     target-branch: release/0.13
     cooldown:
       default-days: 7
