@@ -1634,6 +1634,31 @@ func TestPodMonitorConversion(t *testing.T) {
 			wantErr: "conflicting keep rules for label \"env\": cannot require both \"production\" and \"staging\" simultaneously",
 		},
 		{
+			name: "BearerTokenSecret with empty Name returns validation error",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bearer-token-secret-err",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "frontend"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port:              "metrics",
+							BearerTokenSecret: corev1.SecretKeySelector{Key: "token"},
+						},
+					},
+				},
+			},
+			wantErr: "bearerTokenSecret: secret reference has an empty name for key \"token\"",
+		},
+		{
 			name: "Pre-Scrape Relabelings: drop action rule on pod label falls through to metricRelabelings",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{

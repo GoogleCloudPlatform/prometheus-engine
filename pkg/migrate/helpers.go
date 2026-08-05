@@ -704,7 +704,7 @@ func (c *conversionContext) applyAuthAndTLS(
 	}
 
 	// Handle deprecated BearerTokenSecret -> Authorization.
-	if bearerTokenSecret.Name != "" { // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
+	if bearerTokenSecret.Name != "" || bearerTokenSecret.Key != "" { // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 		if gmpEp.Authorization != nil {
 			c.logger.Warn("Endpoint has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.")
 		} else {
