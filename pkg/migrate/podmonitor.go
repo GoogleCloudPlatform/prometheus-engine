@@ -68,7 +68,7 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 
 	if isClusterScoped {
 		logger.Info("namespaceSelector selects 'any: true'. Translated to 'ClusterPodMonitoring'")
-		u, generatedSecrets, err := c.convertToClusterPodMonitoring(&podMonitor, logger, cache)
+		u, generatedSecrets, err := c.convertToClusterPodMonitoring(&podMonitor, podMonitor.Namespace, logger, cache)
 		if err != nil {
 			return nil, err
 		}
@@ -85,9 +85,7 @@ func (c *PodMonitorConverter) Convert(_ context.Context, logger *slog.Logger, un
 
 	var outputs []*unstructured.Unstructured
 	for _, ns := range targetNamespaces {
-		pmCopy := podMonitor.DeepCopy()
-		pmCopy.Namespace = ns
-		u, generatedSecrets, err := c.convertToPodMonitoring(pmCopy, logger, cache)
+		u, generatedSecrets, err := c.convertToPodMonitoring(&podMonitor, ns, logger, cache)
 		if err != nil {
 			return nil, err
 		}
@@ -161,11 +159,12 @@ func (c *PodMonitorConverter) convertEndpoints(
 	return gmpEndpoints, nil
 }
 
-func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache, isCluster bool) (*commonMonitorSpec, error) {
+func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, targetNamespace string, logger *slog.Logger, cache *ResourceCache, isCluster bool) (*commonMonitorSpec, error) {
 	convCtx := &conversionContext{
-		logger:    logger,
-		cache:     cache,
-		namespace: pm.Namespace,
+		logger:          logger,
+		cache:           cache,
+		sourceNamespace: pm.Namespace,
+		targetNamespace: targetNamespace,
 	}
 	rules, err := extractPreScrapeRelabelings(logger, pm.Spec.PodMetricsEndpoints)
 	if err != nil {
@@ -240,11 +239,12 @@ func filterMetadata(metadata *[]string, isCluster bool, logger *slog.Logger) *[]
 // convertToMonitoringResource is a parameterized helper that converts a PodMonitor to either a PodMonitoring or ClusterPodMonitoring resource.
 func (c *PodMonitorConverter) convertToMonitoringResource(
 	pm *pomonitoringv1.PodMonitor,
+	targetNamespace string,
 	logger *slog.Logger,
 	cache *ResourceCache,
 	isCluster bool,
 ) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	res, err := c.convertMonitorSpec(pm, logger, cache, isCluster)
+	res, err := c.convertMonitorSpec(pm, targetNamespace, logger, cache, isCluster)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -253,7 +253,7 @@ func (c *PodMonitorConverter) convertToMonitoringResource(
 	if isCluster {
 		u, err = buildClusterPodMonitoring(pm.ObjectMeta, res, logger)
 	} else {
-		u, err = buildPodMonitoring(pm.ObjectMeta, pm.Namespace, res, logger)
+		u, err = buildPodMonitoring(pm.ObjectMeta, targetNamespace, res, logger)
 	}
 	if err != nil {
 		return nil, nil, err
@@ -262,12 +262,12 @@ func (c *PodMonitorConverter) convertToMonitoringResource(
 	return u, res.generatedSecrets, nil
 }
 
-func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	return c.convertToMonitoringResource(pm, logger, cache, false)
+func (c *PodMonitorConverter) convertToPodMonitoring(pm *pomonitoringv1.PodMonitor, targetNamespace string, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	return c.convertToMonitoringResource(pm, targetNamespace, logger, cache, false)
 }
 
-func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	return c.convertToMonitoringResource(pm, logger, cache, true)
+func (c *PodMonitorConverter) convertToClusterPodMonitoring(pm *pomonitoringv1.PodMonitor, targetNamespace string, logger *slog.Logger, cache *ResourceCache) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	return c.convertToMonitoringResource(pm, targetNamespace, logger, cache, true)
 }
 
 func unionMetadata(extracted []string, defaults []string) []string {

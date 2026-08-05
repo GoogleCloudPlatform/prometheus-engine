@@ -31,9 +31,10 @@ import (
 
 func newTestConversionContext() *conversionContext {
 	return &conversionContext{
-		logger:    slog.New(slog.NewTextHandler(os.Stdout, nil)),
-		cache:     NewResourceCache(),
-		namespace: "default",
+		logger:          slog.New(slog.NewTextHandler(os.Stdout, nil)),
+		cache:           NewResourceCache(),
+		sourceNamespace: "default",
+		targetNamespace: "default",
 	}
 }
 
@@ -914,5 +915,50 @@ func TestToStrictUnstructured(t *testing.T) {
 			unstruct := &unstructured.Unstructured{Object: u}
 			_ = unstruct.DeepCopy()
 		})
+	}
+}
+
+func TestDecoupledNamespaces(t *testing.T) {
+	ctx := newTestConversionContext()
+	ctx.sourceNamespace = "source-ns"
+	ctx.targetNamespace = "target-ns"
+
+	// Verify that secret extraction reads from sourceNamespace.
+	if err := addSecretToCache(ctx.cache, "source-ns", "my-secret", "user", "admin", true); err != nil {
+		t.Fatalf("failed to add secret to cache: %v", err)
+	}
+	sel := corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"},
+		Key:                  "user",
+	}
+	val, err := ctx.extractSecretKey(sel)
+	if err != nil {
+		t.Fatalf("extractSecretKey() unexpected error: %v", err)
+	}
+	if val != "admin" {
+		t.Errorf("extractSecretKey() = %q, want %q", val, "admin")
+	}
+
+	// Verify that ConfigMap to Secret conversion reads from sourceNamespace and generates Secret in targetNamespace.
+	if err := addConfigMapToCache(ctx.cache, "source-ns", "tls-cm", "ca.crt", "cert-data"); err != nil {
+		t.Fatalf("failed to add configmap to cache: %v", err)
+	}
+	cmSel := &corev1.ConfigMapKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"},
+		Key:                  "ca.crt",
+	}
+	secretSel, err := ctx.convertConfigMapToSecretSelector(cmSel)
+	if err != nil {
+		t.Fatalf("convertConfigMapToSecretSelector() unexpected error: %v", err)
+	}
+	if secretSel.Secret.Namespace != "target-ns" {
+		t.Errorf("expected selector namespace %q, got %q", "target-ns", secretSel.Secret.Namespace)
+	}
+	genSecrets := ctx.getGeneratedSecrets()
+	if len(genSecrets) != 1 {
+		t.Fatalf("expected 1 generated secret, got %d", len(genSecrets))
+	}
+	if genSecrets[0].GetNamespace() != "target-ns" {
+		t.Errorf("expected generated secret namespace %q, got %q", "target-ns", genSecrets[0].GetNamespace())
 	}
 }

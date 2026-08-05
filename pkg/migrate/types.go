@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -38,16 +36,6 @@ const (
 	KindConfigMap            = "ConfigMap"
 	KindSecret               = "Secret"
 )
-
-type commonMonitorSpec struct {
-	endpoints        []monitoringv1.ScrapeEndpoint
-	mergedFromPod    []monitoringv1.LabelMapping
-	mergedSelector   metav1.LabelSelector
-	metadata         *[]string
-	filterRunning    *bool
-	limits           *monitoringv1.ScrapeLimits
-	generatedSecrets []*unstructured.Unstructured
-}
 
 // ResourceConverter defines the interface for converting a specific Prometheus Operator resource kind.
 type ResourceConverter interface {
