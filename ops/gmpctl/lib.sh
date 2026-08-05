@@ -143,6 +143,10 @@ release-lib::gomod_vulnfix() {
 		return 1
 	fi
 
+	if [[ "${vuln_file}" != /* ]]; then
+		vuln_file="$(pwd)/${vuln_file}"
+	fi
+
 	# Read the vulnerability file line by line.
 	# The `|| [[ -n "$line" ]]` part handles the case where the last line doesn't have a newline.
 	pushd "${dir}"
