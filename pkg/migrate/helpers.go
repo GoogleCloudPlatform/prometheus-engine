@@ -154,13 +154,26 @@ func determineNamespaceScoping(nsSel pomonitoringv1.NamespaceSelector, defaultNS
 	return []string{defaultNS}, false, nil
 }
 
+// commonMonitorSpec holds common fields extracted from Prometheus Operator monitor specs for building GMP resources.
+type commonMonitorSpec struct {
+	endpoints        []monitoringv1.ScrapeEndpoint
+	mergedFromPod    []monitoringv1.LabelMapping
+	mergedSelector   metav1.LabelSelector
+	metadata         *[]string
+	filterRunning    *bool
+	limits           *monitoringv1.ScrapeLimits
+	generatedSecrets []*unstructured.Unstructured
+}
+
 // conversionContext groups common parameters passed down to conversion helper functions.
 type conversionContext struct {
 	logger *slog.Logger
 	// cache provides access to dependent resources.
 	cache *ResourceCache
-	// namespace is the source namespace of the primary resource.
-	namespace string
+	// sourceNamespace is the original namespace where inputs (Secrets/ConfigMaps) live in the cache.
+	sourceNamespace string
+	// targetNamespace is the destination namespace for generated resources.
+	targetNamespace string
 	// generatedSecrets accumulates created Secrets when migrating ConfigMaps, keyed by Secret name.
 	generatedSecrets map[string]*unstructured.Unstructured
 }
@@ -380,7 +393,7 @@ func (c *conversionContext) extractResourceKey(kind, name, key string) (string, 
 		return "", fmt.Errorf("%s reference has an empty key for name %q", kindUpper, name)
 	}
 
-	obj, ok := c.cache.Get(kind, c.namespace, name)
+	obj, ok := c.cache.Get(kind, c.sourceNamespace, name)
 	if !ok {
 		c.logger.Warn("Resource not found in cache. Cannot extract key. Hardcoding placeholder.",
 			slog.String("referenced_kind", kind),
@@ -469,7 +482,7 @@ func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigM
 	}
 
 	if _, exists := c.generatedSecrets[secretName]; !exists {
-		obj, ok := c.cache.Get(KindConfigMap, c.namespace, sel.Name)
+		obj, ok := c.cache.Get(KindConfigMap, c.sourceNamespace, sel.Name)
 		if !ok {
 			c.logger.Warn("TLS ConfigMap reference was not found in the inputs. Updated reference to GMP Secret, but you must manually convert your ConfigMap to a Secret with this name in GMP.",
 				slog.String("configmap", sel.Name),
@@ -483,7 +496,7 @@ func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigM
 			newSecret.SetAPIVersion("v1")
 			newSecret.SetKind(KindSecret)
 			newSecret.SetName(secretName)
-			newSecret.SetNamespace(c.namespace)
+			newSecret.SetNamespace(c.targetNamespace)
 
 			data, found, _ := unstructured.NestedMap(obj.Object, "data")
 			if found {
@@ -497,7 +510,7 @@ func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigM
 		}
 	}
 
-	secretRef := &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey, Namespace: c.namespace}
+	secretRef := &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey, Namespace: c.targetNamespace}
 	return &monitoringv1.SecretSelector{Secret: secretRef}, nil
 }
 
@@ -531,7 +544,7 @@ func (c *conversionContext) convertSecretSelector(sel *corev1.SecretKeySelector)
 		c.logger.Warn("Secret reference had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.",
 			slog.String("secret", sel.Name))
 	}
-	secretRef := &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key, Namespace: c.namespace}
+	secretRef := &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key, Namespace: c.targetNamespace}
 	return &monitoringv1.SecretSelector{Secret: secretRef}, nil
 }
 
