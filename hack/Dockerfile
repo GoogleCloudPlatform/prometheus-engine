@@ -88,6 +88,9 @@ RUN ARCH=$(dpkg --print-architecture) && \
 	curl -Lo ./jq "https://github.com/jqlang/jq/releases/download/jq-1.7/jq-linux-${ARCH}" && \
 	install -o root -g root -m 0755 jq /usr/local/bin/jq && \
 	rm jq && \
+		curl -Lo ./yq "https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_${ARCH}" && \
+		install -o root -g root -m 0755 yq /usr/local/bin/yq && \
+		rm yq && \
 	curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.26.0/kind-linux-${ARCH}" && \
 	install -o root -g root -m 0755 kind /usr/local/bin/kind && \
 	rm kind
