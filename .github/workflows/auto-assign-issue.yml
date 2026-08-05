@@ -25,7 +25,7 @@ jobs:
       issues: write
     steps:
     - name: Auto-assign issue
-      uses: pozil/auto-assign-issue@c5bca5027e680b9e8411b826d16947afd8c76b32 # v2
+      uses: pozil/auto-assign-issue@7bf9d82c77d45976224660b873fc83e60576c5aa # v2
       with:
         assignees: ${{ secrets.DEFAULT_ISSUE_ASSIGNEE }}
         abortIfPreviousAssignees: true
