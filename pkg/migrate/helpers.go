@@ -1191,6 +1191,7 @@ func resolveAttachMetadata(attachMetadata *pomonitoringv1.AttachMetadata, baseMe
 }
 
 // resolveFilterRunning evaluates filterRunning settings across endpoints and resolves them to a single resource-level setting.
+// TODO: Potential better optimization would be to split into separate PodMonitorings based on filterRunning value.
 func resolveFilterRunning(filterRunnings []*bool, logger *slog.Logger, isCluster bool) *bool {
 	var hasFalse, hasTrue bool
 	for _, fr := range filterRunnings {
