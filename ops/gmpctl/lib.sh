@@ -168,7 +168,7 @@ release-lib::gomod_vulnfix() {
 		if [[ "${mod_path}" == go.opentelemetry.io/otel* ]]; then
 			# OpenTelemetry core API/SDK modules share versions and schema URLs across packages (e.g. otel, otel/sdk, otel/trace, otel/metric).
 			# Upgrade core otel modules present in the module graph together to avoid conflicting schema URL errors.
-			otel_mods=$(go list -m all 2>/dev/null | awk '{print $1}' | grep -E '^go\.opentelemetry\.io/otel($|/sdk$|/trace$|/metric$|/sdk/metric$|/log$|/sdk/log$)')
+			otel_mods=$(go list -m all 2>/dev/null | awk '{print $1}' | grep -E '^go\.opentelemetry\.io/otel($|/sdk$|/trace$|/metric$|/sdk/metric$|/log$|/sdk/log$)' || true)
 			all_otel=$(echo "${mod_path} ${otel_mods}" | tr ' ' '\n' | sort -u)
 			otel_args=""
 			for m in $(echo "${all_otel}" | tr ' ' '\n'); do
@@ -183,7 +183,7 @@ release-lib::gomod_vulnfix() {
 			# use the semconv version imported by otel/sdk/resource. We update hardcoded semconv imports in Go
 			# files to match the SDK semconv package version to prevent conflicting Schema URL errors during tracer provider
 			# initialization (e.g. "failed to install a new tracer provider: error detecting resource: conflicting Schema URL:...").
-			sdk_semconv=$(go list -e -f '{{ join .Imports "\n" }}' go.opentelemetry.io/otel/sdk/resource 2>/dev/null | grep 'go.opentelemetry.io/otel/semconv/v' | head -n1)
+			sdk_semconv=$(go list -e -f '{{ join .Imports "\n" }}' go.opentelemetry.io/otel/sdk/resource 2>/dev/null | grep 'go.opentelemetry.io/otel/semconv/v' | head -n1 || true)
 			if [[ -n "${sdk_semconv}" ]]; then
 				echo "🔄 Updating semconv imports in Go files to match SDK (${sdk_semconv})..."
 				find . -name "*.go" -not -path "*/vendor/*" -exec ${SED} -i -E "s#go\.opentelemetry\.io/otel/semconv/v1\.[0-9]+\.[0-9]+#${sdk_semconv}#g" {} +
