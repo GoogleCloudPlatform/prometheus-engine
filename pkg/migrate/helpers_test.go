@@ -882,9 +882,8 @@ func TestResolveAttachMetadata(t *testing.T) {
 
 func TestToStrictUnstructured(t *testing.T) {
 	tests := []struct {
-		name      string
-		obj       any
-		expectErr bool
+		name string
+		obj  any
 	}{
 		{
 			name: "scrape limits with uint64 converts to int64",
@@ -892,18 +891,14 @@ func TestToStrictUnstructured(t *testing.T) {
 				Samples: 5000,
 				Labels:  100,
 			},
-			expectErr: false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			u, err := toStrictUnstructured(tc.obj)
-			if (err != nil) != tc.expectErr {
-				t.Fatalf("toStrictUnstructured() error = %v, expectErr = %v", err, tc.expectErr)
-			}
-			if tc.expectErr {
-				return
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 			// Verify uint64 fields are converted to int64.
 			if val, ok := u["samples"]; ok {
