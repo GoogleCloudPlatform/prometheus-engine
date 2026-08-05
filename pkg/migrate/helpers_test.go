@@ -569,11 +569,9 @@ func TestConvertLimits(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name:        "Explicit zero value is preserved",
+			name:        "Explicit zero value returns nil as zero values are omitted by omitempty",
 			sampleLimit: ptrTo(uint64(0)),
-			expected: &monitoringv1.ScrapeLimits{
-				Samples: 0,
-			},
+			expected:    nil,
 		},
 		{
 			name:                  "Non-zero limits are converted",

@@ -682,7 +682,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "Pre-Scrape Relabelings: drop relabeling rule referencing node Kubernetes labels with warning",
+			name: "Pre-Scrape Relabelings: drop relabeling rule referencing node Kubernetes metadata with warning",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -710,14 +710,20 @@ func TestPodMonitorConversion(t *testing.T) {
 									TargetLabel:  "hostname",
 									Action:       "replace",
 								},
+								{
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_node_annotation_example"},
+									TargetLabel:  "example",
+									Action:       "replace",
+								},
 							},
 						},
 					},
 				},
 			},
 			wantWarnings: []string{
-				`Relabeling rule referencing node label \"__meta_kubernetes_node_label_topology_kubernetes_io_zone\" is unsupported in GMP (only node name is supported). The rule has been dropped.`,
-				`Relabeling rule referencing node label \"__meta_kubernetes_node_label_kubernetes_io_hostname\" is unsupported in GMP (only node name is supported). The rule has been dropped.`,
+				`Relabeling rule referencing node metadata \"__meta_kubernetes_node_label_topology_kubernetes_io_zone\" is unsupported in GMP (only node name is supported). The rule has been dropped.`,
+				`Relabeling rule referencing node metadata \"__meta_kubernetes_node_label_kubernetes_io_hostname\" is unsupported in GMP (only node name is supported). The rule has been dropped.`,
+				`Relabeling rule referencing node metadata \"__meta_kubernetes_node_annotation_example\" is unsupported in GMP (only node name is supported). The rule has been dropped.`,
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
