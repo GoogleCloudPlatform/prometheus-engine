@@ -758,8 +758,8 @@ func shouldSkipRelabelConfig(logger *slog.Logger, config pomonitoringv1.RelabelC
 			logger.Warn(fmt.Sprintf("Relabeling rule referencing pod annotation %q is unsupported in GMP. The rule has been dropped.", string(sl)))
 			return true
 		}
-		if strings.HasPrefix(string(sl), "__meta_kubernetes_node_label_") {
-			logger.Warn(fmt.Sprintf("Relabeling rule referencing node label %q is unsupported in GMP (only node name is supported). The rule has been dropped.", string(sl)))
+		if strings.HasPrefix(string(sl), "__meta_kubernetes_node_") && string(sl) != "__meta_kubernetes_node_name" {
+			logger.Warn(fmt.Sprintf("Relabeling rule referencing node metadata %q is unsupported in GMP (only node name is supported). The rule has been dropped.", string(sl)))
 			return true
 		}
 	}
@@ -956,6 +956,10 @@ func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLeng
 	}
 	if labelValueLengthLimit != nil {
 		limits.LabelValueLength = *labelValueLengthLimit
+	}
+	// Return nil if all fields in limits remain zero since zero values are stripped by omitempty.
+	if *limits == (monitoringv1.ScrapeLimits{}) {
+		return nil
 	}
 	return limits
 }
