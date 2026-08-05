@@ -1025,18 +1025,15 @@ func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingDa
 	logger.Info(fmt.Sprintf("Complex relabeling rule (target: %q) promoted from pre-scrape 'relabelings' to post-scrape 'metricRelabeling'.", data.targetLabel))
 }
 
-// warnUnsupportedSpecFields logs warnings for spec-level fields that GMP does not support or need.
-func warnUnsupportedSpecFields(logger *slog.Logger, spec *pomonitoringv1.PodMonitorSpec) {
-	if spec == nil {
-		return
-	}
-	if spec.TargetLimit != nil {
+// warnUnsupportedMonitorSpecFields logs warnings for spec-level fields that GMP does not support or need.
+func warnUnsupportedMonitorSpecFields(logger *slog.Logger, targetLimit *uint64, keepDroppedTargets *uint64, bodySizeLimit *pomonitoringv1.ByteSize) {
+	if targetLimit != nil {
 		logger.Warn("Field 'targetLimit' is unnecessary in GMP Managed Collection and has been dropped. Target discovery and scaling are managed automatically by GKE.")
 	}
-	if spec.KeepDroppedTargets != nil {
+	if keepDroppedTargets != nil {
 		logger.Warn("Field 'keepDroppedTargets' is unnecessary in GMP Managed Collection and has been dropped.")
 	}
-	if spec.BodySizeLimit != nil {
+	if bodySizeLimit != nil {
 		logger.Warn("Field 'bodySizeLimit' is unsupported by GMP Managed Collection and has been dropped. Scrape response buffer limits are managed automatically by GMP.")
 	}
 }

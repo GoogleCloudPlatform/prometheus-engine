@@ -277,7 +277,8 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 		return nil, err
 	}
 
-	// Spec-level warnings.
+	// Spec-level warnings for unsupported fields.
+	warnUnsupportedMonitorSpecFields(logger, sm.Spec.TargetLimit, sm.Spec.KeepDroppedTargets, sm.Spec.BodySizeLimit)
 	resolveScrapeClass(sm.Spec.ScrapeClassName, logger)
 	validateScrapeProtocols(sm.Spec.ScrapeProtocols, logger)
 
