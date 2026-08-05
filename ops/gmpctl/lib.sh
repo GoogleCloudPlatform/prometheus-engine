@@ -176,8 +176,10 @@ release-lib::gomod_vulnfix() {
 					otel_args="${otel_args} ${m}@${desired_version}"
 				fi
 			done
-			echo "🔄 Updating OpenTelemetry modules simultaneously:${otel_args}..."
-			go get ${otel_args}
+			if [[ -n "${otel_args// /}" ]]; then
+				echo "🔄 Updating OpenTelemetry modules simultaneously:${otel_args}..."
+				go get ${otel_args}
+			fi
 
 			# OpenTelemetry SDK resource detectors (e.g. WithProcessRuntimeDescription, WithTelemetrySDK)
 			# use the semconv version imported by otel/sdk/resource. We update hardcoded semconv imports in Go
