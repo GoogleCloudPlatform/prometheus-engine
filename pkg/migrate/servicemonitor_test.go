@@ -622,6 +622,32 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "Endpoint missing port and targetPort",
+			setupCache: func(cache *ResourceCache) error {
+				return addServiceWithSelectorToCache(cache, "default", "my-service",
+					map[string]string{"app": "foo"},
+					map[string]string{"app": "foo-pod"},
+					[]corev1.ServicePort{
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+					},
+				)
+			},
+			inputSM: &pomonitoringv1.ServiceMonitor{
+				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.ServiceMonitorSpec{
+					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+					Endpoints: []pomonitoringv1.Endpoint{
+						{Path: "/metrics"}, // Neither Port nor TargetPort is specified.
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			name: "JobLabel conversion from Service",
 			setupCache: func(cache *ResourceCache) error {
 				return addServiceWithSelectorToCache(cache, "default", "my-service",

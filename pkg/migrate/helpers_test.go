@@ -1405,7 +1405,13 @@ func TestMakeUniqueResourceName(t *testing.T) {
 			name:     "Long name truncated with hash",
 			base:     "my-very-long-servicemonitor-name-for-production-apps-in-cluster",
 			suffix:   "my-service-alpha-backend",
-			expected: "my-very-long-servicemonitor-name-for-production-apps-in-38a12b",
+			expected: "my-very-long-servicemonitor-name-for-production-apps-in-f21e5d",
+		},
+		{
+			name:     "Long names identical up to 56 characters do not collide",
+			base:     "my-very-long-servicemonitor-name-for-production-apps-in-cluster-b",
+			suffix:   "my-service-alpha-backend",
+			expected: "my-very-long-servicemonitor-name-for-production-apps-in-b6ef21",
 		},
 	}
 
