@@ -1456,14 +1456,14 @@ const (
 
 // makeUniqueResourceName joins a base name and suffix with a hyphen.
 // If the resulting name exceeds validation.DNS1123LabelMaxLength (63 characters),
-// it truncates the base name and appends a 6-character deterministic hash of the suffix.
+// it truncates the base name and appends a 6-character deterministic hash of the combined name.
 func makeUniqueResourceName(base, suffix string) string {
 	name := fmt.Sprintf("%s-%s", base, suffix)
 	if len(name) <= validation.DNS1123LabelMaxLength {
 		return name
 	}
 	h := fnv.New32a()
-	h.Write([]byte(suffix))
+	h.Write([]byte(name))
 	hashStr := fmt.Sprintf("%08x", h.Sum32())
 	hashSuffix := hashStr[:resourceNameHashLength]
 

@@ -34,9 +34,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// ServiceGroup groups Services that share compatible selectors, ports, and labels.
+// serviceGroup groups Services that share compatible selectors, ports, and labels.
 // This allows them to be merged into a single output PodMonitoring resource.
-type ServiceGroup struct {
+type serviceGroup struct {
 	Selector     map[string]string
 	PortMap      map[string]intstr.IntOrString
 	TargetLabels map[string]string
@@ -44,7 +44,7 @@ type ServiceGroup struct {
 }
 
 // Namespaces returns a sorted slice of unique namespaces where Services in this group reside.
-func (g *ServiceGroup) Namespaces() []string {
+func (g *serviceGroup) Namespaces() []string {
 	unique := make(map[string]bool)
 	var ns []string
 	for _, svc := range g.Services {
@@ -175,7 +175,7 @@ func (c *ServiceMonitorConverter) findAndGroupServices(
 	targetNamespaces []string,
 	logger *slog.Logger,
 	cache *ResourceCache,
-) ([]*ServiceGroup, error) {
+) ([]*serviceGroup, error) {
 	svcs, err := cache.findServicesBySelector(sm.Spec.Selector, targetNamespaces)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for Services matching selector: %w", err)
@@ -229,7 +229,7 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	sm *pomonitoringv1.ServiceMonitor,
 	logger *slog.Logger,
 	cache *ResourceCache,
-	group *ServiceGroup,
+	group *serviceGroup,
 	isClusterScoped bool,
 ) (*commonMonitorSpec, error) {
 	convCtx := &conversionContext{
@@ -306,7 +306,7 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 	convCtx *conversionContext,
 	endpoints []pomonitoringv1.Endpoint,
 	epResults []preScrapeRelabelingResult,
-	group *ServiceGroup,
+	group *serviceGroup,
 ) ([]monitoringv1.ScrapeEndpoint, error) {
 	if len(epResults) != len(endpoints) {
 		return nil, fmt.Errorf("internal error: pre-scrape relabeling results length (%d) does not match endpoints length (%d)", len(epResults), len(endpoints))
@@ -319,10 +319,6 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 
 		// 1. Port mapping (Use pre-resolved port from group).
 		portKey := endpointPortKey(ep)
-		if portKey == "" {
-			return nil, fmt.Errorf("endpoint [%d]: port or targetPort must be set", i)
-		}
-
 		resolvedPort, exists := group.PortMap[portKey]
 		if !exists {
 			return nil, fmt.Errorf("endpoint [%d]: port %q was not resolved for this group", i, portKey)
@@ -394,8 +390,8 @@ func groupServices(
 	targetLabels []string,
 	sm *pomonitoringv1.ServiceMonitor,
 	svcs []*corev1.Service,
-) ([]*ServiceGroup, error) {
-	var groups []*ServiceGroup
+) ([]*serviceGroup, error) {
+	var groups []*serviceGroup
 
 	for _, svc := range svcs {
 		// 1. Extract and validate selector.
@@ -406,10 +402,10 @@ func groupServices(
 
 		// 2. Resolve ports for this Service.
 		portMap := make(map[string]intstr.IntOrString)
-		for _, ep := range sm.Spec.Endpoints {
+		for i, ep := range sm.Spec.Endpoints {
 			portKey := endpointPortKey(ep)
 			if portKey == "" {
-				continue
+				return nil, fmt.Errorf("endpoint [%d]: port or targetPort must be set", i)
 			}
 			resolvedPort, err := resolveServicePort(logger, svc, portKey)
 			if err != nil {
@@ -437,7 +433,7 @@ func groupServices(
 		}
 
 		// 4. Find a compatible group.
-		var matchedGroup *ServiceGroup
+		var matchedGroup *serviceGroup
 		for _, g := range groups {
 			if g.canMergeWith(svc.Spec.Selector, portMap, resolvedLabels) {
 				matchedGroup = g
@@ -452,7 +448,7 @@ func groupServices(
 			maps.Copy(matchedGroup.PortMap, portMap)
 			maps.Copy(matchedGroup.TargetLabels, resolvedLabels)
 		} else {
-			groups = append(groups, &ServiceGroup{
+			groups = append(groups, &serviceGroup{
 				Selector:     svc.Spec.Selector,
 				PortMap:      portMap,
 				TargetLabels: resolvedLabels,
@@ -466,7 +462,7 @@ func groupServices(
 
 // canMergeWith checks if a Service's resolved selector, ports, and labels
 // are compatible with this ServiceGroup (i.e. no conflicts).
-func (g *ServiceGroup) canMergeWith(
+func (g *serviceGroup) canMergeWith(
 	selector map[string]string,
 	portMap map[string]intstr.IntOrString,
 	targetLabels map[string]string,
