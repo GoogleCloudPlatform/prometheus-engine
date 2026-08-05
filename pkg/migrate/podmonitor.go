@@ -195,7 +195,7 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 	}
 
 	// Spec-level warnings for unsupported fields.
-	warnUnsupportedSpecFields(logger, &pm.Spec)
+	warnUnsupportedMonitorSpecFields(logger, pm.Spec.TargetLimit, pm.Spec.KeepDroppedTargets, pm.Spec.BodySizeLimit)
 	resolveScrapeClass(pm.Spec.ScrapeClassName, logger)
 	validateScrapeProtocols(pm.Spec.ScrapeProtocols, logger)
 
