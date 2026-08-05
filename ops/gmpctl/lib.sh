@@ -181,15 +181,6 @@ release-lib::gomod_vulnfix() {
 				go get ${otel_args}
 			fi
 
-			# OpenTelemetry SDK resource detectors (e.g. WithProcessRuntimeDescription, WithTelemetrySDK)
-			# use the semconv version imported by otel/sdk/resource. We update hardcoded semconv imports in Go
-			# files to match the SDK semconv package version to prevent conflicting Schema URL errors during tracer provider
-			# initialization (e.g. "failed to install a new tracer provider: error detecting resource: conflicting Schema URL:...").
-			sdk_semconv=$(go list -e -f '{{ join .Imports "\n" }}' go.opentelemetry.io/otel/sdk/resource 2>/dev/null | grep 'go.opentelemetry.io/otel/semconv/v' | head -n1 || true)
-			if [[ -n "${sdk_semconv}" ]]; then
-				echo "🔄 Updating semconv imports in Go files to match SDK (${sdk_semconv})..."
-				find . -name "*.go" -not -path "*/vendor/*" -exec ${SED} -i -E "s#go\.opentelemetry\.io/otel/semconv/v1\.[0-9]+\.[0-9]+#${sdk_semconv}#g" {} +
-			fi
 		else
 			echo "🔄 Updating module '${mod_path}' to version '${desired_version}'..."
 			go get "${mod_path}@${desired_version}"
