@@ -22,6 +22,7 @@ name: (Privileged) Auto Assign PR
 # Instead, we use artifact with the auto-assign-pr name.
 
 on:
+  # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [ "Auto Assign PR" ]
     types:
@@ -37,7 +38,7 @@ jobs:
     - name: 'Download parameter'
       # NOTE(bwplotka): We keep 3.1.0 version as listWorkflowRunArtifacts is not
       # present in v6 for some reason (to be researched why).
-      uses: actions/github-script@v3.1.0
+      uses: actions/github-script@47f7cf65b5ced0830a325f705cad64f2f58dddf7 # v3.1.0
       with:
         script: |
           const artifacts = await github.actions.listWorkflowRunArtifacts({
@@ -58,7 +59,7 @@ jobs:
           fs.writeFileSync('${{github.workspace}}/pr.zip', Buffer.from(download.data));
     - run: unzip pr.zip
     - name: 'Get PR number'
-      uses: actions/github-script@v6
+      uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
       id: set-result
       with:
         script: |
@@ -66,7 +67,7 @@ jobs:
           return Number(fs.readFileSync('./NR'));
         result-encoding: string
     - name: 'Auto-assign issue'
-      uses: pozil/auto-assign-issue@v1
+      uses: pozil/auto-assign-issue@d11e715efc663fe323c3d8d4d3cbbfdddd539baf # v1
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
         assignees: ${{ secrets.DEFAULT_ISSUE_ASSIGNEE }}
