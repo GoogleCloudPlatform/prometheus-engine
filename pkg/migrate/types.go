@@ -83,14 +83,14 @@ func getResourceKey(kind, namespace, name string) string {
 // NewResourceCache creates a new initialized ResourceCache.
 func NewResourceCache() *ResourceCache {
 	indexers := cache.Indexers{
-		indexKind: func(obj interface{}) ([]string, error) {
+		indexKind: func(obj any) ([]string, error) {
 			res, ok := obj.(*CachedResource)
 			if !ok {
 				return nil, fmt.Errorf("expected *CachedResource, got %T", obj)
 			}
 			return []string{res.Unstructured.GetKind()}, nil
 		},
-		indexKindNamespace: func(obj interface{}) ([]string, error) {
+		indexKindNamespace: func(obj any) ([]string, error) {
 			res, ok := obj.(*CachedResource)
 			if !ok {
 				return nil, fmt.Errorf("expected *CachedResource, got %T", obj)
@@ -99,7 +99,7 @@ func NewResourceCache() *ResourceCache {
 		},
 	}
 
-	keyFunc := func(obj interface{}) (string, error) {
+	keyFunc := func(obj any) (string, error) {
 		res, ok := obj.(*CachedResource)
 		if !ok {
 			return "", fmt.Errorf("expected *CachedResource, got %T", obj)
@@ -214,7 +214,7 @@ func (c *ResourceCache) findServicesBySelector(selector metav1.LabelSelector, na
 		return nil, fmt.Errorf("invalid selector: %w", err)
 	}
 
-	var candidateItems []interface{}
+	var candidateItems []any
 	if len(namespaces) > 0 {
 		for _, ns := range namespaces {
 			items, err := c.indexer.ByIndex(indexKindNamespace, fmt.Sprintf("%s/%s", KindService, ns))
