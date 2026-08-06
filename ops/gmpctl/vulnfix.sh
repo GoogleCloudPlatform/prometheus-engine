@@ -110,16 +110,16 @@ for ((i=1; i<=max_attempts; i++)); do
 
 	echo "🔄 Iteration $i/$max_attempts: Applying dependency updates..."
 	release-lib::gomod_vulnfix "${DIR}" "${vuln_file}"
-	pushd "${DIR}"
 	git add go.mod go.sum
 	if [ -d "${DIR}/vendor" ]; then
 		go mod vendor
 		git add --all
 	fi
-	popd
 done
 
-release-lib::vulnlist "${DIR}" "${vuln_file}"
+if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
+	release-lib::vulnlist "${DIR}" "${vuln_file}"
+fi
 if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
 	echo "❌ After go mod update some vulnerabilities are still found; go to ${DIR} and resolve it manually."
 	exit 1

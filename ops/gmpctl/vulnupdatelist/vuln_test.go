@@ -33,12 +33,31 @@ func TestCompileUpdateList_IgnoredModules(t *testing.T) {
 		updates, err := compileUpdateList(strings.NewReader(mockJSON), false, nil)
 		require.NoError(t, err)
 		require.Len(t, updates, 2)
+
+		require.Equal(t, "github.com/prometheus/prometheus", updates[0].Module)
+		require.Equal(t, "GO-2024-0001", updates[0].CVEID)
+		require.Equal(t, "1.0.0", updates[0].Version)
+		require.NotNil(t, updates[0].FixedVersion)
+		require.Equal(t, "1.2.3", updates[0].FixedVersion.String())
+
+		require.Equal(t, "golang.org/x/net", updates[1].Module)
+		require.Equal(t, "GO-2024-0002", updates[1].CVEID)
+		require.Equal(t, "0.1.0", updates[1].Version)
+		require.NotNil(t, updates[1].FixedVersion)
+		require.Equal(t, "0.1.5", updates[1].FixedVersion.String())
 	})
 
 	t.Run("with ignored module", func(t *testing.T) {
-		updates, err := compileUpdateList(strings.NewReader(mockJSON), false, []string{"github.com/prometheus/prometheus"})
+		ignored := map[string]struct{}{
+			"github.com/prometheus/prometheus": {},
+		}
+		updates, err := compileUpdateList(strings.NewReader(mockJSON), false, ignored)
 		require.NoError(t, err)
 		require.Len(t, updates, 1)
 		require.Equal(t, "golang.org/x/net", updates[0].Module)
+		require.Equal(t, "GO-2024-0002", updates[0].CVEID)
+		require.Equal(t, "0.1.0", updates[0].Version)
+		require.NotNil(t, updates[0].FixedVersion)
+		require.Equal(t, "0.1.5", updates[0].FixedVersion.String())
 	})
 }
