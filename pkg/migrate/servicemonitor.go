@@ -37,17 +37,17 @@ import (
 // serviceGroup groups Services that share compatible selectors, ports, and labels.
 // This allows them to be merged into a single output PodMonitoring resource.
 type serviceGroup struct {
-	Selector     map[string]string
-	PortMap      map[string]intstr.IntOrString
-	TargetLabels map[string]string
-	Services     []*corev1.Service
+	selector     map[string]string
+	portMap      map[string]intstr.IntOrString
+	targetLabels map[string]string
+	services     []*corev1.Service
 }
 
-// Namespaces returns a sorted slice of unique namespaces where Services in this group reside.
-func (g *serviceGroup) Namespaces() []string {
+// namespaces returns a sorted slice of unique namespaces where Services in this group reside.
+func (g *serviceGroup) namespaces() []string {
 	unique := make(map[string]bool)
 	var ns []string
-	for _, svc := range g.Services {
+	for _, svc := range g.services {
 		n := svc.Namespace
 		if !unique[n] {
 			unique[n] = true
@@ -151,9 +151,9 @@ func (c *ServiceMonitorConverter) convertToMonitoringResources(
 		name := sm.Name
 		if len(groups) > 1 {
 			// Suffix with Service name for PodMonitoring, or namespace and Service name for ClusterPodMonitoring to prevent cluster-scoped collisions.
-			suffix := group.Services[0].Name
+			suffix := group.services[0].Name
 			if isClusterScoped {
-				suffix = fmt.Sprintf("%s-%s", group.Services[0].Namespace, group.Services[0].Name)
+				suffix = fmt.Sprintf("%s-%s", group.services[0].Namespace, group.services[0].Name)
 			}
 			name = makeUniqueResourceName(sm.Name, suffix)
 		}
@@ -169,7 +169,7 @@ func (c *ServiceMonitorConverter) convertToMonitoringResources(
 			outputs = append(outputs, u)
 			generatedSecrets = append(generatedSecrets, res.generatedSecrets...)
 		} else {
-			for _, ns := range group.Namespaces() {
+			for _, ns := range group.namespaces() {
 				u, err := buildPodMonitoring(*meta, ns, res, logger)
 				if err != nil {
 					return nil, nil, err
@@ -262,8 +262,8 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 
 	// Apply Service targetLabels (statically resolved for this group).
 	var serviceTargetLabelRules []monitoringv1.RelabelingRule
-	if len(group.TargetLabels) > 0 {
-		serviceTargetLabelRules = convertStaticTargetLabels(logger, group.TargetLabels)
+	if len(group.targetLabels) > 0 {
+		serviceTargetLabelRules = convertStaticTargetLabels(logger, group.targetLabels)
 	}
 
 	if len(serviceTargetLabelRules) > 0 {
@@ -275,7 +275,7 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	// Merge Pod target labels and selector.
 	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, sm.Spec.PodTargetLabels, "", "Pod"), rules.ResourceCombined.FromPod)
 
-	baseSelector := metav1.LabelSelector{MatchLabels: group.Selector}
+	baseSelector := metav1.LabelSelector{MatchLabels: group.selector}
 	mergedSelector, err := mergeLabelSelector(baseSelector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
 	if err != nil {
 		return nil, err
@@ -331,7 +331,7 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 
 		// 1. Port mapping (Use pre-resolved port from group).
 		portKey := endpointPortKey(ep)
-		resolvedPort, exists := group.PortMap[portKey]
+		resolvedPort, exists := group.portMap[portKey]
 		if !exists {
 			return nil, fmt.Errorf("endpoint [%d]: port %q was not resolved for this group", i, portKey)
 		}
@@ -455,16 +455,16 @@ func groupServices(
 
 		// 5. Merge into existing group or create new group.
 		if matchedGroup != nil {
-			matchedGroup.Services = append(matchedGroup.Services, svc)
+			matchedGroup.services = append(matchedGroup.services, svc)
 			// Merge complementary mappings.
-			maps.Copy(matchedGroup.PortMap, portMap)
-			maps.Copy(matchedGroup.TargetLabels, resolvedLabels)
+			maps.Copy(matchedGroup.portMap, portMap)
+			maps.Copy(matchedGroup.targetLabels, resolvedLabels)
 		} else {
 			groups = append(groups, &serviceGroup{
-				Selector:     svc.Spec.Selector,
-				PortMap:      portMap,
-				TargetLabels: resolvedLabels,
-				Services:     []*corev1.Service{svc},
+				selector:     svc.Spec.Selector,
+				portMap:      portMap,
+				targetLabels: resolvedLabels,
+				services:     []*corev1.Service{svc},
 			})
 		}
 	}
@@ -480,13 +480,13 @@ func (g *serviceGroup) canMergeWith(
 	targetLabels map[string]string,
 ) bool {
 	// 1. Selector must match exactly.
-	if !maps.Equal(g.Selector, selector) {
+	if !maps.Equal(g.selector, selector) {
 		return false
 	}
 
 	// 2. Check for port mapping conflicts.
 	for portName, targetPort := range portMap {
-		if existingTargetPort, exists := g.PortMap[portName]; exists {
+		if existingTargetPort, exists := g.portMap[portName]; exists {
 			if existingTargetPort != targetPort {
 				return false
 			}
@@ -495,7 +495,7 @@ func (g *serviceGroup) canMergeWith(
 
 	// 3. Target label mappings must match exactly across merged Services.
 	// Otherwise, unlabeled or partially labeled Services would incorrectly inherit static target label values from other Services in the group.
-	if !maps.Equal(g.TargetLabels, targetLabels) {
+	if !maps.Equal(g.targetLabels, targetLabels) {
 		return false
 	}
 
