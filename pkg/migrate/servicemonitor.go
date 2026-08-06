@@ -276,6 +276,13 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	if err != nil {
 		return nil, err
 	}
+	if len(mergedSelector.MatchLabels) == 0 && len(mergedSelector.MatchExpressions) == 0 {
+		if isClusterScoped {
+			logger.Warn("Resulting ClusterPodMonitoring selector is empty. It will select and scrape all pods across all namespaces. Verify if this is intended.")
+		} else {
+			logger.Warn("Resulting PodMonitoring selector is empty. It will select and scrape all pods in this namespace. Verify if this is intended.")
+		}
+	}
 
 	// Spec-level warnings for unsupported fields.
 	warnUnsupportedMonitorSpecFields(logger, sm.Spec.TargetLimit, sm.Spec.KeepDroppedTargets, sm.Spec.BodySizeLimit)
