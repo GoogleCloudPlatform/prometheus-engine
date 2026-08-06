@@ -16,7 +16,6 @@ It's a starting point for smaller or bigger automation on OSS side (e.g. releasi
    * new-ish `bash` (MacOS: `brew install bash`)
    * `gsed` (MacOS: `brew install gsed`)
    * `gcloud` (https://docs.cloud.google.com/sdk/docs/install-sdk) (and `gcloud auth login`)
-   * `gpg` (MacOS: `brew install gpg`)
 
 3. You can configure different work directory for gmpctl via `-c` flag. By default, `gmpctl` does the work in `ops/gmpctl/.data`
 
@@ -59,8 +58,6 @@ Usage: gmpctl [COMMAND] [FLAGS]
     	Release branch to work on; Project is auto-detected from this
   -patch
     	If true, and --tag is empty, forces a new patch version as a new TAG.
-  -skip-tag-signing
-    	If true, creates an unsigned annotated tag instead of a GPG signed tag.
   -t string
     	Tag to release. If empty, next TAG version will be auto-detected (double check this!)
 
