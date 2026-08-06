@@ -619,7 +619,7 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 						Kind:       "ClusterPodMonitoring",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "my-cluster-monitor-service-a",
+						Name: "my-cluster-monitor-ns-1-service-a",
 					},
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -639,7 +639,7 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 						Kind:       "ClusterPodMonitoring",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "my-cluster-monitor-service-b",
+						Name: "my-cluster-monitor-ns-2-service-b",
 					},
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
