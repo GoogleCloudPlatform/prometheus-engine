@@ -12,6 +12,8 @@ Resource Types:
 <ul><li>
 <a href="#monitoring.googleapis.com/v1.AlertingSpec">AlertingSpec</a>
 </li><li>
+<a href="#monitoring.googleapis.com/v1.AlertmanagerDiscoveryType">AlertmanagerDiscoveryType</a>
+</li><li>
 <a href="#monitoring.googleapis.com/v1.AlertmanagerEndpoints">AlertmanagerEndpoints</a>
 </li><li>
 <a href="#monitoring.googleapis.com/v1.Auth">Auth</a>
@@ -159,6 +161,31 @@ Resource Types:
 </tr>
 </tbody>
 </table>
+<h3 id="monitoring.googleapis.com/v1.AlertmanagerDiscoveryType">
+<span id="AlertmanagerDiscoveryType">AlertmanagerDiscoveryType
+(<code>string</code> alias)</span>
+</h3>
+<p>
+(<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.AlertmanagerEndpoints">AlertmanagerEndpoints</a>)
+</p>
+<div>
+<p>AlertmanagerDiscoveryType defines how Alertmanager targets are discovered.</p>
+</div>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr><td><p>&#34;Endpoints&#34;</p></td>
+<td><p>AlertmanagerDiscoveryTypeEndpoints discovers individual Alertmanager replicas from Endpoints.</p>
+</td>
+</tr><tr><td><p>&#34;Service&#34;</p></td>
+<td><p>AlertmanagerDiscoveryTypeService routes alerts through a Kubernetes Service DNS name.</p>
+</td>
+</tr></tbody>
+</table>
 <h3 id="monitoring.googleapis.com/v1.AlertmanagerEndpoints">
 <span id="AlertmanagerEndpoints">AlertmanagerEndpoints
 </span>
@@ -167,8 +194,7 @@ Resource Types:
 (<em>Appears in: </em><a href="#monitoring.googleapis.com/v1.AlertingSpec">AlertingSpec</a>)
 </p>
 <div>
-<p>AlertmanagerEndpoints defines a selection of a single Endpoints object
-containing alertmanager IPs to fire alerts against.</p>
+<p>AlertmanagerEndpoints defines a selection of Alertmanager targets to fire alerts against.</p>
 </div>
 <table>
 <thead>
@@ -186,7 +212,7 @@ string
 </em>
 </td>
 <td>
-<p>Namespace of Endpoints object.</p>
+<p>Namespace of the Endpoints object or Service.</p>
 </td>
 </tr>
 <tr>
@@ -197,7 +223,7 @@ string
 </em>
 </td>
 <td>
-<p>Name of Endpoints object in Namespace.</p>
+<p>Name of the Endpoints object or Service in Namespace.</p>
 </td>
 </tr>
 <tr>
@@ -209,6 +235,22 @@ k8s.io/apimachinery/pkg/util/intstr.IntOrString
 </td>
 <td>
 <p>Port the Alertmanager API is exposed on.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>discoveryType</code><br/>
+<em>
+<a href="#monitoring.googleapis.com/v1.AlertmanagerDiscoveryType">
+AlertmanagerDiscoveryType
+</a>
+</em>
+</td>
+<td>
+<p>DiscoveryType controls how Alertmanager targets are discovered. Endpoints, the default,
+discovers each Alertmanager replica from a Kubernetes Endpoints object. Service routes
+through the Kubernetes Service DNS name and requires a numeric Port. Service discovery
+supports Services without Endpoints, such as ExternalName Services.</p>
 </td>
 </tr>
 <tr>

@@ -2094,9 +2094,7 @@ spec:
                     alertmanagers:
                       description: Alertmanagers contains endpoint configuration for designated Alertmanagers.
                       items:
-                        description: |-
-                          AlertmanagerEndpoints defines a selection of a single Endpoints object
-                          containing alertmanager IPs to fire alerts against.
+                        description: AlertmanagerEndpoints defines a selection of Alertmanager targets to fire alerts against.
                         properties:
                           apiVersion:
                             description: |-
@@ -2137,11 +2135,21 @@ spec:
                                   error.
                                 type: string
                             type: object
+                          discoveryType:
+                            description: |-
+                              DiscoveryType controls how Alertmanager targets are discovered. Endpoints, the default,
+                              discovers each Alertmanager replica from a Kubernetes Endpoints object. Service routes
+                              through the Kubernetes Service DNS name and requires a numeric Port. Service discovery
+                              supports Services without Endpoints, such as ExternalName Services.
+                            enum:
+                              - Endpoints
+                              - Service
+                            type: string
                           name:
-                            description: Name of Endpoints object in Namespace.
+                            description: Name of the Endpoints object or Service in Namespace.
                             type: string
                           namespace:
-                            description: Namespace of Endpoints object.
+                            description: Namespace of the Endpoints object or Service.
                             type: string
                           pathPrefix:
                             description: Prefix for the HTTP path alerts are pushed to.
@@ -2477,9 +2485,7 @@ spec:
                     alertmanagers:
                       description: Alertmanagers contains endpoint configuration for designated Alertmanagers.
                       items:
-                        description: |-
-                          AlertmanagerEndpoints defines a selection of a single Endpoints object
-                          containing alertmanager IPs to fire alerts against.
+                        description: AlertmanagerEndpoints defines a selection of Alertmanager targets to fire alerts against.
                         properties:
                           apiVersion:
                             description: |-
@@ -2517,11 +2523,21 @@ spec:
                                   error.
                                 type: string
                             type: object
+                          discoveryType:
+                            description: |-
+                              DiscoveryType controls how Alertmanager targets are discovered. Endpoints, the default,
+                              discovers each Alertmanager replica from a Kubernetes Endpoints object. Service routes
+                              through the Kubernetes Service DNS name and requires a numeric Port. Service discovery
+                              supports Services without Endpoints, such as ExternalName Services.
+                            enum:
+                              - Endpoints
+                              - Service
+                            type: string
                           name:
-                            description: Name of Endpoints object in Namespace.
+                            description: Name of the Endpoints object or Service in Namespace.
                             type: string
                           namespace:
-                            description: Namespace of Endpoints object.
+                            description: Namespace of the Endpoints object or Service.
                             type: string
                           pathPrefix:
                             description: Prefix for the HTTP path alerts are pushed to.
