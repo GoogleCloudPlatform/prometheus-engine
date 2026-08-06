@@ -28,7 +28,6 @@ import (
 	prommodel "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/google/export"
 	"github.com/prometheus/prometheus/model/relabel"
-	"github.com/prometheus/prometheus/util/strutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -1394,54 +1393,6 @@ func resolveServicePort(logger *slog.Logger, svc *corev1.Service, portStr string
 	}
 
 	return intstr.IntOrString{}, fmt.Errorf("port %q not found in Service spec", portStr)
-}
-
-// convertServiceTargetLabels maps Service labels to static metricRelabeling rules.
-func convertServiceTargetLabels(logger *slog.Logger, svc *corev1.Service, targetLabels []string) []monitoringv1.RelabelingRule {
-	if svc == nil || len(targetLabels) == 0 {
-		return nil
-	}
-
-	var rules []monitoringv1.RelabelingRule
-	seenTargets := make(map[string]bool)
-
-	for _, l := range targetLabels {
-		val, ok := svc.Labels[l]
-		if !ok {
-			logger.Warn("Service-level targetLabel was not found on Service. Skipping mapping.",
-				slog.String("label", l),
-				slog.String("service", svc.Name))
-			continue
-		}
-
-		target := strutil.SanitizeLabelName(l)
-		if protectedLabels[target] {
-			target = "exported_" + target
-			logger.Warn("Service targetLabel matches protected label. Renamed target.",
-				slog.String("label", l),
-				slog.String("renamed_target", target))
-		}
-
-		if seenTargets[target] {
-			logger.Warn("Service targetLabel mapping collision. Skipping.",
-				slog.String("service", svc.Name),
-				slog.String("source_label", l),
-				slog.String("target_label", target))
-			continue
-		}
-		seenTargets[target] = true
-
-		rules = append(rules, monitoringv1.RelabelingRule{
-			TargetLabel: target,
-			Replacement: val,
-			Action:      string(relabel.Replace),
-		})
-
-		logger.Info("Service label mapped statically to metricRelabeling. Note: Changes to the Service label will not be dynamically reflected on metrics.",
-			slog.String("label", fmt.Sprintf("%s: %s", l, val)))
-	}
-
-	return rules
 }
 
 const (

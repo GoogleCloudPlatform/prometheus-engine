@@ -431,6 +431,10 @@ func groupServices(
 		for _, labelName := range targetLabels {
 			if val, found := svc.Labels[labelName]; found {
 				resolvedLabels[labelName] = val
+			} else {
+				logger.Warn("Service-level targetLabel was not found on Service. Skipping mapping.",
+					slog.String("label", labelName),
+					slog.String("service", svc.Name))
 			}
 		}
 
@@ -505,6 +509,7 @@ func (g *serviceGroup) canMergeWith(
 // convertStaticTargetLabels maps Service target labels to static metricRelabeling rules.
 func convertStaticTargetLabels(logger *slog.Logger, labels map[string]string) []monitoringv1.RelabelingRule {
 	var rules []monitoringv1.RelabelingRule
+	seenTargets := make(map[string]bool)
 	for _, k := range slices.Sorted(maps.Keys(labels)) {
 		v := labels[k]
 		target := strutil.SanitizeLabelName(k)
@@ -514,13 +519,20 @@ func convertStaticTargetLabels(logger *slog.Logger, labels map[string]string) []
 				slog.String("label", k),
 				slog.String("renamed_target", target))
 		}
+		if seenTargets[target] {
+			logger.Warn("Service targetLabel mapping collision. Skipping.",
+				slog.String("source_label", k),
+				slog.String("target_label", target))
+			continue
+		}
+		seenTargets[target] = true
 		rule := monitoringv1.RelabelingRule{
 			TargetLabel: target,
 			Replacement: v,
 			Action:      string(relabel.Replace),
 		}
 		rules = append(rules, rule)
-		logger.Info("Service label mapped statically to metricRelabeling",
+		logger.Info("Service label mapped statically to metricRelabeling. Note: Changes to the Service label will not be dynamically reflected on metrics unless this configuration is redeployed with the respective changes.",
 			slog.String("label", fmt.Sprintf("%s: %s", k, v)))
 	}
 	return rules

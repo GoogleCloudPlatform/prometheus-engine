@@ -913,6 +913,7 @@ func TestConvertStaticTargetLabels(t *testing.T) {
 	labels := map[string]string{
 		"app":                    "my-app",
 		"app.kubernetes.io/name": "my-k8s-app",
+		"app_kubernetes_io_name": "colliding-app",
 		"job":                    "my-job",
 		"namespace":              "my-ns",
 		"project.id":             "my-project",
