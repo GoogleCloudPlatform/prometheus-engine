@@ -383,8 +383,7 @@ func mergeFromPod(logger *slog.Logger, base []monitoringv1.LabelMapping, extra [
 }
 
 // extractResourceKey is a consolidated helper that fetches a key from a ConfigMap or Secret.
-// It returns an error if the reference is malformed or if data is corrupt.
-// It returns a placeholder and logs a warning if the resource itself is not found in the cache.
+// It returns an error if the reference is malformed, missing, or corrupt.
 func (c *conversionContext) extractResourceKey(kind, name, key string) (string, error) {
 	kindUpper := strings.ToUpper(kind)
 	if name == "" && key == "" {
@@ -399,11 +398,7 @@ func (c *conversionContext) extractResourceKey(kind, name, key string) (string, 
 
 	obj, ok := c.cache.Get(kind, c.sourceNamespace, name)
 	if !ok {
-		c.logger.Warn("Resource not found in cache. Cannot extract key. Hardcoding placeholder.",
-			slog.String("referenced_kind", kind),
-			slog.String("referenced_name", name),
-			slog.String("key", key))
-		return fmt.Sprintf("<MISSING_%s_%s_KEY_%s>", kindUpper, name, key), nil
+		return "", fmt.Errorf("%s %q for key %q not found in namespace %q", kind, name, key, c.sourceNamespace)
 	}
 
 	// Secrets support unencoded stringData.
@@ -630,8 +625,7 @@ func (c *conversionContext) convertOAuth2(oa *pomonitoringv1.OAuth2) (*monitorin
 	} else if oa.ClientID.ConfigMap != nil {
 		clientID, err = c.extractConfigMapKey(*oa.ClientID.ConfigMap)
 	} else {
-		c.logger.Warn("OAuth2 clientID neither defined as Secret nor ConfigMap. Hardcoding placeholder.")
-		clientID = "<MISSING_OAUTH2_CLIENT_ID>"
+		return nil, errors.New("OAuth2 clientID must be defined as either Secret or ConfigMap")
 	}
 	if err != nil {
 		return nil, err

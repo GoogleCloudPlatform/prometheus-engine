@@ -35,6 +35,7 @@ import (
 func TestPodMonitorConversion(t *testing.T) {
 	tests := []struct {
 		name             string
+		setupCache       func(cache *ResourceCache) error
 		input            *pomonitoringv1.PodMonitor
 		expected         []runtime.Object
 		wantErr          string
@@ -181,6 +182,9 @@ func TestPodMonitorConversion(t *testing.T) {
 		},
 		{
 			name: "Multiple Target Namespaces sets SecretReferences to target namespace upon creation",
+			setupCache: func(cache *ResourceCache) error {
+				return addSecretToCache(cache, "default", "auth", "user", "admin", true)
+			},
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -228,7 +232,7 @@ func TestPodMonitorConversion(t *testing.T) {
 								Interval: "30s",
 								HTTPClientConfig: monitoringv1.HTTPClientConfig{
 									BasicAuth: &monitoringv1.BasicAuth{
-										Username: "<MISSING_SECRET_auth_KEY_user>",
+										Username: "admin",
 										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass"}},
 									},
 								},
@@ -255,7 +259,7 @@ func TestPodMonitorConversion(t *testing.T) {
 								Interval: "30s",
 								HTTPClientConfig: monitoringv1.HTTPClientConfig{
 									BasicAuth: &monitoringv1.BasicAuth{
-										Username: "<MISSING_SECRET_auth_KEY_user>",
+										Username: "admin",
 										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass"}},
 									},
 								},
@@ -577,6 +581,12 @@ func TestPodMonitorConversion(t *testing.T) {
 		},
 		{
 			name: "Authorization and TLS Mapping",
+			setupCache: func(cache *ResourceCache) error {
+				if err := addSecretToCache(cache, "frontend", "auth-secret", "user", "admin", true); err != nil {
+					return err
+				}
+				return addConfigMapToCache(cache, "frontend", "oauth-cm", "id", "client-123")
+			},
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -642,7 +652,7 @@ func TestPodMonitorConversion(t *testing.T) {
 								Interval: "30s",
 								HTTPClientConfig: monitoringv1.HTTPClientConfig{
 									BasicAuth: &monitoringv1.BasicAuth{
-										Username: "<MISSING_SECRET_auth-secret_KEY_user>",
+										Username: "admin",
 										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth-secret", Key: "pass"}},
 									},
 									TLS: &monitoringv1.TLS{
@@ -664,7 +674,7 @@ func TestPodMonitorConversion(t *testing.T) {
 								Interval: "30s",
 								HTTPClientConfig: monitoringv1.HTTPClientConfig{
 									OAuth2: &monitoringv1.OAuth2{
-										ClientID:     "<MISSING_CONFIGMAP_oauth-cm_KEY_id>",
+										ClientID:     "client-123",
 										ClientSecret: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "oauth-secret", Key: "secret"}},
 										TokenURL:     "https://auth.example.com/token",
 									},
@@ -2235,7 +2245,14 @@ func TestPodMonitorConversion(t *testing.T) {
 
 			uInput := toUnstructured(t, tc.input)
 
-			actual, err := converter.Convert(context.Background(), logger, uInput, NewResourceCache())
+			cache := NewResourceCache()
+			if tc.setupCache != nil {
+				if err := tc.setupCache(cache); err != nil {
+					t.Fatalf("failed to setup cache: %v", err)
+				}
+			}
+
+			actual, err := converter.Convert(context.Background(), logger, uInput, cache)
 
 			if tc.wantErr != "" {
 				if err == nil {

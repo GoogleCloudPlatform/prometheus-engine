@@ -91,8 +91,8 @@ func TestExtractSecretKey(t *testing.T) {
 			name:        "Missing secret",
 			setupCache:  func(_ *ResourceCache) error { return nil }, // Empty cache.
 			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing"}, Key: "user"},
-			expectedVal: "<MISSING_SECRET_missing_KEY_user>",
-			wantErr:     false,
+			expectedVal: "",
+			wantErr:     true,
 		},
 		{
 			name: "Secret with StringData",
@@ -189,8 +189,8 @@ func TestExtractConfigMapKey(t *testing.T) {
 			name:        "Missing configmap",
 			setupCache:  func(_ *ResourceCache) error { return nil }, // Empty cache.
 			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing"}, Key: "user"},
-			expectedVal: "<MISSING_CONFIGMAP_missing_KEY_user>",
-			wantErr:     false,
+			expectedVal: "",
+			wantErr:     true,
 		},
 		{
 			name: "Found configmap",
