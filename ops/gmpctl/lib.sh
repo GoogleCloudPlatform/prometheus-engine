@@ -168,7 +168,7 @@ release-lib::gomod_vulnfix() {
 		if [[ "${mod_path}" == go.opentelemetry.io/otel* ]]; then
 			# OpenTelemetry core API/SDK modules share versions and schema URLs across packages (e.g. otel, otel/sdk, otel/trace, otel/metric).
 			# Upgrade core otel modules present in the module graph together to avoid conflicting schema URL errors.
-			otel_mods=$(go list -m all 2>/dev/null | awk '{print $1}' | grep -E '^go\.opentelemetry\.io/otel($|/sdk$|/trace$|/metric$|/sdk/metric$|/log$|/sdk/log$)' || true)
+			otel_mods=$(go list -m all 2>/dev/null | awk '/^go\.opentelemetry\.io\/otel($|\/)/ && !/^go\.opentelemetry\.io\/otel\/(contrib|semconv)/ {print $1}')
 			all_otel=$(echo "${mod_path} ${otel_mods}" | tr ' ' '\n' | sort -u)
 			otel_args=""
 			for m in $(echo "${all_otel}" | tr ' ' '\n'); do
