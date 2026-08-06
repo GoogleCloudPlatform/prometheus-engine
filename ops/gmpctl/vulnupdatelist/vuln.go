@@ -82,7 +82,7 @@ type FindingTrace struct {
 
 // compileUpdateList decodes the JSON stream from govulncheck and extracts
 // a list of modules that need to be updated to a fixed version.
-func compileUpdateList(jsonData io.Reader, onlyFixed bool, ignoredModules []string) ([]UpdateList, error) {
+func compileUpdateList(jsonData io.Reader, onlyFixed bool, ignoredModules map[string]struct{}) ([]UpdateList, error) {
 	updates := make(map[string]UpdateList)
 	osvs := make(map[string]*OSV)
 	decoder := json.NewDecoder(jsonData)
@@ -137,7 +137,6 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool, ignoredModules []stri
 				Module:       module,
 				FixedVersion: fixVersion,
 				Version:      v.Finding.Trace[0].Version,
-				Ignored:      slices.Contains(ignoredModules, module),
 			}
 			continue
 		}
@@ -158,7 +157,7 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool, ignoredModules []stri
 
 	var updateList []UpdateList
 	for _, up := range allUpdates {
-		if up.Ignored {
+		if _, ignored := ignoredModules[up.Module]; ignored {
 			slog.Warn("IMPORTANT: Found Go vulnerability in an ignored module; skipping upgrade...", "module", up.Module, "cve", up.CVEID)
 			continue
 		}

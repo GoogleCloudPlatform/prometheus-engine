@@ -54,7 +54,6 @@ type UpdateList struct {
 	Module         string
 	FixedVersion   *semver.Version
 	Version        string
-	Ignored        bool
 }
 
 func (u UpdateList) String() string {
@@ -92,18 +91,18 @@ func main() {
 		os.Exit(0)
 	}
 
-	var ignored []string
+	ignoredModules := make(map[string]struct{})
 	if *vulnIgnoreModules != "" {
 		for _, m := range strings.Split(*vulnIgnoreModules, ",") {
 			m = strings.TrimSpace(m)
 			if m != "" {
-				ignored = append(ignored, m)
+				ignoredModules[m] = struct{}{}
 			}
 		}
 	}
 
 	slog.Info("Parsing vulnerabilities and finding updates...")
-	updates, err := compileUpdateList(bytes.NewReader(vulnJSON), *onlyFixed, ignored)
+	updates, err := compileUpdateList(bytes.NewReader(vulnJSON), *onlyFixed, ignoredModules)
 	if err != nil {
 		log.Fatalf("Error parsing govulncheck output: %v", err)
 	}
