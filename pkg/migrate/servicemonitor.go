@@ -150,8 +150,12 @@ func (c *ServiceMonitorConverter) convertToMonitoringResources(
 
 		name := sm.Name
 		if len(groups) > 1 {
-			// Suffix with the Service name to guarantee resource uniqueness when split.
-			name = makeUniqueResourceName(sm.Name, group.Services[0].Name)
+			// Suffix with Service name for PodMonitoring, or namespace and Service name for ClusterPodMonitoring to prevent cluster-scoped collisions.
+			suffix := group.Services[0].Name
+			if isClusterScoped {
+				suffix = fmt.Sprintf("%s-%s", group.Services[0].Namespace, group.Services[0].Name)
+			}
+			name = makeUniqueResourceName(sm.Name, suffix)
 		}
 
 		meta := sm.ObjectMeta.DeepCopy()
