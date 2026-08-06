@@ -1025,6 +1025,7 @@ func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingDa
 }
 
 // warnUnsupportedMonitorSpecFields logs warnings for spec-level fields that GMP does not support or need.
+// TODO: Once Prometheus Operator Go structs are upgraded, add warning checks for unsupported native histogram fields ('scrapeNativeHistograms', 'scrapeClassicHistograms', 'nativeHistogramBucketLimit', 'nativeHistogramMinBucketFactor', 'fallbackScrapeProtocols').
 func warnUnsupportedMonitorSpecFields(logger *slog.Logger, targetLimit *uint64, keepDroppedTargets *uint64, bodySizeLimit *pomonitoringv1.ByteSize) {
 	if targetLimit != nil {
 		logger.Warn("Field 'targetLimit' is unnecessary in GMP Managed Collection and has been dropped. Target discovery and scaling are managed automatically by GKE.")
@@ -1313,7 +1314,6 @@ func convertProxyURL(proxyURL *string) (string, error) {
 
 // warnUnsupportedEndpointFields logs warnings for fields that GMP does not support.
 // TODO: Once Prometheus Operator Go structs are upgraded, add warning checks for unsupported endpoint proxy fields ('noProxy', 'proxyConnectHeader', 'proxyFromEnvironment').
-// TODO: Once Prometheus Operator Go structs are upgraded, add warning checks for unsupported native histogram fields ('nativeHistogramBucketLimit', 'nativeHistogramMinBucketFactor', 'fallbackScrapeProtocols').
 func warnUnsupportedEndpointFields(logger *slog.Logger, followRedirects *bool, enableHTTP2 *bool, honorLabels bool, honorTimestamps *bool, trackTimestampsStaleness *bool, i int) {
 	if followRedirects != nil && !*followRedirects {
 		logger.Warn(fmt.Sprintf("endpoint [%d]: field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always follow redirects.", i))
