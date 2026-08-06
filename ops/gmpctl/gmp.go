@@ -50,6 +50,7 @@ var (
 		"release/0.12",
 		"release-2.45.3-gmp",
 		"release-2.53.5-gmp",
+		"release-3.13.0-gmp",
 		"release-0.27.0-gmp",
 	}
 )
