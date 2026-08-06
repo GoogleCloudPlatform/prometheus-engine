@@ -179,6 +179,10 @@ release-lib::gomod_vulnfix() {
 			if [[ -n "${otel_args// /}" ]]; then
 				echo "🔄 Updating OpenTelemetry modules simultaneously:${otel_args}..."
 				go get ${otel_args}
+			else
+				log_err "Could not resolve any OpenTelemetry modules matching version '${desired_version}'"
+				popd
+				return 1
 			fi
 
 		else
