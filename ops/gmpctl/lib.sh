@@ -158,7 +158,7 @@ release-lib::gomod_vulnfix() {
 
 		mod=$(echo "$line" | awk '{print $1}')
 		mod_path=$(echo "${mod}" | cut -d'@' -f1)
-		desired_version=$(echo "${mod}" | cut -d'@' -f2)
+		desired_version=$(echo "${mod}" | cut -s -d'@' -f2)
 
 		if [[ -z "${mod_path}" ]] || [[ -z "${desired_version}" ]]; then
 			echo "⚠️ Skipping malformed line: $line"
