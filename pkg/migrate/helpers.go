@@ -1460,7 +1460,7 @@ func makeUniqueResourceName(base, suffix string) string {
 		return name
 	}
 	h := fnv.New32a()
-	h.Write([]byte(name))
+	_, _ = h.Write([]byte(name))
 	hashStr := fmt.Sprintf("%08x", h.Sum32())
 	hashSuffix := hashStr[:resourceNameHashLength]
 

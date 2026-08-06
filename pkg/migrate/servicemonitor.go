@@ -89,11 +89,12 @@ func (c *ServiceMonitorConverter) Convert(_ context.Context, logger *slog.Logger
 
 	if isClusterScoped {
 		logger.Info("namespaceSelector selects 'any: true'. Translated to 'ClusterPodMonitoring'")
-		u, generatedSecrets, err := c.convertToClusterPodMonitoring(&serviceMonitor, logger, cache)
+		clusterPodMonitorings, generatedSecrets, err := c.convertToClusterPodMonitoring(&serviceMonitor, logger, cache)
 		if err != nil {
 			return nil, err
 		}
-		outputs := []*unstructured.Unstructured{u}
+		var outputs []*unstructured.Unstructured
+		outputs = append(outputs, clusterPodMonitorings...)
 		outputs = append(outputs, generatedSecrets...)
 		return outputs, nil
 	}
@@ -119,26 +120,30 @@ func (c *ServiceMonitorConverter) Convert(_ context.Context, logger *slog.Logger
 	return outputs, nil
 }
 
-func (c *ServiceMonitorConverter) convertToPodMonitoring(
+func (c *ServiceMonitorConverter) convertToMonitoringResources(
 	sm *pomonitoringv1.ServiceMonitor,
 	logger *slog.Logger,
 	cache *ResourceCache,
 	targetNamespaces []string,
-) (podMonitorings, generatedSecrets []*unstructured.Unstructured, err error) {
+	isClusterScoped bool,
+) (outputs, generatedSecrets []*unstructured.Unstructured, err error) {
 	groups, err := c.findAndGroupServices(sm, targetNamespaces, logger, cache)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to search for Services matching selector: %w", err)
 	}
 
 	if len(groups) > 1 {
-		logger.Warn("Services matched by selector have conflicts (different selectors, port mappings, or labels). Splitting into multiple PodMonitoring resources.",
+		targetKind := "PodMonitoring"
+		if isClusterScoped {
+			targetKind = "ClusterPodMonitoring"
+		}
+		logger.Warn(fmt.Sprintf("Services matched by selector have conflicts (different selectors, port mappings, or labels). Splitting into multiple %s resources.", targetKind),
 			slog.Int("total_groups", len(groups)),
 			slog.String("servicemonitor", sm.Name))
 	}
 
-	// 3. Construct a separate PodMonitoring resource for each compatible group.
 	for _, group := range groups {
-		res, err := c.buildSpecForGroup(sm, logger, cache, group, false)
+		res, err := c.buildSpecForGroup(sm, logger, cache, group, isClusterScoped)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -152,21 +157,39 @@ func (c *ServiceMonitorConverter) convertToPodMonitoring(
 		meta := sm.ObjectMeta.DeepCopy()
 		meta.Name = name
 
-		for _, ns := range group.Namespaces() {
-			u, err := buildPodMonitoring(*meta, ns, res, logger)
+		if isClusterScoped {
+			u, err := buildClusterPodMonitoring(*meta, res, logger)
 			if err != nil {
 				return nil, nil, err
 			}
-			podMonitorings = append(podMonitorings, u)
-			for _, secret := range res.generatedSecrets {
-				sClone := secret.DeepCopy()
-				sClone.SetNamespace(ns)
-				generatedSecrets = append(generatedSecrets, sClone)
+			outputs = append(outputs, u)
+			generatedSecrets = append(generatedSecrets, res.generatedSecrets...)
+		} else {
+			for _, ns := range group.Namespaces() {
+				u, err := buildPodMonitoring(*meta, ns, res, logger)
+				if err != nil {
+					return nil, nil, err
+				}
+				outputs = append(outputs, u)
+				for _, secret := range res.generatedSecrets {
+					sClone := secret.DeepCopy()
+					sClone.SetNamespace(ns)
+					generatedSecrets = append(generatedSecrets, sClone)
+				}
 			}
 		}
 	}
 
-	return podMonitorings, generatedSecrets, nil
+	return outputs, generatedSecrets, nil
+}
+
+func (c *ServiceMonitorConverter) convertToPodMonitoring(
+	sm *pomonitoringv1.ServiceMonitor,
+	logger *slog.Logger,
+	cache *ResourceCache,
+	targetNamespaces []string,
+) (podMonitorings, generatedSecrets []*unstructured.Unstructured, err error) {
+	return c.convertToMonitoringResources(sm, logger, cache, targetNamespaces, false)
 }
 
 // findAndGroupServices queries the cache for Services matching the selector and groups them by configuration compatibility.
@@ -198,31 +221,8 @@ func (c *ServiceMonitorConverter) convertToClusterPodMonitoring(
 	sm *pomonitoringv1.ServiceMonitor,
 	logger *slog.Logger,
 	cache *ResourceCache,
-) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	groups, err := c.findAndGroupServices(sm, nil, logger, cache)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to search for Services matching selector: %w", err)
-	}
-
-	// ClusterPodMonitoring is cluster-scoped and cannot be split by namespace.
-	// We fall back to using the first group and ignore the others.
-	if len(groups) > 1 {
-		logger.Warn("Multiple incompatible Service groups found for ClusterPodMonitoring. Using the first group and ignoring others.",
-			slog.Int("total_groups", len(groups)),
-			slog.String("used_group_service", groups[0].Services[0].Name))
-	}
-
-	res, err := c.buildSpecForGroup(sm, logger, cache, groups[0], true)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	u, err := buildClusterPodMonitoring(sm.ObjectMeta, res, logger)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return u, res.generatedSecrets, nil
+) (clusterPodMonitorings, generatedSecrets []*unstructured.Unstructured, err error) {
+	return c.convertToMonitoringResources(sm, logger, cache, nil, true)
 }
 
 func (c *ServiceMonitorConverter) buildSpecForGroup(

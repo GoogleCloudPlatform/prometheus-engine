@@ -578,6 +578,85 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "ClusterPodMonitoring split on selector conflict",
+			setupCache: func(cache *ResourceCache) error {
+				err := addServiceWithSelectorToCache(cache, "ns-1", "service-a",
+					map[string]string{"app": "foo"},
+					map[string]string{"app": "foo-pod"},
+					[]corev1.ServicePort{
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+					},
+				)
+				if err != nil {
+					return err
+				}
+				return addServiceWithSelectorToCache(cache, "ns-2", "service-b",
+					map[string]string{"app": "foo"},
+					map[string]string{"app": "bar-pod"},
+					[]corev1.ServicePort{
+						{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
+					},
+				)
+			},
+			inputSM: &pomonitoringv1.ServiceMonitor{
+				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-cluster-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.ServiceMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{Any: true},
+					Selector:          metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+					Endpoints: []pomonitoringv1.Endpoint{
+						{Port: "web"},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.ClusterPodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "ClusterPodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "my-cluster-monitor-service-a",
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "foo-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+				&monitoringv1.ClusterPodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       "ClusterPodMonitoring",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "my-cluster-monitor-service-b",
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "bar-pod"},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromInt32(8080),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name:       "Missing backing Service",
 			setupCache: func(_ *ResourceCache) error { return nil },
 			inputSM: &pomonitoringv1.ServiceMonitor{
