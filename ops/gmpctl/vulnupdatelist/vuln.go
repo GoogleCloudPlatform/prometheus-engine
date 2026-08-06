@@ -159,7 +159,7 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool, ignoredModules []stri
 	var updateList []UpdateList
 	for _, up := range allUpdates {
 		if up.Ignored {
-			slog.Info("Ignoring module upgrade due to configuration", "module", up.Module)
+			slog.Warn("IMPORTANT: Found Go vulnerability in an ignored module; skipping upgrade...", "module", up.Module, "cve", up.CVEID)
 			continue
 		}
 
