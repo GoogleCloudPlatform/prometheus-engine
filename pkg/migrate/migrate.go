@@ -328,37 +328,33 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 	// Track generated outputs by unique key to deduplicate identical secrets and detect name collisions.
 	outputsMap := make(map[string]generatedResource)
 
-	kinds := slices.AppendSeq(make([]string, 0, len(m.cache.resources)), maps.Keys(m.cache.resources))
-	slices.Sort(kinds)
+	kinds := m.cache.ListKinds()
 
 	for _, kind := range kinds {
-		nsMap := m.cache.resources[kind]
 		converter, registered := m.converters[kind]
 		if !registered {
 			continue
 		}
 
-		keys := slices.AppendSeq(make([]string, 0, len(nsMap)), maps.Keys(nsMap))
-		slices.Sort(keys)
-
-		for _, key := range keys {
-			res := nsMap[key].DeepCopy()
+		resources := m.cache.ListByKind(kind)
+		for _, res := range resources {
+			resCopy := res.DeepCopy()
 
 			// Create the resource logger.
 			resourceLogger := m.logger.With(
 				slog.String("kind", kind),
-				slog.String("namespace", res.GetNamespace()),
-				slog.String("name", res.GetName()),
+				slog.String("namespace", resCopy.GetNamespace()),
+				slog.String("name", resCopy.GetName()),
 			)
 
-			outputs, err := converter.Convert(ctx, resourceLogger, res, m.cache)
+			outputs, err := converter.Convert(ctx, resourceLogger, resCopy, m.cache)
 
 			if err != nil {
 				resourceLogger.Error(err.Error())
 				continue
 			}
 
-			if err := m.accumulateOutputs(resourceLogger, outputsMap, outputs, kind, res.GetNamespace(), res.GetName()); err != nil {
+			if err := m.accumulateOutputs(resourceLogger, outputsMap, outputs, kind, resCopy.GetNamespace(), resCopy.GetName()); err != nil {
 				resourceLogger.Error(err.Error())
 				continue
 			}

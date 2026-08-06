@@ -19,14 +19,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -51,22 +52,69 @@ type ResourceConverter interface {
 	Convert(ctx context.Context, logger *slog.Logger, unstruct *unstructured.Unstructured, cache *ResourceCache) (outputs []*unstructured.Unstructured, err error)
 }
 
+const (
+	indexKind          = "kind"
+	indexKindNamespace = "kindNamespace"
+)
+
+// CachedResource holds the raw unstructured object and optional pre-converted typed struct.
+type CachedResource struct {
+	Unstructured *unstructured.Unstructured
+	TypedService *corev1.Service
+}
+
+// compareObjectMeta compares two Kubernetes resources deterministically by Namespace first, then by Name.
+func compareObjectMeta[T metav1.Object](a, b T) int {
+	if a.GetNamespace() != b.GetNamespace() {
+		return strings.Compare(a.GetNamespace(), b.GetNamespace())
+	}
+	return strings.Compare(a.GetName(), b.GetName())
+}
+
 // ResourceCache stores parsed Kubernetes resources for cross-resource resolution.
 type ResourceCache struct {
-	// Map of Kind -> Namespace/Name -> Resource.
-	resources map[string]map[string]*unstructured.Unstructured
+	indexer cache.Indexer
+}
+
+func getResourceKey(kind, namespace, name string) string {
+	return fmt.Sprintf("%s/%s/%s", kind, namespace, name)
 }
 
 // NewResourceCache creates a new initialized ResourceCache.
 func NewResourceCache() *ResourceCache {
+	indexers := cache.Indexers{
+		indexKind: func(obj interface{}) ([]string, error) {
+			res, ok := obj.(*CachedResource)
+			if !ok {
+				return nil, fmt.Errorf("expected *CachedResource, got %T", obj)
+			}
+			return []string{res.Unstructured.GetKind()}, nil
+		},
+		indexKindNamespace: func(obj interface{}) ([]string, error) {
+			res, ok := obj.(*CachedResource)
+			if !ok {
+				return nil, fmt.Errorf("expected *CachedResource, got %T", obj)
+			}
+			return []string{fmt.Sprintf("%s/%s", res.Unstructured.GetKind(), res.Unstructured.GetNamespace())}, nil
+		},
+	}
+
+	keyFunc := func(obj interface{}) (string, error) {
+		res, ok := obj.(*CachedResource)
+		if !ok {
+			return "", fmt.Errorf("expected *CachedResource, got %T", obj)
+		}
+		return getResourceKey(res.Unstructured.GetKind(), res.Unstructured.GetNamespace(), res.Unstructured.GetName()), nil
+	}
+
 	return &ResourceCache{
-		resources: make(map[string]map[string]*unstructured.Unstructured),
+		indexer: cache.NewIndexer(keyFunc, indexers),
 	}
 }
 
 // Add adds a resource to the cache, returning an error if inputs are invalid.
 func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
-	if c == nil {
+	if c == nil || c.indexer == nil {
 		return errors.New("cannot add to nil ResourceCache")
 	}
 	if u == nil {
@@ -86,43 +134,78 @@ func (c *ResourceCache) Add(u *unstructured.Unstructured) error {
 		return errors.New("cannot add resource with empty apiVersion to cache")
 	}
 
-	if c.resources == nil {
-		c.resources = make(map[string]map[string]*unstructured.Unstructured)
-	}
-
-	if _, ok := c.resources[kind]; !ok {
-		c.resources[kind] = make(map[string]*unstructured.Unstructured)
-	}
-
 	ns := u.GetNamespace()
-
-	key := fmt.Sprintf("%s/%s", ns, name)
-	if _, exists := c.resources[kind][key]; exists {
+	key := getResourceKey(kind, ns, name)
+	if _, exists, _ := c.indexer.GetByKey(key); exists {
 		return fmt.Errorf("duplicate resource %s/%s found in cache", kind, key)
 	}
-	c.resources[kind][key] = u
-	return nil
+
+	res := &CachedResource{
+		Unstructured: u,
+	}
+
+	if kind == KindService {
+		var svc corev1.Service
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &svc); err != nil {
+			return fmt.Errorf("failed to convert Service %s/%s to corev1.Service: %w", ns, name, err)
+		}
+		res.TypedService = &svc
+	}
+
+	return c.indexer.Add(res)
 }
 
 // Get retrieves a resource from the cache by kind, namespace, and name.
 func (c *ResourceCache) Get(kind, namespace, name string) (*unstructured.Unstructured, bool) {
-	if c == nil || c.resources == nil {
+	if c == nil || c.indexer == nil {
 		return nil, false
 	}
-	nsMap, ok := c.resources[kind]
-	if !ok {
+	key := getResourceKey(kind, namespace, name)
+	item, exists, err := c.indexer.GetByKey(key)
+	if err != nil || !exists {
 		return nil, false
 	}
-	key := fmt.Sprintf("%s/%s", namespace, name)
-	r, ok := nsMap[key]
-	return r, ok
+	res, ok := item.(*CachedResource)
+	if !ok || res.Unstructured == nil {
+		return nil, false
+	}
+	return res.Unstructured, true
+}
+
+// ListKinds returns a sorted slice of all resource kinds currently in the cache.
+func (c *ResourceCache) ListKinds() []string {
+	if c == nil || c.indexer == nil {
+		return nil
+	}
+	kinds := c.indexer.ListIndexFuncValues(indexKind)
+	slices.Sort(kinds)
+	return kinds
+}
+
+// ListByKind returns a sorted slice of unstructured resources for a specified kind.
+func (c *ResourceCache) ListByKind(kind string) []*unstructured.Unstructured {
+	if c == nil || c.indexer == nil {
+		return nil
+	}
+	items, err := c.indexer.ByIndex(indexKind, kind)
+	if err != nil || len(items) == 0 {
+		return nil
+	}
+	var res []*unstructured.Unstructured
+	for _, item := range items {
+		if r, ok := item.(*CachedResource); ok && r.Unstructured != nil {
+			res = append(res, r.Unstructured)
+		}
+	}
+	slices.SortFunc(res, compareObjectMeta)
+	return res
 }
 
 // findServicesBySelector finds Services matching the label selector within the specified namespaces.
 // Note for callers: passing nil or an empty namespaces slice matches Services across every namespace.
 // Callers should use determineNamespaceScoping to resolve default namespace rules before calling this method.
 func (c *ResourceCache) findServicesBySelector(selector metav1.LabelSelector, namespaces []string) ([]*corev1.Service, error) {
-	if c == nil || c.resources == nil {
+	if c == nil || c.indexer == nil {
 		return nil, nil
 	}
 
@@ -131,33 +214,36 @@ func (c *ResourceCache) findServicesBySelector(selector metav1.LabelSelector, na
 		return nil, fmt.Errorf("invalid selector: %w", err)
 	}
 
-	var matched []*corev1.Service
-
-	services, ok := c.resources[KindService]
-	if !ok {
-		return nil, nil
+	var candidateItems []interface{}
+	if len(namespaces) > 0 {
+		for _, ns := range namespaces {
+			items, err := c.indexer.ByIndex(indexKindNamespace, fmt.Sprintf("%s/%s", KindService, ns))
+			if err != nil {
+				return nil, err
+			}
+			candidateItems = append(candidateItems, items...)
+		}
+	} else {
+		var err error
+		candidateItems, err = c.indexer.ByIndex(indexKind, KindService)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// To make output deterministic, we sort the keys before iterating.
-	keys := slices.AppendSeq(make([]string, 0, len(services)), maps.Keys(services))
-	slices.Sort(keys)
-
-	for _, key := range keys {
-		svc := services[key]
-		svcNS := svc.GetNamespace()
-
-		if len(namespaces) > 0 && !slices.Contains(namespaces, svcNS) {
+	var matched []*corev1.Service
+	for _, item := range candidateItems {
+		res, ok := item.(*CachedResource)
+		if !ok || res.TypedService == nil {
 			continue
 		}
-
-		svcLabels := svc.GetLabels()
-		if sel.Matches(labels.Set(svcLabels)) {
-			var typedSvc corev1.Service
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(svc.Object, &typedSvc); err != nil {
-				return nil, fmt.Errorf("failed to convert Service %s/%s to corev1.Service: %w", svc.GetNamespace(), svc.GetName(), err)
-			}
-			matched = append(matched, &typedSvc)
+		svc := res.TypedService
+		if sel.Matches(labels.Set(svc.Labels)) {
+			matched = append(matched, svc)
 		}
 	}
+
+	slices.SortFunc(matched, compareObjectMeta)
+
 	return matched, nil
 }
