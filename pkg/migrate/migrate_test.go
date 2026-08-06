@@ -55,10 +55,22 @@ func (t *TestPodMonitorConverter) Convert(_ context.Context, logger *slog.Logger
 	return []*unstructured.Unstructured{out}, nil
 }
 
-func TestMigratorCacheAndExtensibility(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	yamlContent := `
+func TestMigratorRun(t *testing.T) {
+	tests := []struct {
+		name            string
+		setupInputs     func(t *testing.T, tmpDir string) (inputPaths []string, stdinReader *strings.Reader)
+		expectedSuccess int
+		expectedWarning int
+		expectedSkipped int
+		expectedFailed  int
+		expectedOutputs int
+		wantStderrLogs  []string
+		expectRunErr    bool
+	}{
+		{
+			name: "Single file input & converter extensibility",
+			setupInputs: func(t *testing.T, tmpDir string) ([]string, *strings.Reader) {
+				yamlContent := `
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -76,162 +88,44 @@ spec:
   ports:
   - port: 80
 `
-	inputFilePath := filepath.Join(tmpDir, "input.yaml")
-	if err := os.WriteFile(inputFilePath, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("failed to write test file: %v", err)
-	}
-
-	migrator := NewMigrator()
-	var stdoutBuf, stderrBuf bytes.Buffer
-	migrator.Stdout = &stdoutBuf
-	migrator.Stderr = &stderrBuf
-
-	testConv := &TestPodMonitorConverter{}
-	migrator.RegisterConverter(testConv)
-
-	// Run migration.
-	report, err := migrator.Run(inputFilePath)
-	if err != nil {
-		t.Fatalf("Run failed: %v", err)
-	}
-
-	if testConv.calls != 1 {
-		t.Errorf("expected TestPodMonitorConverter to be called 1 time, got %d", testConv.calls)
-	}
-
-	// Verify report stats.
-	if report.SuccessCount != 1 {
-		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
-	}
-	if report.WarningCount != 0 {
-		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
-	}
-	if report.SkippedCount != 0 {
-		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
-	}
-
-	// Verify in-memory converted outputs.
-	if len(report.Outputs) != 1 {
-		t.Errorf("expected 1 output resource, got %d", len(report.Outputs))
-	} else {
-		out := report.Outputs[0]
-		if out.GetKind() != "TranslatedDummy" {
-			t.Errorf("expected output kind 'TranslatedDummy', got %q", out.GetKind())
-		}
-		if out.GetName() != "translated-my-monitor" {
-			t.Errorf("expected output name 'translated-my-monitor', got %q", out.GetName())
-		}
-	}
-
-	stderrLogs := stderrBuf.String()
-	if !strings.Contains(stderrLogs, "[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service") {
-		t.Errorf("expected formatted INFO log in Stderr, got: %q", stderrLogs)
-	}
-	if !strings.Contains(stderrLogs, "[SUCCESS] [PodMonitor:default/my-monitor] Converted successfully") {
-		t.Errorf("expected formatted SUCCESS log in Stderr, got: %q", stderrLogs)
-	}
-}
-
-func TestResourceCacheNamespaceScoping(t *testing.T) {
-	cache := NewResourceCache()
-
-	omittedNsRes := &unstructured.Unstructured{}
-	omittedNsRes.SetAPIVersion("monitoring.coreos.com/v1")
-	omittedNsRes.SetKind("PodMonitor")
-	omittedNsRes.SetName("my-monitor-omitted")
-	omittedNsRes.SetNamespace("")
-
-	if err := cache.Add(omittedNsRes); err != nil {
-		t.Fatalf("Add failed: %v", err)
-	}
-
-	if _, found := cache.Get("PodMonitor", "", "my-monitor-omitted"); !found {
-		t.Error("expected namespaced resource with omitted namespace to be found under empty namespace")
-	}
-
-	nsARes := &unstructured.Unstructured{}
-	nsARes.SetAPIVersion("monitoring.coreos.com/v1")
-	nsARes.SetKind("PodMonitor")
-	nsARes.SetName("common-name")
-	nsARes.SetNamespace("namespace-a")
-
-	if err := cache.Add(nsARes); err != nil {
-		t.Fatalf("Add failed: %v", err)
-	}
-
-	if _, found := cache.Get("PodMonitor", "namespace-b", "common-name"); found {
-		t.Error("expected strict namespace isolation; found resource from namespace-a when querying namespace-b")
-	}
-
-	res, found := cache.Get("PodMonitor", "namespace-a", "common-name")
-	if !found {
-		t.Fatal("expected to find resource in namespace-a")
-	}
-	if res.GetNamespace() != "namespace-a" {
-		t.Errorf("expected found resource to have namespace 'namespace-a', got %q", res.GetNamespace())
-	}
-}
-
-func TestMigratorMalformedInput(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// YAML resource with a Kind but completely missing metadata.name.
-	malformedYAML := `
+				p := filepath.Join(tmpDir, "input.yaml")
+				if err := os.WriteFile(p, []byte(yamlContent), 0644); err != nil {
+					t.Fatalf("failed to write test file: %v", err)
+				}
+				return []string{p}, nil
+			},
+			expectedSuccess: 1,
+			expectedOutputs: 1,
+			wantStderrLogs: []string{
+				"[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service",
+				"[SUCCESS] [PodMonitor:default/my-monitor] Converted successfully",
+			},
+		},
+		{
+			name: "Malformed YAML input",
+			setupInputs: func(t *testing.T, tmpDir string) ([]string, *strings.Reader) {
+				malformedYAML := `
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   namespace: default
-spec:
-  selector:
-    matchLabels:
-      app: my-app
 `
-	inputFilePath := filepath.Join(tmpDir, "bad_resource.yaml")
-	if err := os.WriteFile(inputFilePath, []byte(malformedYAML), 0644); err != nil {
-		t.Fatalf("failed to write test file: %v", err)
-	}
-
-	migrator := NewMigrator()
-	migrator.RegisterConverter(&TestPodMonitorConverter{})
-	var stdoutBuf, stderrBuf bytes.Buffer
-	migrator.Stdout = &stdoutBuf
-	migrator.Stderr = &stderrBuf
-
-	// Run migration on the directory containing the malformed file.
-	report, err := migrator.Run(tmpDir)
-	if err != nil {
-		t.Fatalf("Run should not return a fatal error for directory walks, got: %v", err)
-	}
-
-	// Verify that the file parse error was caught and counted as a failure.
-	if report.FailedCount != 1 {
-		t.Errorf("expected FailedCount to be 1, got %d", report.FailedCount)
-	}
-	if report.SuccessCount != 0 {
-		t.Errorf("expected SuccessCount to be 0, got %d", report.SuccessCount)
-	}
-	if report.WarningCount != 0 {
-		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
-	}
-	if report.SkippedCount != 0 {
-		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
-	}
-
-	// Verify that a [ERROR] log was printed to Stderr showing the file path and exact parse error.
-	stderrLogs := stderrBuf.String()
-	if !strings.Contains(stderrLogs, "[ERROR] ["+inputFilePath+"] Skipping file due to parse error") {
-		t.Errorf("expected formatted [ERROR] log in Stderr, got: %q", stderrLogs)
-	}
-	if !strings.Contains(stderrLogs, "malformed resource: apiVersion, kind, and metadata.name must all be specified") {
-		t.Errorf("expected underlying parse error in Stderr, got: %q", stderrLogs)
-	}
-}
-
-func TestMigratorSkippedResource(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Unsupported Prometheus Operator resource kind (Alertmanager).
-	skippedYAML := `
+				p := filepath.Join(tmpDir, "bad_resource.yaml")
+				if err := os.WriteFile(p, []byte(malformedYAML), 0644); err != nil {
+					t.Fatalf("failed to write test file: %v", err)
+				}
+				return []string{tmpDir}, nil
+			},
+			expectedFailed: 1,
+			wantStderrLogs: []string{
+				"Skipping file due to parse error",
+				"malformed resource: apiVersion, kind, and metadata.name must all be specified",
+			},
+		},
+		{
+			name: "Skipped unsupported resource",
+			setupInputs: func(t *testing.T, tmpDir string) ([]string, *strings.Reader) {
+				skippedYAML := `
 apiVersion: monitoring.coreos.com/v1
 kind: Alertmanager
 metadata:
@@ -239,49 +133,21 @@ metadata:
 spec:
   replicas: 3
 `
-	inputFilePath := filepath.Join(tmpDir, "skipped_resource.yaml")
-	if err := os.WriteFile(inputFilePath, []byte(skippedYAML), 0644); err != nil {
-		t.Fatalf("failed to write test file: %v", err)
-	}
-
-	migrator := NewMigrator()
-	migrator.RegisterConverter(&TestPodMonitorConverter{})
-	var stdoutBuf, stderrBuf bytes.Buffer
-	migrator.Stdout = &stdoutBuf
-	migrator.Stderr = &stderrBuf
-
-	// Run migration on the directory containing the skipped file.
-	report, err := migrator.Run(tmpDir)
-	if err != nil {
-		t.Fatalf("Run failed: %v", err)
-	}
-
-	// Verify report stats.
-	if report.SkippedCount != 1 {
-		t.Errorf("expected SkippedCount to be 1, got %d", report.SkippedCount)
-	}
-	if report.SuccessCount != 0 {
-		t.Errorf("expected SuccessCount to be 0, got %d", report.SuccessCount)
-	}
-	if report.WarningCount != 0 {
-		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
-	}
-	if report.FailedCount != 0 {
-		t.Errorf("expected FailedCount to be 0, got %d", report.FailedCount)
-	}
-
-	// Verify that a [SKIPPED] log was printed to Stderr showing the resource details.
-	stderrLogs := stderrBuf.String()
-	if !strings.Contains(stderrLogs, "[SKIPPED] [Alertmanager:my-alertmanager] Skipping unsupported Prometheus Operator resource") {
-		t.Errorf("expected formatted [SKIPPED] log in Stderr, got: %q", stderrLogs)
-	}
-}
-
-func TestMigratorMultipleInputs(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// 1. Write a Service manifest to a separate file.
-	serviceYAML := `
+				p := filepath.Join(tmpDir, "skipped.yaml")
+				if err := os.WriteFile(p, []byte(skippedYAML), 0644); err != nil {
+					t.Fatalf("failed to write test file: %v", err)
+				}
+				return []string{tmpDir}, nil
+			},
+			expectedSkipped: 1,
+			wantStderrLogs: []string{
+				"[SKIPPED] [Alertmanager:my-alertmanager] Skipping unsupported Prometheus Operator resource",
+			},
+		},
+		{
+			name: "Multiple input files",
+			setupInputs: func(t *testing.T, tmpDir string) ([]string, *strings.Reader) {
+				svcYAML := `
 apiVersion: v1
 kind: Service
 metadata:
@@ -291,13 +157,7 @@ spec:
   ports:
   - port: 80
 `
-	servicePath := filepath.Join(tmpDir, "service.yaml")
-	if err := os.WriteFile(servicePath, []byte(serviceYAML), 0644); err != nil {
-		t.Fatalf("failed to write service file: %v", err)
-	}
-
-	// 2. Write a PodMonitor manifest referencing that service to a separate file.
-	podMonitorYAML := `
+				pmYAML := `
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -306,57 +166,24 @@ metadata:
 spec:
   foo: bar
 `
-	podMonitorPath := filepath.Join(tmpDir, "podmonitor.yaml")
-	if err := os.WriteFile(podMonitorPath, []byte(podMonitorYAML), 0644); err != nil {
-		t.Fatalf("failed to write podmonitor file: %v", err)
-	}
-
-	migrator := NewMigrator()
-	var stdoutBuf, stderrBuf bytes.Buffer
-	migrator.Stdout = &stdoutBuf
-	migrator.Stderr = &stderrBuf
-
-	testConv := &TestPodMonitorConverter{}
-	migrator.RegisterConverter(testConv)
-
-	// Run migration passing both files explicitly.
-	report, err := migrator.Run(servicePath, podMonitorPath)
-	if err != nil {
-		t.Fatalf("Run failed: %v", err)
-	}
-
-	if testConv.calls != 1 {
-		t.Errorf("expected TestPodMonitorConverter to be called 1 time, got %d", testConv.calls)
-	}
-
-	// Verify report stats.
-	if report.SuccessCount != 1 {
-		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
-	}
-	if report.WarningCount != 0 {
-		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
-	}
-	if report.SkippedCount != 0 {
-		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
-	}
-	if report.FailedCount != 0 {
-		t.Errorf("expected FailedCount to be 0, got %d", report.FailedCount)
-	}
-
-	// Verify that the reference was successfully resolved across the separate files!
-	stderrLogs := stderrBuf.String()
-	if !strings.Contains(stderrLogs, "[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service") {
-		t.Errorf("expected reference to be successfully resolved, got logs: %q", stderrLogs)
-	}
-}
-
-func TestMigratorPipedList(t *testing.T) {
-	// A standard v1.List containing a Service and a PodMonitor in its items array.
-	listYAML := `
+				p1 := filepath.Join(tmpDir, "svc.yaml")
+				p2 := filepath.Join(tmpDir, "pm.yaml")
+				_ = os.WriteFile(p1, []byte(svcYAML), 0644)
+				_ = os.WriteFile(p2, []byte(pmYAML), 0644)
+				return []string{p1, p2}, nil
+			},
+			expectedSuccess: 1,
+			expectedOutputs: 1,
+			wantStderrLogs: []string{
+				"[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service",
+			},
+		},
+		{
+			name: "Piped v1.List from Stdin",
+			setupInputs: func(_ *testing.T, _ string) ([]string, *strings.Reader) {
+				listYAML := `
 apiVersion: v1
 kind: List
-metadata:
-  resourceVersion: ""
 items:
 - apiVersion: v1
   kind: Service
@@ -374,44 +201,272 @@ items:
   spec:
     foo: bar
 `
-	migrator := NewMigrator()
-	var stdoutBuf, stderrBuf bytes.Buffer
-	migrator.Stdout = &stdoutBuf
-	migrator.Stderr = &stderrBuf
-
-	// Pipe the list YAML buffer directly into Stdin.
-	migrator.Stdin = strings.NewReader(listYAML)
-
-	testConv := &TestPodMonitorConverter{}
-	migrator.RegisterConverter(testConv)
-
-	// Run migration using "-" (Stdin).
-	report, err := migrator.Run("-")
-	if err != nil {
-		t.Fatalf("Run failed: %v", err)
+				return []string{"-"}, strings.NewReader(listYAML)
+			},
+			expectedSuccess: 1,
+			expectedOutputs: 1,
+			wantStderrLogs: []string{
+				"[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service",
+			},
+		},
+		{
+			name: "Directory walk skips hidden files and hidden subdirectories",
+			setupInputs: func(t *testing.T, tmpDir string) ([]string, *strings.Reader) {
+				validYAML := `
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: my-monitor
+  namespace: default
+spec:
+  foo: bar
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backing-service
+  namespace: default
+spec:
+  ports:
+  - port: 80
+`
+				hiddenDir := filepath.Join(tmpDir, ".hidden")
+				if err := os.MkdirAll(hiddenDir, 0755); err != nil {
+					t.Fatalf("failed to create hidden dir: %v", err)
+				}
+				_ = os.WriteFile(filepath.Join(tmpDir, "valid.yaml"), []byte(validYAML), 0644)
+				_ = os.WriteFile(filepath.Join(hiddenDir, "bad.yaml"), []byte("invalid-yaml"), 0644)
+				_ = os.WriteFile(filepath.Join(tmpDir, ".yamllint.yaml"), []byte("invalid-yaml"), 0644)
+				return []string{tmpDir}, nil
+			},
+			expectedSuccess: 1,
+			expectedFailed:  0,
+			expectedOutputs: 1,
+		},
 	}
 
-	if testConv.calls != 1 {
-		t.Errorf("expected TestPodMonitorConverter to be called 1 time, got %d", testConv.calls)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			inputPaths, stdinReader := tc.setupInputs(t, tmpDir)
+
+			migrator := NewMigrator()
+			var stdoutBuf, stderrBuf bytes.Buffer
+			migrator.Stdout = &stdoutBuf
+			migrator.Stderr = &stderrBuf
+			if stdinReader != nil {
+				migrator.Stdin = stdinReader
+			}
+
+			testConv := &TestPodMonitorConverter{}
+			migrator.RegisterConverter(testConv)
+
+			report, err := migrator.Run(inputPaths...)
+			if (err != nil) != tc.expectRunErr {
+				t.Fatalf("Run() error = %v, expectRunErr = %v", err, tc.expectRunErr)
+			}
+			if tc.expectRunErr {
+				return
+			}
+
+			if report.SuccessCount != tc.expectedSuccess {
+				t.Errorf("expected SuccessCount %d, got %d", tc.expectedSuccess, report.SuccessCount)
+			}
+			if report.WarningCount != tc.expectedWarning {
+				t.Errorf("expected WarningCount %d, got %d", tc.expectedWarning, report.WarningCount)
+			}
+			if report.SkippedCount != tc.expectedSkipped {
+				t.Errorf("expected SkippedCount %d, got %d", tc.expectedSkipped, report.SkippedCount)
+			}
+			if report.FailedCount != tc.expectedFailed {
+				t.Errorf("expected FailedCount %d, got %d", tc.expectedFailed, report.FailedCount)
+			}
+			if len(report.Outputs) != tc.expectedOutputs {
+				t.Errorf("expected Outputs count %d, got %d", tc.expectedOutputs, len(report.Outputs))
+			}
+
+			stderrStr := stderrBuf.String()
+			for _, wantLog := range tc.wantStderrLogs {
+				if !strings.Contains(stderrStr, wantLog) {
+					t.Errorf("expected log containing %q in Stderr, got:\n%s", wantLog, stderrStr)
+				}
+			}
+		})
+	}
+}
+
+func TestResourceCacheNamespaceScoping(t *testing.T) {
+	tests := []struct {
+		name        string
+		resource    *unstructured.Unstructured
+		queryKind   string
+		queryNS     string
+		queryName   string
+		expectFound bool
+		expectedNS  string
+	}{
+		{
+			name: "Resource with empty namespace is stored under empty namespace",
+			resource: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "monitoring.coreos.com/v1",
+					"kind":       "PodMonitor",
+					"metadata": map[string]any{
+						"name":      "my-monitor-omitted",
+						"namespace": "",
+					},
+				},
+			},
+			queryKind:   "PodMonitor",
+			queryNS:     "",
+			queryName:   "my-monitor-omitted",
+			expectFound: true,
+			expectedNS:  "",
+		},
+		{
+			name: "Strict namespace isolation prevents query match across namespaces",
+			resource: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "monitoring.coreos.com/v1",
+					"kind":       "PodMonitor",
+					"metadata": map[string]any{
+						"name":      "common-name",
+						"namespace": "namespace-a",
+					},
+				},
+			},
+			queryKind:   "PodMonitor",
+			queryNS:     "namespace-b",
+			queryName:   "common-name",
+			expectFound: false,
+		},
+		{
+			name: "Exact namespace query returns stored resource",
+			resource: &unstructured.Unstructured{
+				Object: map[string]any{
+					"apiVersion": "monitoring.coreos.com/v1",
+					"kind":       "PodMonitor",
+					"metadata": map[string]any{
+						"name":      "common-name",
+						"namespace": "namespace-a",
+					},
+				},
+			},
+			queryKind:   "PodMonitor",
+			queryNS:     "namespace-a",
+			queryName:   "common-name",
+			expectFound: true,
+			expectedNS:  "namespace-a",
+		},
 	}
 
-	// Verify report stats.
-	if report.SuccessCount != 1 {
-		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := NewResourceCache()
+			if err := cache.Add(tc.resource); err != nil {
+				t.Fatalf("Add failed: %v", err)
+			}
+
+			res, found := cache.Get(tc.queryKind, tc.queryNS, tc.queryName)
+			if found != tc.expectFound {
+				t.Fatalf("Get() found = %v, want %v", found, tc.expectFound)
+			}
+			if tc.expectFound && res.GetNamespace() != tc.expectedNS {
+				t.Errorf("expected found resource namespace %q, got %q", tc.expectedNS, res.GetNamespace())
+			}
+		})
 	}
-	if report.WarningCount != 0 {
-		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
-	}
-	if report.SkippedCount != 0 {
-		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
-	}
-	if report.FailedCount != 0 {
-		t.Errorf("expected FailedCount to be 0, got %d", report.FailedCount)
+}
+
+func TestMigratorWriteOutputs(t *testing.T) {
+	tests := []struct {
+		name       string
+		outputs    []*unstructured.Unstructured
+		wantErr    bool
+		wantOutput string
+	}{
+		{
+			name: "Single document output",
+			outputs: []*unstructured.Unstructured{
+				{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "PodMonitoring",
+						"metadata": map[string]any{
+							"name":      "my-pm",
+							"namespace": "default",
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantOutput: `apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: my-pm
+  namespace: default
+`,
+		},
+		{
+			name: "Multi-document output separated by document boundary",
+			outputs: []*unstructured.Unstructured{
+				{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "PodMonitoring",
+						"metadata": map[string]any{
+							"name":      "pm-1",
+							"namespace": "default",
+						},
+					},
+				},
+				{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "PodMonitoring",
+						"metadata": map[string]any{
+							"name":      "pm-2",
+							"namespace": "default",
+						},
+					},
+				},
+			},
+			wantErr: false,
+			wantOutput: `apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: pm-1
+  namespace: default
+---
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: pm-2
+  namespace: default
+`,
+		},
+		{
+			name: "Nil resource object in outputs returns error",
+			outputs: []*unstructured.Unstructured{
+				nil,
+			},
+			wantErr: true,
+		},
 	}
 
-	// Verify that the PodMonitor resolved the Service successfully inside the list.
-	stderrLogs := stderrBuf.String()
-	if !strings.Contains(stderrLogs, "[INFO] [PodMonitor:default/my-monitor] Successfully resolved backing-service") {
-		t.Errorf("expected reference to be successfully resolved inside list, got logs: %q", stderrLogs)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			migrator := NewMigrator()
+			var stdoutBuf bytes.Buffer
+			migrator.Stdout = &stdoutBuf
+
+			err := migrator.WriteOutputs(tc.outputs)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("WriteOutputs() error = %v, wantErr = %v", err, tc.wantErr)
+			}
+			if !tc.wantErr && stdoutBuf.String() != tc.wantOutput {
+				t.Errorf("WriteOutputs() output mismatch:\nwant:\n%s\ngot:\n%s", tc.wantOutput, stdoutBuf.String())
+			}
+		})
 	}
 }

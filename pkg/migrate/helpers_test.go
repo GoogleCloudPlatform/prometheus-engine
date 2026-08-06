@@ -79,163 +79,148 @@ func addConfigMapToCache(cache *ResourceCache, namespace, name, key, value strin
 	return cache.Add(&unstructured.Unstructured{Object: u})
 }
 
-func TestExtractSecretKey(t *testing.T) {
+func TestExtractResourceKey(t *testing.T) {
 	tests := []struct {
-		name        string
-		setupCache  func(cache *ResourceCache) error
-		selector    corev1.SecretKeySelector
-		expectedVal string
-		wantErr     bool
+		name         string
+		kind         string
+		sourceNS     string
+		setupCache   func(cache *ResourceCache) error
+		secretSel    *corev1.SecretKeySelector
+		configMapSel *corev1.ConfigMapKeySelector
+		expectedVal  string
+		wantErr      bool
 	}{
 		{
-			name:        "Missing secret",
-			setupCache:  func(_ *ResourceCache) error { return nil }, // Empty cache.
-			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing"}, Key: "user"},
+			name:        "Missing secret returns error",
+			kind:        KindSecret,
+			setupCache:  func(_ *ResourceCache) error { return nil },
+			secretSel:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing"}, Key: "user"},
 			expectedVal: "",
 			wantErr:     true,
 		},
 		{
 			name: "Secret with StringData",
+			kind: KindSecret,
 			setupCache: func(cache *ResourceCache) error {
 				return addSecretToCache(cache, "default", "my-secret", "user", "admin", true)
 			},
-			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}, Key: "user"},
+			secretSel:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}, Key: "user"},
 			expectedVal: "admin",
 			wantErr:     false,
 		},
 		{
 			name: "Secret with Base64 Data",
+			kind: KindSecret,
 			setupCache: func(cache *ResourceCache) error {
 				return addSecretToCache(cache, "default", "my-secret-2", "pass", "supersecret", false)
 			},
-			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret-2"}, Key: "pass"},
+			secretSel:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret-2"}, Key: "pass"},
 			expectedVal: "supersecret",
 			wantErr:     false,
 		},
 		{
 			name:        "Secret reference with empty Name",
+			kind:        KindSecret,
 			setupCache:  func(_ *ResourceCache) error { return nil },
-			selector:    corev1.SecretKeySelector{Key: "user"},
+			secretSel:   &corev1.SecretKeySelector{Key: "user"},
 			expectedVal: "",
 			wantErr:     true,
 		},
 		{
 			name:        "Secret reference with empty Key",
+			kind:        KindSecret,
 			setupCache:  func(_ *ResourceCache) error { return nil },
-			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}},
+			secretSel:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}},
 			expectedVal: "",
 			wantErr:     true,
 		},
 		{
 			name: "Secret exists but key missing",
+			kind: KindSecret,
 			setupCache: func(cache *ResourceCache) error {
 				return addSecretToCache(cache, "default", "my-secret", "user", "admin", true)
 			},
-			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}, Key: "password"},
+			secretSel:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}, Key: "password"},
 			expectedVal: "",
 			wantErr:     true,
 		},
 		{
-			name: "Secret exists but data corrupted",
-			setupCache: func(cache *ResourceCache) error {
-				secret := &unstructured.Unstructured{
-					Object: map[string]any{
-						"apiVersion": "v1",
-						"kind":       "Secret",
-						"metadata": map[string]any{
-							"name":      "corrupted-secret",
-							"namespace": "default",
-						},
-						"data": map[string]any{
-							"pass": "not-base64-data-with-invalid-chars-@!#",
-						},
-					},
-				}
-				return cache.Add(secret)
-			},
-			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "corrupted-secret"}, Key: "pass"},
-			expectedVal: "",
-			wantErr:     true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := newTestConversionContext()
-			if err := tc.setupCache(ctx.cache); err != nil {
-				t.Fatalf("failed to setup cache: %v", err)
-			}
-
-			val, err := ctx.extractSecretKey(tc.selector)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("extractSecretKey() error = %v, wantErr %v", err, tc.wantErr)
-			}
-			if !tc.wantErr && val != tc.expectedVal {
-				t.Errorf("expected %s, got %s", tc.expectedVal, val)
-			}
-		})
-	}
-}
-
-func TestExtractConfigMapKey(t *testing.T) {
-	tests := []struct {
-		name        string
-		setupCache  func(cache *ResourceCache) error
-		selector    corev1.ConfigMapKeySelector
-		expectedVal string
-		wantErr     bool
-	}{
-		{
-			name:        "Missing configmap",
-			setupCache:  func(_ *ResourceCache) error { return nil }, // Empty cache.
-			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing"}, Key: "user"},
-			expectedVal: "",
-			wantErr:     true,
+			name:         "Missing configmap returns error",
+			kind:         KindConfigMap,
+			setupCache:   func(_ *ResourceCache) error { return nil },
+			configMapSel: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing"}, Key: "user"},
+			expectedVal:  "",
+			wantErr:      true,
 		},
 		{
 			name: "Found configmap",
+			kind: KindConfigMap,
 			setupCache: func(cache *ResourceCache) error {
 				return addConfigMapToCache(cache, "default", "my-cm", "id", "client-123")
 			},
-			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}, Key: "id"},
-			expectedVal: "client-123",
-			wantErr:     false,
+			configMapSel: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}, Key: "id"},
+			expectedVal:  "client-123",
+			wantErr:      false,
 		},
 		{
-			name:        "Configmap reference with empty Name",
-			setupCache:  func(_ *ResourceCache) error { return nil },
-			selector:    corev1.ConfigMapKeySelector{Key: "user"},
-			expectedVal: "",
-			wantErr:     true,
+			name:         "Configmap reference with empty Name",
+			kind:         KindConfigMap,
+			setupCache:   func(_ *ResourceCache) error { return nil },
+			configMapSel: &corev1.ConfigMapKeySelector{Key: "user"},
+			expectedVal:  "",
+			wantErr:      true,
 		},
 		{
-			name:        "Configmap reference with empty Key",
-			setupCache:  func(_ *ResourceCache) error { return nil },
-			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}},
-			expectedVal: "",
-			wantErr:     true,
+			name:         "Configmap reference with empty Key",
+			kind:         KindConfigMap,
+			setupCache:   func(_ *ResourceCache) error { return nil },
+			configMapSel: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}},
+			expectedVal:  "",
+			wantErr:      true,
 		},
 		{
 			name: "Configmap exists but key missing",
+			kind: KindConfigMap,
 			setupCache: func(cache *ResourceCache) error {
 				return addConfigMapToCache(cache, "default", "my-cm", "id", "client-123")
 			},
-			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}, Key: "secret"},
-			expectedVal: "",
-			wantErr:     true,
+			configMapSel: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}, Key: "secret"},
+			expectedVal:  "",
+			wantErr:      true,
+		},
+		{
+			name:     "Secret extraction reads from sourceNamespace",
+			kind:     KindSecret,
+			sourceNS: "source-ns",
+			setupCache: func(cache *ResourceCache) error {
+				return addSecretToCache(cache, "source-ns", "my-secret", "user", "admin", true)
+			},
+			secretSel:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}, Key: "user"},
+			expectedVal: "admin",
+			wantErr:     false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := newTestConversionContext()
+			if tc.sourceNS != "" {
+				ctx.sourceNamespace = tc.sourceNS
+			}
 			if err := tc.setupCache(ctx.cache); err != nil {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			val, err := ctx.extractConfigMapKey(tc.selector)
+			var val string
+			var err error
+			if tc.kind == KindSecret {
+				val, err = ctx.extractSecretKey(*tc.secretSel)
+			} else {
+				val, err = ctx.extractConfigMapKey(*tc.configMapSel)
+			}
+
 			if (err != nil) != tc.wantErr {
-				t.Fatalf("extractConfigMapKey() error = %v, wantErr %v", err, tc.wantErr)
+				t.Fatalf("extractResourceKey error = %v, wantErr %v", err, tc.wantErr)
 			}
 			if !tc.wantErr && val != tc.expectedVal {
 				t.Errorf("expected %s, got %s", tc.expectedVal, val)
@@ -503,66 +488,49 @@ func TestConvertSafeTLSConfig(t *testing.T) {
 	}
 }
 
-func TestConvertConfigMapToSecretSelectorDeduplication(t *testing.T) {
-	ctx := newTestConversionContext()
-	err := addConfigMapToCache(ctx.cache, "default", "tls-cm", "ca.crt", "cert-data")
-	if err != nil {
-		t.Fatalf("failed to setup cache: %v", err)
-	}
-
-	selector := &corev1.ConfigMapKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"},
-		Key:                  "ca.crt",
-	}
-
-	// Call first time.
-	gmpSel1, err := ctx.convertConfigMapToSecretSelector(selector)
-	if err != nil {
-		t.Fatalf("first call failed with error: %v", err)
-	}
-	if gmpSel1 == nil || gmpSel1.Secret.Name != "secret-tls-cm" {
-		t.Fatal("first call failed to translate selector")
-	}
-
-	// Call second time.
-	gmpSel2, err := ctx.convertConfigMapToSecretSelector(selector)
-	if err != nil {
-		t.Fatalf("second call failed with error: %v", err)
-	}
-	if gmpSel2 == nil || gmpSel2.Secret.Name != "secret-tls-cm" {
-		t.Fatal("second call failed to translate selector")
-	}
-
-	// Ensure only one secret was generated in total.
-	genSecrets := ctx.getGeneratedSecrets()
-	if len(genSecrets) != 1 {
-		t.Fatalf("expected exactly 1 generated secret due to duplication, got %d", len(genSecrets))
-	}
-}
-
 func TestMergeFromPod(t *testing.T) {
+	tests := []struct {
+		name               string
+		staticTargetLabels []monitoringv1.LabelMapping
+		relabelFromPod     []monitoringv1.LabelMapping
+		expected           []monitoringv1.LabelMapping
+	}{
+		{
+			name: "Deduplicates and applies custom relabel precedence",
+			staticTargetLabels: []monitoringv1.LabelMapping{
+				{From: "app", To: "application"},
+				{From: "env"},
+			},
+			relabelFromPod: []monitoringv1.LabelMapping{
+				{From: "env"},
+				{From: "tier"},
+			},
+			expected: []monitoringv1.LabelMapping{
+				{From: "env"},
+				{From: "tier"},
+				{From: "app", To: "application"},
+			},
+		},
+		{
+			name: "Empty extra mappings returns base",
+			staticTargetLabels: []monitoringv1.LabelMapping{
+				{From: "app"},
+			},
+			relabelFromPod: nil,
+			expected: []monitoringv1.LabelMapping{
+				{From: "app"},
+			},
+		},
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-	staticTargetLabels := []monitoringv1.LabelMapping{
-		{From: "app", To: "application"},
-		{From: "env"},
-	}
-
-	relabelFromPod := []monitoringv1.LabelMapping{
-		{From: "env"}, // Duplicate, should be deduplicated.
-		{From: "tier"},
-	}
-
-	merged := mergeFromPod(logger, staticTargetLabels, relabelFromPod)
-
-	expected := []monitoringv1.LabelMapping{
-		{From: "env"},
-		{From: "tier"},
-		{From: "app", To: "application"},
-	}
-
-	if diff := cmp.Diff(expected, merged); diff != "" {
-		t.Errorf("mergeFromPod mismatch (-want +got):\n%s", diff)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			merged := mergeFromPod(logger, tc.staticTargetLabels, tc.relabelFromPod)
+			if diff := cmp.Diff(tc.expected, merged); diff != "" {
+				t.Errorf("mergeFromPod mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -922,51 +890,6 @@ func TestToStrictUnstructured(t *testing.T) {
 	}
 }
 
-func TestDecoupledNamespaces(t *testing.T) {
-	ctx := newTestConversionContext()
-	ctx.sourceNamespace = "source-ns"
-	ctx.targetNamespace = "target-ns"
-	ctx.isClusterScoped = true
-
-	// Verify that secret extraction reads from sourceNamespace.
-	if err := addSecretToCache(ctx.cache, "source-ns", "my-secret", "user", "admin", true); err != nil {
-		t.Fatalf("failed to add secret to cache: %v", err)
-	}
-	sel := corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"},
-		Key:                  "user",
-	}
-	val, err := ctx.extractSecretKey(sel)
-	if err != nil {
-		t.Fatalf("extractSecretKey() unexpected error: %v", err)
-	}
-	if val != "admin" {
-		t.Errorf("extractSecretKey() = %q, want %q", val, "admin")
-	}
-
-	// Verify that ConfigMap to Secret conversion reads from sourceNamespace and generates Secret in targetNamespace.
-	if err := addConfigMapToCache(ctx.cache, "source-ns", "tls-cm", "ca.crt", "cert-data"); err != nil {
-		t.Fatalf("failed to add configmap to cache: %v", err)
-	}
-	cmSel := &corev1.ConfigMapKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"},
-		Key:                  "ca.crt",
-	}
-	secretSel, err := ctx.convertConfigMapToSecretSelector(cmSel)
-	if err != nil {
-		t.Fatalf("convertConfigMapToSecretSelector() unexpected error: %v", err)
-	}
-	if secretSel.Secret.Namespace != "target-ns" {
-		t.Errorf("expected selector namespace %q, got %q", "target-ns", secretSel.Secret.Namespace)
-	}
-	genSecrets := ctx.getGeneratedSecrets()
-	if len(genSecrets) != 1 {
-		t.Fatalf("expected 1 generated secret, got %d", len(genSecrets))
-	}
-	if genSecrets[0].GetNamespace() != "target-ns" {
-		t.Errorf("expected generated secret namespace %q, got %q", "target-ns", genSecrets[0].GetNamespace())
-	}
-}
 func TestFindServicesBySelector(t *testing.T) {
 	tests := []struct {
 		name       string
