@@ -101,6 +101,7 @@ type preScrapeRelabelingResult struct {
 	MatchLabels      map[string]string
 	MatchExpressions []metav1.LabelSelectorRequirement
 	PromotedRules    []monitoringv1.RelabelingRule
+	Todos            []todoItem
 }
 
 // ExtractedPreScrapeRules holds all translated rules, separated by where they belong in GMP.
@@ -200,6 +201,13 @@ func determineNamespaceScoping(nsSel pomonitoringv1.NamespaceSelector, defaultNS
 	return []string{defaultNS}, false, nil
 }
 
+// todoItem represents an actionable TODO annotation to attach to generated resources.
+type todoItem struct {
+	category string
+	reason   string
+	action   string
+}
+
 // commonMonitorSpec holds common fields extracted from Prometheus Operator monitor specs for building GMP resources.
 type commonMonitorSpec struct {
 	endpoints        []monitoringv1.ScrapeEndpoint
@@ -209,6 +217,7 @@ type commonMonitorSpec struct {
 	filterRunning    *bool
 	limits           *monitoringv1.ScrapeLimits
 	generatedSecrets []*unstructured.Unstructured
+	todos            []todoItem
 }
 
 // conversionContext groups common parameters passed down to conversion helper functions.
@@ -268,7 +277,15 @@ func convertPreScrapeRelabelings(logger *slog.Logger, configs []pomonitoringv1.R
 			action = relabel.Replace
 		}
 
-		if shouldSkipRelabelConfig(logger, config, action) {
+		if skip, scopeExpanded, details := shouldSkipRelabelConfig(logger, config, action); skip {
+			if scopeExpanded {
+				logger.Warn("Scraping scope expanded: targets previously excluded by this rule will now be scraped. Adjust pod selectors to compensate.")
+				res.Todos = append(res.Todos, todoItem{
+					category: "WARNING",
+					reason:   fmt.Sprintf("Dropped target filtering rule (%s).", details),
+					action:   "Add equivalent pod label selector in 'spec.selector.matchLabels'.",
+				})
+			}
 			continue
 		}
 
@@ -347,6 +364,7 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpointsRelabelConfigs []
 			if r.Metadata != nil {
 				rawMetadata = append(rawMetadata, *r.Metadata...)
 			}
+			combined.Todos = append(combined.Todos, r.Todos...)
 		}
 		epResults = append(epResults, r)
 	}
@@ -781,7 +799,7 @@ func convertMetricRelabelings(
 			action = relabel.Replace
 		}
 
-		if shouldSkipRelabelConfig(logger, config, action) {
+		if skip, _, _ := shouldSkipRelabelConfig(logger, config, action); skip {
 			continue
 		}
 
@@ -875,34 +893,38 @@ func convertTargetLabels(logger *slog.Logger, sourceLabels []string, jobLabel st
 }
 
 // shouldSkipRelabelConfig checks if the relabel config uses unsupported actions or references annotations.
-func shouldSkipRelabelConfig(logger *slog.Logger, config pomonitoringv1.RelabelConfig, action relabel.Action) bool {
+func shouldSkipRelabelConfig(logger *slog.Logger, config pomonitoringv1.RelabelConfig, action relabel.Action) (skip bool, scopeExpanded bool, dropDetails string) {
 	switch action {
 	case relabel.Replace, relabel.HashMod, "":
 		if config.TargetLabel == "" {
 			logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' with an empty 'targetLabel', which is invalid in Prometheus and has been dropped.", action))
-			return true
+			return true, false, ""
 		}
 	case relabel.Keep, relabel.Drop, relabel.LabelDrop, relabel.LabelKeep:
 		// Supported actions that do not require targetLabel.
 	case relabel.LabelMap, relabel.Lowercase, relabel.Uppercase, relabel.KeepEqual, relabel.DropEqual:
 		logger.Warn(fmt.Sprintf("Relabeling rule uses 'action: %s' which is not supported by GMP and has been dropped.", action))
-		return true
+		return true, false, ""
 	default:
 		logger.Warn(fmt.Sprintf("Relabeling rule uses unknown 'action: %s' which is not supported by GMP and has been dropped.", action))
-		return true
+		return true, false, ""
 	}
 
 	for _, sl := range config.SourceLabels {
-		if strings.HasPrefix(string(sl), "__meta_kubernetes_pod_annotation_") {
-			logger.Warn(fmt.Sprintf("Relabeling rule referencing pod annotation %q is unsupported in GMP. The rule has been dropped.", string(sl)))
-			return true
+		s := string(sl)
+		if strings.HasPrefix(s, "__meta_kubernetes_pod_annotation_") {
+			logger.Warn(fmt.Sprintf("Relabeling rule referencing pod annotation %q is unsupported in GMP. The rule has been dropped.", s))
+			if action == relabel.Keep || action == relabel.Drop {
+				return true, true, fmt.Sprintf("'%s' on '%s'", action, s)
+			}
+			return true, false, ""
 		}
-		if strings.HasPrefix(string(sl), "__meta_kubernetes_node_") && string(sl) != "__meta_kubernetes_node_name" {
-			logger.Warn(fmt.Sprintf("Relabeling rule referencing node metadata %q is unsupported in GMP (only node name is supported). The rule has been dropped.", string(sl)))
-			return true
+		if strings.HasPrefix(s, "__meta_kubernetes_node_") && s != "__meta_kubernetes_node_name" {
+			logger.Warn(fmt.Sprintf("Relabeling rule referencing node metadata %q is unsupported in GMP (only node name is supported). The rule has been dropped.", s))
+			return true, false, ""
 		}
 	}
-	return false
+	return false, false, ""
 }
 
 // resolveSourceLabels resolves source labels to pod labels, metadata labels, and rewritten labels.
@@ -1162,6 +1184,15 @@ func buildPodMonitoring(
 	u.SetAPIVersion(GMPAPIVersion)
 	u.SetKind(KindPodMonitoring)
 
+	for _, td := range spec.todos {
+		AddMigrationTodo(u, td.category, td.reason, td.action)
+	}
+	if len(spec.todos) > 0 {
+		if err := InjectSafetyGuardrail(u); err != nil {
+			return nil, err
+		}
+	}
+
 	return u, nil
 }
 
@@ -1198,6 +1229,15 @@ func buildClusterPodMonitoring(
 	u := &unstructured.Unstructured{Object: unstructuredMap}
 	u.SetAPIVersion(GMPAPIVersion)
 	u.SetKind(KindClusterPodMonitoring)
+
+	for _, td := range spec.todos {
+		AddMigrationTodo(u, td.category, td.reason, td.action)
+	}
+	if len(spec.todos) > 0 {
+		if err := InjectSafetyGuardrail(u); err != nil {
+			return nil, err
+		}
+	}
 
 	return u, nil
 }

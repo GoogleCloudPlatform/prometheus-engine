@@ -414,6 +414,9 @@ func TestPodMonitorConversion(t *testing.T) {
 					Namespace: "frontend",
 				},
 				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "label-app"},
+					},
 					JobLabel:        "app-name",
 					PodTargetLabels: []string{"env", "instance", "version"},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
@@ -434,6 +437,9 @@ func TestPodMonitorConversion(t *testing.T) {
 						Namespace: "frontend",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "label-app"},
+						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Port:     intstr.FromString("metrics"),
@@ -1199,10 +1205,21 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "annotation-keep-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "annotation-keep-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[WARNING] Dropped target filtering rule ('keep' on '__meta_kubernetes_pod_annotation_prometheus_io_scrape'). ACTION: Add equivalent pod label selector in 'spec.selector.matchLabels'.",
+							"gmp.googleapis.com/todo-2": "[WARNING] Resulting PodMonitoring selector is empty and matches all pods in this namespace. ACTION: Define explicit 'matchLabels' in 'spec.selector'.",
+						},
+					},
 					Spec: monitoringv1.PodMonitoringSpec{
-						Selector: metav1.LabelSelector{}, // Remains empty, selecting all pods.
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Port:     intstr.FromString("metrics"),
@@ -2230,6 +2247,114 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			dontWantWarnings: []string{
 				"Endpoint-level configuration conflict detected",
+			},
+		},
+		{
+			name: "PodMonitor with dropped annotation relabeling injects guardrail label and TODO annotation",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "annotated-relabel-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "annotated-app"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "web",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									Action:       "keep",
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_annotation_prometheus_io_scrape"},
+									Regex:        "true",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "annotated-relabel-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[WARNING] Dropped target filtering rule ('keep' on '__meta_kubernetes_pod_annotation_prometheus_io_scrape'). ACTION: Add equivalent pod label selector in 'spec.selector.matchLabels'.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "annotated-app",
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "PodMonitor with empty selector injects guardrail label and TODO annotation",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "empty-selector-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "web",
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "empty-selector-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[WARNING] Resulting PodMonitoring selector is empty and matches all pods in this namespace. ACTION: Define explicit 'matchLabels' in 'spec.selector'.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
 			},
 		},
 	}
