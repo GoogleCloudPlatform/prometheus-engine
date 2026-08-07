@@ -318,18 +318,12 @@ func TestConvertConfigMapToSecretSelector(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			gmpSel, err := ctx.convertConfigMapToSecretSelector(tc.selector)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("convertConfigMapToSecretSelector() error = %v, wantErr %v", err, tc.wantErr)
-			}
+			gmpSel := ctx.convertConfigMapToSecretSelector(tc.selector)
 
 			if tc.selector == nil {
 				if gmpSel != nil {
 					t.Errorf("expected nil result for nil selector, got %+v", gmpSel)
 				}
-				return
-			}
-			if tc.wantErr {
 				return
 			}
 
@@ -404,18 +398,12 @@ func TestConvertBasicAuth(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			gmpBA, err := ctx.convertBasicAuth(tc.basicAuth)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("convertBasicAuth() error = %v, wantErr %v", err, tc.wantErr)
-			}
+			gmpBA := ctx.convertBasicAuth(tc.basicAuth)
 
 			if tc.basicAuth == nil {
 				if gmpBA != nil {
 					t.Errorf("expected nil result for nil BasicAuth, got %+v", gmpBA)
 				}
-				return
-			}
-			if tc.wantErr {
 				return
 			}
 
@@ -493,18 +481,12 @@ func TestConvertSafeTLSConfig(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			gmpTLS, err := ctx.convertSafeTLSConfig(tc.tlsConfig)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("convertSafeTLSConfig() error = %v, wantErr %v", err, tc.wantErr)
-			}
+			gmpTLS := ctx.convertSafeTLSConfig(tc.tlsConfig)
 
 			if tc.tlsConfig == nil {
 				if gmpTLS != nil {
 					t.Errorf("expected nil result for nil TLS config, got %+v", gmpTLS)
 				}
-				return
-			}
-			if tc.wantErr {
 				return
 			}
 
@@ -536,14 +518,13 @@ func TestConvertOAuth2(t *testing.T) {
 		expectedClientID string
 		expectedSecName  string
 		expectedSecKey   string
+		expectedTokenURL string
 		expectTodos      int
-		wantErr          bool
 	}{
 		{
 			name:       "Nil OAuth2 returns nil",
 			setupCache: func(_ *ResourceCache) error { return nil },
 			oauth2:     nil,
-			wantErr:    false,
 		},
 		{
 			name: "Valid OAuth2 from Secret",
@@ -566,8 +547,8 @@ func TestConvertOAuth2(t *testing.T) {
 			expectedClientID: "my-client",
 			expectedSecName:  "oauth-sec",
 			expectedSecKey:   "client_secret",
+			expectedTokenURL: "https://auth.example.com/token",
 			expectTodos:      0,
-			wantErr:          false,
 		},
 		{
 			name:       "Empty ClientID generates placeholder and TODO",
@@ -582,8 +563,32 @@ func TestConvertOAuth2(t *testing.T) {
 			expectedClientID: "TODO_SET_OAUTH2_CLIENT_ID",
 			expectedSecName:  "oauth-sec",
 			expectedSecKey:   "client_secret",
+			expectedTokenURL: "https://auth.example.com/token",
 			expectTodos:      1,
-			wantErr:          false,
+		},
+		{
+			name: "Empty TokenURL generates placeholder and TODO",
+			setupCache: func(cache *ResourceCache) error {
+				return addSecretToCache(cache, "default", "oauth-sec", "client_id", "my-client", true)
+			},
+			oauth2: &pomonitoringv1.OAuth2{
+				ClientID: pomonitoringv1.SecretOrConfigMap{
+					Secret: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-sec"},
+						Key:                  "client_id",
+					},
+				},
+				ClientSecret: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-sec"},
+					Key:                  "client_secret",
+				},
+				TokenURL: "",
+			},
+			expectedClientID: "my-client",
+			expectedSecName:  "oauth-sec",
+			expectedSecKey:   "client_secret",
+			expectedTokenURL: "TODO_SET_OAUTH2_TOKEN_URL",
+			expectTodos:      1,
 		},
 	}
 
@@ -594,21 +599,18 @@ func TestConvertOAuth2(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			res, err := ctx.convertOAuth2(tc.oauth2)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("convertOAuth2() error = %v, wantErr %v", err, tc.wantErr)
-			}
+			res := ctx.convertOAuth2(tc.oauth2)
 			if tc.oauth2 == nil {
 				if res != nil {
 					t.Errorf("expected nil result for nil OAuth2, got %+v", res)
 				}
 				return
 			}
-			if tc.wantErr {
-				return
-			}
 			if res.ClientID != tc.expectedClientID {
 				t.Errorf("expected ClientID %q, got %q", tc.expectedClientID, res.ClientID)
+			}
+			if res.TokenURL != tc.expectedTokenURL {
+				t.Errorf("expected TokenURL %q, got %q", tc.expectedTokenURL, res.TokenURL)
 			}
 			if res.ClientSecret.Secret == nil || res.ClientSecret.Secret.Name != tc.expectedSecName || res.ClientSecret.Secret.Key != tc.expectedSecKey {
 				t.Errorf("unexpected ClientSecret selector: %+v", res.ClientSecret)
@@ -633,19 +635,13 @@ func TestConvertConfigMapToSecretSelectorDeduplication(t *testing.T) {
 	}
 
 	// Call first time.
-	gmpSel1, err := ctx.convertConfigMapToSecretSelector(selector)
-	if err != nil {
-		t.Fatalf("first call failed with error: %v", err)
-	}
+	gmpSel1 := ctx.convertConfigMapToSecretSelector(selector)
 	if gmpSel1 == nil || gmpSel1.Secret.Name != "secret-tls-cm" {
 		t.Fatal("first call failed to translate selector")
 	}
 
 	// Call second time.
-	gmpSel2, err := ctx.convertConfigMapToSecretSelector(selector)
-	if err != nil {
-		t.Fatalf("second call failed with error: %v", err)
-	}
+	gmpSel2 := ctx.convertConfigMapToSecretSelector(selector)
 	if gmpSel2 == nil || gmpSel2.Secret.Name != "secret-tls-cm" {
 		t.Fatal("second call failed to translate selector")
 	}
@@ -880,20 +876,19 @@ func TestConvertProxyURL(t *testing.T) {
 			proxyURL:    ptrTo("http://user:pass@proxy.example.com:8080"),
 			expectedURL: "http://proxy.example.com:8080",
 			expectTodos: 1,
-			expectErr:   false,
+		},
+		{
+			name:        "malformed proxyURL returns placeholder and adds todo",
+			proxyURL:    ptrTo("://invalid-url"),
+			expectedURL: "TODO_SET_VALID_PROXY_URL",
+			expectTodos: 1,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			convCtx := &conversionContext{}
-			url, err := convCtx.convertProxyURL(tc.proxyURL)
-			if (err != nil) != tc.expectErr {
-				t.Fatalf("convertProxyURL() error = %v, expectErr = %v", err, tc.expectErr)
-			}
-			if tc.expectErr {
-				return
-			}
+			url := convCtx.convertProxyURL(tc.proxyURL)
 			if url != tc.expectedURL {
 				t.Errorf("convertProxyURL() = %v, want %v", url, tc.expectedURL)
 			}
@@ -1076,10 +1071,7 @@ func TestDecoupledNamespaces(t *testing.T) {
 		LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"},
 		Key:                  "ca.crt",
 	}
-	secretSel, err := ctx.convertConfigMapToSecretSelector(cmSel)
-	if err != nil {
-		t.Fatalf("convertConfigMapToSecretSelector() unexpected error: %v", err)
-	}
+	secretSel := ctx.convertConfigMapToSecretSelector(cmSel)
 	if secretSel.Secret.Namespace != "target-ns" {
 		t.Errorf("expected selector namespace %q, got %q", "target-ns", secretSel.Secret.Namespace)
 	}

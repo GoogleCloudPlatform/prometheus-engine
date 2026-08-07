@@ -552,10 +552,9 @@ func (c *conversionContext) extractConfigMapKey(sel corev1.ConfigMapKeySelector)
 }
 
 // convertConfigMapToSecretSelector translates a ConfigMapKeySelector to a SecretSelector.
-// It returns an error if the reference is malformed.
-func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigMapKeySelector) (*monitoringv1.SecretSelector, error) {
+func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigMapKeySelector) *monitoringv1.SecretSelector {
 	if sel == nil || (sel.Name == "" && sel.Key == "") {
-		return nil, nil
+		return nil
 	}
 	name := sel.Name
 	key := sel.Key
@@ -622,12 +621,11 @@ func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigM
 		ns = c.targetNamespace
 	}
 	secretRef := &monitoringv1.SecretKeySelector{Name: secretName, Key: secretKey, Namespace: ns}
-	return &monitoringv1.SecretSelector{Secret: secretRef}, nil
+	return &monitoringv1.SecretSelector{Secret: secretRef}
 }
 
 // convertSecretOrConfigMapToSecretSelector translates a SecretOrConfigMap to a SecretSelector.
-// It returns an error if the selected configuration reference is malformed.
-func (c *conversionContext) convertSecretOrConfigMapToSecretSelector(sel pomonitoringv1.SecretOrConfigMap) (*monitoringv1.SecretSelector, error) {
+func (c *conversionContext) convertSecretOrConfigMapToSecretSelector(sel pomonitoringv1.SecretOrConfigMap) *monitoringv1.SecretSelector {
 	if sel.Secret != nil {
 		return c.convertSecretSelector(sel.Secret)
 	}
@@ -636,14 +634,13 @@ func (c *conversionContext) convertSecretOrConfigMapToSecretSelector(sel pomonit
 		return c.convertConfigMapToSecretSelector(sel.ConfigMap)
 	}
 
-	return nil, nil
+	return nil
 }
 
 // convertSecretSelector translates a SecretKeySelector to a SecretSelector.
-// It returns an error if the reference is malformed.
-func (c *conversionContext) convertSecretSelector(sel *corev1.SecretKeySelector) (*monitoringv1.SecretSelector, error) {
+func (c *conversionContext) convertSecretSelector(sel *corev1.SecretKeySelector) *monitoringv1.SecretSelector {
 	if sel == nil || (sel.Name == "" && sel.Key == "") {
-		return nil, nil
+		return nil
 	}
 	name := sel.Name
 	key := sel.Key
@@ -672,31 +669,26 @@ func (c *conversionContext) convertSecretSelector(sel *corev1.SecretKeySelector)
 		ns = c.targetNamespace
 	}
 	secretRef := &monitoringv1.SecretKeySelector{Name: name, Key: key, Namespace: ns}
-	return &monitoringv1.SecretSelector{Secret: secretRef}, nil
+	return &monitoringv1.SecretSelector{Secret: secretRef}
 }
 
 // convertBasicAuth maps PO BasicAuth to GMP BasicAuth, extracting the username string.
-// It returns an error if either the username or password secret reference is malformed or invalid.
-func (c *conversionContext) convertBasicAuth(ba *pomonitoringv1.BasicAuth) (*monitoringv1.BasicAuth, error) {
+func (c *conversionContext) convertBasicAuth(ba *pomonitoringv1.BasicAuth) *monitoringv1.BasicAuth {
 	if ba == nil {
-		return nil, nil
+		return nil
 	}
 	username := c.extractSecretKey(ba.Username)
-	password, err := c.convertSecretSelector(&ba.Password)
-	if err != nil {
-		return nil, err
-	}
+	password := c.convertSecretSelector(&ba.Password)
 	return &monitoringv1.BasicAuth{
 		Username: username,
 		Password: password,
-	}, nil
+	}
 }
 
 // convertSafeTLSConfig maps PO SafeTLSConfig to GMP TLS, wrapping ConfigMaps into Secrets.
-// It returns an error if any referenced certificate secret or configmap is malformed.
-func (c *conversionContext) convertSafeTLSConfig(tls *pomonitoringv1.SafeTLSConfig) (*monitoringv1.TLS, error) {
+func (c *conversionContext) convertSafeTLSConfig(tls *pomonitoringv1.SafeTLSConfig) *monitoringv1.TLS {
 	if tls == nil {
-		return nil, nil
+		return nil
 	}
 	gmpTLS := &monitoringv1.TLS{}
 	if tls.InsecureSkipVerify != nil {
@@ -706,34 +698,21 @@ func (c *conversionContext) convertSafeTLSConfig(tls *pomonitoringv1.SafeTLSConf
 		gmpTLS.ServerName = *tls.ServerName
 	}
 	if tls.CA.Secret != nil || tls.CA.ConfigMap != nil {
-		ca, err := c.convertSecretOrConfigMapToSecretSelector(tls.CA)
-		if err != nil {
-			return nil, err
-		}
-		gmpTLS.CA = ca
+		gmpTLS.CA = c.convertSecretOrConfigMapToSecretSelector(tls.CA)
 	}
 	if tls.Cert.Secret != nil || tls.Cert.ConfigMap != nil {
-		cert, err := c.convertSecretOrConfigMapToSecretSelector(tls.Cert)
-		if err != nil {
-			return nil, err
-		}
-		gmpTLS.Cert = cert
+		gmpTLS.Cert = c.convertSecretOrConfigMapToSecretSelector(tls.Cert)
 	}
 	if tls.KeySecret != nil {
-		key, err := c.convertSecretSelector(tls.KeySecret)
-		if err != nil {
-			return nil, err
-		}
-		gmpTLS.Key = key
+		gmpTLS.Key = c.convertSecretSelector(tls.KeySecret)
 	}
-	return gmpTLS, nil
+	return gmpTLS
 }
 
 // convertOAuth2 maps PO OAuth2 to GMP OAuth2, extracting the clientID string.
-// It returns an error if any secret or configmap reference is malformed or invalid.
-func (c *conversionContext) convertOAuth2(oa *pomonitoringv1.OAuth2) (*monitoringv1.OAuth2, error) {
+func (c *conversionContext) convertOAuth2(oa *pomonitoringv1.OAuth2) *monitoringv1.OAuth2 {
 	if oa == nil {
-		return nil, nil
+		return nil
 	}
 	clientID := ""
 	if oa.ClientID.Secret != nil {
@@ -749,40 +728,40 @@ func (c *conversionContext) convertOAuth2(oa *pomonitoringv1.OAuth2) (*monitorin
 		clientID = "TODO_SET_OAUTH2_CLIENT_ID"
 	}
 
-	clientSecret, err := c.convertSecretSelector(&oa.ClientSecret)
-	if err != nil {
-		return nil, err
+	clientSecret := c.convertSecretSelector(&oa.ClientSecret)
+
+	tokenURL := oa.TokenURL
+	if tokenURL == "" {
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   "OAuth2 tokenURL is empty.",
+			action:   "Specify a valid token endpoint URL in 'spec.endpoints[].oauth2.tokenUrl'.",
+		})
+		tokenURL = "TODO_SET_OAUTH2_TOKEN_URL"
 	}
 
 	return &monitoringv1.OAuth2{
 		ClientID:       clientID,
 		ClientSecret:   clientSecret,
-		TokenURL:       oa.TokenURL,
+		TokenURL:       tokenURL,
 		Scopes:         oa.Scopes,
 		EndpointParams: oa.EndpointParams,
-	}, nil
+	}
 }
 
 // convertAuthorization maps PO SafeAuthorization to GMP Auth.
-// It returns an error if the credentials secret reference is malformed.
-func (c *conversionContext) convertAuthorization(auth *pomonitoringv1.SafeAuthorization) (*monitoringv1.Auth, error) {
+func (c *conversionContext) convertAuthorization(auth *pomonitoringv1.SafeAuthorization) *monitoringv1.Auth {
 	if auth == nil {
-		return nil, nil
+		return nil
 	}
-	var (
-		credentials *monitoringv1.SecretSelector
-		err         error
-	)
+	var credentials *monitoringv1.SecretSelector
 	if auth.Credentials != nil {
-		credentials, err = c.convertSecretSelector(auth.Credentials)
-		if err != nil {
-			return nil, err
-		}
+		credentials = c.convertSecretSelector(auth.Credentials)
 	}
 	return &monitoringv1.Auth{
 		Type:        auth.Type,
 		Credentials: credentials,
-	}, nil
+	}
 }
 
 // applyAuthAndTLS converts credentials and TLS settings for a generic endpoint.
@@ -793,38 +772,18 @@ func (c *conversionContext) applyAuthAndTLS(
 	tlsConfig *pomonitoringv1.SafeTLSConfig,
 	authorization *pomonitoringv1.SafeAuthorization,
 	bearerTokenSecret corev1.SecretKeySelector,
-) error {
-	if gmpEp == nil {
-		return errors.New("scrape endpoint cannot be nil")
-	}
-
+) {
 	if basicAuth != nil {
-		ba, err := c.convertBasicAuth(basicAuth)
-		if err != nil {
-			return fmt.Errorf("basicAuth: %w", err)
-		}
-		gmpEp.BasicAuth = ba
+		gmpEp.BasicAuth = c.convertBasicAuth(basicAuth)
 	}
 	if oAuth2 != nil {
-		oa, err := c.convertOAuth2(oAuth2)
-		if err != nil {
-			return fmt.Errorf("oAuth2: %w", err)
-		}
-		gmpEp.OAuth2 = oa
+		gmpEp.OAuth2 = c.convertOAuth2(oAuth2)
 	}
 	if tlsConfig != nil {
-		tls, err := c.convertSafeTLSConfig(tlsConfig)
-		if err != nil {
-			return fmt.Errorf("tlsConfig: %w", err)
-		}
-		gmpEp.TLS = tls
+		gmpEp.TLS = c.convertSafeTLSConfig(tlsConfig)
 	}
 	if authorization != nil {
-		auth, err := c.convertAuthorization(authorization)
-		if err != nil {
-			return fmt.Errorf("authorization: %w", err)
-		}
-		gmpEp.Authorization = auth
+		gmpEp.Authorization = c.convertAuthorization(authorization)
 	}
 
 	// Handle deprecated BearerTokenSecret -> Authorization.
@@ -833,14 +792,9 @@ func (c *conversionContext) applyAuthAndTLS(
 			c.logger.Warn("Endpoint has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.")
 		} else {
 			tokenSecret := bearerTokenSecret // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
-			auth, err := c.convertAuthorization(&pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})
-			if err != nil {
-				return fmt.Errorf("bearerTokenSecret: %w", err)
-			}
-			gmpEp.Authorization = auth
+			gmpEp.Authorization = c.convertAuthorization(&pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})
 		}
 	}
-	return nil
 }
 
 func convertMetricRelabelings(
@@ -1450,13 +1404,21 @@ func (c *conversionContext) resolveScrapeIntervalAndTimeout(interval, timeout st
 	return interval, timeout
 }
 
-// convertProxyURL verifies proxy URL credentials and attaches a TODO if passwords are present.
-func (c *conversionContext) convertProxyURL(proxyURL *string) (string, error) {
+// convertProxyURL verifies proxy URL credentials and attaches a TODO if passwords are present or malformed.
+func (c *conversionContext) convertProxyURL(proxyURL *string) string {
 	if proxyURL == nil {
-		return "", nil
+		return ""
 	}
 	parsed, err := url.Parse(*proxyURL)
-	if err == nil && parsed.User != nil {
+	if err != nil {
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   fmt.Sprintf("Proxy URL %q is invalid or malformed.", *proxyURL),
+			action:   "Specify a valid proxy URL (e.g. 'http://proxy.example.com:8080').",
+		})
+		return "TODO_SET_VALID_PROXY_URL"
+	}
+	if parsed.User != nil {
 		if _, hasPass := parsed.User.Password(); hasPass {
 			c.todos = append(c.todos, todoItem{
 				category: "ERROR",
@@ -1464,10 +1426,10 @@ func (c *conversionContext) convertProxyURL(proxyURL *string) (string, error) {
 				action:   "Configure proxy authentication via Kubernetes Secret or proxy server configuration.",
 			})
 			parsed.User = nil
-			return parsed.String(), nil
+			return parsed.String()
 		}
 	}
-	return *proxyURL, nil
+	return *proxyURL
 }
 
 // warnUnsupportedEndpointFields logs warnings for fields that GMP does not support.
