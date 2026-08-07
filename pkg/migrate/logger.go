@@ -29,15 +29,15 @@ import (
 type ResourceStatus int
 
 const (
-	StatusSuccess ResourceStatus = iota // 0 (Migrated Successfully).
-	StatusSkipped                       // 1 (Skipped / Unsupported).
-	StatusWarning                       // 2 (Migrated with Warnings).
-	StatusFailed                        // 3 (Failed).
+	StatusSuccess     ResourceStatus = iota // 0 (Migrated Successfully).
+	StatusSkipped                           // 1 (Skipped / Unsupported).
+	StatusActionItems                       // 2 (Migrated with Action Items).
+	StatusFailed                            // 3 (Failed).
 )
 
 // statusLevels maps slog.Levels to their corresponding ResourceStatus.
 var statusLevels = map[slog.Level]ResourceStatus{
-	slog.LevelWarn:  StatusWarning,
+	slog.LevelWarn:  StatusActionItems,
 	slog.LevelError: StatusFailed,
 }
 

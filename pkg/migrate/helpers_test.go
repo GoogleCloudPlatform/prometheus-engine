@@ -1314,3 +1314,103 @@ func TestMakeUniqueResourceName(t *testing.T) {
 		})
 	}
 }
+
+func TestAddMigrationTodo(t *testing.T) {
+	tests := []struct {
+		name        string
+		initialObj  map[string]any
+		category    string
+		reason      string
+		action      string
+		expectedMap map[string]string
+	}{
+		{
+			name: "single todo with action",
+			initialObj: map[string]any{
+				"metadata": map[string]any{},
+			},
+			category: "WARNING",
+			reason:   "Dropped unsupported 'annotationMatches' selector.",
+			action:   "Verify 'spec.selector.matchLabels' on target pods and remove guardrail label.",
+			expectedMap: map[string]string{
+				"gmp.googleapis.com/todo-1": "[WARNING] Dropped unsupported 'annotationMatches' selector. ACTION: Verify 'spec.selector.matchLabels' on target pods and remove guardrail label.",
+			},
+		},
+		{
+			name: "sequential todos preserving existing annotations",
+			initialObj: map[string]any{
+				"metadata": map[string]any{
+					"annotations": map[string]any{
+						"existing.io/key":           "existing-val",
+						"gmp.googleapis.com/todo-1": "[WARNING] First todo. ACTION: Fix first item.",
+					},
+				},
+			},
+			category: "ERROR",
+			reason:   "Invalid proxy URL.",
+			action:   "Move credentials to Secret.",
+			expectedMap: map[string]string{
+				"existing.io/key":           "existing-val",
+				"gmp.googleapis.com/todo-1": "[WARNING] First todo. ACTION: Fix first item.",
+				"gmp.googleapis.com/todo-2": "[ERROR] Invalid proxy URL. ACTION: Move credentials to Secret.",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{Object: tc.initialObj}
+			AddMigrationTodo(u, tc.category, tc.reason, tc.action)
+			if diff := cmp.Diff(tc.expectedMap, u.GetAnnotations()); diff != "" {
+				t.Errorf("AddMigrationTodo() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestInjectSafetyGuardrail(t *testing.T) {
+	tests := []struct {
+		name          string
+		initialObj    map[string]any
+		expectedMatch map[string]string
+	}{
+		{
+			name: "inject into empty matchLabels",
+			initialObj: map[string]any{
+				"spec": map[string]any{},
+			},
+			expectedMatch: map[string]string{
+				"gmp.googleapis.com/migration-review-required": "true",
+			},
+		},
+		{
+			name: "preserve existing matchLabels",
+			initialObj: map[string]any{
+				"spec": map[string]any{
+					"selector": map[string]any{
+						"matchLabels": map[string]any{
+							"app": "frontend",
+						},
+					},
+				},
+			},
+			expectedMatch: map[string]string{
+				"app": "frontend",
+				"gmp.googleapis.com/migration-review-required": "true",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{Object: tc.initialObj}
+			if err := InjectSafetyGuardrail(u); err != nil {
+				t.Fatalf("InjectSafetyGuardrail() unexpected error: %v", err)
+			}
+			gotMatch, _, _ := unstructured.NestedStringMap(u.Object, "spec", "selector", "matchLabels")
+			if diff := cmp.Diff(tc.expectedMatch, gotMatch); diff != "" {
+				t.Errorf("InjectSafetyGuardrail() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
