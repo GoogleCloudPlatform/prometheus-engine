@@ -139,20 +139,13 @@ func (c *PodMonitorConverter) convertEndpoints(
 		gmpEp.MetricRelabeling = combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
 
 		// Proxy Settings.
-		proxyURL, err := convCtx.convertProxyURL(ep.ProxyURL)
-		if err != nil {
-			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
-		}
-		gmpEp.ProxyURL = proxyURL
+		gmpEp.ProxyURL = convCtx.convertProxyURL(ep.ProxyURL)
 
 		// noProxy, proxyConnectHeader, and proxyFromEnvironment fields are silently dropped.
 		// The pinned Prometheus Operator version lacks these fields, and GMP does not support them anyway.
 
 		// Auth & TLS mappings.
-		err = convCtx.applyAuthAndTLS(&gmpEp, ep.BasicAuth, ep.OAuth2, ep.TLSConfig, ep.Authorization, ep.BearerTokenSecret) // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
-		if err != nil {
-			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
-		}
+		convCtx.applyAuthAndTLS(&gmpEp, ep.BasicAuth, ep.OAuth2, ep.TLSConfig, ep.Authorization, ep.BearerTokenSecret) // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 
 		// 5. Warnings for Unsupported Fields in Endpoint.
 		warnUnsupportedEndpointFields(convCtx.logger, ep.FollowRedirects, ep.EnableHttp2, ep.HonorLabels, ep.HonorTimestamps, ep.TrackTimestampsStaleness, i)

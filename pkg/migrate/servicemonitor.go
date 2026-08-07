@@ -398,11 +398,7 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 		gmpEp.MetricRelabeling = combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
 
 		// Proxy Settings.
-		proxyURL, err := convCtx.convertProxyURL(ep.ProxyURL)
-		if err != nil {
-			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
-		}
-		gmpEp.ProxyURL = proxyURL
+		gmpEp.ProxyURL = convCtx.convertProxyURL(ep.ProxyURL)
 
 		// Auth & TLS mappings.
 		var safeTLS *pomonitoringv1.SafeTLSConfig
@@ -426,10 +422,7 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 			// nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 			bearerTokenSecret = *ep.BearerTokenSecret
 		}
-		err = convCtx.applyAuthAndTLS(&gmpEp, ep.BasicAuth, ep.OAuth2, safeTLS, ep.Authorization, bearerTokenSecret) // nolint:staticcheck
-		if err != nil {
-			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
-		}
+		convCtx.applyAuthAndTLS(&gmpEp, ep.BasicAuth, ep.OAuth2, safeTLS, ep.Authorization, bearerTokenSecret) // nolint:staticcheck
 
 		// Warnings for Unsupported Fields.
 		warnUnsupportedEndpointFields(convCtx.logger, ep.FollowRedirects, ep.EnableHttp2, ep.HonorLabels, ep.HonorTimestamps, ep.TrackTimestampsStaleness, i)
