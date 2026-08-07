@@ -85,14 +85,16 @@ func TestExtractSecretKey(t *testing.T) {
 		setupCache  func(cache *ResourceCache) error
 		selector    corev1.SecretKeySelector
 		expectedVal string
+		expectTodos int
 		wantErr     bool
 	}{
 		{
 			name:        "Missing secret",
 			setupCache:  func(_ *ResourceCache) error { return nil }, // Empty cache.
 			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing"}, Key: "user"},
-			expectedVal: "",
-			wantErr:     true,
+			expectedVal: "TODO_SET_USER_FROM_SECRET_MISSING",
+			expectTodos: 1,
+			wantErr:     false,
 		},
 		{
 			name: "Secret with StringData",
@@ -101,6 +103,7 @@ func TestExtractSecretKey(t *testing.T) {
 			},
 			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}, Key: "user"},
 			expectedVal: "admin",
+			expectTodos: 0,
 			wantErr:     false,
 		},
 		{
@@ -110,21 +113,24 @@ func TestExtractSecretKey(t *testing.T) {
 			},
 			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret-2"}, Key: "pass"},
 			expectedVal: "supersecret",
+			expectTodos: 0,
 			wantErr:     false,
 		},
 		{
 			name:        "Secret reference with empty Name",
 			setupCache:  func(_ *ResourceCache) error { return nil },
 			selector:    corev1.SecretKeySelector{Key: "user"},
-			expectedVal: "",
-			wantErr:     true,
+			expectedVal: "TODO_SET_USER_FROM_SECRET_EMPTY_NAME",
+			expectTodos: 1,
+			wantErr:     false,
 		},
 		{
 			name:        "Secret reference with empty Key",
 			setupCache:  func(_ *ResourceCache) error { return nil },
 			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}},
-			expectedVal: "",
-			wantErr:     true,
+			expectedVal: "TODO_SET_EMPTY_KEY_FROM_SECRET_MY-SECRET",
+			expectTodos: 1,
+			wantErr:     false,
 		},
 		{
 			name: "Secret exists but key missing",
@@ -132,8 +138,9 @@ func TestExtractSecretKey(t *testing.T) {
 				return addSecretToCache(cache, "default", "my-secret", "user", "admin", true)
 			},
 			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}, Key: "password"},
-			expectedVal: "",
-			wantErr:     true,
+			expectedVal: "TODO_MISSING_KEY_PASSWORD_IN_SECRET_MY-SECRET",
+			expectTodos: 1,
+			wantErr:     false,
 		},
 		{
 			name: "Secret exists but data corrupted",
@@ -154,8 +161,9 @@ func TestExtractSecretKey(t *testing.T) {
 				return cache.Add(secret)
 			},
 			selector:    corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "corrupted-secret"}, Key: "pass"},
-			expectedVal: "",
-			wantErr:     true,
+			expectedVal: "TODO_CORRUPT_SECRET_DATA_PASS",
+			expectTodos: 1,
+			wantErr:     false,
 		},
 	}
 
@@ -166,12 +174,12 @@ func TestExtractSecretKey(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			val, err := ctx.extractSecretKey(tc.selector)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("extractSecretKey() error = %v, wantErr %v", err, tc.wantErr)
-			}
-			if !tc.wantErr && val != tc.expectedVal {
+			val := ctx.extractSecretKey(tc.selector)
+			if val != tc.expectedVal {
 				t.Errorf("expected %s, got %s", tc.expectedVal, val)
+			}
+			if len(ctx.todos) != tc.expectTodos {
+				t.Errorf("expected %d todos, got %d", tc.expectTodos, len(ctx.todos))
 			}
 		})
 	}
@@ -183,14 +191,16 @@ func TestExtractConfigMapKey(t *testing.T) {
 		setupCache  func(cache *ResourceCache) error
 		selector    corev1.ConfigMapKeySelector
 		expectedVal string
+		expectTodos int
 		wantErr     bool
 	}{
 		{
 			name:        "Missing configmap",
 			setupCache:  func(_ *ResourceCache) error { return nil }, // Empty cache.
 			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing"}, Key: "user"},
-			expectedVal: "",
-			wantErr:     true,
+			expectedVal: "TODO_SET_USER_FROM_CONFIGMAP_MISSING",
+			expectTodos: 1,
+			wantErr:     false,
 		},
 		{
 			name: "Found configmap",
@@ -199,21 +209,24 @@ func TestExtractConfigMapKey(t *testing.T) {
 			},
 			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}, Key: "id"},
 			expectedVal: "client-123",
+			expectTodos: 0,
 			wantErr:     false,
 		},
 		{
 			name:        "Configmap reference with empty Name",
 			setupCache:  func(_ *ResourceCache) error { return nil },
 			selector:    corev1.ConfigMapKeySelector{Key: "user"},
-			expectedVal: "",
-			wantErr:     true,
+			expectedVal: "TODO_SET_USER_FROM_CONFIGMAP_EMPTY_NAME",
+			expectTodos: 1,
+			wantErr:     false,
 		},
 		{
 			name:        "Configmap reference with empty Key",
 			setupCache:  func(_ *ResourceCache) error { return nil },
 			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}},
-			expectedVal: "",
-			wantErr:     true,
+			expectedVal: "TODO_SET_EMPTY_KEY_FROM_CONFIGMAP_MY-CM",
+			expectTodos: 1,
+			wantErr:     false,
 		},
 		{
 			name: "Configmap exists but key missing",
@@ -221,8 +234,9 @@ func TestExtractConfigMapKey(t *testing.T) {
 				return addConfigMapToCache(cache, "default", "my-cm", "id", "client-123")
 			},
 			selector:    corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "my-cm"}, Key: "secret"},
-			expectedVal: "",
-			wantErr:     true,
+			expectedVal: "TODO_MISSING_KEY_SECRET_IN_CONFIGMAP_MY-CM",
+			expectTodos: 1,
+			wantErr:     false,
 		},
 	}
 
@@ -233,12 +247,12 @@ func TestExtractConfigMapKey(t *testing.T) {
 				t.Fatalf("failed to setup cache: %v", err)
 			}
 
-			val, err := ctx.extractConfigMapKey(tc.selector)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("extractConfigMapKey() error = %v, wantErr %v", err, tc.wantErr)
-			}
-			if !tc.wantErr && val != tc.expectedVal {
+			val := ctx.extractConfigMapKey(tc.selector)
+			if val != tc.expectedVal {
 				t.Errorf("expected %s, got %s", tc.expectedVal, val)
+			}
+			if len(ctx.todos) != tc.expectTodos {
+				t.Errorf("expected %d todos, got %d", tc.expectTodos, len(ctx.todos))
 			}
 		})
 	}
@@ -281,19 +295,19 @@ func TestConvertConfigMapToSecretSelector(t *testing.T) {
 			name:                  "Empty name reference",
 			setupCache:            func(_ *ResourceCache) error { return nil },
 			selector:              &corev1.ConfigMapKeySelector{Key: "ca.crt"},
-			expectedSecretName:    "",
-			expectedSecretKey:     "",
+			expectedSecretName:    "secret-TODO_SET_CONFIGMAP_NAME",
+			expectedSecretKey:     "ca.crt",
 			expectGeneratedSecret: false,
-			wantErr:               true,
+			wantErr:               false,
 		},
 		{
 			name:                  "Empty key reference",
 			setupCache:            func(_ *ResourceCache) error { return nil },
 			selector:              &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"}},
-			expectedSecretName:    "",
-			expectedSecretKey:     "",
+			expectedSecretName:    "secret-tls-cm",
+			expectedSecretKey:     "TODO_SET_CONFIGMAP_KEY",
 			expectGeneratedSecret: false,
-			wantErr:               true,
+			wantErr:               false,
 		},
 	}
 
@@ -368,13 +382,18 @@ func TestConvertBasicAuth(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "Malformed Username reference",
-			setupCache: func(_ *ResourceCache) error { return nil },
+			name: "Malformed Username reference",
+			setupCache: func(cache *ResourceCache) error {
+				return addSecretToCache(cache, "default", "auth-secret", "pass", "pass123", true)
+			},
 			basicAuth: &pomonitoringv1.BasicAuth{
 				Username: corev1.SecretKeySelector{Key: "user"},
 				Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "pass"},
 			},
-			wantErr: true,
+			expectedUser:     "TODO_SET_USER_FROM_SECRET_EMPTY_NAME",
+			expectedPassName: "auth-secret",
+			expectedPassKey:  "pass",
+			wantErr:          false,
 		},
 	}
 
@@ -461,7 +480,9 @@ func TestConvertSafeTLSConfig(t *testing.T) {
 					ConfigMap: &corev1.ConfigMapKeySelector{Key: "ca.crt"},
 				},
 			},
-			wantErr: true,
+			expectedCAName: "secret-TODO_SET_CONFIGMAP_NAME",
+			expectedCAKey:  "ca.crt",
+			wantErr:        false,
 		},
 	}
 
@@ -487,17 +508,113 @@ func TestConvertSafeTLSConfig(t *testing.T) {
 				return
 			}
 
-			if gmpTLS.CA.Secret.Name != tc.expectedCAName || gmpTLS.CA.Secret.Key != tc.expectedCAKey {
-				t.Errorf("unexpected CA selector: %+v", gmpTLS.CA)
+			if tc.expectedCAName != "" {
+				if gmpTLS.CA == nil || gmpTLS.CA.Secret == nil || gmpTLS.CA.Secret.Name != tc.expectedCAName || gmpTLS.CA.Secret.Key != tc.expectedCAKey {
+					t.Errorf("unexpected CA selector: %+v", gmpTLS.CA)
+				}
 			}
-			if gmpTLS.Cert.Secret.Name != tc.expectedCertName || gmpTLS.Cert.Secret.Key != tc.expectedCertKey {
-				t.Errorf("unexpected Cert selector: %+v", gmpTLS.Cert)
+			if tc.expectedCertName != "" {
+				if gmpTLS.Cert == nil || gmpTLS.Cert.Secret == nil || gmpTLS.Cert.Secret.Name != tc.expectedCertName || gmpTLS.Cert.Secret.Key != tc.expectedCertKey {
+					t.Errorf("unexpected Cert selector: %+v", gmpTLS.Cert)
+				}
 			}
 			if gmpTLS.InsecureSkipVerify != tc.expectedSkipVerify {
 				t.Errorf("expected InsecureSkipVerify %v, got %v", tc.expectedSkipVerify, gmpTLS.InsecureSkipVerify)
 			}
 			if gmpTLS.ServerName != tc.expectedServerName {
 				t.Errorf("expected server name %s, got %s", tc.expectedServerName, gmpTLS.ServerName)
+			}
+		})
+	}
+}
+
+func TestConvertOAuth2(t *testing.T) {
+	tests := []struct {
+		name             string
+		setupCache       func(cache *ResourceCache) error
+		oauth2           *pomonitoringv1.OAuth2
+		expectedClientID string
+		expectedSecName  string
+		expectedSecKey   string
+		expectTodos      int
+		wantErr          bool
+	}{
+		{
+			name:       "Nil OAuth2 returns nil",
+			setupCache: func(_ *ResourceCache) error { return nil },
+			oauth2:     nil,
+			wantErr:    false,
+		},
+		{
+			name: "Valid OAuth2 from Secret",
+			setupCache: func(cache *ResourceCache) error {
+				return addSecretToCache(cache, "default", "oauth-sec", "client_id", "my-client", true)
+			},
+			oauth2: &pomonitoringv1.OAuth2{
+				ClientID: pomonitoringv1.SecretOrConfigMap{
+					Secret: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-sec"},
+						Key:                  "client_id",
+					},
+				},
+				ClientSecret: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-sec"},
+					Key:                  "client_secret",
+				},
+				TokenURL: "https://auth.example.com/token",
+			},
+			expectedClientID: "my-client",
+			expectedSecName:  "oauth-sec",
+			expectedSecKey:   "client_secret",
+			expectTodos:      0,
+			wantErr:          false,
+		},
+		{
+			name:       "Empty ClientID generates placeholder and TODO",
+			setupCache: func(_ *ResourceCache) error { return nil },
+			oauth2: &pomonitoringv1.OAuth2{
+				ClientSecret: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-sec"},
+					Key:                  "client_secret",
+				},
+				TokenURL: "https://auth.example.com/token",
+			},
+			expectedClientID: "TODO_SET_OAUTH2_CLIENT_ID",
+			expectedSecName:  "oauth-sec",
+			expectedSecKey:   "client_secret",
+			expectTodos:      1,
+			wantErr:          false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := newTestConversionContext()
+			if err := tc.setupCache(ctx.cache); err != nil {
+				t.Fatalf("failed to setup cache: %v", err)
+			}
+
+			res, err := ctx.convertOAuth2(tc.oauth2)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("convertOAuth2() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if tc.oauth2 == nil {
+				if res != nil {
+					t.Errorf("expected nil result for nil OAuth2, got %+v", res)
+				}
+				return
+			}
+			if tc.wantErr {
+				return
+			}
+			if res.ClientID != tc.expectedClientID {
+				t.Errorf("expected ClientID %q, got %q", tc.expectedClientID, res.ClientID)
+			}
+			if res.ClientSecret.Secret == nil || res.ClientSecret.Secret.Name != tc.expectedSecName || res.ClientSecret.Secret.Key != tc.expectedSecKey {
+				t.Errorf("unexpected ClientSecret selector: %+v", res.ClientSecret)
+			}
+			if len(ctx.todos) != tc.expectTodos {
+				t.Errorf("expected %d todos, got %d", tc.expectTodos, len(ctx.todos))
 			}
 		})
 	}
@@ -670,14 +787,13 @@ func TestDetermineNamespaceScoping(t *testing.T) {
 }
 
 func TestResolveScrapeIntervalAndTimeout(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	tests := []struct {
 		name            string
 		interval        string
 		timeout         string
 		expectedInt     string
 		expectedTimeout string
-		expectErr       bool
+		expectTodos     int
 	}{
 		{
 			name:            "empty defaults to 30s",
@@ -685,7 +801,7 @@ func TestResolveScrapeIntervalAndTimeout(t *testing.T) {
 			timeout:         "",
 			expectedInt:     "30s",
 			expectedTimeout: "",
-			expectErr:       false,
+			expectTodos:     0,
 		},
 		{
 			name:            "valid interval and timeout",
@@ -693,7 +809,7 @@ func TestResolveScrapeIntervalAndTimeout(t *testing.T) {
 			timeout:         "10s",
 			expectedInt:     "15s",
 			expectedTimeout: "10s",
-			expectErr:       false,
+			expectTodos:     0,
 		},
 		{
 			name:            "timeout larger than interval is capped",
@@ -701,35 +817,37 @@ func TestResolveScrapeIntervalAndTimeout(t *testing.T) {
 			timeout:         "20s",
 			expectedInt:     "10s",
 			expectedTimeout: "10s",
-			expectErr:       false,
+			expectTodos:     0,
 		},
 		{
-			name:      "invalid interval duration",
-			interval:  "invalid",
-			expectErr: true,
+			name:            "invalid interval duration defaults to 30s with todo",
+			interval:        "invalid",
+			expectedInt:     "30s",
+			expectedTimeout: "",
+			expectTodos:     1,
 		},
 		{
-			name:      "invalid timeout duration",
-			interval:  "15s",
-			timeout:   "invalid",
-			expectErr: true,
+			name:            "invalid timeout duration is dropped with todo",
+			interval:        "15s",
+			timeout:         "invalid",
+			expectedInt:     "15s",
+			expectedTimeout: "",
+			expectTodos:     1,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			intVal, toVal, err := resolveScrapeIntervalAndTimeout(logger, tc.interval, tc.timeout)
-			if (err != nil) != tc.expectErr {
-				t.Fatalf("resolveScrapeIntervalAndTimeout() error = %v, expectErr = %v", err, tc.expectErr)
-			}
-			if tc.expectErr {
-				return
-			}
+			ctx := newTestConversionContext()
+			intVal, toVal := ctx.resolveScrapeIntervalAndTimeout(tc.interval, tc.timeout)
 			if intVal != tc.expectedInt {
 				t.Errorf("resolveScrapeIntervalAndTimeout() interval = %v, want %v", intVal, tc.expectedInt)
 			}
 			if toVal != tc.expectedTimeout {
 				t.Errorf("resolveScrapeIntervalAndTimeout() timeout = %v, want %v", toVal, tc.expectedTimeout)
+			}
+			if len(ctx.todos) != tc.expectTodos {
+				t.Errorf("expected %d todos, got %d", tc.expectTodos, len(ctx.todos))
 			}
 		})
 	}
@@ -740,30 +858,36 @@ func TestConvertProxyURL(t *testing.T) {
 		name        string
 		proxyURL    *string
 		expectedURL string
+		expectTodos int
 		expectErr   bool
 	}{
 		{
 			name:        "nil proxyURL",
 			proxyURL:    nil,
 			expectedURL: "",
+			expectTodos: 0,
 			expectErr:   false,
 		},
 		{
 			name:        "valid proxyURL without credentials",
 			proxyURL:    ptrTo("http://proxy.example.com"),
 			expectedURL: "http://proxy.example.com",
+			expectTodos: 0,
 			expectErr:   false,
 		},
 		{
-			name:      "proxyURL with credentials returns error",
-			proxyURL:  ptrTo("http://user:pass@proxy.example.com"),
-			expectErr: true,
+			name:        "proxyURL with credentials sanitizes password and adds todo",
+			proxyURL:    ptrTo("http://user:pass@proxy.example.com:8080"),
+			expectedURL: "http://proxy.example.com:8080",
+			expectTodos: 1,
+			expectErr:   false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			url, err := convertProxyURL(tc.proxyURL)
+			convCtx := &conversionContext{}
+			url, err := convCtx.convertProxyURL(tc.proxyURL)
 			if (err != nil) != tc.expectErr {
 				t.Fatalf("convertProxyURL() error = %v, expectErr = %v", err, tc.expectErr)
 			}
@@ -772,6 +896,9 @@ func TestConvertProxyURL(t *testing.T) {
 			}
 			if url != tc.expectedURL {
 				t.Errorf("convertProxyURL() = %v, want %v", url, tc.expectedURL)
+			}
+			if len(convCtx.todos) != tc.expectTodos {
+				t.Errorf("expected %d todos, got %d", tc.expectTodos, len(convCtx.todos))
 			}
 		})
 	}
@@ -936,10 +1063,7 @@ func TestDecoupledNamespaces(t *testing.T) {
 		LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"},
 		Key:                  "user",
 	}
-	val, err := ctx.extractSecretKey(sel)
-	if err != nil {
-		t.Fatalf("extractSecretKey() unexpected error: %v", err)
-	}
+	val := ctx.extractSecretKey(sel)
 	if val != "admin" {
 		t.Errorf("extractSecretKey() = %q, want %q", val, "admin")
 	}
@@ -1082,81 +1206,81 @@ func TestFindServicesBySelector(t *testing.T) {
 
 func TestResolveServicePort(t *testing.T) {
 	tests := []struct {
-		name     string
-		service  *corev1.Service
-		portStr  string
-		expected intstr.IntOrString
-		wantErr  bool
+		name       string
+		service    *corev1.Service
+		portStr    string
+		expected   intstr.IntOrString
+		expectTodo bool
 	}{
 		{
 			name: "Resolve by name to int",
 			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
 			}),
-			portStr:  "web",
-			expected: intstr.FromInt32(8080),
-			wantErr:  false,
+			portStr:    "web",
+			expected:   intstr.FromInt32(8080),
+			expectTodo: false,
 		},
 		{
 			name: "Resolve by name to string",
 			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromString("http-web")},
 			}),
-			portStr:  "web",
-			expected: intstr.FromString("http-web"),
-			wantErr:  false,
+			portStr:    "web",
+			expected:   intstr.FromString("http-web"),
+			expectTodo: false,
 		},
 		{
 			name: "Resolve by port number to targetPort int",
 			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromInt32(8080)},
 			}),
-			portStr:  "80",
-			expected: intstr.FromInt32(8080),
-			wantErr:  false,
+			portStr:    "80",
+			expected:   intstr.FromInt32(8080),
+			expectTodo: false,
 		},
 		{
 			name: "Resolve by targetPort string when port name omitted",
 			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromString("http-metrics")},
 			}),
-			portStr:  "http-metrics",
-			expected: intstr.FromString("http-metrics"),
-			wantErr:  false,
+			portStr:    "http-metrics",
+			expected:   intstr.FromString("http-metrics"),
+			expectTodo: false,
 		},
 		{
 			name: "Resolve by port number",
 			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromString("http-web")},
 			}),
-			portStr:  "80",
-			expected: intstr.FromString("http-web"),
-			wantErr:  false,
+			portStr:    "80",
+			expected:   intstr.FromString("http-web"),
+			expectTodo: false,
 		},
 		{
 			name: "Resolve with omitted targetPort",
 			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80},
 			}),
-			portStr:  "web",
-			expected: intstr.FromInt32(80),
-			wantErr:  false,
+			portStr:    "web",
+			expected:   intstr.FromInt32(80),
+			expectTodo: false,
 		},
 		{
 			name: "Port not found",
 			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80},
 			}),
-			portStr:  "admin",
-			expected: intstr.IntOrString{},
-			wantErr:  true,
+			portStr:    "admin",
+			expected:   intstr.FromString("TODO_RESOLVE_PORT_ADMIN"),
+			expectTodo: true,
 		},
 		{
-			name:     "Nil service",
-			service:  nil,
-			portStr:  "web",
-			expected: intstr.IntOrString{},
-			wantErr:  true,
+			name:       "Nil service",
+			service:    nil,
+			portStr:    "web",
+			expected:   intstr.FromString("TODO_RESOLVE_PORT"),
+			expectTodo: false,
 		},
 		{
 			name: "Skip malformed port entry and resolve valid later entry",
@@ -1169,12 +1293,12 @@ func TestResolveServicePort(t *testing.T) {
 					},
 				},
 			},
-			portStr:  "web",
-			expected: intstr.FromInt32(8080),
-			wantErr:  false,
+			portStr:    "web",
+			expected:   intstr.FromInt32(8080),
+			expectTodo: false,
 		},
 		{
-			name: "All ports malformed returns error",
+			name: "All ports malformed returns todo placeholder",
 			service: &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{Name: "my-svc", Namespace: "default"},
 				Spec: corev1.ServiceSpec{
@@ -1184,9 +1308,9 @@ func TestResolveServicePort(t *testing.T) {
 					},
 				},
 			},
-			portStr:  "web",
-			expected: intstr.IntOrString{},
-			wantErr:  true,
+			portStr:    "web",
+			expected:   intstr.FromString("TODO_RESOLVE_PORT_WEB"),
+			expectTodo: true,
 		},
 		{
 			name: "Out of range port number is rejected",
@@ -1200,18 +1324,18 @@ func TestResolveServicePort(t *testing.T) {
 					},
 				},
 			},
-			portStr:  "web",
-			expected: intstr.FromInt32(8080),
-			wantErr:  false,
+			portStr:    "web",
+			expected:   intstr.FromInt32(8080),
+			expectTodo: false,
 		},
 		{
 			name: "Resolve with empty string targetPort defaults to port number",
 			service: makeTestTypedService("default", "my-svc", nil, []corev1.ServicePort{
 				{Name: "web", Port: 80, TargetPort: intstr.FromString("")},
 			}),
-			portStr:  "web",
-			expected: intstr.FromInt32(80),
-			wantErr:  false,
+			portStr:    "web",
+			expected:   intstr.FromInt32(80),
+			expectTodo: false,
 		},
 	}
 
@@ -1219,12 +1343,9 @@ func TestResolveServicePort(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolveServicePort(logger, tc.service, tc.portStr)
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("resolveServicePort() error = %v, wantErr %v", err, tc.wantErr)
-			}
-			if tc.wantErr {
-				return
+			got, todo := resolveServicePort(logger, tc.service, tc.portStr)
+			if (todo != nil) != tc.expectTodo {
+				t.Fatalf("resolveServicePort() todo = %v, expectTodo %v", todo, tc.expectTodo)
 			}
 			if got != tc.expected {
 				t.Errorf("expected %+v, got %+v", tc.expected, got)

@@ -146,6 +146,12 @@ func (m *Migrator) PrintSummary(r *MigrationReport) {
 	fmt.Fprintf(m.Stderr, "  Skipped (Unsupported):      %d\n", r.SkippedCount)
 	fmt.Fprintf(m.Stderr, "  Failed:                     %d\n", r.FailedCount)
 	fmt.Fprintln(m.Stderr, "=========================================")
+	if r.ActionItemsCount > 0 {
+		fmt.Fprintln(m.Stderr, "\nNOTE: Some resources were migrated with action items and contain TODO annotations.")
+		fmt.Fprintln(m.Stderr, "These resources include the safety guardrail label:")
+		fmt.Fprintln(m.Stderr, "  'gmp.googleapis.com/migration-review-required: \"true\"'")
+		fmt.Fprintln(m.Stderr, "Review the TODO annotations in the generated manifests and remove this label when ready to activate scraping.")
+	}
 }
 
 // WriteOutputs serializes and writes the converted manifests to the migrator's Stdout stream.

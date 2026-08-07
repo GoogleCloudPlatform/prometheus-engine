@@ -1622,10 +1622,35 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "selector conflict: label \"app\" has conflicting values \"frontend\" (base selector) and \"backend\" (relabeling rule)",
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "conflict-selector-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Selector conflict: label \"app\" has conflicting values \"frontend\" (from base selector) and \"backend\" (from relabeling rule). ACTION: Reconcile 'spec.selector.matchLabels' for label \"app\" with the intended target pods.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "frontend",
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
-			name: "Pre-Scrape Relabelings: conflicting keep rules on same pod label return error",
+			name: "Pre-Scrape Relabelings: conflicting keep rules on same pod label injects guardrail label and TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -1658,7 +1683,33 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "conflicting keep rules for label \"env\": cannot require both \"production\" and \"staging\" simultaneously",
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "conflicting-keep-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Conflicting relabeling keep rules for label \"env\": cannot require both \"production\" and \"staging\" simultaneously. ACTION: Define the intended label value for \"env\" in 'spec.selector.matchLabels'.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "test",
+								"env": "production",
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "BearerTokenSecret with empty Name returns validation error",
@@ -1683,7 +1734,92 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "bearerTokenSecret: secret reference has an empty name for key \"token\"",
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "bearer-token-secret-err",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Referenced Secret has an empty name for key \"token\". ACTION: Specify a valid Secret name in the configuration.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "frontend",
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									Authorization: &monitoringv1.Auth{
+										Credentials: &monitoringv1.SecretSelector{
+											Secret: &monitoringv1.SecretKeySelector{
+												Name: "TODO_SET_SECRET_NAME",
+												Key:  "token",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "PodMetricsEndpoint missing port and targetPort generates draft with TODO",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "missing-port-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "frontend"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Path: "/metrics",
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "missing-port-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Endpoint [0] does not specify a 'port' or 'targetPort'. ACTION: Specify a valid port name or number in 'spec.endpoints[].port'.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "frontend",
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("TODO_SET_PORT"),
+								Path:     "/metrics",
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "Pre-Scrape Relabelings: drop action rule on pod label falls through to metricRelabelings",
@@ -2351,6 +2487,131 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("web"),
 								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "PodMonitor with proxyUrl containing password injects guardrail label and TODO annotation",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "proxy-pass-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "proxy-app"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port:     "web",
+							ProxyURL: ptrTo("http://user:secret123@proxy.example.com:8080"),
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "proxy-pass-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Proxy URL contains embedded plaintext credentials. Credentials were removed. ACTION: Configure proxy authentication via Kubernetes Secret or proxy server configuration.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "proxy-app",
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web"),
+								Interval: "30s",
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									ProxyConfig: monitoringv1.ProxyConfig{
+										ProxyURL: "http://proxy.example.com:8080",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "PodMonitor with missing BasicAuth secret username injects placeholder and TODO annotation",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "missing-secret-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "missing-app"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "web",
+							BasicAuth: &pomonitoringv1.BasicAuth{
+								Username: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing-auth"}, Key: "user"},
+								Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing-auth"}, Key: "pass"},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "missing-secret-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Referenced SECRET \"missing-auth\" for key \"user\" was not found in migration inputs. ACTION: Verify SECRET \"missing-auth\" exists in namespace \"default\" or provide it in migration inputs.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "missing-app",
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web"),
+								Interval: "30s",
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									BasicAuth: &monitoringv1.BasicAuth{
+										Username: "TODO_SET_USER_FROM_SECRET_MISSING-AUTH",
+										Password: &monitoringv1.SecretSelector{
+											Secret: &monitoringv1.SecretKeySelector{
+												Name: "missing-auth",
+												Key:  "pass",
+											},
+										},
+									},
+								},
 							},
 						},
 					},

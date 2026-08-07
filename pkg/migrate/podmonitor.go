@@ -117,7 +117,12 @@ func (c *PodMonitorConverter) convertEndpoints(
 		} else if ep.TargetPort != nil { // nolint:staticcheck // Map deprecated TargetPort for backwards compatibility.
 			gmpEp.Port = *ep.TargetPort // nolint:staticcheck // Map deprecated TargetPort for backwards compatibility.
 		} else {
-			return nil, fmt.Errorf("endpoint [%d]: port or targetPort must be set", i)
+			convCtx.todos = append(convCtx.todos, todoItem{
+				category: "ERROR",
+				reason:   fmt.Sprintf("Endpoint [%d] does not specify a 'port' or 'targetPort'.", i),
+				action:   "Specify a valid port name or number in 'spec.endpoints[].port'.",
+			})
+			gmpEp.Port = intstr.FromString("TODO_SET_PORT")
 		}
 
 		// 2. Basic Fields.
@@ -126,10 +131,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 		gmpEp.Params = ep.Params
 
 		// 3. Scrape Intervals & Timeouts.
-		interval, timeout, err := resolveScrapeIntervalAndTimeout(convCtx.logger, string(ep.Interval), string(ep.ScrapeTimeout))
-		if err != nil {
-			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
-		}
+		interval, timeout := convCtx.resolveScrapeIntervalAndTimeout(string(ep.Interval), string(ep.ScrapeTimeout))
 		gmpEp.Interval = interval
 		gmpEp.Timeout = timeout
 
@@ -137,7 +139,7 @@ func (c *PodMonitorConverter) convertEndpoints(
 		gmpEp.MetricRelabeling = combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
 
 		// Proxy Settings.
-		proxyURL, err := convertProxyURL(ep.ProxyURL)
+		proxyURL, err := convCtx.convertProxyURL(ep.ProxyURL)
 		if err != nil {
 			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 		}
@@ -182,10 +184,7 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 	}
 
 	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, pm.Spec.PodTargetLabels, pm.Spec.JobLabel, "Pod"), rules.ResourceCombined.FromPod)
-	mergedSelector, err := mergeLabelSelector(pm.Spec.Selector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
-	if err != nil {
-		return nil, err
-	}
+	mergedSelector := convCtx.mergeLabelSelector(pm.Spec.Selector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
 	var todos []todoItem
 	todos = append(todos, rules.ResourceCombined.Todos...)
 
@@ -230,7 +229,7 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 		filterRunning:    filterRunning,
 		limits:           limits,
 		generatedSecrets: convCtx.getGeneratedSecrets(),
-		todos:            todos,
+		todos:            append(todos, convCtx.todos...),
 	}, nil
 }
 
