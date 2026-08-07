@@ -46,6 +46,12 @@ const (
 	labelAddress                = "__address__"
 )
 
+const (
+	AnnotationTodoPrefix = "gmp.googleapis.com/todo-"
+	GuardrailLabelKey    = "gmp.googleapis.com/migration-review-required"
+	GuardrailLabelValue  = "true"
+)
+
 // Constants representing the supported ScrapeProtocol enum values defined in upstream Prometheus Operator.
 const (
 	scrapeProtocolOpenMetricsText100 = pomonitoringv1.ScrapeProtocol("OpenMetricsText1.0.0")
@@ -125,6 +131,44 @@ func CopyObjectMeta(src metav1.ObjectMeta, targetNamespace string, logger *slog.
 	}
 
 	return dst
+}
+
+// AddMigrationTodo appends a sequential TODO annotation to the unstructured resource.
+func AddMigrationTodo(u *unstructured.Unstructured, category, reason, action string) {
+	if u == nil || u.Object == nil {
+		return
+	}
+	annotations := u.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	todoNumber := 1
+	for {
+		key := fmt.Sprintf("%s%d", AnnotationTodoPrefix, todoNumber)
+		if _, exists := annotations[key]; !exists {
+			annotations[key] = fmt.Sprintf("[%s] %s ACTION: %s", category, reason, action)
+			break
+		}
+		todoNumber++
+	}
+	u.SetAnnotations(annotations)
+}
+
+// InjectSafetyGuardrail adds a non-matching label to spec.selector.matchLabels to prevent accidental target scraping.
+func InjectSafetyGuardrail(u *unstructured.Unstructured) error {
+	if u == nil || u.Object == nil {
+		return errors.New("cannot inject guardrail into nil unstructured resource")
+	}
+	labelsMap, found, err := unstructured.NestedStringMap(u.Object, "spec", "selector", "matchLabels")
+	if err != nil {
+		return fmt.Errorf("failed to read spec.selector.matchLabels: %w", err)
+	}
+	if !found || labelsMap == nil {
+		labelsMap = make(map[string]string)
+	}
+	labelsMap[GuardrailLabelKey] = GuardrailLabelValue
+	return unstructured.SetNestedStringMap(u.Object, labelsMap, "spec", "selector", "matchLabels")
 }
 
 // parseAndCleanNamespaces trims whitespace, filters out empty strings, and deduplicates namespaces.

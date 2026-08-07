@@ -37,11 +37,11 @@ import (
 
 // MigrationReport accumulates the statistics and payloads of the migration run.
 type MigrationReport struct {
-	SuccessCount int                          // Successfully migrated with no warnings.
-	WarningCount int                          // Successfully migrated but had warnings.
-	SkippedCount int                          // Bypassed because resource is unsupported/out-of-scope.
-	FailedCount  int                          // Fatal failure, resource skipped.
-	Outputs      []*unstructured.Unstructured // Converted GMP manifests in-memory.
+	SuccessCount     int                          // Successfully migrated with no action items.
+	ActionItemsCount int                          // Successfully migrated but had TODO annotations or guardrails.
+	SkippedCount     int                          // Bypassed because resource is unsupported/out-of-scope.
+	FailedCount      int                          // Fatal failure, resource skipped.
+	Outputs          []*unstructured.Unstructured // Converted GMP manifests in-memory.
 }
 
 // Migrator orchestrates the migration process.
@@ -127,8 +127,8 @@ func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 			report.SuccessCount++
 		case StatusSkipped:
 			report.SkippedCount++
-		case StatusWarning:
-			report.WarningCount++
+		case StatusActionItems:
+			report.ActionItemsCount++
 		case StatusFailed:
 			report.FailedCount++
 		}
@@ -141,10 +141,10 @@ func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 func (m *Migrator) PrintSummary(r *MigrationReport) {
 	fmt.Fprintln(m.Stderr, "\n=========================================")
 	fmt.Fprintln(m.Stderr, "Migration Complete Summary:")
-	fmt.Fprintf(m.Stderr, "  Successfully Migrated:  %d\n", r.SuccessCount)
-	fmt.Fprintf(m.Stderr, "  Migrated with Warnings: %d\n", r.WarningCount)
-	fmt.Fprintf(m.Stderr, "  Skipped (Unsupported):  %d\n", r.SkippedCount)
-	fmt.Fprintf(m.Stderr, "  Failed:                 %d\n", r.FailedCount)
+	fmt.Fprintf(m.Stderr, "  Successfully Migrated:      %d\n", r.SuccessCount)
+	fmt.Fprintf(m.Stderr, "  Migrated with Action Items: %d\n", r.ActionItemsCount)
+	fmt.Fprintf(m.Stderr, "  Skipped (Unsupported):      %d\n", r.SkippedCount)
+	fmt.Fprintf(m.Stderr, "  Failed:                     %d\n", r.FailedCount)
 	fmt.Fprintln(m.Stderr, "=========================================")
 }
 

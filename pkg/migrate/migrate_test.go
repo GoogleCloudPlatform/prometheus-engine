@@ -103,8 +103,8 @@ spec:
 	if report.SuccessCount != 1 {
 		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
 	}
-	if report.WarningCount != 0 {
-		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
+	if report.ActionItemsCount != 0 {
+		t.Errorf("expected ActionItemsCount to be 0, got %d", report.ActionItemsCount)
 	}
 	if report.SkippedCount != 0 {
 		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
@@ -210,8 +210,8 @@ spec:
 	if report.SuccessCount != 0 {
 		t.Errorf("expected SuccessCount to be 0, got %d", report.SuccessCount)
 	}
-	if report.WarningCount != 0 {
-		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
+	if report.ActionItemsCount != 0 {
+		t.Errorf("expected ActionItemsCount to be 0, got %d", report.ActionItemsCount)
 	}
 	if report.SkippedCount != 0 {
 		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
@@ -263,8 +263,8 @@ spec:
 	if report.SuccessCount != 0 {
 		t.Errorf("expected SuccessCount to be 0, got %d", report.SuccessCount)
 	}
-	if report.WarningCount != 0 {
-		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
+	if report.ActionItemsCount != 0 {
+		t.Errorf("expected ActionItemsCount to be 0, got %d", report.ActionItemsCount)
 	}
 	if report.FailedCount != 0 {
 		t.Errorf("expected FailedCount to be 0, got %d", report.FailedCount)
@@ -333,8 +333,8 @@ spec:
 	if report.SuccessCount != 1 {
 		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
 	}
-	if report.WarningCount != 0 {
-		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
+	if report.ActionItemsCount != 0 {
+		t.Errorf("expected ActionItemsCount to be 0, got %d", report.ActionItemsCount)
 	}
 	if report.SkippedCount != 0 {
 		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
@@ -399,8 +399,8 @@ items:
 	if report.SuccessCount != 1 {
 		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
 	}
-	if report.WarningCount != 0 {
-		t.Errorf("expected WarningCount to be 0, got %d", report.WarningCount)
+	if report.ActionItemsCount != 0 {
+		t.Errorf("expected ActionItemsCount to be 0, got %d", report.ActionItemsCount)
 	}
 	if report.SkippedCount != 0 {
 		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
