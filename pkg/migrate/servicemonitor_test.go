@@ -672,7 +672,33 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "TODO_SET_POD_SELECTOR",
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("TODO_RESOLVE_PORT"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
 		},
 		{
 			name: "Backing Service has no selector",
@@ -698,7 +724,8 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			expected: nil,
+			wantErr:  false,
 		},
 		{
 			name: "Endpoint missing port and targetPort",
@@ -724,7 +751,34 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Endpoint [0] does not specify a 'port' or 'targetPort'. ACTION: Specify a valid port name or number in 'spec.endpoints[].port'.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "foo-pod",
+								"gmp.googleapis.com/migration-review-required": "true",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("TODO_SET_PORT"),
+								Path:     "/metrics",
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
 		},
 		{
 			name: "JobLabel conversion from Service",

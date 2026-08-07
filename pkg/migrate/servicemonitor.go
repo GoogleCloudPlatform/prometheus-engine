@@ -41,6 +41,7 @@ type serviceGroup struct {
 	portMap      map[string]intstr.IntOrString
 	targetLabels map[string]string
 	services     []*corev1.Service
+	todos        []todoItem
 }
 
 // namespaces returns a sorted slice of unique namespaces where Services in this group reside.
@@ -131,6 +132,9 @@ func (c *ServiceMonitorConverter) convertToMonitoringResources(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to search for Services matching selector: %w", err)
 	}
+	if len(groups) == 0 {
+		return nil, nil, nil
+	}
 
 	if len(groups) > 1 {
 		targetKind := "PodMonitoring"
@@ -208,15 +212,43 @@ func (c *ServiceMonitorConverter) findAndGroupServices(
 		return nil, fmt.Errorf("failed to search for Services matching selector: %w", err)
 	}
 	if len(svcs) == 0 {
-		return nil, errors.New("corresponding Kubernetes Service was not found. Selector and port mappings cannot be resolved")
+		logger.Warn("Corresponding Kubernetes Service was not found. Emitting draft PodMonitoring with placeholder selector and ports.",
+			slog.String("servicemonitor", sm.Name))
+		portMap := make(map[string]intstr.IntOrString)
+		for _, ep := range sm.Spec.Endpoints {
+			k := endpointPortKey(ep)
+			if k == "" {
+				k = "TODO_SET_PORT"
+			}
+			portMap[k] = intstr.FromString("TODO_RESOLVE_PORT")
+		}
+		dummySvc := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      sm.Name,
+				Namespace: sm.Namespace,
+			},
+		}
+		return []*serviceGroup{
+			{
+				selector: map[string]string{
+					"app": "TODO_SET_POD_SELECTOR",
+				},
+				portMap:  portMap,
+				services: []*corev1.Service{dummySvc},
+				todos: []todoItem{
+					{
+						category: "ERROR",
+						reason:   "Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved.",
+						action:   "Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
+					},
+				},
+			},
+		}, nil
 	}
 
 	groups, err := groupServices(logger, sm.Spec.TargetLabels, sm, svcs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to group Services: %w", err)
-	}
-	if len(groups) == 0 {
-		return nil, errors.New("no valid Kubernetes Service groups found. Selector and port mappings cannot be resolved")
 	}
 	return groups, nil
 }
@@ -243,6 +275,7 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 		targetNamespace: sm.Namespace,
 		isClusterScoped: isClusterScoped,
 	}
+	convCtx.todos = append(convCtx.todos, group.todos...)
 
 	// Extract pre-scrape relabelings.
 	var relabelConfigs [][]pomonitoringv1.RelabelConfig
@@ -276,10 +309,7 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	mergedFromPod := mergeFromPod(logger, convertTargetLabels(logger, sm.Spec.PodTargetLabels, "", "Pod"), rules.ResourceCombined.FromPod)
 
 	baseSelector := metav1.LabelSelector{MatchLabels: group.selector}
-	mergedSelector, err := mergeLabelSelector(baseSelector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
-	if err != nil {
-		return nil, err
-	}
+	mergedSelector := convCtx.mergeLabelSelector(baseSelector, rules.ResourceCombined.MatchLabels, rules.ResourceCombined.MatchExpressions)
 	var todos []todoItem
 	todos = append(todos, rules.ResourceCombined.Todos...)
 
@@ -324,7 +354,7 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 		filterRunning:    filterRunning,
 		limits:           limits,
 		generatedSecrets: convCtx.getGeneratedSecrets(),
-		todos:            todos,
+		todos:            append(todos, convCtx.todos...),
 	}, nil
 }
 
@@ -345,9 +375,12 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 
 		// 1. Port mapping (Use pre-resolved port from group).
 		portKey := endpointPortKey(ep)
+		if portKey == "" {
+			portKey = "TODO_SET_PORT"
+		}
 		resolvedPort, exists := group.portMap[portKey]
 		if !exists {
-			return nil, fmt.Errorf("endpoint [%d]: port %q was not resolved for this group", i, portKey)
+			resolvedPort = intstr.FromString("TODO_RESOLVE_PORT")
 		}
 		gmpEp.Port = resolvedPort
 
@@ -357,10 +390,7 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 		gmpEp.Params = ep.Params
 
 		// 3. Scrape Intervals & Timeouts.
-		interval, timeout, err := resolveScrapeIntervalAndTimeout(convCtx.logger, string(ep.Interval), string(ep.ScrapeTimeout))
-		if err != nil {
-			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
-		}
+		interval, timeout := convCtx.resolveScrapeIntervalAndTimeout(string(ep.Interval), string(ep.ScrapeTimeout))
 		gmpEp.Interval = interval
 		gmpEp.Timeout = timeout
 
@@ -368,7 +398,7 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 		gmpEp.MetricRelabeling = combineAndConvertRelabelings(convCtx.logger, epResults[i].PromotedRules, ep.MetricRelabelConfigs)
 
 		// Proxy Settings.
-		proxyURL, err := convertProxyURL(ep.ProxyURL)
+		proxyURL, err := convCtx.convertProxyURL(ep.ProxyURL)
 		if err != nil {
 			return nil, fmt.Errorf("endpoint [%d]: %w", i, err)
 		}
@@ -423,21 +453,33 @@ func groupServices(
 		// 1. Extract and validate selector.
 		selectorString := svc.Spec.Selector
 		if len(selectorString) == 0 {
-			return nil, fmt.Errorf("service %q has no selector (targets external or static endpoints). GMP Managed Collection only supports scraping in-cluster Pod targets", svc.GetName())
+			logger.Info("Service targets external endpoints without a pod selector. GMP Managed Collection only supports in-cluster Pods. Skipping resource.",
+				slog.String("migration_status", "skipped"),
+				slog.String("service", svc.GetName()),
+			)
+			continue
 		}
 
 		// 2. Resolve ports for this Service.
+		var groupTodos []todoItem
 		portMap := make(map[string]intstr.IntOrString)
 		for i, ep := range sm.Spec.Endpoints {
 			portKey := endpointPortKey(ep)
 			if portKey == "" {
-				return nil, fmt.Errorf("endpoint [%d]: port or targetPort must be set", i)
+				portKey = "TODO_SET_PORT"
+				groupTodos = append(groupTodos, todoItem{
+					category: "ERROR",
+					reason:   fmt.Sprintf("Endpoint [%d] does not specify a 'port' or 'targetPort'.", i),
+					action:   "Specify a valid port name or number in 'spec.endpoints[].port'.",
+				})
+				portMap[portKey] = intstr.FromString("TODO_SET_PORT")
+			} else {
+				resolvedPort, todo := resolveServicePort(logger, svc, portKey)
+				if todo != nil {
+					groupTodos = append(groupTodos, *todo)
+				}
+				portMap[portKey] = resolvedPort
 			}
-			resolvedPort, err := resolveServicePort(logger, svc, portKey)
-			if err != nil {
-				return nil, fmt.Errorf("service %q: failed to resolve port %q: %w", svc.Name, portKey, err)
-			}
-			portMap[portKey] = resolvedPort
 		}
 
 		// 3. Resolve target labels for this Service.
@@ -477,12 +519,14 @@ func groupServices(
 			// Merge complementary mappings.
 			maps.Copy(matchedGroup.portMap, portMap)
 			maps.Copy(matchedGroup.targetLabels, resolvedLabels)
+			matchedGroup.todos = append(matchedGroup.todos, groupTodos...)
 		} else {
 			groups = append(groups, &serviceGroup{
 				selector:     svc.Spec.Selector,
 				portMap:      portMap,
 				targetLabels: resolvedLabels,
 				services:     []*corev1.Service{svc},
+				todos:        groupTodos,
 			})
 		}
 	}

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log/slog"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -233,6 +234,7 @@ type conversionContext struct {
 	generatedSecrets map[string]*unstructured.Unstructured
 	// isClusterScoped indicates if the target resource is cluster-scoped (ClusterPodMonitoring).
 	isClusterScoped bool
+	todos           []todoItem
 }
 
 // getGeneratedSecrets returns the generated secrets accumulated in the context as a slice.
@@ -389,9 +391,9 @@ func extractPreScrapeRelabelings(logger *slog.Logger, endpointsRelabelConfigs []
 }
 
 // mergeLabelSelector combines base selector requirements with extracted pre-scrape filtering rules.
-func mergeLabelSelector(base metav1.LabelSelector, extraLabels map[string]string, extraExprs []metav1.LabelSelectorRequirement) (metav1.LabelSelector, error) {
+func (c *conversionContext) mergeLabelSelector(base metav1.LabelSelector, extraLabels map[string]string, extraExprs []metav1.LabelSelectorRequirement) metav1.LabelSelector {
 	if len(extraLabels) == 0 && len(extraExprs) == 0 {
-		return *base.DeepCopy(), nil
+		return *base.DeepCopy()
 	}
 	res := base.DeepCopy()
 	if len(extraLabels) > 0 && res.MatchLabels == nil {
@@ -399,12 +401,17 @@ func mergeLabelSelector(base metav1.LabelSelector, extraLabels map[string]string
 	}
 	for k, v := range extraLabels {
 		if existing, exists := res.MatchLabels[k]; exists && existing != v {
-			return metav1.LabelSelector{}, fmt.Errorf("selector conflict: label %q has conflicting values %q (base selector) and %q (relabeling rule)", k, existing, v)
+			c.todos = append(c.todos, todoItem{
+				category: "ERROR",
+				reason:   fmt.Sprintf("Selector conflict: label %q has conflicting values %q (from base selector) and %q (from relabeling rule).", k, existing, v),
+				action:   fmt.Sprintf("Reconcile 'spec.selector.matchLabels' for label %q with the intended target pods.", k),
+			})
+			continue
 		}
 		res.MatchLabels[k] = v
 	}
 	res.MatchExpressions = append(res.MatchExpressions, extraExprs...)
-	return *res, nil
+	return *res
 }
 
 // mergeFromPod merges target label mappings and deduplicates by target label name.
@@ -445,29 +452,43 @@ func mergeFromPod(logger *slog.Logger, base []monitoringv1.LabelMapping, extra [
 }
 
 // extractResourceKey is a consolidated helper that fetches a key from a ConfigMap or Secret.
-// It returns an error if the reference is malformed, missing, or corrupt.
-func (c *conversionContext) extractResourceKey(kind, name, key string) (string, error) {
+func (c *conversionContext) extractResourceKey(kind, name, key string) string {
 	kindUpper := strings.ToUpper(kind)
 	if name == "" && key == "" {
-		return "", nil
+		return ""
 	}
 	if name == "" {
-		return "", fmt.Errorf("%s reference has an empty name for key %q", kindUpper, key)
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   fmt.Sprintf("Referenced %s has an empty name for key %q.", kindUpper, key),
+			action:   fmt.Sprintf("Specify a valid %s name in the configuration.", kindUpper),
+		})
+		return fmt.Sprintf("TODO_SET_%s_FROM_%s_EMPTY_NAME", strings.ToUpper(key), kindUpper)
 	}
 	if key == "" {
-		return "", fmt.Errorf("%s reference has an empty key for name %q", kindUpper, name)
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   fmt.Sprintf("Referenced %s %q has an empty key.", kindUpper, name),
+			action:   fmt.Sprintf("Specify a valid key in %s %q.", kindUpper, name),
+		})
+		return fmt.Sprintf("TODO_SET_EMPTY_KEY_FROM_%s_%s", kindUpper, strings.ToUpper(name))
 	}
 
 	obj, ok := c.cache.Get(kind, c.sourceNamespace, name)
 	if !ok {
-		return "", fmt.Errorf("%s %q for key %q not found in namespace %q", kind, name, key, c.sourceNamespace)
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   fmt.Sprintf("Referenced %s %q for key %q was not found in migration inputs.", kindUpper, name, key),
+			action:   fmt.Sprintf("Verify %s %q exists in namespace %q or provide it in migration inputs.", kindUpper, name, c.sourceNamespace),
+		})
+		return fmt.Sprintf("TODO_SET_%s_FROM_%s_%s", strings.ToUpper(key), kindUpper, strings.ToUpper(name))
 	}
 
 	// Secrets support unencoded stringData.
 	if kind == KindSecret {
 		val, found, _ := unstructured.NestedString(obj.Object, "stringData", key)
 		if found {
-			return val, nil
+			return val
 		}
 	}
 
@@ -477,11 +498,16 @@ func (c *conversionContext) extractResourceKey(kind, name, key string) (string, 
 		if kind == KindSecret {
 			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(val))
 			if err != nil {
-				return "", fmt.Errorf("failed to decode base64 data for key %q in secret %q: %w", key, name, err)
+				c.todos = append(c.todos, todoItem{
+					category: "ERROR",
+					reason:   fmt.Sprintf("Failed to base64-decode key %q in Secret %q.", key, name),
+					action:   fmt.Sprintf("Ensure Secret %q contains valid base64 data (or use stringData).", name),
+				})
+				return fmt.Sprintf("TODO_CORRUPT_SECRET_DATA_%s", strings.ToUpper(key))
 			}
-			return string(decoded), nil
+			return string(decoded)
 		}
-		return val, nil
+		return val
 	}
 
 	// ConfigMaps can store base64 binaryData.
@@ -490,29 +516,37 @@ func (c *conversionContext) extractResourceKey(kind, name, key string) (string, 
 		if found {
 			decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(val))
 			if err != nil {
-				return "", fmt.Errorf("failed to decode base64 binaryData for key %q in configmap %q: %w", key, name, err)
+				c.todos = append(c.todos, todoItem{
+					category: "ERROR",
+					reason:   fmt.Sprintf("Failed to base64-decode key %q in ConfigMap %q.", key, name),
+					action:   fmt.Sprintf("Ensure ConfigMap %q contains valid base64 binaryData.", name),
+				})
+				return fmt.Sprintf("TODO_CORRUPT_CONFIGMAP_DATA_%s", strings.ToUpper(key))
 			}
-			return string(decoded), nil
+			return string(decoded)
 		}
 	}
 
-	return "", fmt.Errorf("key %q not found in %s %q", key, kindUpper, name)
+	c.todos = append(c.todos, todoItem{
+		category: "ERROR",
+		reason:   fmt.Sprintf("Key %q was not found in referenced %s %q.", key, kindUpper, name),
+		action:   fmt.Sprintf("Add the %q key to %s %q.", key, kindUpper, name),
+	})
+	return fmt.Sprintf("TODO_MISSING_KEY_%s_IN_%s_%s", strings.ToUpper(key), kindUpper, strings.ToUpper(name))
 }
 
 // extractSecretKey extracts a string value from a Secret.
-// It returns an error if the reference or data is malformed, or a placeholder if the resource is not found.
-func (c *conversionContext) extractSecretKey(sel corev1.SecretKeySelector) (string, error) {
+func (c *conversionContext) extractSecretKey(sel corev1.SecretKeySelector) string {
 	if sel.Name == "" && sel.Key == "" {
-		return "", nil
+		return ""
 	}
 	return c.extractResourceKey(KindSecret, sel.Name, sel.Key)
 }
 
 // extractConfigMapKey extracts a string value from a ConfigMap.
-// It returns an error if the reference or data is malformed, or a placeholder if the resource is not found.
-func (c *conversionContext) extractConfigMapKey(sel corev1.ConfigMapKeySelector) (string, error) {
+func (c *conversionContext) extractConfigMapKey(sel corev1.ConfigMapKeySelector) string {
 	if sel.Name == "" && sel.Key == "" {
-		return "", nil
+		return ""
 	}
 	return c.extractResourceKey(KindConfigMap, sel.Name, sel.Key)
 }
@@ -523,15 +557,27 @@ func (c *conversionContext) convertConfigMapToSecretSelector(sel *corev1.ConfigM
 	if sel == nil || (sel.Name == "" && sel.Key == "") {
 		return nil, nil
 	}
-	if sel.Name == "" {
-		return nil, fmt.Errorf("configmap reference has an empty name for key %q", sel.Key)
+	name := sel.Name
+	key := sel.Key
+	if name == "" {
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   fmt.Sprintf("Referenced ConfigMap has an empty name for key %q.", key),
+			action:   "Specify a valid ConfigMap name in the configuration.",
+		})
+		name = "TODO_SET_CONFIGMAP_NAME"
 	}
-	if sel.Key == "" {
-		return nil, fmt.Errorf("configmap reference has an empty key for name %q", sel.Name)
+	if key == "" {
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   fmt.Sprintf("Referenced ConfigMap %q has an empty key.", name),
+			action:   fmt.Sprintf("Specify a valid key in ConfigMap %q.", name),
+		})
+		key = "TODO_SET_CONFIGMAP_KEY"
 	}
 
-	secretName := "secret-" + sel.Name
-	secretKey := sel.Key
+	secretName := "secret-" + name
+	secretKey := key
 
 	if sel.Optional != nil && *sel.Optional {
 		c.logger.Warn("ConfigMap reference had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.",
@@ -599,21 +645,33 @@ func (c *conversionContext) convertSecretSelector(sel *corev1.SecretKeySelector)
 	if sel == nil || (sel.Name == "" && sel.Key == "") {
 		return nil, nil
 	}
-	if sel.Name == "" {
-		return nil, fmt.Errorf("secret reference has an empty name for key %q", sel.Key)
+	name := sel.Name
+	key := sel.Key
+	if name == "" {
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   fmt.Sprintf("Referenced Secret has an empty name for key %q.", key),
+			action:   "Specify a valid Secret name in the configuration.",
+		})
+		name = "TODO_SET_SECRET_NAME"
 	}
-	if sel.Key == "" {
-		return nil, fmt.Errorf("secret reference has an empty key for name %q", sel.Name)
+	if key == "" {
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   fmt.Sprintf("Referenced Secret %q has an empty key.", name),
+			action:   fmt.Sprintf("Specify a valid key in Secret %q.", name),
+		})
+		key = "TODO_SET_SECRET_KEY"
 	}
 	if sel.Optional != nil && *sel.Optional {
 		c.logger.Warn("Secret reference had 'optional: true'. GMP does not support optional secrets. The reference is now mandatory.",
-			slog.String("secret", sel.Name))
+			slog.String("secret", name))
 	}
 	var ns string
 	if c.isClusterScoped {
 		ns = c.targetNamespace
 	}
-	secretRef := &monitoringv1.SecretKeySelector{Name: sel.Name, Key: sel.Key, Namespace: ns}
+	secretRef := &monitoringv1.SecretKeySelector{Name: name, Key: key, Namespace: ns}
 	return &monitoringv1.SecretSelector{Secret: secretRef}, nil
 }
 
@@ -623,10 +681,7 @@ func (c *conversionContext) convertBasicAuth(ba *pomonitoringv1.BasicAuth) (*mon
 	if ba == nil {
 		return nil, nil
 	}
-	username, err := c.extractSecretKey(ba.Username)
-	if err != nil {
-		return nil, err
-	}
+	username := c.extractSecretKey(ba.Username)
 	password, err := c.convertSecretSelector(&ba.Password)
 	if err != nil {
 		return nil, err
@@ -681,16 +736,17 @@ func (c *conversionContext) convertOAuth2(oa *pomonitoringv1.OAuth2) (*monitorin
 		return nil, nil
 	}
 	clientID := ""
-	var err error
 	if oa.ClientID.Secret != nil {
-		clientID, err = c.extractSecretKey(*oa.ClientID.Secret)
+		clientID = c.extractSecretKey(*oa.ClientID.Secret)
 	} else if oa.ClientID.ConfigMap != nil {
-		clientID, err = c.extractConfigMapKey(*oa.ClientID.ConfigMap)
+		clientID = c.extractConfigMapKey(*oa.ClientID.ConfigMap)
 	} else {
-		return nil, errors.New("OAuth2 clientID must be defined as either Secret or ConfigMap")
-	}
-	if err != nil {
-		return nil, err
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   "OAuth2 clientID must be defined as either Secret or ConfigMap.",
+			action:   "Specify a valid Secret or ConfigMap reference for 'clientID'.",
+		})
+		clientID = "TODO_SET_OAUTH2_CLIENT_ID"
 	}
 
 	clientSecret, err := c.convertSecretSelector(&oa.ClientSecret)
@@ -980,7 +1036,12 @@ func convertRelabelingToSelector(logger *slog.Logger, data *relabelingData, isSi
 			res.MatchLabels = make(map[string]string)
 		}
 		if existing, exists := res.MatchLabels[labelName]; exists && existing != parts[0] {
-			return false, fmt.Errorf("conflicting keep rules for label %q: cannot require both %q and %q simultaneously", labelName, existing, parts[0])
+			res.Todos = append(res.Todos, todoItem{
+				category: "ERROR",
+				reason:   fmt.Sprintf("Conflicting relabeling keep rules for label %q: cannot require both %q and %q simultaneously.", labelName, existing, parts[0]),
+				action:   fmt.Sprintf("Define the intended label value for %q in 'spec.selector.matchLabels'.", labelName),
+			})
+			return true, nil
 		}
 		res.MatchLabels[labelName] = parts[0]
 		logger.Info(fmt.Sprintf("Converted target filtering relabeling rule (%q -> %q) to Pod Selector (matchLabels).", source, parts[0]))
@@ -1351,41 +1412,60 @@ func resolveFilterRunning(filterRunnings []*bool, logger *slog.Logger, isCluster
 }
 
 // resolveScrapeIntervalAndTimeout validates and caps timeout to interval if needed.
-func resolveScrapeIntervalAndTimeout(logger *slog.Logger, interval, timeout string) (resolvedInterval, resolvedTimeout string, err error) {
+func (c *conversionContext) resolveScrapeIntervalAndTimeout(interval, timeout string) (resolvedInterval, resolvedTimeout string) {
 	// TODO(M2): Inherit global scrape interval from Prometheus CR if empty.
 	if interval == "" {
-		logger.Warn("Scrape interval is empty. Defaulting to '30s' as GMP requires this field.")
+		c.logger.Warn("Scrape interval is empty. Defaulting to '30s' as GMP requires this field.")
 		interval = "30s"
 	}
 
 	intDur, err := prommodel.ParseDuration(interval)
 	if err != nil {
-		return "", "", fmt.Errorf("invalid interval %q: %w", interval, err)
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   fmt.Sprintf("Invalid scrape interval %q.", interval),
+			action:   "Specify a valid Prometheus duration string (e.g. '30s', '1m') in 'spec.endpoints[].interval'.",
+		})
+		interval = "30s"
+		intDur, _ = prommodel.ParseDuration("30s")
 	}
 
 	// TODO(M2): Inherit global scrape timeout from Prometheus CR if empty.
 	if timeout != "" {
 		toDur, err := prommodel.ParseDuration(timeout)
 		if err != nil {
-			return "", "", fmt.Errorf("invalid scrapeTimeout %q: %w", timeout, err)
-		}
-		if toDur > intDur {
-			logger.Warn("Scrape timeout is larger than scrape interval. Capping timeout to interval.",
+			c.todos = append(c.todos, todoItem{
+				category: "ERROR",
+				reason:   fmt.Sprintf("Invalid scrape timeout %q.", timeout),
+				action:   "Specify a valid Prometheus duration string (e.g. '10s') in 'spec.endpoints[].timeout'.",
+			})
+			timeout = ""
+		} else if toDur > intDur {
+			c.logger.Warn("Scrape timeout is larger than scrape interval. Capping timeout to interval.",
 				slog.String("timeout", timeout),
 				slog.String("interval", interval))
 			timeout = interval
 		}
 	}
-	return interval, timeout, nil
+	return interval, timeout
 }
 
-// convertProxyURL verifies proxy URL credentials.
-func convertProxyURL(proxyURL *string) (string, error) {
+// convertProxyURL verifies proxy URL credentials and attaches a TODO if passwords are present.
+func (c *conversionContext) convertProxyURL(proxyURL *string) (string, error) {
 	if proxyURL == nil {
 		return "", nil
 	}
-	if strings.Contains(*proxyURL, "@") {
-		return "", errors.New("proxyUrl contains credentials (matches '@'), which is blocked by GMP API validation")
+	parsed, err := url.Parse(*proxyURL)
+	if err == nil && parsed.User != nil {
+		if _, hasPass := parsed.User.Password(); hasPass {
+			c.todos = append(c.todos, todoItem{
+				category: "ERROR",
+				reason:   "Proxy URL contains embedded plaintext credentials. Credentials were removed.",
+				action:   "Configure proxy authentication via Kubernetes Secret or proxy server configuration.",
+			})
+			parsed.User = nil
+			return parsed.String(), nil
+		}
 	}
 	return *proxyURL, nil
 }
@@ -1444,15 +1524,19 @@ func endpointPortKey(ep pomonitoringv1.Endpoint) string {
 }
 
 // resolveServicePort resolves a Service port to the backing Pod's target port.
-func resolveServicePort(logger *slog.Logger, svc *corev1.Service, portStr string) (intstr.IntOrString, error) {
+func resolveServicePort(logger *slog.Logger, svc *corev1.Service, portStr string) (intstr.IntOrString, *todoItem) {
 	if portStr == "" {
-		return intstr.IntOrString{}, errors.New("port string cannot be empty")
+		return intstr.FromString("TODO_SET_PORT"), nil
 	}
 	if svc == nil {
-		return intstr.IntOrString{}, errors.New("cannot resolve port on nil or uninitialized Service")
+		return intstr.FromString("TODO_RESOLVE_PORT"), nil
 	}
 	if len(svc.Spec.Ports) == 0 {
-		return intstr.IntOrString{}, errors.New("service has no ports defined in spec")
+		return intstr.FromString(fmt.Sprintf("TODO_RESOLVE_PORT_%s", strings.ToUpper(portStr))), &todoItem{
+			category: "WARNING",
+			reason:   fmt.Sprintf("Port %q could not be resolved because Service %q defines no ports in its spec.", portStr, svc.Name),
+			action:   fmt.Sprintf("Verify that target pods expose port %q.", portStr),
+		}
 	}
 
 	for _, p := range svc.Spec.Ports {
@@ -1472,7 +1556,11 @@ func resolveServicePort(logger *slog.Logger, svc *corev1.Service, portStr string
 		}
 	}
 
-	return intstr.IntOrString{}, fmt.Errorf("port %q not found in Service spec", portStr)
+	return intstr.FromString(fmt.Sprintf("TODO_RESOLVE_PORT_%s", strings.ToUpper(portStr))), &todoItem{
+		category: "WARNING",
+		reason:   fmt.Sprintf("Port %q was not found in Service %q spec.", portStr, svc.Name),
+		action:   fmt.Sprintf("Verify that target pods expose port %q.", portStr),
+	}
 }
 
 const (

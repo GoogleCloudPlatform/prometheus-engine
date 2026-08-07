@@ -415,3 +415,48 @@ items:
 		t.Errorf("expected reference to be successfully resolved inside list, got logs: %q", stderrLogs)
 	}
 }
+
+func TestMigratorPrintSummary(t *testing.T) {
+	tests := []struct {
+		name         string
+		report       *MigrationReport
+		wantContains []string
+	}{
+		{
+			name: "Clean report without action items",
+			report: &MigrationReport{
+				SuccessCount: 2,
+			},
+			wantContains: []string{
+				"Successfully Migrated:      2",
+				"Migrated with Action Items: 0",
+			},
+		},
+		{
+			name: "Report with action items includes guidance note",
+			report: &MigrationReport{
+				SuccessCount:     1,
+				ActionItemsCount: 1,
+			},
+			wantContains: []string{
+				"Migrated with Action Items: 1",
+				"gmp.googleapis.com/migration-review-required",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			m := NewMigrator()
+			m.Stderr = &buf
+			m.PrintSummary(tc.report)
+			output := buf.String()
+			for _, s := range tc.wantContains {
+				if !strings.Contains(output, s) {
+					t.Errorf("PrintSummary output missing %q, got:\n%s", s, output)
+				}
+			}
+		})
+	}
+}
