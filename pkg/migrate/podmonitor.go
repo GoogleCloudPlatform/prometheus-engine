@@ -186,11 +186,24 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 	if err != nil {
 		return nil, err
 	}
+	var todos []todoItem
+	todos = append(todos, rules.ResourceCombined.Todos...)
+
 	if len(mergedSelector.MatchLabels) == 0 && len(mergedSelector.MatchExpressions) == 0 {
 		if isCluster {
 			logger.Warn("Resulting ClusterPodMonitoring selector is empty. It will select and scrape all pods across all namespaces. Verify if this is intended.")
+			todos = append(todos, todoItem{
+				category: "WARNING",
+				reason:   "Resulting ClusterPodMonitoring selector is empty and matches all pods across all namespaces.",
+				action:   "Define explicit 'matchLabels' in 'spec.selector'.",
+			})
 		} else {
 			logger.Warn("Resulting PodMonitoring selector is empty. It will select and scrape all pods in this namespace. Verify if this is intended.")
+			todos = append(todos, todoItem{
+				category: "WARNING",
+				reason:   "Resulting PodMonitoring selector is empty and matches all pods in this namespace.",
+				action:   "Define explicit 'matchLabels' in 'spec.selector'.",
+			})
 		}
 	}
 
@@ -217,6 +230,7 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 		filterRunning:    filterRunning,
 		limits:           limits,
 		generatedSecrets: convCtx.getGeneratedSecrets(),
+		todos:            todos,
 	}, nil
 }
 
