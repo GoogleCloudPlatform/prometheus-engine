@@ -37,7 +37,8 @@ import (
 
 // MigrationReport accumulates the statistics and payloads of the migration run.
 type MigrationReport struct {
-	SuccessCount     int                          // Successfully migrated with no action items.
+	SuccessCount     int                          // Successfully migrated with no warnings or action items.
+	WarningsCount    int                          // Migrated with non-blocking warnings (e.g. dropped unsupported fields).
 	ActionItemsCount int                          // Successfully migrated but had TODO annotations or guardrails.
 	SkippedCount     int                          // Bypassed because resource is unsupported/out-of-scope.
 	FailedCount      int                          // Fatal failure, resource skipped.
@@ -127,6 +128,8 @@ func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 			report.SuccessCount++
 		case StatusSkipped:
 			report.SkippedCount++
+		case StatusWarnings:
+			report.WarningsCount++
 		case StatusActionItems:
 			report.ActionItemsCount++
 		case StatusFailed:
@@ -142,6 +145,7 @@ func (m *Migrator) PrintSummary(r *MigrationReport) {
 	fmt.Fprintln(m.Stderr, "\n=========================================")
 	fmt.Fprintln(m.Stderr, "Migration Complete Summary:")
 	fmt.Fprintf(m.Stderr, "  Successfully Migrated:      %d\n", r.SuccessCount)
+	fmt.Fprintf(m.Stderr, "  Migrated with Warnings:     %d\n", r.WarningsCount)
 	fmt.Fprintf(m.Stderr, "  Migrated with Action Items: %d\n", r.ActionItemsCount)
 	fmt.Fprintf(m.Stderr, "  Skipped (Unsupported):      %d\n", r.SkippedCount)
 	fmt.Fprintf(m.Stderr, "  Failed:                     %d\n", r.FailedCount)
