@@ -129,7 +129,7 @@ func CopyObjectMeta(src metav1.ObjectMeta, targetNamespace string, logger *slog.
 	}
 
 	if len(src.Labels) > 0 || len(src.Annotations) > 0 {
-		logger.Warn("Stripped all metadata labels and annotations. Reconfigure them manually if needed")
+		logger.Info("Stripped all metadata labels and annotations. Reconfigure them manually if needed")
 	}
 
 	return dst
@@ -1201,6 +1201,9 @@ func buildPodMonitoring(
 
 	for _, td := range spec.todos {
 		AddMigrationTodo(u, td.category, td.reason, td.action)
+		if logger != nil {
+			logger.Warn(td.reason, slog.String("action", td.action))
+		}
 	}
 	if len(spec.todos) > 0 {
 		if err := InjectSafetyGuardrail(u); err != nil {
@@ -1247,6 +1250,9 @@ func buildClusterPodMonitoring(
 
 	for _, td := range spec.todos {
 		AddMigrationTodo(u, td.category, td.reason, td.action)
+		if logger != nil {
+			logger.Warn(td.reason, slog.String("action", td.action))
+		}
 	}
 	if len(spec.todos) > 0 {
 		if err := InjectSafetyGuardrail(u); err != nil {
