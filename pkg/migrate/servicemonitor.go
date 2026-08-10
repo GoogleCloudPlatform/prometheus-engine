@@ -141,7 +141,7 @@ func (c *ServiceMonitorConverter) convertToMonitoringResources(
 		if isClusterScoped {
 			targetKind = "ClusterPodMonitoring"
 		}
-		logger.Warn(fmt.Sprintf("Services matched by selector have conflicts (different selectors, port mappings, or labels). Splitting into multiple %s resources.", targetKind),
+		logger.Info(fmt.Sprintf("Services matched by selector have conflicts (different selectors, port mappings, or labels). Splitting into multiple %s resources.", targetKind),
 			slog.Int("total_groups", len(groups)),
 			slog.String("servicemonitor", sm.Name))
 	}
