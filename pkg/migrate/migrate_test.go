@@ -429,16 +429,20 @@ func TestMigratorPrintSummary(t *testing.T) {
 			},
 			wantContains: []string{
 				"Successfully Migrated:      2",
+				"Migrated with Warnings:     0",
 				"Migrated with Action Items: 0",
 			},
 		},
 		{
-			name: "Report with action items includes guidance note",
+			name: "Report with warnings and action items includes guidance note",
 			report: &MigrationReport{
 				SuccessCount:     1,
+				WarningsCount:    1,
 				ActionItemsCount: 1,
 			},
 			wantContains: []string{
+				"Successfully Migrated:      1",
+				"Migrated with Warnings:     1",
 				"Migrated with Action Items: 1",
 				"gmp.googleapis.com/migration-review-required",
 			},

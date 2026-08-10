@@ -1202,7 +1202,7 @@ func buildPodMonitoring(
 	for _, td := range spec.todos {
 		AddMigrationTodo(u, td.category, td.reason, td.action)
 		if logger != nil {
-			logger.Warn(td.reason, slog.String("action", td.action))
+			logger.Warn(td.reason, slog.String("action", td.action), slog.String("migration_status", "action_items"))
 		}
 	}
 	if len(spec.todos) > 0 {
@@ -1251,7 +1251,7 @@ func buildClusterPodMonitoring(
 	for _, td := range spec.todos {
 		AddMigrationTodo(u, td.category, td.reason, td.action)
 		if logger != nil {
-			logger.Warn(td.reason, slog.String("action", td.action))
+			logger.Warn(td.reason, slog.String("action", td.action), slog.String("migration_status", "action_items"))
 		}
 	}
 	if len(spec.todos) > 0 {

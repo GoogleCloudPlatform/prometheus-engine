@@ -31,15 +31,10 @@ type ResourceStatus int
 const (
 	StatusSuccess     ResourceStatus = iota // 0 (Migrated Successfully).
 	StatusSkipped                           // 1 (Skipped / Unsupported).
-	StatusActionItems                       // 2 (Migrated with Action Items).
-	StatusFailed                            // 3 (Failed).
+	StatusWarnings                          // 2 (Migrated with Warnings).
+	StatusActionItems                       // 3 (Migrated with Action Items).
+	StatusFailed                            // 4 (Failed).
 )
-
-// statusLevels maps slog.Levels to their corresponding ResourceStatus.
-var statusLevels = map[slog.Level]ResourceStatus{
-	slog.LevelWarn:  StatusActionItems,
-	slog.LevelError: StatusFailed,
-}
 
 // loggerState encapsulates the shared, thread-safe state across all handler clones.
 type loggerState struct {
@@ -164,15 +159,23 @@ func (h *ConsoleHandler) Handle(_ context.Context, r slog.Record) error {
 	}
 
 	if key != "" {
-		if r.Level == slog.LevelInfo {
+		switch r.Level {
+		case slog.LevelInfo:
 			switch migrationStatus {
 			case "skipped":
 				h.trackStatus(key, StatusSkipped)
 			case "success":
 				h.trackStatus(key, StatusSuccess)
 			}
-		} else if status, ok := statusLevels[r.Level]; ok {
-			h.trackStatus(key, status)
+		case slog.LevelWarn:
+			switch migrationStatus {
+			case "action_items":
+				h.trackStatus(key, StatusActionItems)
+			default:
+				h.trackStatus(key, StatusWarnings)
+			}
+		case slog.LevelError:
+			h.trackStatus(key, StatusFailed)
 		}
 	}
 
