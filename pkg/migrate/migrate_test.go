@@ -420,6 +420,7 @@ func TestMigratorPrintSummary(t *testing.T) {
 	tests := []struct {
 		name         string
 		report       *MigrationReport
+		emitAll      bool
 		wantContains []string
 	}{
 		{
@@ -427,6 +428,7 @@ func TestMigratorPrintSummary(t *testing.T) {
 			report: &MigrationReport{
 				SuccessCount: 2,
 			},
+			emitAll: false,
 			wantContains: []string{
 				"Successfully Migrated:      2",
 				"Migrated with Warnings:     0",
@@ -434,17 +436,38 @@ func TestMigratorPrintSummary(t *testing.T) {
 			},
 		},
 		{
-			name: "Report with warnings and action items includes guidance note",
+			name: "Default mode with action items notes omitted drafts",
 			report: &MigrationReport{
 				SuccessCount:     1,
 				WarningsCount:    1,
 				ActionItemsCount: 1,
+				ReadyOutputs:     make([]*unstructured.Unstructured, 2),
 			},
+			emitAll: false,
 			wantContains: []string{
 				"Successfully Migrated:      1",
 				"Migrated with Warnings:     1",
 				"Migrated with Action Items: 1",
-				"gmp.googleapis.com/migration-review-required",
+				"NOTE: Emitted 2 ready manifests to Stdout.",
+				"1 manifests with action items were omitted from Stdout as they contain best-effort draft configurations with TODO annotations and placeholders.",
+				"Run with '--all' to output all manifests for review.",
+			},
+		},
+		{
+			name: "All mode with action items notes draft review",
+			report: &MigrationReport{
+				SuccessCount:     1,
+				WarningsCount:    1,
+				ActionItemsCount: 1,
+				Outputs:          make([]*unstructured.Unstructured, 3),
+			},
+			emitAll: true,
+			wantContains: []string{
+				"Successfully Migrated:      1",
+				"Migrated with Warnings:     1",
+				"Migrated with Action Items: 1",
+				"NOTE: 1 manifests contain best-effort draft configurations with TODO annotations and placeholders.",
+				"Review the inline 'gmp.googleapis.com/todo-*' annotations in the generated manifests before applying to a cluster.",
 			},
 		},
 	}
@@ -454,7 +477,7 @@ func TestMigratorPrintSummary(t *testing.T) {
 			var buf bytes.Buffer
 			m := NewMigrator()
 			m.Stderr = &buf
-			m.PrintSummary(tc.report)
+			m.PrintSummary(tc.report, tc.emitAll)
 			output := buf.String()
 			for _, s := range tc.wantContains {
 				if !strings.Contains(output, s) {

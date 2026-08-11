@@ -1215,11 +1215,7 @@ func TestPodMonitorConversion(t *testing.T) {
 						},
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
-						Selector: metav1.LabelSelector{
-							MatchLabels: map[string]string{
-								"gmp.googleapis.com/migration-review-required": "true",
-							},
-						},
+						Selector: metav1.LabelSelector{},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Port:     intstr.FromString("metrics"),
@@ -1636,7 +1632,6 @@ func TestPodMonitorConversion(t *testing.T) {
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"app": "frontend",
-								"gmp.googleapis.com/migration-review-required": "true",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -1698,7 +1693,6 @@ func TestPodMonitorConversion(t *testing.T) {
 							MatchLabels: map[string]string{
 								"app": "test",
 								"env": "production",
-								"gmp.googleapis.com/migration-review-required": "true",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -1748,7 +1742,6 @@ func TestPodMonitorConversion(t *testing.T) {
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"app": "frontend",
-								"gmp.googleapis.com/migration-review-required": "true",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -1807,7 +1800,6 @@ func TestPodMonitorConversion(t *testing.T) {
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"app": "frontend",
-								"gmp.googleapis.com/migration-review-required": "true",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -2431,7 +2423,6 @@ func TestPodMonitorConversion(t *testing.T) {
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"app": "annotated-app",
-								"gmp.googleapis.com/migration-review-required": "true",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -2478,11 +2469,7 @@ func TestPodMonitorConversion(t *testing.T) {
 						},
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
-						Selector: metav1.LabelSelector{
-							MatchLabels: map[string]string{
-								"gmp.googleapis.com/migration-review-required": "true",
-							},
-						},
+						Selector: metav1.LabelSelector{},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Port:     intstr.FromString("web"),
@@ -2533,7 +2520,6 @@ func TestPodMonitorConversion(t *testing.T) {
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"app": "proxy-app",
-								"gmp.googleapis.com/migration-review-required": "true",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -2594,7 +2580,6 @@ func TestPodMonitorConversion(t *testing.T) {
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"app": "missing-app",
-								"gmp.googleapis.com/migration-review-required": "true",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{

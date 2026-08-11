@@ -49,8 +49,6 @@ const (
 
 const (
 	AnnotationTodoPrefix = "gmp.googleapis.com/todo-"
-	GuardrailLabelKey    = "gmp.googleapis.com/migration-review-required"
-	GuardrailLabelValue  = "true"
 )
 
 // Constants representing the supported ScrapeProtocol enum values defined in upstream Prometheus Operator.
@@ -155,22 +153,6 @@ func AddMigrationTodo(u *unstructured.Unstructured, category, reason, action str
 		todoNumber++
 	}
 	u.SetAnnotations(annotations)
-}
-
-// InjectSafetyGuardrail adds a non-matching label to spec.selector.matchLabels to prevent accidental target scraping.
-func InjectSafetyGuardrail(u *unstructured.Unstructured) error {
-	if u == nil || u.Object == nil {
-		return errors.New("cannot inject guardrail into nil unstructured resource")
-	}
-	labelsMap, found, err := unstructured.NestedStringMap(u.Object, "spec", "selector", "matchLabels")
-	if err != nil {
-		return fmt.Errorf("failed to read spec.selector.matchLabels: %w", err)
-	}
-	if !found || labelsMap == nil {
-		labelsMap = make(map[string]string)
-	}
-	labelsMap[GuardrailLabelKey] = GuardrailLabelValue
-	return unstructured.SetNestedStringMap(u.Object, labelsMap, "spec", "selector", "matchLabels")
 }
 
 // parseAndCleanNamespaces trims whitespace, filters out empty strings, and deduplicates namespaces.
@@ -1205,11 +1187,6 @@ func buildPodMonitoring(
 			logger.Warn(td.reason, slog.String("action", td.action), slog.String("migration_status", "action_items"))
 		}
 	}
-	if len(spec.todos) > 0 {
-		if err := InjectSafetyGuardrail(u); err != nil {
-			return nil, err
-		}
-	}
 
 	return u, nil
 }
@@ -1252,11 +1229,6 @@ func buildClusterPodMonitoring(
 		AddMigrationTodo(u, td.category, td.reason, td.action)
 		if logger != nil {
 			logger.Warn(td.reason, slog.String("action", td.action), slog.String("migration_status", "action_items"))
-		}
-	}
-	if len(spec.todos) > 0 {
-		if err := InjectSafetyGuardrail(u); err != nil {
-			return nil, err
 		}
 	}
 

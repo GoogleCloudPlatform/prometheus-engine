@@ -39,10 +39,11 @@ import (
 type MigrationReport struct {
 	SuccessCount     int                          // Successfully migrated with no warnings or action items.
 	WarningsCount    int                          // Migrated with non-blocking warnings (e.g. dropped unsupported fields).
-	ActionItemsCount int                          // Successfully migrated but had TODO annotations or guardrails.
+	ActionItemsCount int                          // Successfully migrated but had TODO annotations.
 	SkippedCount     int                          // Bypassed because resource is unsupported/out-of-scope.
 	FailedCount      int                          // Fatal failure, resource skipped.
-	Outputs          []*unstructured.Unstructured // Converted GMP manifests in-memory.
+	Outputs          []*unstructured.Unstructured // All converted GMP manifests in-memory.
+	ReadyOutputs     []*unstructured.Unstructured // Only 100% ready manifests (0 TODO annotations).
 }
 
 // Migrator orchestrates the migration process.
@@ -121,6 +122,14 @@ func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 	outputs := m.convertResources()
 	report.Outputs = outputs
 
+	var readyOutputs []*unstructured.Unstructured
+	for _, out := range outputs {
+		if !hasTodoAnnotations(out) {
+			readyOutputs = append(readyOutputs, out)
+		}
+	}
+	report.ReadyOutputs = readyOutputs
+
 	// 4. Calculate final statistics from the handler's tracked statuses.
 	for _, status := range handler.ResourceStatuses() {
 		switch status {
@@ -140,8 +149,21 @@ func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
 	return report, nil
 }
 
+// hasTodoAnnotations returns true if the resource contains any GMP migration TODO annotations.
+func hasTodoAnnotations(u *unstructured.Unstructured) bool {
+	if u == nil {
+		return false
+	}
+	for k := range u.GetAnnotations() {
+		if strings.HasPrefix(k, AnnotationTodoPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // PrintSummary formats and writes the standardized migration report summary.
-func (m *Migrator) PrintSummary(r *MigrationReport) {
+func (m *Migrator) PrintSummary(r *MigrationReport, emitAll bool) {
 	fmt.Fprintln(m.Stderr, "\n=========================================")
 	fmt.Fprintln(m.Stderr, "Migration Complete Summary:")
 	fmt.Fprintf(m.Stderr, "  Successfully Migrated:      %d\n", r.SuccessCount)
@@ -151,10 +173,14 @@ func (m *Migrator) PrintSummary(r *MigrationReport) {
 	fmt.Fprintf(m.Stderr, "  Failed:                     %d\n", r.FailedCount)
 	fmt.Fprintln(m.Stderr, "=========================================")
 	if r.ActionItemsCount > 0 {
-		fmt.Fprintln(m.Stderr, "\nNOTE: Some resources were migrated with action items and contain TODO annotations.")
-		fmt.Fprintln(m.Stderr, "These resources include the safety guardrail label:")
-		fmt.Fprintln(m.Stderr, "  'gmp.googleapis.com/migration-review-required: \"true\"'")
-		fmt.Fprintln(m.Stderr, "Review the TODO annotations in the generated manifests and remove this label when ready to activate scraping.")
+		if !emitAll {
+			fmt.Fprintf(m.Stderr, "\nNOTE: Emitted %d ready manifests to Stdout.\n", len(r.ReadyOutputs))
+			fmt.Fprintf(m.Stderr, "%d manifests with action items were omitted from Stdout as they contain best-effort draft configurations with TODO annotations and placeholders.\n", r.ActionItemsCount)
+			fmt.Fprintln(m.Stderr, "Run with '--all' to output all manifests for review.")
+		} else {
+			fmt.Fprintf(m.Stderr, "\nNOTE: %d manifests contain best-effort draft configurations with TODO annotations and placeholders.\n", r.ActionItemsCount)
+			fmt.Fprintln(m.Stderr, "Review the inline 'gmp.googleapis.com/todo-*' annotations in the generated manifests before applying to a cluster.")
+		}
 	}
 }
 
