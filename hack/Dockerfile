@@ -69,7 +69,7 @@ COPY --from=hermetic /workspace/e2e e2e
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
 FROM google-go.pkg.dev/golang:1.26.5@sha256:5075e8b0e1a7913c2274737c1a8b379ea264322c082bd21d3911d196dce46559 AS buildbase
-FROM docker:29.2-cli AS docker
+FROM docker:29.6-cli AS docker
 FROM debian:stable-slim AS kindtest
 
 WORKDIR /build
