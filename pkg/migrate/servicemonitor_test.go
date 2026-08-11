@@ -686,7 +686,6 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"app": "TODO_SET_POD_SELECTOR",
-								"gmp.googleapis.com/migration-review-required": "true",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -765,7 +764,6 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"app": "foo-pod",
-								"gmp.googleapis.com/migration-review-required": "true",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{

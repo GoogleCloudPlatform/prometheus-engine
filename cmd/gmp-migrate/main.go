@@ -49,6 +49,10 @@ func main() {
 	flag.Var(&inputFiles, "file", "Input source (YAML file, directory, or '-' for stdin) (Required)")
 	flag.Var(&inputFiles, "f", "Input source (YAML file, directory, or '-' for stdin) (Required)")
 
+	var emitAll bool
+	flag.BoolVar(&emitAll, "all", false, "Emit all manifests, including best-effort draft configurations with TODO annotations")
+	flag.BoolVar(&emitAll, "a", false, "Emit all manifests, including best-effort draft configurations with TODO annotations")
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		fmt.Fprint(os.Stderr, "Migrate Prometheus Operator configurations to Google Managed Prometheus (GMP).\n\n")
@@ -87,19 +91,30 @@ func main() {
 
 	// If any resource failed to convert in-memory, we print summary and abort.
 	if report.FailedCount > 0 {
-		migrator.PrintSummary(report) // Still print the diagnostic summary to Stderr.
+		migrator.PrintSummary(report, emitAll) // Still print the diagnostic summary to Stderr.
 		slog.Error("Migration aborted: resources failed conversion. Zero manifests were written to Stdout.",
 			slog.Int("failures", report.FailedCount),
 		)
 		os.Exit(1)
 	}
 
+	// Select outputs based on --all flag.
+	outputsToWrite := report.ReadyOutputs
+	if emitAll {
+		outputsToWrite = report.Outputs
+	}
+
 	// Write the converted GMP manifests using the migrator's Stdout stream.
-	if err := migrator.WriteOutputs(report.Outputs); err != nil {
+	if err := migrator.WriteOutputs(outputsToWrite); err != nil {
 		slog.Error("Failed to write outputs", slog.Any("error", err))
 		os.Exit(1)
 	}
 
 	// Print the successful complete summary to Stderr.
-	migrator.PrintSummary(report)
+	migrator.PrintSummary(report, emitAll)
+
+	// If any resource required action items or failed, exit with 1.
+	if report.ActionItemsCount > 0 || report.FailedCount > 0 {
+		os.Exit(1)
+	}
 }
