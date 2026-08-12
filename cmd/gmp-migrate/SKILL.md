@@ -19,7 +19,7 @@ This skill guides agents through executing the migration CLI tool, interpreting 
 
 ### Core CLI Invocations
 
-1. **Default Mode (Ready-Only)**: Emits strictly 100% ready manifests to `Stdout`. Orompts/omits any best-effort drafts requiring human/agent review.
+1. **Default Mode (Ready-only)**: Emits strictly 100% ready manifests to `Stdout`. Omits any best-effort drafts requiring human/agent review.
    ```bash
    gmp-migrate -f <input-path> > ready_manifests.yaml 2> migration.log
    ```
@@ -319,7 +319,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   1. **Intersection Query**: Query for workloads matching **both** the monitor's original `spec.selector` AND the annotation:
      ```bash
      kubectl get deployment,statefulset,daemonset -n <namespace> -l <original-monitor-selector> \
-       -o jsonpath='{range .items[?(@.spec.template.metadata.annotations.prometheus\.io/scrape=="true")]}{.kind}{"/"}{.metadata.name}{"\n"}{end}'
+       -o jsonpath='{range .items[?(@.spec.template.metadata.annotations["prometheus.io/scrape"]=="true")]}{.kind}{"/"}{.metadata.name}{"\n"}{end}'
      ```
   2. **Update `PodMonitoring`**: Combine the original selector with the promoted label:
      ```yaml
@@ -336,7 +336,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   1. **Identify Excluded Workloads**: Query for workloads matching `spec.selector` that have the exclusion annotation:
      ```bash
      kubectl get deployment,statefulset,daemonset -n <namespace> -l <original-monitor-selector> \
-       -o jsonpath='{range .items[?(@.spec.template.metadata.annotations.prometheus\.io/scrape=="false")]}{.kind}{"/"}{.metadata.name}{"\n"}{end}'
+       -o jsonpath='{range .items[?(@.spec.template.metadata.annotations["prometheus.io/scrape"]=="false")]}{.kind}{"/"}{.metadata.name}{"\n"}{end}'
      ```
   2. **Inverted Selector via `matchExpressions: NotIn`**:
      - Add `labels: { prometheus.io/scrape: "false" }` to the excluded workload(s).
