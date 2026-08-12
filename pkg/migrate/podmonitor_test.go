@@ -2436,6 +2436,61 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
+			name: "PodMonitor with dropped node metadata relabeling attaches TODO annotation",
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "node-keep-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "node-app"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "web",
+							RelabelConfigs: []pomonitoringv1.RelabelConfig{
+								{
+									Action:       "keep",
+									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_node_label_topology_kubernetes_io_zone"},
+									Regex:        "us-central1-a",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "node-keep-monitor",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[WARNING] Dropped target filtering rule ('keep' on '__meta_kubernetes_node_label_topology_kubernetes_io_zone'). ACTION: Add equivalent pod label selector in 'spec.selector.matchLabels'.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "node-app",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("web"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "PodMonitor with empty selector injects guardrail label and TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{

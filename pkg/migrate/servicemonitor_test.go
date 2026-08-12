@@ -700,6 +700,118 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:       "Missing backing Service with multiple target namespaces",
+			setupCache: func(_ *ResourceCache) error { return nil },
+			inputSM: &pomonitoringv1.ServiceMonitor{
+				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.ServiceMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						MatchNames: []string{"ns-1", "ns-2"},
+					},
+					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+					Endpoints: []pomonitoringv1.Endpoint{
+						{Port: "web"},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.PodMonitoring{
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor",
+						Namespace: "ns-1",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "TODO_SET_POD_SELECTOR",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("TODO_RESOLVE_PORT"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+				&monitoringv1.PodMonitoring{
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-monitor",
+						Namespace: "ns-2",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
+						},
+					},
+					Spec: monitoringv1.PodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "TODO_SET_POD_SELECTOR",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("TODO_RESOLVE_PORT"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:       "Missing backing Service with cluster scoping",
+			setupCache: func(_ *ResourceCache) error { return nil },
+			inputSM: &pomonitoringv1.ServiceMonitor{
+				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-cluster-monitor",
+					Namespace: "default",
+				},
+				Spec: pomonitoringv1.ServiceMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{Any: true},
+					Selector:          metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
+					Endpoints: []pomonitoringv1.Endpoint{
+						{Port: "web"},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.ClusterPodMonitoring{
+					TypeMeta: BuildTypeMeta(KindClusterPodMonitoring),
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "my-cluster-monitor",
+						Annotations: map[string]string{
+							"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
+						},
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "TODO_SET_POD_SELECTOR",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("TODO_RESOLVE_PORT"),
+								Interval: "30s",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "Backing Service has no selector",
 			setupCache: func(cache *ResourceCache) error {
 				return addServiceWithSelectorToCache(cache, "default", "my-service",
@@ -909,29 +1021,27 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				return
 			}
 
-			if tc.expected != nil {
-				if len(outputs) != len(tc.expected) {
-					t.Fatalf("expected %d outputs, got %d", len(tc.expected), len(outputs))
+			if len(outputs) != len(tc.expected) {
+				t.Fatalf("expected %d outputs, got %d", len(tc.expected), len(outputs))
+			}
+			for i := range tc.expected {
+				var gotObj runtime.Object
+				switch tc.expected[i].(type) {
+				case *monitoringv1.PodMonitoring:
+					gotObj = &monitoringv1.PodMonitoring{}
+				case *monitoringv1.ClusterPodMonitoring:
+					gotObj = &monitoringv1.ClusterPodMonitoring{}
+				default:
+					t.Fatalf("expected object at index %d must be a pointer to a recognized monitoring type, got %T", i, tc.expected[i])
 				}
-				for i := range tc.expected {
-					var gotObj runtime.Object
-					switch tc.expected[i].(type) {
-					case *monitoringv1.PodMonitoring:
-						gotObj = &monitoringv1.PodMonitoring{}
-					case *monitoringv1.ClusterPodMonitoring:
-						gotObj = &monitoringv1.ClusterPodMonitoring{}
-					default:
-						t.Fatalf("expected object at index %d must be a pointer to a recognized monitoring type, got %T", i, tc.expected[i])
-					}
 
-					err := runtime.DefaultUnstructuredConverter.FromUnstructured(outputs[i].Object, gotObj)
-					if err != nil {
-						t.Fatalf("failed to convert actual to struct: %v", err)
-					}
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(outputs[i].Object, gotObj)
+				if err != nil {
+					t.Fatalf("failed to convert actual to struct: %v", err)
+				}
 
-					if diff := cmp.Diff(tc.expected[i], gotObj); diff != "" {
-						t.Errorf("mismatch at index %d (-want +got):\n%s", i, diff)
-					}
+				if diff := cmp.Diff(tc.expected[i], gotObj); diff != "" {
+					t.Errorf("mismatch at index %d (-want +got):\n%s", i, diff)
 				}
 			}
 		})

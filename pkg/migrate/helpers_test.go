@@ -878,6 +878,12 @@ func TestConvertProxyURL(t *testing.T) {
 			expectTodos: 1,
 		},
 		{
+			name:        "proxyURL with username only sanitizes credentials and adds todo",
+			proxyURL:    ptrTo("http://user@proxy.example.com:8080"),
+			expectedURL: "http://proxy.example.com:8080",
+			expectTodos: 1,
+		},
+		{
 			name:        "malformed proxyURL returns placeholder and adds todo",
 			proxyURL:    ptrTo("://invalid-url"),
 			expectedURL: "TODO_SET_VALID_PROXY_URL",

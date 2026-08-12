@@ -222,11 +222,25 @@ func (c *ServiceMonitorConverter) findAndGroupServices(
 			}
 			portMap[k] = intstr.FromString("TODO_RESOLVE_PORT")
 		}
-		dummySvc := &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      sm.Name,
-				Namespace: sm.Namespace,
-			},
+		var dummySvcs []*corev1.Service
+		if len(targetNamespaces) == 0 {
+			dummySvcs = []*corev1.Service{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      sm.Name,
+						Namespace: sm.Namespace,
+					},
+				},
+			}
+		} else {
+			for _, ns := range targetNamespaces {
+				dummySvcs = append(dummySvcs, &corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      sm.Name,
+						Namespace: ns,
+					},
+				})
+			}
 		}
 		return []*serviceGroup{
 			{
@@ -234,7 +248,7 @@ func (c *ServiceMonitorConverter) findAndGroupServices(
 					"app": "TODO_SET_POD_SELECTOR",
 				},
 				portMap:  portMap,
-				services: []*corev1.Service{dummySvc},
+				services: dummySvcs,
 				todos: []todoItem{
 					{
 						category: "ERROR",
