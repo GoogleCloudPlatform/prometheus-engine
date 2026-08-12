@@ -913,6 +913,9 @@ func shouldSkipRelabelConfig(logger *slog.Logger, config pomonitoringv1.RelabelC
 		}
 		if strings.HasPrefix(s, "__meta_kubernetes_node_") && s != "__meta_kubernetes_node_name" {
 			logger.Warn(fmt.Sprintf("Relabeling rule referencing node metadata %q is unsupported in GMP (only node name is supported). The rule has been dropped.", s))
+			if action == relabel.Keep || action == relabel.Drop {
+				return true, true, fmt.Sprintf("'%s' on '%s'", action, s)
+			}
 			return true, false, ""
 		}
 	}
@@ -1382,7 +1385,7 @@ func (c *conversionContext) resolveScrapeIntervalAndTimeout(interval, timeout st
 	return interval, timeout
 }
 
-// convertProxyURL verifies proxy URL credentials and attaches a TODO if passwords are present or malformed.
+// convertProxyURL verifies proxy URL credentials and attaches a TODO if credentials are present or malformed.
 func (c *conversionContext) convertProxyURL(proxyURL *string) string {
 	if proxyURL == nil {
 		return ""
@@ -1397,15 +1400,13 @@ func (c *conversionContext) convertProxyURL(proxyURL *string) string {
 		return "TODO_SET_VALID_PROXY_URL"
 	}
 	if parsed.User != nil {
-		if _, hasPass := parsed.User.Password(); hasPass {
-			c.todos = append(c.todos, todoItem{
-				category: "ERROR",
-				reason:   "Proxy URL contains embedded plaintext credentials. Credentials were removed.",
-				action:   "Configure proxy authentication via Kubernetes Secret or proxy server configuration.",
-			})
-			parsed.User = nil
-			return parsed.String()
-		}
+		c.todos = append(c.todos, todoItem{
+			category: "ERROR",
+			reason:   "Proxy URL contains embedded plaintext credentials. Credentials were removed.",
+			action:   "Configure proxy authentication via Kubernetes Secret or proxy server configuration.",
+		})
+		parsed.User = nil
+		return parsed.String()
 	}
 	return *proxyURL
 }
