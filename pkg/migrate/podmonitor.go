@@ -162,6 +162,7 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 		cache:           cache,
 		sourceNamespace: pm.Namespace,
 		targetNamespace: targetNamespace,
+		isClusterScoped: isCluster,
 	}
 	var relabelConfigs [][]pomonitoringv1.RelabelConfig
 	for _, ep := range pm.Spec.PodMetricsEndpoints {

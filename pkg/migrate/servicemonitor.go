@@ -97,6 +97,11 @@ func (c *ServiceMonitorConverter) Convert(_ context.Context, logger *slog.Logger
 		var outputs []*unstructured.Unstructured
 		outputs = append(outputs, clusterPodMonitorings...)
 		outputs = append(outputs, generatedSecrets...)
+		if len(outputs) == 0 {
+			logger.Info("All matched Services lack pod selectors (target external endpoints). GMP Managed Collection only supports in-cluster Pods. Skipping resource.",
+				slog.String("migration_status", "skipped"),
+			)
+		}
 		return outputs, nil
 	}
 
@@ -118,6 +123,11 @@ func (c *ServiceMonitorConverter) Convert(_ context.Context, logger *slog.Logger
 	var outputs []*unstructured.Unstructured
 	outputs = append(outputs, podMonitorings...)
 	outputs = append(outputs, generatedSecrets...)
+	if len(outputs) == 0 {
+		logger.Info("All matched Services lack pod selectors (target external endpoints). GMP Managed Collection only supports in-cluster Pods. Skipping resource.",
+			slog.String("migration_status", "skipped"),
+		)
+	}
 	return outputs, nil
 }
 
@@ -461,7 +471,6 @@ func groupServices(
 		selectorString := svc.Spec.Selector
 		if len(selectorString) == 0 {
 			logger.Info("Service targets external endpoints without a pod selector. GMP Managed Collection only supports in-cluster Pods. Skipping resource.",
-				slog.String("migration_status", "skipped"),
 				slog.String("service", svc.GetName()),
 			)
 			continue
