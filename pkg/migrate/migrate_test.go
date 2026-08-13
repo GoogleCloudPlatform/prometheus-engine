@@ -487,3 +487,139 @@ func TestMigratorPrintSummary(t *testing.T) {
 		})
 	}
 }
+
+func TestMigratorServiceMonitorWithSkippedChildService(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 1. Valid Service with a pod selector.
+	validServiceYAML := `
+apiVersion: v1
+kind: Service
+metadata:
+  name: valid-service
+  namespace: default
+  labels:
+    app: my-app
+spec:
+  selector:
+    app: my-app-pod
+  ports:
+  - name: metrics
+    port: 8080
+`
+	// 2. Service without a pod selector (external endpoints).
+	externalServiceYAML := `
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-service
+  namespace: default
+  labels:
+    app: my-app
+spec:
+  ports:
+  - name: metrics
+    port: 8080
+`
+	// 3. ServiceMonitor matching both services via label selector.
+	smYAML := `
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: my-servicemonitor
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: my-app
+  endpoints:
+  - port: metrics
+    interval: 30s
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "valid-svc.yaml"), []byte(validServiceYAML), 0644); err != nil {
+		t.Fatalf("failed to write valid-svc.yaml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "external-svc.yaml"), []byte(externalServiceYAML), 0644); err != nil {
+		t.Fatalf("failed to write external-svc.yaml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "sm.yaml"), []byte(smYAML), 0644); err != nil {
+		t.Fatalf("failed to write sm.yaml: %v", err)
+	}
+
+	migrator := NewMigrator()
+	migrator.RegisterConverter(&ServiceMonitorConverter{})
+	var stdoutBuf, stderrBuf bytes.Buffer
+	migrator.Stdout = &stdoutBuf
+	migrator.Stderr = &stderrBuf
+
+	report, err := migrator.Run(tmpDir)
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	// Verify that the ServiceMonitor is tracked as Success when at least one child service converts.
+	if report.SuccessCount != 1 {
+		t.Errorf("expected SuccessCount to be 1, got %d", report.SuccessCount)
+	}
+	if report.SkippedCount != 0 {
+		t.Errorf("expected SkippedCount to be 0, got %d", report.SkippedCount)
+	}
+}
+
+func TestMigratorServiceMonitorAllServicesSkipped(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Service without a pod selector (external endpoints).
+	externalServiceYAML := `
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-service
+  namespace: default
+  labels:
+    app: my-app
+spec:
+  ports:
+  - name: metrics
+    port: 8080
+`
+	// ServiceMonitor matching only the external service.
+	smYAML := `
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: my-external-servicemonitor
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: my-app
+  endpoints:
+  - port: metrics
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "external-svc.yaml"), []byte(externalServiceYAML), 0644); err != nil {
+		t.Fatalf("failed to write external-svc.yaml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "sm.yaml"), []byte(smYAML), 0644); err != nil {
+		t.Fatalf("failed to write sm.yaml: %v", err)
+	}
+
+	migrator := NewMigrator()
+	migrator.RegisterConverter(&ServiceMonitorConverter{})
+	var stdoutBuf, stderrBuf bytes.Buffer
+	migrator.Stdout = &stdoutBuf
+	migrator.Stderr = &stderrBuf
+
+	report, err := migrator.Run(tmpDir)
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+
+	// Verify that the ServiceMonitor is tracked as Skipped when all child services lack selectors.
+	if report.SkippedCount != 1 {
+		t.Errorf("expected SkippedCount to be 1, got %d", report.SkippedCount)
+	}
+	if report.SuccessCount != 0 {
+		t.Errorf("expected SuccessCount to be 0, got %d", report.SuccessCount)
+	}
+}

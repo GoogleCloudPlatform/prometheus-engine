@@ -395,6 +395,10 @@ func (m *Migrator) convertResources() []*unstructured.Unstructured {
 				continue
 			}
 
+			if len(outputs) == 0 {
+				continue
+			}
+
 			resourceLogger.Info("Converted successfully", slog.String("migration_status", "success"))
 		}
 	}

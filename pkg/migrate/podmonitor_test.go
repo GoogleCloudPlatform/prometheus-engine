@@ -84,6 +84,75 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
+			name: "Cluster-Scoped with Secret References",
+			setupCache: func(cache *ResourceCache) error {
+				return addSecretToCache(cache, "monitoring-ns", "auth-secret", "user", "admin", true)
+			},
+			input: &pomonitoringv1.PodMonitor{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "monitoring.coreos.com/v1",
+					Kind:       KindPodMonitor,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster-auth-monitor",
+					Namespace: "monitoring-ns",
+				},
+				Spec: pomonitoringv1.PodMonitorSpec{
+					NamespaceSelector: pomonitoringv1.NamespaceSelector{
+						Any: true,
+					},
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "cluster-app"},
+					},
+					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
+						{
+							Port: "metrics",
+							BasicAuth: &pomonitoringv1.BasicAuth{
+								Username: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "user"},
+								Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "pass"},
+							},
+						},
+					},
+				},
+			},
+			expected: []runtime.Object{
+				&monitoringv1.ClusterPodMonitoring{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "monitoring.googleapis.com/v1",
+						Kind:       KindClusterPodMonitoring,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "cluster-auth-monitor",
+					},
+					Spec: monitoringv1.ClusterPodMonitoringSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "cluster-app",
+							},
+						},
+						Endpoints: []monitoringv1.ScrapeEndpoint{
+							{
+								Port:     intstr.FromString("metrics"),
+								Interval: "30s",
+								HTTPClientConfig: monitoringv1.HTTPClientConfig{
+									BasicAuth: &monitoringv1.BasicAuth{
+										Username: "admin",
+										Password: &monitoringv1.SecretSelector{
+											Secret: &monitoringv1.SecretKeySelector{
+												Name:      "auth-secret",
+												Key:       "pass",
+												Namespace: "monitoring-ns",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "Multi-Namespace Split",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
@@ -1645,7 +1714,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "Pre-Scrape Relabelings: conflicting keep rules on same pod label injects guardrail label and TODO annotation",
+			name: "Pre-Scrape Relabelings: conflicting keep rules on same pod label attaches TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -1706,7 +1775,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "BearerTokenSecret with empty Name returns validation error",
+			name: "BearerTokenSecret with empty Name generates draft with TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -2378,7 +2447,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "PodMonitor with dropped annotation relabeling injects guardrail label and TODO annotation",
+			name: "PodMonitor with dropped annotation relabeling attaches TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -2491,7 +2560,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "PodMonitor with empty selector injects guardrail label and TODO annotation",
+			name: "PodMonitor with empty selector attaches TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
@@ -2536,7 +2605,7 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "PodMonitor with proxyUrl containing password injects guardrail label and TODO annotation",
+			name: "PodMonitor with proxyUrl containing password attaches TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "monitoring.coreos.com/v1",
