@@ -35,9 +35,11 @@ const (
 	// ConfigurationCreateSuccess indicates that the config generated from the
 	// monitoring resource was created successfully.
 	ConfigurationCreateSuccess MonitoringConditionType = "ConfigurationCreateSuccess"
+	// CollectorDaemonSetExists indicates whether the collector DaemonSet exists.
+	CollectorDaemonSetExists MonitoringConditionType = "CollectorDaemonSetExists"
 )
 
-// MonitoringCondition describes the condition of a PodMonitoring.
+// MonitoringCondition describes a condition of a monitoring resource.
 type MonitoringCondition struct {
 	Type MonitoringConditionType `json:"type"`
 	// Status of the condition, one of True, False, Unknown.
@@ -68,6 +70,7 @@ func NewDefaultConditions(now metav1.Time) []MonitoringCondition {
 	}
 }
 
+// IsValid returns true if the condition has a valid type and status.
 func (cond *MonitoringCondition) IsValid() bool {
 	return cond.Type != "" && cond.Status != ""
 }
@@ -77,7 +80,7 @@ type MonitoringStatus struct {
 	// The generation observed by the controller.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`
-	// Represents the latest available observations of a podmonitor's current state.
+	// Represents the latest available observations of the monitoring resource's current state.
 	Conditions []MonitoringCondition `json:"conditions,omitempty"`
 }
 
@@ -107,7 +110,7 @@ func (status *MonitoringStatus) SetMonitoringCondition(gen int64, now metav1.Tim
 	cond.LastUpdateTime = now
 
 	// Check if the condition results in a transition of status state.
-	if old := conds[cond.Type]; old.Status == cond.Status {
+	if old := conds[cond.Type]; old != nil && old.Status == cond.Status {
 		cond.LastTransitionTime = old.LastTransitionTime
 	} else {
 		cond.LastTransitionTime = cond.LastUpdateTime

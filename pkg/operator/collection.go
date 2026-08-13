@@ -78,7 +78,10 @@ func setupCollectionControllers(op *Operator) error {
 		// at least once initially.
 		For(
 			&monitoringv1.OperatorConfig{},
-			builder.WithPredicates(objFilterOperatorConfig),
+			builder.WithPredicates(
+				objFilterOperatorConfig,
+				predicate.GenerationChangedPredicate{},
+			),
 		).
 		// Any update to a PodMonitoring requires regenerating the config.
 		Watches(
@@ -104,7 +107,7 @@ func setupCollectionControllers(op *Operator) error {
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterCollector),
 		).
-		// Detect and undo changes to the daemon set.
+		// Detect changes to the collector DaemonSet and re-check its status.
 		Watches(
 			&appsv1.DaemonSet{},
 			enqueueConst(objRequest),
@@ -164,6 +167,7 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 	// Fetch OperatorConfig if it exists.
 	if err := r.client.Get(ctx, req.NamespacedName, &config); apierrors.IsNotFound(err) {
 		logger.Info("no operatorconfig created yet")
+		return reconcile.Result{}, nil
 	} else if err != nil {
 		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
@@ -172,10 +176,15 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, fmt.Errorf("ensure collector secrets: %w", err)
 	}
 	// Deploy Prometheus collector as a node agent.
-	if err := r.ensureCollectorDaemonSet(ctx); err != nil {
+	changed, err := r.ensureCollectorDaemonSet(ctx, &config)
+	if changed {
+		if err := patchMonitoringStatus(ctx, r.client, &config, config.GetMonitoringStatus()); err != nil {
+			return reconcile.Result{}, fmt.Errorf("patch operatorconfig status: %w", err)
+		}
+	}
+	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector daemon set: %w", err)
 	}
-
 	if err := r.ensureCollectorConfig(ctx, &config.Collection, config.Features.Config.Compression, config.Exports); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector config: %w", err)
 	}
@@ -216,19 +225,34 @@ func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec 
 	return nil
 }
 
-// ensureCollectorDaemonSet populates the collector DaemonSet with operator-provided values.
-func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context) error {
+// ensureCollectorDaemonSet checks whether the collector DaemonSet exists and updates status.
+func (r *collectionReconciler) ensureCollectorDaemonSet(ctx context.Context, config *monitoringv1.OperatorConfig) (bool, error) {
 	logger, _ := logr.FromContext(ctx)
 
-	var ds appsv1.DaemonSet
-	err := r.client.Get(ctx, client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: NameCollector}, &ds)
-	// Some users deliberately not want to run the collectors. Only emit a warning but don't cause
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      NameCollector,
+			Namespace: r.opts.OperatorNamespace,
+		},
+	}
+
+	err := r.client.Get(ctx, client.ObjectKeyFromObject(ds), ds)
+	// Some users deliberately do not want to run the collectors. Only emit a warning but don't cause
 	// retries as this logic gets re-triggered anyway if the DaemonSet is created later.
+	cond := &monitoringv1.MonitoringCondition{
+		Type:   monitoringv1.CollectorDaemonSetExists,
+		Status: corev1.ConditionUnknown,
+	}
 	if apierrors.IsNotFound(err) {
 		logger.Error(err, "collector DaemonSet does not exist")
-		return nil
+		cond.Status = corev1.ConditionFalse
+		cond.Reason = "DaemonSetMissing"
+		cond.Message = "Collector DaemonSet does not exist."
+		err = nil
+	} else if err == nil {
+		cond.Status = corev1.ConditionTrue
 	}
-	return err
+	return config.Status.SetMonitoringCondition(config.GetGeneration(), metav1.Now(), cond), err
 }
 
 func gzipData(data []byte) ([]byte, error) {
