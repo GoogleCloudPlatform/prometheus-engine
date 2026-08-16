@@ -1403,7 +1403,7 @@ func (c *conversionContext) convertProxyURL(proxyURL *string) string {
 		c.todos = append(c.todos, todoItem{
 			category: "ERROR",
 			reason:   "Proxy URL contains embedded plaintext credentials. Credentials were removed.",
-			action:   "Configure proxy authentication via Kubernetes Secret or proxy server configuration.",
+			action:   "Configure proxy authentication via proxy server configuration or network allowlist.",
 		})
 		parsed.User = nil
 		return parsed.String()

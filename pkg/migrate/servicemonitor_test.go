@@ -685,7 +685,7 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
-								"app": "TODO_SET_POD_SELECTOR",
+								"TODO_SET_POD_LABELS": "TODO_SET_POD_LABELS",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -731,7 +731,7 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
-								"app": "TODO_SET_POD_SELECTOR",
+								"TODO_SET_POD_LABELS": "TODO_SET_POD_LABELS",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -754,7 +754,7 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
-								"app": "TODO_SET_POD_SELECTOR",
+								"TODO_SET_POD_LABELS": "TODO_SET_POD_LABELS",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -797,7 +797,7 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
-								"app": "TODO_SET_POD_SELECTOR",
+								"TODO_SET_POD_LABELS": "TODO_SET_POD_LABELS",
 							},
 						},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
