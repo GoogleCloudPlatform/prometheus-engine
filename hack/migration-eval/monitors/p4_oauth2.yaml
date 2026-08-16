@@ -15,9 +15,17 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: wildcard-empty-monitor
-  namespace: eval-p9
+  name: oauth2-monitor
+  namespace: eval-p4
 spec:
-  selector: {}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
   podMetricsEndpoints:
   - port: metrics
+    oauth2:
+      clientId:
+        secret:
+          name: oauth-creds
+          key: client-id
+      tokenUrl: ""

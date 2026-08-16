@@ -8,3 +8,5 @@ e2e_*
 vendor/
 .DS_Store
 
+# Evaluation trajectory logs
+hack/migration-eval/trajectories/

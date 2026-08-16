@@ -13,18 +13,19 @@
 # limitations under the License.
 
 apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
+kind: PodMonitor
 metadata:
-  name: multi-ns-payment-monitor
-  namespace: eval-p3-a
+  name: tls-ca-monitor
+  namespace: eval-p3
 spec:
-  namespaceSelector:
-    matchNames:
-    - eval-p3-a
-    - eval-p3-b
   selector:
     matchLabels:
-      app: payment-processor
-  endpoints:
+      app.kubernetes.io/name: payment-processor
+  podMetricsEndpoints:
   - port: metrics
-    interval: 30s
+    scheme: https
+    tlsConfig:
+      ca:
+        configMap:
+          name: cluster-ca
+          key: ca.crt

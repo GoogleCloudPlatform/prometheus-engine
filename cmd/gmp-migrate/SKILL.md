@@ -284,8 +284,8 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 #### 4.1 OAuth2 Placeholders (`TODO_SET_OAUTH2_CLIENT_ID`, `TODO_SET_OAUTH2_TOKEN_URL`)
 * **Annotation**: `[ERROR] OAuth2 clientID must be defined as either Secret or ConfigMap...`
 * **Agent Interactive Step**:
-  Do **NOT** guess public endpoints via curl. Inspect local Secrets in the namespace for OAuth credentials, and prompt the user:
-  > *"OAuth2 configuration requires a `clientID` and `tokenUrl` (e.g. Google Cloud OAuth: `https://oauth2.googleapis.com/token`, Keycloak, Okta). Please provide the token endpoint URL and client ID for this workload."*
+  Inspect local Secrets in the namespace for any existing OAuth credentials (`kubectl get secrets -n <namespace>`). If missing or incomplete, prompt the user directly:
+  > *"OAuth2 configuration requires an explicit `tokenUrl` and `clientID`. Please provide the token endpoint URL and client credentials for this workload (or configure the backing Secret)."*
 * **Diff**:
   ```diff
    spec:
@@ -294,8 +294,8 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
        oauth2:
   -      clientID: TODO_SET_OAUTH2_CLIENT_ID
   -      tokenUrl: TODO_SET_OAUTH2_TOKEN_URL
-  +      clientID: "123456789.apps.googleusercontent.com"
-  +      tokenUrl: "https://oauth2.googleapis.com/token"
+  +      clientID: "<your-client-id>"
+  +      tokenUrl: "<your-token-endpoint-url>"
          clientSecret:
            secret:
              name: oauth-secret

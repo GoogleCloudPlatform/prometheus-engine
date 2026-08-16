@@ -15,7 +15,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: keep-annotation-monitor
+  name: drop-annotation-monitor
   namespace: eval-p7
 spec:
   selector:
@@ -25,5 +25,5 @@ spec:
   - port: metrics
     relabelings:
     - sourceLabels: ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
-      regex: "true"
-      action: keep
+      regex: "false"
+      action: drop

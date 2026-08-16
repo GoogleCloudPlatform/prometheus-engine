@@ -12,32 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: v1
-kind: Secret
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
 metadata:
-  name: secret-cluster-ca
-  namespace: eval-p4
-stringData:
-  ca.crt: |
-    -----BEGIN CERTIFICATE-----
-    MIIB/TCCAWagAwIBAgIUeN7+dummycertdata...
-    -----END CERTIFICATE-----
----
-apiVersion: monitoring.googleapis.com/v1
-kind: PodMonitoring
-metadata:
-  name: tls-ca-monitor
-  namespace: eval-p4
+  name: keep-annotation-monitor
+  namespace: eval-p6
 spec:
-  endpoints:
-  - interval: 30s
-    port: metrics
-    scheme: https
-    tls:
-      ca:
-        secret:
-          key: ca.crt
-          name: secret-cluster-ca
   selector:
     matchLabels:
       app.kubernetes.io/name: payment-processor
+  podMetricsEndpoints:
+  - port: metrics
+    relabelings:
+    - sourceLabels: ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+      regex: "true"
+      action: keep

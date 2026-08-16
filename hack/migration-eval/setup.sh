@@ -26,7 +26,11 @@ if ! command -v kind >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "=== 1. Creating/Verifying local Kind cluster 'gmp-eval' ==="
+echo "=== 1. Building and installing 'gmp-migrate' CLI ==="
+mkdir -p "${REPO_ROOT}/bin"
+go build -o "${REPO_ROOT}/bin/gmp-migrate" "${REPO_ROOT}/cmd/gmp-migrate"
+
+echo "=== 2. Creating/Verifying local Kind cluster 'gmp-eval' ==="
 if kind get clusters 2>/dev/null | grep -q "^gmp-eval$"; then
   echo "Found existing Kind cluster 'gmp-eval'."
 else
@@ -36,13 +40,13 @@ fi
 
 KUBECTL_CMD="kubectl --context kind-gmp-eval"
 
-echo "=== 2. Installing in-repo GMP CRDs ==="
+echo "=== 3. Installing in-repo GMP CRDs ==="
 ${KUBECTL_CMD} apply -f "${REPO_ROOT}/manifests/setup.yaml"
 
-echo "=== 3. Installing upstream Prometheus Operator CRDs ==="
+echo "=== 4. Installing upstream Prometheus Operator CRDs ==="
 ${KUBECTL_CMD} apply -f https://github.com/prometheus-operator/prometheus-operator/releases/download/v0.79.2/stripped-down-crds.yaml
 
-echo "=== 4. Deploying isolated evaluation namespaces and workloads ==="
+echo "=== 5. Deploying isolated evaluation namespaces and workloads ==="
 ${KUBECTL_CMD} apply -f "${SCRIPT_DIR}/workloads.yaml"
 
 echo "=== Evaluation environment setup complete in isolated Kind cluster 'gmp-eval'! ==="

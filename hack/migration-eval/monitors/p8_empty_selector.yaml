@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: monitoring.googleapis.com/v1
-kind: PodMonitoring
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
 metadata:
-  name: orphan-monitor
-  namespace: eval-p2
+  name: wildcard-empty-monitor
+  namespace: eval-p8
 spec:
-  endpoints:
-  - interval: 30s
-    port: 8080
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: payment-processor
+  selector: {}
+  podMetricsEndpoints:
+  - port: metrics

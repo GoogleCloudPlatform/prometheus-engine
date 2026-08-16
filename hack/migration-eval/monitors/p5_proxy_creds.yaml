@@ -16,7 +16,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: proxy-creds-monitor
-  namespace: eval-p6
+  namespace: eval-p5
 spec:
   selector:
     matchLabels:

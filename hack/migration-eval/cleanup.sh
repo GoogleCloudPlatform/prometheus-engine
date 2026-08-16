@@ -15,6 +15,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
 if command -v kind >/dev/null 2>&1 && kind get clusters 2>/dev/null | grep -q "^gmp-eval$"; then
   echo "Deleting local Kind cluster 'gmp-eval'..."
   kind delete cluster --name gmp-eval
@@ -22,3 +25,6 @@ if command -v kind >/dev/null 2>&1 && kind get clusters 2>/dev/null | grep -q "^
 else
   echo "No local Kind cluster 'gmp-eval' found. Nothing to clean up."
 fi
+
+# Clean up built binary if present
+rm -f "${REPO_ROOT}/bin/gmp-migrate"
