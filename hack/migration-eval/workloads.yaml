@@ -1,0 +1,466 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# Namespace definitions for isolated parallel evaluation
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-p1
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-p2
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-p3-a
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-p3-b
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-p4
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-p5
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-p6
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-p7
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-p8
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-p9
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-n1
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-n2
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eval-n4
+
+# ==============================================================================
+# Workloads for P1 (Named Port Resolution)
+# ==============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-p1
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: eval-p1
+  labels:
+    app: payment-processor
+spec:
+  selector:
+    app.kubernetes.io/name: payment-processor
+  ports:
+  - name: metrics
+    port: 80
+    targetPort: 8080
+
+# ==============================================================================
+# Workloads for P2 (Missing Backing Service)
+# ==============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-p2
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+
+# ==============================================================================
+# Workloads for P3 (Multi-Namespace Partial Service)
+# ==============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-p3-a
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: eval-p3-a
+  labels:
+    app: payment-processor
+spec:
+  selector:
+    app.kubernetes.io/name: payment-processor
+  ports:
+  - name: metrics
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-p3-b
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+
+# ==============================================================================
+# Workloads for P4 (ConfigMap TLS CA)
+# ==============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-p4
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-ca
+  namespace: eval-p4
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIB/TCCAWagAwIBAgIUeN7+dummycertdata...
+    -----END CERTIFICATE-----
+
+# ==============================================================================
+# Workloads for P5 (OAuth2), P6 (Proxy), P7 (Keep Rule), P8 (Drop Rule), P9 (Empty)
+# ==============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-p5
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-p6
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-p7
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-p8
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-p9
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+
+# ==============================================================================
+# Workloads for N1 (Ambiguous Ports), N2 (Missing Secret), N4 (Conflicting Labels)
+# ==============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multi-port-service
+  namespace: eval-n1
+  labels:
+    app.kubernetes.io/name: multi-port-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: multi-port-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: multi-port-service
+    spec:
+      containers:
+      - name: app
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: http-web
+          containerPort: 8080
+        - name: int-metrics
+          containerPort: 9090
+        - name: admin
+          containerPort: 15090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-n2
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-processor
+  namespace: eval-n4
+  labels:
+    app.kubernetes.io/name: payment-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-processor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-processor
+    spec:
+      containers:
+      - name: payment-api
+        image: nilebox/prometheus-example-app@sha256:dab60d038c5d6915af5bcbe5f0279a22b95a8c8be254153e22d7cd81b21b84c5
+        ports:
+        - name: metrics
+          containerPort: 8080
