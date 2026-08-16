@@ -18,28 +18,32 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-echo "=== 1. Checking Cluster Environment ==="
-if command -v kind >/dev/null 2>&1; then
-  if kind get clusters 2>/dev/null | grep -q "^gmp-eval$"; then
-    echo "Found existing Kind cluster 'gmp-eval'."
-  else
-    echo "Creating local Kind cluster 'gmp-eval'..."
-    kind create cluster --name gmp-eval
-  fi
-else
-  CURRENT_CTX="$(kubectl config current-context 2>/dev/null || echo 'none')"
-  echo "'kind' CLI not found. Using active kubectl context: ${CURRENT_CTX}"
+# Strictly require local Kind cluster to prevent any modification to user's active kubectl context
+if ! command -v kind >/dev/null 2>&1; then
+  echo "❌ ERROR: 'kind' CLI is not installed."
+  echo "This evaluation harness runs strictly within an isolated local Kind cluster ('gmp-eval')."
+  echo "Please install kind (https://kind.sigs.k8s.io/) before running this script."
+  exit 1
 fi
 
+echo "=== 1. Creating/Verifying local Kind cluster 'gmp-eval' ==="
+if kind get clusters 2>/dev/null | grep -q "^gmp-eval$"; then
+  echo "Found existing Kind cluster 'gmp-eval'."
+else
+  echo "Creating local Kind cluster 'gmp-eval'..."
+  kind create cluster --name gmp-eval
+fi
+
+KUBECTL_CMD="kubectl --context kind-gmp-eval"
+
 echo "=== 2. Installing in-repo GMP CRDs ==="
-kubectl apply -f "${REPO_ROOT}/manifests/setup.yaml"
+${KUBECTL_CMD} apply -f "${REPO_ROOT}/manifests/setup.yaml"
 
 echo "=== 3. Installing upstream Prometheus Operator CRDs ==="
-kubectl apply -f https://github.com/prometheus-operator/prometheus-operator/releases/download/v0.79.2/stripped-down-crds.yaml
+${KUBECTL_CMD} apply -f https://github.com/prometheus-operator/prometheus-operator/releases/download/v0.79.2/stripped-down-crds.yaml
 
-echo "=== 4. Creating 'eval-apps' namespace and deploying test workloads ==="
-kubectl create namespace eval-apps --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f "${SCRIPT_DIR}/workloads.yaml"
+echo "=== 4. Deploying isolated evaluation namespaces and workloads ==="
+${KUBECTL_CMD} apply -f "${SCRIPT_DIR}/workloads.yaml"
 
-echo "=== Evaluation environment setup complete! ==="
+echo "=== Evaluation environment setup complete in isolated Kind cluster 'gmp-eval'! ==="
 echo "You can now run evaluations using monitors in: ${SCRIPT_DIR}/monitors/"
