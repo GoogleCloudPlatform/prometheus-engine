@@ -126,23 +126,29 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
        interval: 30s
   ```
 
-#### 1.2 Missing Backing Service (`TODO_RESOLVE_PORT` & `TODO_SET_POD_SELECTOR`)
+#### 1.2 Missing Backing Service (`TODO_RESOLVE_PORT` & `TODO_SET_POD_LABELS`)
+* **Context**: `gmp-migrate` emits `TODO_SET_POD_LABELS: TODO_SET_POD_LABELS` as a safe guardrail placeholder. Replace this placeholder with the complete set of pod template labels for the target workload.
 * **Annotation**: `[ERROR] Corresponding Kubernetes Service was not found... ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.`
 * **Commands**:
   ```bash
   kubectl get svc -n <namespace> -o wide
+  kubectl get deployment,statefulset,daemonset -n <namespace> -o wide
   ```
 * **Agent Interactive Step**:
-  - If a matching Service is identified, copy its `spec.selector` into `spec.selector.matchLabels` and resolve the endpoint port.
-  - If no Service exists or multiple ambiguous Services match, prompt the user:
-    > *"Could not find a unique backing Service for `<name>`. Please provide the target Pod label selector (e.g. `app=payment`) and container port."*
+  - If a matching Service or workload is identified, copy its pod label selector into `spec.selector.matchLabels` and resolve endpoint ports.
+  - If multiple ambiguous workloads match, prompt the user:
+    > *"Could not find a backing Service for `<name>`. Discovered candidate workloads: `[app=payment-processor, app=payment-worker]`. Please confirm the target pod labels."*
 * **Diff**:
   ```diff
+   metadata:
+  -  annotations:
+  -    gmp.googleapis.com/todo-1: "[ERROR] Corresponding Kubernetes Service was not found..."
    spec:
      selector:
        matchLabels:
-  -      app: TODO_SET_POD_SELECTOR
+  -      TODO_SET_POD_LABELS: TODO_SET_POD_LABELS
   +      app.kubernetes.io/name: payment-processor
+  +      app.kubernetes.io/component: backend
      endpoints:
   -  - port: TODO_RESOLVE_PORT
   +  - port: 9102
@@ -210,10 +216,13 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 #### 2.3 Corrupt Base64 Data (`TODO_CORRUPT_SECRET_DATA_<KEY>`)
 * **Annotation**: `[ERROR] Failed to base64-decode key "<key>" in Secret "<name>"...`
 * **Agent Interactive Step**:
-  Do NOT fabricate passwords or placeholders. Prompt the user:
+  Do NOT fabricate key values or placeholders. Prompt the user:
   > *"Key `<key>` in Secret `<name>` contains invalid base64 data. Please provide the correct value or fix the Secret in the cluster."*
 * **Diff**:
   ```diff
+   metadata:
+  -  annotations:
+  -    gmp.googleapis.com/todo-1: "[ERROR] Failed to base64-decode key \"user\" in Secret \"app-auth\"..."
    spec:
      endpoints:
      - port: 8080
@@ -293,16 +302,36 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
              key: client-secret
   ```
 
-#### 4.2 Proxy URL Configuration (`TODO_SET_VALID_PROXY_URL` & Plaintext Passwords)
-* **Annotation**: `[ERROR] Proxy URL contains embedded plaintext credentials...`
-* **Resolution**: Prompt user for proxy host. Note that GMP endpoints do not support embedded basic auth in proxy URLs.
-* **Diff**:
+#### 4.2 Proxy URL Configuration (Malformed URLs & Stripped Credentials)
+* **Context**: GMP CRDs only support an unauthenticated `proxyUrl` string. GMP does not support proxy credentials (there are no Secret fields for proxies, and embedded credentials like `user:pass@` in `proxyUrl` are rejected by CRD admission rules).
+* **Annotations**:
+  * `[ERROR] Proxy URL "<url>" is invalid or malformed. ACTION: Specify a valid proxy URL (e.g. 'http://proxy.example.com:8080').`
+  * `[ERROR] Proxy URL contains embedded plaintext credentials. Credentials were removed. ACTION: Configure proxy authentication via proxy server configuration or network allowlist.`
+* **Agent Interactive Step**:
+  1. **Malformed URL (`TODO_SET_VALID_PROXY_URL`)**: Prompt the user for the valid corporate proxy host and port.
+  2. **Stripped Credentials**: `gmp-migrate` automatically strips `user:password@` so the manifest passes GMP validation while preserving the proxy host and port. Prompt the user:
+     > *"Proxy URL credentials were removed because GMP CRDs do not support proxy authentication. Please ensure proxy authentication is handled at the network level (e.g. IP allowlisting the GKE cluster at the proxy server or routing through an in-cluster forward proxy). If the target is inside the cluster/VPC, `proxyUrl` can be removed entirely."*
+  3. Once confirmed, remove the TODO annotation from `metadata.annotations`.
+* **Diff (Case A: Resolving Malformed URL Placeholder)**:
   ```diff
+   metadata:
+  -  annotations:
+  -    gmp.googleapis.com/todo-1: "[ERROR] Proxy URL is invalid or malformed..."
    spec:
      endpoints:
      - port: 8080
   -    proxyUrl: TODO_SET_VALID_PROXY_URL
   +    proxyUrl: http://proxy.corp.internal:3128
+  ```
+* **Diff (Case B: Reconciling Stripped Credentials Annotation)**:
+  ```diff
+   metadata:
+  -  annotations:
+  -    gmp.googleapis.com/todo-1: "[ERROR] Proxy URL contains embedded plaintext credentials. Credentials were removed..."
+   spec:
+     endpoints:
+     - port: 8080
+       proxyUrl: http://proxy.corp.internal:3128
   ```
 
 ---
@@ -386,17 +415,30 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   ```
 
 #### 5.2 Conflicting Keep Relabelings
-* **Annotation**: `[ERROR] Conflicting relabeling keep rules for label "<label>"...`
+* **Annotation**: `[ERROR] Conflicting relabeling keep rules for label "<label>": cannot require both "<val1>" and "<val2>" simultaneously...` (or `[ERROR] Selector conflict: label "<label>" has conflicting values...`)
 * **Agent Interactive Step**:
-  Check `Stderr` logs for conflicting values and ask the user to clarify:
-  > *"Detected conflicting label rules for label `env` (`prod` vs `staging`). Which workload should this PodMonitoring target?"*
-* **Diff**:
+  Check the annotation or `Stderr` logs for conflicting values and ask the user to clarify:
+  > *"Detected conflicting label rules for label `env` (`production` vs `staging`). Which workload should this PodMonitoring target?"*
+* **Diff (Case A: Update to Target Staging Workload)**:
   ```diff
+   metadata:
+  -  annotations:
+  -    gmp.googleapis.com/todo-1: "[ERROR] Conflicting relabeling keep rules for label \"env\": cannot require both \"production\" and \"staging\" simultaneously..."
    spec:
      selector:
        matchLabels:
-  -      env: production # Conflicted with staging
-  +      env: production
+  -      env: production
+  +      env: staging
+  ```
+* **Diff (Case B: Retain Production Workload)**:
+  ```diff
+   metadata:
+  -  annotations:
+  -    gmp.googleapis.com/todo-1: "[ERROR] Conflicting relabeling keep rules for label \"env\": cannot require both \"production\" and \"staging\" simultaneously..."
+   spec:
+     selector:
+       matchLabels:
+         env: production
   ```
 
 ---

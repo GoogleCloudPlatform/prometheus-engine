@@ -255,7 +255,7 @@ func (c *ServiceMonitorConverter) findAndGroupServices(
 		return []*serviceGroup{
 			{
 				selector: map[string]string{
-					"app": "TODO_SET_POD_SELECTOR",
+					"TODO_SET_POD_LABELS": "TODO_SET_POD_LABELS",
 				},
 				portMap:  portMap,
 				services: dummySvcs,

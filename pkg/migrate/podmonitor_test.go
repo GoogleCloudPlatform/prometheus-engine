@@ -2637,7 +2637,7 @@ func TestPodMonitorConversion(t *testing.T) {
 						Name:      "proxy-pass-monitor",
 						Namespace: "default",
 						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Proxy URL contains embedded plaintext credentials. Credentials were removed. ACTION: Configure proxy authentication via Kubernetes Secret or proxy server configuration.",
+							"gmp.googleapis.com/todo-1": "[ERROR] Proxy URL contains embedded plaintext credentials. Credentials were removed. ACTION: Configure proxy authentication via proxy server configuration or network allowlist.",
 						},
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
