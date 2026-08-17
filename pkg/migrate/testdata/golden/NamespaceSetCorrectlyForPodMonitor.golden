@@ -1,7 +1,0 @@
-kubernetes_sd_configs:
-- role: pod
-  namespaces:
-    names:
-    - test
-  attach_metadata:
-    node: true
