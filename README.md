@@ -19,6 +19,7 @@ For more documentation and to get started, go to [g.co/cloud/managedprometheus](
 * **[operator](cmd/operator)**: A Kubernetes operator for managed metric collection for GMP.
 * **[rule-evaluator](cmd/rule-evaluator)**: A Prometheus rule evaluation engine that evaluates against GMP.
 * **[datasource-syncer](cmd/datasource-syncer)**: A cron job for periodic Oauth2 token injection to Grafana Prometheus datasource.
+* **[gmp-migrate](cmd/gmp-migrate)**: A migration CLI tool to convert Prometheus Operator resources to GMP CRDs.
 
 For the fully Prometheus-compatible binary that writes ingested data into GMP/GCM,
 see [GoogleCloudPlatform/prometheus](https://github.com/GoogleCloudPlatform/prometheus).
