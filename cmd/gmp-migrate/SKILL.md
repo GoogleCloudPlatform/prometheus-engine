@@ -110,6 +110,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 ### Recipe 1: Port & Pod Selector Resolution
 
 #### 1.1 Unresolved Named Port (`TODO_RESOLVE_PORT_<NAME>`)
+
 * **Annotation**: `[WARNING] Named port "<name>" was not found on Service "<svc>"... ACTION: Replace TODO_RESOLVE_PORT_<NAME> with the target container port name or number.`
 * **Commands**:
 
@@ -132,6 +133,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   ```
 
 #### 1.2 Missing Backing Service (`TODO_RESOLVE_PORT` & `TODO_SET_POD_LABELS`)
+
 * **Context**: `gmp-migrate` emits `TODO_SET_POD_LABELS: TODO_SET_POD_LABELS` as a safe guardrail placeholder. Replace this placeholder with the complete set of pod template labels for the target workload.
 * **Annotation**: `[ERROR] Corresponding Kubernetes Service was not found... ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.`
 * **Commands**:
@@ -163,6 +165,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   ```
 
 #### 1.3 Missing Endpoint Port (`TODO_SET_PORT`)
+
 * **Annotation**: `[ERROR] Endpoint [N] does not specify a 'port' or 'targetPort'...`
 * **Commands**:
 
@@ -186,19 +189,20 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 ### Recipe 2: Missing or Incomplete Secrets & ConfigMaps
 
 #### Security Policy: Zero Secret Ingestion & Human-In-The-Loop
+
 * **Do Not Read Secrets via CLI**: Agents must never run `kubectl get secret` to inspect secret payloads. Reading cluster secrets risks leaking sensitive credentials (passwords, tokens, private keys) into agent context logs and transcripts.
 * **Dual-Path User Handoff**: When a Secret placeholder (`TODO_SET_USERNAME_FROM_SECRET_*` or `TODO_SET_CLIENT-ID_FROM_SECRET_*`) is encountered, the agent must output the targeted `jsonpath` command for the user to run in their terminal, along with the exact resource identifier, file link, field path, and resolution options:
   1. **Option A (Interactive)**: The user replies in chat with the non-sensitive string (e.g. `username: <output>`) and the agent updates the manifest and removes the TODO annotation.
   2. **Option B (Direct Edit)**: The user updates the manifest directly using the provided file link, target field path, and diff snippet.
 
 #### 2.1 Missing Source Secret / ConfigMap (`TODO_SET_<KEY>_FROM_<KIND>_<NAME>`)
+
 * **Annotation**: `[ERROR] Referenced SECRET "<name>" for key "<key>" was not found in migration inputs...`
 * **Agent Handoff Output Format**:
-
-  ```markdown
   In GMP, `basicAuth.username` is configured directly as a string, while `password` remains securely referenced from Secret `<secret-name>`.
 
   ### 1. Retrieve the username in your terminal:
+
   ```bash
   kubectl get secret <secret-name> -n <namespace> -o jsonpath='{.data.<key>}' | base64 -d
   ```
@@ -224,18 +228,14 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
       ```
     * Remove the `gmp.googleapis.com/todo-*` annotation from `metadata.annotations`.
 
-  ```
-
-  ```
-
 #### 2.2 Missing Key in Secret/ConfigMap (`TODO_MISSING_KEY_<KEY>_IN_<KIND>_<NAME>`)
+
 * **Annotation**: `[ERROR] Key "<key>" was not found in referenced SECRET "<name>"...`
 * **Agent Handoff Output Format**:
-
-  ```markdown
   Key `<key>` was not found in Secret `<secret-name>`.
 
   ### 1. List available keys in the Secret on your terminal:
+
   ```bash
   kubectl get secret <secret-name> -n <namespace> -o jsonpath='{.data}' | jq 'keys'
   ```
@@ -244,11 +244,8 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   * **Option A (Interactive)**: If the key was misspelled in the source monitor, reply with `Use key: <correct-key>` or `The username is: <value>`.
   * **Option B (Direct Edit)**: Update `spec.endpoints[<index>].basicAuth.username` directly in `<path-to-manifest>.yaml` and remove the TODO annotation.
 
-  ```
-
-  ```
-
 #### 2.3 Corrupt Base64 Data (`TODO_CORRUPT_SECRET_DATA_<KEY>`)
+
 * **Annotation**: `[ERROR] Failed to base64-decode key "<key>" in Secret "<name>"...`
 * **Agent Interactive Step**:
   Do NOT fabricate key values or placeholders. Prompt the user:
@@ -273,6 +270,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 ### Recipe 3: Converted ConfigMap TLS & Auth References
 
 #### 3.1 Companion Secret Manifest Generation (`secret-<configmap-name>`)
+
 * **Cause**: Prometheus Operator allowed TLS CAs in `ConfigMap`; GMP strictly requires Kubernetes `Secret` objects.
 * **Manifest Generation Commands**:
 
@@ -297,13 +295,13 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   ```
 
 #### 3.2 Empty Secret Reference Selectors (`TODO_SET_SECRET_NAME`, `TODO_SET_SECRET_KEY`)
+
 * **Annotation**: `[ERROR] Referenced Secret has an empty name for key...`
 * **Agent Handoff Output Format**:
-
-  ```markdown
   Referenced TLS Secret has an empty name in the source manifest.
 
   ### 1. Identify the TLS Secret in your namespace:
+
   ```bash
   kubectl get secrets -n <namespace>
   ```
@@ -312,22 +310,18 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   * **Option A (Interactive)**: Reply with `The TLS secret name is: <secret-name>` and I will update the manifest.
   * **Option B (Direct Edit)**: Update `spec.endpoints[<index>].tls.ca.secret.name` in `<path-to-manifest>.yaml` and remove the TODO annotation.
 
-  ```
-
-  ```
-
 ---
 
 ### Recipe 4: OAuth2 & Proxy URL Configurations (Interactive User Prompting)
 
 #### 4.1 OAuth2 Placeholders (`TODO_SET_OAUTH2_CLIENT_ID`, `TODO_SET_OAUTH2_TOKEN_URL`)
+
 * **Annotation**: `[ERROR] OAuth2 clientID must be defined as either Secret or ConfigMap...`
 * **Agent Handoff Output Format**:
-
-  ```markdown
   In GMP, `oauth2.clientID` and `oauth2.tokenURL` are configured directly as strings, while `clientSecret` remains securely referenced from Secret `<secret-name>`.
 
   ### 1. Retrieve the client ID in your terminal (if stored in a Secret):
+
   ```bash
   kubectl get secret <secret-name> -n <namespace> -o jsonpath='{.data.<client-id-key>}' | base64 -d
   ```
@@ -358,11 +352,8 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
       ```
     * Remove the `gmp.googleapis.com/todo-*` annotations from `metadata.annotations`.
 
-  ```
-
-  ```
-
 #### 4.2 Proxy URL Configuration (Malformed URLs & Stripped Credentials)
+
 * **Context**: GMP CRDs only support an unauthenticated `proxyUrl` string. GMP does not support proxy credentials (there are no Secret fields for proxies, and embedded credentials like `user:pass@` in `proxyUrl` are rejected by CRD admission rules).
 * **Annotations**:
   * `[ERROR] Proxy URL "<url>" is invalid or malformed. ACTION: Specify a valid proxy URL (e.g. 'http://proxy.example.com:8080').`
@@ -402,6 +393,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 ### Recipe 5: Relabeling Rules & Scope Expansion (Interactive User Guidance)
 
 #### 5.1 Dropped Pre-Scrape Keep/Drop Rules (Scope Expansion Warning)
+
 * **Annotation**: `[WARNING] Dropped target filtering rule ('keep'|'drop' on '__meta_kubernetes_pod_annotation_...'). ACTION: Add equivalent pod label selector in 'spec.selector.matchLabels'.`
 * **Agent Interactive Step**:
   GMP `spec.selector` **only matches Kubernetes Pod labels**, never Pod annotations. In Prometheus Operator, scraped pods are the intersection of the monitor's `spec.selector` and the annotation rule:
@@ -487,6 +479,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   ```
 
 #### 5.2 Conflicting Keep Relabelings
+
 * **Annotation**: `[ERROR] Conflicting relabeling keep rules for label "<label>": cannot require both "<val1>" and "<val2>" simultaneously...` (or `[ERROR] Selector conflict: label "<label>" has conflicting values...`)
 * **Agent Interactive Step**:
   Check the annotation or `Stderr` logs for conflicting values and ask the user to clarify:
@@ -521,6 +514,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 ### Recipe 6: Scrape Durations, Timeouts & Empty Selectors
 
 #### 6.1 Invalid Duration / Timeout Capping
+
 * **Annotation**: `[ERROR] Invalid scrape interval "<val>"...`
 * **Diff**:
 
@@ -535,6 +529,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   ```
 
 #### 6.2 Empty Selector Warning (Interactive User Guidance)
+
 * **Annotation**: `[WARNING] Resulting PodMonitoring selector is empty and matches all pods in this namespace.`
 * **Context**: In GMP, an empty label selector (`matchLabels: {}` or empty `selector`) acts as a wildcard and scrapes every pod in the namespace (or cluster) that exposes the endpoint port.
 * **Agent Interactive Step**:
