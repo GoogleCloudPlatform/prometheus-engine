@@ -232,9 +232,9 @@ gmp-migrate -f input.yaml > output.yaml
 ### 3. Diagnostic Output (`Stderr`)
 
 ```text
-[INFO] [Service:web/frontend-svc] Ingested backing service
 [INFO] [ServiceMonitor:web/frontend-monitor] Successfully decoded ServiceMonitor
-[INFO] [ServiceMonitor:web/frontend-monitor] Converted successfully
+[INFO] [ServiceMonitor:web/frontend-monitor] Stripped all metadata labels and annotations. Reconfigure them manually if needed
+[SUCCESS] [ServiceMonitor:web/frontend-monitor] Converted successfully
 
 =========================================
 Migration Complete Summary:
