@@ -1,10 +1,5 @@
 # gmp-migrate
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/GoogleCloudPlatform/prometheus-engine)](https://goreportcard.com/report/github.com/GoogleCloudPlatform/prometheus-engine)
-[![GoDoc](https://pkg.go.dev/badge/github.com/GoogleCloudPlatform/prometheus-engine?status.svg)](https://pkg.go.dev/github.com/GoogleCloudPlatform/prometheus-engine?tab=doc)
-![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/GoogleCloudPlatform/prometheus-engine)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-
 `gmp-migrate` is a migration CLI tool designed to translate [Prometheus Operator](https://prometheus-operator.dev/) monitoring resources to [Google Cloud Managed Service for Prometheus (GMP)](https://cloud.google.com/stackdriver/docs/managed-prometheus) Custom Resources.
 
 ---
@@ -162,7 +157,7 @@ kubectl get podmonitors,servicemonitors,services,configmaps,secrets -A -o yaml |
 > Review these critical considerations before migrating resources in production environments:
 
 1. **Do NOT Pipe `--all` Directly to `kubectl apply`**: `--all` emits best-effort draft manifests containing `TODO_*` placeholder values. Applying them directly will cause CRD validation or collector ingestion errors.
-2. **Always Provide Backing Services for `ServiceMonitor`**: If a `ServiceMonitor` is passed without its corresponding `Service`, `gmp-migrate` will emit placeholders (`TODO_RESOLVE_PORT`, `TODO_SET_POD_SELECTOR`).
+2. **Always Provide Backing Services for `ServiceMonitor`**: If a `ServiceMonitor` is passed without its corresponding `Service`, `gmp-migrate` will emit placeholders (`TODO_RESOLVE_PORT`, `TODO_SET_POD_LABELS`).
 3. **Multi-Namespace Secret Isolation**: Kubernetes forbids cross-namespace Secret references. If a monitor selects multiple namespaces (`matchNames: [...]`), referenced Secrets must exist in **each** target namespace.
 4. **Scope Expansion from Dropped Relabeling Rules**: When pod annotation filtering rules (`action: keep/drop`) are dropped, ensure equivalent Pod labels are applied to target workloads to prevent unintended scraping.
 5. **Wildcard Selector Verification**: In GMP, an empty selector (`matchLabels: {}`) matches all pods in the namespace/cluster. Confirm whether wildcard collection is intentional.
