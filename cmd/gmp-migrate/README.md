@@ -18,7 +18,7 @@
   * `monitoring.coreos.com/v1.ServiceMonitor` → Converted to `PodMonitoring` (or `ClusterPodMonitoring`), resolved to backing Pods via `Service`.
 * **Backing Dependencies** (Ingested for resolution, not emitted directly):
   * `v1.Service`: Resolves endpoint port names to container ports and service selectors to Pod selectors.
-  * `v1.Secret`: Validates referenced authentication credentials (`basicAuth`, `bearerToken`, `oauth2`).
+  * `v1.Secret`: Validates referenced authentication credentials (`basicAuth`, `authorization`, `oauth2`).
   * `v1.ConfigMap`: Ingested when referenced in TLS CAs to automatically synthesize companion `v1.Secret` manifests.
 
 ---
@@ -27,62 +27,64 @@
 
 ### 1. Resource & Scoping Translation
 
-| Prometheus Operator Field | Status | GMP Translation Behavior |
-| :--- | :---: | :--- |
-| `kind: PodMonitor` | `1:1 Parity` | Converted to `monitoring.googleapis.com/v1.PodMonitoring`. |
-| `kind: ServiceMonitor` | `Transformed` | Converted to `PodMonitoring` (or `ClusterPodMonitoring`), resolved to backing Pods via `Service`. |
-| `spec.namespaceSelector.any: true` | `Transformed` | Converted to cluster-scoped `ClusterPodMonitoring`. |
-| `spec.namespaceSelector.matchNames: [...]` | `Transformed` | Generates distinct `PodMonitoring` manifests for each targeted namespace. |
-| Omitted `namespaceSelector` | `1:1 Parity` | Preserves source namespace in `PodMonitoring`. |
-| `v1.Service`, `v1.Secret`, `v1.ConfigMap` | `Dependency` | Ingested to resolve ports, selectors, credentials, and TLS CAs. |
+| Prometheus Operator Field                  | Status        | GMP Translation Behavior                                                                          |
+|:-------------------------------------------|:-------------:|:--------------------------------------------------------------------------------------------------|
+| `kind: PodMonitor`                         | `1:1 Parity`  | Converted to `monitoring.googleapis.com/v1.PodMonitoring`.                                        |
+| `kind: ServiceMonitor`                     | `Transformed` | Converted to `PodMonitoring` (or `ClusterPodMonitoring`), resolved to backing Pods via `Service`. |
+| `spec.namespaceSelector.any: true`         | `Transformed` | Converted to cluster-scoped `ClusterPodMonitoring`.                                               |
+| `spec.namespaceSelector.matchNames: [...]` | `Transformed` | Generates distinct `PodMonitoring` manifests for each targeted namespace.                         |
+| Omitted `namespaceSelector`                | `1:1 Parity`  | Preserves source namespace in `PodMonitoring`.                                                    |
+| `v1.Service`, `v1.Secret`, `v1.ConfigMap`  | `Dependency`  | Ingested to resolve ports, selectors, credentials, and TLS CAs.                                   |
 
 ### 2. Workload & Service Resolution
 
-| Prometheus Operator Field | Status | GMP Translation Behavior |
-| :--- | :---: | :--- |
-| `spec.selector` (`PodMonitor`) | `1:1 Parity` | Mapped directly to `spec.selector.matchLabels` / `matchExpressions`. |
-| `spec.selector` (`ServiceMonitor`) | `Transformed` | Matches backing `Service`; extracts Service's pod selector into `PodMonitoring.spec.selector`. |
+| Prometheus Operator Field           | Status        | GMP Translation Behavior                                                                                    |
+|:------------------------------------|:-------------:|:------------------------------------------------------------------------------------------------------------|
+| `spec.selector` (`PodMonitor`)      | `1:1 Parity`  | Mapped directly to `spec.selector.matchLabels` / `matchExpressions`.                                        |
+| `spec.selector` (`ServiceMonitor`)  | `Transformed` | Matches backing `Service`; extracts Service's pod selector into `PodMonitoring.spec.selector`.              |
 | Multiple Services matching selector | `Transformed` | Compatible Services are merged; conflicting selectors/ports split into suffixed resources (`<name>-<svc>`). |
-| Empty selector (`matchLabels: {}`) | `Transformed` | Retained (scrapes all pods in namespace/cluster) with a warning TODO for operator confirmation. |
+| Empty selector (`matchLabels: {}`)  | `Transformed` | Retained (scrapes all pods in namespace/cluster) with a warning TODO for operator confirmation.             |
 
 ### 3. Endpoint & Port Configuration
 
-| Prometheus Operator Field | Status | GMP Translation Behavior |
-| :--- | :---: | :--- |
-| `port` (named string on `ServiceMonitor`) | `Transformed` | Resolved via `Service.spec.ports` to the container's numeric or named `targetPort`. |
-| `port` (named string on `PodMonitor`) | `1:1 Parity` | Mapped directly to `spec.endpoints[].port`. |
-| `targetPort` (integer or name) | `1:1 Parity` | Mapped directly to `spec.endpoints[].port`. |
-| `path`, `scheme`, `params` | `1:1 Parity` | Mapped directly to `spec.endpoints[]`. |
-| `interval` / `scrapeTimeout` | `Transformed` | Normalized to Go duration strings; automatically enforces safety cap (`timeout <= interval`). |
-| `proxyUrl` | `Transformed` | Unauthenticated URLs mapped; embedded basic auth (`user:pass@`) is stripped with a warning. |
-| `followRedirects`, `enableHttp2` | `Unsupported` | Dropped with warning (GMP collectors do not follow redirects or force HTTP/2). |
-| `honorLabels`, `honorTimestamps`, `trackTimestampsStaleness` | `Unsupported` | Dropped with warning (metric timestamps and series lifecycles are managed by Google Cloud Monitoring). |
+| Prometheus Operator Field                 | Status        | GMP Translation Behavior                                                                                                                   |
+|:------------------------------------------|:-------------:|:-------------------------------------------------------------------------------------------------------------------------------------------|
+| `port` (named string on `ServiceMonitor`) | `Transformed` | Resolved via `Service.spec.ports` to the container's numeric or named `targetPort`.                                                        |
+| `port` (named string on `PodMonitor`)     | `1:1 Parity`  | Mapped directly to `spec.endpoints[].port`.                                                                                                |
+| `targetPort` (integer or name)            | `1:1 Parity`  | Mapped directly to `spec.endpoints[].port`.                                                                                                |
+| `path`, `scheme`, `params`                | `1:1 Parity`  | Mapped directly to `spec.endpoints[]`.                                                                                                     |
+| `interval` / `scrapeTimeout`              | `Transformed` | Normalized to Go duration strings; automatically enforces safety cap (`timeout <= interval`).                                              |
+| `proxyUrl`                                | `Transformed` | Unauthenticated URLs mapped; embedded basic auth (`user:pass@`) is stripped with a warning.                                                |
+| `followRedirects`, `enableHttp2`          | `Unsupported` | Dropped with warning (GMP collectors always follow redirects and negotiate HTTP/2 for TLS).                                                |
+| `honorLabels`                             | `Unsupported` | Dropped with warning (GMP managed target labels always take precedence; conflicting metric labels are renamed with an `exported_` prefix). |
+| `honorTimestamps`                         | `Unsupported` | Dropped with warning (GMP always uses the scrape ingestion timestamp; target metric timestamps are ignored).                               |
+| `trackTimestampsStaleness`                | `Unsupported` | Dropped with warning (currently unsupported in GMP CRDs).                                                                                  |
 
 ### 4. Authentication & TLS
 
-| Prometheus Operator Field | Status | GMP Translation Behavior |
-| :--- | :---: | :--- |
-| `basicAuth.password` | `1:1 Parity` | Mapped to Secret reference: `spec.endpoints[].basicAuth.password.secret`. |
-| `basicAuth.username` | `Transformed` | Mapped as direct string literal in `spec.endpoints[].basicAuth.username`. |
-| `bearerTokenSecret` / `authorization` | `1:1 Parity` | Mapped to GMP `spec.endpoints[].authorization` / `bearerToken`. |
-| `oauth2` | `Transformed` | `clientID` and `tokenURL` mapped as string literals; `clientSecret` mapped to Secret reference. |
-| `tlsConfig.ca.configMap` | `Transformed` | Automatically synthesizes companion `v1.Secret` (`secret-<configmap-name>`) for GMP compliance. |
-| `tlsConfig.ca.secret`, `cert`, `keySecret` | `1:1 Parity` | Mapped directly to `spec.endpoints[].tls`. |
-| `tlsConfig.insecureSkipVerify`, `serverName` | `1:1 Parity` | Mapped directly to `spec.endpoints[].tls`. |
-| `caFile`, `certFile`, `keyFile` | `Unsupported` | Dropped with warning (GMP hermetic containers require Secret references, not host paths). |
+| Prometheus Operator Field                    | Status        | GMP Translation Behavior                                                                        |
+|:---------------------------------------------|:-------------:|:------------------------------------------------------------------------------------------------|
+| `basicAuth.password`                         | `1:1 Parity`  | Mapped to Secret reference: `spec.endpoints[].basicAuth.password.secret`.                       |
+| `basicAuth.username`                         | `Transformed` | Mapped as direct string literal in `spec.endpoints[].basicAuth.username`.                       |
+| `bearerTokenSecret` / `authorization`        | `1:1 Parity`  | Mapped to GMP `spec.endpoints[].authorization` (`credentials.secret`).                          |
+| `oauth2`                                     | `Transformed` | `clientID` and `tokenURL` mapped as string literals; `clientSecret` mapped to Secret reference. |
+| `tlsConfig.ca.configMap`                     | `Transformed` | Automatically synthesizes companion `v1.Secret` (`secret-<configmap-name>`) for GMP compliance. |
+| `tlsConfig.ca.secret`, `cert`, `keySecret`   | `1:1 Parity`  | Mapped directly to `spec.endpoints[].tls`.                                                      |
+| `tlsConfig.insecureSkipVerify`, `serverName` | `1:1 Parity`  | Mapped directly to `spec.endpoints[].tls`.                                                      |
+| `caFile`, `certFile`, `keyFile`              | `Unsupported` | Dropped with warning (GMP hermetic containers require Secret references, not host paths).       |
 
 ### 5. Relabeling, Target Labels & Limits
 
-| Prometheus Operator Field | Status | GMP Translation Behavior |
-| :--- | :---: | :--- |
-| `metricRelabelConfigs` | `1:1 Parity` | Mapped directly to `spec.endpoints[].metricRelabeling`. |
-| `targetLabels` (`ServiceMonitor`) | `Transformed` | Statically mapped to post-scrape `metricRelabeling` rules per service group. |
-| `targetLabels` / `podTargetLabels` (`PodMonitor`) | `Transformed` | Mapped to `spec.targetLabels.fromPod`. |
-| Pod label extraction (`__meta_kubernetes_pod_label_*`) | `Transformed` | Promoted from pre-scrape relabeling to `spec.targetLabels.fromPod`. |
-| Metadata extraction (`__meta_kubernetes_pod_name`, etc.) | `Transformed` | Promoted to `spec.targetLabels.metadata`. |
-| Pod annotation filtering (`keep`/`drop` on annotations) | `Unsupported` | Dropped with warning & TODO (GMP `spec.selector` only filters on Pod labels). |
-| `sampleLimit`, `labelLimit`, `labelNameLengthLimit`, `labelValueLengthLimit` | `1:1 Parity` | Mapped directly to `spec.limits`. |
-| `targetLimit`, `bodySizeLimit`, `keepDroppedTargets` | `Unsupported` | Dropped with warning (limits are managed at the collector infrastructure and GCM project quota level). |
+| Prometheus Operator Field                                                    | Status        | GMP Translation Behavior                                                                               |
+|:-----------------------------------------------------------------------------|:-------------:|:-------------------------------------------------------------------------------------------------------|
+| `metricRelabelConfigs`                                                       | `1:1 Parity`  | Mapped directly to `spec.endpoints[].metricRelabeling`.                                                |
+| `targetLabels` (`ServiceMonitor`)                                            | `Transformed` | Statically mapped to post-scrape `metricRelabeling` rules per service group.                           |
+| `podTargetLabels` (`PodMonitor` / `ServiceMonitor`)                          | `Transformed` | Mapped to `spec.targetLabels.fromPod`.                                                                 |
+| Pod label extraction (`__meta_kubernetes_pod_label_*`)                       | `Transformed` | Promoted from pre-scrape relabeling to `spec.targetLabels.fromPod`.                                    |
+| Metadata extraction (`__meta_kubernetes_pod_name`, etc.)                     | `Transformed` | Promoted to `spec.targetLabels.metadata`.                                                              |
+| Pod annotation filtering (`keep`/`drop` on annotations)                      | `Unsupported` | Dropped with warning & TODO (GMP `spec.selector` only filters on Pod labels).                          |
+| `sampleLimit`, `labelLimit`, `labelNameLengthLimit`, `labelValueLengthLimit` | `1:1 Parity`  | Mapped directly to `spec.limits`.                                                                      |
+| `targetLimit`, `bodySizeLimit`, `keepDroppedTargets`                         | `Unsupported` | Dropped with warning (limits are managed at the collector infrastructure and GCM project quota level). |
 
 ---
 
@@ -92,12 +94,14 @@
 * Go 1.24+
 
 ### Build Binary
+
 ```bash
 # Build binary to ./build/bin/gmp-migrate
 NO_DOCKER=1 make gmp-migrate
 ```
 
 ### Run Directly via `go run`
+
 ```bash
 go run ./cmd/gmp-migrate -f <input-path>
 ```
@@ -110,13 +114,19 @@ go run ./cmd/gmp-migrate -f <input-path>
 
 ```bash mdox-exec="bash hack/format_help.sh gmp-migrate"
 Usage of gmp-migrate:
-  -a, -all
+Migrate Prometheus Operator configurations to Google Managed Prometheus (GMP).
+
+  -a	Emit all manifests, including best-effort draft configurations with TODO annotations
+  -all
     	Emit all manifests, including best-effort draft configurations with TODO annotations
-  -f, -file value
+  -f value
+    	Input source (YAML file, directory, or '-' for stdin) (Required)
+  -file value
     	Input source (YAML file, directory, or '-' for stdin) (Required)
 ```
 
 ### Route 1: Local Files & GitOps Repositories (File-to-File)
+
 ```bash
 # Ready-only mode (Default: emits only 100% complete manifests)
 gmp-migrate -f path/to/monitors/ -f path/to/services/ > ready_gmp_manifests.yaml 2> migration.log
@@ -126,12 +136,14 @@ gmp-migrate --all -f path/to/monitors/ -f path/to/services/ > all_gmp_manifests.
 ```
 
 ### Route 2: Live Cluster Extraction (Cluster-to-File)
+
 ```bash
 kubectl get podmonitors,servicemonitors,services,configmaps,secrets -A -o yaml | \
   gmp-migrate --all -f - > gmp_manifests.yaml 2> migration.log
 ```
 
 ### Route 3: Live Cluster Migration with Dry-Run Validation (Cluster-to-Cluster)
+
 ```bash
 # Step 1: Validate with Server-Side Dry-Run (Safe, non-mutating)
 kubectl get podmonitors,servicemonitors,services,configmaps,secrets -A -o yaml | \
@@ -170,17 +182,18 @@ Migration Complete Summary:
 =========================================
 ```
 
-| Exit Code | Outcome | Description | Behavior |
-| :---: | :--- | :--- | :--- |
-| **`0`** | **Clean Parity** | All input resources converted cleanly with no unresolved items or fatal errors. | All converted manifests written to `Stdout`. |
-| **`1`** | **Action Items Present** | Converted manifests contain items requiring operator review (e.g. unresolved port names, missing Secrets). | Default mode: emits only clean manifests to `Stdout`.<br>`--all` mode: emits all manifests with inline `gmp.googleapis.com/todo-*` annotations. |
-| **`1`** | **Fatal Error** | One or more resources encountered fatal parsing or conversion errors (e.g. malformed YAML). | Zero manifests written to `Stdout`. Diagnostic errors logged to `Stderr`. |
+| Exit Code | Outcome                  | Description                                                                                                | Behavior                                                                                                                                        |
+|:---------:|:-------------------------|:-----------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------------------------------------------------------------------|
+|  **`0`**  | **Clean Parity**         | All input resources converted cleanly with no unresolved items or fatal errors.                            | All converted manifests written to `Stdout`.                                                                                                    |
+|  **`1`**  | **Action Items Present** | Converted manifests contain items requiring operator review (e.g. unresolved port names, missing Secrets). | Default mode: emits only clean manifests to `Stdout`.<br>`--all` mode: emits all manifests with inline `gmp.googleapis.com/todo-*` annotations. |
+|  **`1`**  | **Fatal Error**          | One or more resources encountered fatal parsing or conversion errors (e.g. malformed YAML).                | Zero manifests written to `Stdout`. Diagnostic errors logged to `Stderr`.                                                                       |
 
 ---
 
 ## Example Walkthrough
 
 ### 1. Input Manifests
+
 ```yaml
 # input.yaml
 apiVersion: v1
@@ -216,11 +229,13 @@ spec:
 ```
 
 ### 2. Run Migration
+
 ```bash
 gmp-migrate -f input.yaml > output.yaml
 ```
 
 ### 3. Diagnostic Output (`Stderr`)
+
 ```text
 [INFO] [Service:web/frontend-svc] Ingested backing service
 [INFO] [ServiceMonitor:web/frontend-monitor] Successfully decoded ServiceMonitor
@@ -237,6 +252,7 @@ Migration Complete Summary:
 ```
 
 ### 4. Converted Output (`output.yaml`)
+
 ```yaml
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
