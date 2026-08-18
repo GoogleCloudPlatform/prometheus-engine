@@ -199,6 +199,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 
 * **Annotation**: `[ERROR] Referenced SECRET "<name>" for key "<key>" was not found in migration inputs...`
 * **Agent Handoff Output Format**:
+
   In GMP, `basicAuth.username` is configured directly as a string, while `password` remains securely referenced from Secret `<secret-name>`.
 
   ### 1. Retrieve the username in your terminal:
@@ -208,6 +209,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   ```
 
   ### 2. Resolution Options:
+
   * **Option A (Interactive)**: Reply with `The username is: <value>` and I will update the manifest and remove the TODOs for you.
   * **Option B (Direct Edit)**:
     * **Resource**: `PodMonitoring:<namespace>/<name>`
@@ -232,6 +234,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 
 * **Annotation**: `[ERROR] Key "<key>" was not found in referenced SECRET "<name>"...`
 * **Agent Handoff Output Format**:
+
   Key `<key>` was not found in Secret `<secret-name>`.
 
   ### 1. List available keys in the Secret on your terminal:
@@ -241,6 +244,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   ```
 
   ### 2. Resolution Options:
+
   * **Option A (Interactive)**: If the key was misspelled in the source monitor, reply with `Use key: <correct-key>` or `The username is: <value>`.
   * **Option B (Direct Edit)**: Update `spec.endpoints[<index>].basicAuth.username` directly in `<path-to-manifest>.yaml` and remove the TODO annotation.
 
@@ -298,6 +302,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 
 * **Annotation**: `[ERROR] Referenced Secret has an empty name for key...`
 * **Agent Handoff Output Format**:
+
   Referenced TLS Secret has an empty name in the source manifest.
 
   ### 1. Identify the TLS Secret in your namespace:
@@ -307,6 +312,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   ```
 
   ### 2. Resolution Options:
+
   * **Option A (Interactive)**: Reply with `The TLS secret name is: <secret-name>` and I will update the manifest.
   * **Option B (Direct Edit)**: Update `spec.endpoints[<index>].tls.ca.secret.name` in `<path-to-manifest>.yaml` and remove the TODO annotation.
 
@@ -318,6 +324,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
 
 * **Annotation**: `[ERROR] OAuth2 clientID must be defined as either Secret or ConfigMap...`
 * **Agent Handoff Output Format**:
+
   In GMP, `oauth2.clientID` and `oauth2.tokenURL` are configured directly as strings, while `clientSecret` remains securely referenced from Secret `<secret-name>`.
 
   ### 1. Retrieve the client ID in your terminal (if stored in a Secret):
@@ -327,6 +334,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   ```
 
   ### 2. Resolution Options:
+
   * **Option A (Interactive)**: Reply with:
     * `The clientID is: <value>`
     * `The tokenURL is: <url>` (e.g. `https://auth.corp.internal/oauth/v2/token`)
@@ -400,6 +408,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   $$\text{Scraped Targets} = (\text{Pods matching } \texttt{spec.selector}) \cap (\text{Pods matching Annotation Rule})$$
 
   ##### Case A: Reconciling `action: keep` (e.g. `prometheus.io/scrape: "true"`)
+
   1. **Intersection Query**: Query for workloads matching **both** the monitor's original `spec.selector` AND the annotation:
 
      ```bash
@@ -419,6 +428,7 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   4. **Warn & Prompt**: Warn the user that patching the workload pod templates will trigger a rolling restart of their pods, and request approval before applying.
 
   ##### Case B: Reconciling `action: drop` (e.g. `prometheus.io/scrape: "false"`)
+
   1. **Identify Excluded Workloads**: Query for workloads matching `spec.selector` that have the exclusion annotation:
 
      ```bash
