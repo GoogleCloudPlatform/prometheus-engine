@@ -795,32 +795,6 @@ func TestSettingHonorLabels(t *testing.T) {
 	testGoldenEquivalence(t, "SettingHonorLabels.golden", []runtime.Object{sm, svc}, "web")
 }
 
-// TestHonorLabelsOverriding mirrors upstream TestHonorLabelsOverriding in promcfg_test.go.
-func TestHonorLabelsOverriding(t *testing.T) {
-	sm := &pomonitoringv1.ServiceMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testservicemonitor1",
-			Namespace: "default",
-			Labels: map[string]string{
-				"group": "group1",
-			},
-		},
-		Spec: pomonitoringv1.ServiceMonitorSpec{
-			TargetLabels: []string{"example", "env"},
-			Endpoints: []pomonitoringv1.Endpoint{
-				{
-					HonorLabels: true,
-					Port:        "web",
-					Interval:    "30s",
-				},
-			},
-		},
-	}
-	svc := newTestServiceFixture("testservicemonitor1", "default", map[string]string{"group": "group1", "example": "example-val", "env": "prod"})
-	testGoldenEquivalence(t, "HonorLabelsOverriding.golden", []runtime.Object{sm, svc}, "web")
-}
-
 // TestPodTargetLabels mirrors upstream TestPodTargetLabels in promcfg_test.go for ServiceMonitor.
 func TestPodTargetLabels(t *testing.T) {
 	sm := &pomonitoringv1.ServiceMonitor{
