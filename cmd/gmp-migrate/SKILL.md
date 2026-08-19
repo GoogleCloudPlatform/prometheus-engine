@@ -412,8 +412,8 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   1. **Intersection Query**: Query for workloads matching **both** the monitor's original `spec.selector` AND the annotation:
 
      ```bash
-     kubectl get deployment,statefulset,daemonset -n <namespace> -l <original-monitor-selector> \
-       -o jsonpath='{range .items[?(@.spec.template.metadata.annotations["prometheus.io/scrape"]=="true")]}{.kind}{"/"}{.metadata.name}{"\n"}{end}'
+     kubectl get deployment,statefulset,daemonset -n <namespace> -l <original-monitor-selector> -o json | \
+       jq -r '.items[] | select(.spec.template.metadata.annotations["prometheus.io/scrape"] == "true") | "\(.kind)/\(.metadata.name)"'
      ```
   2. **Update `PodMonitoring`**: Combine the original selector with the promoted label:
 
@@ -432,8 +432,8 @@ All TODO annotations follow the format: `gmp.googleapis.com/todo-N: "[WARNING|ER
   1. **Identify Excluded Workloads**: Query for workloads matching `spec.selector` that have the exclusion annotation:
 
      ```bash
-     kubectl get deployment,statefulset,daemonset -n <namespace> -l <original-monitor-selector> \
-       -o jsonpath='{range .items[?(@.spec.template.metadata.annotations["prometheus.io/scrape"]=="false")]}{.kind}{"/"}{.metadata.name}{"\n"}{end}'
+     kubectl get deployment,statefulset,daemonset -n <namespace> -l <original-monitor-selector> -o json | \
+       jq -r '.items[] | select(.spec.template.metadata.annotations["prometheus.io/scrape"] == "false") | "\(.kind)/\(.metadata.name)"'
      ```
   2. **Inverted Selector via `matchExpressions: NotIn`**:
      - Add `labels: { prometheus.io/scrape: "false" }` to the excluded workload(s).
