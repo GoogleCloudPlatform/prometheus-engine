@@ -305,45 +305,29 @@ func normalizeGMPScrapeConfig(gmp *config.ScrapeConfig, expectedPO *config.Scrap
 		return nil
 	}
 	out := &config.ScrapeConfig{
-		// JobName in Prometheus Operator follows the internal server naming convention.
-		JobName:                  expectedPO.JobName,
-		HonorLabels:              expectedPO.HonorLabels,
-		HonorTimestamps:          expectedPO.HonorTimestamps,
-		TrackTimestampsStaleness: gmp.TrackTimestampsStaleness,
-		ScrapeInterval:           gmp.ScrapeInterval,
-		ScrapeTimeout:            gmp.ScrapeTimeout,
-		ScrapeProtocols:          expectedPO.ScrapeProtocols,
-		MetricsPath:              gmp.MetricsPath,
-		Scheme:                   gmp.Scheme,
-		Params:                   gmp.Params,
-		SampleLimit:              gmp.SampleLimit,
-		LabelLimit:               gmp.LabelLimit,
-		LabelNameLengthLimit:     gmp.LabelNameLengthLimit,
-		LabelValueLengthLimit:    gmp.LabelValueLengthLimit,
-		EnableCompression:        true,
-		// The following fields are not present in GMP's PodMonitoring / ClusterPodMonitoring CRD schemas.
-		// We adopt expectedPO values so that if future upstream test fixtures contain them, the test suite
-		// focuses on supported translation fields.
-		//
-		// TODO: If GMP CRD schemas introduce fields like 'targetLimit' or 'bodySizeLimit' in the future and
-		// gmp-migrate adds translation support for them, assert gmp.<Field> here rather than adopting expectedPO.
-		TargetLimit:                    expectedPO.TargetLimit,
-		BodySizeLimit:                  expectedPO.BodySizeLimit,
-		KeepDroppedTargets:             expectedPO.KeepDroppedTargets,
-		NativeHistogramBucketLimit:     expectedPO.NativeHistogramBucketLimit,
-		NativeHistogramMinBucketFactor: expectedPO.NativeHistogramMinBucketFactor,
+		// Standard Prometheus Operator defaults for baseline scrape configuration.
+		JobName:                        expectedPO.JobName,
+		HonorLabels:                    gmp.HonorLabels,
+		HonorTimestamps:                expectedPO.HonorTimestamps,
+		TrackTimestampsStaleness:       gmp.TrackTimestampsStaleness,
+		ScrapeInterval:                 gmp.ScrapeInterval,
+		ScrapeTimeout:                  gmp.ScrapeTimeout,
+		ScrapeProtocols:                expectedPO.ScrapeProtocols,
+		MetricsPath:                    gmp.MetricsPath,
+		Scheme:                         gmp.Scheme,
+		Params:                         gmp.Params,
+		SampleLimit:                    gmp.SampleLimit,
+		LabelLimit:                     gmp.LabelLimit,
+		LabelNameLengthLimit:           gmp.LabelNameLengthLimit,
+		LabelValueLengthLimit:          gmp.LabelValueLengthLimit,
+		EnableCompression:              true,
+		TargetLimit:                    gmp.TargetLimit,
+		BodySizeLimit:                  gmp.BodySizeLimit,
+		KeepDroppedTargets:             gmp.KeepDroppedTargets,
+		NativeHistogramBucketLimit:     gmp.NativeHistogramBucketLimit,
+		NativeHistogramMinBucketFactor: gmp.NativeHistogramMinBucketFactor,
+		HTTPClientConfig:               gmp.HTTPClientConfig,
 	}
-
-	// HTTPClientConfig: GMP supports Authorization, BasicAuth, TLS, OAuth2, and ProxyURL.
-	// For unexposed client booleans (FollowRedirects, EnableHTTP2), adopt expectedPO values
-	// so the test suite can evaluate upstream test fixtures that toggle them.
-	//
-	// TODO: If GMP CRDs expose followRedirects or enableHttp2 in the future and gmp-migrate
-	// adds translation support for them, assert gmp values directly.
-	httpClientCfg := gmp.HTTPClientConfig
-	httpClientCfg.FollowRedirects = expectedPO.HTTPClientConfig.FollowRedirects
-	httpClientCfg.EnableHTTP2 = expectedPO.HTTPClientConfig.EnableHTTP2
-	out.HTTPClientConfig = httpClientCfg
 
 	// ScrapeTimeout: If omitted by the user, GMP defaults timeout = interval (e.g. 30s),
 	// whereas Prometheus Operator's test server inherits a global 10s default.
@@ -541,32 +525,6 @@ func TestPodTargetLabelsFromPodMonitor(t *testing.T) {
 	testGoldenEquivalence(t, "PodTargetLabelsFromPodMonitor.golden", []runtime.Object{pm}, "web")
 }
 
-// TestSettingScrapeProtocolsInPodMonitor mirrors upstream TestSettingScrapeProtocolsInPodMonitor in promcfg_test.go.
-func TestSettingScrapeProtocolsInPodMonitor(t *testing.T) {
-	pm := &pomonitoringv1.PodMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "PodMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testpodmonitor1",
-			Namespace: "default",
-		},
-		Spec: pomonitoringv1.PodMonitorSpec{
-			PodTargetLabels: []string{"example", "env"},
-			ScrapeProtocols: []pomonitoringv1.ScrapeProtocol{
-				pomonitoringv1.ScrapeProtocol("OpenMetricsText1.0.0"),
-				pomonitoringv1.ScrapeProtocol("OpenMetricsText0.0.1"),
-			},
-			PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
-				{
-					TrackTimestampsStaleness: ptr.To(false),
-					Port:                     "web",
-					Interval:                 "30s",
-				},
-			},
-		},
-	}
-	testGoldenEquivalence(t, "SettingScrapeProtocolsInPodMonitor_NewVersion.golden", []runtime.Object{pm}, "web")
-}
-
 // TestPodMonitorPhaseFilter mirrors upstream TestPodMonitorPhaseFilter in promcfg_test.go.
 func TestPodMonitorPhaseFilter(t *testing.T) {
 	pm := &pomonitoringv1.PodMonitor{
@@ -590,162 +548,7 @@ func TestPodMonitorPhaseFilter(t *testing.T) {
 	testGoldenEquivalence(t, "PodMonitorPhaseFilter.golden", []runtime.Object{pm}, "test")
 }
 
-// TestSettingHonorTimestampsInPodMonitor mirrors upstream TestSettingHonorTimestampsInPodMonitor in promcfg_test.go.
-func TestSettingHonorTimestampsInPodMonitor(t *testing.T) {
-	pm := &pomonitoringv1.PodMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "PodMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testpodmonitor1",
-			Namespace: "default",
-		},
-		Spec: pomonitoringv1.PodMonitorSpec{
-			PodTargetLabels: []string{"example", "env"},
-			PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
-				{
-					HonorTimestamps: ptr.To(false),
-					Port:            "web",
-					Interval:        "30s",
-				},
-			},
-		},
-	}
-	testGoldenEquivalence(t, "SettingHonorTimestampsInPodMonitor.golden", []runtime.Object{pm}, "web")
-}
-
-// TestSettingTrackTimestampsStalenessInPodMonitor mirrors upstream TestSettingTrackTimestampsStalenessInPodMonitor in promcfg_test.go.
-func TestSettingTrackTimestampsStalenessInPodMonitor(t *testing.T) {
-	pm := &pomonitoringv1.PodMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "PodMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testpodmonitor1",
-			Namespace: "default",
-		},
-		Spec: pomonitoringv1.PodMonitorSpec{
-			PodTargetLabels: []string{"example", "env"},
-			PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
-				{
-					TrackTimestampsStaleness: ptr.To(false),
-					Port:                     "web",
-					Interval:                 "30s",
-				},
-			},
-		},
-	}
-	testGoldenEquivalence(t, "SettingTrackTimestampsStalenessInPodMonitor.golden", []runtime.Object{pm}, "web")
-}
-
-// TestPodMonitorEndpointFollowRedirects mirrors upstream TestPodMonitorEndpointFollowRedirects in promcfg_test.go.
-func TestPodMonitorEndpointFollowRedirects(t *testing.T) {
-	tests := []struct {
-		followRedirects bool
-		goldenFileName  string
-	}{
-		{
-			followRedirects: true,
-			goldenFileName:  "PodMonitorEndpointFollowRedirects_FollowRedirectsTrue_v2.28.0.golden",
-		},
-		{
-			followRedirects: false,
-			goldenFileName:  "PodMonitorEndpointFollowRedirects_FollowRedirectsFalse_v2.28.0.golden",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(fmt.Sprintf("v2.28.0 TestPodMonitorEndpointFollowRedirects(%t)", tc.followRedirects), func(t *testing.T) {
-			pm := &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "PodMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "testpodmonitor1",
-					Namespace: "pod-monitor-ns",
-					Labels: map[string]string{
-						"group": "group1",
-					},
-				},
-				Spec: pomonitoringv1.PodMonitorSpec{
-					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
-						{
-							Port:            "web",
-							Interval:        "30s",
-							FollowRedirects: ptr.To(tc.followRedirects),
-						},
-					},
-				},
-			}
-			testGoldenEquivalence(t, tc.goldenFileName, []runtime.Object{pm}, "web")
-		})
-	}
-}
-
-// TestPodMonitorEndpointEnableHttp2 mirrors upstream TestPodMonitorEndpointEnableHttp2 in promcfg_test.go.
-func TestPodMonitorEndpointEnableHttp2(t *testing.T) {
-	tests := []struct {
-		enableHTTP2    bool
-		goldenFileName string
-	}{
-		{
-			enableHTTP2:    true,
-			goldenFileName: "PodMonitorEndpointEnableHttp2_EnableHTTP2True_v2.35.0.golden",
-		},
-		{
-			enableHTTP2:    false,
-			goldenFileName: "PodMonitorEndpointEnableHttp2_EnableHTTP2False_v2.35.0.golden",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(fmt.Sprintf("v2.35.0 TestPodMonitorEndpointEnableHttp2(%t)", tc.enableHTTP2), func(t *testing.T) {
-			pm := &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "PodMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "testpodmonitor1",
-					Namespace: "pod-monitor-ns",
-					Labels: map[string]string{
-						"group": "group1",
-					},
-				},
-				Spec: pomonitoringv1.PodMonitorSpec{
-					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
-						{
-							Port:        "web",
-							Interval:    "30s",
-							EnableHttp2: ptr.To(tc.enableHTTP2),
-						},
-					},
-				},
-			}
-			testGoldenEquivalence(t, tc.goldenFileName, []runtime.Object{pm}, "web")
-		})
-	}
-}
-
 // 7. ServiceMonitor Test Suite.
-
-// TestSettingScrapeProtocolsInServiceMonitor mirrors upstream TestSettingScrapeProtocolsInServiceMonitor in promcfg_test.go.
-func TestSettingScrapeProtocolsInServiceMonitor(t *testing.T) {
-	sm := &pomonitoringv1.ServiceMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testservicemonitor1",
-			Namespace: "default",
-		},
-		Spec: pomonitoringv1.ServiceMonitorSpec{
-			TargetLabels: []string{"example", "env"},
-			ScrapeProtocols: []pomonitoringv1.ScrapeProtocol{
-				pomonitoringv1.ScrapeProtocol("OpenMetricsText1.0.0"),
-				pomonitoringv1.ScrapeProtocol("OpenMetricsText0.0.1"),
-			},
-			Endpoints: []pomonitoringv1.Endpoint{
-				{
-					HonorTimestamps: ptr.To(false),
-					Port:            "web",
-					Interval:        "30s",
-				},
-			},
-		},
-	}
-	svc := newTestServiceFixture("testservicemonitor1", "default", map[string]string{"group": "group1", "example": "example-val", "env": "prod"})
-	testGoldenEquivalence(t, "SettingScrapeProtocolsInServiceMonitor_NewVersion.golden", []runtime.Object{sm, svc}, "web")
-}
 
 // TestTargetLabels mirrors upstream TestTargetLabels in promcfg_test.go.
 func TestTargetLabels(t *testing.T) {
@@ -767,32 +570,6 @@ func TestTargetLabels(t *testing.T) {
 	}
 	svc := newTestServiceFixture("testservicemonitor1", "default", map[string]string{"group": "group1", "example": "example-val", "env": "prod"})
 	testGoldenEquivalence(t, "TargetLabels.golden", []runtime.Object{sm, svc}, "web")
-}
-
-// TestSettingHonorLabels mirrors upstream TestSettingHonorLabels in promcfg_test.go.
-func TestSettingHonorLabels(t *testing.T) {
-	sm := &pomonitoringv1.ServiceMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testservicemonitor1",
-			Namespace: "default",
-			Labels: map[string]string{
-				"group": "group1",
-			},
-		},
-		Spec: pomonitoringv1.ServiceMonitorSpec{
-			TargetLabels: []string{"example", "env"},
-			Endpoints: []pomonitoringv1.Endpoint{
-				{
-					HonorLabels: true,
-					Port:        "web",
-					Interval:    "30s",
-				},
-			},
-		},
-	}
-	svc := newTestServiceFixture("testservicemonitor1", "default", map[string]string{"group": "group1", "example": "example-val", "env": "prod"})
-	testGoldenEquivalence(t, "SettingHonorLabels.golden", []runtime.Object{sm, svc}, "web")
 }
 
 // TestPodTargetLabels mirrors upstream TestPodTargetLabels in promcfg_test.go for ServiceMonitor.
@@ -818,136 +595,4 @@ func TestPodTargetLabels(t *testing.T) {
 	}
 	svc := newTestServiceFixture("testservicemonitor1", "default", map[string]string{"group": "group1", "example": "example-val", "env": "prod"})
 	testGoldenEquivalence(t, "PodTargetLabels.golden", []runtime.Object{sm, svc}, "web")
-}
-
-// TestSettingHonorTimestampsInServiceMonitor mirrors upstream TestSettingHonorTimestampsInServiceMonitor in promcfg_test.go.
-func TestSettingHonorTimestampsInServiceMonitor(t *testing.T) {
-	sm := &pomonitoringv1.ServiceMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testservicemonitor1",
-			Namespace: "default",
-		},
-		Spec: pomonitoringv1.ServiceMonitorSpec{
-			TargetLabels: []string{"example", "env"},
-			Endpoints: []pomonitoringv1.Endpoint{
-				{
-					HonorTimestamps: ptr.To(false),
-					Port:            "web",
-					Interval:        "30s",
-				},
-			},
-		},
-	}
-	svc := newTestServiceFixture("testservicemonitor1", "default", map[string]string{"group": "group1", "example": "example-val", "env": "prod"})
-	testGoldenEquivalence(t, "SettingHonorTimestampsInServiceMonitor.golden", []runtime.Object{sm, svc}, "web")
-}
-
-// TestSettingTrackTimestampsStalenessInServiceMonitor mirrors upstream TestSettingTrackTimestampsStalenessInServiceMonitor in promcfg_test.go.
-func TestSettingTrackTimestampsStalenessInServiceMonitor(t *testing.T) {
-	sm := &pomonitoringv1.ServiceMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testservicemonitor1",
-			Namespace: "default",
-		},
-		Spec: pomonitoringv1.ServiceMonitorSpec{
-			TargetLabels: []string{"example", "env"},
-			Endpoints: []pomonitoringv1.Endpoint{
-				{
-					TrackTimestampsStaleness: ptr.To(false),
-					Port:                     "web",
-					Interval:                 "30s",
-				},
-			},
-		},
-	}
-	svc := newTestServiceFixture("testservicemonitor1", "default", map[string]string{"group": "group1", "example": "example-val", "env": "prod"})
-	testGoldenEquivalence(t, "SettingTrackTimestampsStalenessInServiceMonitor.golden", []runtime.Object{sm, svc}, "web")
-}
-
-// TestServiceMonitorEndpointFollowRedirects mirrors upstream TestServiceMonitorEndpointFollowRedirects in promcfg_test.go.
-func TestServiceMonitorEndpointFollowRedirects(t *testing.T) {
-	tests := []struct {
-		followRedirects bool
-		goldenFileName  string
-	}{
-		{
-			followRedirects: true,
-			goldenFileName:  "ServiceMonitorEndpointFollowRedirects_FollowRedirectTrue_v2.28.0.golden",
-		},
-		{
-			followRedirects: false,
-			goldenFileName:  "ServiceMonitorEndpointFollowRedirects_FollowRedirectFalse_v2.28.0.golden",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(fmt.Sprintf("v2.28.0 TestServiceMonitorEndpointFollowRedirects(%t)", tc.followRedirects), func(t *testing.T) {
-			sm := &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "testservicemonitor1",
-					Namespace: "default",
-					Labels: map[string]string{
-						"group": "group1",
-					},
-				},
-				Spec: pomonitoringv1.ServiceMonitorSpec{
-					Endpoints: []pomonitoringv1.Endpoint{
-						{
-							Port:            "web",
-							Interval:        "30s",
-							FollowRedirects: ptr.To(tc.followRedirects),
-						},
-					},
-				},
-			}
-			svc := newTestServiceFixture("testservicemonitor1", "default", nil)
-			testGoldenEquivalence(t, tc.goldenFileName, []runtime.Object{sm, svc}, "web")
-		})
-	}
-}
-
-// TestServiceMonitorEndpointEnableHttp2 mirrors upstream TestServiceMonitorEndpointEnableHttp2 in promcfg_test.go.
-func TestServiceMonitorEndpointEnableHttp2(t *testing.T) {
-	tests := []struct {
-		enableHTTP2    bool
-		goldenFileName string
-	}{
-		{
-			enableHTTP2:    true,
-			goldenFileName: "ServiceMonitorEndpointEnableHttp2_EnableHTTP2True_v2.35.0.golden",
-		},
-		{
-			enableHTTP2:    false,
-			goldenFileName: "ServiceMonitorEndpointEnableHttp2_EnableHTTP2False_v2.35.0.golden",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(fmt.Sprintf("v2.35.0 TestServiceMonitorEndpointEnableHttp2(%t)", tc.enableHTTP2), func(t *testing.T) {
-			sm := &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "testservicemonitor1",
-					Namespace: "default",
-					Labels: map[string]string{
-						"group": "group1",
-					},
-				},
-				Spec: pomonitoringv1.ServiceMonitorSpec{
-					Endpoints: []pomonitoringv1.Endpoint{
-						{
-							Port:        "web",
-							Interval:    "30s",
-							EnableHttp2: ptr.To(tc.enableHTTP2),
-						},
-					},
-				},
-			}
-			svc := newTestServiceFixture("testservicemonitor1", "default", nil)
-			testGoldenEquivalence(t, tc.goldenFileName, []runtime.Object{sm, svc}, "web")
-		})
-	}
 }
