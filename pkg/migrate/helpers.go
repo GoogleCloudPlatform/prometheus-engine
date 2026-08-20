@@ -68,6 +68,7 @@ var (
 		export.KeyJob:               true,
 		export.KeyInstance:          true,
 		labelTopLevelController:     true,
+		labelTopLevelControllerName: true,
 		labelTopLevelControllerType: true,
 		labelAddress:                true,
 	}
