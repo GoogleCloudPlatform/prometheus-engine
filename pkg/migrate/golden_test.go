@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package migrate_test
+package migrate
 
 import (
 	"bytes"
@@ -39,8 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 	k8syaml "sigs.k8s.io/yaml"
-
-	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/migrate"
 )
 
 // 1. Constants.
@@ -48,19 +46,6 @@ const (
 	metaPodLabelPrefix     = "__meta_kubernetes_pod_label_"
 	metaServiceLabelPrefix = "__meta_kubernetes_service_label_"
 )
-
-var protectedLabels = map[string]bool{
-	"project_id":                true,
-	"location":                  true,
-	"cluster":                   true,
-	"namespace":                 true,
-	"job":                       true,
-	"instance":                  true,
-	"top_level_controller":      true,
-	"top_level_controller_name": true,
-	"top_level_controller_type": true,
-	"__address__":               true,
-}
 
 // 2. Low-Level Relabel Helpers.
 
@@ -423,9 +408,9 @@ func testGoldenEquivalence(t *testing.T, goldenFileName string, inputs []runtime
 		}
 	}
 
-	migrator := migrate.NewMigrator()
-	migrator.RegisterConverter(&migrate.PodMonitorConverter{})
-	migrator.RegisterConverter(&migrate.ServiceMonitorConverter{})
+	migrator := NewMigrator()
+	migrator.RegisterConverter(&PodMonitorConverter{})
+	migrator.RegisterConverter(&ServiceMonitorConverter{})
 	migrator.Stdin = &yamlBuf
 	migrator.Stderr = io.Discard
 
