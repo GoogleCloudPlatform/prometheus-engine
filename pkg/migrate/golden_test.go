@@ -211,7 +211,7 @@ func buildEndpointRelabelRules(gmpRelabelConfigs, gmpMetricRelabelConfigs, expec
 //
 // TODO: If future upstream test cases introduce custom pre-scrape relabelings that gmp-migrate converts into
 // metricRelabeling or targetLabels, add normalization logic here to map them back to expected target relabelings.
-func extractCustomRelabelRules(gmpRelabelConfigs []*relabel.Config, role promk8s.Role) []*relabel.Config {
+func extractCustomRelabelRules(gmpRelabelConfigs []*relabel.Config) []*relabel.Config {
 	var out []*relabel.Config
 	for _, r := range gmpRelabelConfigs {
 		if r == nil {
@@ -279,7 +279,7 @@ func normalizeTargetRelabelConfigs(gmpRelabelConfigs, gmpMetricRelabelConfigs, e
 	}
 
 	// Step 3: Custom user-defined relabel rules.
-	out = append(out, extractCustomRelabelRules(gmpRelabelConfigs, role)...)
+	out = append(out, extractCustomRelabelRules(gmpRelabelConfigs)...)
 
 	// Step 4: Trailing job, endpoint, and sharding hashmod rules.
 	out = append(out, buildTrailingRelabelRules(role, namespace, name, endpointPort)...)
