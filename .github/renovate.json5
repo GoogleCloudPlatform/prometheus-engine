@@ -42,7 +42,7 @@
   "packageRules": [
     // Docker updates
     {
-      "description": "Group Docker image updates",
+      "description": "Group all Docker image updates into a single PR",
       "matchManagers": ["dockerfile"],
       "groupName": "docker",
       "groupSlug": "docker"
@@ -57,15 +57,13 @@
       ],
       "enabled": false
     },
-    // Tools Go modules
     {
-      "description": "Group tools dependencies",
-      "matchManagers": ["gomod"],
-      "matchFileNames": ["tools/go.mod"],
-      "groupName": "tools",
-      "groupSlug": "tools"
+      "description": "Disable Docker image updates on release branches",
+      "matchManagers": ["dockerfile"],
+      "matchBaseBranches": ["/^release\\/.*$/"],
+      "enabled": false
     },
-    // Root Go modules
+    // Go module updates
     {
       "description": "Skip Prometheus as we need to have it pinned carefully",
       "matchManagers": ["gomod"],
@@ -73,33 +71,23 @@
       "enabled": false
     },
     {
-      "description": "Group dep updates for k8s as they typically break by assuming all k8s modules are upgraded at the same time",
+      "description": "Group all Go module updates into a single PR",
       "matchManagers": ["gomod"],
-      "matchFileNames": ["go.mod"],
-      "matchPackageNames": [
-        "k8s.io/**",
-        "sigs.k8s.io/**"
-      ],
-      "groupName": "k8s-deps",
-      "groupSlug": "k8s-deps"
-    },
-    {
-      "description": "Group root Go module dependencies into one PR as single update already updates co-located deps",
-      "matchManagers": ["gomod"],
-      "matchFileNames": ["go.mod"],
-      "excludePackageNames": [
-        "k8s.io/**",
-        "sigs.k8s.io/**"
-      ],
       "groupName": "deps",
       "groupSlug": "deps"
     },
-    // Release branches: only allow security/vulnerability updates for Go modules
+    // Release branch restrictions
+    {
+      "description": "Disable non-root Go modules on release branches",
+      "matchManagers": ["gomod"],
+      "matchBaseBranches": ["/^release\\/.*$/"],
+      "matchFileNames": ["tools/go.mod", "examples/**"],
+      "enabled": false
+    },
     {
       "description": "Disable non-security Go module updates on release branches (security/vulnerability updates remain enabled)",
       "matchManagers": ["gomod"],
       "matchBaseBranches": ["/^release\\/.*$/"],
-      "matchPackageNames": ["*"],
       "enabled": false
     }
   ]
