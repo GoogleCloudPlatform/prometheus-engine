@@ -3,13 +3,10 @@
   "extends": [
     "config:recommended"
   ],
-  // Process main branch and supported release branches (0.16 and <=0.14 are disabled)
+  // Process both main branch and all release branches
   "baseBranchPatterns": [
     "main",
-    "release/0.19",
-    "release/0.18",
-    "release/0.17",
-    "release/0.15"
+    "/^release\\/.*$/"
   ],
   // Schedule updates on weekends to match weekly dependabot interval
   "schedule": [
@@ -95,12 +92,11 @@
       "groupName": "deps",
       "groupSlug": "deps"
     },
-    // Release branches: only allow security/vulnerability updates for Go modules
+    // Release branches
     {
       "description": "Disable non-security Go module updates on release branches (security/vulnerability updates remain enabled)",
       "matchManagers": ["gomod"],
       "matchBaseBranches": ["/^release\\/.*$/"],
-      "matchPackageNames": ["*"],
       "enabled": false
     }
   ]
