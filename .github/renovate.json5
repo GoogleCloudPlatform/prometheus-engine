@@ -87,10 +87,9 @@
       "description": "Group root Go module dependencies into one PR as single update already updates co-located deps",
       "matchManagers": ["gomod"],
       "matchFileNames": ["go.mod"],
-      "matchPackageNames": [
-        "*",
-        "!k8s.io/**",
-        "!sigs.k8s.io/**"
+      "excludePackageNames": [
+        "k8s.io/**",
+        "sigs.k8s.io/**"
       ],
       "groupName": "deps",
       "groupSlug": "deps"
