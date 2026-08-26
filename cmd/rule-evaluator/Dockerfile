@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.12@sha256:39b08ebf80d1c542ddc8f2f76526b7821f618d1169c1f956ba81155ac4658a9a AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.14@sha256:c0dc9ab49a7547b063025c63d61fc0a4e001dfc01ff9b1e0460e259195880a8b AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
@@ -44,6 +44,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/rule-evaluator/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260715.00_p0@sha256:806b48f065651c95ef6547c4b136f0a1acfe1ad259bdae77c3696a60a044394f
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260815.00_p0@sha256:532c7001d381c6f0c6fe684bb3235596cd532340c463df855a0ea168a83d783e
 COPY --from=buildbase /app/rule-evaluator /bin/rule-evaluator
 ENTRYPOINT ["/bin/rule-evaluator"]
