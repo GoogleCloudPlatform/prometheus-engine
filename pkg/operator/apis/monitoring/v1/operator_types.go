@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -88,6 +89,16 @@ func validateRules(rules *RuleEvaluatorSpec) error {
 }
 
 func validateAlertManagerEndpoint(alertManagerEndpoint *AlertmanagerEndpoints) error {
+	switch alertManagerEndpoint.DiscoveryType {
+	case "", AlertmanagerDiscoveryTypeEndpoints:
+	case AlertmanagerDiscoveryTypeService:
+		port, err := strconv.ParseUint(alertManagerEndpoint.Port.String(), 10, 16)
+		if err != nil || port == 0 {
+			return fmt.Errorf("service discovery requires a numeric port between 1 and 65535, got %q", alertManagerEndpoint.Port.String())
+		}
+	default:
+		return fmt.Errorf("unknown discovery type %q", alertManagerEndpoint.DiscoveryType)
+	}
 	if alertManagerEndpoint.Authorization != nil {
 		if err := validateSecretKeySelector(alertManagerEndpoint.Authorization.Credentials); err != nil {
 			return fmt.Errorf("invalid authorization credentials: %w", err)
@@ -301,15 +312,30 @@ type ManagedAlertmanagerSpec struct {
 	ExternalURL string `json:"externalURL,omitempty"`
 }
 
-// AlertmanagerEndpoints defines a selection of a single Endpoints object
-// containing alertmanager IPs to fire alerts against.
+// AlertmanagerDiscoveryType defines how Alertmanager targets are discovered.
+type AlertmanagerDiscoveryType string
+
+const (
+	// AlertmanagerDiscoveryTypeEndpoints discovers individual Alertmanager replicas from Endpoints.
+	AlertmanagerDiscoveryTypeEndpoints AlertmanagerDiscoveryType = "Endpoints"
+	// AlertmanagerDiscoveryTypeService routes alerts through a Kubernetes Service DNS name.
+	AlertmanagerDiscoveryTypeService AlertmanagerDiscoveryType = "Service"
+)
+
+// AlertmanagerEndpoints defines a selection of Alertmanager targets to fire alerts against.
 type AlertmanagerEndpoints struct {
-	// Namespace of Endpoints object.
+	// Namespace of the Endpoints object or Service.
 	Namespace string `json:"namespace"`
-	// Name of Endpoints object in Namespace.
+	// Name of the Endpoints object or Service in Namespace.
 	Name string `json:"name"`
 	// Port the Alertmanager API is exposed on.
 	Port intstr.IntOrString `json:"port"`
+	// DiscoveryType controls how Alertmanager targets are discovered. Endpoints, the default,
+	// discovers each Alertmanager replica from a Kubernetes Endpoints object. Service routes
+	// through the Kubernetes Service DNS name and requires a numeric Port. Service discovery
+	// supports Services without Endpoints, such as ExternalName Services.
+	// +kubebuilder:validation:Enum=Endpoints;Service
+	DiscoveryType AlertmanagerDiscoveryType `json:"discoveryType,omitempty"`
 	// Scheme to use when firing alerts.
 	Scheme string `json:"scheme,omitempty"`
 	// Prefix for the HTTP path alerts are pushed to.
