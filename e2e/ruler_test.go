@@ -933,7 +933,12 @@ func testCreateMultiShardRules(
 			wantGroupNames[s.groupName] = true
 		}
 
-		var shardCMs []corev1.ConfigMap
+		var (
+			shardCMs []corev1.ConfigMap
+			missing  []string
+		)
+		// The operator writes one shard per API call, so a partially spread
+		// ruleset is a normal intermediate state.
 		err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 			var cmList corev1.ConfigMapList
 			if err := kubeClient.List(ctx, &cmList,
@@ -943,17 +948,36 @@ func testCreateMultiShardRules(
 				return false, fmt.Errorf("list shard ConfigMaps: %w", err)
 			}
 			if len(cmList.Items) < 2 {
+				missing = []string{"a second shard"}
+				return false, nil
+			}
+
+			got := make(map[string]bool)
+			for _, cm := range cmList.Items {
+				for k := range cm.Data {
+					got[k] = true
+				}
+				for k := range cm.BinaryData {
+					got[k] = true
+				}
+			}
+			missing = nil
+			for _, s := range specs {
+				if filename := fmt.Sprintf("rules__%s__%s.yaml", userNamespace, s.name); !got[filename] {
+					missing = append(missing, filename)
+				}
+			}
+			if len(missing) > 0 {
 				return false, nil
 			}
 			shardCMs = cmList.Items
 			return true, nil
 		})
 		if err != nil {
-			t.Fatalf("waiting for at least 2 shard ConfigMaps: %s", err)
+			t.Fatalf("waiting for all rule files across at least 2 shards, missing %v: %s", missing, err)
 		}
 		t.Logf("found %d shard ConfigMaps", len(shardCMs))
 
-		allFiles := make(map[string]bool)
 		for _, cm := range shardCMs {
 			isShard0 := cm.Name == "rules-generated-0"
 			if isShard0 {
@@ -965,25 +989,12 @@ func testCreateMultiShardRules(
 					t.Errorf("shard %s should not have empty.yaml sentinel", cm.Name)
 				}
 			}
-			for k := range cm.Data {
-				allFiles[k] = true
-			}
-			for k := range cm.BinaryData {
-				allFiles[k] = true
-			}
 			if features.Config.Compression == monitoringv1.CompressionGzip {
 				for k := range cm.Data {
 					if k != "empty.yaml" {
 						t.Errorf("shard %s: key %q should be in BinaryData with gzip, not Data", cm.Name, k)
 					}
 				}
-			}
-		}
-
-		for _, s := range specs {
-			filename := fmt.Sprintf("rules__%s__%s.yaml", userNamespace, s.name)
-			if !allFiles[filename] {
-				t.Errorf("expected rule file %q not found in any shard", filename)
 			}
 		}
 
