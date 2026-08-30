@@ -38,7 +38,7 @@ import (
 
 const (
 	nameRulesGeneratedPrefix = "rules-generated-"
-	maxShardDataBytes        = 800 * 1024 // headroom below 1MB etcd limit for metadata overhead
+	maxShardDataBytes        = 800 * 1024 // headroom below 1MB etcd limit for metadata overhead.
 	labelRulesShardType      = "monitoring.googleapis.com/rules-shard"
 )
 

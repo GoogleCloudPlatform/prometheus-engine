@@ -1110,7 +1110,7 @@ func incompressibleMetricName(size int) string {
 	_, _ = buf.WriteString("m_")
 	h := sha256.Sum256([]byte("seed"))
 	for buf.Len() < size {
-		_, _ = buf.WriteString(fmt.Sprintf("%x", h))
+		fmt.Fprintf(&buf, "%x", h)
 		h = sha256.Sum256(h[:])
 	}
 	return buf.String()[:size]
