@@ -119,7 +119,7 @@ type Options struct {
 	TLSKey string
 	// Certificate authority in base 64.
 	CACert string
-	// CertDir is the path to a directory containing TLS certificates for the webhook server
+	// CertDir is the path to a directory containing TLS certificates for the webhook server.
 	CertDir string
 	// Webhook serving address.
 	ListenAddr string
@@ -379,7 +379,7 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 		case !apierrors.IsNotFound(err):
 			return fmt.Errorf("delete legacy ValidatingWebHookConfiguration failed: %w", err)
 		default:
-			// Noop
+			// Noop.
 		}
 	}
 
@@ -406,7 +406,7 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 			case !apierrors.IsNotFound(err):
 				return fmt.Errorf("cleanup collector failed: %w", err)
 			default:
-				// Noop
+				// Noop.
 			}
 		}
 	}
@@ -428,7 +428,7 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 			case !apierrors.IsNotFound(err):
 				return fmt.Errorf("cleanup rule-evaluator failed: %w", err)
 			default:
-				// Noop
+				// Noop.
 			}
 		}
 	}
@@ -462,18 +462,18 @@ func (o namespacedNamePredicate) Generic(e event.GenericEvent) bool {
 // enqueueConst always enqueues the same request regardless of the event.
 type enqueueConst reconcile.Request
 
-func (e enqueueConst) Create(_ context.Context, _ event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Create(_ context.Context, _ event.TypedCreateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Update(_ context.Context, _ event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Update(_ context.Context, _ event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Delete(_ context.Context, _ event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Delete(_ context.Context, _ event.TypedDeleteEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	q.Add(reconcile.Request(e))
 }
 
-func (e enqueueConst) Generic(_ context.Context, _ event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (e enqueueConst) Generic(_ context.Context, _ event.TypedGenericEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	q.Add(reconcile.Request(e))
 }

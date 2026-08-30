@@ -64,7 +64,8 @@ spec:
                     properties:
                       interval:
                         default: 1m
-                        description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
+                        description: Interval at which to scrape metrics. Must be
+                          a valid Prometheus duration.
                         format: duration
                         type: string
                       metricRelabeling:
@@ -74,10 +75,12 @@ spec:
                           instance, or __address__) are not permitted. The labelmap action is not permitted
                           in general.
                         items:
-                          description: RelabelingRule defines a single Prometheus relabeling rule.
+                          description: RelabelingRule defines a single Prometheus
+                            relabeling rule.
                           properties:
                             action:
-                              description: Action to perform based on regex matching. Defaults to 'replace'.
+                              description: Action to perform based on regex matching.
+                                Defaults to 'replace'.
                               enum:
                                 - replace
                                 - lowercase
@@ -91,11 +94,13 @@ spec:
                                 - labelkeep
                               type: string
                             modulus:
-                              description: Modulus to take of the hash of the source label values.
+                              description: Modulus to take of the hash of the source
+                                label values.
                               format: int64
                               type: integer
                             regex:
-                              description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
+                              description: Regular expression against which the extracted
+                                value is matched. Defaults to '(.*)'.
                               maxLength: 10000
                               type: string
                             replacement:
@@ -104,7 +109,8 @@ spec:
                                 regular expression matches. Regex capture groups are available. Defaults to '$1'.
                               type: string
                             separator:
-                              description: Separator placed between concatenated source label values. Defaults to ';'.
+                              description: Separator placed between concatenated source
+                                label values. Defaults to ';'.
                               type: string
                             sourceLabels:
                               description: |-
@@ -123,11 +129,17 @@ spec:
                               pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                               type: string
                               x-kubernetes-validations:
-                                - messageExpression: '''cannot relabel onto protected label "%s"''.format([self])'
-                                  rule: self != 'project_id' && self != 'location' && self != 'cluster' && self != 'namespace' && self != 'job' && self != 'instance' && self != 'top_level_controller' && self != 'top_level_controller_type' && self != '__address__'
+                                - messageExpression: '''cannot relabel onto protected
+                                    label "%s"''.format([self])'
+                                  rule: self != 'project_id' && self != 'location'
+                                    && self != 'cluster' && self != 'namespace' &&
+                                    self != 'job' && self != 'instance' && self !=
+                                    'top_level_controller' && self != 'top_level_controller_type'
+                                    && self != '__address__'
                           type: object
                           x-kubernetes-validations:
-                            - rule: '!has(self.action) ||  self.action != ''labeldrop'' || has(self.regex)'
+                            - rule: '!has(self.action) ||  self.action != ''labeldrop''
+                                || has(self.regex)'
                         maxItems: 250
                         type: array
                       params:
@@ -138,7 +150,8 @@ spec:
                         description: HTTP GET params to use when scraping.
                         type: object
                       path:
-                        description: HTTP path to scrape metrics from. Defaults to "/metrics".
+                        description: HTTP path to scrape metrics from. Defaults to
+                          "/metrics".
                         type: string
                       scheme:
                         description: Protocol scheme to use to scrape.
@@ -156,14 +169,16 @@ spec:
                         description: TLS configures the scrape request's TLS settings.
                         properties:
                           insecureSkipVerify:
-                            description: InsecureSkipVerify disables target certificate validation.
+                            description: InsecureSkipVerify disables target certificate
+                              validation.
                             type: boolean
                         type: object
                     required:
                       - interval
                     type: object
                     x-kubernetes-validations:
-                      - messageExpression: '''scrape timeout (%s) must not be greater than scrape interval (%s)''.format([self.timeout, self.interval])'
+                      - messageExpression: '''scrape timeout (%s) must not be greater
+                          than scrape interval (%s)''.format([self.timeout, self.interval])'
                         rule: '!has(self.timeout) || self.timeout <= self.interval'
                   maxItems: 10
                   minItems: 1
@@ -202,14 +217,16 @@ spec:
                     configuration. If left empty all nodes are selected.
                   properties:
                     matchExpressions:
-                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      description: matchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
                       items:
                         description: |-
                           A label selector requirement is a selector that contains values, a key, and an operator that
                           relates the key and values.
                         properties:
                           key:
-                            description: key is the label key that the selector applies to.
+                            description: key is the label key that the selector applies
+                              to.
                             type: string
                           operator:
                             description: |-
@@ -249,12 +266,15 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of a podmonitor's
+                    current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes the condition of a
+                      PodMonitoring.
                     properties:
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       lastUpdateTime:
@@ -262,13 +282,15 @@ spec:
                         format: date-time
                         type: string
                       message:
-                        description: A human-readable message indicating details about the transition.
+                        description: A human-readable message indicating details about
+                          the transition.
                         type: string
                       reason:
                         description: The reason for the condition's last transition.
                         type: string
                       status:
-                        description: Status of the condition, one of True, False, Unknown.
+                        description: Status of the condition, one of True, False,
+                          Unknown.
                         type: string
                       type:
                         description: MonitoringConditionType is the type of MonitoringCondition.
@@ -338,19 +360,24 @@ spec:
                 endpoints:
                   description: The endpoints to scrape on the selected pods.
                   items:
-                    description: ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
+                    description: ScrapeEndpoint specifies a Prometheus metrics endpoint
+                      to scrape.
                     properties:
                       authorization:
-                        description: Authorization is the HTTP authorization credentials for the targets.
+                        description: Authorization is the HTTP authorization credentials
+                          for the targets.
                         properties:
                           credentials:
-                            description: Credentials uses the secret as the credentials (token) for the authentication header.
+                            description: Credentials uses the secret as the credentials
+                              (token) for the authentication header.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -371,20 +398,25 @@ spec:
                               Basic will cause an error, as the BasicAuth object should be used instead.
                             type: string
                             x-kubernetes-validations:
-                              - message: authorization type cannot be set to "basic", use "basic_auth" instead
+                              - message: authorization type cannot be set to "basic",
+                                  use "basic_auth" instead
                                 rule: self != 'Basic'
                         type: object
                       basicAuth:
-                        description: BasicAuth is the HTTP basic authentication credentials for the targets.
+                        description: BasicAuth is the HTTP basic authentication credentials
+                          for the targets.
                         properties:
                           password:
-                            description: Password uses the secret as the BasicAuth password.
+                            description: Password uses the secret as the BasicAuth
+                              password.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -404,7 +436,8 @@ spec:
                             type: string
                         type: object
                       interval:
-                        description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
+                        description: Interval at which to scrape metrics. Must be
+                          a valid Prometheus duration.
                         format: duration
                         type: string
                       metricRelabeling:
@@ -414,10 +447,12 @@ spec:
                           instance, top_level_controller, top_level_controller_type, or __address__) are
                           not permitted. The labelmap action is not permitted in general.
                         items:
-                          description: RelabelingRule defines a single Prometheus relabeling rule.
+                          description: RelabelingRule defines a single Prometheus
+                            relabeling rule.
                           properties:
                             action:
-                              description: Action to perform based on regex matching. Defaults to 'replace'.
+                              description: Action to perform based on regex matching.
+                                Defaults to 'replace'.
                               enum:
                                 - replace
                                 - lowercase
@@ -431,11 +466,13 @@ spec:
                                 - labelkeep
                               type: string
                             modulus:
-                              description: Modulus to take of the hash of the source label values.
+                              description: Modulus to take of the hash of the source
+                                label values.
                               format: int64
                               type: integer
                             regex:
-                              description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
+                              description: Regular expression against which the extracted
+                                value is matched. Defaults to '(.*)'.
                               maxLength: 10000
                               type: string
                             replacement:
@@ -444,7 +481,8 @@ spec:
                                 regular expression matches. Regex capture groups are available. Defaults to '$1'.
                               type: string
                             separator:
-                              description: Separator placed between concatenated source label values. Defaults to ';'.
+                              description: Separator placed between concatenated source
+                                label values. Defaults to ';'.
                               type: string
                             sourceLabels:
                               description: |-
@@ -463,27 +501,38 @@ spec:
                               pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                               type: string
                               x-kubernetes-validations:
-                                - messageExpression: '''cannot relabel onto protected label "%s"''.format([self])'
-                                  rule: self != 'project_id' && self != 'location' && self != 'cluster' && self != 'namespace' && self != 'job' && self != 'instance' && self != 'top_level_controller' && self != 'top_level_controller_type' && self != '__address__'
+                                - messageExpression: '''cannot relabel onto protected
+                                    label "%s"''.format([self])'
+                                  rule: self != 'project_id' && self != 'location'
+                                    && self != 'cluster' && self != 'namespace' &&
+                                    self != 'job' && self != 'instance' && self !=
+                                    'top_level_controller' && self != 'top_level_controller_type'
+                                    && self != '__address__'
                           type: object
                           x-kubernetes-validations:
-                            - rule: '!has(self.action) ||  self.action != ''labeldrop'' || has(self.regex)'
+                            - rule: '!has(self.action) ||  self.action != ''labeldrop''
+                                || has(self.regex)'
                         maxItems: 250
                         type: array
                       oauth2:
-                        description: OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.
+                        description: OAuth2 is the OAuth2 client credentials used
+                          to fetch a token for the targets.
                         properties:
                           clientID:
-                            description: ClientID is the public identifier for the client.
+                            description: ClientID is the public identifier for the
+                              client.
                             type: string
                           clientSecret:
-                            description: ClientSecret uses the secret as the client secret token.
+                            description: ClientSecret uses the secret as the client
+                              secret token.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -501,7 +550,8 @@ spec:
                           endpointParams:
                             additionalProperties:
                               type: string
-                            description: EndpointParams are additional parameters to append to the token URL.
+                            description: EndpointParams are additional parameters
+                              to append to the token URL.
                             type: object
                           proxyUrl:
                             description: |-
@@ -513,7 +563,8 @@ spec:
                             x-kubernetes-validations:
                               - rule: isURL(self) && !self.matches('@')
                           scopes:
-                            description: Scopes represents the scopes for the token request.
+                            description: Scopes represents the scopes for the token
+                              request.
                             items:
                               type: string
                             type: array
@@ -526,13 +577,16 @@ spec:
                                   provider can be used at a time.
                                 properties:
                                   secret:
-                                    description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                    description: Secret represents reference to a
+                                      given key from certain Secret in a given namespace.
                                     properties:
                                       key:
-                                        description: Key of the secret to select from. Must be a valid secret key.
+                                        description: Key of the secret to select from.
+                                          Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: Name of the secret to select from.
+                                        description: Name of the secret to select
+                                          from.
                                         type: string
                                       namespace:
                                         description: |-
@@ -545,16 +599,20 @@ spec:
                                     type: object
                                 type: object
                               cert:
-                                description: Cert uses the secret as the certificate for client authentication to the server.
+                                description: Cert uses the secret as the certificate
+                                  for client authentication to the server.
                                 properties:
                                   secret:
-                                    description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                    description: Secret represents reference to a
+                                      given key from certain Secret in a given namespace.
                                     properties:
                                       key:
-                                        description: Key of the secret to select from. Must be a valid secret key.
+                                        description: Key of the secret to select from.
+                                          Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: Name of the secret to select from.
+                                        description: Name of the secret to select
+                                          from.
                                         type: string
                                       namespace:
                                         description: |-
@@ -567,19 +625,24 @@ spec:
                                     type: object
                                 type: object
                               insecureSkipVerify:
-                                description: InsecureSkipVerify disables target certificate validation.
+                                description: InsecureSkipVerify disables target certificate
+                                  validation.
                                 type: boolean
                               key:
-                                description: Key uses the secret as the private key for client authentication to the server.
+                                description: Key uses the secret as the private key
+                                  for client authentication to the server.
                                 properties:
                                   secret:
-                                    description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                    description: Secret represents reference to a
+                                      given key from certain Secret in a given namespace.
                                     properties:
                                       key:
-                                        description: Key of the secret to select from. Must be a valid secret key.
+                                        description: Key of the secret to select from.
+                                          Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: Name of the secret to select from.
+                                        description: Name of the secret to select
+                                          from.
                                         type: string
                                       namespace:
                                         description: |-
@@ -618,11 +681,13 @@ spec:
                                   - TLS13
                                 type: string
                               serverName:
-                                description: ServerName is used to verify the hostname for the targets.
+                                description: ServerName is used to verify the hostname
+                                  for the targets.
                                 type: string
                             type: object
                             x-kubernetes-validations:
-                              - message: client cert and client key must be provided together, when either is provided
+                              - message: client cert and client key must be provided
+                                  together, when either is provided
                                 rule: has(self.cert) == has(self.key)
                           tokenURL:
                             description: TokenURL is the URL to fetch the token from.
@@ -636,7 +701,8 @@ spec:
                         description: HTTP GET params to use when scraping.
                         type: object
                       path:
-                        description: HTTP path to scrape metrics from. Defaults to "/metrics".
+                        description: HTTP path to scrape metrics from. Defaults to
+                          "/metrics".
                         type: string
                       port:
                         anyOf:
@@ -682,10 +748,12 @@ spec:
                               provider can be used at a time.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -701,13 +769,16 @@ spec:
                                 type: object
                             type: object
                           cert:
-                            description: Cert uses the secret as the certificate for client authentication to the server.
+                            description: Cert uses the secret as the certificate for
+                              client authentication to the server.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -723,16 +794,20 @@ spec:
                                 type: object
                             type: object
                           insecureSkipVerify:
-                            description: InsecureSkipVerify disables target certificate validation.
+                            description: InsecureSkipVerify disables target certificate
+                              validation.
                             type: boolean
                           key:
-                            description: Key uses the secret as the private key for client authentication to the server.
+                            description: Key uses the secret as the private key for
+                              client authentication to the server.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -774,20 +849,24 @@ spec:
                               - TLS13
                             type: string
                           serverName:
-                            description: ServerName is used to verify the hostname for the targets.
+                            description: ServerName is used to verify the hostname
+                              for the targets.
                             type: string
                         type: object
                         x-kubernetes-validations:
-                          - message: client cert and client key must be provided together, when either is provided
+                          - message: client cert and client key must be provided together,
+                              when either is provided
                             rule: has(self.cert) == has(self.key)
                     required:
                       - interval
                       - port
                     type: object
                     x-kubernetes-validations:
-                      - messageExpression: '''scrape timeout (%s) must not be greater than scrape interval (%s)''.format([self.timeout, self.interval])'
+                      - messageExpression: '''scrape timeout (%s) must not be greater
+                          than scrape interval (%s)''.format([self.timeout, self.interval])'
                         rule: '!has(self.timeout) || self.timeout <= self.interval'
-                      - rule: '((has(self.authorization) ? 1 : 0) + (has(self.basicAuth) ? 1 : 0) + (has(self.oauth2) ? 1 : 0)) <= 1'
+                      - rule: '((has(self.authorization) ? 1 : 0) + (has(self.basicAuth)
+                          ? 1 : 0) + (has(self.oauth2) ? 1 : 0)) <= 1'
                   maxItems: 10
                   minItems: 1
                   type: array
@@ -836,14 +915,16 @@ spec:
                     configuration.
                   properties:
                     matchExpressions:
-                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      description: matchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
                       items:
                         description: |-
                           A label selector requirement is a selector that contains values, a key, and an operator that
                           relates the key and values.
                         properties:
                           key:
-                            description: key is the label key that the selector applies to.
+                            description: key is the label key that the selector applies
+                              to.
                             type: string
                           operator:
                             description: |-
@@ -902,8 +983,13 @@ spec:
                             pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                             type: string
                             x-kubernetes-validations:
-                              - messageExpression: '''cannot relabel onto protected label "%s"''.format([self])'
-                                rule: self != 'project_id' && self != 'location' && self != 'cluster' && self != 'namespace' && self != 'job' && self != 'instance' && self != 'top_level_controller' && self != 'top_level_controller_type' && self != '__address__'
+                              - messageExpression: '''cannot relabel onto protected
+                                  label "%s"''.format([self])'
+                                rule: self != 'project_id' && self != 'location' &&
+                                  self != 'cluster' && self != 'namespace' && self
+                                  != 'job' && self != 'instance' && self != 'top_level_controller'
+                                  && self != 'top_level_controller_type' && self !=
+                                  '__address__'
                         required:
                           - from
                         type: object
@@ -944,12 +1030,15 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of a podmonitor's
+                    current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes the condition of a
+                      PodMonitoring.
                     properties:
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       lastUpdateTime:
@@ -957,13 +1046,15 @@ spec:
                         format: date-time
                         type: string
                       message:
-                        description: A human-readable message indicating details about the transition.
+                        description: A human-readable message indicating details about
+                          the transition.
                         type: string
                       reason:
                         description: The reason for the condition's last transition.
                         type: string
                       status:
-                        description: Status of the condition, one of True, False, Unknown.
+                        description: Status of the condition, one of True, False,
+                          Unknown.
                         type: string
                       type:
                         description: MonitoringConditionType is the type of MonitoringCondition.
@@ -974,7 +1065,8 @@ spec:
                     type: object
                   type: array
                 endpointStatuses:
-                  description: Represents the latest available observations of target state for each ScrapeEndpoint.
+                  description: Represents the latest available observations of target
+                    state for each ScrapeEndpoint.
                   items:
                     properties:
                       activeTargets:
@@ -1011,9 +1103,11 @@ spec:
                                     type: string
                                   labels:
                                     additionalProperties:
-                                      description: A LabelValue is an associated value for a LabelName.
+                                      description: A LabelValue is an associated value
+                                        for a LabelName.
                                       type: string
-                                    description: The label set, keys and values, of the target.
+                                    description: The label set, keys and values, of
+                                      the target.
                                     type: object
                                   lastError:
                                     description: Error message.
@@ -1076,10 +1170,12 @@ spec:
                 endpoints:
                   description: The endpoints to scrape on the selected pods.
                   items:
-                    description: ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
+                    description: ScrapeEndpoint specifies a Prometheus metrics endpoint
+                      to scrape.
                     properties:
                       interval:
-                        description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
+                        description: Interval at which to scrape metrics. Must be
+                          a valid Prometheus duration.
                         type: string
                       metricRelabeling:
                         description: |-
@@ -1088,17 +1184,21 @@ spec:
                           instance, or __address__) are not permitted. The labelmap action is not permitted
                           in general.
                         items:
-                          description: RelabelingRule defines a single Prometheus relabeling rule.
+                          description: RelabelingRule defines a single Prometheus
+                            relabeling rule.
                           properties:
                             action:
-                              description: Action to perform based on regex matching. Defaults to 'replace'.
+                              description: Action to perform based on regex matching.
+                                Defaults to 'replace'.
                               type: string
                             modulus:
-                              description: Modulus to take of the hash of the source label values.
+                              description: Modulus to take of the hash of the source
+                                label values.
                               format: int64
                               type: integer
                             regex:
-                              description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
+                              description: Regular expression against which the extracted
+                                value is matched. Defaults to '(.*)'.
                               type: string
                             replacement:
                               description: |-
@@ -1106,7 +1206,8 @@ spec:
                                 regular expression matches. Regex capture groups are available. Defaults to '$1'.
                               type: string
                             separator:
-                              description: Separator placed between concatenated source label values. Defaults to ';'.
+                              description: Separator placed between concatenated source
+                                label values. Defaults to ';'.
                               type: string
                             sourceLabels:
                               description: |-
@@ -1131,7 +1232,8 @@ spec:
                         description: HTTP GET params to use when scraping.
                         type: object
                       path:
-                        description: HTTP path to scrape metrics from. Defaults to "/metrics".
+                        description: HTTP path to scrape metrics from. Defaults to
+                          "/metrics".
                         type: string
                       port:
                         anyOf:
@@ -1140,7 +1242,8 @@ spec:
                         description: Name or number of the port to scrape.
                         x-kubernetes-int-or-string: true
                       proxyUrl:
-                        description: Proxy URL to scrape through. Encoded passwords are not supported.
+                        description: Proxy URL to scrape through. Encoded passwords
+                          are not supported.
                         type: string
                       scheme:
                         description: Protocol scheme to use to scrape.
@@ -1188,14 +1291,16 @@ spec:
                     configuration.
                   properties:
                     matchExpressions:
-                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      description: matchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
                       items:
                         description: |-
                           A label selector requirement is a selector that contains values, a key, and an operator that
                           relates the key and values.
                         properties:
                           key:
-                            description: key is the label key that the selector applies to.
+                            description: key is the label key that the selector applies
+                              to.
                             type: string
                           operator:
                             description: |-
@@ -1229,7 +1334,8 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 targetLabels:
-                  description: Labels to add to the Prometheus target for discovered endpoints
+                  description: Labels to add to the Prometheus target for discovered
+                    endpoints.
                   properties:
                     fromPod:
                       description: |-
@@ -1241,7 +1347,7 @@ spec:
                           onto a Prometheus target.
                         properties:
                           from:
-                            description: Kubenetes resource label to remap.
+                            description: Kubernetes resource label to remap.
                             type: string
                           to:
                             description: |-
@@ -1274,12 +1380,14 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of a podmonitor's
+                    current state.
                   items:
                     description: MonitoringCondition describes a condition of a PodMonitoring.
                     properties:
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       lastUpdateTime:
@@ -1287,13 +1395,15 @@ spec:
                         format: date-time
                         type: string
                       message:
-                        description: A human-readable message indicating details about the transition.
+                        description: A human-readable message indicating details about
+                          the transition.
                         type: string
                       reason:
                         description: The reason for the condition's last transition.
                         type: string
                       status:
-                        description: Status of the condition, one of True, False, Unknown.
+                        description: Status of the condition, one of True, False,
+                          Unknown.
                         type: string
                       type:
                         description: MonitoringConditionType is the type of MonitoringCondition.
@@ -1370,14 +1480,16 @@ spec:
                     properties:
                       interval:
                         default: 1m
-                        description: The interval at which to evaluate the rules. Must be a valid Prometheus duration.
+                        description: The interval at which to evaluate the rules.
+                          Must be a valid Prometheus duration.
                         format: duration
                         type: string
                       name:
                         description: The name of the rule group.
                         type: string
                       rules:
-                        description: A list of rules that are executed sequentially as part of this group.
+                        description: A list of rules that are executed sequentially
+                          as part of this group.
                         items:
                           description: |-
                             Rule is a single rule in the Prometheus format:
@@ -1407,7 +1519,8 @@ spec:
                             labels:
                               additionalProperties:
                                 type: string
-                              description: A set of labels to attach to the result of the query expression.
+                              description: A set of labels to attach to the result
+                                of the query expression.
                               type: object
                             record:
                               description: |-
@@ -1420,7 +1533,8 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - message: Must set exactly one of Record or Alert
-                              rule: '(has(self.record) ? 1 : 0) + (has(self.alert) ? 1 : 0) == 1'
+                              rule: '(has(self.record) ? 1 : 0) + (has(self.alert)
+                                ? 1 : 0) == 1'
                             - message: Annotations are only allowed for alerting rules
                               rule: '!has(self.annotations) || has(self.alert)'
                         minItems: 1
@@ -1437,12 +1551,15 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of a podmonitor's
+                    current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes the condition of a
+                      PodMonitoring.
                     properties:
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       lastUpdateTime:
@@ -1450,13 +1567,15 @@ spec:
                         format: date-time
                         type: string
                       message:
-                        description: A human-readable message indicating details about the transition.
+                        description: A human-readable message indicating details about
+                          the transition.
                         type: string
                       reason:
                         description: The reason for the condition's last transition.
                         type: string
                       status:
-                        description: Status of the condition, one of True, False, Unknown.
+                        description: Status of the condition, one of True, False,
+                          Unknown.
                         type: string
                       type:
                         description: MonitoringConditionType is the type of MonitoringCondition.
@@ -1517,13 +1636,15 @@ spec:
                       https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                     properties:
                       interval:
-                        description: The interval at which to evaluate the rules. Must be a valid Prometheus duration.
+                        description: The interval at which to evaluate the rules.
+                          Must be a valid Prometheus duration.
                         type: string
                       name:
                         description: The name of the rule group.
                         type: string
                       rules:
-                        description: A list of rules that are executed sequentially as part of this group.
+                        description: A list of rules that are executed sequentially
+                          as part of this group.
                         items:
                           description: |-
                             Rule is a single rule in the Prometheus format:
@@ -1552,7 +1673,8 @@ spec:
                             labels:
                               additionalProperties:
                                 type: string
-                              description: A set of labels to attach to the result of the query expression.
+                              description: A set of labels to attach to the result
+                                of the query expression.
                               type: object
                             record:
                               description: |-
@@ -1636,14 +1758,16 @@ spec:
                     properties:
                       interval:
                         default: 1m
-                        description: The interval at which to evaluate the rules. Must be a valid Prometheus duration.
+                        description: The interval at which to evaluate the rules.
+                          Must be a valid Prometheus duration.
                         format: duration
                         type: string
                       name:
                         description: The name of the rule group.
                         type: string
                       rules:
-                        description: A list of rules that are executed sequentially as part of this group.
+                        description: A list of rules that are executed sequentially
+                          as part of this group.
                         items:
                           description: |-
                             Rule is a single rule in the Prometheus format:
@@ -1673,7 +1797,8 @@ spec:
                             labels:
                               additionalProperties:
                                 type: string
-                              description: A set of labels to attach to the result of the query expression.
+                              description: A set of labels to attach to the result
+                                of the query expression.
                               type: object
                             record:
                               description: |-
@@ -1686,7 +1811,8 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - message: Must set exactly one of Record or Alert
-                              rule: '(has(self.record) ? 1 : 0) + (has(self.alert) ? 1 : 0) == 1'
+                              rule: '(has(self.record) ? 1 : 0) + (has(self.alert)
+                                ? 1 : 0) == 1'
                             - message: Annotations are only allowed for alerting rules
                               rule: '!has(self.annotations) || has(self.alert)'
                         minItems: 1
@@ -1703,12 +1829,15 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of a podmonitor's
+                    current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes the condition of a
+                      PodMonitoring.
                     properties:
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       lastUpdateTime:
@@ -1716,13 +1845,15 @@ spec:
                         format: date-time
                         type: string
                       message:
-                        description: A human-readable message indicating details about the transition.
+                        description: A human-readable message indicating details about
+                          the transition.
                         type: string
                       reason:
                         description: The reason for the condition's last transition.
                         type: string
                       status:
-                        description: Status of the condition, one of True, False, Unknown.
+                        description: Status of the condition, one of True, False,
+                          Unknown.
                         type: string
                       type:
                         description: MonitoringConditionType is the type of MonitoringCondition.
@@ -1782,13 +1913,15 @@ spec:
                       https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                     properties:
                       interval:
-                        description: The interval at which to evaluate the rules. Must be a valid Prometheus duration.
+                        description: The interval at which to evaluate the rules.
+                          Must be a valid Prometheus duration.
                         type: string
                       name:
                         description: The name of the rule group.
                         type: string
                       rules:
-                        description: A list of rules that are executed sequentially as part of this group.
+                        description: A list of rules that are executed sequentially
+                          as part of this group.
                         items:
                           description: |-
                             Rule is a single rule in the Prometheus format:
@@ -1817,7 +1950,8 @@ spec:
                             labels:
                               additionalProperties:
                                 type: string
-                              description: A set of labels to attach to the result of the query expression.
+                              description: A set of labels to attach to the result
+                                of the query expression.
                               type: object
                             record:
                               description: |-
@@ -1881,7 +2015,8 @@ spec:
                 scraping and an integrated export to Google Cloud Monitoring.
               properties:
                 compression:
-                  description: Compression enables compression of metrics collection data
+                  description: Compression enables compression of metrics collection
+                    data.
                   enum:
                     - none
                     - gzip
@@ -1895,7 +2030,8 @@ spec:
                     service account has the required permissions.
                   properties:
                     key:
-                      description: The key of the secret to select from.  Must be a valid secret key.
+                      description: The key of the secret to select from.  Must be
+                        a valid secret key.
                       type: string
                     name:
                       default: ""
@@ -1913,6 +2049,9 @@ spec:
                     - key
                   type: object
                   x-kubernetes-map-type: atomic
+                  x-kubernetes-validations:
+                    - message: missing secret key selector name
+                      rule: has(self.name) && self.name != ''
                 externalLabels:
                   additionalProperties:
                     type: string
@@ -1922,7 +2061,8 @@ spec:
                     specified in the OperatorConfig. The precedence behavior matches that of Prometheus.
                   type: object
                 filter:
-                  description: Filter limits which metric data is sent to Cloud Monitoring (it doesn't apply to additional exports).
+                  description: Filter limits which metric data is sent to Cloud Monitoring
+                    (it doesn't apply to additional exports).
                   properties:
                     enableMatchOneOf:
                       description: |-
@@ -1966,10 +2106,13 @@ spec:
                       type: array
                   type: object
                 kubeletScraping:
-                  description: Configuration to scrape the metric endpoints of the Kubelets.
+                  description: Configuration to scrape the metric endpoints of the
+                    Kubelets.
                   properties:
                     interval:
-                      description: The interval at which the metric endpoints are scraped.
+                      description: The interval at which the metric endpoints are
+                        scraped.
+                      format: duration
                       type: string
                     tlsInsecureSkipVerify:
                       description: |-
@@ -1988,14 +2131,20 @@ spec:
               items:
                 properties:
                   url:
-                    description: The URL of the endpoint that supports Prometheus Remote Write to export samples to.
+                    description: The URL of the endpoint that supports Prometheus
+                      Remote Write to export samples to.
+                    format: uri
                     type: string
+                    x-kubernetes-validations:
+                      - message: url must be a valid URL
+                        rule: self == '' || isURL(self)
                 required:
                   - url
                 type: object
               type: array
             features:
-              description: Features holds configuration for optional managed-collection features.
+              description: Features holds configuration for optional managed-collection
+                features.
               properties:
                 config:
                   description: Settings for the collector configuration propagation.
@@ -2031,7 +2180,8 @@ spec:
                 configSecret:
                   key: alertmanager.yaml
                   name: alertmanager
-              description: ManagedAlertmanager holds information for configuring the managed instance of Alertmanager.
+              description: ManagedAlertmanager holds information for configuring the
+                managed instance of Alertmanager.
               properties:
                 configSecret:
                   description: |-
@@ -2039,7 +2189,8 @@ spec:
                     holds the managed Alertmanager config file.
                   properties:
                     key:
-                      description: The key of the secret to select from.  Must be a valid secret key.
+                      description: The key of the secret to select from.  Must be
+                        a valid secret key.
                       type: string
                     name:
                       default: ""
@@ -2057,6 +2208,9 @@ spec:
                     - key
                   type: object
                   x-kubernetes-map-type: atomic
+                  x-kubernetes-validations:
+                    - message: missing secret key selector name
+                      rule: has(self.name) && self.name != ''
                 externalURL:
                   description: |-
                     ExternalURL is the URL under which Alertmanager is externally reachable (for example, if
@@ -2066,18 +2220,25 @@ spec:
                     be derived automatically.
 
                     If no URL is provided, Alertmanager will point to the Google Cloud Metric Explorer page.
+                  format: uri
                   type: string
+                  x-kubernetes-validations:
+                    - message: externalURL must be a valid URL
+                      rule: self == '' || isURL(self)
               type: object
             metadata:
               type: object
             rules:
-              description: Rules specifies how the operator configures and deploys rule-evaluator.
+              description: Rules specifies how the operator configures and deploys
+                rule-evaluator.
               properties:
                 alerting:
-                  description: Alerting contains how the rule-evaluator configures alerting.
+                  description: Alerting contains how the rule-evaluator configures
+                    alerting.
                   properties:
                     alertmanagers:
-                      description: Alertmanagers contains endpoint configuration for designated Alertmanagers.
+                      description: Alertmanagers contains endpoint configuration for
+                        designated Alertmanagers.
                       items:
                         description: |-
                           AlertmanagerEndpoints defines a selection of a single Endpoints object
@@ -2089,13 +2250,16 @@ spec:
                               can be "v1" or "v2".
                             type: string
                           authorization:
-                            description: Authorization section for this alertmanager endpoint
+                            description: Authorization section for this alertmanager
+                              endpoint.
                             properties:
                               credentials:
-                                description: The secret's key that contains the credentials of the request
+                                description: The secret's key that contains the credentials
+                                  of the request
                                 properties:
                                   key:
-                                    description: The key of the secret to select from.  Must be a valid secret key.
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
                                     type: string
                                   name:
                                     default: ""
@@ -2107,16 +2271,20 @@ spec:
                                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                     type: string
                                   optional:
-                                    description: Specify whether the Secret or its key must be defined
+                                    description: Specify whether the Secret or its
+                                      key must be defined
                                     type: boolean
                                 required:
                                   - key
                                 type: object
                                 x-kubernetes-map-type: atomic
+                                x-kubernetes-validations:
+                                  - message: missing secret key selector name
+                                    rule: has(self.name) && self.name != ''
                               type:
                                 description: |-
                                   Set the authentication type. Defaults to Bearer, Basic will cause an
-                                  error
+                                  error.
                                 type: string
                             type: object
                           name:
@@ -2126,7 +2294,8 @@ spec:
                             description: Namespace of Endpoints object.
                             type: string
                           pathPrefix:
-                            description: Prefix for the HTTP path alerts are pushed to.
+                            description: Prefix for the HTTP path alerts are pushed
+                              to.
                             type: string
                           port:
                             anyOf:
@@ -2138,16 +2307,20 @@ spec:
                             description: Scheme to use when firing alerts.
                             type: string
                           timeout:
-                            description: Timeout is a per-target Alertmanager timeout when pushing alerts.
+                            description: Timeout is a per-target Alertmanager timeout
+                              when pushing alerts.
+                            format: duration
                             type: string
                           tls:
                             description: TLS Config to use for alertmanager connection.
                             properties:
                               ca:
-                                description: Struct containing the CA cert to use for the targets.
+                                description: Struct containing the CA cert to use
+                                  for the targets.
                                 properties:
                                   configMap:
-                                    description: ConfigMap containing data to use for the targets.
+                                    description: ConfigMap containing data to use
+                                      for the targets.
                                     properties:
                                       key:
                                         description: The key to select.
@@ -2162,17 +2335,20 @@ spec:
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                         type: string
                                       optional:
-                                        description: Specify whether the ConfigMap or its key must be defined
+                                        description: Specify whether the ConfigMap
+                                          or its key must be defined
                                         type: boolean
                                     required:
                                       - key
                                     type: object
                                     x-kubernetes-map-type: atomic
                                   secret:
-                                    description: Secret containing data to use for the targets.
+                                    description: Secret containing data to use for
+                                      the targets.
                                     properties:
                                       key:
-                                        description: The key of the secret to select from.  Must be a valid secret key.
+                                        description: The key of the secret to select
+                                          from.  Must be a valid secret key.
                                         type: string
                                       name:
                                         default: ""
@@ -2184,18 +2360,28 @@ spec:
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                         type: string
                                       optional:
-                                        description: Specify whether the Secret or its key must be defined
+                                        description: Specify whether the Secret or
+                                          its key must be defined
                                         type: boolean
                                     required:
                                       - key
                                     type: object
                                     x-kubernetes-map-type: atomic
+                                    x-kubernetes-validations:
+                                      - message: missing secret key selector name
+                                        rule: has(self.name) && self.name != ''
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: SecretOrConfigMap fields are mutually
+                                      exclusive
+                                    rule: '!(has(self.secret) && has(self.configMap))'
                               cert:
-                                description: Struct containing the client cert file for the targets.
+                                description: Struct containing the client cert file
+                                  for the targets.
                                 properties:
                                   configMap:
-                                    description: ConfigMap containing data to use for the targets.
+                                    description: ConfigMap containing data to use
+                                      for the targets.
                                     properties:
                                       key:
                                         description: The key to select.
@@ -2210,17 +2396,20 @@ spec:
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                         type: string
                                       optional:
-                                        description: Specify whether the ConfigMap or its key must be defined
+                                        description: Specify whether the ConfigMap
+                                          or its key must be defined
                                         type: boolean
                                     required:
                                       - key
                                     type: object
                                     x-kubernetes-map-type: atomic
                                   secret:
-                                    description: Secret containing data to use for the targets.
+                                    description: Secret containing data to use for
+                                      the targets.
                                     properties:
                                       key:
-                                        description: The key of the secret to select from.  Must be a valid secret key.
+                                        description: The key of the secret to select
+                                          from.  Must be a valid secret key.
                                         type: string
                                       name:
                                         default: ""
@@ -2232,21 +2421,31 @@ spec:
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                         type: string
                                       optional:
-                                        description: Specify whether the Secret or its key must be defined
+                                        description: Specify whether the Secret or
+                                          its key must be defined
                                         type: boolean
                                     required:
                                       - key
                                     type: object
                                     x-kubernetes-map-type: atomic
+                                    x-kubernetes-validations:
+                                      - message: missing secret key selector name
+                                        rule: has(self.name) && self.name != ''
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: SecretOrConfigMap fields are mutually
+                                      exclusive
+                                    rule: '!(has(self.secret) && has(self.configMap))'
                               insecureSkipVerify:
                                 description: Disable target certificate validation.
                                 type: boolean
                               keySecret:
-                                description: Secret containing the client key file for the targets.
+                                description: Secret containing the client key file
+                                  for the targets.
                                 properties:
                                   key:
-                                    description: The key of the secret to select from.  Must be a valid secret key.
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
                                     type: string
                                   name:
                                     default: ""
@@ -2258,12 +2457,16 @@ spec:
                                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                     type: string
                                   optional:
-                                    description: Specify whether the Secret or its key must be defined
+                                    description: Specify whether the Secret or its
+                                      key must be defined
                                     type: boolean
                                 required:
                                   - key
                                 type: object
                                 x-kubernetes-map-type: atomic
+                                x-kubernetes-validations:
+                                  - message: missing secret key selector name
+                                    rule: has(self.name) && self.name != ''
                               maxVersion:
                                 description: |-
                                   Maximum TLS version. Accepted values: TLS10 (TLS 1.0), TLS11 (TLS 1.1), TLS12 (TLS 1.2), TLS13 (TLS 1.3).
@@ -2297,7 +2500,8 @@ spec:
                     service account has the required permissions.
                   properties:
                     key:
-                      description: The key of the secret to select from.  Must be a valid secret key.
+                      description: The key of the secret to select from.  Must be
+                        a valid secret key.
                       type: string
                     name:
                       default: ""
@@ -2315,6 +2519,9 @@ spec:
                     - key
                   type: object
                   x-kubernetes-map-type: atomic
+                  x-kubernetes-validations:
+                    - message: missing secret key selector name
+                      rule: has(self.name) && self.name != ''
                 externalLabels:
                   additionalProperties:
                     type: string
@@ -2327,7 +2534,11 @@ spec:
                   description: |-
                     The base URL used for the generator URL in the alert notification payload.
                     Should point to an instance of a query frontend that gives access to queryProjectID.
+                  format: uri
                   type: string
+                  x-kubernetes-validations:
+                    - message: generatorUrl must be a valid URL
+                      rule: self == '' || isURL(self)
                 queryProjectID:
                   description: |-
                     QueryProjectID is the GCP project ID to evaluate rules against.
@@ -2339,7 +2550,8 @@ spec:
               description: Scaling contains configuration options for scaling GMP.
               properties:
                 vpa:
-                  description: VPASpec defines configuration options for vertical pod autoscaling.
+                  description: VPASpec defines configuration options for vertical
+                    pod autoscaling.
                   properties:
                     enabled:
                       description: |-
@@ -2377,7 +2589,8 @@ spec:
                     service account has the required permissions.
                   properties:
                     key:
-                      description: The key of the secret to select from.  Must be a valid secret key.
+                      description: The key of the secret to select from.  Must be
+                        a valid secret key.
                       type: string
                     name:
                       default: ""
@@ -2411,7 +2624,7 @@ spec:
                         A list Prometheus time series matchers. Every time series must match at least one
                         of the matchers to be exported. This field can be used equivalently to the match[]
                         parameter of the Prometheus federation endpoint to selectively export data.
-                        Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`
+                        Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`.
                       items:
                         type: string
                       type: array
@@ -2428,13 +2641,16 @@ spec:
             metadata:
               type: object
             rules:
-              description: Rules specifies how the operator configures and deployes rule-evaluator.
+              description: Rules specifies how the operator configures and deployes
+                rule-evaluator.
               properties:
                 alerting:
-                  description: Alerting contains how the rule-evaluator configures alerting.
+                  description: Alerting contains how the rule-evaluator configures
+                    alerting.
                   properties:
                     alertmanagers:
-                      description: Alertmanagers contains endpoint configuration for designated Alertmanagers.
+                      description: Alertmanagers contains endpoint configuration for
+                        designated Alertmanagers.
                       items:
                         description: |-
                           AlertmanagerEndpoints defines a selection of a single Endpoints object
@@ -2446,13 +2662,16 @@ spec:
                               can be "v1" or "v2".
                             type: string
                           authorization:
-                            description: Authorization section for this alertmanager endpoint
+                            description: Authorization section for this alertmanager
+                              endpoint.
                             properties:
                               credentials:
-                                description: The secret's key that contains the credentials of the request
+                                description: The secret's key that contains the credentials
+                                  of the request.
                                 properties:
                                   key:
-                                    description: The key of the secret to select from.  Must be a valid secret key.
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
                                     type: string
                                   name:
                                     default: ""
@@ -2464,7 +2683,8 @@ spec:
                                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                     type: string
                                   optional:
-                                    description: Specify whether the Secret or its key must be defined
+                                    description: Specify whether the Secret or its
+                                      key must be defined
                                     type: boolean
                                 required:
                                   - key
@@ -2473,7 +2693,7 @@ spec:
                               type:
                                 description: |-
                                   Set the authentication type. Defaults to Bearer, Basic will cause an
-                                  error
+                                  error.
                                 type: string
                             type: object
                           name:
@@ -2483,7 +2703,8 @@ spec:
                             description: Namespace of Endpoints object.
                             type: string
                           pathPrefix:
-                            description: Prefix for the HTTP path alerts are pushed to.
+                            description: Prefix for the HTTP path alerts are pushed
+                              to.
                             type: string
                           port:
                             anyOf:
@@ -2495,16 +2716,19 @@ spec:
                             description: Scheme to use when firing alerts.
                             type: string
                           timeout:
-                            description: Timeout is a per-target Alertmanager timeout when pushing alerts.
+                            description: Timeout is a per-target Alertmanager timeout
+                              when pushing alerts.
                             type: string
                           tls:
                             description: TLS Config to use for alertmanager connection.
                             properties:
                               ca:
-                                description: Struct containing the CA cert to use for the targets.
+                                description: Struct containing the CA cert to use
+                                  for the targets.
                                 properties:
                                   configMap:
-                                    description: ConfigMap containing data to use for the targets.
+                                    description: ConfigMap containing data to use
+                                      for the targets.
                                     properties:
                                       key:
                                         description: The key to select.
@@ -2519,17 +2743,20 @@ spec:
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                         type: string
                                       optional:
-                                        description: Specify whether the ConfigMap or its key must be defined
+                                        description: Specify whether the ConfigMap
+                                          or its key must be defined
                                         type: boolean
                                     required:
                                       - key
                                     type: object
                                     x-kubernetes-map-type: atomic
                                   secret:
-                                    description: Secret containing data to use for the targets.
+                                    description: Secret containing data to use for
+                                      the targets.
                                     properties:
                                       key:
-                                        description: The key of the secret to select from.  Must be a valid secret key.
+                                        description: The key of the secret to select
+                                          from.  Must be a valid secret key.
                                         type: string
                                       name:
                                         default: ""
@@ -2541,7 +2768,8 @@ spec:
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                         type: string
                                       optional:
-                                        description: Specify whether the Secret or its key must be defined
+                                        description: Specify whether the Secret or
+                                          its key must be defined
                                         type: boolean
                                     required:
                                       - key
@@ -2549,10 +2777,12 @@ spec:
                                     x-kubernetes-map-type: atomic
                                 type: object
                               cert:
-                                description: Struct containing the client cert file for the targets.
+                                description: Struct containing the client cert file
+                                  for the targets.
                                 properties:
                                   configMap:
-                                    description: ConfigMap containing data to use for the targets.
+                                    description: ConfigMap containing data to use
+                                      for the targets.
                                     properties:
                                       key:
                                         description: The key to select.
@@ -2567,17 +2797,20 @@ spec:
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                         type: string
                                       optional:
-                                        description: Specify whether the ConfigMap or its key must be defined
+                                        description: Specify whether the ConfigMap
+                                          or its key must be defined
                                         type: boolean
                                     required:
                                       - key
                                     type: object
                                     x-kubernetes-map-type: atomic
                                   secret:
-                                    description: Secret containing data to use for the targets.
+                                    description: Secret containing data to use for
+                                      the targets.
                                     properties:
                                       key:
-                                        description: The key of the secret to select from.  Must be a valid secret key.
+                                        description: The key of the secret to select
+                                          from.  Must be a valid secret key.
                                         type: string
                                       name:
                                         default: ""
@@ -2589,7 +2822,8 @@ spec:
                                           More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                         type: string
                                       optional:
-                                        description: Specify whether the Secret or its key must be defined
+                                        description: Specify whether the Secret or
+                                          its key must be defined
                                         type: boolean
                                     required:
                                       - key
@@ -2600,10 +2834,12 @@ spec:
                                 description: Disable target certificate validation.
                                 type: boolean
                               keySecret:
-                                description: Secret containing the client key file for the targets.
+                                description: Secret containing the client key file
+                                  for the targets.
                                 properties:
                                   key:
-                                    description: The key of the secret to select from.  Must be a valid secret key.
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
                                     type: string
                                   name:
                                     default: ""
@@ -2615,7 +2851,8 @@ spec:
                                       More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                                     type: string
                                   optional:
-                                    description: Specify whether the Secret or its key must be defined
+                                    description: Specify whether the Secret or its
+                                      key must be defined
                                     type: boolean
                                 required:
                                   - key
@@ -2642,7 +2879,8 @@ spec:
                     service account has the required permissions.
                   properties:
                     key:
-                      description: The key of the secret to select from.  Must be a valid secret key.
+                      description: The key of the secret to select from.  Must be
+                        a valid secret key.
                       type: string
                     name:
                       default: ""
@@ -2726,19 +2964,24 @@ spec:
                 endpoints:
                   description: The endpoints to scrape on the selected pods.
                   items:
-                    description: ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
+                    description: ScrapeEndpoint specifies a Prometheus metrics endpoint
+                      to scrape.
                     properties:
                       authorization:
-                        description: Authorization is the HTTP authorization credentials for the targets.
+                        description: Authorization is the HTTP authorization credentials
+                          for the targets.
                         properties:
                           credentials:
-                            description: Credentials uses the secret as the credentials (token) for the authentication header.
+                            description: Credentials uses the secret as the credentials
+                              (token) for the authentication header.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -2759,20 +3002,25 @@ spec:
                               Basic will cause an error, as the BasicAuth object should be used instead.
                             type: string
                             x-kubernetes-validations:
-                              - message: authorization type cannot be set to "basic", use "basic_auth" instead
+                              - message: authorization type cannot be set to "basic",
+                                  use "basic_auth" instead
                                 rule: self != 'Basic'
                         type: object
                       basicAuth:
-                        description: BasicAuth is the HTTP basic authentication credentials for the targets.
+                        description: BasicAuth is the HTTP basic authentication credentials
+                          for the targets.
                         properties:
                           password:
-                            description: Password uses the secret as the BasicAuth password.
+                            description: Password uses the secret as the BasicAuth
+                              password.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -2792,7 +3040,8 @@ spec:
                             type: string
                         type: object
                       interval:
-                        description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
+                        description: Interval at which to scrape metrics. Must be
+                          a valid Prometheus duration.
                         format: duration
                         type: string
                       metricRelabeling:
@@ -2802,10 +3051,12 @@ spec:
                           instance, top_level_controller, top_level_controller_type, or __address__) are
                           not permitted. The labelmap action is not permitted in general.
                         items:
-                          description: RelabelingRule defines a single Prometheus relabeling rule.
+                          description: RelabelingRule defines a single Prometheus
+                            relabeling rule.
                           properties:
                             action:
-                              description: Action to perform based on regex matching. Defaults to 'replace'.
+                              description: Action to perform based on regex matching.
+                                Defaults to 'replace'.
                               enum:
                                 - replace
                                 - lowercase
@@ -2819,11 +3070,13 @@ spec:
                                 - labelkeep
                               type: string
                             modulus:
-                              description: Modulus to take of the hash of the source label values.
+                              description: Modulus to take of the hash of the source
+                                label values.
                               format: int64
                               type: integer
                             regex:
-                              description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
+                              description: Regular expression against which the extracted
+                                value is matched. Defaults to '(.*)'.
                               maxLength: 10000
                               type: string
                             replacement:
@@ -2832,7 +3085,8 @@ spec:
                                 regular expression matches. Regex capture groups are available. Defaults to '$1'.
                               type: string
                             separator:
-                              description: Separator placed between concatenated source label values. Defaults to ';'.
+                              description: Separator placed between concatenated source
+                                label values. Defaults to ';'.
                               type: string
                             sourceLabels:
                               description: |-
@@ -2851,27 +3105,38 @@ spec:
                               pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                               type: string
                               x-kubernetes-validations:
-                                - messageExpression: '''cannot relabel onto protected label "%s"''.format([self])'
-                                  rule: self != 'project_id' && self != 'location' && self != 'cluster' && self != 'namespace' && self != 'job' && self != 'instance' && self != 'top_level_controller' && self != 'top_level_controller_type' && self != '__address__'
+                                - messageExpression: '''cannot relabel onto protected
+                                    label "%s"''.format([self])'
+                                  rule: self != 'project_id' && self != 'location'
+                                    && self != 'cluster' && self != 'namespace' &&
+                                    self != 'job' && self != 'instance' && self !=
+                                    'top_level_controller' && self != 'top_level_controller_type'
+                                    && self != '__address__'
                           type: object
                           x-kubernetes-validations:
-                            - rule: '!has(self.action) ||  self.action != ''labeldrop'' || has(self.regex)'
+                            - rule: '!has(self.action) ||  self.action != ''labeldrop''
+                                || has(self.regex)'
                         maxItems: 250
                         type: array
                       oauth2:
-                        description: OAuth2 is the OAuth2 client credentials used to fetch a token for the targets.
+                        description: OAuth2 is the OAuth2 client credentials used
+                          to fetch a token for the targets.
                         properties:
                           clientID:
-                            description: ClientID is the public identifier for the client.
+                            description: ClientID is the public identifier for the
+                              client.
                             type: string
                           clientSecret:
-                            description: ClientSecret uses the secret as the client secret token.
+                            description: ClientSecret uses the secret as the client
+                              secret token.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -2889,7 +3154,8 @@ spec:
                           endpointParams:
                             additionalProperties:
                               type: string
-                            description: EndpointParams are additional parameters to append to the token URL.
+                            description: EndpointParams are additional parameters
+                              to append to the token URL.
                             type: object
                           proxyUrl:
                             description: |-
@@ -2901,7 +3167,8 @@ spec:
                             x-kubernetes-validations:
                               - rule: isURL(self) && !self.matches('@')
                           scopes:
-                            description: Scopes represents the scopes for the token request.
+                            description: Scopes represents the scopes for the token
+                              request.
                             items:
                               type: string
                             type: array
@@ -2914,13 +3181,16 @@ spec:
                                   provider can be used at a time.
                                 properties:
                                   secret:
-                                    description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                    description: Secret represents reference to a
+                                      given key from certain Secret in a given namespace.
                                     properties:
                                       key:
-                                        description: Key of the secret to select from. Must be a valid secret key.
+                                        description: Key of the secret to select from.
+                                          Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: Name of the secret to select from.
+                                        description: Name of the secret to select
+                                          from.
                                         type: string
                                       namespace:
                                         description: |-
@@ -2933,16 +3203,20 @@ spec:
                                     type: object
                                 type: object
                               cert:
-                                description: Cert uses the secret as the certificate for client authentication to the server.
+                                description: Cert uses the secret as the certificate
+                                  for client authentication to the server.
                                 properties:
                                   secret:
-                                    description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                    description: Secret represents reference to a
+                                      given key from certain Secret in a given namespace.
                                     properties:
                                       key:
-                                        description: Key of the secret to select from. Must be a valid secret key.
+                                        description: Key of the secret to select from.
+                                          Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: Name of the secret to select from.
+                                        description: Name of the secret to select
+                                          from.
                                         type: string
                                       namespace:
                                         description: |-
@@ -2955,19 +3229,24 @@ spec:
                                     type: object
                                 type: object
                               insecureSkipVerify:
-                                description: InsecureSkipVerify disables target certificate validation.
+                                description: InsecureSkipVerify disables target certificate
+                                  validation.
                                 type: boolean
                               key:
-                                description: Key uses the secret as the private key for client authentication to the server.
+                                description: Key uses the secret as the private key
+                                  for client authentication to the server.
                                 properties:
                                   secret:
-                                    description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                    description: Secret represents reference to a
+                                      given key from certain Secret in a given namespace.
                                     properties:
                                       key:
-                                        description: Key of the secret to select from. Must be a valid secret key.
+                                        description: Key of the secret to select from.
+                                          Must be a valid secret key.
                                         type: string
                                       name:
-                                        description: Name of the secret to select from.
+                                        description: Name of the secret to select
+                                          from.
                                         type: string
                                       namespace:
                                         description: |-
@@ -3006,11 +3285,13 @@ spec:
                                   - TLS13
                                 type: string
                               serverName:
-                                description: ServerName is used to verify the hostname for the targets.
+                                description: ServerName is used to verify the hostname
+                                  for the targets.
                                 type: string
                             type: object
                             x-kubernetes-validations:
-                              - message: client cert and client key must be provided together, when either is provided
+                              - message: client cert and client key must be provided
+                                  together, when either is provided
                                 rule: has(self.cert) == has(self.key)
                           tokenURL:
                             description: TokenURL is the URL to fetch the token from.
@@ -3024,7 +3305,8 @@ spec:
                         description: HTTP GET params to use when scraping.
                         type: object
                       path:
-                        description: HTTP path to scrape metrics from. Defaults to "/metrics".
+                        description: HTTP path to scrape metrics from. Defaults to
+                          "/metrics".
                         type: string
                       port:
                         anyOf:
@@ -3070,10 +3352,12 @@ spec:
                               provider can be used at a time.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -3089,13 +3373,16 @@ spec:
                                 type: object
                             type: object
                           cert:
-                            description: Cert uses the secret as the certificate for client authentication to the server.
+                            description: Cert uses the secret as the certificate for
+                              client authentication to the server.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -3111,16 +3398,20 @@ spec:
                                 type: object
                             type: object
                           insecureSkipVerify:
-                            description: InsecureSkipVerify disables target certificate validation.
+                            description: InsecureSkipVerify disables target certificate
+                              validation.
                             type: boolean
                           key:
-                            description: Key uses the secret as the private key for client authentication to the server.
+                            description: Key uses the secret as the private key for
+                              client authentication to the server.
                             properties:
                               secret:
-                                description: Secret represents reference to a given key from certain Secret in a given namespace.
+                                description: Secret represents reference to a given
+                                  key from certain Secret in a given namespace.
                                 properties:
                                   key:
-                                    description: Key of the secret to select from. Must be a valid secret key.
+                                    description: Key of the secret to select from.
+                                      Must be a valid secret key.
                                     type: string
                                   name:
                                     description: Name of the secret to select from.
@@ -3162,20 +3453,24 @@ spec:
                               - TLS13
                             type: string
                           serverName:
-                            description: ServerName is used to verify the hostname for the targets.
+                            description: ServerName is used to verify the hostname
+                              for the targets.
                             type: string
                         type: object
                         x-kubernetes-validations:
-                          - message: client cert and client key must be provided together, when either is provided
+                          - message: client cert and client key must be provided together,
+                              when either is provided
                             rule: has(self.cert) == has(self.key)
                     required:
                       - interval
                       - port
                     type: object
                     x-kubernetes-validations:
-                      - messageExpression: '''scrape timeout (%s) must not be greater than scrape interval (%s)''.format([self.timeout, self.interval])'
+                      - messageExpression: '''scrape timeout (%s) must not be greater
+                          than scrape interval (%s)''.format([self.timeout, self.interval])'
                         rule: '!has(self.timeout) || self.timeout <= self.interval'
-                      - rule: '((has(self.authorization) ? 1 : 0) + (has(self.basicAuth) ? 1 : 0) + (has(self.oauth2) ? 1 : 0)) <= 1'
+                      - rule: '((has(self.authorization) ? 1 : 0) + (has(self.basicAuth)
+                          ? 1 : 0) + (has(self.oauth2) ? 1 : 0)) <= 1'
                   maxItems: 10
                   minItems: 1
                   type: array
@@ -3219,14 +3514,16 @@ spec:
                     configuration.
                   properties:
                     matchExpressions:
-                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      description: matchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
                       items:
                         description: |-
                           A label selector requirement is a selector that contains values, a key, and an operator that
                           relates the key and values.
                         properties:
                           key:
-                            description: key is the label key that the selector applies to.
+                            description: key is the label key that the selector applies
+                              to.
                             type: string
                           operator:
                             description: |-
@@ -3285,8 +3582,13 @@ spec:
                             pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                             type: string
                             x-kubernetes-validations:
-                              - messageExpression: '''cannot relabel onto protected label "%s"''.format([self])'
-                                rule: self != 'project_id' && self != 'location' && self != 'cluster' && self != 'namespace' && self != 'job' && self != 'instance' && self != 'top_level_controller' && self != 'top_level_controller_type' && self != '__address__'
+                              - messageExpression: '''cannot relabel onto protected
+                                  label "%s"''.format([self])'
+                                rule: self != 'project_id' && self != 'location' &&
+                                  self != 'cluster' && self != 'namespace' && self
+                                  != 'job' && self != 'instance' && self != 'top_level_controller'
+                                  && self != 'top_level_controller_type' && self !=
+                                  '__address__'
                         required:
                           - from
                         type: object
@@ -3325,12 +3627,15 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of a podmonitor's
+                    current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes the condition of a
+                      PodMonitoring.
                     properties:
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       lastUpdateTime:
@@ -3338,13 +3643,15 @@ spec:
                         format: date-time
                         type: string
                       message:
-                        description: A human-readable message indicating details about the transition.
+                        description: A human-readable message indicating details about
+                          the transition.
                         type: string
                       reason:
                         description: The reason for the condition's last transition.
                         type: string
                       status:
-                        description: Status of the condition, one of True, False, Unknown.
+                        description: Status of the condition, one of True, False,
+                          Unknown.
                         type: string
                       type:
                         description: MonitoringConditionType is the type of MonitoringCondition.
@@ -3355,7 +3662,8 @@ spec:
                     type: object
                   type: array
                 endpointStatuses:
-                  description: Represents the latest available observations of target state for each ScrapeEndpoint.
+                  description: Represents the latest available observations of target
+                    state for each ScrapeEndpoint.
                   items:
                     properties:
                       activeTargets:
@@ -3392,9 +3700,11 @@ spec:
                                     type: string
                                   labels:
                                     additionalProperties:
-                                      description: A LabelValue is an associated value for a LabelName.
+                                      description: A LabelValue is an associated value
+                                        for a LabelName.
                                       type: string
-                                    description: The label set, keys and values, of the target.
+                                    description: The label set, keys and values, of
+                                      the target.
                                     type: object
                                   lastError:
                                     description: Error message.
@@ -3425,22 +3735,28 @@ spec:
           x-kubernetes-validations:
             - message: Namespace not allowed on PodMonitoring secret references.
               reason: FieldValueForbidden
-              rule: self.spec.endpoints.all(e, !has(e.authorization) || !has(e.authorization.credentials) || !has(e.authorization.credentials.secret) || !has(e.authorization.credentials.secret.__namespace__))
+              rule: self.spec.endpoints.all(e, !has(e.authorization) || !has(e.authorization.credentials)
+                || !has(e.authorization.credentials.secret) || !has(e.authorization.credentials.secret.__namespace__))
             - message: Namespace not allowed on PodMonitoring secret references.
               reason: FieldValueForbidden
-              rule: self.spec.endpoints.all(e, !has(e.basicAuth) || !has(e.basicAuth.password) || !has(e.basicAuth.password.secret) || !has(e.basicAuth.password.secret.__namespace__))
+              rule: self.spec.endpoints.all(e, !has(e.basicAuth) || !has(e.basicAuth.password)
+                || !has(e.basicAuth.password.secret) || !has(e.basicAuth.password.secret.__namespace__))
             - message: Namespace not allowed on PodMonitoring secret references.
               reason: FieldValueForbidden
-              rule: self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.ca) || !has(e.tls.ca.secret) || !has(e.tls.ca.secret.__namespace__))
+              rule: self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.ca) || !has(e.tls.ca.secret)
+                || !has(e.tls.ca.secret.__namespace__))
             - message: Namespace not allowed on PodMonitoring secret references.
               reason: FieldValueForbidden
-              rule: self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.cert) || !has(e.tls.cert.secret) || !has(e.tls.cert.secret.__namespace__))
+              rule: self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.cert) ||
+                !has(e.tls.cert.secret) || !has(e.tls.cert.secret.__namespace__))
             - message: Namespace not allowed on PodMonitoring secret references.
               reason: FieldValueForbidden
-              rule: self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.key) || !has(e.tls.key.secret) || !has(e.tls.key.secret.__namespace__))
+              rule: self.spec.endpoints.all(e, !has(e.tls) || !has(e.tls.key) || !has(e.tls.key.secret)
+                || !has(e.tls.key.secret.__namespace__))
             - message: Namespace not allowed on PodMonitoring secret references.
               reason: FieldValueForbidden
-              rule: self.spec.endpoints.all(e, !has(e.oauth2) || !has(e.oauth2.clientSecret) || !has(e.oauth2.clientSecret.secret) || !has(e.oauth2.clientSecret.secret.__namespace__))
+              rule: self.spec.endpoints.all(e, !has(e.oauth2) || !has(e.oauth2.clientSecret)
+                || !has(e.oauth2.clientSecret.secret) || !has(e.oauth2.clientSecret.secret.__namespace__))
       served: true
       storage: true
       subresources:
@@ -3476,10 +3792,12 @@ spec:
                 endpoints:
                   description: The endpoints to scrape on the selected pods.
                   items:
-                    description: ScrapeEndpoint specifies a Prometheus metrics endpoint to scrape.
+                    description: ScrapeEndpoint specifies a Prometheus metrics endpoint
+                      to scrape.
                     properties:
                       interval:
-                        description: Interval at which to scrape metrics. Must be a valid Prometheus duration.
+                        description: Interval at which to scrape metrics. Must be
+                          a valid Prometheus duration.
                         type: string
                       metricRelabeling:
                         description: |-
@@ -3488,17 +3806,21 @@ spec:
                           instance, or __address__) are not permitted. The labelmap action is not permitted
                           in general.
                         items:
-                          description: RelabelingRule defines a single Prometheus relabeling rule.
+                          description: RelabelingRule defines a single Prometheus
+                            relabeling rule.
                           properties:
                             action:
-                              description: Action to perform based on regex matching. Defaults to 'replace'.
+                              description: Action to perform based on regex matching.
+                                Defaults to 'replace'.
                               type: string
                             modulus:
-                              description: Modulus to take of the hash of the source label values.
+                              description: Modulus to take of the hash of the source
+                                label values.
                               format: int64
                               type: integer
                             regex:
-                              description: Regular expression against which the extracted value is matched. Defaults to '(.*)'.
+                              description: Regular expression against which the extracted
+                                value is matched. Defaults to '(.*)'.
                               type: string
                             replacement:
                               description: |-
@@ -3506,7 +3828,8 @@ spec:
                                 regular expression matches. Regex capture groups are available. Defaults to '$1'.
                               type: string
                             separator:
-                              description: Separator placed between concatenated source label values. Defaults to ';'.
+                              description: Separator placed between concatenated source
+                                label values. Defaults to ';'.
                               type: string
                             sourceLabels:
                               description: |-
@@ -3531,7 +3854,8 @@ spec:
                         description: HTTP GET params to use when scraping.
                         type: object
                       path:
-                        description: HTTP path to scrape metrics from. Defaults to "/metrics".
+                        description: HTTP path to scrape metrics from. Defaults to
+                          "/metrics".
                         type: string
                       port:
                         anyOf:
@@ -3540,7 +3864,8 @@ spec:
                         description: Name or number of the port to scrape.
                         x-kubernetes-int-or-string: true
                       proxyUrl:
-                        description: Proxy URL to scrape through. Encoded passwords are not supported.
+                        description: Proxy URL to scrape through. Encoded passwords
+                          are not supported.
                         type: string
                       scheme:
                         description: Protocol scheme to use to scrape.
@@ -3588,14 +3913,16 @@ spec:
                     configuration.
                   properties:
                     matchExpressions:
-                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      description: matchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
                       items:
                         description: |-
                           A label selector requirement is a selector that contains values, a key, and an operator that
                           relates the key and values.
                         properties:
                           key:
-                            description: key is the label key that the selector applies to.
+                            description: key is the label key that the selector applies
+                              to.
                             type: string
                           operator:
                             description: |-
@@ -3629,7 +3956,8 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 targetLabels:
-                  description: Labels to add to the Prometheus target for discovered endpoints.
+                  description: Labels to add to the Prometheus target for discovered
+                    endpoints.
                   properties:
                     fromPod:
                       description: |-
@@ -3641,7 +3969,7 @@ spec:
                           onto a Prometheus target.
                         properties:
                           from:
-                            description: Kubenetes resource label to remap.
+                            description: Kubernetes resource label to remap.
                             type: string
                           to:
                             description: |-
@@ -3674,12 +4002,14 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of a podmonitor's
+                    current state.
                   items:
                     description: MonitoringCondition describes a condition of a PodMonitoring.
                     properties:
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       lastUpdateTime:
@@ -3687,13 +4017,15 @@ spec:
                         format: date-time
                         type: string
                       message:
-                        description: A human-readable message indicating details about the transition.
+                        description: A human-readable message indicating details about
+                          the transition.
                         type: string
                       reason:
                         description: The reason for the condition's last transition.
                         type: string
                       status:
-                        description: Status of the condition, one of True, False, Unknown.
+                        description: Status of the condition, one of True, False,
+                          Unknown.
                         type: string
                       type:
                         description: MonitoringConditionType is the type of MonitoringCondition.
@@ -3770,14 +4102,16 @@ spec:
                     properties:
                       interval:
                         default: 1m
-                        description: The interval at which to evaluate the rules. Must be a valid Prometheus duration.
+                        description: The interval at which to evaluate the rules.
+                          Must be a valid Prometheus duration.
                         format: duration
                         type: string
                       name:
                         description: The name of the rule group.
                         type: string
                       rules:
-                        description: A list of rules that are executed sequentially as part of this group.
+                        description: A list of rules that are executed sequentially
+                          as part of this group.
                         items:
                           description: |-
                             Rule is a single rule in the Prometheus format:
@@ -3807,7 +4141,8 @@ spec:
                             labels:
                               additionalProperties:
                                 type: string
-                              description: A set of labels to attach to the result of the query expression.
+                              description: A set of labels to attach to the result
+                                of the query expression.
                               type: object
                             record:
                               description: |-
@@ -3820,7 +4155,8 @@ spec:
                           type: object
                           x-kubernetes-validations:
                             - message: Must set exactly one of Record or Alert
-                              rule: '(has(self.record) ? 1 : 0) + (has(self.alert) ? 1 : 0) == 1'
+                              rule: '(has(self.record) ? 1 : 0) + (has(self.alert)
+                                ? 1 : 0) == 1'
                             - message: Annotations are only allowed for alerting rules
                               rule: '!has(self.annotations) || has(self.alert)'
                         minItems: 1
@@ -3837,12 +4173,15 @@ spec:
               description: Most recently observed status of the resource.
               properties:
                 conditions:
-                  description: Represents the latest available observations of a podmonitor's current state.
+                  description: Represents the latest available observations of a podmonitor's
+                    current state.
                   items:
-                    description: MonitoringCondition describes the condition of a PodMonitoring.
+                    description: MonitoringCondition describes the condition of a
+                      PodMonitoring.
                     properties:
                       lastTransitionTime:
-                        description: Last time the condition transitioned from one status to another.
+                        description: Last time the condition transitioned from one
+                          status to another.
                         format: date-time
                         type: string
                       lastUpdateTime:
@@ -3850,13 +4189,15 @@ spec:
                         format: date-time
                         type: string
                       message:
-                        description: A human-readable message indicating details about the transition.
+                        description: A human-readable message indicating details about
+                          the transition.
                         type: string
                       reason:
                         description: The reason for the condition's last transition.
                         type: string
                       status:
-                        description: Status of the condition, one of True, False, Unknown.
+                        description: Status of the condition, one of True, False,
+                          Unknown.
                         type: string
                       type:
                         description: MonitoringConditionType is the type of MonitoringCondition.
@@ -3917,13 +4258,15 @@ spec:
                       https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
                     properties:
                       interval:
-                        description: The interval at which to evaluate the rules. Must be a valid Prometheus duration.
+                        description: The interval at which to evaluate the rules.
+                          Must be a valid Prometheus duration.
                         type: string
                       name:
                         description: The name of the rule group.
                         type: string
                       rules:
-                        description: A list of rules that are executed sequentially as part of this group.
+                        description: A list of rules that are executed sequentially
+                          as part of this group.
                         items:
                           description: |-
                             Rule is a single rule in the Prometheus format:
@@ -3952,7 +4295,8 @@ spec:
                             labels:
                               additionalProperties:
                                 type: string
-                              description: A set of labels to attach to the result of the query expression.
+                              description: A set of labels to attach to the result
+                                of the query expression.
                               type: object
                             record:
                               description: |-

@@ -42,6 +42,7 @@ var (
 
 	// ReleaseBranches contains hardcoded list of active branches. We could pull it out from somewhere.
 	ReleaseBranches = []string{
+		"release/0.19",
 		"release/0.18",
 		"release/0.17",
 		"release/0.15",
@@ -49,6 +50,7 @@ var (
 		"release/0.12",
 		"release-2.45.3-gmp",
 		"release-2.53.5-gmp",
+		"release-3.13.0-gmp",
 		"release-0.27.0-gmp",
 	}
 )

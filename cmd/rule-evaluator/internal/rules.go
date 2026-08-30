@@ -101,7 +101,7 @@ func (api *API) HandleRulesEndpoint(w http.ResponseWriter, r *http.Request) {
 
 // groupsToAPIGroups converts a slice of rules.Group to a slice of apiv1.RuleGroup.
 func (api *API) groupsToAPIGroups(groups []*rules.Group, ruleFilters, fileFilters, groupFilters []string, shouldReturnAlertRules, shouldReturnRecordingRules, shouldExcludeAlertsFromAlertRules bool) []*apiv1.RuleGroup {
-	apiGroups := []*apiv1.RuleGroup{} // don't pre-allocate, we don't know how many rule groups we will return
+	apiGroups := []*apiv1.RuleGroup{} // don't pre-allocate, we don't know how many rule groups we will return.
 	for _, group := range groups {
 		// If a rule_group parameter was specified, skip the rule group if it doesn't match any of the specified values.
 		if len(groupFilters) > 0 && !slices.Contains(groupFilters, group.Name()) {

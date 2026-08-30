@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.2@sha256:1bee769a7a50eea7730ac31f75182ae2614f50a70902407312db390a7c7cb2ff AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.7@sha256:2f110d472e26e5c6b1c93f40a3ea6f88fe8954902cd4518d7ce99d836a158ceb AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
+ARG BUILDARCH
 WORKDIR /app
 COPY charts/values.global.yaml charts/values.global.yaml
 COPY go.mod go.mod
@@ -33,11 +34,15 @@ ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
-	apt install -y --no-install-recommends \
+	apt-get update && apt-get install -y --no-install-recommends \
 	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
-	CC=aarch64-linux-gnu-gcc; \
+	export CC=aarch64-linux-gnu-gcc; \
+	elif [ "${TARGETARCH}" = "amd64" ] && [ "${BUILDARCH}" != "amd64" ]; then \
+	apt-get update && apt-get install -y --no-install-recommends \
+	gcc-x86-64-linux-gnu libc6-dev-amd64-cross; \
+	export CC=x86_64-linux-gnu-gcc; \
 	fi && \
-	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build \
 	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool -modfile="tools/go.mod" yq '.version' ) \
 	-X github.com/prometheus/common/version.BuildDate=$(date --iso-8601=seconds)" \
@@ -45,6 +50,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/operator/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260207.00_p0@sha256:ae6350bb7078a86c22fb9db290b02a3f702e95e79b216c3d469e896780363da6
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260815.00_p0@sha256:532c7001d381c6f0c6fe684bb3235596cd532340c463df855a0ea168a83d783e
 COPY --from=buildbase /app/operator /bin/operator
 ENTRYPOINT ["/bin/operator"]

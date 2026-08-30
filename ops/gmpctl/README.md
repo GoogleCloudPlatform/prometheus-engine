@@ -12,17 +12,30 @@ It's a starting point for smaller or bigger automation on OSS side (e.g. releasi
 1. To start using `gmpctl` you need to have a clone of `prometheus-engine` on your machine (you probably have already one!
    to fetch the latest `main` for the best experience (latest scripts).
 
-2. The next this is to obtain NVD API key to avoid rate-limits when querying CVE DB. [Request an API Key](https://nvd.nist.gov/developers/request-an-api-key) and save this key to `ops/vulnupdatelist/api.text`
-
-3. Ensure you have installed:
+2. Ensure you have installed:
    * new-ish `bash` (MacOS: `brew install bash`)
    * `gsed` (MacOS: `brew install gsed`)
    * `gcloud` (https://docs.cloud.google.com/sdk/docs/install-sdk) (and `gcloud auth login`)
-   * `gpg` (MacOS: `brew install gpg`)
 
-4. You can configure different work directory for gmpctl via `-c` flag. By default, `gmpctl` does the work in `ops/gmpctl/.data`)
+3. You can configure different work directory and settings for gmpctl via `-c` flag (default configuration file: `.gmpctl.default.yaml`).
 
 Enjoy!
+
+## Configuration
+
+`gmpctl` reads configuration from a YAML file specified by the `-c` flag (defaults to `.gmpctl.default.yaml`).
+
+Available options:
+
+* `dir`: Base directory for gmpctl work, project clones, and git worktrees (default: `./data`).
+* `vuln_ignored_modules`: List of Go module paths to ignore during module upgrades (e.g. `vulnfix`).
+  Example:
+
+  ```yaml
+  dir: "./data"
+  vuln_ignored_modules:
+    - "github.com/prometheus/prometheus"
+  ```
 
 ## Usage
 
@@ -47,7 +60,7 @@ key information and confirmations e.g.
 same parameters, and it will continue the previous work or at least yield same results. This is crucial when iterating
 on breaking go mod updates for vulnerabilities or fork sync conflicts.
 
-```text mdox-exec="bash ops/gmpctl.sh --help"
+```text mdox-exec="bash -c \"bash ops/gmpctl.sh --help 2>&1 | sed -n '/Usage/,$p'\""
 Usage: gmpctl [COMMAND] [FLAGS]
   -c string
     	Path to the configuration file. See config.go#Config for the structure. (default ".gmpctl.default.yaml")
@@ -110,7 +123,6 @@ Some rules to follow:
 ## TODO / Known issues
 
 * [ ] Port bash to Go for stable commands.
-* [ ] Ability to configure NVD API key in gmpctl config.
 * [ ] Port fork-sync script from the old PR.
 * [ ] Generate some on-demand query of vulnerabilities for all releases (aka dashboard.)
 * [ ] Fix NPM vulns (although it's rate).

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"rules\":{\"queryProjectID\":\"00000000000000\",\"generatorUrl\":\"A00000000000000000000000000000\",\"externalLabels\":{\"000000000\":\"000000000\"},\"credentials\":{\"name\":\"A\"}}}")

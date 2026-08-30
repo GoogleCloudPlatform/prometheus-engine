@@ -49,16 +49,13 @@ func mustFetchAll(dir string) {
 	}
 }
 
-func mustCreateSignedTag(dir, tag string) {
-	logf("Creating a signed tag %v...", tag)
-
-	// explicit TTY is often needed on Macs.
+func mustCreateTag(dir, tag string) {
+	logf("Creating a lightweight tag %v...", tag)
 	// TODO(bwplotka): Consider adding v0.x second tag for Prometheus fork (similar to how v0.300 Prometheus releases are structured).
 	// This is to have a little bit cleaner prometheus-engine go.mod version against the fork.
 	if _, err := runCommand(
 		&cmdOpts{Dir: dir},
-		"bash", "-c",
-		fmt.Sprintf("GPG_TTY=$(tty) git tag -s %v -m %v", tag, tag),
+		"git", "tag", tag,
 	); err != nil {
 		panicf(err.Error())
 	}

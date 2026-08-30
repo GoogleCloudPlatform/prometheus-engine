@@ -256,7 +256,7 @@ Authorization
 </em>
 </td>
 <td>
-<p>Authorization section for this alertmanager endpoint</p>
+<p>Authorization section for this alertmanager endpoint.</p>
 </td>
 </tr>
 <tr>
@@ -359,7 +359,7 @@ string
 </td>
 <td>
 <p>Set the authentication type. Defaults to Bearer, Basic will cause an
-error</p>
+error.</p>
 </td>
 </tr>
 <tr>
@@ -926,7 +926,7 @@ CompressionType
 </em>
 </td>
 <td>
-<p>Compression enables compression of metrics collection data</p>
+<p>Compression enables compression of metrics collection data.</p>
 </td>
 </tr>
 </tbody>

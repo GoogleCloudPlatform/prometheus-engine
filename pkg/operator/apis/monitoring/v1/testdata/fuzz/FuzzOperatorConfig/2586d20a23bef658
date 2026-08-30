@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"apiVersion\":\"00\",\"metadata\":{},\"rules\":{\"generatorUrl\":\"// \"}}")

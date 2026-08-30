@@ -85,7 +85,7 @@ type ExportFilters struct {
 	// A list Prometheus time series matchers. Every time series must match at least one
 	// of the matchers to be exported. This field can be used equivalently to the match[]
 	// parameter of the Prometheus federation endpoint to selectively export data.
-	// Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`
+	// Example: `["{job='prometheus'}", "{__name__=~'job:.*'}"]`.
 	MatchOneOf []string `json:"matchOneOf,omitempty"`
 }
 
@@ -110,7 +110,7 @@ type AlertmanagerEndpoints struct {
 	PathPrefix string `json:"pathPrefix,omitempty"`
 	// TLS Config to use for alertmanager connection.
 	TLS *TLSConfig `json:"tls,omitempty"`
-	// Authorization section for this alertmanager endpoint
+	// Authorization section for this alertmanager endpoint.
 	Authorization *Authorization `json:"authorization,omitempty"`
 	// Version of the Alertmanager API that rule-evaluator uses to send alerts. It
 	// can be "v1" or "v2".
@@ -123,9 +123,9 @@ type AlertmanagerEndpoints struct {
 // safe for use in Endpoints (no CredentialsFile field).
 type Authorization struct {
 	// Set the authentication type. Defaults to Bearer, Basic will cause an
-	// error
+	// error.
 	Type string `json:"type,omitempty"`
-	// The secret's key that contains the credentials of the request
+	// The secret's key that contains the credentials of the request.
 	Credentials *corev1.SecretKeySelector `json:"credentials,omitempty"`
 }
 
@@ -242,7 +242,7 @@ type ClusterPodMonitoringSpec struct {
 	Selector metav1.LabelSelector `json:"selector"`
 	// The endpoints to scrape on the selected pods.
 	Endpoints []ScrapeEndpoint `json:"endpoints"`
-	// Labels to add to the Prometheus target for discovered endpoints
+	// Labels to add to the Prometheus target for discovered endpoints.
 	TargetLabels TargetLabels `json:"targetLabels,omitempty"`
 	// Limits to apply at scrape time.
 	Limits *ScrapeLimits `json:"limits,omitempty"`
@@ -291,7 +291,7 @@ type TargetLabels struct {
 // LabelMapping specifies how to transfer a label from a Kubernetes resource
 // onto a Prometheus target.
 type LabelMapping struct {
-	// Kubenetes resource label to remap.
+	// Kubernetes resource label to remap.
 	From string `json:"from"`
 	// Remapped Prometheus target label.
 	// Defaults to the same name as `From`.

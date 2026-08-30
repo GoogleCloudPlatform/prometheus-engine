@@ -19,6 +19,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 var (
@@ -78,6 +79,7 @@ func vulnfix() error {
 		fmt.Sprintf("DIR=%v", dir),
 		fmt.Sprintf("BRANCH=%v", branch),
 		fmt.Sprintf("PROJECT=%v", proj.Name),
+		fmt.Sprintf("VULN_IGNORED_MODULES=%v", strings.Join(cfg.VulnIgnoredModules, ",")),
 	}
 	if *vulnfixSyncDockerfilesFrom {
 		opts = append(opts, "SYNC_DOCKERFILES_FROM=true")
@@ -110,6 +112,7 @@ func vulnfix() error {
 		// We are in detached state, so be explicit what to push and from where, by recreating the local prBranch.
 		mustRecreateBranch(dir, prBranch)
 		mustForcePush(dir, prBranch)
+		mustEnsurePullRequest(dir, branch, prBranch, msg, "Updating Go and image vulnerabilities using"+wrapCode("./gmpctl.sh vulnfix"))
 	} else {
 		return errors.New("aborting")
 	}
@@ -118,4 +121,8 @@ func vulnfix() error {
 		proj.RemoveWorkDir(cfg.Directory, dir)
 	}
 	return nil
+}
+
+func wrapCode(s string) string {
+	return "\n```\n" + s + "\n```\n"
 }

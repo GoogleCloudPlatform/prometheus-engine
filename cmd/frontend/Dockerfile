@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.2@sha256:1bee769a7a50eea7730ac31f75182ae2614f50a70902407312db390a7c7cb2ff AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.7@sha256:2f110d472e26e5c6b1c93f40a3ea6f88fe8954902cd4518d7ce99d836a158ceb AS buildbase
 
 # Compile the UI assets.
-FROM --platform=$BUILDPLATFORM us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24@sha256:d89c705d490819c00baad0acb534942d95c5415bc2c04132690e1dd02e2d253e AS assets
+FROM --platform=$BUILDPLATFORM us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24@sha256:b84e743ae17a3ee6de75c43e368790195ae4e98585f227f350a00e8ad393edca AS assets
 WORKDIR /app
 # To build the UI we need a recent node version and the go toolchain.
 COPY --from=buildbase /usr/bin/make /usr/bin/
@@ -27,6 +27,7 @@ COPY --chown=33:33 tools tools
 COPY --chown=33:33 ./cmd/frontend ./cmd/frontend
 COPY --chown=33:33 ./internal/promapi ./internal/promapi
 COPY --chown=33:33 ./pkg/ui ./pkg/ui
+COPY --chown=33:33 ./pkg/secutil ./pkg/secutil
 RUN ./pkg/ui/build.sh
 
 # sync is used to copy all auto-generated files to a different context.
@@ -39,6 +40,7 @@ COPY --from=assets /app/pkg/ui/static pkg/ui/static
 FROM buildbase AS appbase
 ARG TARGETOS
 ARG TARGETARCH
+ARG BUILDARCH
 WORKDIR /app
 COPY charts/values.global.yaml charts/values.global.yaml
 COPY --from=assets /app ./
@@ -50,12 +52,15 @@ ENV GOTOOLCHAIN=local
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
-	apt install -y --no-install-recommends \
-	-tags builtinassets \
+	apt-get update && apt-get install -y --no-install-recommends \
 	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
-	CC=aarch64-linux-gnu-gcc; \
+	export CC=aarch64-linux-gnu-gcc; \
+	elif [ "${TARGETARCH}" = "amd64" ] && [ "${BUILDARCH}" != "amd64" ]; then \
+	apt-get update && apt-get install -y --no-install-recommends \
+	gcc-x86-64-linux-gnu libc6-dev-amd64-cross; \
+	export CC=x86_64-linux-gnu-gcc; \
 	fi && \
-	GOOS=${TARGETOS} GOARCH=${TARGETARCH} CC=${CC} \
+	GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build \
 	-tags builtinassets \
 	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool -modfile="tools/go.mod" yq ".version" ) \
@@ -64,6 +69,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/frontend/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260207.00_p0@sha256:ae6350bb7078a86c22fb9db290b02a3f702e95e79b216c3d469e896780363da6
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260815.00_p0@sha256:532c7001d381c6f0c6fe684bb3235596cd532340c463df855a0ea168a83d783e
 COPY --from=appbase /app/frontend /bin/frontend
 ENTRYPOINT ["/bin/frontend"]

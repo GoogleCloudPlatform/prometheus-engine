@@ -48,3 +48,57 @@ func (v *OperatorConfigValidator) ValidateUpdate(ctx context.Context, _, o runti
 func (v *OperatorConfigValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
+
+type rulesValidator struct{}
+
+func (*rulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
+	return o.(*Rules).ValidateCreate()
+}
+
+func (*rulesValidator) ValidateUpdate(_ context.Context, _, o runtime.Object) (admission.Warnings, error) {
+	return o.(*Rules).ValidateCreate()
+}
+
+func (*rulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+	return nil, nil
+}
+
+func NewRulesValidator() admission.CustomValidator {
+	return &rulesValidator{}
+}
+
+type clusterRulesValidator struct{}
+
+func (*clusterRulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
+	return o.(*ClusterRules).ValidateCreate()
+}
+
+func (*clusterRulesValidator) ValidateUpdate(_ context.Context, _, o runtime.Object) (admission.Warnings, error) {
+	return o.(*ClusterRules).ValidateCreate()
+}
+
+func (*clusterRulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+	return nil, nil
+}
+
+func NewClusterRulesValidator() admission.CustomValidator {
+	return &clusterRulesValidator{}
+}
+
+type globalRulesValidator struct{}
+
+func (*globalRulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
+	return o.(*GlobalRules).ValidateCreate()
+}
+
+func (*globalRulesValidator) ValidateUpdate(_ context.Context, _, o runtime.Object) (admission.Warnings, error) {
+	return o.(*GlobalRules).ValidateCreate()
+}
+
+func (*globalRulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+	return nil, nil
+}
+
+func NewGlobalRulesValidator() admission.CustomValidator {
+	return &globalRulesValidator{}
+}

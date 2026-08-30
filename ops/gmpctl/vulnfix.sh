@@ -33,9 +33,6 @@ fi
 
 source "${SCRIPT_DIR}/lib.sh"
 
-# TODO: Find better way. Go tool grane is tricky as we run in different directory.
-go install github.com/google/go-containerregistry/cmd/gcrane@latest
-
 # Also accepts SYNC_DOCKERFILES_FROM.
 
 if [[ -z "${DIR}" ]]; then
@@ -103,23 +100,27 @@ echo "*" >>"${DIR}/.gmpctl/.gitignore"
 vuln_file="${DIR}/.gmpctl/vulnlist.txt"
 pushd "${DIR}"
 
-release-lib::idemp::vulnlist "${DIR}" "${vuln_file}"
+max_attempts=5
+for ((i=1; i<=max_attempts; i++)); do
+	release-lib::vulnlist "${DIR}" "${vuln_file}"
+	if [[ "no vulnerabilities" == $(cat "${vuln_file}") ]]; then
+		echo "✅ No more fixable Go vulnerabilities found!"
+		break
+	fi
 
-if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
-	# Attempt to update + go mod tidy.
+	echo "🔄 Iteration $i/$max_attempts: Applying dependency updates..."
 	release-lib::gomod_vulnfix "${DIR}" "${vuln_file}"
 	git add go.mod go.sum
-
 	if [ -d "${DIR}/vendor" ]; then
 		go mod vendor
 		git add --all
 	fi
+done
 
-	# Check if that helped.
-	echo "⚠️  This will fail on older branches with vendoring; in this case, simply go to ${DIR}, run 'go mod vendor' and rerun."
+if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
 	release-lib::vulnlist "${DIR}" "${vuln_file}"
-	if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
-		echo "❌  After go mod update some vulnerabilities are still found; go to ${DIR} and resolve it manually (select not reusing the ./vulnlist.txt file) and rerun."
-		exit 1
-	fi
+fi
+if [[ "no vulnerabilities" != $(cat "${vuln_file}") ]]; then
+	echo "❌ After go mod update some vulnerabilities are still found; go to ${DIR} and resolve it manually."
+	exit 1
 fi

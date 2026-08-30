@@ -87,7 +87,7 @@ func TestApplyVPA(t *testing.T) {
 			case err == nil && tc.wantErr:
 				t.Error("expected error, but got no error")
 			case err != nil && tc.wantErr:
-				// Ok
+				// Ok.
 			case err == nil && !tc.wantErr:
 				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: alertmanagerVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
 					t.Error(err)
@@ -102,7 +102,7 @@ func TestApplyVPA(t *testing.T) {
 					t.Error(err)
 				}
 			default:
-				// Ok
+				// Ok.
 			}
 		})
 	}
@@ -173,7 +173,7 @@ func TestDeleteVPA(t *testing.T) {
 			case err == nil && tc.wantErr:
 				t.Error("expected error, but got no error")
 			case err != nil && tc.wantErr:
-				// Ok
+				// Ok.
 			case err == nil && !tc.wantErr:
 				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: alertmanagerVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); !apierrors.IsNotFound(err) {
 					t.Errorf("expected not found, got %s", err)
@@ -188,7 +188,7 @@ func TestDeleteVPA(t *testing.T) {
 					t.Errorf("expected not found, got %s", err)
 				}
 			default:
-				// Ok
+				// Ok.
 			}
 		})
 	}

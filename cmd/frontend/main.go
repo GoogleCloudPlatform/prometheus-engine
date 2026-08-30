@@ -30,12 +30,14 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/frontend/internal/rule"
 	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/ui"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -181,9 +183,9 @@ func main() {
 		buildInfoHandler := http.HandlerFunc(promapi.BuildinfoHandlerFunc(log.With(logger, "component", "buildinfo-handler"), "frontend", version.Version))
 		http.Handle("/api/v1/status/buildinfo", buildInfoHandler)
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
-		http.Handle("/api/v1/rules", http.HandlerFunc(ruleProxy.RuleGroups))
-		http.Handle("/api/v1/rules/", http.NotFoundHandler())
-		http.Handle("/api/v1/alerts", http.HandlerFunc(ruleProxy.Alerts))
+		http.Handle("/api/v1/rules", authenticate(http.HandlerFunc(ruleProxy.RuleGroups)))
+		http.Handle("/api/v1/rules/", authenticate(http.NotFoundHandler()))
+		http.Handle("/api/v1/alerts", authenticate(http.HandlerFunc(ruleProxy.Alerts)))
 		http.Handle("/api/", authenticate(forward(logger, targetURL, transport)))
 
 		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
@@ -220,9 +222,9 @@ func main() {
 }
 
 func authenticate(next http.Handler) http.Handler {
+	username := os.Getenv(authUsernameEnv)
+	password := os.Getenv(authPasswordEnv)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		username := os.Getenv(authUsernameEnv)
-		password := os.Getenv(authPasswordEnv)
 		if len(username) > 0 && len(password) > 0 {
 			reqUser, reqPass, ok := req.BasicAuth()
 			if !ok {
@@ -230,7 +232,9 @@ func authenticate(next http.Handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			if reqUser != username || reqPass != password {
+			matchUser := secutil.ConstTimeEqual(reqUser, username)
+			matchPass := secutil.ConstTimeEqual(reqPass, password)
+			if !matchUser || !matchPass {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
@@ -244,6 +248,10 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 	client := http.Client{Transport: transport}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if slices.Contains(strings.Split(req.URL.Path, "/"), "..") {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		u := *target
 		u.Path = path.Join(u.Path, req.URL.Path)
 
@@ -254,6 +262,7 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 			method = "GET"
 			if err := req.ParseForm(); err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 			u.RawQuery = req.Form.Encode()
 		} else {

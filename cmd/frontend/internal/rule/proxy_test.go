@@ -108,7 +108,7 @@ func TestFanoutForward_AlertsReturnSuccess(t *testing.T) {
 
 	activeAt1, _ := time.Parse(time.RFC3339Nano, "2011-11-11T11:11:11.111122223Z")
 	activeAt2, _ := time.Parse(time.RFC3339Nano, "2022-02-22T22:22:22.999977773Z")
-	expected := []*promapiv1.Alert{ // 2 times called a client which each returned 2 alerts ==> 4 alerts
+	expected := []*promapiv1.Alert{ // 2 times called a client which each returned 2 alerts ==> 4 alerts.
 		{
 			Labels:          []labels.Label{{Name: "labelKey1", Value: "labelVal1"}},
 			Annotations:     []labels.Label{{Name: "annoKey1", Value: "AnnoVal1"}},
@@ -180,7 +180,7 @@ func TestFanoutForward_AlertsTwoReturnSuccessWithOneOfTwoBrokenClients(t *testin
 
 	activeAt1, _ := time.Parse(time.RFC3339Nano, "2011-11-11T11:11:11.111122223Z")
 	activeAt2, _ := time.Parse(time.RFC3339Nano, "2022-02-22T22:22:22.999977773Z")
-	expected := []*promapiv1.Alert{ // 2 times called a client which each returned 2 alerts ==> 4 alerts
+	expected := []*promapiv1.Alert{ // 2 times called a client which each returned 2 alerts ==> 4 alerts.
 		{
 			Labels:          []labels.Label{{Name: "labelKey1", Value: "labelVal1"}},
 			Annotations:     []labels.Label{{Name: "annoKey1", Value: "AnnoVal1"}},

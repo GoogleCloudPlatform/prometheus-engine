@@ -82,7 +82,7 @@ type FindingTrace struct {
 
 // compileUpdateList decodes the JSON stream from govulncheck and extracts
 // a list of modules that need to be updated to a fixed version.
-func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error) {
+func compileUpdateList(jsonData io.Reader, onlyFixed bool, ignoredModules map[string]struct{}) ([]UpdateList, error) {
 	updates := make(map[string]UpdateList)
 	osvs := make(map[string]*OSV)
 	decoder := json.NewDecoder(jsonData)
@@ -108,15 +108,11 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error)
 		// Parse finding.
 		// We assume OSVs are printed first.
 		osv := osvs[v.Finding.OSVID]
-		cve := CVE{}
-		allCVEs := v.Finding.OSVID
+		cveID := v.Finding.OSVID
 		if osv != nil {
-			cve = getCVEDetails(*nvdAPIKey, *osv)
-			allCVEs = osv.CVEs()
+			cveID = getCVEID(*osv)
 		} else {
-			slog.Error("Malformed govulncheck input; a finding without a OSV entry; assuming unkown severity.", "finding.osv", v.Finding.OSVID)
-			cve.ID = v.Finding.OSVID // Fallback to GO ID
-			cve.Severity = "UNKNOWN"
+			slog.Error("Malformed govulncheck input; a finding without an OSV entry.", "finding.osv", v.Finding.OSVID)
 		}
 		if len(v.Finding.Trace) == 0 {
 			slog.Error("Malformed govulncheck input; a finding with empty trace; ignoring.", "finding.osv", v.Finding.OSVID)
@@ -130,20 +126,14 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error)
 			var err error
 			fixVersion, err = semver.NewVersion(v.Finding.FixedVersion)
 			if err != nil {
-				slog.Warn("Found Go vulnerability with a fix that is not a correct semver version; assuming no fix version", "mod", module, "osv", cve, "fixedVersion", v.Finding.FixedVersion, "err", err)
+				slog.Warn("Found Go vulnerability with a fix that is not a correct semver version; assuming no fix version", "mod", module, "cve", cveID, "fixedVersion", v.Finding.FixedVersion, "err", err)
 			}
-		}
-
-		if onlyFixed && fixVersion == nil {
-			slog.Warn("IMPORTANT: Found Go vulnerability without a fixed version. Ignoring this module, given the -only-fixed flag...", "mod", module, "osv", cve)
-			continue
 		}
 
 		up, ok := updates[module]
 		if !ok {
-			slog.Info("Found Go vulnerability with a fix; queuing...", "mod", module, "CVEs", allCVEs)
 			updates[module] = UpdateList{
-				CVE:          cve,
+				CVEID:        cveID,
 				Module:       module,
 				FixedVersion: fixVersion,
 				Version:      v.Finding.Trace[0].Version,
@@ -151,23 +141,43 @@ func compileUpdateList(jsonData io.Reader, onlyFixed bool) ([]UpdateList, error)
 			continue
 		}
 
-		// Check if there are more CVE IDs corresponding to the vulnerability, which can give more context.
-		slog.Debug("Found Go vulnerability with a fix, the module was already queued; resolving version...", "mod", module, "CVEs", allCVEs)
 		up.AdditionalCVEs++
 		if fixVersion != nil {
 			if up.FixedVersion == nil || fixVersion.GreaterThan(up.FixedVersion) {
 				up.FixedVersion = fixVersion
 			}
 		}
-		if !cve.LessThan(up.CVE) {
-			up.CVE = cve
-		}
 		updates[module] = up
 	}
 
-	updateList := slices.Collect(maps.Values(updates))
-	sort.Slice(updateList, func(i, j int) bool {
-		return updateList[i].CVE.LessThan(updateList[j].CVE)
+	allUpdates := slices.Collect(maps.Values(updates))
+	sort.Slice(allUpdates, func(i, j int) bool {
+		return allUpdates[i].Module < allUpdates[j].Module
 	})
+
+	var updateList []UpdateList
+	for _, up := range allUpdates {
+		if _, ignored := ignoredModules[up.Module]; ignored {
+			slog.Warn("IMPORTANT: Found Go vulnerability in an ignored module; skipping upgrade...", "module", up.Module, "cve", up.CVEID)
+			continue
+		}
+
+		if onlyFixed && up.FixedVersion == nil {
+			slog.Warn("IMPORTANT: Found Go vulnerability without a fixed version. Ignoring this module, given the -only-fixed flag...", "mod", up.Module, "cve", up.CVEID)
+			continue
+		}
+
+		slog.Info("Found Go vulnerability with a fix; queuing...", "mod", up.Module, "fixedVersion", up.FixedVersion, "cve", up.CVEID)
+		updateList = append(updateList, up)
+	}
 	return updateList, nil
+}
+
+func getCVEID(osv OSV) string {
+	for _, a := range osv.Aliases {
+		if strings.HasPrefix(a, "CVE") {
+			return a
+		}
+	}
+	return osv.ID
 }

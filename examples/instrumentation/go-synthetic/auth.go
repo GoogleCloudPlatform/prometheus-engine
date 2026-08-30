@@ -30,10 +30,11 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secutil"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -237,7 +238,9 @@ func (c *basicAuthConfig) isEnabled() bool {
 func (c *basicAuthConfig) handle(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		username, password, ok := r.BasicAuth()
-		if ok && username == c.username && password == c.password {
+		matchUser := secutil.ConstTimeEqual(username, c.username)
+		matchPass := secutil.ConstTimeEqual(password, c.password)
+		if ok && matchUser && matchPass {
 			handler.ServeHTTP(w, r)
 			return
 		}
@@ -260,7 +263,9 @@ func authorizationHandler(handler http.Handler, scheme, parameters string) http.
 			// Parameters could be leading with any number of spaces so we need an additional trim.
 			foundParameters = strings.TrimSpace(authParts[1])
 		}
-		if expectedScheme == foundScheme && expectedParameters == foundParameters {
+		matchScheme := secutil.ConstTimeEqual(foundScheme, expectedScheme)
+		matchParams := secutil.ConstTimeEqual(foundParameters, expectedParameters)
+		if matchScheme && matchParams {
 			handler.ServeHTTP(w, r)
 			return
 		}
@@ -347,6 +352,7 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 		if err := r.ParseForm(); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write(oauthTokenErrorResponse("server_error", "unable to parse form contents"))
+			return
 		}
 
 		grantType := r.Form.Get("grant_type")
@@ -359,7 +365,9 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 			return
 		}
 
-		if clientID != c.clientID || clientSecret != c.clientSecret {
+		matchID := secutil.ConstTimeEqual(clientID, c.clientID)
+		matchSecret := secutil.ConstTimeEqual(clientSecret, c.clientSecret)
+		if !matchID || !matchSecret {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write(oauthTokenErrorResponse("invalid_client", "incorrect client credentials"))
 			return
@@ -367,9 +375,9 @@ func (c *oauth2Config) tokenHandler() http.Handler {
 
 		if len(c.scopes) > 0 {
 			requiredScopes := strings.Split(c.scopes, ",")
-			sort.Strings(requiredScopes)
+			slices.Sort(requiredScopes)
 			requestedScopes := strings.Split(scopes, " ")
-			sort.Strings(requestedScopes)
+			slices.Sort(requestedScopes)
 			if !cmp.Equal(requestedScopes, requiredScopes) {
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = w.Write(oauthTokenErrorResponse("invalid_scope", fmt.Sprintf("expected %q, received %q", c.scopes, scopes)))

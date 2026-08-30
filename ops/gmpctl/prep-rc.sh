@@ -28,29 +28,29 @@ fi
 SED=$(which gsed || which sed)
 
 # TODO(bwplotka): Finding correct script dir is not so trivial.
-if [[ -z "${SCRIPT_DIR}" ]]; then
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
   log_err "SCRIPT_DIR envvar is required."
   exit 1
 fi
 
 source "${SCRIPT_DIR}/lib.sh"
 
-if [[ -z "${DIR}" ]]; then
+if [[ -z "${DIR:-}" ]]; then
   log_err "DIR envvar is required."
   exit 1
 fi
 
-if [[ -z "${BRANCH}" ]]; then
+if [[ -z "${BRANCH:-}" ]]; then
   log_err "BRANCH envvar is required."
   exit 1
 fi
 
-if [[ -z "${TAG}" ]]; then
+if [[ -z "${TAG:-}" ]]; then
   log_err "TAG envvar is required."
   exit 1
 fi
 
-if [[ -z "${PROJECT}" ]]; then
+if [[ -z "${PROJECT:-}" ]]; then
   log_err "PROJECT envvar is required."
   exit 1
 fi

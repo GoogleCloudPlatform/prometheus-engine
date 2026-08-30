@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	releaseFlags  = flag.NewFlagSet("release", flag.ExitOnError)
+	releaseFlags = flag.NewFlagSet("release", flag.ExitOnError)
 	releaseBranch = releaseFlags.String("b", "", "Release branch to work on; Project is auto-detected from this")
 	releaseTag    = releaseFlags.String("t", "", "Tag to release. If empty, next TAG version will be auto-detected (double check this!)")
 	releasePatch  = releaseFlags.Bool("patch", false, "If true, and --tag is empty, forces a new patch version as a new TAG.")
@@ -93,7 +93,7 @@ func release() error {
 	}
 
 	// TODO(bwplotka): Check if tag exists.
-	mustCreateSignedTag(dir, tag)
+	mustCreateTag(dir, tag)
 	if confirmf("About to git push %q tag from %q to \"origin/%v\"; are you sure?", tag, dir, branch) {
 		mustPush(dir, tag)
 	} else {

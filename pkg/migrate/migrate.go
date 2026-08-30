@@ -1,0 +1,451 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package migrate
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strings"
+
+	"maps"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
+	"sigs.k8s.io/yaml"
+)
+
+// MigrationReport accumulates the statistics and payloads of the migration run.
+type MigrationReport struct {
+	SuccessCount     int                          // Successfully migrated with no warnings or action items.
+	WarningsCount    int                          // Migrated with non-blocking warnings (e.g. dropped unsupported fields).
+	ActionItemsCount int                          // Successfully migrated but had TODO annotations.
+	SkippedCount     int                          // Bypassed because resource is unsupported/out-of-scope.
+	FailedCount      int                          // Fatal failure, resource skipped.
+	Outputs          []*unstructured.Unstructured // All converted GMP manifests in-memory.
+	ReadyOutputs     []*unstructured.Unstructured // Only 100% ready manifests (0 TODO annotations).
+}
+
+// Migrator orchestrates the migration process.
+type Migrator struct {
+	converters map[string]ResourceConverter
+	cache      *ResourceCache
+
+	// Decoupled streams (defaults to os.Stdin/os.Stdout/os.Stderr).
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
+	logger *slog.Logger
+}
+
+type generatedResource struct {
+	res          *unstructured.Unstructured
+	srcKind      string
+	srcNamespace string
+	srcName      string
+}
+
+// NewMigrator creates a new Migrator.
+func NewMigrator() *Migrator {
+	return &Migrator{
+		converters: make(map[string]ResourceConverter),
+		cache:      NewResourceCache(),
+		Stdin:      os.Stdin,
+		Stdout:     os.Stdout,
+		Stderr:     os.Stderr,
+		logger:     slog.Default(),
+	}
+}
+
+// RegisterConverter registers a converter for a specific resource Kind.
+func (m *Migrator) RegisterConverter(c ResourceConverter) {
+	if m.converters == nil {
+		m.converters = make(map[string]ResourceConverter)
+	}
+	m.converters[c.ImportKey()] = c
+}
+
+// Run executes the migration flow and returns the summary report across multiple inputs.
+func (m *Migrator) Run(inputPaths ...string) (*MigrationReport, error) {
+	if m.Stdin == nil {
+		m.Stdin = os.Stdin
+	}
+	if m.Stdout == nil {
+		m.Stdout = os.Stdout
+	}
+	if m.Stderr == nil {
+		m.Stderr = os.Stderr
+	}
+
+	if m.converters == nil {
+		m.converters = make(map[string]ResourceConverter)
+	}
+
+	m.cache = NewResourceCache()
+
+	report := &MigrationReport{}
+
+	// Instantiate our custom ConsoleHandler.
+	handler := NewConsoleHandler(m.Stderr)
+	m.logger = slog.New(handler)
+
+	// 1. Parse all inputs.
+	for _, path := range inputPaths {
+		if err := m.parseInputs(path); err != nil {
+			return nil, fmt.Errorf("failed to parse input %q: %w", path, err)
+		}
+	}
+
+	// TODO(M2): Implement Prometheus CR monitor discovery filtering (podMonitorSelector / serviceMonitorSelector) before converting.
+
+	// 2. Run converters across the cached resources.
+	outputs := m.convertResources()
+	report.Outputs = outputs
+
+	var readyOutputs []*unstructured.Unstructured
+	for _, out := range outputs {
+		if !hasTodoAnnotations(out) {
+			readyOutputs = append(readyOutputs, out)
+		}
+	}
+	report.ReadyOutputs = readyOutputs
+
+	// 4. Calculate final statistics from the handler's tracked statuses.
+	for _, status := range handler.ResourceStatuses() {
+		switch status {
+		case StatusSuccess:
+			report.SuccessCount++
+		case StatusSkipped:
+			report.SkippedCount++
+		case StatusWarnings:
+			report.WarningsCount++
+		case StatusActionItems:
+			report.ActionItemsCount++
+		case StatusFailed:
+			report.FailedCount++
+		}
+	}
+
+	return report, nil
+}
+
+// hasTodoAnnotations returns true if the resource contains any GMP migration TODO annotations.
+func hasTodoAnnotations(u *unstructured.Unstructured) bool {
+	if u == nil {
+		return false
+	}
+	for k := range u.GetAnnotations() {
+		if strings.HasPrefix(k, AnnotationTodoPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// PrintSummary formats and writes the standardized migration report summary.
+func (m *Migrator) PrintSummary(r *MigrationReport, emitAll bool) {
+	fmt.Fprintln(m.Stderr, "\n=========================================")
+	fmt.Fprintln(m.Stderr, "Migration Complete Summary:")
+	fmt.Fprintf(m.Stderr, "  Successfully Migrated:      %d\n", r.SuccessCount)
+	fmt.Fprintf(m.Stderr, "  Migrated with Warnings:     %d\n", r.WarningsCount)
+	fmt.Fprintf(m.Stderr, "  Migrated with Action Items: %d\n", r.ActionItemsCount)
+	fmt.Fprintf(m.Stderr, "  Skipped (Unsupported):      %d\n", r.SkippedCount)
+	fmt.Fprintf(m.Stderr, "  Failed:                     %d\n", r.FailedCount)
+	fmt.Fprintln(m.Stderr, "=========================================")
+	if r.ActionItemsCount > 0 {
+		if !emitAll {
+			fmt.Fprintf(m.Stderr, "\nNOTE: Emitted %d ready manifests to Stdout.\n", len(r.ReadyOutputs))
+			fmt.Fprintf(m.Stderr, "%d manifests with action items were omitted from Stdout as they contain best-effort draft configurations with TODO annotations and placeholders.\n", r.ActionItemsCount)
+			fmt.Fprintln(m.Stderr, "Run with '--all' to output all manifests for review.")
+		} else {
+			fmt.Fprintf(m.Stderr, "\nNOTE: %d manifests contain best-effort draft configurations with TODO annotations and placeholders.\n", r.ActionItemsCount)
+			fmt.Fprintln(m.Stderr, "Review the inline 'gmp.googleapis.com/todo-*' annotations in the generated manifests before applying to a cluster.")
+		}
+	}
+}
+
+// WriteOutputs serializes and writes the converted manifests to the migrator's Stdout stream.
+// in standard Kubernetes multi-document YAML format (separated by "---").
+func (m *Migrator) WriteOutputs(outputs []*unstructured.Unstructured) error {
+	var buf strings.Builder
+	for i, out := range outputs {
+		if out == nil || out.Object == nil {
+			return fmt.Errorf("internal error: found nil resource or uninitialized object in outputs at index %d", i)
+		}
+
+		yamlOut, err := yaml.Marshal(out)
+		if err != nil {
+			return err
+		}
+		if i > 0 {
+			if _, err := fmt.Fprintln(&buf, "---"); err != nil {
+				return fmt.Errorf("failed to write document separator: %w", err)
+			}
+		}
+		if _, err := buf.Write(yamlOut); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
+		}
+	}
+	if _, err := io.WriteString(m.Stdout, buf.String()); err != nil {
+		return fmt.Errorf("failed to write output to destination: %w", err)
+	}
+	return nil
+}
+
+// isRelevantKind returns true if the input resource Kind is either a target
+// resource with a registered converter, or a known dependency.
+func (m *Migrator) isRelevantKind(kind string) bool {
+	switch kind {
+	case "Service", "ConfigMap", "Secret":
+		return true
+	}
+	_, registered := m.converters[kind]
+	return registered
+}
+
+// parseInputs reads files, directories, or stdin and loads them into the cache.
+func (m *Migrator) parseInputs(path string) error {
+	// 1. Handle Stdin Strm.
+	if path == "-" {
+		if err := m.parseYAMLStream(m.Stdin); err != nil {
+			// Log and track the error.
+			m.logger.Error("Skipping stdin due to parse error",
+				slog.String("file", "-"),
+				slog.Any("error", err),
+			)
+		}
+		return nil
+	}
+
+	// 2. Resolve system  errors.
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	// 3. Handle Single Direct File.
+	if !info.IsDir() {
+		if err := m.parseFile(path); err != nil {
+			// Log and track the error.
+			m.logger.Error("Skipping file due to parse error",
+				slog.String("file", path),
+				slog.Any("error", err),
+			)
+		}
+		return nil
+	}
+
+	// 4. Handle Directory Walk.
+	return filepath.WalkDir(path, func(fp string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if fp == path {
+				return nil
+			}
+			// Skip hidden subdirectories encountered during the walk.
+			if d.Name() != "." && d.Name() != ".." && strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Skip hidden files encountered during the walk (e.g. .yamllint.yaml).
+		if strings.HasPrefix(d.Name(), ".") {
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(fp))
+		if ext == ".yaml" || ext == ".yml" {
+			if err := m.parseFile(fp); err != nil {
+				// Log and track the error.
+				m.logger.Error("Skipping file due to parse error",
+					slog.String("file", fp),
+					slog.Any("error", err),
+				)
+			}
+		}
+		return nil
+	})
+}
+
+func (m *Migrator) parseFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return m.parseYAMLStream(f)
+}
+
+func (m *Migrator) parseYAMLStream(r io.Reader) error {
+	decoder := k8syaml.NewYAMLOrJSONDecoder(r, 4096)
+	for {
+		var u unstructured.Unstructured
+		if err := decoder.Decode(&u); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		if err := m.processUnstructured(&u); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// processUnstructured processes a single unstructured resource.
+// If the resource is a List, it recursively processes all nested items.
+func (m *Migrator) processUnstructured(u *unstructured.Unstructured) error {
+	if u.IsList() {
+		return u.EachListItem(func(obj runtime.Object) error {
+			nested, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				return errors.New("internal error: failed to cast list item to unstructured")
+			}
+			return m.processUnstructured(nested)
+		})
+	}
+
+	apiVersion := u.GetAPIVersion()
+	kind := u.GetKind()
+	name := u.GetName()
+
+	// 1. If it's not a resource we care about, skip it.
+	if !m.isRelevantKind(kind) {
+		// If it's a Prometheus Operator resource, log a SKIPPED milestone first.
+		m.logger.Info("Skipping unsupported Prometheus Operator resource",
+			slog.String("migration_status", "skipped"),
+			slog.String("apiVersion", apiVersion),
+			slog.String("kind", kind),
+			slog.String("namespace", u.GetNamespace()),
+			slog.String("name", name),
+		)
+		return nil
+	}
+
+	// 2. Since this IS a resource we care about, it must be well-formed.
+	if apiVersion == "" || kind == "" || name == "" {
+		return fmt.Errorf("malformed resource: apiVersion, kind, and metadata.name must all be specified (got apiVersion=%q, kind=%q, name=%q)", apiVersion, kind, name)
+	}
+
+	if err := m.cache.Add(u); err != nil {
+		return fmt.Errorf("failed to cache resource: %w", err)
+	}
+	return nil
+}
+
+func (m *Migrator) convertResources() []*unstructured.Unstructured {
+	ctx := context.Background()
+
+	// Track generated outputs by unique key to deduplicate identical secrets and detect name collisions.
+	outputsMap := make(map[string]generatedResource)
+
+	kinds := m.cache.ListKinds()
+
+	for _, kind := range kinds {
+		converter, registered := m.converters[kind]
+		if !registered {
+			continue
+		}
+
+		resources := m.cache.ListByKind(kind)
+		for _, res := range resources {
+			resCopy := res.DeepCopy()
+
+			// Create the resource logger.
+			resourceLogger := m.logger.With(
+				slog.String("kind", kind),
+				slog.String("namespace", resCopy.GetNamespace()),
+				slog.String("name", resCopy.GetName()),
+			)
+
+			outputs, err := converter.Convert(ctx, resourceLogger, resCopy, m.cache)
+
+			if err != nil {
+				resourceLogger.Error(err.Error())
+				continue
+			}
+
+			if err := m.accumulateOutputs(resourceLogger, outputsMap, outputs, kind, resCopy.GetNamespace(), resCopy.GetName()); err != nil {
+				resourceLogger.Error(err.Error())
+				continue
+			}
+
+			if len(outputs) == 0 {
+				continue
+			}
+
+			resourceLogger.Info("Converted successfully", slog.String("migration_status", "success"))
+		}
+	}
+
+	outputKeys := slices.AppendSeq(make([]string, 0, len(outputsMap)), maps.Keys(outputsMap))
+	slices.Sort(outputKeys)
+
+	allOutputs := make([]*unstructured.Unstructured, 0, len(outputKeys))
+	for _, k := range outputKeys {
+		allOutputs = append(allOutputs, outputsMap[k].res)
+	}
+	return allOutputs
+}
+
+// accumulateOutputs adds generated resources to outputsMap, deduplicating identical Secrets and erroring on collisions.
+func (m *Migrator) accumulateOutputs(logger *slog.Logger, outputsMap map[string]generatedResource, outputs []*unstructured.Unstructured, srcKind, srcNamespace, srcName string) error {
+	for _, out := range outputs {
+		if out == nil {
+			continue
+		}
+		gvk := out.GroupVersionKind()
+		key := fmt.Sprintf("%s/%s/%s", gvk.String(), out.GetNamespace(), out.GetName())
+
+		existing, exists := outputsMap[key]
+		if exists {
+			if out.GetKind() == KindSecret {
+				// If object contents are identical, silently deduplicate.
+				// (two monitors referencing same ConfigMap generate duplicate Secrets).
+				if reflect.DeepEqual(existing.res.Object, out.Object) {
+					continue
+				}
+				// Warn and keep the existing secret on content conflict.
+				logger.Warn("Secret already exists with different contents. Keeping original Secret and skipping conflicting definition.",
+					slog.String("secret", out.GetName()),
+					slog.String("namespace", out.GetNamespace()))
+				continue
+			}
+			srcKey := fmt.Sprintf("%s/%s/%s", srcKind, srcNamespace, srcName)
+			existingSrcKey := fmt.Sprintf("%s/%s/%s", existing.srcKind, existing.srcNamespace, existing.srcName)
+			return fmt.Errorf("conflict detected: both %s and %s generate the same target resource %q", existingSrcKey, srcKey, key)
+		}
+		outputsMap[key] = generatedResource{
+			res:          out,
+			srcKind:      srcKind,
+			srcNamespace: srcNamespace,
+			srcName:      srcName,
+		}
+	}
+	return nil
+}

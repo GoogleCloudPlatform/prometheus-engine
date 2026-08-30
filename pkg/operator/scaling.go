@@ -88,7 +88,7 @@ func (r *scalingReconciler) Reconcile(ctx context.Context, req reconcile.Request
 
 	switch {
 	case config.Scaling.VPA.Enabled:
-		// Apply VPA
+		// Apply VPA.
 		if err := applyVPA(ctx, r.client, r.opts.OperatorNamespace); err != nil {
 			return reconcile.Result{}, err
 		}

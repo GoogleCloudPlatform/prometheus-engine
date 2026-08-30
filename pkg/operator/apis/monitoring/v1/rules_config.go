@@ -125,7 +125,7 @@ func scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 				return fmt.Errorf("parse PromQL expression: %w", err)
 			}
 
-			// Traverse the query and inject label matchers to all metric selectors
+			// Traverse the query and inject label matchers to all metric selectors.
 			err = walkExpr(expr, func(n parser.Node) error {
 				vs, ok := n.(*parser.VectorSelector)
 				if ok {

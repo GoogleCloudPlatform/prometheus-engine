@@ -107,17 +107,12 @@ release-lib::vulnlist() {
 
 	echo "🔄  Detecting Go ${go_version} vulnerabilities to fix..."
 	pushd "${SCRIPT_DIR}/vulnupdatelist/"
-	if [[ ! -f "./api.text" ]]; then
-		echo "Please create an NVD API key. See https://nvd.nist.gov/developers/request-an-api-key"
-		read -p "NVD API Key: " NVD_API_KEY
-		echo ${NVD_API_KEY} >./api.text
-	fi
 
 	go run "./..." \
-		-go-version=${go_version} \
+		-go-version="${go_version}" \
 		-only-fixed \
 		-dir="${dir}" \
-		-nvd-api-key="$(cat "./api.text")" | tee "${vuln_file}"
+		-vuln-ignore-modules="${VULN_IGNORED_MODULES:-}" | tee "${vuln_file}"
 	if [[ -z $(cat "${vuln_file}") ]]; then
 		# Print this, otherwise error on the above might keep this file mistakenly empty.
 		echo "no vulnerabilities" >"${vuln_file}"
@@ -149,28 +144,54 @@ release-lib::gomod_vulnfix() {
 		return 1
 	fi
 
+	if [[ "${vuln_file}" != /* ]]; then
+		vuln_file="$(pwd)/${vuln_file}"
+	fi
+
 	# Read the vulnerability file line by line.
 	# The `|| [[ -n "$line" ]]` part handles the case where the last line doesn't have a newline.
+	pushd "${dir}"
 	while IFS= read -r line || [[ -n "$line" ]]; do
 		# Skip any empty lines in the input file.
 		if [ -z "$line" ]; then
 			continue
 		fi
 
-		mod=$(echo "$line" | awk '{print $2}')
+		mod=$(echo "$line" | awk '{print $1}')
 		mod_path=$(echo "${mod}" | cut -d'@' -f1)
-		desired_version=$(echo "${mod}" | cut -d'@' -f2)
+		desired_version=$(echo "${mod}" | cut -s -d'@' -f2)
 
 		if [[ -z "${mod_path}" ]] || [[ -z "${desired_version}" ]]; then
 			echo "⚠️ Skipping malformed line: $line"
 			continue
 		fi
 
-		echo "🔄 Updating module '${mod_path}' to version '${desired_version}'..."
-		${SED} -i "s|\(	${mod_path} \).*|\1${desired_version}|" "${dir}/go.mod"
+		if [[ "${mod_path}" == go.opentelemetry.io/otel* ]]; then
+			# OpenTelemetry core API/SDK modules share versions and schema URLs across packages (e.g. otel, otel/sdk, otel/trace, otel/metric).
+			# Upgrade core otel modules present in the module graph together to avoid conflicting schema URL errors.
+			otel_mods=$(go list -m all 2>/dev/null | awk '/^go\.opentelemetry\.io\/otel($|\/)/ && !/^go\.opentelemetry\.io\/otel\/(contrib|semconv)/ {print $1}')
+			all_otel=$(echo "${mod_path} ${otel_mods}" | tr ' ' '\n' | sort -u)
+			otel_args=""
+			for m in $(echo "${all_otel}" | tr ' ' '\n'); do
+				if go list -m "${m}@${desired_version}" >/dev/null 2>&1; then
+					otel_args="${otel_args} ${m}@${desired_version}"
+				fi
+			done
+			if [[ -n "${otel_args// /}" ]]; then
+				echo "🔄 Updating OpenTelemetry modules simultaneously:${otel_args}..."
+				go get ${otel_args}
+			else
+				log_err "Could not resolve any OpenTelemetry modules matching version '${desired_version}'"
+				popd
+				return 1
+			fi
+
+		else
+			echo "🔄 Updating module '${mod_path}' to version '${desired_version}'..."
+			go get "${mod_path}@${desired_version}"
+		fi
 	done <"${vuln_file}"
 	echo "🔄 Resolving ${dir}/go.mod..."
-	pushd "${dir}"
 	go mod tidy
 	popd
 }
@@ -378,6 +399,8 @@ release-lib::dockerfile_update_image() {
 	local all_tags=$(gcrane ls "${image}" --json | jq --raw-output '.tags[]' | sort -V)
 	# Exclude RC images.
 	all_tags=$(echo "${all_tags}" | grep -v "rc.*")
+	# Ignore -linux-* architecture suffixes (e.g. -linux-arm64).
+	all_tags=$(echo "${all_tags}" | grep -v -e "-linux-")
 	# Prefix allows sticking to e.g. latest minor.
 	all_tags=$(echo "${all_tags}" | grep "${tag_prefix}")
 	local latest_tag=$(echo "${all_tags}" | tail -n1)
@@ -407,14 +430,12 @@ release-lib::idemp::manifests_bash_image_bump() {
 		return 1
 	fi
 
-	go install github.com/mikefarah/yq/v4@latest
-
 	local values_file="${dir}/charts/values.global.yaml"
 	# TODO: Not enough, this has to check actual manifests.
 	local bash_tag=$(yq '.images.bash.tag' "${values_file}")
 
-	# Use gcrane (over crane) for --json.
-	local latest_bash_tag=$(gcrane ls "gke.gcr.io/gke-distroless/bash" --json | jq --raw-output '.tags[]' | grep "gke_distroless_" | sort -V | tail -n1)
+	# Use gcrane (over crane) for --json. Ignore -linux-* architecture suffixes.
+	local latest_bash_tag=$(gcrane ls "gke.gcr.io/gke-distroless/bash" --json | jq --raw-output '.tags[]' | grep "gke_distroless_" | grep -v -e "-linux-" | sort -V | tail -n1)
 	if [[ "${bash_tag}" == "${latest_bash_tag}" ]]; then
 		echo "✅  Nothing to do; ${values_file} already uses ${latest_bash_tag}"
 		return 0
@@ -422,7 +443,7 @@ release-lib::idemp::manifests_bash_image_bump() {
 
 	# Upgrade.
 	echo "🔄  Ensuring ${latest_bash_tag} on ${values_file}..."
-	if ! ${SED} -i -E "s#tag: ${bash_tag}#tag: ${latest_bash_tag}#g" "${values_file}"; then
+	if ! ${SED} -i -E "s#tag: \"?${bash_tag}\"?#tag: \"${latest_bash_tag}\"#g" "${values_file}"; then
 		# TODO: This is flaky, no failing actually on no match. Common bug is
 		log_err "sed didn't replace?"
 		return 1
@@ -442,17 +463,21 @@ release-lib::manifests_regen() {
 		return 1
 	fi
 
-	# TODO(bwplotka): Manage deps better. It's getting confusing what bins we should use (worktree bingo? script bingo?).
-	go install helm.sh/helm/v3/cmd/helm@latest
-	go install github.com/google/addlicense@latest
-	go install github.com/mikefarah/yq/v4@latest
+	# Hack: Do the bingo variable swap. This allows injecting our local
+	# dependencies, instead the ones populated by bingo on old versions.
+	# NOTE: Only needed before 0.19.
+	if [[ -f "${dir}/.bingo/variables.env" ]]; then
+		cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
+		trap "mv \"${dir}/.bingo/variables.env.bak\" \"${dir}/.bingo/variables.env\" 2>/dev/null || true" EXIT
+		echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
+	fi
 
-	# Hack: Do the bingo variable swap. This allows injecting our own.
-	# This is faster than running requiring bingo and running bingo get.
-	cp "${dir}/.bingo/variables.env" "${dir}/.bingo/variables.env.bak"
-	echo "#!/bin/bash" >"${dir}/.bingo/variables.env" # Clean the file.
-	YQ="$(which yq)" HELM="$(which helm)" ADDLICENSE="$(which addlicense)" bash "${dir}/hack/presubmit.sh" manifests
-	cp "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env"
+	echo "🔄 Regenerating manifests..."
+	YQ="$(command -v yq)" HELM="$(command -v helm)" ADDLICENSE="$(command -v addlicense)" bash "${dir}/hack/presubmit.sh" manifests
+	if [[ -f "${dir}/.bingo/variables.env.bak" ]]; then
+		mv "${dir}/.bingo/variables.env.bak" "${dir}/.bingo/variables.env"
+		trap - EXIT
+	fi
 
 	echo "✅  Manifests regenerated"
 	return 0
