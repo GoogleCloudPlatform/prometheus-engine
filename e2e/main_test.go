@@ -180,7 +180,7 @@ func newMetricClient(ctx context.Context) (*gcm.MetricClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gcm.NewMetricClient(ctx, option.WithCredentialsJSON(gcmSA))
+	return gcm.NewMetricClient(ctx, option.WithAuthCredentialsJSON(option.ServiceAccount, gcmSA))
 }
 
 func configureOperatorExplicitCredentials(ctx context.Context, kubeClient client.Client) error {
