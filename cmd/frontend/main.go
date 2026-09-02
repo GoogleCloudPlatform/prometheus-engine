@@ -162,7 +162,7 @@ func main() {
 	{
 		opts := []option.ClientOption{
 			option.WithScopes("https://www.googleapis.com/auth/monitoring.read"),
-			option.WithCredentialsFile(*credentialsFile),
+			option.WithAuthCredentialsFile(option.ServiceAccount, *credentialsFile),
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 

@@ -525,7 +525,7 @@ func newAPI(ctx context.Context, opts *evaluatorOptions, version string) (v1.API
 		option.WithUserAgent(fmt.Sprintf("rule-evaluator/%s", version)),
 	}
 	if opts.CredentialsFile != "" {
-		clientOpts = append(clientOpts, option.WithCredentialsFile(opts.CredentialsFile))
+		clientOpts = append(clientOpts, option.WithAuthCredentialsFile(option.ServiceAccount, opts.CredentialsFile))
 	}
 	if opts.DisableAuth {
 		clientOpts = append(clientOpts,
