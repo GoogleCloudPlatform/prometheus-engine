@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.7@sha256:2f110d472e26e5c6b1c93f40a3ea6f88fe8954902cd4518d7ce99d836a158ceb AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.8@sha256:b90d223db90ab820dd1a4cf3b815b997aa9522268c36566714e544ed091fbebf AS buildbase
 WORKDIR /app
 COPY . ./
 
@@ -38,6 +38,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build -o go-synthetic ./examples/instrumentation/go-synthetic
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260815.00_p0@sha256:532c7001d381c6f0c6fe684bb3235596cd532340c463df855a0ea168a83d783e
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260901.00_p0@sha256:493bd4cb5b1c3cf2c6fcfd0359ab7c81d4bd9810109cc974792ed8a902755812
 COPY --from=appbase /app/go-synthetic /bin/go-synthetic
 ENTRYPOINT ["/bin/go-synthetic"]
