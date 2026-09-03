@@ -24,6 +24,7 @@ linters:
     - errorlint
     - exhaustive
     - exhaustruct
+    - exhaustruct_v5
     - forbidigo
     - forcetypeassert
     - funlen
@@ -34,6 +35,7 @@ linters:
     - gocyclo
     - godox
     - gomoddirectives
+    - gomodguard
     - gosec
     - inamedparam
     - ireturn
@@ -106,6 +108,7 @@ linters:
     modernize:
       disable:
       - omitzero
+      - newexpr
     revive:
       enable-all-rules: true
       rules:
@@ -223,6 +226,9 @@ linters:
           severity: warning
           disabled: true
         - name: enforce-switch-style
+          severity: warning
+          disabled: true
+        - name: use-slices-sort
           severity: warning
           disabled: true
   exclusions:
