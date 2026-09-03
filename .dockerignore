@@ -19,3 +19,4 @@
 pkg/ui/build
 pkg/ui/assets_vfsdata.go
 **/Dockerfile
+ops/gmpctl/data
