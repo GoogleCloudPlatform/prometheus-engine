@@ -180,6 +180,7 @@ func newMetricClient(ctx context.Context) (*gcm.MetricClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	//nolint:staticcheck // Keep using deprecated WithCredentialsJSON for now.
 	return gcm.NewMetricClient(ctx, option.WithCredentialsJSON(gcmSA))
 }
 
