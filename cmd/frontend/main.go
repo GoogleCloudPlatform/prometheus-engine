@@ -162,6 +162,7 @@ func main() {
 	{
 		opts := []option.ClientOption{
 			option.WithScopes("https://www.googleapis.com/auth/monitoring.read"),
+			//nolint:staticcheck // Keep using deprecated WithCredentialsFile for now.
 			option.WithCredentialsFile(*credentialsFile),
 		}
 		ctx, cancel := context.WithCancel(context.Background())
