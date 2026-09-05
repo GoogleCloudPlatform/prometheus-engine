@@ -4,10 +4,10 @@ go 1.25.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0
-	cloud.google.com/go/monitoring v1.24.2
+	cloud.google.com/go/monitoring v1.30.0
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/go-kit/log v0.2.1
-	github.com/go-logr/logr v1.4.3
+	github.com/go-logr/logr v1.4.4
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/go-cmp v0.7.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
@@ -17,22 +17,22 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/oklog/run v1.2.0
 	github.com/oklog/ulid v1.3.1 // indirect
-	github.com/prometheus/alertmanager v0.28.1
-	github.com/prometheus/client_golang v1.23.0
+	github.com/prometheus/alertmanager v0.34.0
+	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.65.0
+	github.com/prometheus/common v0.70.1
 	github.com/prometheus/common/assets v0.2.0
 	github.com/prometheus/prometheus v0.53.5-0.20250630093819-d344ea7bf4cc // v2.53.5.
-	github.com/stretchr/testify v1.11.1
-	github.com/thanos-io/thanos v0.36.1
-	go.uber.org/zap v1.27.0
+	github.com/stretchr/testify v1.12.1
+	github.com/thanos-io/thanos v0.42.4
+	go.uber.org/zap v1.28.0
 	golang.org/x/mod v0.40.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/api v0.248.0
+	google.golang.org/api v0.295.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.82.1
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.32.13
@@ -46,7 +46,7 @@ require (
 
 require (
 	github.com/efficientgo/e2e v0.14.1-0.20230710114240-c316eb95ae5b
-	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.75.0
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.93.1
 	k8s.io/apiserver v0.32.13
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -199,7 +199,7 @@ require (
 replace (
 	// TODO(bwplotka): We have to pin common to avoid auto-upgrades which are in compatible with Prometheus v2.53.5.
 	// Remove once this version moves to newer Prometheus.
-	github.com/prometheus/common => github.com/prometheus/common v0.61.0
+	github.com/prometheus/common => github.com/prometheus/common v0.70.1
 	// See go/gmp:fork-toil for rationales of this entry.
 	github.com/prometheus/prometheus => github.com/GoogleCloudPlatform/prometheus v0.0.0-20260123105636-10ff5b96bd82 // v2.53.5-gmp.2-rc.0
 )
