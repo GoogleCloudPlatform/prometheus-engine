@@ -38,7 +38,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: siderolabs/conform@6380738b7fdfc68b208ce0674c4ac1ba314ba600 # v0.1.0-alpha.27
+      - uses: siderolabs/conform@cfdb3cce90daece912e6a5cb3f20b2316a78a5bf # v0.1.0-alpha.31
         name: Conform Action
   golangci-lint:
     runs-on: ubuntu-latest
