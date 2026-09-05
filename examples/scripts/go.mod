@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	cloud.google.com/go/monitoring v1.24.3
-	github.com/efficientgo/core v1.0.0-rc.2
+	github.com/efficientgo/core v1.0.0-rc.3
 	github.com/go-kit/log v0.2.1
 	github.com/google/go-cmp v0.7.0
 	github.com/oklog/ulid v1.3.1
