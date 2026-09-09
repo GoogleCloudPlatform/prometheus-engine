@@ -24,8 +24,7 @@ require (
 	github.com/prometheus/common/assets v0.2.0
 	github.com/prometheus/prometheus v0.309.1 // v2.53.5.
 	github.com/stretchr/testify v1.11.1
-	github.com/thanos-io/thanos v0.42.5-0.20260903141646-35b8b991177d
-	go.uber.org/zap v1.27.1
+	github.com/thanos-io/thanos v0.42.5-0.20260909120523-b83107cdbc6d // https://github.com/thanos-io/thanos/compare/reloader-streaming?expand=1
 	golang.org/x/mod v0.40.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/time v0.14.0 // indirect
@@ -47,6 +46,7 @@ require (
 require (
 	github.com/efficientgo/e2e v0.14.1-0.20260204162810-8c75b1e33ef9
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.75.0
+	go.uber.org/zap v1.27.1
 	k8s.io/apiserver v0.32.13
 	sigs.k8s.io/yaml v1.6.0
 )
