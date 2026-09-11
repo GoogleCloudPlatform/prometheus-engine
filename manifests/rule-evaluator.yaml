@@ -124,7 +124,7 @@ spec:
       automountServiceAccountToken: true
       initContainers:
       - name: config-init
-        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260815.00_p0
+        image: gke.gcr.io/gke-distroless/bash:gke_distroless_20260901.00_p0
         command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
@@ -184,7 +184,7 @@ spec:
           containerPort: 9093
         resources:
           limits:
-            memory: 32M
+            memory: 64M
           requests:
             cpu: 1m
             memory: 4M
