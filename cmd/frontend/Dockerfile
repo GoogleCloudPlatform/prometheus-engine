@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.25.14-debian12@sha256:3f62603b1725a16f5e70d770d1a12f14d7588c4952e54d114f867103c9d5fe4a AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.8-debian12@sha256:506be2adb7605db34c92e8d8a0b196c317ba354a6bd151791ab9c6911c424f5d AS buildbase
 
 # Compile the UI assets.
 FROM --platform=$BUILDPLATFORM us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24@sha256:12f9b32a1afdd87221c0a6c1a907c74978f7de75902264badf2db08ddb21203c AS assets
