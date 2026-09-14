@@ -28,6 +28,7 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/common/model"
+	yaml "gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -546,5 +547,101 @@ func TestSetConfigMapData(t *testing.T) {
 		if diff := cmp.Diff(data, string(uncompressed)); diff != "" {
 			t.Fatalf("unexpected uncompressed data: %s", diff)
 		}
+	}
+}
+
+func TestMakeCollectorConfig_SecretConfigsDeterministicOrder(t *testing.T) {
+	ctx := t.Context()
+	pmon := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pmon-secrets",
+			Namespace: "gmp-test",
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("metrics"),
+					Interval: "10s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						Authorization: &monitoringv1.Auth{
+							Credentials: &monitoringv1.SecretSelector{
+								Secret: &monitoringv1.SecretKeySelector{
+									Name: "secret-c",
+									Key:  "token",
+								},
+							},
+						},
+					},
+				},
+				{
+					Port:     intstr.FromString("metrics"),
+					Interval: "10s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						Authorization: &monitoringv1.Auth{
+							Credentials: &monitoringv1.SecretSelector{
+								Secret: &monitoringv1.SecretKeySelector{
+									Name: "secret-a",
+									Key:  "token",
+								},
+							},
+						},
+					},
+				},
+				{
+					Port:     intstr.FromString("metrics"),
+					Interval: "10s",
+					HTTPClientConfig: monitoringv1.HTTPClientConfig{
+						Authorization: &monitoringv1.Auth{
+							Credentials: &monitoringv1.SecretSelector{
+								Secret: &monitoringv1.SecretKeySelector{
+									Name: "secret-b",
+									Key:  "token",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	kubeClient := newFakeClientBuilder().WithObjects(pmon).Build()
+	reconciler := newCollectionReconciler(kubeClient, Options{
+		OperatorNamespace: "gmp-system",
+		PublicNamespace:   "gmp-public",
+	})
+
+	cfg, _, err := reconciler.makeCollectorConfig(ctx, &monitoringv1.CollectionSpec{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	b, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("yaml marshal error: %s", err)
+	}
+	// Note: scrape_configs are intentionally omitted due to colliding job names.
+	// We're primarily ensuring the generated secrets references are ordered in
+	// the final config.
+	expected := `global: {}
+kubernetes_secrets:
+    - name: gmp-test/secret-a/token
+      config:
+        namespace: gmp-test
+        name: secret-a
+        key: token
+    - name: gmp-test/secret-b/token
+      config:
+        namespace: gmp-test
+        name: secret-b
+        key: token
+    - name: gmp-test/secret-c/token
+      config:
+        namespace: gmp-test
+        name: secret-c
+        key: token
+`
+	if diff := cmp.Diff(expected, string(b)); diff != "" {
+		t.Fatalf("unexpected collector config (-want +got):\n%s", diff)
 	}
 }
