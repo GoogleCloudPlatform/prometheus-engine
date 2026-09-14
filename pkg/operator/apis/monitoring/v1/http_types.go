@@ -15,9 +15,11 @@
 package v1
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 
 	"github.com/prometheus/common/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,7 +77,7 @@ func (p PrometheusSecretConfigs) Set(ref string, c secrets.KubernetesSecretConfi
 	p[ref] = c
 }
 
-// SecretConfigs returns an unordered list of secrets.SecretConfig.
+// SecretConfigs returns a sorted list of secrets.SecretConfig.
 func (p PrometheusSecretConfigs) SecretConfigs() []secrets.SecretConfig {
 	ret := make([]secrets.SecretConfig, 0, len(p))
 	for ref, c := range p {
@@ -84,6 +86,9 @@ func (p PrometheusSecretConfigs) SecretConfigs() []secrets.SecretConfig {
 			Config: c,
 		})
 	}
+	slices.SortFunc(ret, func(a, b secrets.SecretConfig) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 	return ret
 }
 
