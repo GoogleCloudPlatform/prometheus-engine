@@ -18,16 +18,42 @@ import (
 	"context"
 	"fmt"
 
+	"time"
+
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // WaitForOperatorReady waits until the GMP operator is ready to serve webhooks.
 func WaitForOperatorReady(ctx context.Context, kubeClient client.Client) error {
-	return kube.WaitForDeploymentReady(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameOperator)
+	if err := kube.WaitForDeploymentReady(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
+		return err
+	}
+	webhookName := fmt.Sprintf("%s.%s.monitoring.googleapis.com", operator.NameOperator, operator.DefaultOperatorNamespace)
+	return wait.PollUntilContextCancel(ctx, 500*time.Millisecond, true, func(ctx context.Context) (bool, error) {
+		var vwc admissionregistrationv1.ValidatingWebhookConfiguration
+		if err := kubeClient.Get(ctx, client.ObjectKey{Name: webhookName}, &vwc); err != nil {
+			if apierrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		if len(vwc.Webhooks) == 0 {
+			return false, nil
+		}
+		for _, w := range vwc.Webhooks {
+			if len(w.ClientConfig.CABundle) == 0 {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
 }
 
 // OperatorLogs returns the operator pods logs.
