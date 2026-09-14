@@ -222,3 +222,25 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_ClusterPodMonitoring(t *
 		})
 	}
 }
+
+func TestPrometheusSecretConfigs_SecretConfigs_DeterministicOrder(t *testing.T) {
+	pool := PrometheusSecretConfigs{}
+	pool.Set("default/secret-c/key", secrets.KubernetesSecretConfig{Namespace: "default", Name: "secret-c", Key: "key"})
+	pool.Set("default/secret-a/key", secrets.KubernetesSecretConfig{Namespace: "default", Name: "secret-a", Key: "key"})
+	pool.Set("default/secret-b/key", secrets.KubernetesSecretConfig{Namespace: "default", Name: "secret-b", Key: "key"})
+	pool.Set("kube-system/secret-z/key", secrets.KubernetesSecretConfig{Namespace: "kube-system", Name: "secret-z", Key: "key"})
+
+	expected := []secrets.SecretConfig{
+		{Name: "default/secret-a/key", Config: secrets.KubernetesSecretConfig{Namespace: "default", Name: "secret-a", Key: "key"}},
+		{Name: "default/secret-b/key", Config: secrets.KubernetesSecretConfig{Namespace: "default", Name: "secret-b", Key: "key"}},
+		{Name: "default/secret-c/key", Config: secrets.KubernetesSecretConfig{Namespace: "default", Name: "secret-c", Key: "key"}},
+		{Name: "kube-system/secret-z/key", Config: secrets.KubernetesSecretConfig{Namespace: "kube-system", Name: "secret-z", Key: "key"}},
+	}
+
+	for i := range 50 {
+		got := pool.SecretConfigs()
+		if diff := cmp.Diff(expected, got); diff != "" {
+			t.Fatalf("run %d: unexpected secret configs diff (-want +got):\n%s", i, diff)
+		}
+	}
+}
