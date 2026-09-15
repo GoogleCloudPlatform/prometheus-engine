@@ -24,7 +24,7 @@ COPY tools tools
 # Copy the Go vendor directory only if it exists. Vendor folder will automatically
 # cause 'go build' to use -mod=vendor flag (otherwise -mod=mod is used).
 COPY vendor* vendor
-COPY cmd cmd
+COPY cmd/config-reloader cmd/config-reloader
 
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1

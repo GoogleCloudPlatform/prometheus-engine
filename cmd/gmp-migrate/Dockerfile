@@ -24,7 +24,7 @@ COPY tools tools
 # Copy the Go vendor directory only if it exists. Vendor folder will automatically
 # cause 'go build' to use -mod=vendor flag (otherwise -mod=mod is used).
 COPY vendor* vendor
-COPY cmd cmd
+COPY cmd/gmp-migrate cmd/gmp-migrate
 COPY pkg pkg
 
 ENV GOEXPERIMENT=boringcrypto
