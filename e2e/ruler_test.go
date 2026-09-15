@@ -306,6 +306,14 @@ alerting:
                 own_namespace: false
                 names:
                     - monitoring
+        - follow_redirects: true
+          enable_http2: true
+          scheme: https
+          timeout: 10s
+          api_version: v2
+          static_configs:
+            - targets:
+                - external-alertmanager.monitoring.svc:443
 rule_files:
     - /etc/rules/*.yaml
 google_cloud:{exportCredentialsEntry}
@@ -760,6 +768,13 @@ func createRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient client.Cl
 					},
 					KeySecret: keySecret,
 				},
+			},
+			{
+				Name:          "external-alertmanager",
+				Namespace:     "monitoring",
+				Port:          intstr.FromInt32(443),
+				Scheme:        "https",
+				DiscoveryType: monitoringv1.AlertmanagerDiscoveryTypeService,
 			},
 		},
 	}
