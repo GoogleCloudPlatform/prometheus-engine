@@ -14,7 +14,12 @@
 
 FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.7@sha256:2f110d472e26e5c6b1c93f40a3ea6f88fe8954902cd4518d7ce99d836a158ceb AS buildbase
 WORKDIR /app
-COPY . ./
+COPY go.mod go.sum ./
+# Copy the Go vendor directory only if it exists. Vendor folder will automatically
+# cause 'go build' to use -mod=vendor flag (otherwise -mod=mod is used).
+COPY vendor* vendor
+COPY pkg/secutil pkg/secutil
+COPY examples/instrumentation/go-synthetic examples/instrumentation/go-synthetic
 
 FROM buildbase AS appbase
 ARG TARGETOS
