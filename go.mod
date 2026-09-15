@@ -61,7 +61,7 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
-	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.38.1 // indirect
@@ -115,7 +115,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/google/cel-go v0.22.0 // indirect
+	github.com/google/cel-go v0.30.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20250820193118-f64d9cf942d6 // indirect
@@ -156,7 +156,6 @@ require (
 	github.com/prometheus/sigv4 v0.2.1 // indirect
 	github.com/spf13/cobra v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
