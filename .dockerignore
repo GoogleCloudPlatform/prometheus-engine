@@ -17,6 +17,7 @@
 !vendor
 !internal
 ops/.bin
+ops/gmpctl/data
 pkg/ui/build
 pkg/ui/assets_vfsdata.go
 **/Dockerfile
