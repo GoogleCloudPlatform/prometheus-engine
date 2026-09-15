@@ -74,7 +74,7 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        resources: {{- toYaml $.Values.resources.bash | nindent 10}}
+        resources: {{- toYaml $.Values.resources.configReloader | nindent 10}}
         volumeMounts:
         - name: config
           readOnly: true
