@@ -16,6 +16,7 @@
 !third_party
 !vendor
 !internal
+ops/.bin
 pkg/ui/build
 pkg/ui/assets_vfsdata.go
 **/Dockerfile
