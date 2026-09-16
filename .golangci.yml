@@ -113,6 +113,10 @@ linters:
     modernize:
       disable:
       - omitzero
+      # The go directive is on 1.26 (required by our dependencies), which makes
+      # this rule ask for rewriting every ptr.To/proto.Bool style helper call to
+      # the new(expr) form. Keep the existing helpers for now.
+      - newexpr
     revive:
       enable-all-rules: true
       rules:
