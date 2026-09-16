@@ -31,13 +31,19 @@ ENV CGO_ENABLED=1
 ENV GOFIPS140=off
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-RUN --mount=type=cache,target=/go/pkg/mod \
-	--mount=type=cache,target=/root/.cache/go-build \
+ENV GOMODCACHE=/gocache/mod
+ENV GOCACHE=/gocache/build
+RUN --mount=type=cache,target=/gocache/mod \
+	--mount=type=cache,target=/gocache/build \
+	--mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
 	if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
+	rm -f /etc/apt/apt.conf.d/docker-clean && \
 	apt-get update && apt-get install -y --no-install-recommends \
 	gcc-aarch64-linux-gnu libc6-dev-arm64-cross; \
 	export CC=aarch64-linux-gnu-gcc; \
 	elif [ "${TARGETARCH}" = "amd64" ] && [ "${BUILDARCH}" != "amd64" ]; then \
+	rm -f /etc/apt/apt.conf.d/docker-clean && \
 	apt-get update && apt-get install -y --no-install-recommends \
 	gcc-x86-64-linux-gnu libc6-dev-amd64-cross; \
 	export CC=x86_64-linux-gnu-gcc; \
