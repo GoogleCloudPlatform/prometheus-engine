@@ -22,7 +22,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5
 	github.com/prometheus/common/assets v0.2.0
-	github.com/prometheus/prometheus v0.309.1 // v2.53.5.
+	github.com/prometheus/prometheus v0.311.3 // v2.53.5.
 	github.com/stretchr/testify v1.11.1
 	github.com/thanos-io/thanos v0.42.5-0.20260916083440-531d98aa0f99
 	go.uber.org/zap v1.27.1
