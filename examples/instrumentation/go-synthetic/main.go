@@ -271,7 +271,7 @@ func main() {
 	}
 	if *metricNamingMode != PrometheusStyle || *statusLabelNamingMode != PrometheusStyle {
 		// Extend charset.
-		model.NameValidationScheme = model.UTF8Validation
+		model.NameValidationScheme = model.UTF8Validation //nolint:staticcheck // Explicitly set UTF-8 validation scheme.
 	}
 
 	reg := prometheus.NewRegistry()

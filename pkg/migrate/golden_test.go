@@ -55,12 +55,16 @@ func newPORelabelRule(action relabel.Action, src []string, target string, regex 
 	for _, s := range src {
 		srcNames = append(srcNames, prommodel.LabelName(s))
 	}
+	re := relabel.DefaultRelabelConfig.Regex
+	if regex != "(.*)" {
+		re = relabel.MustNewRegexp(regex)
+	}
 	return &relabel.Config{
 		Action:       action,
 		SourceLabels: srcNames,
 		Separator:    ";",
 		TargetLabel:  target,
-		Regex:        relabel.MustNewRegexp(regex),
+		Regex:        re,
 		Replacement:  repl,
 	}
 }
@@ -305,6 +309,9 @@ func normalizeGMPScrapeConfig(gmp *config.ScrapeConfig, expectedPO *config.Scrap
 		ScrapeInterval:                 gmp.ScrapeInterval,
 		ScrapeTimeout:                  gmp.ScrapeTimeout,
 		ScrapeProtocols:                expectedPO.ScrapeProtocols,
+		ScrapeNativeHistograms:         expectedPO.ScrapeNativeHistograms,
+		AlwaysScrapeClassicHistograms:  expectedPO.AlwaysScrapeClassicHistograms,
+		ConvertClassicHistogramsToNHCB: expectedPO.ConvertClassicHistogramsToNHCB,
 		MetricsPath:                    gmp.MetricsPath,
 		Scheme:                         gmp.Scheme,
 		Params:                         gmp.Params,
@@ -313,6 +320,9 @@ func normalizeGMPScrapeConfig(gmp *config.ScrapeConfig, expectedPO *config.Scrap
 		LabelNameLengthLimit:           gmp.LabelNameLengthLimit,
 		LabelValueLengthLimit:          gmp.LabelValueLengthLimit,
 		EnableCompression:              true,
+		MetricNameValidationScheme:     expectedPO.MetricNameValidationScheme,
+		MetricNameEscapingScheme:       expectedPO.MetricNameEscapingScheme,
+		ExtraScrapeMetrics:             expectedPO.ExtraScrapeMetrics,
 		TargetLimit:                    gmp.TargetLimit,
 		BodySizeLimit:                  gmp.BodySizeLimit,
 		KeepDroppedTargets:             gmp.KeepDroppedTargets,

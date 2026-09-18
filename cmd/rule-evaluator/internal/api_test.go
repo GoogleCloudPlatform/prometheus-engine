@@ -44,16 +44,16 @@ func Test_rulesAlertsToAPIAlerts(t *testing.T) {
 			name: "happy path with two alerts",
 			rulesAlerts: []*rules.Alert{
 				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
+					Labels:          labels.FromStrings("alertname", "test-alert-1", "instance", "localhost:9090"),
+					Annotations:     labels.FromStrings("summary", "Test alert 1", "description", "This is a test alert"),
 					State:           rules.StateFiring,
 					ActiveAt:        activeAt,
 					KeepFiringSince: keepFiringSince,
 					Value:           1.23,
 				},
 				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
+					Labels:          labels.FromStrings("alertname", "test-alert-1", "instance", "localhost:9090"),
+					Annotations:     labels.FromStrings("summary", "Test alert 1", "description", "This is a test alert"),
 					State:           rules.StatePending,
 					ActiveAt:        activeAt,
 					KeepFiringSince: keepFiringSince,
@@ -62,16 +62,16 @@ func Test_rulesAlertsToAPIAlerts(t *testing.T) {
 			},
 			want: []*apiv1.Alert{
 				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
+					Labels:          labels.FromStrings("alertname", "test-alert-1", "instance", "localhost:9090"),
+					Annotations:     labels.FromStrings("summary", "Test alert 1", "description", "This is a test alert"),
 					State:           "firing",
 					ActiveAt:        &activeAt,
 					KeepFiringSince: &keepFiringSince,
 					Value:           "1.23e+00",
 				},
 				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
+					Labels:          labels.FromStrings("alertname", "test-alert-1", "instance", "localhost:9090"),
+					Annotations:     labels.FromStrings("summary", "Test alert 1", "description", "This is a test alert"),
 					State:           rules.StatePending.String(),
 					ActiveAt:        &activeAt,
 					KeepFiringSince: &keepFiringSince,
@@ -83,8 +83,8 @@ func Test_rulesAlertsToAPIAlerts(t *testing.T) {
 			name: "handlesZeroTime",
 			rulesAlerts: []*rules.Alert{
 				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
+					Labels:          labels.FromStrings("alertname", "test-alert-1", "instance", "localhost:9090"),
+					Annotations:     labels.FromStrings("summary", "Test alert 1", "description", "This is a test alert"),
 					State:           rules.StateFiring,
 					ActiveAt:        activeAt,
 					KeepFiringSince: time.Time{},
@@ -93,8 +93,8 @@ func Test_rulesAlertsToAPIAlerts(t *testing.T) {
 			},
 			want: []*apiv1.Alert{
 				{
-					Labels:          []labels.Label{{Name: "alertname", Value: "test-alert-1"}, {Name: "instance", Value: "localhost:9090"}},
-					Annotations:     []labels.Label{{Name: "summary", Value: "Test alert 1"}, {Name: "description", Value: "This is a test alert"}},
+					Labels:          labels.FromStrings("alertname", "test-alert-1", "instance", "localhost:9090"),
+					Annotations:     labels.FromStrings("summary", "Test alert 1", "description", "This is a test alert"),
 					State:           "firing",
 					ActiveAt:        &activeAt,
 					KeepFiringSince: nil,
@@ -110,8 +110,8 @@ func Test_rulesAlertsToAPIAlerts(t *testing.T) {
 			result := alertsToAPIAlerts(tt.rulesAlerts)
 			assert.Len(t, result, len(tt.want))
 			for i := range result {
-				assert.Equal(t, tt.want[i].Labels, result[i].Labels)
-				assert.Equal(t, tt.want[i].Annotations, result[i].Annotations)
+				assert.True(t, labels.Equal(tt.want[i].Labels, result[i].Labels))
+				assert.True(t, labels.Equal(tt.want[i].Annotations, result[i].Annotations))
 				assert.Equal(t, tt.want[i].State, result[i].State)
 				assert.Equal(t, tt.want[i].ActiveAt, result[i].ActiveAt)
 				assert.Equal(t, tt.want[i].KeepFiringSince, result[i].KeepFiringSince)

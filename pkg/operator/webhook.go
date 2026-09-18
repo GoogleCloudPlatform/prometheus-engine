@@ -29,7 +29,6 @@ import (
 	arv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/cert"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -57,7 +56,7 @@ func setupAdmissionWebhooks(ctx context.Context, logger logr.Logger, kubeClient 
 	// Validating webhooks.
 	webhookServer.Register(
 		validatePath(monitoringv1.OperatorConfigResource()),
-		admission.WithCustomValidator(scheme, &monitoringv1.OperatorConfig{}, &monitoringv1.OperatorConfigValidator{
+		admission.WithValidator(scheme, &monitoringv1.OperatorConfigValidator{
 			Namespace:    opts.PublicNamespace,
 			Name:         NameOperatorConfig,
 			VPAAvailable: vpaAvailable,
@@ -65,20 +64,20 @@ func setupAdmissionWebhooks(ctx context.Context, logger logr.Logger, kubeClient 
 	)
 	webhookServer.Register(
 		validatePath(monitoringv1.RulesResource()),
-		admission.WithCustomValidator(scheme, &monitoringv1.Rules{}, monitoringv1.NewRulesValidator()),
+		admission.WithValidator(scheme, monitoringv1.NewRulesValidator()),
 	)
 	webhookServer.Register(
 		validatePath(monitoringv1.ClusterRulesResource()),
-		admission.WithCustomValidator(scheme, &monitoringv1.ClusterRules{}, monitoringv1.NewClusterRulesValidator()),
+		admission.WithValidator(scheme, monitoringv1.NewClusterRulesValidator()),
 	)
 	webhookServer.Register(
 		validatePath(monitoringv1.GlobalRulesResource()),
-		admission.WithCustomValidator(scheme, &monitoringv1.GlobalRules{}, monitoringv1.NewGlobalRulesValidator()),
+		admission.WithValidator(scheme, monitoringv1.NewGlobalRulesValidator()),
 	)
 	// Defaulting webhooks.
 	webhookServer.Register(
 		defaultPath(monitoringv1.OperatorConfigResource()),
-		admission.WithCustomDefaulter(scheme, &monitoringv1.OperatorConfig{}, &operatorConfigDefaulter{
+		admission.WithDefaulter(scheme, &operatorConfigDefaulter{
 			projectID: opts.ProjectID,
 			location:  opts.Location,
 			cluster:   opts.Cluster,
@@ -214,8 +213,7 @@ type operatorConfigDefaulter struct {
 	cluster   string
 }
 
-func (d *operatorConfigDefaulter) Default(_ context.Context, o runtime.Object) error {
-	oc := o.(*monitoringv1.OperatorConfig)
+func (d *operatorConfigDefaulter) Default(_ context.Context, oc *monitoringv1.OperatorConfig) error {
 	_ = d.update(oc)
 	return nil
 }

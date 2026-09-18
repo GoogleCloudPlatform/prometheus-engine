@@ -84,7 +84,6 @@ spec:
 	// apiVersion: monitoring.googleapis.com/v1
 	// kind: PodMonitoring
 	// metadata:
-	//   creationTimestamp: null
 	//   name: frontend-monitor
 	//   namespace: web
 	// spec:

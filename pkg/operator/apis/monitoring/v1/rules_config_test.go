@@ -18,8 +18,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	model "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/google/export"
 	"github.com/prometheus/prometheus/model/rulefmt"
+	"github.com/prometheus/prometheus/promql/parser"
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -425,7 +427,7 @@ func TestScope(t *testing.T) {
   - alert: Bar
     expr: my_metric1 / my_metric2{a="b"} > 0
 `
-	groups, errs := rulefmt.Parse([]byte(input))
+	groups, errs := rulefmt.Parse([]byte(input), false, model.LegacyValidation, parser.NewParser(parser.Options{}), nil)
 	if len(errs) > 0 {
 		t.Fatalf("Unexpected input errors: %s", errs)
 	}

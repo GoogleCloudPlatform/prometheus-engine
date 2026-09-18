@@ -377,7 +377,7 @@ func testRuleEvaluatorService(
 		require.Equal(t, int32(19092), svc.Spec.Ports[0].Port)
 		require.Equal(t, int32(19092), svc.Spec.Ports[0].TargetPort.IntVal)
 
-		var endpoints corev1.Endpoints
+		var endpoints corev1.Endpoints //nolint:staticcheck // Alertmanager discovery still watches Endpoints.
 
 		err = wait.PollUntilContextTimeout(ctx, 3*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 			if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rule-evaluator"}, &endpoints); err != nil {
