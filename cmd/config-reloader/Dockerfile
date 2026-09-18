@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.7@sha256:2f110d472e26e5c6b1c93f40a3ea6f88fe8954902cd4518d7ce99d836a158ceb AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.8@sha256:b90d223db90ab820dd1a4cf3b815b997aa9522268c36566714e544ed091fbebf AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 ARG BUILDARCH
@@ -49,6 +49,6 @@ RUN if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
 	cmd/config-reloader/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260815.00_p0@sha256:532c7001d381c6f0c6fe684bb3235596cd532340c463df855a0ea168a83d783e
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260918.00_p0@sha256:fa7055965f153b4be03a5424930e3cacb08e63702205a9eda81a61b6de672330
 COPY --from=buildbase /app/config-reloader /bin/config-reloader
 ENTRYPOINT ["/bin/config-reloader"]
