@@ -651,6 +651,19 @@ func (r *operatorConfigReconciler) makeAlertmanagerConfigs(ctx context.Context, 
 			cfg.HTTPClientConfig.TLSConfig = tlsCfg
 		}
 
+		if am.DiscoveryType == monitoringv1.AlertmanagerDiscoveryTypeService {
+			svcDNSName := fmt.Sprintf("%s.%s.svc:%s", am.Name, am.Namespace, am.Port.String())
+			cfg.ServiceDiscoveryConfigs = discovery.Configs{
+				discovery.StaticConfig{
+					&targetgroup.Group{
+						Targets: []prommodel.LabelSet{{prommodel.AddressLabel: prommodel.LabelValue(svcDNSName)}},
+					},
+				},
+			}
+			configs = append(configs, &cfg)
+			continue
+		}
+
 		// Configure discovery of AM endpoints via Kubernetes API.
 		cfg.ServiceDiscoveryConfigs = discovery.Configs{
 			&discoverykube.SDConfig{

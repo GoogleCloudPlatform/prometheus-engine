@@ -20,7 +20,9 @@ import (
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
+	prommodel "github.com/prometheus/common/model"
 	promforkconfig "github.com/prometheus/prometheus/config"
+	"github.com/prometheus/prometheus/discovery"
 	gcmconfig "github.com/prometheus/prometheus/google/config"
 	"github.com/prometheus/prometheus/google/export"
 	"github.com/stretchr/testify/require"
@@ -28,9 +30,35 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+func TestMakeAlertmanagerConfigsSupportsServiceDiscovery(t *testing.T) {
+	reconciler := newOperatorConfigReconciler(newFakeClientBuilder().Build(), Options{})
+	configs, secretData, err := reconciler.makeAlertmanagerConfigs(t.Context(), &monitoringv1.AlertingSpec{
+		Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
+			Namespace:     "monitoring",
+			Name:          "external-alertmanager",
+			Port:          intstr.FromInt32(9093),
+			DiscoveryType: monitoringv1.AlertmanagerDiscoveryTypeService,
+		}},
+	})
+	require.NoError(t, err)
+	require.Empty(t, secretData)
+	require.Len(t, configs, 1)
+	require.Len(t, configs[0].ServiceDiscoveryConfigs, 1)
+
+	staticConfig, ok := configs[0].ServiceDiscoveryConfigs[0].(discovery.StaticConfig)
+	require.True(t, ok)
+	require.Len(t, staticConfig, 1)
+	require.Len(t, staticConfig[0].Targets, 1)
+	require.Equal(t,
+		prommodel.LabelValue("external-alertmanager.monitoring.svc:9093"),
+		staticConfig[0].Targets[0][prommodel.AddressLabel],
+	)
+}
 
 func TestPrometheusConfigForRuleEvaluator(t *testing.T) {
 	configYAML := `

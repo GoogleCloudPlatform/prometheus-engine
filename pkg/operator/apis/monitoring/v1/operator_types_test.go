@@ -20,6 +20,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func TestOperatorConfigValidate(t *testing.T) {
@@ -36,6 +37,40 @@ func TestOperatorConfigValidate(t *testing.T) {
 					Name:      "config",
 				},
 			},
+		},
+		{
+			desc: "service discovery with numeric port",
+			oc: &OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "config"},
+				Rules: RuleEvaluatorSpec{Alerting: AlertingSpec{Alertmanagers: []AlertmanagerEndpoints{{
+					Name:          "bar",
+					Port:          intstr.FromInt32(9093),
+					DiscoveryType: AlertmanagerDiscoveryTypeService,
+				}}}},
+			},
+		},
+		{
+			desc: "service discovery with numeric string port",
+			oc: &OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "config"},
+				Rules: RuleEvaluatorSpec{Alerting: AlertingSpec{Alertmanagers: []AlertmanagerEndpoints{{
+					Name:          "bar",
+					Port:          intstr.FromString("9093"),
+					DiscoveryType: AlertmanagerDiscoveryTypeService,
+				}}}},
+			},
+		},
+		{
+			desc: "service discovery with named port",
+			oc: &OperatorConfig{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "config"},
+				Rules: RuleEvaluatorSpec{Alerting: AlertingSpec{Alertmanagers: []AlertmanagerEndpoints{{
+					Name:          "bar",
+					Port:          intstr.FromString("web"),
+					DiscoveryType: AlertmanagerDiscoveryTypeService,
+				}}}},
+			},
+			err: `service discovery requires a numeric port between 1 and 65535, got "web"`,
 		},
 		{
 			desc: "bad scrape interval",
