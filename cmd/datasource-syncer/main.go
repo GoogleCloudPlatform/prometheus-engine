@@ -66,10 +66,15 @@ func main() {
 	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
 	logger = log.With(logger, "caller", log.DefaultCaller)
 
-	if len(*datasourceUIDList) == 0 {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "--datasource-uid must be set")
-		os.Exit(1)
+	if *datasourceUIDList == "" {
+		envDatasourceUIDs := os.Getenv("DATASOURCE_UIDS")
+		if envDatasourceUIDs == "" {
+			//nolint:errcheck
+			level.Error(logger).Log("msg", "--datasource-uid must be set")
+			os.Exit(1)
+		}
+
+		datasourceUIDList = &envDatasourceUIDs
 	}
 
 	if *grafanaAPIToken != "" && *grafanaAPITokenFilepath != "" {
@@ -95,18 +100,51 @@ func main() {
 			level.Error(logger).Log("msg", "at most one of --grafana-api-token, --grafana-api-token-filepath, or the environment variable GRAFANA_SERVICE_ACCOUNT_TOKEN must be set")
 			os.Exit(1)
 		}
+
 		grafanaAPIToken = &envToken
 	}
+
 	if *grafanaEndpoint == "" {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "--grafana-api-endpoint must be set")
-		os.Exit(1)
+		envEndpoint := os.Getenv("GRAFANA_API_ENDPOINT")
+		if envEndpoint == "" {
+			//nolint:errcheck
+			level.Error(logger).Log("msg", "--grafana-api-endpoint must be set")
+			os.Exit(1)
+		}
+
+		grafanaEndpoint = &envEndpoint
 	}
 
 	if *projectID == "" {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "--project-id must be set")
-		os.Exit(1)
+		envProjectID := os.Getenv("PROJECT_ID")
+		if envProjectID == "" {
+			//nolint:errcheck
+			level.Error(logger).Log("msg", "--project-id must be set")
+			os.Exit(1)
+		}
+
+		projectID = &envProjectID
+	}
+
+	if *certFile == "" {
+		envCertFile := os.Getenv("TLS_CERT_FILE")
+		if envCertFile != "" {
+			certFile = &envCertFile
+		}
+	}
+
+	if *keyFile == "" {
+		envKeyFile := os.Getenv("TLS_KEY_FILE")
+		if envKeyFile != "" {
+			keyFile = &envKeyFile
+		}
+	}
+
+	if *caFile == "" {
+		envCAFile := os.Getenv("TLS_CA_FILE")
+		if envCAFile != "" {
+			caFile = &envCAFile
+		}
 	}
 
 	client, err := getTLSClient(*certFile, *keyFile, *caFile, *insecureSkipVerify)
@@ -233,6 +271,7 @@ func buildUpdateDataSourceRequest(dataSource grafana.DataSource, token string) (
 	if dataSource.Type != "prometheus" {
 		return nil, errors.New("datasource type is not prometheus")
 	}
+
 	if *gcmEndpointOverride != "" {
 		dataSource.URL = *gcmEndpointOverride
 	} else {
