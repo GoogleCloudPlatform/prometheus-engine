@@ -27,6 +27,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
@@ -179,7 +180,7 @@ func TestSelect(t *testing.T) {
 			if !cmp.Equal(got.Warnings(), c.want.Warnings(), cmp.Comparer(compareAnnotationsEquality)) {
 				t.Errorf("Case %d: Expected warnings %s, Actual warnings: %s", i, c.want.Warnings(), got.Warnings())
 			}
-			if diff := cmp.Diff(expandSeriesSet(got), c.want.m); diff != "" {
+			if diff := cmp.Diff(expandSeriesSet(got), c.want.m, cmp.Transformer("Labels", func(ls labels.Labels) string { return ls.String() })); diff != "" {
 				t.Errorf("Case %d: unexpected result: %s", i, diff)
 			}
 		})
@@ -189,7 +190,7 @@ func TestSelect(t *testing.T) {
 // Regression test against b/470033222.
 func TestGracefulShutdown(t *testing.T) {
 	re, err := newRuleEvaluator(
-		t.Context(), log.NewNopLogger(),
+		t.Context(), log.NewNopLogger(), promslog.NewNopLogger(),
 		&evaluatorOptions{
 			DisableAuth: true,
 			TargetURL:   &url.URL{},

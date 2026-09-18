@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/timestamp"
 	"github.com/prometheus/prometheus/promql"
@@ -36,7 +37,7 @@ func TestAPI_HandleAlertsEndpoint(t *testing.T) {
 	t.Parallel()
 
 	newAlertRule := func(name string) *rules.AlertingRule {
-		return rules.NewAlertingRule(name, &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, []labels.Label{{Name: "instance", Value: "localhost:9090"}}, []labels.Label{{Name: "summary", Value: "Test alert"}, {Name: "description", Value: "This is a test alert"}}, nil, "", false, log.NewNopLogger())
+		return rules.NewAlertingRule(name, &parser.NumberLiteral{Val: 33}, time.Hour, time.Hour*4, labels.FromStrings("instance", "localhost:9090"), labels.FromStrings("summary", "Test alert", "description", "This is a test alert"), labels.EmptyLabels(), "", false, promslog.NewNopLogger())
 	}
 
 	// Alerting rule with active (firing) alerts.
@@ -82,7 +83,7 @@ func TestAPI_HandleAlertsEndpoint(t *testing.T) {
 				newAlertRule("test-alert-1"),
 				newFiringAlertRule("test-alert-2"),
 			},
-			expectedJSON: `{"status":"success","data":{"alerts":[{"labels":{"alertname":"test-alert-2","foo":"bar2","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1.1e+01"},{"labels":{"alertname":"test-alert-2","foo":"bar","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1e+01"}]}}`,
+			expectedJSON: `{"status":"success","data":{"alerts":[{"labels":{"alertname":"test-alert-2","foo":"bar","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1e+01"},{"labels":{"alertname":"test-alert-2","foo":"bar2","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1.1e+01"}]}}`,
 		},
 		{
 			name: "only firing alerts",
@@ -90,7 +91,7 @@ func TestAPI_HandleAlertsEndpoint(t *testing.T) {
 				newFiringAlertRule("test-alert-1"),
 				newFiringAlertRule("test-alert-2"),
 			},
-			expectedJSON: `{"status":"success","data":{"alerts":[{"labels":{"alertname":"test-alert-1","foo":"bar2","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1.1e+01"},{"labels":{"alertname":"test-alert-1","foo":"bar","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1e+01"},{"labels":{"alertname":"test-alert-2","foo":"bar2","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1.1e+01"},{"labels":{"alertname":"test-alert-2","foo":"bar","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1e+01"}]}}`,
+			expectedJSON: `{"status":"success","data":{"alerts":[{"labels":{"alertname":"test-alert-1","foo":"bar","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1e+01"},{"labels":{"alertname":"test-alert-1","foo":"bar2","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1.1e+01"},{"labels":{"alertname":"test-alert-2","foo":"bar","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1e+01"},{"labels":{"alertname":"test-alert-2","foo":"bar2","instance":"localhost:9090"},"annotations":{"description":"This is a test alert","summary":"Test alert"},"state":"pending","activeAt":"2025-04-11T14:03:59.791816+01:00","value":"1.1e+01"}]}}`,
 		},
 	} {
 		t.Run(tcase.name, func(t *testing.T) {
