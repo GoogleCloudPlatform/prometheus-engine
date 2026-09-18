@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -29,9 +28,7 @@ type OperatorConfigValidator struct {
 	VPAAvailable bool
 }
 
-func (v *OperatorConfigValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
-	oc := o.(*OperatorConfig)
-
+func (v *OperatorConfigValidator) ValidateCreate(_ context.Context, oc *OperatorConfig) (admission.Warnings, error) {
 	if oc.Namespace != v.Namespace || oc.Name != v.Name {
 		return nil, fmt.Errorf("OperatorConfig must be in namespace %q with name %q", v.Namespace, v.Name)
 	}
@@ -41,64 +38,64 @@ func (v *OperatorConfigValidator) ValidateCreate(_ context.Context, o runtime.Ob
 	return nil, oc.Validate()
 }
 
-func (v *OperatorConfigValidator) ValidateUpdate(ctx context.Context, _, o runtime.Object) (admission.Warnings, error) {
-	return v.ValidateCreate(ctx, o)
+func (v *OperatorConfigValidator) ValidateUpdate(ctx context.Context, _, oc *OperatorConfig) (admission.Warnings, error) {
+	return v.ValidateCreate(ctx, oc)
 }
 
-func (v *OperatorConfigValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (v *OperatorConfigValidator) ValidateDelete(_ context.Context, _ *OperatorConfig) (admission.Warnings, error) {
 	return nil, nil
 }
 
 type rulesValidator struct{}
 
-func (*rulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
-	return o.(*Rules).ValidateCreate()
+func (*rulesValidator) ValidateCreate(_ context.Context, r *Rules) (admission.Warnings, error) {
+	return r.ValidateCreate()
 }
 
-func (*rulesValidator) ValidateUpdate(_ context.Context, _, o runtime.Object) (admission.Warnings, error) {
-	return o.(*Rules).ValidateCreate()
+func (*rulesValidator) ValidateUpdate(_ context.Context, _, r *Rules) (admission.Warnings, error) {
+	return r.ValidateCreate()
 }
 
-func (*rulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (*rulesValidator) ValidateDelete(_ context.Context, _ *Rules) (admission.Warnings, error) {
 	return nil, nil
 }
 
-func NewRulesValidator() admission.CustomValidator {
+func NewRulesValidator() admission.Validator[*Rules] {
 	return &rulesValidator{}
 }
 
 type clusterRulesValidator struct{}
 
-func (*clusterRulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
-	return o.(*ClusterRules).ValidateCreate()
+func (*clusterRulesValidator) ValidateCreate(_ context.Context, r *ClusterRules) (admission.Warnings, error) {
+	return r.ValidateCreate()
 }
 
-func (*clusterRulesValidator) ValidateUpdate(_ context.Context, _, o runtime.Object) (admission.Warnings, error) {
-	return o.(*ClusterRules).ValidateCreate()
+func (*clusterRulesValidator) ValidateUpdate(_ context.Context, _, r *ClusterRules) (admission.Warnings, error) {
+	return r.ValidateCreate()
 }
 
-func (*clusterRulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (*clusterRulesValidator) ValidateDelete(_ context.Context, _ *ClusterRules) (admission.Warnings, error) {
 	return nil, nil
 }
 
-func NewClusterRulesValidator() admission.CustomValidator {
+func NewClusterRulesValidator() admission.Validator[*ClusterRules] {
 	return &clusterRulesValidator{}
 }
 
 type globalRulesValidator struct{}
 
-func (*globalRulesValidator) ValidateCreate(_ context.Context, o runtime.Object) (admission.Warnings, error) {
-	return o.(*GlobalRules).ValidateCreate()
+func (*globalRulesValidator) ValidateCreate(_ context.Context, r *GlobalRules) (admission.Warnings, error) {
+	return r.ValidateCreate()
 }
 
-func (*globalRulesValidator) ValidateUpdate(_ context.Context, _, o runtime.Object) (admission.Warnings, error) {
-	return o.(*GlobalRules).ValidateCreate()
+func (*globalRulesValidator) ValidateUpdate(_ context.Context, _, r *GlobalRules) (admission.Warnings, error) {
+	return r.ValidateCreate()
 }
 
-func (*globalRulesValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (*globalRulesValidator) ValidateDelete(_ context.Context, _ *GlobalRules) (admission.Warnings, error) {
 	return nil, nil
 }
 
-func NewGlobalRulesValidator() admission.CustomValidator {
+func NewGlobalRulesValidator() admission.Validator[*GlobalRules] {
 	return &globalRulesValidator{}
 }

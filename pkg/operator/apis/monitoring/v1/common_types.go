@@ -142,6 +142,16 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 		metricRelabelCfgs = append(metricRelabelCfgs, rcfg)
 	}
 
+	for _, c := range relabelCfgs {
+		if c.Regex.Regexp == nil {
+			c.Regex = relabel.DefaultRelabelConfig.Regex
+		}
+	}
+	for _, c := range metricRelabelCfgs {
+		if c.Regex.Regexp == nil {
+			c.Regex = relabel.DefaultRelabelConfig.Regex
+		}
+	}
 	scrapeCfg := &promconfig.ScrapeConfig{
 		// Generate a job name to make it easy to track what generated the scrape configuration.
 		// The actual job label attached to its metrics is overwritten via relabeling.
