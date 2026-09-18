@@ -61,7 +61,7 @@ resources:
       memory: 32M
   configReloader:
     limits:
-      memory: 64M
+      memory: 32M
     requests:
       cpu: 1m
       memory: 4M
