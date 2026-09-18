@@ -1,0 +1,52 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: config-reloader-bench
+---
+# Shared Prometheus configuration mounted by both default-node and ubuntu-64k-node
+# simplified Collector pods.
+#
+# To replace config.yaml.gz with a large synthetic GMP config (e.g. 8,500 jobs,
+# ~960 KiB gzipped -> ~33.7 MiB uncompressed), run:
+#   go run ./examples/config-reloader-bench/gen_configmap.go -jobs=8500 | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: collector-bench-config
+  namespace: config-reloader-bench
+data:
+  # Minimal noop config for the stub Prometheus responder container (--export.disable)
+  # so it responds 200 OK to http://127.0.0.1:19090/-/ready and /-/reload in <1ms
+  # without scraping targets or exporting any data to GCM.
+  noop-prom.yaml: |
+    global:
+      scrape_interval: 60s
+  # Plaintext reference of what is inside binaryData.config.yaml.gz by default:
+  config.yaml.example: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        node: "${NODE_NAME}"
+    scrape_configs:
+      - job_name: "config-reloader-self"
+        static_configs:
+          - targets: ["127.0.0.1:19091"]
+            labels:
+              node: "${NODE_NAME}"
+binaryData:
+  config.yaml.gz: H4sIAAAAAAAAA21OwQrCMAy97ytC8VpZBZH1Jrij8wNESrZlY1JbaasI4r/bbjsM9OWSvLy8vF7bGrXMAHzj8E5qMIHcM1Igtj7SFPsHhsGa39Urzga10liT9skEwNiWJLDVuzodSlXtj+WHZbN3Y0039KOQw9XWyuAtiSeeO9IWW3Lck+7Y6OZDfN0sDxM4BHQ9BS/hzMRmt85jCSmKvBDsMosAlrEm/A33BXNvMk0DAQAA

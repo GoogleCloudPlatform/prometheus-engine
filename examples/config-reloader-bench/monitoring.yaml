@@ -1,0 +1,60 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# PodMonitoring scraping config-reloader's own metrics endpoint (:19091/metrics)
+# for process_resident_memory_bytes, go_memstats_*, and reloader_* metrics.
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: config-reloader-bench
+  namespace: config-reloader-bench
+spec:
+  selector:
+    matchLabels:
+      bench: config-reloader
+  targetLabels:
+    fromPod:
+    - from: reloader_version
+      to: reloader_version
+    - from: node_type
+      to: node_type
+  endpoints:
+  - port: cfg-rel-ins
+    interval: 15s
+---
+# ClusterNodeMonitoring scraping Kubelet cAdvisor (/metrics/cadvisor) for
+# kernel-level container memory metrics (container_memory_rss,
+# container_memory_working_set_bytes, container_oom_events_total, etc.)
+# on the config-reloader container.
+apiVersion: monitoring.googleapis.com/v1
+kind: ClusterNodeMonitoring
+metadata:
+  name: cadvisor-config-reloader-bench
+spec:
+  endpoints:
+  - interval: 15s
+    path: /metrics/cadvisor
+    scheme: https
+    tls:
+      insecureSkipVerify: true
+    metricRelabeling:
+    - sourceLabels: [namespace]
+      regex: (config-reloader-bench|gmp-system)
+      action: keep
+    - sourceLabels: [container]
+      regex: config-reloader
+      action: keep
+    - sourceLabels: [__name__]
+      regex: (container_memory_rss|container_memory_working_set_bytes|container_memory_usage_bytes|container_memory_max_usage_bytes|container_oom_events_total|container_spec_memory_limit_bytes)
+      action: keep
