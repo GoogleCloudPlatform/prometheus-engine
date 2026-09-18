@@ -82,7 +82,7 @@ clean:       ## Clean build time resources, primarily, unused docker images.
 
 .PHONY: conform
 conform:
-	docker run --rm -v ${PWD}:/src -w /src ghcr.io/siderolabs/conform:v0.1.0-alpha.27 enforce
+	docker run --rm -v ${PWD}:/src -w /src ghcr.io/siderolabs/conform:v0.1.0-alpha.31 enforce
 
 .PHONY: lint
 lint:

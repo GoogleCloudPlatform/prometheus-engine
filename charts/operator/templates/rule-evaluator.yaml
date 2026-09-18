@@ -44,10 +44,13 @@ spec:
       initContainers:
       - name: config-init
         image: {{.Values.images.bash.image}}:{{.Values.images.bash.tag}}
-        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        # placeholder.yaml keeps rule_files glob non-empty until the syncer populates rules-out.
+        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml /prometheus/rules_out/placeholder.yaml']
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
+        - name: rules-out
+          mountPath: /prometheus/rules_out
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -99,6 +102,8 @@ spec:
         - --config-file=/prometheus/config/config.yaml
         - --config-file-output=/prometheus/config_out/config.yaml
         - --config-dir=/etc/rules
+        - --config-dir-from-configmap-selector=monitoring.googleapis.com/rules-shard=true
+        - --config-dir-from-configmap-namespace={{.Values.namespace.system}}
         - --config-dir-output=/prometheus/rules_out
         - --watched-dir=/etc/secrets
         - --reload-url=http://127.0.0.1:19092/-/reload
@@ -115,7 +120,6 @@ spec:
         - name: config-out
           mountPath: /prometheus/config_out
         - name: rules
-          readOnly: true
           mountPath: /etc/rules
         - name: rules-out
           mountPath: /prometheus/rules_out
@@ -137,9 +141,7 @@ spec:
       - name: config-out
         emptyDir: {}
       - name: rules
-        configMap:
-          name: rules-generated
-          defaultMode: 420
+        emptyDir: {}
       - name: rules-out
         emptyDir: {}
       - name: rules-secret
