@@ -108,7 +108,7 @@ spec:
           privileged: false
       containers:
       - name: prometheus
-        image: gke.gcr.io/prometheus-engine/prometheus:v2.45.3-gmp.7-gke.0
+        image: gke.gcr.io/prometheus-engine/prometheus:v3.13.0-gmp.1-gke.0@sha256:b8e81d2737a3ca7126b06cbd4bb495b4f9c694e9431e5a280d7d37f289ff2708
         args:
         - --config.file=/prometheus/config_out/config.yaml
         - --storage.tsdb.path=/prometheus/data
