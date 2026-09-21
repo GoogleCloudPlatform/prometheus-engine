@@ -143,12 +143,12 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 	}
 
 	for _, c := range relabelCfgs {
-		if c.Regex.Regexp == nil {
+		if c != nil && c.Regex.Regexp == nil {
 			c.Regex = relabel.DefaultRelabelConfig.Regex
 		}
 	}
 	for _, c := range metricRelabelCfgs {
-		if c.Regex.Regexp == nil {
+		if c != nil && c.Regex.Regexp == nil {
 			c.Regex = relabel.DefaultRelabelConfig.Regex
 		}
 	}
