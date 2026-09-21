@@ -66,7 +66,7 @@ google_cloud:
 			CredentialsFile: "credentials2.json",
 		},
 	}
-	if diff := cmp.Diff(expected, out, cmp.Transformer("Labels", func(ls labels.Labels) string { return ls.String() }), cmpopts.IgnoreUnexported(promforkconfig.Config{})); diff != "" {
+	if diff := cmp.Diff(expected, out, cmp.Comparer(labels.Equal), cmpopts.IgnoreUnexported(promforkconfig.Config{})); diff != "" {
 		t.Fatalf("unexpected config from marshaling (-want, +got): %s", diff)
 	}
 
@@ -115,7 +115,7 @@ google_cloud:
 	if err := yaml.Unmarshal(outBytes, &out); err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff(expected, out, cmp.Transformer("Labels", func(ls labels.Labels) string { return ls.String() }), cmpopts.IgnoreUnexported(promforkconfig.Config{})); diff != "" {
+	if diff := cmp.Diff(expected, out, cmp.Comparer(labels.Equal), cmpopts.IgnoreUnexported(promforkconfig.Config{})); diff != "" {
 		t.Fatalf("unexpected config after marshaling (-want, +got): %s", diff)
 	}
 }

@@ -194,7 +194,7 @@ func TestTopLevelControllerRelabel(t *testing.T) {
 			lb := labels.NewBuilder(tc.input)
 			keep := relabel.ProcessBuilder(lb, rules...)
 			ret := lb.Labels()
-			if diff := cmp.Diff(tc.want, ret, cmp.Transformer("Labels", func(ls labels.Labels) string { return ls.String() })); diff != "" {
+			if diff := cmp.Diff(tc.want, ret, cmp.Comparer(labels.Equal)); diff != "" {
 				t.Errorf("Relabeling does not produce expected result (-want, +got).\n%s\n", diff)
 			}
 			if tc.wantKeep != keep {
