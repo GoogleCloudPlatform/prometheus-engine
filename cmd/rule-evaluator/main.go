@@ -179,11 +179,14 @@ func main() {
 		logger = level.NewFilter(logger, level.AllowInfo())
 	}
 
-	slogCfg := &promslog.Config{Style: promslog.GoKitStyle}
+	slogCfg := &promslog.Config{
+		Level:  promslog.NewLevel(),
+		Format: promslog.NewFormat(),
+		Style:  promslog.GoKitStyle,
+	}
 	if *logLevel != "" {
 		_ = slogCfg.Level.Set(*logLevel)
 	}
-	slogCfg.Format = promslog.NewFormat()
 	_ = slogCfg.Format.Set("json")
 	slogLogger := promslog.New(slogCfg)
 
