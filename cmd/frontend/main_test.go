@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-kit/log"
+	"github.com/prometheus/common/promslog"
 )
 
 type mockRoundTripper struct {
@@ -38,7 +38,7 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func TestForward(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	targetURL, err := url.Parse("https://monitoring.googleapis.com/v1/projects/my-project/location/global/prometheus")
 	if err != nil {
 		t.Fatal(err)

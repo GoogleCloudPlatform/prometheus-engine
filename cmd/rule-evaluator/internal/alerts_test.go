@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/timestamp"
@@ -57,7 +56,7 @@ func TestAPI_HandleAlertsEndpoint(t *testing.T) {
 		return a
 	}
 
-	logger := log.NewNopLogger()
+	logger := promslog.NewNopLogger()
 	for _, tcase := range []struct {
 		name          string
 		alertingRules []*rules.AlertingRule

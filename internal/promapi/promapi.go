@@ -16,10 +16,9 @@ package promapi
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	promapiv1 "github.com/prometheus/prometheus/web/api/v1"
 )
 
@@ -70,29 +69,29 @@ const (
 )
 
 // writeResponse writes a Response to given responseWriter w if it can, otherwise it logs the error and writes a generic error.
-func writeResponse[T RulesResponseData | AlertsResponseData | GenericResponseData](logger log.Logger, w http.ResponseWriter, httpResponseCode int, endpointURI string, resp Response[T]) {
-	logger = log.With(logger, "endpointURI", endpointURI, "intendedStatusCode", httpResponseCode)
+func writeResponse[T RulesResponseData | AlertsResponseData | GenericResponseData](logger *slog.Logger, w http.ResponseWriter, httpResponseCode int, endpointURI string, resp Response[T]) {
+	logger = logger.With("endpointURI", endpointURI, "intendedStatusCode", httpResponseCode)
 	w.Header().Set("Content-Type", "application/json")
 
 	jsonResponse, err := json.Marshal(resp)
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "failed to marshal Response", "err", err)
+		logger.Error("failed to marshal Response", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 
 		if _, err = w.Write([]byte(`{"status":"error","ErrorType":"internal","error":"failed to marshal Response"}`)); err != nil {
-			_ = level.Error(logger).Log("msg", "failed to write error Response to responseWriter", "err", err)
+			logger.Error("failed to write error Response to responseWriter", "err", err)
 		}
 		return
 	}
 
 	w.WriteHeader(httpResponseCode)
 	if _, err = w.Write(jsonResponse); err != nil {
-		_ = level.Error(logger).Log("msg", "failed to write Response to responseWriter", "err", err)
+		logger.Error("failed to write Response to responseWriter", "err", err)
 	}
 }
 
 // WriteSuccessResponse writes a successful Response to the given responseWriter w.
-func WriteSuccessResponse[T RulesResponseData | AlertsResponseData | promapiv1.PrometheusVersion](logger log.Logger, w http.ResponseWriter, httpResponseCode int, endpointURI string, responseData T) {
+func WriteSuccessResponse[T RulesResponseData | AlertsResponseData | promapiv1.PrometheusVersion](logger *slog.Logger, w http.ResponseWriter, httpResponseCode int, endpointURI string, responseData T) {
 	writeResponse(logger, w, httpResponseCode, endpointURI, Response[T]{
 		Status: statusSuccess,
 		Data:   responseData,
@@ -100,7 +99,7 @@ func WriteSuccessResponse[T RulesResponseData | AlertsResponseData | promapiv1.P
 }
 
 // WriteError writes an error Response to the given responseWriter w.
-func WriteError(logger log.Logger, w http.ResponseWriter, errType ErrorType, errMsg string, httpResponseCode int, endpointURI string) {
+func WriteError(logger *slog.Logger, w http.ResponseWriter, errType ErrorType, errMsg string, httpResponseCode int, endpointURI string) {
 	writeResponse(logger, w, httpResponseCode, endpointURI, Response[GenericResponseData]{
 		Status:    statusError,
 		ErrorType: errType,

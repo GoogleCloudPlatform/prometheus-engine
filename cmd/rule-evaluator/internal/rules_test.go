@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql/parser"
@@ -93,7 +92,7 @@ func TestAPI_HandleRulesEndpoint(t *testing.T) {
 
 			api := &API{
 				rulesManager: RuleGroupsRetrieverMock{RuleGroupsFunc: func() []*rules.Group { return tt.rules }},
-				logger:       log.NewNopLogger(),
+				logger:       promslog.NewNopLogger(),
 			}
 			w := httptest.NewRecorder()
 			api.HandleRulesEndpoint(w, tt.req)
@@ -242,7 +241,7 @@ func TestAPI_groupsToAPIGroups(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api := &API{logger: log.NewNopLogger()}
+			api := &API{logger: promslog.NewNopLogger()}
 			result := api.groupsToAPIGroups(tt.args.groups, nil, tt.args.fileFilters, tt.args.groupFilters, true, true, false)
 			assert.Len(t, result, len(tt.want))
 			for i := range result {
@@ -482,7 +481,7 @@ func TestAPI_groupToAPIGroup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			api := &API{logger: log.NewNopLogger()}
+			api := &API{logger: promslog.NewNopLogger()}
 			result := api.groupToAPIGroup(tt.args.group, tt.args.ruleFilters, tt.args.shouldReturnAlertRules, tt.args.shouldReturnRecordingRules, tt.args.shouldExcludeAlertsFromAlertRules)
 			// deep Eval.
 			assert.Equal(t, tt.want.Name, result.Name)
