@@ -83,7 +83,6 @@ Code is checked with `golangci-lint` (`make lint`) using [`.golangci.yml`](./.go
 4. **Defensive Error & Nil Handling**:
    * Check for nil pointers when iterating over optional CRD/relabel pointer slices.
    * When polling Kubernetes API resources in `e2e/` or `pkg/operator/`, only ignore transient `apierrors.IsNotFound(err)` errors rather than swallowing all errors (so RBAC or validation errors fail immediately).
-   * Only append optional client auth options (such as `option.WithAuthCredentialsFile`) when the flag/path is non-empty.
 5. **Go Language Idioms & Test Contexts**:
    * In tests, use `t.Context()` rather than `context.Background()` so test contexts are automatically canceled when the test finishes.
    * Keep existing pointer helpers (`ptr.To(...)`, `proto.Bool(...)`) rather than rewriting to `new(expr)` (`modernize.newexpr` is intentionally disabled in `.golangci.yml`).
@@ -100,7 +99,9 @@ This repository contains multiple Go modules (`go.mod`, `tools/go.mod`, `ops/gmp
    When adding or updating a `replace` directive (e.g., for `github.com/prometheus/prometheus`, `client_golang`, `common`, or `thanos`), keep the `require` and `replace` versions consistent and document the reason for the pin in a comment directly above the `replace` entry.
 3. **Dockerfile Efficiency & BuildKit Caching**:
    * Scope `COPY` directives in `cmd/<component>/Dockerfile` to only the required paths (`go.mod`, `go.sum`, `pkg/`, `internal/`, `cmd/<component>/`) rather than copying the entire repository or all of `cmd/`.
-   * Preserve BuildKit cache mounts (`--mount=type=cache,target=/go/pkg/mod` and `--mount=type=cache,target=/root/.cache/go-build`) and keep heavy local data/binary directories (`ops/gmpctl/data`, `ops/.bin`) excluded in `.dockerignore`.
+   * Preserve BuildKit cache mounts (`--mount=type=cache,target=/go/pkg/mod` and `--mount=type=cache,target=/root/.cache/go-build`) and keep heavy local data/binary directories (`ops/gmpctl/data`, `ops/.bin`) excluded in `.dockerignore`. Note that BuildKit cache mounts apply to the entire `RUN` instruction they are defined on, including all parts of a chained command.
+4. **Dependency Footprint**:
+   * Avoid introducing external dependencies if the standard library can achieve the desired functionality, to keep the dependency footprint minimal.
 
 ---
 
