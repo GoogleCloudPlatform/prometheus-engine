@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/google/go-cmp/cmp"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
@@ -190,7 +189,7 @@ func TestSelect(t *testing.T) {
 // Regression test against b/470033222.
 func TestGracefulShutdown(t *testing.T) {
 	re, err := newRuleEvaluator(
-		t.Context(), log.NewNopLogger(), promslog.NewNopLogger(),
+		t.Context(), promslog.NewNopLogger(),
 		&evaluatorOptions{
 			DisableAuth: true,
 			TargetURL:   &url.URL{},

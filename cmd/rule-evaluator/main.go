@@ -213,7 +213,7 @@ func main() {
 	}
 	notificationManager := notifier.NewManager(&notifierOptions, model.LegacyValidation, slogLogger.With("component", "notifier"))
 	rulesMetrics := rules.NewGroupMetrics(reg)
-	ruleEvaluator, err := newRuleEvaluator(ctx, logger, slogLogger, &defaultEvaluatorOpts, version.Version, destination, notificationManager, rulesMetrics)
+	ruleEvaluator, err := newRuleEvaluator(ctx, slogLogger, &defaultEvaluatorOpts, version.Version, destination, notificationManager, rulesMetrics)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "Create rule-evaluator", "err", err)
 		os.Exit(1)
@@ -908,8 +908,7 @@ func (db *queryAccess) Close() error {
 
 type ruleEvaluator struct {
 	ctx             context.Context
-	logger          log.Logger
-	slogLogger      *slog.Logger
+	logger          *slog.Logger
 	version         string
 	appendable      storage.Appendable
 	notifierManager *notifier.Manager
@@ -938,8 +937,7 @@ func getExternalURL(generatorURL *url.URL, projectID string) *url.URL {
 
 func newRuleEvaluator(
 	ctx context.Context,
-	logger log.Logger,
-	slogLogger *slog.Logger,
+	logger *slog.Logger,
 	evaluatorOpts *evaluatorOptions,
 	version string,
 	appendable storage.Appendable,
@@ -960,7 +958,7 @@ func newRuleEvaluator(
 		Queryable: &queryStorage{
 			api: v1api,
 		},
-		Logger:     slogLogger,
+		Logger:     logger,
 		NotifyFunc: sendAlerts(notifierManager, evaluatorOpts.ProjectID, evaluatorOpts.GeneratorURL),
 		Metrics:    rulesMetrics,
 	})
@@ -968,7 +966,6 @@ func newRuleEvaluator(
 	evaluator := ruleEvaluator{
 		ctx:             ctx,
 		logger:          logger,
-		slogLogger:      slogLogger,
 		version:         version,
 		appendable:      appendable,
 		notifierManager: notifierManager,
@@ -1000,7 +997,7 @@ func (e *ruleEvaluator) ApplyConfig(cfg *promforkconfig.Config, evaluatorOpts *e
 			Queryable: &queryStorage{
 				api: v1api,
 			},
-			Logger:     e.slogLogger,
+			Logger:     e.logger,
 			NotifyFunc: sendAlerts(e.notifierManager, evaluatorOpts.ProjectID, evaluatorOpts.GeneratorURL),
 			Metrics:    e.rulesMetrics,
 		})
@@ -1015,7 +1012,7 @@ func (e *ruleEvaluator) ApplyConfig(cfg *promforkconfig.Config, evaluatorOpts *e
 
 		_, err = queryFunc(e.ctx, "vector(1)", time.Now())
 		if err != nil {
-			_ = level.Error(e.logger).Log("msg", "Error querying Prometheus instance", "err", err)
+			e.logger.Error("Error querying Prometheus instance", "err", err)
 		}
 	}
 
@@ -1067,11 +1064,11 @@ func (e *ruleEvaluator) Stop() {
 	e.rulesManager = nil
 }
 
-func newQueryFunc(logger log.Logger, v1api v1.API) rules.QueryFunc {
+func newQueryFunc(logger *slog.Logger, v1api v1.API) rules.QueryFunc {
 	return func(ctx context.Context, q string, t time.Time) (promql.Vector, error) {
 		v, warnings, err := QueryFunc(ctx, q, t, v1api)
 		if len(warnings) > 0 {
-			_ = level.Warn(logger).Log("msg", "Querying Prometheus instance returned warnings", "warn", warnings)
+			logger.Warn("Querying Prometheus instance returned warnings", "warn", warnings)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("execute query: %w", err)
