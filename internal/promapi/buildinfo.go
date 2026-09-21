@@ -16,13 +16,12 @@ package promapi
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"runtime"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	promapiv1 "github.com/prometheus/prometheus/web/api/v1"
 )
 
@@ -35,7 +34,7 @@ const (
 // BuildinfoHandlerFunc simulates the /api/v1/status/buildinfo prometheus endpoint.
 // It is used by Grafana to determine the Prometheus flavor, e.g. to check whether the ruler-api is enabled.
 // binary: e.g. "frontend" or "rule-evaluator".
-func BuildinfoHandlerFunc(logger log.Logger, binaryName, binaryVersion string) func(http.ResponseWriter, *http.Request) {
+func BuildinfoHandlerFunc(logger *slog.Logger, binaryName, binaryVersion string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		// TODO(yama6a): Populate buildinfo at build time, analogous to: https://github.com/prometheus/common/blob/v0.60.0/version/info.go
 		response := promapiv1.PrometheusVersion{
@@ -50,10 +49,10 @@ func BuildinfoHandlerFunc(logger log.Logger, binaryName, binaryVersion string) f
 	}
 }
 
-func getBinaryCreatedTimestamp(logger log.Logger) string {
+func getBinaryCreatedTimestamp(logger *slog.Logger) string {
 	fileInfo, err := os.Stat(os.Args[0])
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Failed to get binary creation timestamp, usinng now()", "err", err)
+		logger.Error("Failed to get binary creation timestamp, usinng now()", "err", err)
 		return time.Now().Format(timestampFormat)
 	}
 

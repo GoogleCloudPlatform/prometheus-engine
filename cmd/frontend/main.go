@@ -25,6 +25,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -39,13 +40,12 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/secutil"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/ui"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	versioninfo "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/version"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
@@ -81,23 +81,16 @@ var (
 func main() {
 	flag.Parse()
 
-	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
+	slogCfg := &promslog.Config{
+		Level:  promslog.NewLevel(),
+		Format: promslog.NewFormat(),
+		Style:  promslog.GoKitStyle,
+	}
+	_ = slogCfg.Format.Set("json")
+	logger := promslog.New(slogCfg)
 
-	switch strings.ToLower(*logLevel) {
-	case "debug":
-		logger = level.NewFilter(logger, level.AllowDebug())
-	case "warn":
-		logger = level.NewFilter(logger, level.AllowWarn())
-	case "error":
-		logger = level.NewFilter(logger, level.AllowError())
-	case "info":
-		logger = level.NewFilter(logger, level.AllowInfo())
-	default:
-		//nolint:errcheck
-		level.Error(logger).Log("msg",
-			"--log.level can only be one of 'debug', 'info', 'warn', 'error'")
+	if err := slogCfg.Level.Set(strings.ToLower(*logLevel)); err != nil {
+		logger.Error("--log.level can only be one of 'debug', 'info', 'warn', 'error'")
 		os.Exit(1)
 	}
 
@@ -109,22 +102,19 @@ func main() {
 	)
 
 	if *projectID == "" {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "--query.project-id must be set")
+		logger.Error("--query.project-id must be set")
 		os.Exit(1)
 	}
 
 	targetURL, err := url.Parse(strings.ReplaceAll(*targetURLStr, projectIDVar, *projectID))
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "parsing target URL failed", "err", err)
+		logger.Error("parsing target URL failed", "err", err)
 		os.Exit(1)
 	}
 
 	externalURL, err := url.Parse(*externalURLStr)
 	if err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "parsing external URL failed", "err", err)
+		logger.Error("parsing external URL failed", "err", err)
 		os.Exit(1)
 	}
 
@@ -132,7 +122,7 @@ func main() {
 	for ruleEndpointURLStr := range strings.SplitSeq(*ruleEndpointURLStrings, ",") {
 		ruleEndpointURL, err := url.Parse(strings.TrimSpace(ruleEndpointURLStr))
 		if err != nil || ruleEndpointURL == nil {
-			_ = level.Error(logger).Log("msg", "parsing rule endpoint URL failed", "err", err, "url", strings.TrimSpace(ruleEndpointURLStr))
+			logger.Error("parsing rule endpoint URL failed", "err", err, "url", strings.TrimSpace(ruleEndpointURLStr))
 			os.Exit(1)
 		}
 		ruleEndpointURLs = append(ruleEndpointURLs, *ruleEndpointURL)
@@ -148,8 +138,7 @@ func main() {
 			func() error {
 				select {
 				case <-term:
-					//nolint:errcheck
-					level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+					logger.Info("received SIGTERM, exiting gracefully...")
 				case <-cancel:
 				}
 				return nil
@@ -169,19 +158,18 @@ func main() {
 
 		transport, err := apihttp.NewTransport(ctx, http.DefaultTransport, opts...)
 		if err != nil {
-			//nolint:errcheck
-			level.Error(logger).Log("msg", "create proxy HTTP transport", "err", err)
+			logger.Error("create proxy HTTP transport", "err", err)
 			os.Exit(1)
 		}
 
 		ruleProxy := rule.NewProxy(
-			log.With(logger, "component", "rule-proxy"),
+			logger.With("component", "rule-proxy"),
 			&http.Client{Timeout: 30 * time.Second},
 			ruleEndpointURLs,
 		)
 
 		server := &http.Server{Addr: *listenAddress}
-		buildInfoHandler := http.HandlerFunc(promapi.BuildinfoHandlerFunc(log.With(logger, "component", "buildinfo-handler"), "frontend", version.Version))
+		buildInfoHandler := http.HandlerFunc(promapi.BuildinfoHandlerFunc(logger.With("component", "buildinfo-handler"), "frontend", version.Version))
 		http.Handle("/api/v1/status/buildinfo", buildInfoHandler)
 		http.Handle("/metrics", promhttp.HandlerFor(metrics, promhttp.HandlerOpts{Registry: metrics}))
 		http.Handle("/api/v1/rules", authenticate(http.HandlerFunc(ruleProxy.RuleGroups)))
@@ -201,23 +189,20 @@ func main() {
 		http.Handle("/", authenticate(ui.Handler(externalURL)))
 
 		g.Add(func() error {
-			//nolint:errcheck
-			level.Info(logger).Log("msg", "Starting web server for metrics", "listen", *listenAddress)
+			logger.Info("Starting web server for metrics", "listen", *listenAddress)
 			return server.ListenAndServe()
 		}, func(error) {
 			//nolint:fatcontext //TODO review this linter error
 			ctx, cancel = context.WithTimeout(ctx, time.Minute)
 			if err := server.Shutdown(ctx); err != nil {
-				//nolint:errcheck
-				level.Error(logger).Log("msg", "Server failed to shut down gracefully")
+				logger.Error("Server failed to shut down gracefully")
 			}
 			cancel()
 		})
 	}
 
 	if err := g.Run(); err != nil {
-		//nolint:errcheck
-		level.Error(logger).Log("msg", "running reloader failed", "err", err)
+		logger.Error("running reloader failed", "err", err)
 		os.Exit(1)
 	}
 }
@@ -245,7 +230,7 @@ func authenticate(next http.Handler) http.Handler {
 	})
 }
 
-func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) http.Handler {
+func forward(logger *slog.Logger, target *url.URL, transport http.RoundTripper) http.Handler {
 	client := http.Client{Transport: transport}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -272,8 +257,7 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 
 		newReq, err := http.NewRequestWithContext(req.Context(), method, u.String(), req.Body)
 		if err != nil {
-			//nolint:errcheck
-			level.Warn(logger).Log("msg", "creating request failed", "err", err)
+			logger.Warn("creating request failed", "err", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -281,12 +265,11 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 
 		resp, err := client.Do(newReq)
 		if err != nil {
-			//nolint:errcheck
 			if errors.Is(err, context.Canceled) {
-				level.Warn(logger).Log("msg", "request to GCM was canceled by the caller of frontend. If a program made the request, consider increasing the timeout", "err", err)
+				logger.Warn("request to GCM was canceled by the caller of frontend. If a program made the request, consider increasing the timeout", "err", err)
 				w.WriteHeader(http.StatusBadRequest)
 			} else {
-				level.Warn(logger).Log("msg", "requesting GCM failed", "err", err)
+				logger.Warn("requesting GCM failed", "err", err)
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 			return
@@ -297,8 +280,7 @@ func forward(logger log.Logger, target *url.URL, transport http.RoundTripper) ht
 
 		defer resp.Body.Close()
 		if _, err := io.Copy(w, resp.Body); err != nil {
-			//nolint:errcheck
-			level.Warn(logger).Log("msg", "copying response body failed", "err", err)
+			logger.Warn("copying response body failed", "err", err)
 			return
 		}
 	})

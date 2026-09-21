@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/go-kit/log"
+	"github.com/GoogleCloudPlatform/prometheus-engine/internal/gokitlog"
 	"github.com/thanos-io/thanos/pkg/reloader"
 )
 
@@ -193,7 +193,7 @@ func BenchmarkConfigReloader_ReloadingWithoutChange(b *testing.B) {
 			require.NoError(b, os.WriteFile(filepath.Join(dir, "config.yaml"), compressedInput, 0o644))
 
 			r := reloader.New(
-				log.NewNopLogger(),
+				gokitlog.NewAdapter(nil),
 				nil,
 				&reloader.Options{
 					CfgFile:       filepath.Join(dir, "config.yaml"),

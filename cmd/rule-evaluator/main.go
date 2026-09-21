@@ -36,10 +36,9 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/GoogleCloudPlatform/prometheus-engine/cmd/rule-evaluator/internal"
+	"github.com/GoogleCloudPlatform/prometheus-engine/internal/gokitlog"
 	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/oklog/run"
 	versioninfo "github.com/prometheus/client_golang/prometheus/collectors/version"
@@ -104,9 +103,13 @@ var (
 func main() {
 	ctx := context.Background()
 
-	logger := log.NewJSONLogger(log.NewSyncWriter(os.Stderr))
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.With(logger, "caller", log.DefaultCaller)
+	slogCfg := &promslog.Config{
+		Level:  promslog.NewLevel(),
+		Format: promslog.NewFormat(),
+		Style:  promslog.GoKitStyle,
+	}
+	_ = slogCfg.Format.Set("json")
+	logger := promslog.New(slogCfg)
 
 	a := kingpin.New("rule", "The Prometheus Rule Evaluator")
 	logLevel := a.Flag("log.level",
@@ -120,7 +123,7 @@ func main() {
 		var err error
 		defaultProjectID, err = metadata.ProjectIDWithContext(ctx)
 		if err != nil {
-			_ = level.Warn(logger).Log("msg", "Unable to detect Google Cloud project", "err", err)
+			logger.Warn("Unable to detect Google Cloud project", "err", err)
 		}
 	}
 
@@ -136,7 +139,7 @@ func main() {
 
 	sdMetrics, err := discovery.CreateAndRegisterSDMetrics(reg)
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "failed to register service discovery metrics", "err", err)
+		logger.Error("failed to register service discovery metrics", "err", err)
 		os.Exit(1)
 	}
 
@@ -159,63 +162,45 @@ func main() {
 
 	extraArgs, err := exportsetup.ExtraArgs()
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
+		logger.Error("Error parsing commandline arguments", "err", err)
 		a.Usage(os.Args[1:])
 		os.Exit(2)
 	}
 	if _, err := a.Parse(append(os.Args[1:], extraArgs...)); err != nil {
-		_ = level.Error(logger).Log("msg", "Error parsing commandline arguments", "err", err)
+		logger.Error("Error parsing commandline arguments", "err", err)
 		a.Usage(os.Args[1:])
 		os.Exit(2)
-	}
-	switch strings.ToLower(*logLevel) {
-	case "debug":
-		logger = level.NewFilter(logger, level.AllowDebug())
-	case "warn":
-		logger = level.NewFilter(logger, level.AllowWarn())
-	case "error":
-		logger = level.NewFilter(logger, level.AllowError())
-	default:
-		logger = level.NewFilter(logger, level.AllowInfo())
-	}
-
-	slogCfg := &promslog.Config{
-		Level:  promslog.NewLevel(),
-		Format: promslog.NewFormat(),
-		Style:  promslog.GoKitStyle,
 	}
 	if *logLevel != "" {
 		_ = slogCfg.Level.Set(*logLevel)
 	}
-	_ = slogCfg.Format.Set("json")
-	slogLogger := promslog.New(slogCfg)
 
 	if err := defaultEvaluatorOpts.validate(); err != nil {
-		_ = level.Error(logger).Log("msg", "invalid command line argument", "err", err)
+		logger.Error("invalid command line argument", "err", err)
 		os.Exit(1)
 	}
 
 	startTime := time.Now()
 
 	ctxExporter, cancelExporter := context.WithCancel(ctx)
-	exporter, err := opts.NewExporter(ctxExporter, logger, reg)
+	exporter, err := opts.NewExporter(ctxExporter, gokitlog.NewAdapter(logger), reg)
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Creating a Cloud Monitoring Exporter failed", "err", err)
+		logger.Error("Creating a Cloud Monitoring Exporter failed", "err", err)
 		os.Exit(1)
 	}
 	destination := export.NewStorage(exporter)
 
 	ctxDiscover, cancelDiscover := context.WithCancel(ctx)
-	discoveryManager := discovery.NewManager(ctxDiscover, slogLogger.With("component", "discovery manager notify"), reg, sdMetrics, discovery.Name("notify"))
+	discoveryManager := discovery.NewManager(ctxDiscover, logger.With("component", "discovery manager notify"), reg, sdMetrics, discovery.Name("notify"))
 	notifierOptions := notifier.Options{
 		Registerer:    reg,
 		QueueCapacity: defaultEvaluatorOpts.QueueCapacity,
 	}
-	notificationManager := notifier.NewManager(&notifierOptions, model.LegacyValidation, slogLogger.With("component", "notifier"))
+	notificationManager := notifier.NewManager(&notifierOptions, model.LegacyValidation, logger.With("component", "notifier"))
 	rulesMetrics := rules.NewGroupMetrics(reg)
-	ruleEvaluator, err := newRuleEvaluator(ctx, slogLogger, &defaultEvaluatorOpts, version.Version, destination, notificationManager, rulesMetrics)
+	ruleEvaluator, err := newRuleEvaluator(ctx, logger, &defaultEvaluatorOpts, version.Version, destination, notificationManager, rulesMetrics)
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Create rule-evaluator", "err", err)
+		logger.Error("Create rule-evaluator", "err", err)
 		os.Exit(1)
 	}
 
@@ -262,7 +247,7 @@ func main() {
 
 	// Do an initial load of the configuration for all components.
 	if err := reloadConfig(defaultEvaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
-		_ = level.Error(logger).Log("msg", "error loading config file.", "err", err)
+		logger.Error("error loading config file.", "err", err)
 		os.Exit(1)
 	}
 
@@ -276,7 +261,7 @@ func main() {
 			func() error {
 				select {
 				case <-term:
-					_ = level.Info(logger).Log("msg", "received SIGTERM, exiting gracefully...")
+					logger.Info("received SIGTERM, exiting gracefully...")
 				case <-cancel:
 				}
 				return nil
@@ -299,7 +284,7 @@ func main() {
 		// Notifier.
 		g.Add(func() error {
 			notificationManager.Run(discoveryManager.SyncCh())
-			_ = level.Info(logger).Log("msg", "Notification manager stopped")
+			logger.Info("Notification manager stopped")
 			return nil
 		},
 			func(error) {
@@ -312,11 +297,11 @@ func main() {
 		g.Add(
 			func() error {
 				err := discoveryManager.Run()
-				_ = level.Info(logger).Log("msg", "Discovery manager stopped")
+				logger.Info("Discovery manager stopped")
 				return err
 			},
 			func(error) {
-				_ = level.Info(logger).Log("msg", "Stopping Discovery manager...")
+				logger.Info("Stopping Discovery manager...")
 				cancelDiscover()
 			},
 		)
@@ -325,10 +310,10 @@ func main() {
 		// Storage Processing.
 		g.Add(func() error {
 			err = destination.Run()
-			_ = level.Info(logger).Log("msg", "Background processing of storage stopped")
+			logger.Info("Background processing of storage stopped")
 			return err
 		}, func(error) {
-			_ = level.Info(logger).Log("msg", "Stopping background storage processing...")
+			logger.Info("Stopping background storage processing...")
 			cancelExporter()
 		})
 	}
@@ -384,12 +369,12 @@ func main() {
 			}
 
 			if _, err := w.Write(data); err != nil {
-				_ = level.Error(logger).Log("msg", "Unable to write runtime info status", "err", err)
+				logger.Error("Unable to write runtime info status", "err", err)
 			}
 		})
 
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#build-information
-		buildInfoHandler := promapi.BuildinfoHandlerFunc(log.With(logger, "handler", "buildinfo"), "rule-evaluator", version.Version)
+		buildInfoHandler := promapi.BuildinfoHandlerFunc(logger.With("handler", "buildinfo"), "rule-evaluator", version.Version)
 		http.HandleFunc("/api/v1/status/buildinfo", buildInfoHandler)
 
 		// https://prometheus.io/docs/prometheus/latest/querying/api/#rules
@@ -401,12 +386,12 @@ func main() {
 		http.HandleFunc("/api/v1/alerts", apiHandler.HandleAlertsEndpoint)
 
 		g.Add(func() error {
-			_ = level.Info(logger).Log("msg", "Starting web server", "listen", defaultEvaluatorOpts.ListenAddress)
+			logger.Info("Starting web server", "listen", defaultEvaluatorOpts.ListenAddress)
 			return server.ListenAndServe()
 		}, func(error) {
 			ctxServer, cancelServer := context.WithTimeout(ctx, time.Minute)
 			if err := server.Shutdown(ctxServer); err != nil {
-				_ = level.Error(logger).Log("msg", "Server failed to shut down gracefully.")
+				logger.Error("Server failed to shut down gracefully.")
 			}
 			cancelServer()
 		})
@@ -422,11 +407,11 @@ func main() {
 					select {
 					case <-hup:
 						if err := reloadConfig(defaultEvaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
-							_ = level.Error(logger).Log("msg", "Error reloading config", "err", err)
+							logger.Error("Error reloading config", "err", err)
 						}
 					case rc := <-reloadCh:
 						if err := reloadConfig(defaultEvaluatorOpts.ConfigFile, logger, configMetrics, reloaders...); err != nil {
-							_ = level.Error(logger).Log("msg", "Error reloading config", "err", err)
+							logger.Error("Error reloading config", "err", err)
 							rc <- err
 						} else {
 							rc <- nil
@@ -447,11 +432,11 @@ func main() {
 	// Run a test query to check status of rule evaluator.
 	_, err = ruleEvaluator.Query(ctx, "vector(1)", time.Now())
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Error querying Prometheus instance", "err", err)
+		logger.Error("Error querying Prometheus instance", "err", err)
 	}
 
 	if err := g.Run(); err != nil {
-		_ = level.Error(logger).Log("msg", "Running rule evaluator failed", "err", err)
+		logger.Error("Running rule evaluator failed", "err", err)
 		os.Exit(1)
 	}
 }
@@ -697,10 +682,10 @@ func (m *configMetrics) setFailure() {
 }
 
 // reloadConfig applies the configuration files.
-func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rls ...reloader) (err error) {
+func reloadConfig(filename string, logger *slog.Logger, metrics *configMetrics, rls ...reloader) (err error) {
 	start := time.Now()
 	timings := []any{}
-	_ = level.Info(logger).Log("msg", "Loading configuration file", "filename", filename)
+	logger.Info("Loading configuration file", "filename", filename)
 
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -716,7 +701,7 @@ func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rl
 	for _, rl := range rls {
 		rstart := time.Now()
 		if err := rl.reloader(conf); err != nil {
-			_ = level.Error(logger).Log("msg", "Failed to apply configuration", "err", err)
+			logger.Error("Failed to apply configuration", "err", err)
 			failed = true
 		}
 		timings = append(timings, rl.name, time.Since(rstart))
@@ -727,8 +712,8 @@ func reloadConfig(filename string, logger log.Logger, metrics *configMetrics, rl
 	}
 
 	metrics.setSuccess()
-	l := []any{"msg", "Completed loading of configuration file", "filename", filename, "totalDuration", time.Since(start)}
-	_ = level.Info(logger).Log(append(l, timings...)...)
+	l := []any{"filename", filename, "totalDuration", time.Since(start)}
+	logger.Info("Completed loading of configuration file", append(l, timings...)...)
 	return nil
 }
 

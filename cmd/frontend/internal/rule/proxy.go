@@ -18,13 +18,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/internal/promapi"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	promapiv1 "github.com/prometheus/prometheus/web/api/v1"
 )
 
@@ -40,13 +39,13 @@ type retriever interface {
 // Results are un-sorted and concatenated as-is. In case of errors from any endpoint,
 // warning log and partial results are returned.
 type Proxy struct {
-	logger    log.Logger
+	logger    *slog.Logger
 	endpoints []url.URL
 	client    retriever
 }
 
 // NewProxy creates a new proxy.
-func NewProxy(logger log.Logger, c httpClient, ruleEndpoints []url.URL) *Proxy {
+func NewProxy(logger *slog.Logger, c httpClient, ruleEndpoints []url.URL) *Proxy {
 	return &Proxy{
 		logger:    logger,
 		endpoints: ruleEndpoints,
@@ -77,13 +76,13 @@ func (p *Proxy) Alerts(w http.ResponseWriter, req *http.Request) {
 // fanoutForward calls the endpoints in parallel and returns the combined results.
 func fanoutForward[T *promapiv1.Alert | *promapiv1.RuleGroup](
 	ctx context.Context,
-	logger log.Logger,
+	logger *slog.Logger,
 	ruleEndpoints []url.URL,
 	rawQuery string,
 	retrieveFn func(context.Context, url.URL, string) ([]T, error),
 ) ([]T, error) {
 	if len(ruleEndpoints) == 0 {
-		_ = level.Warn(logger).Log("msg", "tried to fetch rules/alerts, no endpoints (--rules.target-urls) configured")
+		logger.Warn("tried to fetch rules/alerts, no endpoints (--rules.target-urls) configured")
 		return []T{}, nil
 	}
 
@@ -133,10 +132,10 @@ func fanoutForward[T *promapiv1.Alert | *promapiv1.RuleGroup](
 
 	if len(errs) != 0 {
 		if len(errs) == len(ruleEndpoints) {
-			_ = level.Error(logger).Log("msg", "all endpoints failed", "errors", errs)
+			logger.Error("all endpoints failed", "errors", errs)
 			return nil, errAllEndpointsFailed
 		}
-		_ = level.Warn(logger).Log("msg", "some endpoints failed; potentially partial result", "errors", errs)
+		logger.Warn("some endpoints failed; potentially partial result", "errors", errs)
 	}
 	// TODO(bwplotka): Sort?
 	return results, nil

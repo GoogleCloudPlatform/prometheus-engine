@@ -19,7 +19,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-kit/log"
+	"github.com/prometheus/common/promslog"
 	promapiv1 "github.com/prometheus/prometheus/web/api/v1"
 	"github.com/stretchr/testify/require"
 )
@@ -83,7 +83,7 @@ func Test_writeResponse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			recorder := httptest.NewRecorder()
-			writeResponse[GenericResponseData](log.NewNopLogger(), recorder, tt.httpResponseCode, "", tt.resp)
+			writeResponse[GenericResponseData](promslog.NewNopLogger(), recorder, tt.httpResponseCode, "", tt.resp)
 			require.JSONEq(t, tt.wantBody, recorder.Body.String())
 			require.Equal(t, tt.wantStatus, recorder.Code)
 		})
@@ -127,7 +127,7 @@ func TestWriteSuccessResponse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			recorder := httptest.NewRecorder()
-			WriteSuccessResponse(log.NewNopLogger(), recorder, tt.httpResponseCode, "", tt.responseData)
+			WriteSuccessResponse(promslog.NewNopLogger(), recorder, tt.httpResponseCode, "", tt.responseData)
 
 			require.JSONEq(t, tt.wantBody, recorder.Body.String())
 			require.Equal(t, tt.wantStatus, recorder.Code)
@@ -176,7 +176,7 @@ func TestWriteErrorResponse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			recorder := httptest.NewRecorder()
-			WriteError(log.NewNopLogger(), recorder, tt.errType, tt.errMsg, tt.httpResponseCode, "")
+			WriteError(promslog.NewNopLogger(), recorder, tt.errType, tt.errMsg, tt.httpResponseCode, "")
 
 			require.Equal(t, tt.wantBody, recorder.Body.String())
 			require.Equal(t, tt.wantStatus, recorder.Code)

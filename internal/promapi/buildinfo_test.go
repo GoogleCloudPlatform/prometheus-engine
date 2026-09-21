@@ -20,7 +20,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-kit/log"
+	"github.com/prometheus/common/promslog"
 	promapiv1 "github.com/prometheus/prometheus/web/api/v1"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ import (
 func TestBuildinfoHandlerFunc(t *testing.T) {
 	t.Parallel()
 
-	handleFunc := BuildinfoHandlerFunc(log.NewNopLogger(), "frontend", "v1.2.3")
+	handleFunc := BuildinfoHandlerFunc(promslog.NewNopLogger(), "frontend", "v1.2.3")
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/status/buildinfo", nil)
 

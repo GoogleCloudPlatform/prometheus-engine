@@ -16,14 +16,13 @@ package internal
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/rules"
 	apiv1 "github.com/prometheus/prometheus/web/api/v1"
@@ -72,11 +71,11 @@ type RuleRetriever interface {
 // API provides an HTTP API singleton for handling http endpoints in the rule evaluator.
 type API struct {
 	rulesManager RuleRetriever
-	logger       log.Logger
+	logger       *slog.Logger
 }
 
 // NewAPI creates a new API instance.
-func NewAPI(logger log.Logger, rulesManager RuleRetriever) *API {
+func NewAPI(logger *slog.Logger, rulesManager RuleRetriever) *API {
 	return &API{
 		rulesManager: rulesManager,
 		logger:       logger,
@@ -84,22 +83,22 @@ func NewAPI(logger log.Logger, rulesManager RuleRetriever) *API {
 }
 
 func (api *API) writeResponse(w http.ResponseWriter, httpResponseCode int, endpointURI string, resp response) {
-	logger := log.With(api.logger, "endpointURI", endpointURI, "intendedStatusCode", httpResponseCode)
+	logger := api.logger.With("endpointURI", endpointURI, "intendedStatusCode", httpResponseCode)
 	w.Header().Set("Content-Type", "application/json")
 
 	jsonResponse, err := json.Marshal(resp)
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "failed to marshal response", "err", err)
+		logger.Error("failed to marshal response", "err", err)
 
 		w.WriteHeader(http.StatusInternalServerError)
 		if _, err = w.Write([]byte(`{"status":"error","errorType":"internal","error":"failed to marshal response"}`)); err != nil {
-			_ = level.Error(logger).Log("msg", "failed to write error response to responseWriter", "err", err)
+			logger.Error("failed to write error response to responseWriter", "err", err)
 		}
 	}
 
 	w.WriteHeader(httpResponseCode)
 	if _, err = w.Write(jsonResponse); err != nil {
-		_ = level.Error(logger).Log("msg", "failed to write response to responseWriter", "err", err)
+		logger.Error("failed to write response to responseWriter", "err", err)
 	}
 }
 
