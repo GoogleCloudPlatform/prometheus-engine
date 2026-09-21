@@ -28,6 +28,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
 	yaml "gopkg.in/yaml.v3"
@@ -348,7 +349,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	cfg := &promconfig.Config{
 		GlobalConfig: promconfig.GlobalConfig{
-			ExternalLabels: labels.FromMap(spec.ExternalLabels),
+			ExternalLabels:             labels.FromMap(spec.ExternalLabels),
+			MetricNameValidationScheme: model.LegacyValidation,
+			MetricNameEscapingScheme:   model.EscapeUnderscores,
 		},
 	}
 

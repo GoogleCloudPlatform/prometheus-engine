@@ -345,6 +345,7 @@ honor_timestamps: false
 track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 10s
+fallback_scrape_protocol: PrometheusText0.0.4
 metrics_path: /metrics
 enable_compression: true
 sample_limit: 1
@@ -424,6 +425,7 @@ honor_timestamps: false
 track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 5s
+fallback_scrape_protocol: PrometheusText0.0.4
 metrics_path: /prometheus
 enable_compression: true
 sample_limit: 1
@@ -571,6 +573,7 @@ honor_timestamps: false
 track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 10s
+fallback_scrape_protocol: PrometheusText0.0.4
 metrics_path: /metrics
 enable_compression: true
 sample_limit: 1
@@ -645,6 +648,7 @@ honor_timestamps: false
 track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 5s
+fallback_scrape_protocol: PrometheusText0.0.4
 metrics_path: /prometheus
 enable_compression: true
 sample_limit: 1

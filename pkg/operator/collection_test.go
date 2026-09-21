@@ -111,7 +111,7 @@ func TestCollectionReconcile(t *testing.T) {
 			Interval: "10s",
 		},
 	}
-	exampleCollectorConfigMapWithoutScrapeConfig := "global: {}\n"
+	exampleCollectorConfigMapWithoutScrapeConfig := "global:\n    metric_name_validation_scheme: legacy\n    metric_name_escaping_scheme: underscores\n"
 	testCases := []struct {
 		desc                       string
 		input                      monitoringv1.MonitoringCRD
@@ -623,7 +623,9 @@ func TestMakeCollectorConfig_SecretConfigsDeterministicOrder(t *testing.T) {
 	// Note: scrape_configs are intentionally omitted due to colliding job names.
 	// We're primarily ensuring the generated secrets references are ordered in
 	// the final config.
-	expected := `global: {}
+	expected := `global:
+    metric_name_validation_scheme: legacy
+    metric_name_escaping_scheme: underscores
 kubernetes_secrets:
     - name: gmp-test/secret-a/token
       config:
@@ -643,5 +645,83 @@ kubernetes_secrets:
 `
 	if diff := cmp.Diff(expected, string(b)); diff != "" {
 		t.Fatalf("unexpected collector config (-want +got):\n%s", diff)
+	}
+}
+
+func TestMakeCollectorConfig_MigrationRiskDefaults(t *testing.T) {
+	ctx := t.Context()
+	pmon := &monitoringv1.PodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pmon-example",
+			Namespace: "gmp-test",
+		},
+		Spec: monitoringv1.PodMonitoringSpec{
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("metrics"),
+					Interval: "10s",
+				},
+			},
+		},
+	}
+	cpmon := &monitoringv1.ClusterPodMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cpmon-example",
+		},
+		Spec: monitoringv1.ClusterPodMonitoringSpec{
+			Endpoints: []monitoringv1.ScrapeEndpoint{
+				{
+					Port:     intstr.FromString("metrics"),
+					Interval: "10s",
+				},
+			},
+		},
+	}
+	cnmon := &monitoringv1.ClusterNodeMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cnmon-example",
+		},
+		Spec: monitoringv1.ClusterNodeMonitoringSpec{
+			Endpoints: []monitoringv1.ScrapeNodeEndpoint{
+				{
+					Path:     "/metrics",
+					Interval: "10s",
+				},
+			},
+		},
+	}
+
+	kubeClient := newFakeClientBuilder().WithObjects(pmon, cpmon, cnmon).Build()
+	reconciler := newCollectionReconciler(kubeClient, Options{
+		ProjectID:         "test-proj",
+		Location:          "test-loc",
+		Cluster:           "test-cluster",
+		OperatorNamespace: "gmp-system",
+		PublicNamespace:   "gmp-public",
+	})
+
+	cfg, _, err := reconciler.makeCollectorConfig(ctx, &monitoringv1.CollectionSpec{
+		KubeletScraping: &monitoringv1.KubeletScraping{
+			Interval: "10s",
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if got, want := cfg.GlobalConfig.MetricNameValidationScheme, model.LegacyValidation; got != want {
+		t.Errorf("unexpected MetricNameValidationScheme: got %q, want %q", got, want)
+	}
+	if got, want := cfg.GlobalConfig.MetricNameEscapingScheme, model.EscapeUnderscores; got != want {
+		t.Errorf("unexpected MetricNameEscapingScheme: got %q, want %q", got, want)
+	}
+
+	if len(cfg.ScrapeConfigs) != 5 {
+		t.Fatalf("expected 5 scrape configs (2 kubelet + 1 PodMonitoring + 1 ClusterPodMonitoring + 1 ClusterNodeMonitoring), got %d", len(cfg.ScrapeConfigs))
+	}
+	for _, sc := range cfg.ScrapeConfigs {
+		if got, want := string(sc.ScrapeFallbackProtocol), "PrometheusText0.0.4"; got != want {
+			t.Errorf("scrape config %q: unexpected ScrapeFallbackProtocol: got %q, want %q", sc.JobName, got, want)
+		}
 	}
 }
