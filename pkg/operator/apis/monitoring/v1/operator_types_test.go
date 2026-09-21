@@ -427,3 +427,23 @@ func TestOperatorConfigValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestCollectionSpec_ScrapeConfigs(t *testing.T) {
+	spec := CollectionSpec{
+		KubeletScraping: &KubeletScraping{
+			Interval: "15s",
+		},
+	}
+	sc, err := spec.ScrapeConfigs()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(sc) != 2 {
+		t.Fatalf("expected 2 kubelet scrape configs, got %d", len(sc))
+	}
+	for _, cfg := range sc {
+		if got, want := string(cfg.ScrapeFallbackProtocol), "PrometheusText0.0.4"; got != want {
+			t.Errorf("job %q: unexpected ScrapeFallbackProtocol: got %q, want %q", cfg.JobName, got, want)
+		}
+	}
+}

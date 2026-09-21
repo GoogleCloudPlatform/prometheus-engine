@@ -242,6 +242,8 @@ func testCollectorOperatorConfigWithParams(
         external_key: {external_key}
         location: {location}
         project_id: {projectID}
+    metric_name_escaping_scheme: underscores
+    metric_name_validation_scheme: legacy
 google_cloud:
     export:
         compression: gzip{exportCredentialsEntry}{expectedMatchEntry}

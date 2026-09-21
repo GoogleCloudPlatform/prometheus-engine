@@ -91,6 +91,7 @@ honor_timestamps: false
 track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 10s
+fallback_scrape_protocol: PrometheusText0.0.4
 metrics_path: /cadvisor/metrics
 scheme: https
 enable_compression: true
@@ -153,6 +154,7 @@ honor_timestamps: false
 track_timestamps_staleness: false
 scrape_interval: 10s
 scrape_timeout: 5s
+fallback_scrape_protocol: PrometheusText0.0.4
 metrics_path: /metrics
 scheme: https
 enable_compression: true
