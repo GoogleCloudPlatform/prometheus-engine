@@ -951,10 +951,12 @@ func newRuleEvaluator(
 	queryFunc := newQueryFunc(logger, v1api)
 
 	rulesManager := rules.NewManager(&rules.ManagerOptions{
-		ExternalURL: getExternalURL(evaluatorOpts.GeneratorURL, evaluatorOpts.ProjectID),
-		QueryFunc:   queryFunc,
-		Context:     ctx,
-		Appendable:  appendable,
+		// Ensure compatibility with 2.x Prometheus logic. See go/gmp:prom-3.13.
+		NameValidationScheme: model.LegacyValidation,
+		ExternalURL:          getExternalURL(evaluatorOpts.GeneratorURL, evaluatorOpts.ProjectID),
+		QueryFunc:            queryFunc,
+		Context:              ctx,
+		Appendable:           appendable,
 		Queryable: &queryStorage{
 			api: v1api,
 		},
@@ -990,10 +992,12 @@ func (e *ruleEvaluator) ApplyConfig(cfg *promforkconfig.Config, evaluatorOpts *e
 		queryFunc := newQueryFunc(e.logger, v1api)
 
 		rulesManager := rules.NewManager(&rules.ManagerOptions{
-			ExternalURL: getExternalURL(evaluatorOpts.GeneratorURL, evaluatorOpts.ProjectID),
-			QueryFunc:   queryFunc,
-			Context:     e.ctx,
-			Appendable:  e.appendable,
+			// Ensure compatibility with 2.x Prometheus logic. See go/gmp:prom-3.13.
+			NameValidationScheme: model.LegacyValidation,
+			ExternalURL:          getExternalURL(evaluatorOpts.GeneratorURL, evaluatorOpts.ProjectID),
+			QueryFunc:            queryFunc,
+			Context:              e.ctx,
+			Appendable:           e.appendable,
 			Queryable: &queryStorage{
 				api: v1api,
 			},

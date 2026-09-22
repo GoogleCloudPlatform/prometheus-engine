@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -28,6 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/version"
+	promforkconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
@@ -208,4 +211,66 @@ func TestGracefulShutdown(t *testing.T) {
 
 	re.Stop()
 	wg.Wait()
+}
+
+func TestApplyConfigLegacyValidation(t *testing.T) {
+	opts := &evaluatorOptions{
+		DisableAuth: true,
+		TargetURL:   &url.URL{},
+	}
+	re, err := newRuleEvaluator(
+		t.Context(), promslog.NewNopLogger(),
+		opts,
+		version.Version,
+		nil, nil, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		re.Run()
+	})
+	defer func() {
+		re.Stop()
+		wg.Wait()
+	}()
+
+	dir := t.TempDir()
+	legacyRuleFile := filepath.Join(dir, "legacy.yaml")
+	if err := os.WriteFile(legacyRuleFile, []byte(`groups:
+- name: test
+  rules:
+  - record: valid_legacy:metric
+    expr: vector(1)
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	utf8RuleFile := filepath.Join(dir, "utf8.yaml")
+	if err := os.WriteFile(utf8RuleFile, []byte(`groups:
+- name: test
+  rules:
+  - record: invalid.utf8.metric
+    expr: vector(1)
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := re.ApplyConfig(&promforkconfig.Config{
+		GlobalConfig: promforkconfig.DefaultGlobalConfig,
+		RuleFiles:    []string{legacyRuleFile},
+	}, opts); err != nil {
+		t.Fatalf("expected legacy rule file to succeed, got error: %v", err)
+	}
+
+	// Trigger manager recreation via updated evaluatorOpts as well.
+	updatedOpts := *opts
+	updatedOpts.ProjectID = "test-project"
+	if err := re.ApplyConfig(&promforkconfig.Config{
+		GlobalConfig: promforkconfig.DefaultGlobalConfig,
+		RuleFiles:    []string{utf8RuleFile},
+	}, &updatedOpts); err == nil {
+		t.Fatal("expected UTF-8 recording rule metric name to fail legacy validation, got nil")
+	}
 }
