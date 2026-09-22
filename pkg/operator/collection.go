@@ -349,7 +349,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	cfg := &promconfig.Config{
 		GlobalConfig: promconfig.GlobalConfig{
-			ExternalLabels:             labels.FromMap(spec.ExternalLabels),
+			ExternalLabels: labels.FromMap(spec.ExternalLabels),
+			// Ensure compatibility with 2.x Prometheus logic. See go/gmp:prom-3.13.
+			// TODO(bwplotka): Add OperatorConfig option for enabling/disabling UTF-8 support.
 			MetricNameValidationScheme: model.LegacyValidation,
 			MetricNameEscapingScheme:   model.EscapeUnderscores,
 		},

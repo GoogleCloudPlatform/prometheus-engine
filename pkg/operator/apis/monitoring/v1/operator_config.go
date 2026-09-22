@@ -85,10 +85,11 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 			JobName:                 "kubelet/metrics",
 			ServiceDiscoveryConfigs: discoveryCfgs,
 			ScrapeInterval:          interval,
-			ScrapeFallbackProtocol:  promconfig.PrometheusText0_0_4,
-			Scheme:                  "https",
-			MetricsPath:             "/metrics",
-			HTTPClientConfig:        clientCfg,
+			// Ensure compatibility with 2.x Prometheus logic. See go/gmp:prom-3.13.
+			ScrapeFallbackProtocol: promconfig.PrometheusText0_0_4,
+			Scheme:                 "https",
+			MetricsPath:            "/metrics",
+			HTTPClientConfig:       clientCfg,
 			RelabelConfigs: append(relabelCfgs, &relabel.Config{
 				Action:       relabel.Replace,
 				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
