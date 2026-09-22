@@ -183,7 +183,7 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 		},
 	}
 	if _, err := controllerutil.CreateOrUpdate(ctx, c, &operatorVPA, func() error {
-		collectorVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
+		operatorVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
 			TargetRef: &autoscaling.CrossVersionObjectReference{
 				APIVersion: "apps/v1",
 				Kind:       "Deployment",
@@ -218,7 +218,7 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 		},
 	}
 	if _, err := controllerutil.CreateOrUpdate(ctx, c, &ruleEvaluatorVPA, func() error {
-		collectorVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
+		ruleEvaluatorVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
 			TargetRef: &autoscaling.CrossVersionObjectReference{
 				APIVersion: "apps/v1",
 				Kind:       "Deployment",
