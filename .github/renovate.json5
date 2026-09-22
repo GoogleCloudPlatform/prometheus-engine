@@ -54,17 +54,14 @@
       "matchDepTypes": ["replace"],
       "enabled": false
     },
-    // Strict Prometheus ignore fallback (ensures vulnerability scanner also skips it)
+    // Strict Prometheus ignore fallback
     {
       "description": "Skip Prometheus as it is carefully pinned and managed via GMP fork",
       "matchPackageNames": [
         "github.com/prometheus/prometheus",
         "github.com/GoogleCloudPlatform/prometheus"
       ],
-      "enabled": false,
-      "vulnerabilityAlerts": {
-        "enabled": false
-      }
+      "enabled": false
     },
     // GitHub Actions workflow updates
     {
@@ -91,27 +88,17 @@
       ],
       "enabled": false
     },
-    // Tools Go modules
+    // Auxiliary Go modules (tools, examples, ops/gmpctl)
     {
-      "description": "Group tools dependencies",
+      "description": "Group auxiliary Go module dependencies (tools, examples, ops/gmpctl)",
       "matchManagers": ["gomod"],
-      "matchFileNames": ["tools/go.mod"],
-      "groupName": "tools",
-      "groupSlug": "tools"
-    },
-    // Examples Go modules
-    {
-      "description": "Group examples dependencies",
-      "matchFileNames": ["examples/**"],
-      "groupName": "examples",
-      "groupSlug": "examples"
-    },
-    // gmpctl Go modules
-    {
-      "description": "Group gmpctl operational tool dependencies",
-      "matchFileNames": ["ops/gmpctl/**"],
-      "groupName": "gmpctl",
-      "groupSlug": "gmpctl"
+      "matchFileNames": [
+        "tools/go.mod",
+        "examples/**",
+        "ops/gmpctl/**"
+      ],
+      "groupName": "auxiliary-modules",
+      "groupSlug": "auxiliary-modules"
     },
     // Root Go modules: k8s and general deps
     {
@@ -143,18 +130,38 @@
       "groupName": "security-fixes",
       "groupSlug": "security-fixes"
     },
-    // Release branches policy
+    // Release branches policy: only allow security updates for production code (root go.mod)
     {
-      "description": "Disable GitHub Actions updates on release branches",
+      "description": "Disable all updates (including security) for auxiliary Go modules on release branches",
       "matchBaseBranches": ["/^release\\/.*$/"],
-      "matchManagers": ["github-actions"],
+      "matchManagers": ["gomod"],
+      "matchFileNames": [
+        "tools/go.mod",
+        "examples/**",
+        "ops/gmpctl/**"
+      ],
       "enabled": false
     },
     {
-      "description": "Disable non-security updates on release branches (security/vulnerability updates remain enabled)",
+      "description": "Disable GitHub Actions and Dockerfile updates on release branches",
       "matchBaseBranches": ["/^release\\/.*$/"],
-      "matchManagers": ["gomod", "dockerfile"],
-      "matchPackageNames": ["*"],
+      "matchManagers": ["github-actions", "dockerfile"],
+      "enabled": false
+    },
+    {
+      "description": "Disable non-security updates on release branches for root go.mod (security updates remain enabled)",
+      "matchBaseBranches": ["/^release\\/.*$/"],
+      "matchFileNames": ["go.mod"],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest",
+        "lockFileMaintenance",
+        "rollback",
+        "bump"
+      ],
       "enabled": false
     }
   ]
