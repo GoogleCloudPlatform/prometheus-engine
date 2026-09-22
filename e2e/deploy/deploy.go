@@ -27,7 +27,6 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/manifests"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	appsv1 "k8s.io/api/apps/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -136,11 +135,11 @@ func createResources(ctx context.Context, kubeClient client.Client, normalizeFn 
 			continue
 		}
 
-		if err := kubeClient.Create(ctx, obj); err != nil && !apierrors.IsAlreadyExists(err) {
+		if err := kubeClient.Create(ctx, obj); err != nil {
 			return err
 		}
 	}
-	return nil
+	return err
 }
 
 func resources(scheme *runtime.Scheme) ([]client.Object, error) {
