@@ -90,6 +90,25 @@ func TestGenerateRules(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid record name",
+			apiRules: &Rules{
+				Spec: RulesSpec{
+					Groups: []RuleGroup{
+						{
+							Name: "test-group",
+							Rules: []Rule{
+								{
+									Record: "invalid-metric-name",
+									Expr:   "test_expr",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			name: "project label",
 			apiRules: &Rules{
 				Spec: RulesSpec{
