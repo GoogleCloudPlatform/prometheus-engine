@@ -21,25 +21,59 @@
   "semanticCommits": "enabled",
   "semanticCommitType": "chore",
   "semanticCommitScope": "deps",
-  // Exclude test data and third-party vendored assets
+  // Automatically rebase PRs when they become conflicted
+  "rebaseWhen": "conflicted",
+  // Exclude test data, vendored assets, and built UI artifacts
   "ignorePaths": [
     "**/node_modules/**",
     "**/bower_components/**",
     "**/vendor/**",
     "ops/gmpctl/data/**",
-    "third_party/**"
+    "third_party/**",
+    "pkg/ui/build/**"
+  ],
+  // Completely ignore Prometheus since it is managed via the GMP fork (including vulnerability alerts)
+  "ignoreDeps": [
+    "github.com/prometheus/prometheus",
+    "github.com/GoogleCloudPlatform/prometheus"
   ],
   // Run `go mod tidy` and update import paths after Go module upgrades
   "postUpdateOptions": [
     "gomodTidy",
     "gomodUpdateImportPaths"
   ],
-  // Surface OSV and GitHub vulnerability alerts across all branches
-  "osvVulnerabilityAlerts": true,
+  // Surface GitHub and OSV vulnerability alerts across all branches
   "vulnerabilityAlerts": {
     "enabled": true
   },
   "packageRules": [
+    // Do not update replace directives in Go modules
+    {
+      "description": "Do not update replace directives in go.mod",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["replace"],
+      "enabled": false
+    },
+    // Strict Prometheus ignore fallback (ensures vulnerability scanner also skips it)
+    {
+      "description": "Skip Prometheus as it is carefully pinned and managed via GMP fork",
+      "matchPackageNames": [
+        "github.com/prometheus/prometheus",
+        "github.com/GoogleCloudPlatform/prometheus"
+      ],
+      "enabled": false,
+      "vulnerabilityAlerts": {
+        "enabled": false
+      }
+    },
+    // GitHub Actions workflow updates
+    {
+      "description": "Group GitHub Actions workflow updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "groupSlug": "github-actions",
+      "semanticCommitType": "ci"
+    },
     // Docker updates
     {
       "description": "Group Docker image updates",
@@ -65,13 +99,21 @@
       "groupName": "tools",
       "groupSlug": "tools"
     },
-    // Root Go modules
+    // Examples Go modules
     {
-      "description": "Skip Prometheus as we need to have it pinned carefully",
-      "matchManagers": ["gomod"],
-      "matchPackageNames": ["github.com/prometheus/prometheus"],
-      "enabled": false
+      "description": "Group examples dependencies",
+      "matchFileNames": ["examples/**"],
+      "groupName": "examples",
+      "groupSlug": "examples"
     },
+    // gmpctl Go modules
+    {
+      "description": "Group gmpctl operational tool dependencies",
+      "matchFileNames": ["ops/gmpctl/**"],
+      "groupName": "gmpctl",
+      "groupSlug": "gmpctl"
+    },
+    // Root Go modules: k8s and general deps
     {
       "description": "Group dep updates for k8s as they typically break by assuming all k8s modules are upgraded at the same time",
       "matchManagers": ["gomod"],
@@ -87,18 +129,31 @@
       "description": "Group root Go module dependencies into one PR as single update already updates co-located deps",
       "matchManagers": ["gomod"],
       "matchFileNames": ["go.mod"],
-      "excludePackageNames": [
-        "k8s.io/**",
-        "sigs.k8s.io/**"
+      "matchPackageNames": [
+        "!k8s.io/**",
+        "!sigs.k8s.io/**"
       ],
       "groupName": "deps",
       "groupSlug": "deps"
     },
-    // Release branches: only allow security/vulnerability updates for Go modules
+    // Vulnerability / security updates grouping
     {
-      "description": "Disable non-security Go module updates on release branches (security/vulnerability updates remain enabled)",
-      "matchManagers": ["gomod"],
+      "description": "Consolidate vulnerability/security updates into a single PR per branch",
+      "matchUpdateTypes": ["vulnerability"],
+      "groupName": "security-fixes",
+      "groupSlug": "security-fixes"
+    },
+    // Release branches policy
+    {
+      "description": "Disable GitHub Actions updates on release branches",
       "matchBaseBranches": ["/^release\\/.*$/"],
+      "matchManagers": ["github-actions"],
+      "enabled": false
+    },
+    {
+      "description": "Disable non-security updates on release branches (security/vulnerability updates remain enabled)",
+      "matchBaseBranches": ["/^release\\/.*$/"],
+      "matchManagers": ["gomod", "dockerfile"],
       "matchPackageNames": ["*"],
       "enabled": false
     }
