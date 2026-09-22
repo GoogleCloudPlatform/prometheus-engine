@@ -53,7 +53,8 @@ google_cloud:
 	}
 
 	expected := promforkconfig.DefaultConfig
-	expected.StorageConfig = out.StorageConfig
+	// Match defaults that are added on unmarshal.
+	expected.StorageConfig.TSDBConfig = &promforkconfig.TSDBConfig{Retention: &promforkconfig.DefaultTSDBRetentionConfig}
 	expected.RuleFiles = []string{"/etc/rules/*.yaml"}
 	expected.GoogleCloud = gcmconfig.GoogleCloudConfig{
 		Export: gcmconfig.GoogleCloudExportConfig{
@@ -77,6 +78,7 @@ google_cloud:
 	}
 
 	// Prometheus adds some global marshaling, expect those.
+	// NOTE: Ruler only uses rules_files and google_cloud.
 	expectedYAML := `global:
     scrape_interval: 1m
     scrape_timeout: 10s

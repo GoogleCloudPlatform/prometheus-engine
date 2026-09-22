@@ -163,10 +163,11 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 		HTTPClientConfig:        httpCfg,
 		ScrapeInterval:          interval,
 		ScrapeTimeout:           timeout,
-		ScrapeFallbackProtocol:  promconfig.PrometheusText0_0_4,
-		RelabelConfigs:          relabelCfgs,
-		MetricRelabelConfigs:    metricRelabelCfgs,
-		EnableCompression:       true,
+		// Ensure compatibility with 2.x Prometheus logic. See go/gmp:prom-3.13.
+		ScrapeFallbackProtocol: promconfig.PrometheusText0_0_4,
+		RelabelConfigs:         relabelCfgs,
+		MetricRelabelConfigs:   metricRelabelCfgs,
+		EnableCompression:      true,
 	}
 	if limits != nil {
 		scrapeCfg.SampleLimit = uint(limits.Samples)

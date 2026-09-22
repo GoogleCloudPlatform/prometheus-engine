@@ -111,7 +111,7 @@ func TestCollectionReconcile(t *testing.T) {
 			Interval: "10s",
 		},
 	}
-	exampleCollectorConfigMapWithoutScrapeConfig := "global:\n    metric_name_validation_scheme: legacy\n    metric_name_escaping_scheme: underscores\n"
+	expectedCollectorConfigMapWithoutScrapeConfig := "global:\n    metric_name_validation_scheme: legacy\n    metric_name_escaping_scheme: underscores\n"
 	testCases := []struct {
 		desc                       string
 		input                      monitoringv1.MonitoringCRD
@@ -415,7 +415,7 @@ func TestCollectionReconcile(t *testing.T) {
 					},
 				},
 			},
-			expectedCollectorConfigMap: &exampleCollectorConfigMapWithoutScrapeConfig,
+			expectedCollectorConfigMap: &expectedCollectorConfigMapWithoutScrapeConfig,
 		},
 	}
 
