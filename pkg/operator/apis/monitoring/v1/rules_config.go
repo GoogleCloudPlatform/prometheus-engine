@@ -15,9 +15,11 @@
 package v1
 
 import (
+	"errors"
 	"fmt"
 
 	model "github.com/prometheus/common/model"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/prometheus/google/export"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/rulefmt"
@@ -96,14 +98,14 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 		}
 		result.Groups = append(result.Groups, group)
 	}
-	// Do a marshal/unmarshal cycle to run the upstream validation.
+	// Marshal and re-parse the rules to run the upstream Prometheus validation,
+	// which is only exposed via rulefmt.Parse.
 	b, err := yaml.Marshal(result)
 	if err != nil {
 		return result, err
 	}
-	var validate rulefmt.RuleGroups
-	if err := yaml.Unmarshal(b, &validate); err != nil {
-		return result, fmt.Errorf("loading rules failed: %w", err)
+	if _, errs := rulefmt.Parse(b, false, model.LegacyValidation, parser.NewParser(parser.Options{}), promslog.NewNopLogger()); len(errs) > 0 {
+		return result, fmt.Errorf("loading rules failed: %w", errors.Join(errs...))
 	}
 	return result, nil
 }
