@@ -35,7 +35,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/model"
 )
 
 var (
@@ -268,10 +267,6 @@ func main() {
 	if err := httpClientConfig.validate(); err != nil {
 		log.Println("Invalid HTTP client config flags:", err)
 		os.Exit(1)
-	}
-	if *metricNamingMode != PrometheusStyle || *statusLabelNamingMode != PrometheusStyle {
-		// Extend charset.
-		model.NameValidationScheme = model.UTF8Validation //nolint:staticcheck // Explicitly set UTF-8 validation scheme.
 	}
 
 	reg := prometheus.NewRegistry()
