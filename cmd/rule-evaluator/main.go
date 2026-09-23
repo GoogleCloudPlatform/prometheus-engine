@@ -196,7 +196,7 @@ func main() {
 		Registerer:    reg,
 		QueueCapacity: defaultEvaluatorOpts.QueueCapacity,
 	}
-	notificationManager := notifier.NewManager(&notifierOptions, model.LegacyValidation, logger.With("component", "notifier"))
+	notificationManager := notifier.NewManager(&notifierOptions, model.UTF8Validation, logger.With("component", "notifier"))
 	rulesMetrics := rules.NewGroupMetrics(reg)
 	ruleEvaluator, err := newRuleEvaluator(ctx, logger, &defaultEvaluatorOpts, version.Version, destination, notificationManager, rulesMetrics)
 	if err != nil {
@@ -936,8 +936,12 @@ func newRuleEvaluator(
 	queryFunc := newQueryFunc(logger, v1api)
 
 	rulesManager := rules.NewManager(&rules.ManagerOptions{
-		// Ensure compatibility with 2.x Prometheus logic. See go/gmp:prom-3.13.
-		NameValidationScheme: model.LegacyValidation,
+		// It is safe to relax NameValidationScheme to UTF8Validation by default because every
+		// valid legacy name is valid in UTF-8 and, unlike scraping, rule evaluation has no
+		// escaping logic that rewrites UTF-8 metric/label names to underscores (see
+		// https://github.com/prometheus/client_golang/blob/v1.23.2/prometheus/promhttp/http.go#L193-L202
+		// and https://github.com/prometheus/common/blob/v0.69.0/model/metric.go#L405-L424).
+		NameValidationScheme: model.UTF8Validation,
 		ExternalURL:          getExternalURL(evaluatorOpts.GeneratorURL, evaluatorOpts.ProjectID),
 		QueryFunc:            queryFunc,
 		Context:              ctx,
@@ -977,8 +981,7 @@ func (e *ruleEvaluator) ApplyConfig(cfg *promforkconfig.Config, evaluatorOpts *e
 		queryFunc := newQueryFunc(e.logger, v1api)
 
 		rulesManager := rules.NewManager(&rules.ManagerOptions{
-			// Ensure compatibility with 2.x Prometheus logic. See go/gmp:prom-3.13.
-			NameValidationScheme: model.LegacyValidation,
+			NameValidationScheme: model.UTF8Validation,
 			ExternalURL:          getExternalURL(evaluatorOpts.GeneratorURL, evaluatorOpts.ProjectID),
 			QueryFunc:            queryFunc,
 			Context:              e.ctx,

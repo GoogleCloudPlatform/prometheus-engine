@@ -104,7 +104,7 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 	if err != nil {
 		return result, err
 	}
-	if _, errs := rulefmt.Parse(b, false, model.LegacyValidation, parser.NewParser(parser.Options{}), promslog.NewNopLogger()); len(errs) > 0 {
+	if _, errs := rulefmt.Parse(b, false, model.UTF8Validation, parser.NewParser(parser.Options{}), promslog.NewNopLogger()); len(errs) > 0 {
 		return result, fmt.Errorf("loading rules failed: %w", errors.Join(errs...))
 	}
 	return result, nil

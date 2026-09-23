@@ -929,6 +929,27 @@ CompressionType
 <p>Compression enables compression of metrics collection data.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>enableUTF8</code><br/>
+<em>
+bool
+</em>
+</td>
+<td>
+<p>EnableUTF8 enables UTF-8 metric and label names in collector scraping
+(rule evaluation in rule-evaluator already allows UTF-8 names by default).
+When true, it configures Prometheus collector with <code>global.metric_name_validation_scheme: utf8</code>
+and <code>global.metric_name_escaping_scheme: allow-utf-8</code>.
+If unset or false, it defaults to <code>global.metric_name_validation_scheme: legacy</code>
+and <code>global.metric_name_escaping_scheme: underscores</code>.
+Note: Enabling this can be a breaking change for targets that already instrument
+metric or label names with non-legacy UTF-8 characters (e.g., dots or hyphens),
+because <code>underscores</code> escaping (<code>Accept: ...; escaping=underscores</code>) rewrites those
+characters to <code>_</code> during scrape content negotiation, whereas <code>allow-utf-8</code> preserves
+the raw UTF-8 names.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="monitoring.googleapis.com/v1.CompressionType">

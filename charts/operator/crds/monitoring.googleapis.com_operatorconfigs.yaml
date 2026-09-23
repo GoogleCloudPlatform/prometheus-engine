@@ -81,6 +81,20 @@ spec:
                 x-kubernetes-validations:
                 - message: missing secret key selector name
                   rule: has(self.name) && self.name != ''
+              enableUTF8:
+                description: |-
+                  EnableUTF8 enables UTF-8 metric and label names in collector scraping
+                  (rule evaluation in rule-evaluator already allows UTF-8 names by default).
+                  When true, it configures Prometheus collector with `global.metric_name_validation_scheme: utf8`
+                  and `global.metric_name_escaping_scheme: allow-utf-8`.
+                  If unset or false, it defaults to `global.metric_name_validation_scheme: legacy`
+                  and `global.metric_name_escaping_scheme: underscores`.
+                  Note: Enabling this can be a breaking change for targets that already instrument
+                  metric or label names with non-legacy UTF-8 characters (e.g., dots or hyphens),
+                  because `underscores` escaping (`Accept: ...; escaping=underscores`) rewrites those
+                  characters to `_` during scrape content negotiation, whereas `allow-utf-8` preserves
+                  the raw UTF-8 names.
+                type: boolean
               externalLabels:
                 additionalProperties:
                   type: string
