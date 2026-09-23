@@ -25,6 +25,7 @@ COPY tools tools
 # cause 'go build' to use -mod=vendor flag (otherwise -mod=mod is used).
 COPY vendor* vendor
 COPY cmd/config-reloader cmd/config-reloader
+COPY internal internal
 
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1
