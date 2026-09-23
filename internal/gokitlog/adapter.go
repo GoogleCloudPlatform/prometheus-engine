@@ -19,7 +19,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 )
@@ -67,6 +69,31 @@ func (a slogAdapter) Log(keyvals ...any) error {
 			args = append(args, key, val)
 		}
 	}
-	a.logger.Log(context.Background(), lvl, msg, args...)
+
+	if !a.logger.Enabled(context.Background(), lvl) {
+		return nil
+	}
+
+	var pcs [16]uintptr
+	n := runtime.Callers(2, pcs[:])
+	var pc uintptr
+	if n > 0 {
+		pc = pcs[0]
+		frames := runtime.CallersFrames(pcs[:n])
+		for {
+			frame, more := frames.Next()
+			if !strings.Contains(frame.Function, "github.com/go-kit/log") && !strings.HasSuffix(frame.Function, "slogAdapter.Log") {
+				pc = frame.PC
+				break
+			}
+			if !more {
+				break
+			}
+		}
+	}
+
+	r := slog.NewRecord(time.Now(), lvl, msg, pc)
+	r.Add(args...)
+	_ = a.logger.Handler().Handle(context.Background(), r)
 	return nil
 }
