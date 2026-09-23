@@ -29,14 +29,17 @@ func TestNewAdapter(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	slogger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slogger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
+		Level:     slog.LevelInfo,
+		AddSource: true,
+	}))
 	adapter := log.With(NewAdapter(slogger), "component", "test")
 
 	// Debug should be filtered out by the slog handler configured at Info level.
 	require.NoError(t, level.Debug(adapter).Log("msg", "debug message", "k", "v"))
 	require.Empty(t, buf.String())
 
-	// Info should be logged with component and key-values.
+	// Info should be logged with component, key-values, and caller source pointing to this test file.
 	require.NoError(t, level.Info(adapter).Log("msg", "info message", "k", "v"))
 
 	var entry map[string]any
@@ -45,4 +48,8 @@ func TestNewAdapter(t *testing.T) {
 	require.Equal(t, "info message", entry["msg"])
 	require.Equal(t, "test", entry["component"])
 	require.Equal(t, "v", entry["k"])
+
+	source, ok := entry["source"].(map[string]any)
+	require.True(t, ok)
+	require.Contains(t, source["file"], "adapter_test.go")
 }
