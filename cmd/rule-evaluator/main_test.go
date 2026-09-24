@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -204,13 +203,7 @@ func TestGracefulShutdown(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var wg sync.WaitGroup
-	wg.Go(func() {
-		re.Run()
-	})
-
 	re.Stop()
-	wg.Wait()
 }
 
 func TestApplyConfigLegacyValidation(t *testing.T) {
@@ -227,14 +220,7 @@ func TestApplyConfigLegacyValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var wg sync.WaitGroup
-	wg.Go(func() {
-		re.Run()
-	})
-	defer func() {
-		re.Stop()
-		wg.Wait()
-	}()
+	defer re.Stop()
 
 	dir := t.TempDir()
 	legacyRuleFile := filepath.Join(dir, "legacy.yaml")

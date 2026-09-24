@@ -283,17 +283,10 @@ func main() {
 			},
 			func(error) {
 				close(cancel)
+				// Also clean ruleEvaluator resources here.
+				ruleEvaluator.Stop()
 			},
 		)
-	}
-	{
-		// Rule manager.
-		g.Add(func() error {
-			ruleEvaluator.Run()
-			return nil
-		}, func(error) {
-			ruleEvaluator.Stop()
-		})
 	}
 	{
 		// Notifier.
@@ -964,6 +957,7 @@ func newRuleEvaluator(
 		NotifyFunc: sendAlerts(notifierManager, evaluatorOpts.ProjectID, evaluatorOpts.GeneratorURL),
 		Metrics:    rulesMetrics,
 	})
+	go rulesManager.Run()
 
 	evaluator := ruleEvaluator{
 		ctx:             ctx,
@@ -973,8 +967,8 @@ func newRuleEvaluator(
 		notifierManager: notifierManager,
 		rulesMetrics:    rulesMetrics,
 
-		rulesManager:      rulesManager,
 		queryFunc:         queryFunc,
+		rulesManager:      rulesManager,
 		lastEvaluatorOpts: evaluatorOpts,
 	}
 
@@ -1006,11 +1000,13 @@ func (e *ruleEvaluator) ApplyConfig(cfg *promforkconfig.Config, evaluatorOpts *e
 			Metrics:    e.rulesMetrics,
 		})
 
-		// Set new rule-manager and flag before stopping, so we can rerun with the new one.
 		e.mtx.Lock()
-		oldRuleManager := e.rulesManager
+		// Stop old ruler, then immediately start another one.
+		oldRulesManager := e.rulesManager
+		oldRulesManager.Stop()
 		e.rulesManager = rulesManager
-		oldRuleManager.Stop()
+		// Start the new one. It's ok if potential Stop happens before Run.
+		go rulesManager.Run()
 		e.queryFunc = queryFunc
 		e.mtx.Unlock()
 
@@ -1046,26 +1042,10 @@ func (e *ruleEvaluator) Query(ctx context.Context, q string, t time.Time) (promq
 	return queryFunc(ctx, q, t)
 }
 
-func (e *ruleEvaluator) Run() {
-	for {
-		// Copy the rule-manager before running, so we don't hold the lock.
-		e.mtx.Lock()
-		curr := e.rulesManager
-		e.mtx.Unlock()
-
-		// A nil indicates shutdown, otherwise it's a config update requiring restart.
-		if curr == nil {
-			break
-		}
-		curr.Run()
-	}
-}
-
 func (e *ruleEvaluator) Stop() {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	e.rulesManager.Stop()
-	e.rulesManager = nil
 }
 
 func newQueryFunc(logger *slog.Logger, v1api v1.API) rules.QueryFunc {
