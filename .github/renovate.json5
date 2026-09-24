@@ -21,6 +21,7 @@
   "semanticCommits": "enabled",
   "semanticCommitType": "chore",
   "semanticCommitScope": "deps",
+  "commitMessageTopic": "{{depNameShort}}",
   // Automatically rebase PRs when they become conflicted
   "rebaseWhen": "conflicted",
   // Exclude test data, vendored assets, and built UI artifacts
@@ -44,8 +45,11 @@
   ],
   // Surface GitHub and OSV vulnerability alerts across all branches
   "vulnerabilityAlerts": {
-    "enabled": true
+    "enabled": true,
+    "semanticCommitType": "chore"
   },
+  // Enable GitHub platform automerge (uses gh pr merge --auto)
+  "platformAutomerge": true,
   "packageRules": [
     // Do not update replace directives in Go modules
     {
@@ -54,29 +58,39 @@
       "matchDepTypes": ["replace"],
       "enabled": false
     },
-    // Strict Prometheus ignore fallback
+    // Exclude code generators from tools/go.mod routine updates to avoid presubmit drift
     {
-      "description": "Skip Prometheus as it is carefully pinned and managed via GMP fork",
+      "description": "Disable automated updates for tools that generate code/docs to prevent presubmit drift",
+      "matchManagers": ["gomod"],
+      "matchFileNames": ["tools/go.mod"],
       "matchPackageNames": [
-        "github.com/prometheus/prometheus",
-        "github.com/GoogleCloudPlatform/prometheus"
+        "sigs.k8s.io/controller-tools",
+        "helm.sh/helm/v3",
+        "github.com/efficientgo/tools",
+        "github.com/efficientgo/tools/**",
+        "github.com/ahmetb/gen-crd-api-reference-docs",
+        "github.com/bwplotka/mdox"
       ],
       "enabled": false
     },
     // GitHub Actions workflow updates
     {
-      "description": "Group GitHub Actions workflow updates",
+      "description": "Group and automerge GitHub Actions workflow updates",
       "matchManagers": ["github-actions"],
       "groupName": "github-actions",
       "groupSlug": "github-actions",
-      "semanticCommitType": "ci"
+      "semanticCommitType": "ci",
+      "automerge": true,
+      "automergeType": "pr"
     },
     // Docker updates
     {
-      "description": "Group Docker image updates",
+      "description": "Group and automerge Docker image updates",
       "matchManagers": ["dockerfile"],
       "groupName": "docker",
-      "groupSlug": "docker"
+      "groupSlug": "docker",
+      "automerge": true,
+      "automergeType": "pr"
     },
     {
       "description": "Stop upgrading prometheus-engine images as those are handled by manifest command (e.g. make regen)",
@@ -100,7 +114,7 @@
       "groupName": "auxiliary-modules",
       "groupSlug": "auxiliary-modules"
     },
-    // Root Go modules: k8s and general deps
+    // Root Go modules: k8s, OpenTelemetry, and general deps
     {
       "description": "Group dep updates for k8s as they typically break by assuming all k8s modules are upgraded at the same time",
       "matchManagers": ["gomod"],
@@ -110,18 +124,47 @@
         "sigs.k8s.io/**"
       ],
       "groupName": "k8s-deps",
-      "groupSlug": "k8s-deps"
+      "groupSlug": "k8s-deps",
+      "reviewers": ["GoogleCloudPlatform/prometheus-engine-maintainers"]
+    },
+    {
+      "description": "Group OpenTelemetry Go modules to prevent version skew",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": [
+        "go.opentelemetry.io/otel",
+        "go.opentelemetry.io/otel/**"
+      ],
+      "groupName": "opentelemetry",
+      "groupSlug": "opentelemetry"
     },
     {
       "description": "Group root Go module dependencies into one PR as single update already updates co-located deps",
       "matchManagers": ["gomod"],
       "matchFileNames": ["go.mod"],
-      "matchPackageNames": [
-        "!k8s.io/**",
-        "!sigs.k8s.io/**"
+      "excludePackageNames": [
+        "k8s.io/**",
+        "sigs.k8s.io/**",
+        "go.opentelemetry.io/otel",
+        "go.opentelemetry.io/otel/**"
       ],
       "groupName": "deps",
       "groupSlug": "deps"
+    },
+    // Automerge SemVer patch updates for root Go modules (excluding k8s and Prometheus)
+    {
+      "description": "Automerge patch-level Go module updates on main after CI passes",
+      "matchManagers": ["gomod"],
+      "matchFileNames": ["go.mod"],
+      "matchUpdateTypes": ["patch", "digest"],
+      "matchBaseBranches": ["main"],
+      "excludePackageNames": [
+        "k8s.io/**",
+        "sigs.k8s.io/**",
+        "github.com/prometheus/prometheus",
+        "github.com/GoogleCloudPlatform/prometheus"
+      ],
+      "automerge": true,
+      "automergeType": "pr"
     },
     // Vulnerability / security updates grouping
     {

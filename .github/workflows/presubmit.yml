@@ -127,6 +127,7 @@ jobs:
       contents: read
     needs: [e2e-testruns]
     strategy:
+      fail-fast: false
       matrix:
         testrun: ${{fromJson(needs.e2e-testruns.outputs.testrun)}}
     steps:
