@@ -168,9 +168,7 @@ type filterCase struct {
 // Regression tests against go/gmp:matchstuck.
 // NOTE: TestCollectorMatch_NoFiltering takes ~1m per case, add sequential cases carefully.
 func TestCollectorMatch_NoFiltering(t *testing.T) {
-	if skipGCM {
-		t.Skip("this test requires GCM integration")
-	}
+	skipIfNoGCM(t)
 	testCollectorMatch(t, stateEmpty, []filterCase{
 		{
 			name:   "no filtering",
@@ -198,9 +196,7 @@ func TestCollectorMatch_NoFiltering(t *testing.T) {
 // Regression tests against go/gmp:matchstuck.
 // NOTE: TestCollectorMatch_NewFilter takes ~1m per case, add sequential cases carefully.
 func TestCollectorMatch_NewFilter(t *testing.T) {
-	if skipGCM {
-		t.Skip("this test requires GCM integration")
-	}
+	skipIfNoGCM(t)
 	testCollectorMatch(t, stateEmpty, []filterCase{
 		{
 			name:   "filtering stuck",
@@ -229,9 +225,7 @@ func TestCollectorMatch_NewFilter(t *testing.T) {
 // Regression tests against go/gmp:matchstuck.
 // NOTE: TestCollectorMatch_NewFilter_ThenRemoved takes ~1m per case, add sequential cases carefully.
 func TestCollectorMatch_NewFilter_ThenRemoved(t *testing.T) {
-	if skipGCM {
-		t.Skip("this test requires GCM integration")
-	}
+	skipIfNoGCM(t)
 	testCollectorMatch(t, stateEmpty, []filterCase{
 		{
 			name:             "filtering/enable=true",
@@ -258,9 +252,7 @@ func TestCollectorMatch_NewFilter_ThenRemoved(t *testing.T) {
 // Regression tests against go/gmp:matchstuck.
 // NOTE: TestCollectorMatch_StuckFilter takes some time per case, add cases carefully.
 func TestCollectorMatch_StuckFilter(t *testing.T) {
-	if skipGCM {
-		t.Skip("this test requires GCM integration")
-	}
+	skipIfNoGCM(t)
 
 	// --export.match=stateB.
 	testCollectorMatch(t, stateB, []filterCase{

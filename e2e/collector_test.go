@@ -58,9 +58,7 @@ func TestCollectorPodMonitoring(t *testing.T) {
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 	// Self-scrape podmonitoring.
 	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, collectorPodMonitoring))
-	if !skipGCM {
-		t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-podmon"))
-	}
+	t.Run("self-podmonitoring-gcm", withGCM(testValidateCollectorUpMetrics(ctx, kubeClient, "collector-podmon")))
 }
 
 func TestCollectorClusterPodMonitoring(t *testing.T) {
@@ -99,9 +97,7 @@ func TestCollectorClusterPodMonitoring(t *testing.T) {
 		},
 	}
 	t.Run("self-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, kubeClient, cpm))
-	if !skipGCM {
-		t.Run("self-clusterpodmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-cmon"))
-	}
+	t.Run("self-clusterpodmonitoring-gcm", withGCM(testValidateCollectorUpMetrics(ctx, kubeClient, "collector-cmon")))
 }
 
 func TestCollectorKubeletScraping(t *testing.T) {
@@ -117,9 +113,7 @@ func TestCollectorKubeletScraping(t *testing.T) {
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 
 	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, kubeClient))
-	if !skipGCM {
-		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, kubeClient))
-	}
+	t.Run("scrape-kubelet", withGCM(testCollectorScrapeKubelet(ctx, kubeClient)))
 }
 
 // testCollectorDeployed does a high-level verification on whether the

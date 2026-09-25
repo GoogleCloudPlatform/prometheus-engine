@@ -70,7 +70,8 @@ func newFrontendContainer(e e2e.Environment, name string, gcmSA []byte) *e2emon.
 // It requires GCM_SECRET envvar.
 func TestFrontend_Image_UIServed(t *testing.T) {
 	if os.Getenv("GCM_SECRET") == "" {
-		t.Skip("This test requires GCM_SECRET; on CI only maintainers' PRs have it enabled")
+		// The gcm-skip-check CI job looks for this prefix, see GCM_SKIP_MARKER in .github/workflows/presubmit.yml.
+		t.Skipf("GCM integration test skipped: %s (GCM_SECRET is not set)", t.Name())
 	}
 
 	e, err := e2e.New()

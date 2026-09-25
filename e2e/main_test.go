@@ -84,6 +84,27 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
+// gcmSkipMarker prefixes skip messages of GCM integration tests. The gcm-skip-check
+// CI job looks for it, keep it in sync with GCM_SKIP_MARKER in .github/workflows/presubmit.yml.
+const gcmSkipMarker = "GCM integration test skipped"
+
+// skipIfNoGCM skips t if GCM validation is disabled with -skip-gcm.
+func skipIfNoGCM(t *testing.T) {
+	t.Helper()
+	if skipGCM {
+		t.Skipf("%s: %s (-skip-gcm is set)", gcmSkipMarker, t.Name())
+	}
+}
+
+// withGCM wraps a subtest that validates data in GCM, so it's reported as skipped
+// with -skip-gcm instead of silently not running.
+func withGCM(f func(*testing.T)) func(*testing.T) {
+	return func(t *testing.T) {
+		skipIfNoGCM(t)
+		f(t)
+	}
+}
+
 func setupCluster(ctx context.Context, t testing.TB, dOpts ...deploy.DeployOption) (client.Client, *rest.Config, error) {
 	t.Log(">>> deploying static resources")
 	restConfig, err := newRestConfig()

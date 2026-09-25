@@ -18,6 +18,10 @@ on:
       - main
       - release-.*
   pull_request:
+env:
+  # GCM integration tests print this when skipped. Keep it in sync with e2e/main_test.go,
+  # cmd/frontend/frontend_image_test.go and the test-script-gcm Makefile target.
+  GCM_SKIP_MARKER: GCM integration test skipped
 jobs:
   bin:
     runs-on: ubuntu-latest
@@ -94,9 +98,20 @@ jobs:
         with:
           persist-credentials: false
       - name: Run example/script GCM tests
+        shell: bash
         env:
           GCM_SECRET: ${{ secrets.GCM_SECRET }}
-        run: make test-script-gcm
+        run: make test-script-gcm 2>&1 | tee "${RUNNER_TEMP}/test.log"
+      - name: Collect skipped GCM tests
+        if: ${{ !cancelled() }}
+        run: grep -F "${GCM_SKIP_MARKER}" "${RUNNER_TEMP}/test.log" > "${RUNNER_TEMP}/gcm-skips.txt" || rm -f "${RUNNER_TEMP}/gcm-skips.txt"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: gcm-skips-test-script-gcm
+          path: ${{ runner.temp }}/gcm-skips.txt
+          if-no-files-found: ignore
+          retention-days: 1
   image-test:
     runs-on: ubuntu-latest
     permissions:
@@ -106,9 +121,20 @@ jobs:
       with:
         persist-credentials: false
     - name: Run container image tests
+      shell: bash
       env:
         GCM_SECRET: ${{ secrets.GCM_SECRET }}
-      run: make image-test
+      run: make image-test 2>&1 | tee "${RUNNER_TEMP}/test.log"
+    - name: Collect skipped GCM tests
+      if: ${{ !cancelled() }}
+      run: grep -F "${GCM_SKIP_MARKER}" "${RUNNER_TEMP}/test.log" > "${RUNNER_TEMP}/gcm-skips.txt" || rm -f "${RUNNER_TEMP}/gcm-skips.txt"
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      if: ${{ !cancelled() }}
+      with:
+        name: gcm-skips-image-test
+        path: ${{ runner.temp }}/gcm-skips.txt
+        if-no-files-found: ignore
+        retention-days: 1
   e2e-testruns:
     runs-on: ubuntu-latest
     permissions:
@@ -135,7 +161,45 @@ jobs:
         with:
           persist-credentials: false
       - name: Run e2e (with GCM)
+        shell: bash
         env:
           GCM_SECRET: ${{ secrets.GCM_SECRET }}
           MATRIX_TESTRUN: ${{matrix.testrun}}
-        run: TEST_RUN=${MATRIX_TESTRUN} make e2e
+        run: TEST_RUN=${MATRIX_TESTRUN} make e2e 2>&1 | tee "${RUNNER_TEMP}/test.log"
+      - name: Collect skipped GCM tests
+        if: ${{ !cancelled() }}
+        run: grep -F "${GCM_SKIP_MARKER}" "${RUNNER_TEMP}/test.log" > "${RUNNER_TEMP}/gcm-skips.txt" || rm -f "${RUNNER_TEMP}/gcm-skips.txt"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: gcm-skips-e2e-test-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/gcm-skips.txt
+          if-no-files-found: ignore
+          retention-days: 1
+  # GCM_SECRET is not populated for external contributors or fork based PRs. This means
+  # that certain integration tests against production GCM will be skipped. This check
+  # will fail to indicate that GCM integration tests are skipped (the jobs above upload
+  # lines with GCM_SKIP_MARKER as gcm-skips-* artifacts). Maintainers can then decide
+  # if an external change is worth redoing with extra tests or if it's fine to skip.
+  # It's intentionally not a required check.
+  gcm-skip-check:
+    needs: [test-script-gcm, image-test, e2e-test]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: gcm-skips-*
+          path: ${{ runner.temp }}/gcm-skips
+      - name: Fail if any GCM integration test was skipped
+        run: |
+          skips=$(find "${RUNNER_TEMP}/gcm-skips" -type f -exec cat {} + 2>/dev/null | sort || true)
+          if [[ -z "${skips}" ]]; then
+            echo "No GCM integration tests were skipped."
+            exit 0
+          fi
+          echo "${skips}"
+          echo "::error title=GCM integration tests skipped::$(wc -l <<< "${skips}") GCM integration test(s) were skipped, e.g. because GCM_SECRET is not available to PRs from forks. See the job summary."
+          { echo "Skipped GCM integration tests:"; echo '```'; echo "${skips}"; echo '```'; } >> "${GITHUB_STEP_SUMMARY}"
+          exit 1
