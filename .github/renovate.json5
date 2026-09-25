@@ -160,8 +160,9 @@
       "excludePackageNames": [
         "k8s.io/**",
         "sigs.k8s.io/**",
-        "github.com/prometheus/prometheus",
-        "github.com/GoogleCloudPlatform/prometheus"
+        "github.com/prometheus/**",
+        "github.com/GoogleCloudPlatform/prometheus",
+        "github.com/GoogleCloudPlatform/prometheus/**"
       ],
       "automerge": true,
       "automergeType": "pr"
