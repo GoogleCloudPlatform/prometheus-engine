@@ -213,7 +213,7 @@ func TestGracefulShutdown(t *testing.T) {
 	wg.Wait()
 }
 
-func TestApplyConfigLegacyValidation(t *testing.T) {
+func TestApplyConfigValidation(t *testing.T) {
 	t.Skip("TODO: Flaky test -- deadlock if re.Run is started after ApplyConfig, fix in separate PR")
 	opts := &evaluatorOptions{
 		DisableAuth: true,
@@ -253,7 +253,7 @@ func TestApplyConfigLegacyValidation(t *testing.T) {
 	if err := os.WriteFile(utf8RuleFile, []byte(`groups:
 - name: test
   rules:
-  - record: invalid.utf8.metric
+  - record: valid.utf8.metric
     expr: vector(1)
 `), 0o600); err != nil {
 		t.Fatal(err)
@@ -272,7 +272,7 @@ func TestApplyConfigLegacyValidation(t *testing.T) {
 	if err := re.ApplyConfig(&promforkconfig.Config{
 		GlobalConfig: promforkconfig.DefaultGlobalConfig,
 		RuleFiles:    []string{utf8RuleFile},
-	}, &updatedOpts); err == nil {
-		t.Fatal("expected UTF-8 recording rule metric name to fail legacy validation, got nil")
+	}, &updatedOpts); err != nil {
+		t.Fatalf("expected UTF-8 recording rule metric name to succeed, got error: %v", err)
 	}
 }

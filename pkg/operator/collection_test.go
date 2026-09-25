@@ -725,3 +725,56 @@ func TestMakeCollectorConfig_MigrationRiskDefaults(t *testing.T) {
 		}
 	}
 }
+
+func TestMakeCollectorConfig_EnableUTF8(t *testing.T) {
+	ctx := t.Context()
+	kubeClient := newFakeClientBuilder().Build()
+	reconciler := newCollectionReconciler(kubeClient, Options{
+		ProjectID:         "test-proj",
+		Location:          "test-loc",
+		Cluster:           "test-cluster",
+		OperatorNamespace: "gmp-system",
+		PublicNamespace:   "gmp-public",
+	})
+
+	for _, tc := range []struct {
+		name           string
+		enableUTF8     *bool
+		wantValidation model.ValidationScheme
+		wantEscaping   string
+	}{
+		{
+			name:           "default (nil) uses legacy validation and underscore escaping",
+			enableUTF8:     nil,
+			wantValidation: model.LegacyValidation,
+			wantEscaping:   model.EscapeUnderscores,
+		},
+		{
+			name:           "explicit false uses legacy validation and underscore escaping",
+			enableUTF8:     ptr.To(false),
+			wantValidation: model.LegacyValidation,
+			wantEscaping:   model.EscapeUnderscores,
+		},
+		{
+			name:           "explicit true uses utf8 validation and allow-utf-8 escaping",
+			enableUTF8:     ptr.To(true),
+			wantValidation: model.UTF8Validation,
+			wantEscaping:   model.AllowUTF8,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, _, err := reconciler.makeCollectorConfig(ctx, &monitoringv1.CollectionSpec{
+				EnableUTF8: tc.enableUTF8,
+			}, nil)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			if got := cfg.GlobalConfig.MetricNameValidationScheme; got != tc.wantValidation {
+				t.Errorf("unexpected MetricNameValidationScheme: got %q, want %q", got, tc.wantValidation)
+			}
+			if got := cfg.GlobalConfig.MetricNameEscapingScheme; got != tc.wantEscaping {
+				t.Errorf("unexpected MetricNameEscapingScheme: got %q, want %q", got, tc.wantEscaping)
+			}
+		})
+	}
+}

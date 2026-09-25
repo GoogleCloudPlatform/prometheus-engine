@@ -25,6 +25,32 @@ import (
 	"github.com/prometheus/prometheus/model/relabel"
 )
 
+// UTF8Enabled returns true if UTF-8 metric and label name validation and escaping are enabled.
+// If EnableUTF8 is unset (nil), it defaults to false.
+func (c *CollectionSpec) UTF8Enabled() bool {
+	return c.EnableUTF8 != nil && *c.EnableUTF8
+}
+
+// NameValidationScheme returns the Prometheus metric and label name validation scheme
+// based on whether UTF-8 is enabled in CollectionSpec.
+// Ensure compatibility with 2.x Prometheus logic by defaulting to LegacyValidation. See go/gmp:prom-3.13.
+func (c *CollectionSpec) NameValidationScheme() prommodel.ValidationScheme {
+	if c.UTF8Enabled() {
+		return prommodel.UTF8Validation
+	}
+	return prommodel.LegacyValidation
+}
+
+// MetricNameEscapingScheme returns the Prometheus metric name escaping scheme
+// based on whether UTF-8 is enabled in CollectionSpec.
+// Ensure compatibility with 2.x Prometheus logic by defaulting to EscapeUnderscores. See go/gmp:prom-3.13.
+func (c *CollectionSpec) MetricNameEscapingScheme() string {
+	if c.UTF8Enabled() {
+		return prommodel.AllowUTF8
+	}
+	return prommodel.EscapeUnderscores
+}
+
 func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 	if c.KubeletScraping == nil {
 		return nil, nil

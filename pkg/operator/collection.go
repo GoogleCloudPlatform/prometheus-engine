@@ -28,7 +28,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
 	yaml "gopkg.in/yaml.v3"
@@ -349,11 +348,9 @@ func (r *collectionReconciler) makeCollectorConfig(ctx context.Context, spec *mo
 
 	cfg := &promconfig.Config{
 		GlobalConfig: promconfig.GlobalConfig{
-			ExternalLabels: labels.FromMap(spec.ExternalLabels),
-			// Ensure compatibility with 2.x Prometheus logic. See go/gmp:prom-3.13.
-			// TODO(bwplotka): Add OperatorConfig option for enabling/disabling UTF-8 support.
-			MetricNameValidationScheme: model.LegacyValidation,
-			MetricNameEscapingScheme:   model.EscapeUnderscores,
+			ExternalLabels:             labels.FromMap(spec.ExternalLabels),
+			MetricNameValidationScheme: spec.NameValidationScheme(),
+			MetricNameEscapingScheme:   spec.MetricNameEscapingScheme(),
 		},
 	}
 
