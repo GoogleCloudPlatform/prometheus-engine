@@ -9,5 +9,4 @@ vendor/
 .DS_Store
 
 # Git worktrees for agent isolation
-.worktrees
 .worktrees/
