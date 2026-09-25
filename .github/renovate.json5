@@ -150,7 +150,7 @@
       "groupName": "deps",
       "groupSlug": "deps"
     },
-    // Automerge SemVer patch updates for root Go modules (excluding k8s and Prometheus)
+    // Automerge SemVer patch updates for root Go modules (excluding k8s, OpenTelemetry, and Prometheus)
     {
       "description": "Automerge patch-level Go module updates on main after CI passes",
       "matchManagers": ["gomod"],
@@ -160,6 +160,8 @@
       "excludePackageNames": [
         "k8s.io/**",
         "sigs.k8s.io/**",
+        "go.opentelemetry.io/otel",
+        "go.opentelemetry.io/otel/**",
         "github.com/prometheus/**",
         "github.com/GoogleCloudPlatform/prometheus",
         "github.com/GoogleCloudPlatform/prometheus/**"
