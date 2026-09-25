@@ -261,3 +261,31 @@ func TestApplyConfigLegacyValidation(t *testing.T) {
 		t.Fatal("expected UTF-8 recording rule metric name to fail legacy validation, got nil")
 	}
 }
+
+type dummyAppender struct {
+	storage.Appender
+}
+
+type dummyAppendable struct{}
+
+func (d *dummyAppendable) Appender(context.Context) storage.Appender {
+	return &dummyAppender{}
+}
+
+func TestRuleAppenderSetOptions(t *testing.T) {
+	// A dummy appendable returning dummyAppender with a nil embedded storage.Appender
+	// mimics export.Storage appender in Prometheus 3.x.
+	appendable := wrapAppendable(&dummyAppendable{})
+	app := appendable.Appender(t.Context())
+
+	// SetOptions must not panic even if the underlying Appender has a nil embedded Appender.
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("SetOptions panicked: %v", r)
+		}
+	}()
+	app.SetOptions(&storage.AppendOptions{})
+	if err := app.Rollback(); err != nil {
+		t.Fatalf("Rollback failed: %v", err)
+	}
+}
