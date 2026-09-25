@@ -696,7 +696,8 @@ func testValidateRuleEvaluationMetrics(
 				resource.labels.location = "%s" AND
 				resource.labels.cluster = "%s" AND
 				resource.labels.namespace = "%s" AND
-				metric.type = "prometheus.googleapis.com/always_one/gauge"
+				metric.type = "prometheus.googleapis.com/always_one/gauge" AND
+				metric.labels.external_key = "external_val"
 				`,
 					projectID, location, cluster, "default",
 				),
@@ -716,9 +717,9 @@ func testValidateRuleEvaluationMetrics(
 				return false, errors.New("unexpected zero points in result series")
 			}
 			// We expect exactly one result.
-			series, err = iter.Next()
+			nextSeries, err := iter.Next()
 			if !errors.Is(err, iterator.Done) {
-				return false, fmt.Errorf("expected iterator to be done but series %v: %w", series, err)
+				return false, fmt.Errorf("expected iterator to be done but got series %v and extra series %v: %w", series, nextSeries, err)
 			}
 			return true, nil
 		})

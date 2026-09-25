@@ -33,7 +33,7 @@ KIND_CLUSTER=$(echo ${GO_TEST#"Test"} | sed -r 's/[^[:alnum:]]//g' | sed -r 's/(
 KIND_CLUSTER=${KIND_CLUSTER}-${KIND_CLUSTER_HASH}
 KUBECTL="kubectl --context kind-${KIND_CLUSTER}"
 # Ensure a unique label on any test data sent to GCM.
-GMP_CLUSTER=$TAG_NAME
+GMP_CLUSTER="${TAG_NAME}-${KIND_CLUSTER_HASH}"
 if [[ -n "${GCM_SECRET:-}" ]]; then
   echo ">>> using GCM_SECRET credentials; running with GCM validation with explicit credentials"
   PROJECT_ID=$(echo "${GCM_SECRET}" | jq -r '.project_id')
