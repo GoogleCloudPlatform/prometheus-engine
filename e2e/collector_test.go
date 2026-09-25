@@ -58,9 +58,7 @@ func TestCollectorPodMonitoring(t *testing.T) {
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 	// Self-scrape podmonitoring.
 	t.Run("self-podmonitoring-ready", testEnsurePodMonitoringReady(ctx, kubeClient, collectorPodMonitoring))
-	if !skipGCM {
-		t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-podmon"))
-	}
+	t.Run("self-podmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-podmon"))
 }
 
 func TestCollectorClusterPodMonitoring(t *testing.T) {
@@ -99,9 +97,7 @@ func TestCollectorClusterPodMonitoring(t *testing.T) {
 		},
 	}
 	t.Run("self-clusterpodmonitoring-ready", testEnsureClusterPodMonitoringReady(ctx, kubeClient, cpm))
-	if !skipGCM {
-		t.Run("self-clusterpodmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-cmon"))
-	}
+	t.Run("self-clusterpodmonitoring-gcm", testValidateCollectorUpMetrics(ctx, kubeClient, "collector-cmon"))
 }
 
 func TestCollectorKubeletScraping(t *testing.T) {
@@ -117,9 +113,7 @@ func TestCollectorKubeletScraping(t *testing.T) {
 	t.Run("collector-operatorconfig", testCollectorOperatorConfig(ctx, kubeClient))
 
 	t.Run("enable-kubelet-scraping", testEnableKubeletScraping(ctx, kubeClient))
-	if !skipGCM {
-		t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, kubeClient))
-	}
+	t.Run("scrape-kubelet", testCollectorScrapeKubelet(ctx, kubeClient))
 }
 
 // testCollectorDeployed does a high-level verification on whether the
@@ -573,6 +567,8 @@ func testValidateGCMMetric(ctx context.Context, metricClient *gcm.MetricClient, 
 // pods can be queried from GCM.
 func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Client, job string) func(*testing.T) {
 	return func(t *testing.T) {
+		skipIfNoGCM(t)
+
 		// Wait for metric data to show up in Cloud Monitoring.
 		metricClient, err := newMetricClient(ctx)
 		if err != nil {
@@ -625,6 +621,7 @@ func testValidateCollectorUpMetrics(ctx context.Context, kubeClient client.Clien
 // testCollectorScrapeKubelet verifies that kubelet metric endpoints are successfully scraped.
 func testCollectorScrapeKubelet(ctx context.Context, kubeClient client.Client) func(*testing.T) {
 	return func(t *testing.T) {
+		skipIfNoGCM(t)
 		t.Log("checking for metrics in Cloud Monitoring")
 
 		// Wait for metric data to show up in Cloud Monitoring.

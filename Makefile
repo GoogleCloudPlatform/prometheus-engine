@@ -171,14 +171,16 @@ test-script-gcm:  ## Run example/scripts unit tests that will use GCM if GCM_SEC
 ifdef GCM_SECRET
 	cd examples/scripts && go test -v .
 else
-	@echo "Secret not provided, skipping!"
+# Print a GitHub Actions warning, so the CI run summary lists skipped GCM integration tests.
+	@echo "::warning title=GCM integration test skipped::examples/scripts (all tests)"
 endif
 
 .PHONY: image-test
 image-test:  ## Run unit tests in files with _image_test.go suffix against built docker images.
 image-test: $(IMAGE_TEST_DEPS)
 	# TODO(bwplotka): Search for all tests in files with image build tag.
-	go test -tags=image ./cmd/frontend
+	# -v prints the GitHub Actions warning when the GCM integration test is skipped.
+	go test -v -tags=image ./cmd/frontend
 
 # TODO(pintohutch): re-enable e2e testing against an existing K8s cluster
 # (e.g. GKE cluster) without relying on a fresh kind cluster.

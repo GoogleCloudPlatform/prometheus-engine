@@ -139,3 +139,23 @@ jobs:
           GCM_SECRET: ${{ secrets.GCM_SECRET }}
           MATRIX_TESTRUN: ${{matrix.testrun}}
         run: TEST_RUN=${MATRIX_TESTRUN} make e2e
+  gcm-skip-check:
+    # GCM_SECRET is not populated for external contributors or fork based PRs. This means that
+    # certain integration tests against production GCM will be skipped. This check will fail to
+    # indicate that GCM integration tests are skipped. Maintainers can then decide if an external
+    # change is worth redoing with extra tests or if it's fine to skip.
+    #
+    # Skipped GCM integration tests print a "GCM integration test skipped" warning, so the
+    # workflow run summary lists them. It's not a required check.
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Fail if GCM_SECRET is not available
+        env:
+          GCM_SECRET: ${{ secrets.GCM_SECRET }}
+        run: |
+          if [[ -z "${GCM_SECRET}" ]]; then
+            echo "::error title=GCM integration tests skipped::GCM_SECRET is not available (e.g. for PRs from forks), so GCM integration tests are skipped. See the 'GCM integration test skipped' warnings in the workflow run summary for the list."
+            exit 1
+          fi
+          echo "GCM_SECRET is available, GCM integration tests will run."

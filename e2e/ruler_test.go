@@ -84,9 +84,7 @@ func testRuleEvaluator(t *testing.T, features monitoringv1.OperatorFeatures) {
 	t.Run("rule-evaluator-configuration", testRuleEvaluatorConfiguration(ctx, kubeClient))
 
 	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, features))
-	if !skipGCM {
-		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx))
-	}
+	t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx))
 	t.Run("rules-service", testRuleEvaluatorService(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace))
 }
 
@@ -661,6 +659,7 @@ func testCreateRules(
 
 func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 	return func(t *testing.T) {
+		skipIfNoGCM(t)
 		t.Log("checking for metrics in Cloud Monitoring")
 
 		// Wait for metric data to show up in Cloud Monitoring.

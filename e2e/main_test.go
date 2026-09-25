@@ -84,6 +84,17 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
+// skipIfNoGCM skips t if GCM validation is disabled with -skip-gcm. It prints a GitHub
+// Actions warning, so the CI run summary lists skipped GCM integration tests.
+func skipIfNoGCM(t *testing.T) {
+	t.Helper()
+	if skipGCM {
+		// Not t.Log, as it prefixes lines with file:line and GitHub only parses commands at the line start.
+		fmt.Printf("::warning title=GCM integration test skipped::%s\n", t.Name())
+		t.Skip("this test requires GCM integration")
+	}
+}
+
 func setupCluster(ctx context.Context, t testing.TB, dOpts ...deploy.DeployOption) (client.Client, *rest.Config, error) {
 	t.Log(">>> deploying static resources")
 	restConfig, err := newRestConfig()
