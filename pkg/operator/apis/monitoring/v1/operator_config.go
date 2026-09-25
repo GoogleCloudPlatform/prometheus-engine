@@ -69,6 +69,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
 			TargetLabel:  "node",
+			Replacement:  "$1",
 		},
 	}
 	dropByName := func(pattern string) *relabel.Config {
@@ -80,7 +81,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 	}
 	// We adopt the metric relabeling behavior of kube-prometheus as it's widely adopted and hence
 	// will meet user expectations (e.g. dropping deprecated metrics).
-	return []*promconfig.ScrapeConfig{
+	configs := []*promconfig.ScrapeConfig{
 		{
 			JobName:                 "kubelet/metrics",
 			ServiceDiscoveryConfigs: discoveryCfgs,
@@ -124,5 +125,29 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 				dropByName(`container_(network_tcp_usage_total|network_udp_usage_total|tasks_state|cpu_load_average_10s|blkio_device_usage_total|memory_failures_total)`),
 			},
 		},
-	}, nil
+	}
+
+	for _, sc := range configs {
+		clonedRelabelConfigs := make([]*relabel.Config, len(sc.RelabelConfigs))
+		for i, c := range sc.RelabelConfigs {
+			cloned := new(relabel.Config)
+			*cloned = *c
+			if cloned.Regex.Regexp == nil {
+				cloned.Regex = relabel.DefaultRelabelConfig.Regex
+			}
+			if cloned.Replacement == "" && (cloned.Action == relabel.Replace || cloned.Action == "") && len(cloned.SourceLabels) > 0 {
+				cloned.Replacement = relabel.DefaultRelabelConfig.Replacement
+			}
+			clonedRelabelConfigs[i] = cloned
+		}
+		sc.RelabelConfigs = clonedRelabelConfigs
+
+		for _, c := range sc.MetricRelabelConfigs {
+			if c.Regex.Regexp == nil {
+				c.Regex = relabel.DefaultRelabelConfig.Regex
+			}
+		}
+	}
+
+	return configs, nil
 }
