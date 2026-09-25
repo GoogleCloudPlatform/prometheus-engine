@@ -16,7 +16,6 @@ package v1
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
@@ -92,7 +91,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 			Scheme:                 "https",
 			MetricsPath:            "/metrics",
 			HTTPClientConfig:       clientCfg,
-			RelabelConfigs: append(slices.Clone(relabelCfgs), &relabel.Config{
+			RelabelConfigs: append(relabelCfgs, &relabel.Config{
 				Action:       relabel.Replace,
 				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
 				TargetLabel:  "instance",
@@ -116,7 +115,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 			Scheme:                  "https",
 			MetricsPath:             "/metrics/cadvisor",
 			HTTPClientConfig:        clientCfg,
-			RelabelConfigs: append(slices.Clone(relabelCfgs), &relabel.Config{
+			RelabelConfigs: append(relabelCfgs, &relabel.Config{
 				Action:       relabel.Replace,
 				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
 				TargetLabel:  "instance",
@@ -129,18 +128,21 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 	}
 
 	for _, sc := range configs {
-		for _, c := range sc.RelabelConfigs {
-			if c != nil {
-				if c.Regex.Regexp == nil {
-					c.Regex = relabel.DefaultRelabelConfig.Regex
-				}
-				if c.Replacement == "" && c.Action == relabel.Replace && len(c.SourceLabels) > 0 {
-					c.Replacement = relabel.DefaultRelabelConfig.Replacement
-				}
+		clonedRelabelConfigs := make([]*relabel.Config, len(sc.RelabelConfigs))
+		for i, c := range sc.RelabelConfigs {
+			copy := *c
+			if copy.Regex.Regexp == nil {
+				copy.Regex = relabel.DefaultRelabelConfig.Regex
 			}
+			if copy.Replacement == "" && copy.Action == relabel.Replace && len(copy.SourceLabels) > 0 {
+				copy.Replacement = relabel.DefaultRelabelConfig.Replacement
+			}
+			clonedRelabelConfigs[i] = &copy
 		}
+		sc.RelabelConfigs = clonedRelabelConfigs
+
 		for _, c := range sc.MetricRelabelConfigs {
-			if c != nil && c.Regex.Regexp == nil {
+			if c.Regex.Regexp == nil {
 				c.Regex = relabel.DefaultRelabelConfig.Regex
 			}
 		}

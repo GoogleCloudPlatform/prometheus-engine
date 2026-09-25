@@ -490,6 +490,7 @@ func testEnableKubeletScraping(ctx context.Context, kubeClient client.Client) fu
 			if configYaml == "" && len(cm.BinaryData["config.yaml"]) > 0 {
 				gz, err := gzip.NewReader(bytes.NewReader(cm.BinaryData["config.yaml"]))
 				if err == nil {
+					defer gz.Close()
 					b, _ := io.ReadAll(gz)
 					configYaml = string(b)
 				}
