@@ -489,7 +489,8 @@ func testCreateRules(
 			Spec: monitoringv1.RulesSpec{
 				Groups: []monitoringv1.RuleGroup{
 					{
-						Name: "group-1",
+						Name:     "group-1",
+						Interval: "5s",
 						Rules: []monitoringv1.Rule{
 							{
 								Alert: "Bar",
@@ -538,7 +539,7 @@ func testCreateRules(
 `),
 			replace("rules__{namespace}__rules.yaml"): replace(`groups:
     - name: group-1
-      interval: 1m
+      interval: 5s
       rules:
         - alert: Bar
           expr: avg(down{cluster="{cluster}",location="{location}",namespace="{namespace}",project_id="{project_id}"}) > 1
@@ -688,7 +689,7 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 				),
 				Interval: &gcmpb.TimeInterval{
 					EndTime:   timestamppb.New(now),
-					StartTime: timestamppb.New(now.Add(-10 * time.Second)),
+					StartTime: timestamppb.New(now.Add(-2 * time.Minute)),
 				},
 			})
 			series, err := iter.Next()
