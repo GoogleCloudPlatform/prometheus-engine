@@ -29,7 +29,7 @@ This document outlines essential instructions and operating procedures for AI ag
 4. **Clean up when finished**:
    After work is merged or no longer needed:
    ```bash
-   git worktree remove .worktrees/<worktree-name>
+   git worktree remove -f .worktrees/<worktree-name> && git branch -D <branch-name>
    ```
 
 ---
