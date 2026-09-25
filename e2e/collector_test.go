@@ -15,9 +15,12 @@
 package e2e
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -466,6 +469,42 @@ func testEnableKubeletScraping(ctx context.Context, kubeClient client.Client) fu
 		if err := kubeClient.Update(ctx, &config); err != nil {
 			t.Errorf("updating operatorconfig: %s", err)
 		}
+
+		// Wait for collector ConfigMap to reflect kubelet scrape configurations.
+		var lastErr error
+		pollErr := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
+			cm := corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: operator.DefaultOperatorNamespace,
+					Name:      operator.NameCollector,
+				},
+			}
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&cm), &cm); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
+				lastErr = err
+				return false, nil
+			}
+			configYaml := cm.Data["config.yaml"]
+			if configYaml == "" && len(cm.BinaryData["config.yaml"]) > 0 {
+				gz, err := gzip.NewReader(bytes.NewReader(cm.BinaryData["config.yaml"]))
+				if err == nil {
+					b, _ := io.ReadAll(gz)
+					configYaml = string(b)
+				}
+			}
+			if strings.Contains(configYaml, "job_name: kubelet/metrics") && strings.Contains(configYaml, "job_name: kubelet/cadvisor") {
+				return true, nil
+			}
+			return false, nil
+		})
+		if pollErr != nil {
+			if wait.Interrupted(pollErr) && lastErr != nil {
+				pollErr = lastErr
+			}
+			t.Fatalf("waiting for collector kubelet scrape config failed: %s", pollErr)
+		}
 	}
 }
 
@@ -521,13 +560,14 @@ func testValidateGCMMetric(ctx context.Context, metricClient *gcm.MetricClient, 
 		now := time.Now()
 		if err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
 			endTime := time.Now() // Always check for fresh data, so we don't have a potential race between collector starting to send data vs this timestamp.
+			const window = 2 * time.Minute
 
 			iter := metricClient.ListTimeSeries(ctx, &gcmpb.ListTimeSeriesRequest{
 				Name:   fmt.Sprintf("projects/%s", projectID),
 				Filter: filter,
 				Interval: &gcmpb.TimeInterval{
 					EndTime:   timestamppb.New(endTime),
-					StartTime: timestamppb.New(endTime.Add(-10 * time.Second)),
+					StartTime: timestamppb.New(endTime.Add(-window)),
 				},
 			})
 			series, err := iter.Next()
@@ -550,7 +590,11 @@ func testValidateGCMMetric(ctx context.Context, metricClient *gcm.MetricClient, 
 				return false, nil
 			}
 			if expected.pointWithValueOne {
-				if v := series.Points[len(series.Points)-1].Value.GetDoubleValue(); v != 1 {
+				if len(series.Points) == 0 {
+					t.Logf("%q has no points in interval, retrying...", f.metricType)
+					return false, nil
+				}
+				if v := series.Points[0].Value.GetDoubleValue(); v != 1 {
 					t.Logf("%q has unexpected value %v (expected: %v), retrying...", f.metricType, v, 1)
 					return false, nil
 				}
