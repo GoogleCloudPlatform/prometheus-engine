@@ -922,6 +922,9 @@ func newRuleEvaluator(
 	notifierManager *notifier.Manager,
 	rulesMetrics *rules.Metrics,
 ) (*ruleEvaluator, error) {
+	if appendable != nil {
+		appendable = wrapAppendable(appendable)
+	}
 	v1api, err := newAPI(ctx, evaluatorOpts, version)
 	if err != nil {
 		return nil, fmt.Errorf("query client: %w", err)
@@ -1048,4 +1051,32 @@ func newQueryFunc(logger *slog.Logger, v1api v1.API) rules.QueryFunc {
 		}
 		return vec, nil
 	}
+}
+
+type ruleAppendable struct {
+	storage.Appendable
+}
+
+func wrapAppendable(a storage.Appendable) storage.Appendable {
+	return &ruleAppendable{Appendable: a}
+}
+
+func (r *ruleAppendable) Appender(ctx context.Context) storage.Appender {
+	return &ruleAppender{
+		Appender: r.Appendable.Appender(ctx),
+	}
+}
+
+type ruleAppender struct {
+	storage.Appender
+}
+
+func (r *ruleAppender) SetOptions(*storage.AppendOptions) {
+	// The underlying export.Storage appender embeds a nil storage.Appender and does not implement
+	// SetOptions (added in Prometheus 3.x), which causes a nil pointer dereference panic when
+	// rules.Group.Eval calls app.SetOptions.
+}
+
+func (r *ruleAppender) Rollback() error {
+	return nil
 }
