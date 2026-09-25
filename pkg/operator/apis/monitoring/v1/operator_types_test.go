@@ -20,6 +20,11 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	prommodel "github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/relabel"
+	"gopkg.in/yaml.v3"
 )
 
 func TestOperatorConfigValidate(t *testing.T) {
@@ -444,6 +449,51 @@ func TestCollectionSpec_ScrapeConfigs(t *testing.T) {
 	for _, cfg := range sc {
 		if got, want := string(cfg.ScrapeFallbackProtocol), "PrometheusText0.0.4"; got != want {
 			t.Errorf("job %q: unexpected ScrapeFallbackProtocol: got %q, want %q", cfg.JobName, got, want)
+		}
+		for i, rc := range cfg.RelabelConfigs {
+			if rc.Regex.Regexp == nil {
+				t.Errorf("job %q relabel config %d has nil Regex.Regexp", cfg.JobName, i)
+			}
+		}
+		for i, rc := range cfg.MetricRelabelConfigs {
+			if rc.Regex.Regexp == nil {
+				t.Errorf("job %q metric relabel config %d has nil Regex.Regexp", cfg.JobName, i)
+			}
+		}
+
+		out, err := yaml.Marshal(cfg)
+		if err != nil {
+			t.Fatalf("marshaling scrape config: %s", err)
+		}
+		if strings.Contains(string(out), "regex: null") {
+			t.Errorf("job %q marshaled YAML contains 'regex: null':\n%s", cfg.JobName, string(out))
+		}
+
+		// Verify target relabeling behavior on node metadata.
+		input := labels.FromMap(map[string]string{
+			"__meta_kubernetes_node_name": "test-node",
+		})
+		lb := labels.NewBuilder(input)
+		for _, rc := range cfg.RelabelConfigs {
+			rule := *rc
+			if rule.NameValidationScheme == prommodel.UnsetValidation {
+				rule.NameValidationScheme = prommodel.LegacyValidation
+			}
+			relabel.ProcessBuilder(lb, &rule)
+		}
+		res := lb.Labels()
+		if got, want := res.Get("job"), "kubelet"; got != want {
+			t.Errorf("job %q: unexpected job label: got %q, want %q", cfg.JobName, got, want)
+		}
+		if got, want := res.Get("node"), "test-node"; got != want {
+			t.Errorf("job %q: unexpected node label: got %q, want %q", cfg.JobName, got, want)
+		}
+		wantInstance := "test-node:metrics"
+		if cfg.JobName == "kubelet/cadvisor" {
+			wantInstance = "test-node:cadvisor"
+		}
+		if got, want := res.Get("instance"), wantInstance; got != want {
+			t.Errorf("job %q: unexpected instance label: got %q, want %q", cfg.JobName, got, want)
 		}
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -723,5 +724,13 @@ func TestMakeCollectorConfig_MigrationRiskDefaults(t *testing.T) {
 		if got, want := string(sc.ScrapeFallbackProtocol), "PrometheusText0.0.4"; got != want {
 			t.Errorf("scrape config %q: unexpected ScrapeFallbackProtocol: got %q, want %q", sc.JobName, got, want)
 		}
+	}
+
+	cfgYAML, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("unexpected marshal error: %s", err)
+	}
+	if strings.Contains(string(cfgYAML), "regex: null") {
+		t.Errorf("marshaled collector config contains 'regex: null':\n%s", string(cfgYAML))
 	}
 }

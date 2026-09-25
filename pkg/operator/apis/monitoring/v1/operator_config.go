@@ -16,6 +16,7 @@ package v1
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
@@ -69,6 +70,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 			Action:       relabel.Replace,
 			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
 			TargetLabel:  "node",
+			Replacement:  "$1",
 		},
 	}
 	dropByName := func(pattern string) *relabel.Config {
@@ -80,7 +82,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 	}
 	// We adopt the metric relabeling behavior of kube-prometheus as it's widely adopted and hence
 	// will meet user expectations (e.g. dropping deprecated metrics).
-	return []*promconfig.ScrapeConfig{
+	configs := []*promconfig.ScrapeConfig{
 		{
 			JobName:                 "kubelet/metrics",
 			ServiceDiscoveryConfigs: discoveryCfgs,
@@ -90,7 +92,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 			Scheme:                 "https",
 			MetricsPath:            "/metrics",
 			HTTPClientConfig:       clientCfg,
-			RelabelConfigs: append(relabelCfgs, &relabel.Config{
+			RelabelConfigs: append(slices.Clone(relabelCfgs), &relabel.Config{
 				Action:       relabel.Replace,
 				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
 				TargetLabel:  "instance",
@@ -114,7 +116,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 			Scheme:                  "https",
 			MetricsPath:             "/metrics/cadvisor",
 			HTTPClientConfig:        clientCfg,
-			RelabelConfigs: append(relabelCfgs, &relabel.Config{
+			RelabelConfigs: append(slices.Clone(relabelCfgs), &relabel.Config{
 				Action:       relabel.Replace,
 				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
 				TargetLabel:  "instance",
@@ -124,5 +126,25 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 				dropByName(`container_(network_tcp_usage_total|network_udp_usage_total|tasks_state|cpu_load_average_10s|blkio_device_usage_total|memory_failures_total)`),
 			},
 		},
-	}, nil
+	}
+
+	for _, sc := range configs {
+		for _, c := range sc.RelabelConfigs {
+			if c != nil {
+				if c.Regex.Regexp == nil {
+					c.Regex = relabel.DefaultRelabelConfig.Regex
+				}
+				if c.Replacement == "" && c.Action == relabel.Replace && len(c.SourceLabels) > 0 {
+					c.Replacement = relabel.DefaultRelabelConfig.Replacement
+				}
+			}
+		}
+		for _, c := range sc.MetricRelabelConfigs {
+			if c != nil && c.Regex.Regexp == nil {
+				c.Regex = relabel.DefaultRelabelConfig.Regex
+			}
+		}
+	}
+
+	return configs, nil
 }
