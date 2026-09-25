@@ -130,14 +130,15 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 	for _, sc := range configs {
 		clonedRelabelConfigs := make([]*relabel.Config, len(sc.RelabelConfigs))
 		for i, c := range sc.RelabelConfigs {
-			cloned := *c
+			cloned := new(relabel.Config)
+			*cloned = *c
 			if cloned.Regex.Regexp == nil {
 				cloned.Regex = relabel.DefaultRelabelConfig.Regex
 			}
 			if cloned.Replacement == "" && cloned.Action == relabel.Replace && len(cloned.SourceLabels) > 0 {
 				cloned.Replacement = relabel.DefaultRelabelConfig.Replacement
 			}
-			clonedRelabelConfigs[i] = &cloned
+			clonedRelabelConfigs[i] = cloned
 		}
 		sc.RelabelConfigs = clonedRelabelConfigs
 

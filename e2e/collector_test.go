@@ -489,11 +489,17 @@ func testEnableKubeletScraping(ctx context.Context, kubeClient client.Client) fu
 			configYaml := cm.Data["config.yaml"]
 			if configYaml == "" && len(cm.BinaryData["config.yaml"]) > 0 {
 				gz, err := gzip.NewReader(bytes.NewReader(cm.BinaryData["config.yaml"]))
-				if err == nil {
-					defer gz.Close()
-					b, _ := io.ReadAll(gz)
-					configYaml = string(b)
+				if err != nil {
+					lastErr = err
+					return false, nil
 				}
+				defer gz.Close()
+				b, err := io.ReadAll(gz)
+				if err != nil {
+					lastErr = err
+					return false, nil
+				}
+				configYaml = string(b)
 			}
 			if strings.Contains(configYaml, "job_name: kubelet/metrics") && strings.Contains(configYaml, "job_name: kubelet/cadvisor") {
 				return true, nil
