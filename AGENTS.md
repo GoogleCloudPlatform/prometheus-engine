@@ -16,6 +16,7 @@ This document outlines essential instructions and operating procedures for AI ag
 
 1. **Create and switch to a new worktree**:
    Always branch from the latest `origin/main` (or the intended target branch):
+
    ```bash
    git worktree add -b <branch-name> .worktrees/<worktree-name> origin/main
    ```
@@ -28,6 +29,7 @@ This document outlines essential instructions and operating procedures for AI ag
 
 4. **Clean up when finished**:
    After work is merged or no longer needed:
+
    ```bash
    git worktree remove -f .worktrees/<worktree-name> && git branch -D <branch-name>
    ```
@@ -37,6 +39,7 @@ This document outlines essential instructions and operating procedures for AI ag
 ## 2. Repository Conventions & Standards
 
 ### Commit Messages & Conformity
+
 All commits must comply with the Conventional Commits policy enforced by `make conform` (configured in `.conform.yaml`):
 - **Header format**: `<type>(<scope>): <subject>`
   - Maximum header length: 89 characters.
@@ -46,17 +49,20 @@ All commits must comply with the Conventional Commits policy enforced by `make c
 - Example: `docs(agents): add worktree guidelines to AGENTS.md`
 
 ### Presubmit Checks & Formatting
+
 Before committing or submitting a PR:
-- **Format codebase**:
+- **Format codebase** (formats Go files with `go fmt`, documentation with `mdox fmt`, and shell scripts with `shfmt`):
+
   ```bash
   ./hack/presubmit.sh format
   ```
-  Formats Go files (`go fmt`), documentation (`mdox fmt`), and shell scripts (`shfmt`).
 - **Run Linters**:
+
   ```bash
   make lint
   ```
 - **Verify Commit Conformity**:
+
   ```bash
   make conform
   ```
