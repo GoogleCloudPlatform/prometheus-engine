@@ -1943,6 +1943,26 @@ func TestCRDValidation(t *testing.T) {
 				},
 				wantErr: true,
 			},
+			"invalid-rule-name": {
+				obj: &monitoringv1.Rules{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "invalid-rule-name",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "spaces not allowed",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: true,
+			},
 			"valid-rule-name-dots": {
 				obj: &monitoringv1.Rules{
 					ObjectMeta: metav1.ObjectMeta{

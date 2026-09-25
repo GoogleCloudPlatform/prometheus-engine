@@ -111,6 +111,7 @@ spec:
                             description: |-
                               Record the result of the expression to this metric name.
                               Only one of `record` and `alert` must be set.
+                            pattern: ^[a-zA-Z0-9$\-_.+!*'(),%:]+$
                             type: string
                         required:
                         - expr
