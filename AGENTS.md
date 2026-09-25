@@ -4,7 +4,39 @@ This document defines the repository rules, commit policies, coding conventions,
 
 ---
 
-## 1. Commit Message & PR Hygiene (`conform`)
+## 1. Mandatory Git Worktree Isolation
+
+**All agents MUST perform their work in their own dedicated Git worktree.**
+
+- **Do NOT modify files directly in the main working tree** or on shared branches.
+- **Location**: Worktrees must be created under the `.worktrees/` directory (e.g., `.worktrees/<branch-or-task-name>`), which is ignored by Git.
+- **Rationale**: Isolates changes, prevents clobbering active checkouts or uncommitted edits from users or other agents, keeps builds independent, and ensures clean commit histories.
+
+### Worktree Workflow
+
+1. **Create and switch to a new worktree**:
+   Always branch from the latest `origin/main` (or the intended target branch):
+
+   ```bash
+   git worktree add -b <branch-name> .worktrees/<worktree-name> origin/main
+   ```
+
+2. **Execute all actions within the worktree**:
+   Set your working directory to `.worktrees/<worktree-name>`. All file edits, commands, tests, and builds must be performed inside this path.
+
+3. **Verify Git status**:
+   Ensure `.worktrees/` remains untracked and is ignored. Never commit worktree administrative metadata.
+
+4. **Clean up when finished**:
+   After work is merged or no longer needed:
+
+   ```bash
+   git worktree remove -f .worktrees/<worktree-name> && git branch -D <branch-name>
+   ```
+
+---
+
+## 2. Commit Message & PR Hygiene (`conform`)
 
 Every commit in a pull request is strictly validated in CI by [Sidero Labs Conform](https://github.com/siderolabs/conform) via [`.conform.yaml`](./.conform.yaml). **Every single commit on the branch** (not just the PR title) must pass `make conform`.
 
@@ -38,7 +70,7 @@ Every commit in a pull request is strictly validated in CI by [Sidero Labs Confo
 
 ---
 
-## 2. Code Generation, Formatting & Licenses (`make regen`)
+## 3. Code Generation, Formatting & Licenses (`make regen`)
 
 CI enforces a clean working tree after running code generation and formatting (`CHECK=1 make regen` in [`.github/workflows/presubmit.yml`](./.github/workflows/presubmit.yml)).
 
@@ -66,7 +98,7 @@ CI enforces a clean working tree after running code generation and formatting (`
 
 ---
 
-## 3. Go Coding & Linting Rules (`make lint`)
+## 4. Go Coding & Linting Rules (`make lint`)
 
 Code is checked with `golangci-lint` (`make lint`) using [`.golangci.yml`](./.golangci.yml) (`default: all`).
 
@@ -89,7 +121,7 @@ Code is checked with `golangci-lint` (`make lint`) using [`.golangci.yml`](./.go
 
 ---
 
-## 4. Go Modules, Dependencies & Dockerfiles
+## 5. Go Modules, Dependencies & Dockerfiles
 
 This repository contains multiple Go modules (`go.mod`, `tools/go.mod`, `ops/gmpctl/go.mod`, `examples/scripts/go.mod`, `examples/instrumentation/go-synthetic/go.mod`).
 
@@ -105,7 +137,7 @@ This repository contains multiple Go modules (`go.mod`, `tools/go.mod`, `ops/gmp
 
 ---
 
-## 5. Task-Specific Workflows & Commands
+## 6. Task-Specific Workflows & Commands
 
 Refer to the repository's task guides under [`.gemini/skills/`](./.gemini/skills/) for detailed execution steps:
 
