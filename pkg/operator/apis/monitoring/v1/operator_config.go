@@ -135,7 +135,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 			if cloned.Regex.Regexp == nil {
 				cloned.Regex = relabel.DefaultRelabelConfig.Regex
 			}
-			if cloned.Replacement == "" && cloned.Action == relabel.Replace && len(cloned.SourceLabels) > 0 {
+			if cloned.Replacement == "" && (cloned.Action == relabel.Replace || cloned.Action == "") && len(cloned.SourceLabels) > 0 {
 				cloned.Replacement = relabel.DefaultRelabelConfig.Replacement
 			}
 			clonedRelabelConfigs[i] = cloned
