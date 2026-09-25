@@ -943,7 +943,10 @@ When true, it configures Prometheus collector with <code>global.metric_name_vali
 and <code>global.metric_name_escaping_scheme: allow-utf-8</code>.
 If unset or false, it defaults to <code>global.metric_name_validation_scheme: legacy</code>
 and <code>global.metric_name_escaping_scheme: underscores</code>.
-Note: Enabling this can be a breaking change for targets that already instrument
+Note: In practice, Google Cloud Monitoring only supports a subset of UTF-8 characters
+(metric names matching <code>(/[a-zA-Z0-9$\-_.+!*'(),%:]+)+</code> and label names matching
+<code>[a-zA-Z_][a-zA-Z0-9_.]*</code>); series with other UTF-8 characters will be rejected on write.
+Additionally, enabling this can be a breaking change for targets that already instrument
 metric or label names with non-legacy UTF-8 characters (e.g., dots or hyphens),
 because <code>underscores</code> escaping (<code>Accept: ...; escaping=underscores</code>) rewrites those
 characters to <code>_</code> during scrape content negotiation, whereas <code>allow-utf-8</code> preserves
