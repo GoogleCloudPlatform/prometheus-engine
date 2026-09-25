@@ -85,7 +85,7 @@ func testRuleEvaluator(t *testing.T, features monitoringv1.OperatorFeatures) {
 
 	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, features))
 	if !skipGCM {
-		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx))
+		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx, restConfig, kubeClient))
 	}
 	t.Run("rules-service", testRuleEvaluatorService(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace))
 }
@@ -385,8 +385,17 @@ func testRuleEvaluatorService(
 			if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rule-evaluator"}, &endpoints); err != nil {
 				return false, err
 			}
-			return true, nil
+			return len(endpoints.Subsets) > 0 && len(endpoints.Subsets[0].Addresses) > 0, nil
 		})
+		if err != nil {
+			podList, pErr := kube.DeploymentPods(ctx, kubeClient, systemNamespace, operator.NameRuleEvaluator)
+			if pErr == nil && len(podList) > 0 {
+				evalLogs, lErr := kube.PodLogs(ctx, restConfig, podList[0].Namespace, podList[0].Name, operator.RuleEvaluatorContainerName)
+				if lErr == nil {
+					t.Logf("rule-evaluator pod logs on service failure:\n%s", evalLogs)
+				}
+			}
+		}
 		require.NoError(t, err)
 
 		require.Len(t, endpoints.Subsets, 1)
@@ -660,7 +669,11 @@ func testCreateRules(
 	}
 }
 
-func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
+func testValidateRuleEvaluationMetrics(
+	ctx context.Context,
+	restConfig *rest.Config,
+	kubeClient client.Client,
+) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 
@@ -710,6 +723,13 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 			return true, nil
 		})
 		if err != nil {
+			podList, pErr := kube.DeploymentPods(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameRuleEvaluator)
+			if pErr == nil && len(podList) > 0 {
+				evalLogs, lErr := kube.PodLogs(ctx, restConfig, podList[0].Namespace, podList[0].Name, operator.RuleEvaluatorContainerName)
+				if lErr == nil {
+					t.Logf("rule-evaluator pod logs on GCM failure:\n%s", evalLogs)
+				}
+			}
 			t.Fatalf("waiting for rule metrics to appear in GCM failed: %s", err)
 		}
 	}
