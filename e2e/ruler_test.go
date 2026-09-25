@@ -85,7 +85,7 @@ func testRuleEvaluator(t *testing.T, features monitoringv1.OperatorFeatures) {
 
 	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, features))
 	if !skipGCM {
-		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx))
+		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx, restConfig, kubeClient))
 	}
 	t.Run("rules-service", testRuleEvaluatorService(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace))
 }
@@ -385,8 +385,17 @@ func testRuleEvaluatorService(
 			if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rule-evaluator"}, &endpoints); err != nil {
 				return false, err
 			}
-			return true, nil
+			return len(endpoints.Subsets) > 0 && len(endpoints.Subsets[0].Addresses) > 0, nil
 		})
+		if err != nil {
+			podList, pErr := kube.DeploymentPods(ctx, kubeClient, systemNamespace, operator.NameRuleEvaluator)
+			if pErr == nil && len(podList) > 0 {
+				evalLogs, lErr := kube.PodLogs(ctx, restConfig, podList[0].Namespace, podList[0].Name, operator.RuleEvaluatorContainerName)
+				if lErr == nil {
+					t.Logf("rule-evaluator pod logs on service failure:\n%s", evalLogs)
+				}
+			}
+		}
 		require.NoError(t, err)
 
 		require.Len(t, endpoints.Subsets, 1)
@@ -489,7 +498,8 @@ func testCreateRules(
 			Spec: monitoringv1.RulesSpec{
 				Groups: []monitoringv1.RuleGroup{
 					{
-						Name: "group-1",
+						Name:     "group-1",
+						Interval: "5s",
 						Rules: []monitoringv1.Rule{
 							{
 								Alert: "Bar",
@@ -538,7 +548,7 @@ func testCreateRules(
 `),
 			replace("rules__{namespace}__rules.yaml"): replace(`groups:
     - name: group-1
-      interval: 1m
+      interval: 5s
       rules:
         - alert: Bar
           expr: avg(down{cluster="{cluster}",location="{location}",namespace="{namespace}",project_id="{project_id}"}) > 1
@@ -659,7 +669,11 @@ func testCreateRules(
 	}
 }
 
-func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
+func testValidateRuleEvaluationMetrics(
+	ctx context.Context,
+	restConfig *rest.Config,
+	kubeClient client.Client,
+) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Log("checking for metrics in Cloud Monitoring")
 
@@ -682,13 +696,14 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 				resource.labels.location = "%s" AND
 				resource.labels.cluster = "%s" AND
 				resource.labels.namespace = "%s" AND
-				metric.type = "prometheus.googleapis.com/always_one/gauge"
+				metric.type = "prometheus.googleapis.com/always_one/gauge" AND
+				metric.labels.external_key = "external_val"
 				`,
 					projectID, location, cluster, "default",
 				),
 				Interval: &gcmpb.TimeInterval{
 					EndTime:   timestamppb.New(now),
-					StartTime: timestamppb.New(now.Add(-10 * time.Second)),
+					StartTime: timestamppb.New(now.Add(-2 * time.Minute)),
 				},
 			})
 			series, err := iter.Next()
@@ -702,13 +717,20 @@ func testValidateRuleEvaluationMetrics(ctx context.Context) func(*testing.T) {
 				return false, errors.New("unexpected zero points in result series")
 			}
 			// We expect exactly one result.
-			series, err = iter.Next()
+			nextSeries, err := iter.Next()
 			if !errors.Is(err, iterator.Done) {
-				return false, fmt.Errorf("expected iterator to be done but series %v: %w", series, err)
+				return false, fmt.Errorf("expected iterator to be done but got series %v and extra series %v: %w", series, nextSeries, err)
 			}
 			return true, nil
 		})
 		if err != nil {
+			podList, pErr := kube.DeploymentPods(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameRuleEvaluator)
+			if pErr == nil && len(podList) > 0 {
+				evalLogs, lErr := kube.PodLogs(ctx, restConfig, podList[0].Namespace, podList[0].Name, operator.RuleEvaluatorContainerName)
+				if lErr == nil {
+					t.Logf("rule-evaluator pod logs on GCM failure:\n%s", evalLogs)
+				}
+			}
 			t.Fatalf("waiting for rule metrics to appear in GCM failed: %s", err)
 		}
 	}

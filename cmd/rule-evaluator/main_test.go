@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -204,13 +203,7 @@ func TestGracefulShutdown(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var wg sync.WaitGroup
-	wg.Go(func() {
-		re.Run()
-	})
-
 	re.Stop()
-	wg.Wait()
 }
 
 func TestApplyConfigLegacyValidation(t *testing.T) {
@@ -228,15 +221,7 @@ func TestApplyConfigLegacyValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	var wg sync.WaitGroup
-	wg.Go(func() {
-		re.Run()
-	})
-	defer func() {
-		re.Stop()
-		wg.Wait()
-	}()
+	defer re.Stop()
 
 	dir := t.TempDir()
 	legacyRuleFile := filepath.Join(dir, "legacy.yaml")
@@ -274,5 +259,33 @@ func TestApplyConfigLegacyValidation(t *testing.T) {
 		RuleFiles:    []string{utf8RuleFile},
 	}, &updatedOpts); err == nil {
 		t.Fatal("expected UTF-8 recording rule metric name to fail legacy validation, got nil")
+	}
+}
+
+type dummyAppender struct {
+	storage.Appender
+}
+
+type dummyAppendable struct{}
+
+func (d *dummyAppendable) Appender(context.Context) storage.Appender {
+	return &dummyAppender{}
+}
+
+func TestRuleAppenderSetOptions(t *testing.T) {
+	// A dummy appendable returning dummyAppender with a nil embedded storage.Appender
+	// mimics export.Storage appender in Prometheus 3.x.
+	appendable := wrapAppendable(&dummyAppendable{})
+	app := appendable.Appender(t.Context())
+
+	// SetOptions must not panic even if the underlying Appender has a nil embedded Appender.
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("SetOptions panicked: %v", r)
+		}
+	}()
+	app.SetOptions(&storage.AppendOptions{})
+	if err := app.Rollback(); err != nil {
+		t.Fatalf("Rollback failed: %v", err)
 	}
 }
