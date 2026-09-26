@@ -28,7 +28,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/go-cmp/cmp"
-	"github.com/oklog/ulid"
+	"github.com/oklog/ulid/v2"
 	"google.golang.org/api/iterator"
 	monitoredres_pb "google.golang.org/genproto/googleapis/api/monitoredres"
 	"google.golang.org/protobuf/types/known/timestamppb"
