@@ -89,17 +89,35 @@ func TestApplyVPA(t *testing.T) {
 			case err != nil && tc.wantErr:
 				// Ok.
 			case err == nil && !tc.wantErr:
-				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: alertmanagerVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
-					t.Error(err)
+				expectedTargets := map[string]struct {
+					kind          string
+					containerName string
+				}{
+					alertmanagerVPAName:  {kind: "StatefulSet", containerName: "alertmanager"},
+					collectorVPAName:     {kind: "DaemonSet", containerName: "prometheus"},
+					operatorVPAName:      {kind: "Deployment", containerName: "operator"},
+					ruleEvaluatorVPAName: {kind: "Deployment", containerName: "evaluator"},
 				}
-				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: collectorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
-					t.Error(err)
-				}
-				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: operatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
-					t.Error(err)
-				}
-				if err := tc.c.Get(t.Context(), client.ObjectKey{Name: ruleEvaluatorVPAName}, &autoscalingv1.VerticalPodAutoscaler{}); err != nil {
-					t.Error(err)
+				for vpaName, want := range expectedTargets {
+					var got autoscalingv1.VerticalPodAutoscaler
+					if err := tc.c.Get(t.Context(), client.ObjectKey{Name: vpaName}, &got); err != nil {
+						t.Errorf("get VPA %q: %v", vpaName, err)
+						continue
+					}
+					if got.Spec.TargetRef == nil {
+						t.Errorf("VPA %q has nil Spec.TargetRef", vpaName)
+						continue
+					}
+					if got.Spec.TargetRef.Kind != want.kind || got.Spec.TargetRef.Name != vpaName {
+						t.Errorf("VPA %q TargetRef = %+v, want Kind=%q Name=%q", vpaName, got.Spec.TargetRef, want.kind, vpaName)
+					}
+					if got.Spec.ResourcePolicy == nil || len(got.Spec.ResourcePolicy.ContainerPolicies) == 0 {
+						t.Errorf("VPA %q has empty ResourcePolicy.ContainerPolicies", vpaName)
+						continue
+					}
+					if got.Spec.ResourcePolicy.ContainerPolicies[0].ContainerName != want.containerName {
+						t.Errorf("VPA %q first ContainerName = %q, want %q", vpaName, got.Spec.ResourcePolicy.ContainerPolicies[0].ContainerName, want.containerName)
+					}
 				}
 			default:
 				// Ok.
