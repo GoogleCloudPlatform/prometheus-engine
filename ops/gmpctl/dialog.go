@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/huh"
+	"charm.land/huh/v2"
 )
 
 func selectBranch(question string) (branch string) {
