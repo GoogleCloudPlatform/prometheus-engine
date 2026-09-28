@@ -100,54 +100,54 @@ label_limit: 2
 label_name_length_limit: 3
 label_value_length_limit: 4
 authorization:
-  credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
 tls_config:
-  ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-  insecure_skip_verify: false
+    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    insecure_skip_verify: false
 follow_redirects: false
 enable_http2: false
 relabel_configs:
-- source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
-  regex: linux
-  action: keep
-- target_label: job
-  replacement: kubelet
-  action: replace
-- source_labels: [__meta_kubernetes_node_name]
-  target_label: node
-  action: replace
-- source_labels: [__meta_kubernetes_node_name]
-  target_label: instance
-  replacement: $1:cadvisor/metrics
-  action: replace
-- target_label: project_id
-  replacement: test_project
-  action: replace
-- target_label: location
-  replacement: test_location
-  action: replace
-- target_label: cluster
-  replacement: test_cluster
-  action: replace
+    - source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
+      regex: linux
+      action: keep
+    - target_label: job
+      replacement: kubelet
+      action: replace
+    - source_labels: [__meta_kubernetes_node_name]
+      target_label: node
+      action: replace
+    - source_labels: [__meta_kubernetes_node_name]
+      target_label: instance
+      replacement: $1:cadvisor/metrics
+      action: replace
+    - target_label: project_id
+      replacement: test_project
+      action: replace
+    - target_label: location
+      replacement: test_location
+      action: replace
+    - target_label: cluster
+      replacement: test_cluster
+      action: replace
 metric_relabel_configs:
-- source_labels: [mlabel_1, mlabel_2]
-  target_label: mlabel_3
-  action: replace
-- source_labels: [mlabel_1]
-  modulus: 3
-  target_label: __tmp_mod
-  action: hashmod
-- regex: foo_.+
-  modulus: 3
-  action: keep
+    - source_labels: [mlabel_1, mlabel_2]
+      target_label: mlabel_3
+      action: replace
+    - source_labels: [mlabel_1]
+      modulus: 3
+      target_label: __tmp_mod
+      action: hashmod
+    - regex: foo_.+
+      modulus: 3
+      action: keep
 kubernetes_sd_configs:
-- role: node
-  kubeconfig_file: ""
-  follow_redirects: true
-  enable_http2: true
-  selectors:
-  - role: node
-    field: metadata.name=$(NODE_NAME)
+    - role: node
+      kubeconfig_file: ""
+      follow_redirects: true
+      enable_http2: true
+      selectors:
+        - role: node
+          field: metadata.name=$(NODE_NAME)
 `,
 		`job_name: ClusterNodeMonitoring/kubelet/metrics
 honor_timestamps: false
@@ -163,43 +163,43 @@ label_limit: 2
 label_name_length_limit: 3
 label_value_length_limit: 4
 authorization:
-  credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
 tls_config:
-  ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-  insecure_skip_verify: false
+    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    insecure_skip_verify: false
 follow_redirects: false
 enable_http2: false
 relabel_configs:
-- source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
-  regex: linux
-  action: keep
-- target_label: job
-  replacement: kubelet
-  action: replace
-- source_labels: [__meta_kubernetes_node_name]
-  target_label: node
-  action: replace
-- source_labels: [__meta_kubernetes_node_name]
-  target_label: instance
-  replacement: $1:metrics
-  action: replace
-- target_label: project_id
-  replacement: test_project
-  action: replace
-- target_label: location
-  replacement: test_location
-  action: replace
-- target_label: cluster
-  replacement: test_cluster
-  action: replace
+    - source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
+      regex: linux
+      action: keep
+    - target_label: job
+      replacement: kubelet
+      action: replace
+    - source_labels: [__meta_kubernetes_node_name]
+      target_label: node
+      action: replace
+    - source_labels: [__meta_kubernetes_node_name]
+      target_label: instance
+      replacement: $1:metrics
+      action: replace
+    - target_label: project_id
+      replacement: test_project
+      action: replace
+    - target_label: location
+      replacement: test_location
+      action: replace
+    - target_label: cluster
+      replacement: test_cluster
+      action: replace
 kubernetes_sd_configs:
-- role: node
-  kubeconfig_file: ""
-  follow_redirects: true
-  enable_http2: true
-  selectors:
-  - role: node
-    field: metadata.name=$(NODE_NAME)
+    - role: node
+      kubeconfig_file: ""
+      follow_redirects: true
+      enable_http2: true
+      selectors:
+        - role: node
+          field: metadata.name=$(NODE_NAME)
 `,
 	}
 	if diff := cmp.Diff(want, got); diff != "" {

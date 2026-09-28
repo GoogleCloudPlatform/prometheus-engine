@@ -355,70 +355,70 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 relabel_configs:
-- target_label: project_id
-  replacement: test_project
-  action: replace
-- target_label: location
-  replacement: test_location
-  action: replace
-- target_label: cluster
-  replacement: test_cluster
-  action: replace
-- source_labels: [__meta_kubernetes_namespace]
-  regex: ns1
-  action: keep
-- source_labels: [__meta_kubernetes_namespace]
-  target_label: namespace
-  action: replace
-- target_label: job
-  replacement: name1
-  action: replace
-- source_labels: [__meta_kubernetes_pod_phase]
-  regex: (Failed|Succeeded)
-  action: drop
-- source_labels: [__meta_kubernetes_pod_name]
-  target_label: __tmp_instance
-  action: replace
-- source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
-  regex: DaemonSet;(.*)
-  target_label: __tmp_instance
-  replacement: $1
-  action: replace
-- source_labels: [__meta_kubernetes_pod_container_port_name]
-  regex: web
-  action: keep
-- source_labels: [__tmp_instance, __meta_kubernetes_pod_container_port_name]
-  regex: (.+);(.+)
-  target_label: instance
-  replacement: $1:$2
-  action: replace
-- source_labels: [__meta_kubernetes_pod_label_key1]
-  target_label: key2
-  action: replace
-- source_labels: [__meta_kubernetes_pod_label_key3]
-  target_label: key3
-  action: replace
+    - target_label: project_id
+      replacement: test_project
+      action: replace
+    - target_label: location
+      replacement: test_location
+      action: replace
+    - target_label: cluster
+      replacement: test_cluster
+      action: replace
+    - source_labels: [__meta_kubernetes_namespace]
+      regex: ns1
+      action: keep
+    - source_labels: [__meta_kubernetes_namespace]
+      target_label: namespace
+      action: replace
+    - target_label: job
+      replacement: name1
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_phase]
+      regex: (Failed|Succeeded)
+      action: drop
+    - source_labels: [__meta_kubernetes_pod_name]
+      target_label: __tmp_instance
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
+      regex: DaemonSet;(.*)
+      target_label: __tmp_instance
+      replacement: $1
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_container_port_name]
+      regex: web
+      action: keep
+    - source_labels: [__tmp_instance, __meta_kubernetes_pod_container_port_name]
+      regex: (.+);(.+)
+      target_label: instance
+      replacement: $1:$2
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_label_key1]
+      target_label: key2
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_label_key3]
+      target_label: key3
+      action: replace
 metric_relabel_configs:
-- source_labels: [mlabel_1, mlabel_2]
-  target_label: mlabel_3
-  action: replace
-- source_labels: [mlabel_1]
-  modulus: 3
-  target_label: __tmp_mod
-  action: hashmod
-- source_labels: [mlabel_4]
-  target_label: mlabel_5
-- regex: foo_.+
-  modulus: 3
-  action: keep
+    - source_labels: [mlabel_1, mlabel_2]
+      target_label: mlabel_3
+      action: replace
+    - source_labels: [mlabel_1]
+      modulus: 3
+      target_label: __tmp_mod
+      action: hashmod
+    - source_labels: [mlabel_4]
+      target_label: mlabel_5
+    - regex: foo_.+
+      modulus: 3
+      action: keep
 kubernetes_sd_configs:
-- role: pod
-  kubeconfig_file: ""
-  follow_redirects: true
-  enable_http2: true
-  selectors:
-  - role: pod
-    field: spec.nodeName=$(NODE_NAME)
+    - role: pod
+      kubeconfig_file: ""
+      follow_redirects: true
+      enable_http2: true
+      selectors:
+        - role: pod
+          field: spec.nodeName=$(NODE_NAME)
 `,
 		`job_name: PodMonitoring/ns1/name1/8080
 honor_timestamps: false
@@ -436,59 +436,59 @@ follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
 relabel_configs:
-- target_label: project_id
-  replacement: test_project
-  action: replace
-- target_label: location
-  replacement: test_location
-  action: replace
-- target_label: cluster
-  replacement: test_cluster
-  action: replace
-- source_labels: [__meta_kubernetes_namespace]
-  regex: ns1
-  action: keep
-- source_labels: [__meta_kubernetes_namespace]
-  target_label: namespace
-  action: replace
-- target_label: job
-  replacement: name1
-  action: replace
-- source_labels: [__meta_kubernetes_pod_phase]
-  regex: (Failed|Succeeded)
-  action: drop
-- source_labels: [__meta_kubernetes_pod_name]
-  target_label: __tmp_instance
-  action: replace
-- source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
-  regex: DaemonSet;(.*)
-  target_label: __tmp_instance
-  replacement: $1
-  action: replace
-- regex: container
-  action: labeldrop
-- source_labels: [__tmp_instance]
-  target_label: instance
-  replacement: $1:8080
-  action: replace
-- source_labels: [__meta_kubernetes_pod_ip]
-  target_label: __address__
-  replacement: $1:8080
-  action: replace
-- source_labels: [__meta_kubernetes_pod_label_key1]
-  target_label: key2
-  action: replace
-- source_labels: [__meta_kubernetes_pod_label_key3]
-  target_label: key3
-  action: replace
+    - target_label: project_id
+      replacement: test_project
+      action: replace
+    - target_label: location
+      replacement: test_location
+      action: replace
+    - target_label: cluster
+      replacement: test_cluster
+      action: replace
+    - source_labels: [__meta_kubernetes_namespace]
+      regex: ns1
+      action: keep
+    - source_labels: [__meta_kubernetes_namespace]
+      target_label: namespace
+      action: replace
+    - target_label: job
+      replacement: name1
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_phase]
+      regex: (Failed|Succeeded)
+      action: drop
+    - source_labels: [__meta_kubernetes_pod_name]
+      target_label: __tmp_instance
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
+      regex: DaemonSet;(.*)
+      target_label: __tmp_instance
+      replacement: $1
+      action: replace
+    - regex: container
+      action: labeldrop
+    - source_labels: [__tmp_instance]
+      target_label: instance
+      replacement: $1:8080
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_ip]
+      target_label: __address__
+      replacement: $1:8080
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_label_key1]
+      target_label: key2
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_label_key3]
+      target_label: key3
+      action: replace
 kubernetes_sd_configs:
-- role: pod
-  kubeconfig_file: ""
-  follow_redirects: true
-  enable_http2: true
-  selectors:
-  - role: pod
-    field: spec.nodeName=$(NODE_NAME)
+    - role: pod
+      kubeconfig_file: ""
+      follow_redirects: true
+      enable_http2: true
+      selectors:
+        - role: pod
+          field: spec.nodeName=$(NODE_NAME)
 `,
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -583,65 +583,65 @@ label_value_length_limit: 4
 follow_redirects: true
 enable_http2: true
 relabel_configs:
-- target_label: project_id
-  replacement: test_project
-  action: replace
-- target_label: location
-  replacement: test_location
-  action: replace
-- target_label: cluster
-  replacement: test_cluster
-  action: replace
-- source_labels: [__meta_kubernetes_namespace]
-  target_label: namespace
-  action: replace
-- target_label: job
-  replacement: name1
-  action: replace
-- source_labels: [__meta_kubernetes_pod_phase]
-  regex: (Failed|Succeeded)
-  action: drop
-- source_labels: [__meta_kubernetes_pod_name]
-  target_label: __tmp_instance
-  action: replace
-- source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
-  regex: DaemonSet;(.*)
-  target_label: __tmp_instance
-  replacement: $1
-  action: replace
-- source_labels: [__meta_kubernetes_pod_container_port_name]
-  regex: web
-  action: keep
-- source_labels: [__tmp_instance, __meta_kubernetes_pod_container_port_name]
-  regex: (.+);(.+)
-  target_label: instance
-  replacement: $1:$2
-  action: replace
-- source_labels: [__meta_kubernetes_pod_label_key1]
-  target_label: key2
-  action: replace
-- source_labels: [__meta_kubernetes_pod_label_key3]
-  target_label: key3
-  action: replace
+    - target_label: project_id
+      replacement: test_project
+      action: replace
+    - target_label: location
+      replacement: test_location
+      action: replace
+    - target_label: cluster
+      replacement: test_cluster
+      action: replace
+    - source_labels: [__meta_kubernetes_namespace]
+      target_label: namespace
+      action: replace
+    - target_label: job
+      replacement: name1
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_phase]
+      regex: (Failed|Succeeded)
+      action: drop
+    - source_labels: [__meta_kubernetes_pod_name]
+      target_label: __tmp_instance
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
+      regex: DaemonSet;(.*)
+      target_label: __tmp_instance
+      replacement: $1
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_container_port_name]
+      regex: web
+      action: keep
+    - source_labels: [__tmp_instance, __meta_kubernetes_pod_container_port_name]
+      regex: (.+);(.+)
+      target_label: instance
+      replacement: $1:$2
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_label_key1]
+      target_label: key2
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_label_key3]
+      target_label: key3
+      action: replace
 metric_relabel_configs:
-- source_labels: [mlabel_1, mlabel_2]
-  target_label: mlabel_3
-  action: replace
-- source_labels: [mlabel_1]
-  modulus: 3
-  target_label: __tmp_mod
-  action: hashmod
-- regex: foo_.+
-  modulus: 3
-  action: keep
+    - source_labels: [mlabel_1, mlabel_2]
+      target_label: mlabel_3
+      action: replace
+    - source_labels: [mlabel_1]
+      modulus: 3
+      target_label: __tmp_mod
+      action: hashmod
+    - regex: foo_.+
+      modulus: 3
+      action: keep
 kubernetes_sd_configs:
-- role: pod
-  kubeconfig_file: ""
-  follow_redirects: true
-  enable_http2: true
-  selectors:
-  - role: pod
-    field: spec.nodeName=$(NODE_NAME)
+    - role: pod
+      kubeconfig_file: ""
+      follow_redirects: true
+      enable_http2: true
+      selectors:
+        - role: pod
+          field: spec.nodeName=$(NODE_NAME)
 `,
 		`job_name: ClusterPodMonitoring/name1/8080
 honor_timestamps: false
@@ -659,56 +659,56 @@ follow_redirects: true
 enable_http2: true
 proxy_url: http://foo.bar/test
 relabel_configs:
-- target_label: project_id
-  replacement: test_project
-  action: replace
-- target_label: location
-  replacement: test_location
-  action: replace
-- target_label: cluster
-  replacement: test_cluster
-  action: replace
-- source_labels: [__meta_kubernetes_namespace]
-  target_label: namespace
-  action: replace
-- target_label: job
-  replacement: name1
-  action: replace
-- source_labels: [__meta_kubernetes_pod_phase]
-  regex: (Failed|Succeeded)
-  action: drop
-- source_labels: [__meta_kubernetes_pod_name]
-  target_label: __tmp_instance
-  action: replace
-- source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
-  regex: DaemonSet;(.*)
-  target_label: __tmp_instance
-  replacement: $1
-  action: replace
-- regex: container
-  action: labeldrop
-- source_labels: [__tmp_instance]
-  target_label: instance
-  replacement: $1:8080
-  action: replace
-- source_labels: [__meta_kubernetes_pod_ip]
-  target_label: __address__
-  replacement: $1:8080
-  action: replace
-- source_labels: [__meta_kubernetes_pod_label_key1]
-  target_label: key2
-  action: replace
-- source_labels: [__meta_kubernetes_pod_label_key3]
-  target_label: key3
-  action: replace
+    - target_label: project_id
+      replacement: test_project
+      action: replace
+    - target_label: location
+      replacement: test_location
+      action: replace
+    - target_label: cluster
+      replacement: test_cluster
+      action: replace
+    - source_labels: [__meta_kubernetes_namespace]
+      target_label: namespace
+      action: replace
+    - target_label: job
+      replacement: name1
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_phase]
+      regex: (Failed|Succeeded)
+      action: drop
+    - source_labels: [__meta_kubernetes_pod_name]
+      target_label: __tmp_instance
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_controller_kind, __meta_kubernetes_pod_node_name]
+      regex: DaemonSet;(.*)
+      target_label: __tmp_instance
+      replacement: $1
+      action: replace
+    - regex: container
+      action: labeldrop
+    - source_labels: [__tmp_instance]
+      target_label: instance
+      replacement: $1:8080
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_ip]
+      target_label: __address__
+      replacement: $1:8080
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_label_key1]
+      target_label: key2
+      action: replace
+    - source_labels: [__meta_kubernetes_pod_label_key3]
+      target_label: key3
+      action: replace
 kubernetes_sd_configs:
-- role: pod
-  kubeconfig_file: ""
-  follow_redirects: true
-  enable_http2: true
-  selectors:
-  - role: pod
-    field: spec.nodeName=$(NODE_NAME)
+    - role: pod
+      kubeconfig_file: ""
+      follow_redirects: true
+      enable_http2: true
+      selectors:
+        - role: pod
+          field: spec.nodeName=$(NODE_NAME)
 `,
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
