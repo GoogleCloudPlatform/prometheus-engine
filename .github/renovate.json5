@@ -69,7 +69,9 @@
         "github.com/efficientgo/tools",
         "github.com/efficientgo/tools/**",
         "github.com/ahmetb/gen-crd-api-reference-docs",
-        "github.com/bwplotka/mdox"
+        "github.com/bwplotka/mdox",
+        "github.com/mikefarah/yq/v4",
+        "k8s.io/code-generator"
       ],
       "enabled": false
     },
