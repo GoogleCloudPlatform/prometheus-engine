@@ -7,7 +7,7 @@ require (
 	github.com/efficientgo/core v1.0.0-rc.3
 	github.com/go-kit/log v0.2.1
 	github.com/google/go-cmp v0.7.0
-	github.com/oklog/ulid v1.3.1
+	github.com/oklog/ulid/v2 v2.1.2
 	golang.org/x/oauth2 v0.37.0
 	google.golang.org/api v0.299.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260921155816-b14227669459
