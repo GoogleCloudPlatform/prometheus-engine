@@ -27,7 +27,7 @@ import (
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/relabel"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/internal/gokitlog"
 	"github.com/thanos-io/thanos/pkg/reloader"

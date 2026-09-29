@@ -47,11 +47,11 @@ import (
 	"github.com/prometheus/prometheus/google/export"
 	exportsetup "github.com/prometheus/prometheus/google/export/setup"
 	apiv1 "github.com/prometheus/prometheus/web/api/v1"
+	"go.yaml.in/yaml/v3"
 	"google.golang.org/api/option"
 	apihttp "google.golang.org/api/transport/http"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"gopkg.in/yaml.v3"
 
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
