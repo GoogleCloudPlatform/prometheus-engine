@@ -73,8 +73,12 @@ func TestInjectGMPSidecarExample(t *testing.T) {
 		t.Fatalf("error creating example-deployment: %s", err)
 	}
 	defer func() {
-		_ = kubeClient.Delete(ctx, deployment)
-		_ = kubeClient.Delete(ctx, &corev1.ConfigMap{
+		// Use a fresh context, so cleanup works even if ctx has already expired.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+
+		_ = kubeClient.Delete(cleanupCtx, deployment)
+		_ = kubeClient.Delete(cleanupCtx, &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "example-deployment",
 				Namespace: deployment.Namespace,
