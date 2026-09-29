@@ -715,3 +715,107 @@ kubernetes_sd_configs:
 		t.Fatalf("unexpected scrape config YAML (-want, +got): %s", diff)
 	}
 }
+
+func TestScrapeIntervalFloor(t *testing.T) {
+	cases := []struct {
+		name         string
+		interval     string
+		timeout      string
+		wantInterval string
+		wantTimeout  string
+		wantErr      bool
+	}{
+		{
+			name:         "1s interval without timeout clamped to 5s",
+			interval:     "1s",
+			wantInterval: "5s",
+			wantTimeout:  "5s",
+		},
+		{
+			name:         "2s interval with 1s timeout clamps interval and preserves timeout",
+			interval:     "2s",
+			timeout:      "1s",
+			wantInterval: "5s",
+			wantTimeout:  "1s",
+		},
+		{
+			name:     "2s interval with 3s timeout rejected before clamping",
+			interval: "2s",
+			timeout:  "3s",
+			wantErr:  true,
+		},
+		{
+			name:         "5s interval unchanged",
+			interval:     "5s",
+			wantInterval: "5s",
+			wantTimeout:  "5s",
+		},
+		{
+			name:         "10s interval with 5s timeout unchanged",
+			interval:     "10s",
+			timeout:      "5s",
+			wantInterval: "10s",
+			wantTimeout:  "5s",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ep := ScrapeEndpoint{
+				Port:     intstr.FromString("metrics"),
+				Interval: tc.interval,
+				Timeout:  tc.timeout,
+			}
+			pmon := &PodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "name1",
+				},
+				Spec: PodMonitoringSpec{
+					Endpoints: []ScrapeEndpoint{ep},
+				},
+			}
+			cfgs, err := pmon.ScrapeConfigs("test_project", "test_location", "test_cluster", nil)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(cfgs) != 1 {
+				t.Fatalf("expected 1 scrape config, got %d", len(cfgs))
+			}
+			if got := cfgs[0].ScrapeInterval.String(); got != tc.wantInterval {
+				t.Errorf("PodMonitoring ScrapeInterval = %q, want %q", got, tc.wantInterval)
+			}
+			if got := cfgs[0].ScrapeTimeout.String(); got != tc.wantTimeout {
+				t.Errorf("PodMonitoring ScrapeTimeout = %q, want %q", got, tc.wantTimeout)
+			}
+
+			cpmon := &ClusterPodMonitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "name1",
+				},
+				Spec: ClusterPodMonitoringSpec{
+					Endpoints: []ScrapeEndpoint{ep},
+				},
+			}
+			ccfgs, err := cpmon.ScrapeConfigs("test_project", "test_location", "test_cluster", nil)
+			if err != nil {
+				t.Fatalf("unexpected ClusterPodMonitoring error: %v", err)
+			}
+			if len(ccfgs) != 1 {
+				t.Fatalf("expected 1 ClusterPodMonitoring scrape config, got %d", len(ccfgs))
+			}
+			if got := ccfgs[0].ScrapeInterval.String(); got != tc.wantInterval {
+				t.Errorf("ClusterPodMonitoring ScrapeInterval = %q, want %q", got, tc.wantInterval)
+			}
+			if got := ccfgs[0].ScrapeTimeout.String(); got != tc.wantTimeout {
+				t.Errorf("ClusterPodMonitoring ScrapeTimeout = %q, want %q", got, tc.wantTimeout)
+			}
+		})
+	}
+}
