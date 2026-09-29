@@ -83,6 +83,15 @@ spec:
             # Default is 18081.
             port: 18081
             scheme: HTTP
+        startupProbe:
+          failureThreshold: 12
+          httpGet:
+            path: /healthz
+            # Note this should match the --probe-addr flag passed in to the operator args.
+            # Default is 18081.
+            port: 18081
+            scheme: HTTP
+          periodSeconds: 10
         volumeMounts:
         - name: certs
           mountPath: /etc/tls/private
