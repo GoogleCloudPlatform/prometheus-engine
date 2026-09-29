@@ -24,6 +24,9 @@ NAME="example-deployment"
 CONTAINER="example-service"
 METRICS_PATH="/metrics"
 PORT=80
+# Optional extra flags for the Prometheus sidecar, e.g. "--export.disable" when running
+# without Google Cloud credentials.
+PROMETHEUS_EXTRA_ARGS="${PROMETHEUS_EXTRA_ARGS:-}"
 
 if ! command -v yq &> /dev/null; then
   echo "Error: yq is not installed. Please install it (e.g., via 'go install github.com/mikefarah/yq/v4@latest' or from https://github.com/mikefarah/yq)." >&2
@@ -106,6 +109,10 @@ spec:
         - --storage.tsdb.no-lockfile
         - --web.route-prefix=/
         - --log.level=debug
+        env:
+        # Additional flags, parsed by the GMP Prometheus fork.
+        - name: EXTRA_ARGS
+          value: "${PROMETHEUS_EXTRA_ARGS}"
         ports:
         - containerPort: 9090
         volumeMounts:

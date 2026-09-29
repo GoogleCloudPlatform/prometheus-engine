@@ -16,7 +16,9 @@ package e2e
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,13 +30,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/kube"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 )
 
 func TestInjectGMPSidecarExample(t *testing.T) {
 	ctx := contextWithDeadline(t)
 
-	kubeClient, _, err := setupCluster(ctx, t)
+	kubeClient, restConfig, err := setupCluster(ctx, t)
 	if err != nil {
 		t.Fatalf("error setting up cluster: %s", err)
 	}
@@ -113,6 +116,8 @@ func TestInjectGMPSidecarExample(t *testing.T) {
 
 	// 2. Run the bash script.
 	cmd := exec.CommandContext(ctx, "../examples/inject-gmp-sidecar.sh")
+	// Kind clusters have no Google Cloud credentials, so disable the export to let Prometheus start.
+	cmd.Env = append(os.Environ(), "PROMETHEUS_EXTRA_ARGS=--export.disable")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error running inject-gmp-sidecar.sh: %s\n%s", err, string(out))
@@ -153,5 +158,15 @@ func TestInjectGMPSidecarExample(t *testing.T) {
 		return hasProm && hasReloader, nil
 	}); err != nil {
 		t.Fatalf("failed to verify injected sidecars or config map: %s", err)
+	}
+
+	// 4. Verify the patched pods start and become ready.
+	if err := kube.WaitForDeploymentReady(ctx, kubeClient, deployment.Namespace, deployment.Name); err != nil {
+		t.Errorf("example-deployment is not ready: %s", err)
+		debugOut := strings.Builder{}
+		if err := kube.Debug(t.Context(), restConfig, kubeClient, deployment, &debugOut); err != nil {
+			t.Fatalf("unable to debug: %s", err)
+		}
+		t.Fatalf("debug:\n%s", debugOut.String())
 	}
 }
