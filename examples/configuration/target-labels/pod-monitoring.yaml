@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring
 metadata:
-  name: prom-example
+  name: prom-example-target-labels
   labels:
     app.kubernetes.io/name: prom-example
 spec:
@@ -25,13 +25,14 @@ spec:
   endpoints:
   - port: metrics
     interval: 30s
-  # Optional: Transfer pod labels or control metadata labels on scraped targets.
-  # See examples/configuration/target-labels for detailed examples.
-  # targetLabels:
-  #   fromPod:
-  #   - from: app
-  #   - from: app.kubernetes.io/name
-  #     to: app_name
-  #   metadata:
-  #   - pod
-  #   - container
+  targetLabels:
+    fromPod:
+    # Transfer pod label "app" as target label "app".
+    - from: app
+    # Remap pod label containing characters not valid in Prometheus labels (such as '/' or '-') to a valid label name.
+    - from: app.kubernetes.io/name
+      to: app_name
+    # Specify which pod metadata labels to include on targets (defaults to container, pod, top_level_controller_name, top_level_controller_type).
+    metadata:
+    - pod
+    - container
