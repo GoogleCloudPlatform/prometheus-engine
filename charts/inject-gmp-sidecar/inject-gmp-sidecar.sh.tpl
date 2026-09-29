@@ -16,6 +16,26 @@
 # NOTE: examples/inject-gmp-sidecar.sh is generated from
 # charts/inject-gmp-sidecar/inject-gmp-sidecar.sh.tpl by `make regen`.
 
+# Example script that injects a dedicated GMP collector into an existing workload. It adds
+# Prometheus (GMP fork) and config-reloader sidecars, which scrape the workload's metrics
+# endpoint from within the pod and export the metrics to Google Cloud Monitoring.
+#
+# The script:
+#   1. Reads the cluster, location and project_id external labels from the managed
+#      collection configuration (gmp-system/collector ConfigMap).
+#   2. Creates or updates the ${NAMESPACE}/${NAME} ConfigMap with a Prometheus configuration
+#      that scrapes localhost:${PORT}${METRICS_PATH}.
+#   3. Patches the workload with a strategic merge patch that adds the config-init init
+#      container, the prometheus and config-reloader containers and their volumes.
+#
+# Prerequisites:
+#   * Managed collection enabled in the cluster (e.g. on GKE).
+#   * kubectl configured for the cluster and yq v4 (https://github.com/mikefarah/yq).
+#   * Workload pods can write metrics to Cloud Monitoring (roles/monitoring.metricWriter),
+#     e.g. using Workload Identity Federation for GKE.
+#
+# Usage: edit the variables below to match your workload and run the script.
+
 set -exuo pipefail
 
 KIND="deployment"
