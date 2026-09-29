@@ -80,7 +80,7 @@ func TestInjectGMPSidecarExample(t *testing.T) {
 		_ = kubeClient.Delete(cleanupCtx, deployment)
 		_ = kubeClient.Delete(cleanupCtx, &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "example-deployment",
+				Name:      deployment.Name,
 				Namespace: deployment.Namespace,
 			},
 		})
@@ -122,7 +122,7 @@ func TestInjectGMPSidecarExample(t *testing.T) {
 	// 3. Verify sidecars are injected and ConfigMap is created.
 	if err := wait.PollUntilContextCancel(ctx, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 		cm := &corev1.ConfigMap{}
-		if getErr := kubeClient.Get(ctx, client.ObjectKey{Name: "example-deployment", Namespace: "default"}, cm); getErr != nil {
+		if getErr := kubeClient.Get(ctx, client.ObjectKey{Name: deployment.Name, Namespace: deployment.Namespace}, cm); getErr != nil {
 			return false, nil //nolint:nilerr
 		}
 		if cm.Data["config.yaml"] == "" {
@@ -130,7 +130,7 @@ func TestInjectGMPSidecarExample(t *testing.T) {
 		}
 
 		dep := &appsv1.Deployment{}
-		if getErr := kubeClient.Get(ctx, client.ObjectKey{Name: "example-deployment", Namespace: "default"}, dep); getErr != nil {
+		if getErr := kubeClient.Get(ctx, client.ObjectKey{Name: deployment.Name, Namespace: deployment.Namespace}, dep); getErr != nil {
 			return false, nil //nolint:nilerr
 		}
 
