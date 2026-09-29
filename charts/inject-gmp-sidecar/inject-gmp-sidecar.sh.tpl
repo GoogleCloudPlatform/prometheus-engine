@@ -41,9 +41,9 @@ if [[ -z "${CLUSTER_NAME}" || -z "${LOCATION}" || -z "${PROJECT_ID}" ]]; then
 fi
 
 # Images come from charts/values.global.yaml, so they are updated together with our manifests.
-DISTROLESS_IMAGE=gke.gcr.io/gke-distroless/bash:gke_distroless_20260815.00_p0
-PROMETHEUS_IMAGE=gke.gcr.io/prometheus-engine/prometheus:v3.13.0-gmp.1-gke.0@sha256:b8e81d2737a3ca7126b06cbd4bb495b4f9c694e9431e5a280d7d37f289ff2708
-CONFIG_RELOADER_IMAGE=gke.gcr.io/prometheus-engine/config-reloader:v0.17.3-gke.0
+DISTROLESS_IMAGE={{.Values.images.bash.image}}:{{.Values.images.bash.tag}}
+PROMETHEUS_IMAGE={{.Values.images.prometheus.image}}:{{.Values.images.prometheus.tag}}
+CONFIG_RELOADER_IMAGE={{.Values.images.configReloader.image}}:{{.Values.images.configReloader.tag}}
 
 # Define the scrape configuration.
 CONFIG_MAP=$(

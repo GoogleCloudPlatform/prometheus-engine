@@ -13,7 +13,9 @@ Each chart requires `values.global.yaml` in this directory and (optionally) its 
 
 The global value file allows us to have a single source of truth file to variables
 we use for our example manifests for `/manifests/operator.yaml`, standalone
-`/manifests/rule-evaluator.yaml` and `/cmd/datasource-syncer/datasource-syncer.yaml`.
+`/manifests/rule-evaluator.yaml`, `/cmd/datasource-syncer/datasource-syncer.yaml` and
+the `/examples/inject-gmp-sidecar.sh` example script. Since Helm only renders YAML, the
+`inject-gmp-sidecar` chart wraps the script in a YAML document, which is then extracted.
 
 To render them, use `helm template` command with multiple `-f` flags (scripted in `make regen` command):
 
