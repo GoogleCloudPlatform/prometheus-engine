@@ -206,3 +206,43 @@ kubernetes_sd_configs:
 		t.Fatalf("unexpected scrape config YAML (-want, +got): %s", diff)
 	}
 }
+
+func TestClusterNodeMonitoring_ScrapeIntervalFloor(t *testing.T) {
+	cmon := &ClusterNodeMonitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-mon",
+		},
+		Spec: ClusterNodeMonitoringSpec{
+			Endpoints: []ScrapeNodeEndpoint{
+				{
+					Path:     "/metrics-1s",
+					Interval: "1s",
+				},
+				{
+					Path:     "/metrics-2s",
+					Interval: "2s",
+					Timeout:  "1s",
+				},
+			},
+		},
+	}
+	cfgs, err := cmon.ScrapeConfigs("test_project", "test_location", "test_cluster")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfgs) != 2 {
+		t.Fatalf("expected 2 scrape configs, got %d", len(cfgs))
+	}
+	if got, want := cfgs[0].ScrapeInterval.String(), "5s"; got != want {
+		t.Errorf("endpoint 0 ScrapeInterval = %q, want %q", got, want)
+	}
+	if got, want := cfgs[0].ScrapeTimeout.String(), "5s"; got != want {
+		t.Errorf("endpoint 0 ScrapeTimeout = %q, want %q", got, want)
+	}
+	if got, want := cfgs[1].ScrapeInterval.String(), "5s"; got != want {
+		t.Errorf("endpoint 1 ScrapeInterval = %q, want %q", got, want)
+	}
+	if got, want := cfgs[1].ScrapeTimeout.String(), "1s"; got != want {
+		t.Errorf("endpoint 1 ScrapeTimeout = %q, want %q", got, want)
+	}
+}

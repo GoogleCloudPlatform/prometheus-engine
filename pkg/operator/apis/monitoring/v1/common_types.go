@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/prometheus/common/config"
 	prommodel "github.com/prometheus/common/model"
@@ -32,6 +33,12 @@ import (
 // EnvVarNodeName is the current node that needs to be interpolated in
 // generated scrape configurations for a PodMonitoring resource.
 const EnvVarNodeName = "NODE_NAME"
+
+// minScrapeInterval is the minimum scrape interval enforced when generating
+// Prometheus scrape configurations. Cloud Monitoring enforces a 5s minimum
+// sampling period on prometheus.googleapis.com/* metrics and rejects points
+// written within <2.5s of the previous point with FailedPrecondition.
+const minScrapeInterval = prommodel.Duration(5 * time.Second)
 
 // relabelingsForSelector generates a sequence of relabeling rules that implement
 // the label selector for the meta labels produced by the Kubernetes service discovery.
@@ -118,7 +125,7 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 	if err != nil {
 		return nil, fmt.Errorf("invalid scrape interval: %w", err)
 	}
-	timeout := interval
+	var timeout prommodel.Duration
 	if ep.Timeout != "" {
 		timeout, err = prommodel.ParseDuration(ep.Timeout)
 		if err != nil {
@@ -127,6 +134,12 @@ func buildPrometheusScrapeConfig(jobName string, discoverCfgs discovery.Configs,
 		if timeout > interval {
 			return nil, fmt.Errorf("scrape timeout %v must not be greater than scrape interval %v", timeout, interval)
 		}
+	}
+	if interval < minScrapeInterval {
+		interval = minScrapeInterval
+	}
+	if ep.Timeout == "" {
+		timeout = interval
 	}
 	metricsPath := "/metrics"
 	if ep.Path != "" {
