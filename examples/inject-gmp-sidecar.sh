@@ -27,10 +27,10 @@ if ! command -v yq &> /dev/null; then
   exit 1
 fi
 
-# Extract labels.
-CLUSTER_NAME=$(kubectl -n gmp-system get configmap/collector -o jsonpath='{.data.config\.yaml}' | yq '.global.external_labels.cluster')
-LOCATION=$(kubectl -n gmp-system get configmap/collector -o jsonpath='{.data.config\.yaml}' | yq '.global.external_labels.location')
-PROJECT_ID=$(kubectl -n gmp-system get configmap/collector -o jsonpath='{.data.config\.yaml}' | yq '.global.external_labels.project_id')
+# Extract labels. Missing labels are printed as empty strings rather than "null".
+CLUSTER_NAME=$(kubectl -n gmp-system get configmap/collector -o jsonpath='{.data.config\.yaml}' | yq '.global.external_labels.cluster // ""')
+LOCATION=$(kubectl -n gmp-system get configmap/collector -o jsonpath='{.data.config\.yaml}' | yq '.global.external_labels.location // ""')
+PROJECT_ID=$(kubectl -n gmp-system get configmap/collector -o jsonpath='{.data.config\.yaml}' | yq '.global.external_labels.project_id // ""')
 
 
 if [[ -z "${CLUSTER_NAME}" || -z "${LOCATION}" || -z "${PROJECT_ID}" ]]; then

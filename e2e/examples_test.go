@@ -20,11 +20,15 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 )
 
 func TestInjectGMPSidecarExample(t *testing.T) {
@@ -77,6 +81,31 @@ func TestInjectGMPSidecarExample(t *testing.T) {
 			},
 		})
 	}()
+
+	// The script reads the external labels from the collector configuration. The operator
+	// only adds them after defaulting the OperatorConfig, which can happen after it's ready.
+	if err := wait.PollUntilContextCancel(ctx, 2*time.Second, true, func(ctx context.Context) (bool, error) {
+		cm := &corev1.ConfigMap{}
+		if getErr := kubeClient.Get(ctx, client.ObjectKey{Name: operator.NameCollector, Namespace: operator.DefaultOperatorNamespace}, cm); getErr != nil {
+			if apierrors.IsNotFound(getErr) {
+				return false, nil
+			}
+			return false, getErr
+		}
+		type globalConfig struct {
+			ExternalLabels map[string]string `yaml:"external_labels"`
+		}
+		var cfg struct {
+			Global globalConfig `yaml:"global"`
+		}
+		if yamlErr := yaml.Unmarshal([]byte(cm.Data["config.yaml"]), &cfg); yamlErr != nil {
+			return false, yamlErr
+		}
+		labels := cfg.Global.ExternalLabels
+		return labels["cluster"] == cluster && labels["location"] == location && labels["project_id"] == projectID, nil
+	}); err != nil {
+		t.Fatalf("error waiting for collector external labels: %s", err)
+	}
 
 	// 2. Run the bash script.
 	cmd := exec.CommandContext(ctx, "../examples/inject-gmp-sidecar.sh")
