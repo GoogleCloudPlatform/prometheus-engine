@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	yaml "gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

@@ -22,7 +22,7 @@ import (
 	"github.com/prometheus/prometheus/google/export"
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"github.com/prometheus/prometheus/promql/parser"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
