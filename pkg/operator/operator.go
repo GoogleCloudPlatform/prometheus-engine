@@ -261,18 +261,17 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	}
 
 	// Determine whether VPA is installed in the cluster. If so, set up the scaling controller.
-	var vpaAvailable bool
 	coreClientConfig := rest.CopyConfig(clientConfig)
 	coreClientConfig.ContentType = runtime.ContentTypeProtobuf
 	clientset, err := apiextensions.NewForConfig(coreClientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("create clientset: %w", err)
 	}
-	if _, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(context.Background(), "verticalpodautoscalers.autoscaling.k8s.io", metav1.GetOptions{}); err != nil {
-		logger.Info("vertical pod autoscaling is not available, scaling.vpa.enabled option on the OperatorConfig will not work")
-	} else {
-		logger.Info("vertical pod autoscaling available, monitoring OperatorConfig for scaling.vpa.enabled option")
-		vpaAvailable = true
+	vpaAvailable, err := isVPAAvailable(context.Background(), logger, clientset)
+	if err != nil {
+		return nil, err
+	}
+	if vpaAvailable {
 		watchObjects[&autoscalingv1.VerticalPodAutoscaler{}] = cache.ByObject{
 			Field: fields.SelectorFromSet(fields.Set{
 				"metadata.namespace": opts.OperatorNamespace,
@@ -330,6 +329,20 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 		vpaAvailable: vpaAvailable,
 	}
 	return op, nil
+}
+
+func isVPAAvailable(ctx context.Context, logger logr.Logger, clientset apiextensions.Interface) (bool, error) {
+	if _, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, "verticalpodautoscalers.autoscaling.k8s.io", metav1.GetOptions{}); err != nil {
+		switch {
+		case apierrors.IsNotFound(err) || apierrors.IsForbidden(err):
+			logger.Info("vertical pod autoscaling is not available, scaling.vpa.enabled option on the OperatorConfig will not work")
+			return false, nil
+		default:
+			return false, fmt.Errorf("get VPA CRD: %w", err)
+		}
+	}
+	logger.Info("vertical pod autoscaling available, monitoring OperatorConfig for scaling.vpa.enabled option")
+	return true, nil
 }
 
 // Run the reconciliation loop of the operator.
