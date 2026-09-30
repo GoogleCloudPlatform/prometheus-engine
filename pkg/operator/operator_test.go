@@ -15,16 +15,96 @@
 package operator
 
 import (
+	"errors"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	ktesting "k8s.io/client-go/testing"
 
 	"github.com/go-logr/logr/testr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
+
+func TestIsVPAAvailable(t *testing.T) {
+	vpaCRDGroupResource := schema.GroupResource{
+		Group:    "apiextensions.k8s.io",
+		Resource: "customresourcedefinitions",
+	}
+	vpaCRDName := "verticalpodautoscalers.autoscaling.k8s.io"
+
+	cases := []struct {
+		desc             string
+		clientset        func() *apiextensionsfake.Clientset
+		wantVPAAvailable bool
+		wantErr          bool
+	}{
+		{
+			desc: "VPA CRD available",
+			clientset: func() *apiextensionsfake.Clientset {
+				return apiextensionsfake.NewClientset(&apiextensionsv1.CustomResourceDefinition{
+					ObjectMeta: v1.ObjectMeta{
+						Name: vpaCRDName,
+					},
+				})
+			},
+			wantVPAAvailable: true,
+		},
+		{
+			desc: "VPA CRD not found",
+			clientset: func() *apiextensionsfake.Clientset {
+				return apiextensionsfake.NewClientset()
+			},
+			wantVPAAvailable: false,
+		},
+		{
+			desc: "VPA CRD forbidden",
+			clientset: func() *apiextensionsfake.Clientset {
+				cs := apiextensionsfake.NewClientset()
+				cs.PrependReactor("get", "customresourcedefinitions", func(_ ktesting.Action) (bool, runtime.Object, error) {
+					return true, nil, apierrors.NewForbidden(vpaCRDGroupResource, vpaCRDName, errors.New("forbidden"))
+				})
+				return cs
+			},
+			wantVPAAvailable: false,
+		},
+		{
+			desc: "transient internal server error",
+			clientset: func() *apiextensionsfake.Clientset {
+				cs := apiextensionsfake.NewClientset()
+				cs.PrependReactor("get", "customresourcedefinitions", func(_ ktesting.Action) (bool, runtime.Object, error) {
+					return true, nil, apierrors.NewInternalError(errors.New("apiserver unavailable"))
+				})
+				return cs
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			got, err := isVPAAvailable(t.Context(), testr.New(t), tc.clientset())
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.wantVPAAvailable {
+				t.Errorf("isVPAAvailable() = %v, want %v", got, tc.wantVPAAvailable)
+			}
+		})
+	}
+}
 
 func TestCleanupOldResources(t *testing.T) {
 	var cases = []struct {
