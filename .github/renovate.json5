@@ -46,7 +46,33 @@
   // Surface GitHub and OSV vulnerability alerts across all branches
   "vulnerabilityAlerts": {
     "enabled": true,
-    "semanticCommitType": "chore"
+    "semanticCommitType": "chore",
+    "groupName": "security-fixes",
+    "groupSlug": "security-fixes",
+    "vulnerabilityFixStrategy": "highest",
+    "packageRules": [
+      {
+        "description": "Group OpenTelemetry vulnerability updates into opentelemetry group",
+        "matchManagers": ["gomod"],
+        "matchPackageNames": [
+          "go.opentelemetry.io/otel",
+          "go.opentelemetry.io/otel/**"
+        ],
+        "groupName": "opentelemetry",
+        "groupSlug": "opentelemetry"
+      },
+      {
+        "description": "Group Kubernetes vulnerability updates into k8s-deps group and assign maintainers",
+        "matchManagers": ["gomod"],
+        "matchPackageNames": [
+          "k8s.io/**",
+          "sigs.k8s.io/**"
+        ],
+        "groupName": "k8s-deps",
+        "groupSlug": "k8s-deps",
+        "reviewers": ["GoogleCloudPlatform/prometheus-engine-maintainers"]
+      }
+    ]
   },
   // Enable GitHub platform automerge (uses gh pr merge --auto)
   "platformAutomerge": true,
@@ -171,12 +197,13 @@
       "automerge": true,
       "automergeType": "pr"
     },
-    // Vulnerability / security updates grouping
+    // Release branches policy: use lowest vulnerability fix strategy to minimize churn
     {
-      "description": "Consolidate vulnerability/security updates into a single PR per branch",
-      "matchUpdateTypes": ["vulnerability"],
-      "groupName": "security-fixes",
-      "groupSlug": "security-fixes"
+      "description": "Use lowest vulnerability fix strategy on release branches to minimize churn",
+      "matchBaseBranches": ["/^release\\/.*$/"],
+      "vulnerabilityAlerts": {
+        "vulnerabilityFixStrategy": "lowest"
+      }
     },
     // Release branches policy: only allow security updates for production code (root go.mod)
     {
