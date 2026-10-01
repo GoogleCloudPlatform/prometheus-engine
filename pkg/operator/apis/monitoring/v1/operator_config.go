@@ -59,18 +59,28 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid scrape interval: %w", err)
 	}
-	relabelCfgs := []*relabel.Config{
-		{
-			Action:      relabel.Replace,
-			Replacement: "kubelet",
-			TargetLabel: "job",
-		},
-		{
-			Action:       relabel.Replace,
-			SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
-			TargetLabel:  "node",
-			Replacement:  "$1",
-		},
+	relabelCfgs := func(instanceReplacement string) []*relabel.Config {
+		return []*relabel.Config{
+			{
+				Action:      relabel.Replace,
+				Replacement: "kubelet",
+				TargetLabel: "job",
+				Regex:       relabel.DefaultRelabelConfig.Regex,
+			},
+			{
+				Action:       relabel.Replace,
+				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
+				TargetLabel:  "node",
+				Regex:        relabel.DefaultRelabelConfig.Regex,
+			},
+			{
+				Action:       relabel.Replace,
+				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
+				TargetLabel:  "instance",
+				Regex:        relabel.DefaultRelabelConfig.Regex,
+				Replacement:  instanceReplacement,
+			},
+		}
 	}
 	dropByName := func(pattern string) *relabel.Config {
 		return &relabel.Config{
@@ -81,7 +91,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 	}
 	// We adopt the metric relabeling behavior of kube-prometheus as it's widely adopted and hence
 	// will meet user expectations (e.g. dropping deprecated metrics).
-	configs := []*promconfig.ScrapeConfig{
+	return []*promconfig.ScrapeConfig{
 		{
 			JobName:                 "kubelet/metrics",
 			ServiceDiscoveryConfigs: discoveryCfgs,
@@ -91,12 +101,7 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 			Scheme:                 "https",
 			MetricsPath:            "/metrics",
 			HTTPClientConfig:       clientCfg,
-			RelabelConfigs: append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Replace,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
-				TargetLabel:  "instance",
-				Replacement:  `$1:metrics`,
-			}),
+			RelabelConfigs:         relabelCfgs(`$1:metrics`),
 			MetricRelabelConfigs: []*relabel.Config{
 				dropByName(`kubelet_(pod_worker_latency_microseconds|pod_start_latency_microseconds|cgroup_manager_latency_microseconds|pod_worker_start_latency_microseconds|pleg_relist_latency_microseconds|pleg_relist_interval_microseconds|runtime_operations|runtime_operations_latency_microseconds|runtime_operations_errors|eviction_stats_age_microseconds|device_plugin_registration_count|device_plugin_alloc_latency_microseconds|network_plugin_operations_latency_microseconds)`),
 				dropByName(`scheduler_(e2e_scheduling_latency_microseconds|scheduling_algorithm_predicate_evaluation|scheduling_algorithm_priority_evaluation|scheduling_algorithm_preemption_evaluation|scheduling_algorithm_latency_microseconds|binding_latency_microseconds|scheduling_latency_seconds)`),
@@ -115,39 +120,10 @@ func (c *CollectionSpec) ScrapeConfigs() ([]*promconfig.ScrapeConfig, error) {
 			Scheme:                  "https",
 			MetricsPath:             "/metrics/cadvisor",
 			HTTPClientConfig:        clientCfg,
-			RelabelConfigs: append(relabelCfgs, &relabel.Config{
-				Action:       relabel.Replace,
-				SourceLabels: prommodel.LabelNames{"__meta_kubernetes_node_name"},
-				TargetLabel:  "instance",
-				Replacement:  `$1:cadvisor`,
-			}),
+			RelabelConfigs:          relabelCfgs(`$1:cadvisor`),
 			MetricRelabelConfigs: []*relabel.Config{
 				dropByName(`container_(network_tcp_usage_total|network_udp_usage_total|tasks_state|cpu_load_average_10s|blkio_device_usage_total|memory_failures_total)`),
 			},
 		},
-	}
-
-	for _, sc := range configs {
-		clonedRelabelConfigs := make([]*relabel.Config, len(sc.RelabelConfigs))
-		for i, c := range sc.RelabelConfigs {
-			cloned := new(relabel.Config)
-			*cloned = *c
-			if cloned.Regex.Regexp == nil {
-				cloned.Regex = relabel.DefaultRelabelConfig.Regex
-			}
-			if cloned.Replacement == "" && (cloned.Action == relabel.Replace || cloned.Action == "") && len(cloned.SourceLabels) > 0 {
-				cloned.Replacement = relabel.DefaultRelabelConfig.Replacement
-			}
-			clonedRelabelConfigs[i] = cloned
-		}
-		sc.RelabelConfigs = clonedRelabelConfigs
-
-		for _, c := range sc.MetricRelabelConfigs {
-			if c.Regex.Regexp == nil {
-				c.Regex = relabel.DefaultRelabelConfig.Regex
-			}
-		}
-	}
-
-	return configs, nil
+	}, nil
 }
