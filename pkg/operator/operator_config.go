@@ -38,6 +38,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -512,7 +513,235 @@ func (r *operatorConfigReconciler) ensureAlertmanagerStatefulSet(ctx context.Con
 		logger.Error(err, "Alertmanager StatefulSet does not exist")
 		return nil
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	return r.reconcileAlertmanagerStorage(ctx, &sset, spec.Storage)
+}
+
+// alertmanagerDataVolumeName is the name of the volume backing Alertmanager's
+// --storage.path. Matches manifests/operator.yaml. Used as both the volume
+// name on the StatefulSet pod template and the PVC name in the operator
+// namespace when persistent storage is configured.
+const alertmanagerDataVolumeName = "alertmanager-data"
+
+// reconcileAlertmanagerStorage swaps the Alertmanager data volume between an
+// ephemeral emptyDir and a PVC-backed claim depending on whether the user
+// configured persistent storage.
+//
+// When spec is non-nil, the operator owns a PVC named "alertmanager-data" in
+// the operator namespace and the StatefulSet's pod template references it via
+// `volumes[name=alertmanager-data].persistentVolumeClaim`. The PVC spec is
+// kept in sync with the user-provided spec, modulo Kubernetes' restriction
+// that most PVC fields are immutable after creation — for those the operator
+// logs a warning and leaves the existing PVC alone.
+//
+// When spec is nil, the StatefulSet falls back to the manifest default
+// (emptyDir) and any operator-owned PVC is left in place to avoid surprising
+// data loss; users wanting to reclaim storage should delete the PVC manually.
+func (r *operatorConfigReconciler) reconcileAlertmanagerStorage(ctx context.Context, sset *appsv1.StatefulSet, spec *monitoringv1.AlertmanagerStorageSpec) error {
+	logger, _ := logr.FromContext(ctx)
+
+	if spec == nil {
+		// Restore the manifest default emptyDir if a previous spec swapped
+		// it for a PVC reference. Doing this lets users disable persistence
+		// without manually editing the StatefulSet, at the cost of leaving
+		// the PVC behind (intentional — see godoc above).
+		return r.setAlertmanagerDataVolume(ctx, sset, corev1.Volume{
+			Name:         alertmanagerDataVolumeName,
+			VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+		})
+	}
+
+	if err := r.ensureAlertmanagerPVC(ctx, spec); err != nil {
+		return fmt.Errorf("ensure alertmanager PVC: %w", err)
+	}
+
+	logger.Info("alertmanager storage reconciled", "claim", alertmanagerDataVolumeName, "namespace", r.opts.OperatorNamespace)
+
+	return r.setAlertmanagerDataVolume(ctx, sset, corev1.Volume{
+		Name: alertmanagerDataVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: alertmanagerDataVolumeName,
+			},
+		},
+	})
+}
+
+// ensureAlertmanagerPVC creates or updates the PVC backing Alertmanager's
+// data directory. Most PVC fields are immutable post-creation (access modes,
+// storage class, volume name); only the storage request is patchable via
+// Kubernetes' PVC resize support. We update only that field on existing
+// claims to avoid validation errors. Caller-supplied labels and annotations
+// are merged on every reconciliation so they can be added or updated after
+// the PVC is bound.
+func (r *operatorConfigReconciler) ensureAlertmanagerPVC(ctx context.Context, spec *monitoringv1.AlertmanagerStorageSpec) error {
+	logger, _ := logr.FromContext(ctx)
+
+	desiredSpec := spec.VolumeClaim.Spec.DeepCopy()
+	if len(desiredSpec.AccessModes) == 0 {
+		desiredSpec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+	}
+
+	pvcKey := client.ObjectKey{Namespace: r.opts.OperatorNamespace, Name: alertmanagerDataVolumeName}
+	var existing corev1.PersistentVolumeClaim
+	err := r.client.Get(ctx, pvcKey, &existing)
+	if apierrors.IsNotFound(err) {
+		pvc := corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:   pvcKey.Namespace,
+				Name:        pvcKey.Name,
+				Labels:      mergeLabels(componentLabels(NameAlertmanager), spec.VolumeClaim.Labels),
+				Annotations: copyMap(spec.VolumeClaim.Annotations),
+				Finalizers:  append([]string(nil), spec.VolumeClaim.Finalizers...),
+			},
+			Spec: *desiredSpec,
+		}
+		return r.client.Create(ctx, &pvc)
+	}
+	if err != nil {
+		return err
+	}
+
+	patch := existing.DeepCopy()
+	mutated := false
+
+	// Reconcile mutable metadata. Operator-owned label keys always win;
+	// every other user-supplied label/annotation is propagated. We do not
+	// remove keys the user previously set and has now removed — to do so
+	// safely we'd need to track owned keys explicitly, which is more
+	// surface than needed for the v1 of this feature.
+	if labels := mergeLabels(existing.Labels, spec.VolumeClaim.Labels, componentLabels(NameAlertmanager)); !mapsEqual(labels, existing.Labels) {
+		patch.Labels = labels
+		mutated = true
+	}
+	if anns := mergeLabels(existing.Annotations, spec.VolumeClaim.Annotations); !mapsEqual(anns, existing.Annotations) {
+		patch.Annotations = anns
+		mutated = true
+	}
+
+	// Only the storage request is mutable on a bound PVC. Anything else
+	// (access modes, storage class, selector) silently won't apply and the
+	// API server rejects the update — so log and skip.
+	wantStorage := desiredSpec.Resources.Requests[corev1.ResourceStorage]
+	gotStorage := existing.Spec.Resources.Requests[corev1.ResourceStorage]
+	switch wantStorage.Cmp(gotStorage) {
+	case 1:
+		if patch.Spec.Resources.Requests == nil {
+			patch.Spec.Resources.Requests = corev1.ResourceList{}
+		}
+		patch.Spec.Resources.Requests[corev1.ResourceStorage] = wantStorage
+		mutated = true
+	case -1:
+		logger.Info("ignoring requested PVC shrink; Kubernetes does not support PVC shrinking",
+			"have", gotStorage.String(), "want", wantStorage.String())
+	}
+
+	if !mutated {
+		return nil
+	}
+	return r.client.Patch(ctx, patch, client.MergeFrom(&existing))
+}
+
+// componentLabels returns the standard label set used by gmp-operator-managed
+// resources for a given component name. Kept local to operator_config.go to
+// avoid leaking into the broader API surface.
+func componentLabels(component string) map[string]string {
+	return map[string]string{
+		LabelAppName: component,
+	}
+}
+
+// mergeLabels merges any number of string maps. Later maps take precedence
+// over earlier ones, so operator-owned labels should be passed last to
+// override any user-supplied conflicting values.
+func mergeLabels(in ...map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, m := range in {
+		maps.Copy(out, m)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func copyMap(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	maps.Copy(out, m)
+	return out
+}
+
+func mapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+// setAlertmanagerDataVolume replaces the named volume on the Alertmanager
+// pod template. It is a no-op when the existing volume already matches the
+// desired source, so steady-state reconciliations don't churn the
+// StatefulSet. The mutation is sent as a strategic-merge patch off a
+// snapshot of the original object so the operator doesn't blast over
+// fields owned by another controller (e.g. addon-manager-set annotations)
+// and never races with concurrent writers via optimistic-concurrency
+// conflicts.
+func (r *operatorConfigReconciler) setAlertmanagerDataVolume(ctx context.Context, sset *appsv1.StatefulSet, desired corev1.Volume) error {
+	original := sset.DeepCopy()
+	for i, v := range sset.Spec.Template.Spec.Volumes {
+		if v.Name != desired.Name {
+			continue
+		}
+		if volumeSourcesEqual(v.VolumeSource, desired.VolumeSource) {
+			return nil
+		}
+		sset.Spec.Template.Spec.Volumes[i] = desired
+		return r.client.Patch(ctx, sset, client.MergeFrom(original))
+	}
+	// Volume not present — append. Should not happen with the shipped
+	// manifest, but keeps the operator self-healing if someone strips it.
+	sset.Spec.Template.Spec.Volumes = append(sset.Spec.Template.Spec.Volumes, desired)
+	return r.client.Patch(ctx, sset, client.MergeFrom(original))
+}
+
+// volumeSourcesEqual checks whether two VolumeSource values describe the
+// same underlying storage. It compares the kind of source plus every field
+// the operator manages (and might therefore need to correct on drift), so a
+// manually-edited `medium`, `sizeLimit`, or `readOnly` reconciles back to
+// the operator-desired shape rather than being silently preserved.
+func volumeSourcesEqual(a, b corev1.VolumeSource) bool {
+	switch {
+	case a.EmptyDir != nil && b.EmptyDir != nil:
+		if a.EmptyDir.Medium != b.EmptyDir.Medium {
+			return false
+		}
+		return resourceQuantityPtrEqual(a.EmptyDir.SizeLimit, b.EmptyDir.SizeLimit)
+	case a.PersistentVolumeClaim != nil && b.PersistentVolumeClaim != nil:
+		return a.PersistentVolumeClaim.ClaimName == b.PersistentVolumeClaim.ClaimName &&
+			a.PersistentVolumeClaim.ReadOnly == b.PersistentVolumeClaim.ReadOnly
+	}
+	return false
+}
+
+// resourceQuantityPtrEqual returns true when two *resource.Quantity pointers
+// describe the same quantity (or are both nil). Defined locally because
+// k8s.io/apimachinery does not expose a pointer-aware equality helper.
+func resourceQuantityPtrEqual(a, b *resource.Quantity) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Cmp(*b) == 0
 }
 
 // ensureRuleEvaluatorDeployment reconciles the Deployment for rule-evaluator.
