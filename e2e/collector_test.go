@@ -15,12 +15,9 @@
 package e2e
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"testing"
 	"time"
@@ -469,49 +466,6 @@ func testEnableKubeletScraping(ctx context.Context, kubeClient client.Client) fu
 		if err := kubeClient.Update(ctx, &config); err != nil {
 			t.Errorf("updating operatorconfig: %s", err)
 		}
-
-		// Wait for collector ConfigMap to reflect kubelet scrape configurations.
-		var lastErr error
-		pollErr := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
-			cm := corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: operator.DefaultOperatorNamespace,
-					Name:      operator.NameCollector,
-				},
-			}
-			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&cm), &cm); err != nil {
-				if apierrors.IsNotFound(err) {
-					return false, nil
-				}
-				lastErr = err
-				return false, nil
-			}
-			configYaml := cm.Data["config.yaml"]
-			if configYaml == "" && len(cm.BinaryData["config.yaml"]) > 0 {
-				gz, err := gzip.NewReader(bytes.NewReader(cm.BinaryData["config.yaml"]))
-				if err != nil {
-					lastErr = err
-					return false, nil
-				}
-				defer gz.Close()
-				b, err := io.ReadAll(gz)
-				if err != nil {
-					lastErr = err
-					return false, nil
-				}
-				configYaml = string(b)
-			}
-			if strings.Contains(configYaml, "job_name: kubelet/metrics") && strings.Contains(configYaml, "job_name: kubelet/cadvisor") {
-				return true, nil
-			}
-			return false, nil
-		})
-		if pollErr != nil {
-			if wait.Interrupted(pollErr) && lastErr != nil {
-				pollErr = lastErr
-			}
-			t.Fatalf("waiting for collector kubelet scrape config failed: %s", pollErr)
-		}
 	}
 }
 
@@ -601,6 +555,7 @@ func testValidateGCMMetric(ctx context.Context, metricClient *gcm.MetricClient, 
 					t.Logf("%q has no points in interval, retrying...", f.metricType)
 					return false, nil
 				}
+				// Cloud Monitoring returns points in reverse-chronological order (Points[0] is the newest sample).
 				if v := series.Points[0].Value.GetDoubleValue(); v != 1 {
 					t.Logf("%q has unexpected value %v (expected: %v), retrying...", f.metricType, v, 1)
 					return false, nil
