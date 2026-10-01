@@ -1,0 +1,177 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Auto Codegen
+
+on:
+  workflow_run:
+    workflows: ["Presubmit"]
+    types:
+      - completed
+
+concurrency:
+  group: auto-codegen-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.id }}
+  cancel-in-progress: true
+
+jobs:
+  fix-codegen:
+    name: Fix Codegen on Validate Failure
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'failure' }}
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Inspect presubmit jobs
+        id: check-validate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_ID="${{ github.event.workflow_run.id }}"
+          echo "Checking jobs for workflow run ID: ${RUN_ID}"
+
+          VALIDATE_JOB=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs" \
+            --jq '.jobs[] | select(.name == "validate")')
+
+          if [ -z "$VALIDATE_JOB" ]; then
+            echo "No 'validate' job found in workflow run. Skipping."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          VALIDATE_CONCLUSION=$(echo "$VALIDATE_JOB" | jq -r '.conclusion // empty')
+          echo "Job 'validate' concluded with: ${VALIDATE_CONCLUSION}"
+
+          if [ "$VALIDATE_CONCLUSION" != "failure" ]; then
+            echo "The 'validate' job did not fail (conclusion: ${VALIDATE_CONCLUSION}). Skipping."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Resolve Pull Request details
+          PR_NUMBER="${{ github.event.workflow_run.pull_requests[0].number }}"
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "PR number missing from event payload; querying commits API..."
+            PR_NUMBER=$(gh api "repos/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha }}/pulls" --jq '.[0].number // empty')
+          fi
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No pull request associated with commit ${{ github.event.workflow_run.head_sha }}. Skipping."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          PR_DATA=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,state)
+          PR_STATE=$(echo "$PR_DATA" | jq -r '.state')
+          if [ "$PR_STATE" != "OPEN" ]; then
+            echo "PR #${PR_NUMBER} is not OPEN (${PR_STATE}). Skipping."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          CURRENT_HEAD_SHA=$(echo "$PR_DATA" | jq -r '.headRefOid')
+          if [ "$CURRENT_HEAD_SHA" != "${{ github.event.workflow_run.head_sha }}" ]; then
+            echo "PR #${PR_NUMBER} head SHA changed (${CURRENT_HEAD_SHA} != ${{ github.event.workflow_run.head_sha }}). Newer commit already pushed. Skipping."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Loop prevention: Check if previous commit was already an automated codegen commit
+          LAST_COMMIT_MSG=$(gh api "repos/${{ github.repository }}/commits/${CURRENT_HEAD_SHA}" --jq '.commit.message')
+          if echo "$LAST_COMMIT_MSG" | grep -qi "chore: regenerate code and formatting"; then
+            echo "Latest commit on PR #${PR_NUMBER} is already an auto-codegen commit. Skipping to prevent loop."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
+          HEAD_OWNER=$(echo "$PR_DATA" | jq -r '.headRepositoryOwner.login')
+          HEAD_REPO=$(echo "$PR_DATA" | jq -r '.headRepository.name')
+          IS_CROSS_REPO=$(echo "$PR_DATA" | jq -r '.isCrossRepository')
+
+          echo "should_run=true" >> $GITHUB_OUTPUT
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT
+          echo "head_repo=${HEAD_OWNER}/${HEAD_REPO}" >> $GITHUB_OUTPUT
+          echo "is_cross_repo=${IS_CROSS_REPO}" >> $GITHUB_OUTPUT
+
+      - name: Checkout PR branch
+        if: steps.check-validate.outputs.should_run == 'true'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: ${{ steps.check-validate.outputs.head_repo }}
+          ref: ${{ steps.check-validate.outputs.head_ref }}
+          token: ${{ secrets.AUTO_COMMIT_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Go
+        if: steps.check-validate.outputs.should_run == 'true'
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: 'stable'
+          cache: false
+
+      - name: Run codegen tools
+        if: steps.check-validate.outputs.should_run == 'true'
+        run: make regen
+
+      - name: Commit and push changes
+        id: commit-step
+        if: steps.check-validate.outputs.should_run == 'true'
+        run: |
+          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "No changes generated by 'make regen'. Working tree is clean."
+            exit 0
+          fi
+
+          echo "Applying git config for bot author..."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          # Message adheres to .conform.yaml (conventional: chore, lowercase, imperative, < 89 chars, no trailing dot)
+          git commit -m "chore: regenerate code and formatting"
+
+          echo "Pushing commit to ${{ steps.check-validate.outputs.head_repo }}:${{ steps.check-validate.outputs.head_ref }}..."
+          if git push origin "HEAD:${{ steps.check-validate.outputs.head_ref }}"; then
+            echo "Successfully pushed codegen fix commit to PR #${{ steps.check-validate.outputs.pr_number }}."
+          else
+            echo "Push failed."
+            if [ "${{ steps.check-validate.outputs.is_cross_repo }}" = "true" ]; then
+              echo "Push rejected due to fork repository permissions."
+              echo "fork_push_failed=true" >> $GITHUB_OUTPUT
+            else
+              echo "Push failed on internal repository branch."
+              exit 1
+            fi
+          fi
+
+      - name: Comment on PR if fork push failed
+        if: steps.commit-step.outputs.fork_push_failed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ steps.check-validate.outputs.pr_number }}" \
+            --repo "${{ github.repository }}" \
+            --body "The \`validate\` presubmit check failed because autogenerated files or formatting are out of date.
+
+          Because this pull request was submitted from a fork, GitHub Actions cannot push commits directly to your branch. Please run the following command locally and push:
+
+          \`\`\`bash
+          make regen
+          git commit -am 'chore: regenerate code and formatting'
+          git push
+          \`\`\`"
