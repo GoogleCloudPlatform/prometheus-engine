@@ -3,13 +3,10 @@
   extends: [
     'config:recommended',
   ],
-  // Process main branch and supported release branches (0.16 and <=0.14 are disabled)
+  // Process main branch and all active release branches (unmaintained branches renamed to archive/* are ignored)
   baseBranchPatterns: [
     'main',
-    'release/0.19',
-    'release/0.18',
-    'release/0.17',
-    'release/0.15',
+    '/^release\\/.*$/',
   ],
   // Schedule updates on weekends to match weekly dependabot interval
   schedule: [
@@ -24,11 +21,10 @@
   commitMessageTopic: '{{depName}}',
   // Automatically rebase PRs when they become conflicted
   rebaseWhen: 'conflicted',
-  // Exclude test data, vendored assets, and built UI artifacts
+  // Exclude test data, node modules, and built UI artifacts (vendor directory is tracked for branches using vendoring)
   ignorePaths: [
     '**/node_modules/**',
     '**/bower_components/**',
-    '**/vendor/**',
     'ops/gmpctl/data/**',
     'third_party/**',
     'pkg/ui/build/**',
@@ -53,7 +49,58 @@
   },
   // Enable GitHub platform automerge (uses gh pr merge --auto)
   platformAutomerge: true,
+  // Custom managers to track container images across Helm charts and rendered manifests
+  customManagers: [
+    {
+      customType: 'regex',
+      description: 'Track all container images in charts/values.global.yaml and manifests',
+      fileMatch: [
+        '^charts/values\\.global\\.yaml$',
+        '^manifests/.*\\.yaml$',
+        '^cmd/datasource-syncer/datasource-syncer\\.yaml$',
+      ],
+      matchStrings: [
+        'image:\\s*["\']?(?<depName>[^\\s"\'\\n]+)["\']?\\s*\\n\\s*tag:\\s*["\'](?<currentValue>[^"@\\s\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?["\']',
+        'image:\\s*["\']?(?<depName>gke\\.gcr\\.io/[^\\s:"\'\\n]+):(?<currentValue>[^"@\\s\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?["\']?',
+      ],
+      datasourceTemplate: 'docker',
+    },
+  ],
   packageRules: [
+    // Indirect Go module dependencies: only allow security/vulnerability updates
+    {
+      description: 'Enable vulnerability updates for indirect Go module dependencies in go.mod',
+      matchManagers: [
+        'gomod',
+      ],
+      matchDepTypes: [
+        'indirect',
+      ],
+      matchUpdateTypes: [
+        'vulnerability',
+      ],
+      enabled: true,
+    },
+    {
+      description: 'Disable non-vulnerability updates for indirect Go module dependencies',
+      matchManagers: [
+        'gomod',
+      ],
+      matchDepTypes: [
+        'indirect',
+      ],
+      matchUpdateTypes: [
+        'major',
+        'minor',
+        'patch',
+        'pin',
+        'digest',
+        'lockFileMaintenance',
+        'rollback',
+        'bump',
+      ],
+      enabled: false,
+    },
     // Do not update replace directives in Go modules
     {
       description: 'Do not update replace directives in go.mod',
@@ -235,13 +282,17 @@
       enabled: false,
     },
     {
-      description: 'Disable GitHub Actions and Dockerfile updates on release branches',
+      description: 'Disable major and minor updates for Dockerfile and GitHub Actions on release branches (allow patch, digest, and vulnerability fixes)',
       matchBaseBranches: [
         '/^release\\/.*$/',
       ],
       matchManagers: [
         'github-actions',
         'dockerfile',
+      ],
+      matchUpdateTypes: [
+        'major',
+        'minor',
       ],
       enabled: false,
     },
