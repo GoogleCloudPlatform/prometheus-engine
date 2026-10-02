@@ -254,10 +254,12 @@ presubmit: regen bin test
 check-images:
 	./hack/check-images.sh
 
+RENOVATE_VERSION ?= 44.131.0
+
 .PHONY: check-renovate
 check-renovate:
-	docker run --rm -v ${PWD}:/usr/src/app -w /usr/src/app ghcr.io/renovatebot/renovate:latest renovate-config-validator --strict .github/renovate.json5
-	docker run --rm -v ${PWD}:/usr/src/app -w /usr/src/app ghcr.io/renovatebot/renovate:latest node ./hack/test-renovate.js
+	docker run --rm -v ${PWD}:/usr/src/app -w /usr/src/app ghcr.io/renovatebot/renovate:$(RENOVATE_VERSION) renovate-config-validator --strict .github/renovate.json5
+	docker run --rm -v ${PWD}:/usr/src/app -w /usr/src/app ghcr.io/renovatebot/renovate:$(RENOVATE_VERSION) node ./hack/test-renovate.js
 
 .PHONY: bump-go
 bump-go:
