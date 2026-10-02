@@ -284,7 +284,8 @@ type TargetLabels struct {
 	// only.
 	Metadata *[]string `json:"metadata,omitempty"`
 	// Labels to transfer from the Kubernetes Pod to Prometheus target labels.
-	// Mappings are applied in order.
+	// Mappings are applied in order. Useful for exposing Pod labels as metric
+	// labels on scraped targets.
 	FromPod []LabelMapping `json:"fromPod,omitempty"`
 }
 
@@ -295,6 +296,9 @@ type LabelMapping struct {
 	From string `json:"from"`
 	// Remapped Prometheus target label.
 	// Defaults to the same name as `From`.
+	// Specifying `to` is necessary if the Kubernetes label key contains characters
+	// that are invalid in Prometheus label names (such as `-`, `/`, or `.`),
+	// or to rename the label to avoid naming collisions or conform to conventions.
 	To string `json:"to,omitempty"`
 }
 
