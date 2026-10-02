@@ -462,6 +462,27 @@ async function runTests() {
       manifestRes && Array.isArray(manifestRes.deps) && manifestRes.deps.length > 0,
       'customManager extracts matching images from manifests/operator.yaml'
     );
+
+    // Single-quoted image tag tests for charts and manifests
+    const singleQuotedChart = "image: 'gke.gcr.io/gke-distroless/bash'\n    tag: 'gke_distroless_20260815.00_p0'";
+    const singleQuotedChartRes = extractPackageFile(singleQuotedChart, 'charts/values.global.yaml', customManager);
+    assert(
+      singleQuotedChartRes &&
+        singleQuotedChartRes.deps.length === 1 &&
+        singleQuotedChartRes.deps[0].currentValue === 'gke_distroless_20260815.00_p0' &&
+        !singleQuotedChartRes.deps[0].currentValue.endsWith("'"),
+      'customManager does not include trailing single quote in currentValue for chart format'
+    );
+
+    const singleQuotedManifest = "image: 'gke.gcr.io/gke-distroless/bash:gke_distroless_20260815.00_p0'";
+    const singleQuotedManifestRes = extractPackageFile(singleQuotedManifest, 'manifests/operator.yaml', customManager);
+    assert(
+      singleQuotedManifestRes &&
+        singleQuotedManifestRes.deps.length === 1 &&
+        singleQuotedManifestRes.deps[0].currentValue === 'gke_distroless_20260815.00_p0' &&
+        !singleQuotedManifestRes.deps[0].currentValue.endsWith("'"),
+      'customManager does not include trailing single quote in currentValue for manifest format'
+    );
   }
 
   console.log(`\n========================================`);
