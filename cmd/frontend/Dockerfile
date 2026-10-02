@@ -15,7 +15,7 @@
 # Compile the UI assets.
 FROM --platform=$BUILDPLATFORM docker.io/node:23.10.0-bookworm@sha256:e940261391ab78a883bbcfba448bcbb6d36803053f67017e6e270ef095f213ca AS assets
 WORKDIR /app
-COPY --from=google-go.pkg.dev/golang:1.26.4@sha256:3444149d0a7e3f7cfb9c2db65f0f75676fe6ad04de3ce72674efb120c08dd1c1 /usr/local/go /usr/local/
+COPY --from=google-go.pkg.dev/golang:1.26.8-debian12@sha256:506be2adb7605db34c92e8d8a0b196c317ba354a6bd151791ab9c6911c424f5d /usr/local/go /usr/local/
 ENV PATH="/usr/local/go/bin:${PATH}"
 COPY . /app
 RUN pkg/ui/build.sh
@@ -27,7 +27,7 @@ COPY --from=assets /app/pkg/ui/embed.go pkg/ui/embed.go
 COPY --from=assets /app/pkg/ui/static pkg/ui/static
 
 # Build the actual Go binary.
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.4@sha256:3444149d0a7e3f7cfb9c2db65f0f75676fe6ad04de3ce72674efb120c08dd1c1 AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.26.8-debian12@sha256:506be2adb7605db34c92e8d8a0b196c317ba354a6bd151791ab9c6911c424f5d AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
