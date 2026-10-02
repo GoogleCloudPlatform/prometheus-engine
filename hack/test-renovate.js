@@ -203,6 +203,10 @@ async function runTests() {
     generalPatch.automerge === true,
     'General Go patch update is automerged'
   );
+  assert(
+    config.commitMessageTopic === '{{depNameShort}}',
+    'commitMessageTopic uses {{depNameShort}} to keep commit messages concise'
+  );
 
   // Suite 6: Auxiliary Go Modules
   console.log('\nTest Suite 6: Auxiliary Go Modules');
