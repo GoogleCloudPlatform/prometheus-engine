@@ -252,6 +252,19 @@ async function runTests() {
     relRootVuln.enabled !== false,
     'Security/vulnerability update for root go.mod remains enabled on release branches'
   );
+  assert(
+    relRootVuln.vulnerabilityAlerts?.vulnerabilityFixStrategy === 'lowest',
+    'vulnerabilityFixStrategy is "lowest" on release branches'
+  );
+
+  const mainRootVuln = await simulateDep('github.com/google/go-cmp', {
+    baseBranch: 'main',
+    updateType: 'vulnerability',
+  });
+  assert(
+    mainRootVuln.vulnerabilityAlerts?.vulnerabilityFixStrategy === 'highest',
+    'vulnerabilityFixStrategy defaults to "highest" on main'
+  );
 
   const relToolsVuln = await simulateDep('github.com/efficientgo/tools', {
     packageFile: 'tools/go.mod',
