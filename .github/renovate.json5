@@ -21,7 +21,7 @@
   "semanticCommits": "enabled",
   "semanticCommitType": "chore",
   "semanticCommitScope": "deps",
-  "commitMessageTopic": "{{depName}}",
+  "commitMessageTopic": "{{depNameShort}}",
   // Automatically rebase PRs when they become conflicted
   "rebaseWhen": "conflicted",
   // Exclude test data, vendored assets, and built UI artifacts
