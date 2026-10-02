@@ -280,25 +280,189 @@ async function runTests() {
     'All updates (including security) for auxiliary modules are disabled on release branches'
   );
 
-  const relDocker = await simulateDep('golang:1.24', {
+  // Docker updates on release branches
+  const relDockerPatch = await simulateDep('golang:1.24', {
     manager: 'dockerfile',
     packageFile: 'Dockerfile',
     baseBranch: releaseBranch,
+    updateType: 'patch',
   });
   assert(
-    relDocker.enabled === false,
-    'Dockerfile updates are disabled on release branches'
+    relDockerPatch.enabled !== false,
+    'Dockerfile patch updates are enabled on release branches'
   );
 
-  const relActions = await simulateDep('actions/checkout', {
+  const relDockerDigest = await simulateDep('golang:1.24', {
+    manager: 'dockerfile',
+    packageFile: 'Dockerfile',
+    baseBranch: releaseBranch,
+    updateType: 'digest',
+  });
+  assert(
+    relDockerDigest.enabled !== false,
+    'Dockerfile digest updates are enabled on release branches'
+  );
+
+  const relDockerVuln = await simulateDep('golang:1.24', {
+    manager: 'dockerfile',
+    packageFile: 'Dockerfile',
+    baseBranch: releaseBranch,
+    updateType: 'vulnerability',
+  });
+  assert(
+    relDockerVuln.enabled !== false,
+    'Dockerfile vulnerability updates are enabled on release branches'
+  );
+
+  const relDockerMinor = await simulateDep('golang:1.24', {
+    manager: 'dockerfile',
+    packageFile: 'Dockerfile',
+    baseBranch: releaseBranch,
+    updateType: 'minor',
+  });
+  assert(
+    relDockerMinor.enabled === false,
+    'Dockerfile minor updates are disabled on release branches'
+  );
+
+  // GitHub Actions updates on release branches
+  const relActionsPatch = await simulateDep('actions/checkout', {
     manager: 'github-actions',
     packageFile: '.github/workflows/presubmit.yml',
     baseBranch: releaseBranch,
+    updateType: 'patch',
   });
   assert(
-    relActions.enabled === false,
-    'GitHub Actions updates are disabled on release branches'
+    relActionsPatch.enabled !== false,
+    'GitHub Actions patch updates are enabled on release branches'
   );
+
+  const relActionsVuln = await simulateDep('actions/checkout', {
+    manager: 'github-actions',
+    packageFile: '.github/workflows/presubmit.yml',
+    baseBranch: releaseBranch,
+    updateType: 'vulnerability',
+  });
+  assert(
+    relActionsVuln.enabled !== false,
+    'GitHub Actions vulnerability updates are enabled on release branches'
+  );
+
+  const relActionsMinor = await simulateDep('actions/checkout', {
+    manager: 'github-actions',
+    packageFile: '.github/workflows/presubmit.yml',
+    baseBranch: releaseBranch,
+    updateType: 'minor',
+  });
+  assert(
+    relActionsMinor.enabled === false,
+    'GitHub Actions minor updates are disabled on release branches'
+  );
+
+  // Suite 8: Indirect Go Module Dependencies
+  console.log('\nTest Suite 8: Indirect Go Module Dependencies');
+  const indirectVuln = await simulateDep('go.mongodb.org/mongo-driver', {
+    manager: 'gomod',
+    packageFile: 'go.mod',
+    depType: 'indirect',
+    updateType: 'vulnerability',
+  });
+  assert(
+    indirectVuln.enabled !== false,
+    'Indirect Go module vulnerability updates are enabled'
+  );
+
+  const indirectPatch = await simulateDep('go.mongodb.org/mongo-driver', {
+    manager: 'gomod',
+    packageFile: 'go.mod',
+    depType: 'indirect',
+    updateType: 'patch',
+  });
+  assert(
+    indirectPatch.enabled === false,
+    'Indirect Go module routine patch updates are disabled'
+  );
+
+  const indirectMinor = await simulateDep('go.mongodb.org/mongo-driver', {
+    manager: 'gomod',
+    packageFile: 'go.mod',
+    depType: 'indirect',
+    updateType: 'minor',
+  });
+  assert(
+    indirectMinor.enabled === false,
+    'Indirect Go module routine minor updates are disabled'
+  );
+
+  // Suite 9: Repository and Base Branch Configuration
+  console.log('\nTest Suite 9: Repository Configuration & Base Branch Patterns');
+  assert(
+    Array.isArray(config.ignorePaths) && !config.ignorePaths.includes('**/vendor/**'),
+    'ignorePaths does not exclude vendor directory'
+  );
+
+  const hasDynamicReleasePattern = Array.isArray(config.baseBranchPatterns) &&
+    config.baseBranchPatterns.includes('main') &&
+    config.baseBranchPatterns.some(
+      (p) => typeof p === 'string' && p.startsWith('/') && new RegExp(p.slice(1, -1)).test('release/0.14')
+    );
+  assert(
+    hasDynamicReleasePattern,
+    'baseBranchPatterns dynamically matches release/0.14'
+  );
+
+  const archiveMatches = (config.baseBranchPatterns || []).some(
+    (p) => typeof p === 'string' && (p === 'archive/0.13' || (p.startsWith('/') && new RegExp(p.slice(1, -1)).test('archive/0.13')))
+  );
+  assert(
+    !archiveMatches,
+    'baseBranchPatterns rejects archive/* branches'
+  );
+
+  // Suite 10: Custom Managers for Chart & Manifest Images
+  console.log('\nTest Suite 10: Custom Managers for Chart & Manifest Images');
+  assert(
+    Array.isArray(config.customManagers) && config.customManagers.length > 0,
+    'customManagers is configured'
+  );
+
+  if (Array.isArray(config.customManagers) && config.customManagers.length > 0) {
+    const { extractPackageFile } = renovateRequire('./dist/modules/manager/custom/regex/index.js');
+    const customManager = config.customManagers[0];
+
+    const chartContent = fs.readFileSync(path.resolve(__dirname, '../charts/values.global.yaml'), 'utf8');
+    const chartRes = extractPackageFile(chartContent, 'charts/values.global.yaml', customManager);
+
+    assert(
+      chartRes && Array.isArray(chartRes.deps) && chartRes.deps.length === 7,
+      'customManager extracts all 7 images from charts/values.global.yaml'
+    );
+
+    const expectedImages = [
+      'gke.gcr.io/gke-distroless/bash',
+      'gke.gcr.io/prometheus-engine/alertmanager',
+      'gke.gcr.io/prometheus-engine/prometheus',
+      'gke.gcr.io/prometheus-engine/config-reloader',
+      'gke.gcr.io/prometheus-engine/operator',
+      'gke.gcr.io/prometheus-engine/rule-evaluator',
+      'gke.gcr.io/prometheus-engine/datasource-syncer',
+    ];
+
+    const extractedChartNames = (chartRes?.deps || []).map((d) => d.depName);
+    for (const img of expectedImages) {
+      assert(
+        extractedChartNames.includes(img),
+        `customManager extracts ${img} from charts/values.global.yaml`
+      );
+    }
+
+    const manifestContent = fs.readFileSync(path.resolve(__dirname, '../manifests/operator.yaml'), 'utf8');
+    const manifestRes = extractPackageFile(manifestContent, 'manifests/operator.yaml', customManager);
+    assert(
+      manifestRes && Array.isArray(manifestRes.deps) && manifestRes.deps.length > 0,
+      'customManager extracts matching images from manifests/operator.yaml'
+    );
+  }
 
   console.log(`\n========================================`);
   console.log(`Total: ${totalTests} | Passed: ${passedTests} | Failed: ${failedTests}`);
