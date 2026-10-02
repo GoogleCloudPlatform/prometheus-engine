@@ -204,8 +204,8 @@ async function runTests() {
     'General Go patch update is automerged'
   );
   assert(
-    config.commitMessageTopic === '{{depNameShort}}',
-    'commitMessageTopic uses {{depNameShort}} to keep commit messages concise'
+    config.commitMessageTopic === '{{depName}}',
+    'commitMessageTopic uses {{depName}}'
   );
 
   // Suite 6: Auxiliary Go Modules
