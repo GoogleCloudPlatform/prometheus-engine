@@ -114,7 +114,7 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 			},
 			UpdatePolicy: &autoscalingv1.PodUpdatePolicy{
 				MinReplicas: ptr.To(int32(1)),
-				UpdateMode:  ptr.To(autoscalingv1.UpdateModeAuto),
+				UpdateMode:  ptr.To(autoscalingv1.UpdateModeRecreate),
 			},
 			ResourcePolicy: &autoscalingv1.PodResourcePolicy{
 				ContainerPolicies: []autoscalingv1.ContainerResourcePolicy{
@@ -152,7 +152,7 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 				Name:       collectorVPAName,
 			},
 			UpdatePolicy: &autoscalingv1.PodUpdatePolicy{
-				UpdateMode: ptr.To(autoscalingv1.UpdateModeAuto),
+				UpdateMode: ptr.To(autoscalingv1.UpdateModeRecreate),
 			},
 			ResourcePolicy: &autoscalingv1.PodResourcePolicy{
 				ContainerPolicies: []autoscalingv1.ContainerResourcePolicy{
@@ -191,7 +191,7 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 			},
 			UpdatePolicy: &autoscalingv1.PodUpdatePolicy{
 				MinReplicas: ptr.To(int32(1)),
-				UpdateMode:  ptr.To(autoscalingv1.UpdateModeAuto),
+				UpdateMode:  ptr.To(autoscalingv1.UpdateModeRecreate),
 			},
 			ResourcePolicy: &autoscalingv1.PodResourcePolicy{
 				ContainerPolicies: []autoscalingv1.ContainerResourcePolicy{
@@ -226,7 +226,7 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 			},
 			UpdatePolicy: &autoscalingv1.PodUpdatePolicy{
 				MinReplicas: ptr.To(int32(1)),
-				UpdateMode:  ptr.To(autoscalingv1.UpdateModeAuto),
+				UpdateMode:  ptr.To(autoscalingv1.UpdateModeRecreate),
 			},
 			ResourcePolicy: &autoscalingv1.PodResourcePolicy{
 				ContainerPolicies: []autoscalingv1.ContainerResourcePolicy{

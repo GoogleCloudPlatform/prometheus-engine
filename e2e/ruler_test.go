@@ -854,7 +854,7 @@ func getRules(ctx context.Context, httpClient *http.Client, address string, port
 	}
 
 	v1api := prometheus.NewAPI(client)
-	rules, err := v1api.Rules(ctx)
+	rules, err := v1api.Rules(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get rules: %s", err)
 	}
