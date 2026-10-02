@@ -60,8 +60,8 @@
         '^cmd/datasource-syncer/datasource-syncer\\.yaml$',
       ],
       matchStrings: [
-        'image:\\s*["\']?(?<depName>[^\\s"\'\\n]+)["\']?\\s*\\n\\s*tag:\\s*["\'](?<currentValue>[^"@\\s\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?["\']',
-        'image:\\s*["\']?(?<depName>gke\\.gcr\\.io/[^\\s:"\'\\n]+):(?<currentValue>[^"@\\s\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?["\']?',
+        'image:\\s*["\']?(?<depName>[^\\s"\'\\n]+)["\']?\\s*\\n\\s*tag:\\s*["\'](?<currentValue>[^"\'@\\s\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?["\']',
+        'image:\\s*["\']?(?<depName>gke\\.gcr\\.io/[^\\s:"\'\\n]+):(?<currentValue>[^"\'@\\s\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?["\']?',
       ],
       datasourceTemplate: 'docker',
     },
