@@ -28,10 +28,10 @@ This document defines the repository rules, commit policies, coding conventions,
    Ensure `.worktrees/` remains untracked and is ignored. Never commit worktree administrative metadata.
 
 4. **Clean up when finished**:
-   After work is merged or no longer needed:
+   After work is merged or no longer needed (navigate out of the worktree first):
 
    ```bash
-   git worktree remove -f .worktrees/<worktree-name> && git branch -D <branch-name>
+   cd ../.. && git worktree remove -f .worktrees/<worktree-name> && git branch -D <branch-name>
    ```
 
 ---
