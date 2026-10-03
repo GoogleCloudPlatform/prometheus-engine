@@ -3,7 +3,7 @@ module github.com/GoogleCloudPlatform/prometheus-engine/scripts
 go 1.26.0
 
 require (
-	cloud.google.com/go/monitoring v1.30.0
+	cloud.google.com/go/monitoring v1.31.0
 	github.com/efficientgo/core v1.0.0-rc.3
 	github.com/go-kit/log v0.2.1
 	github.com/google/go-cmp v0.7.0
