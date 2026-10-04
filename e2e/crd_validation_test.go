@@ -1954,7 +1954,7 @@ func TestCRDValidation(t *testing.T) {
 							{
 								Rules: []monitoringv1.Rule{
 									{
-										Record: "dots.not.allowed",
+										Record: "spaces not allowed",
 									},
 								},
 							},
@@ -1963,10 +1963,10 @@ func TestCRDValidation(t *testing.T) {
 				},
 				wantErr: true,
 			},
-			"invalid-rule-name-dash": {
+			"valid-rule-name-dots": {
 				obj: &monitoringv1.Rules{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "invalid-rule-name-dash",
+						Name:      "valid-rule-name-dots",
 						Namespace: "default",
 					},
 					Spec: monitoringv1.RulesSpec{
@@ -1974,14 +1974,34 @@ func TestCRDValidation(t *testing.T) {
 							{
 								Rules: []monitoringv1.Rule{
 									{
-										Record: "dashes-not-allowed",
+										Record: "dots.allowed",
 									},
 								},
 							},
 						},
 					},
 				},
-				wantErr: true,
+				wantErr: false,
+			},
+			"valid-rule-name-dash": {
+				obj: &monitoringv1.Rules{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "valid-rule-name-dash",
+						Namespace: "default",
+					},
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "dashes-allowed",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
 			},
 			"valid-rule-name-colon": {
 				obj: &monitoringv1.Rules{

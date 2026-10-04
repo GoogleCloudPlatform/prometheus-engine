@@ -98,7 +98,7 @@ func TestGenerateRules(t *testing.T) {
 							Name: "test-group",
 							Rules: []Rule{
 								{
-									Record: "invalid-metric-name",
+									Record: "invalid\xffmetric",
 									Expr:   "test_expr",
 								},
 							},
@@ -169,6 +169,48 @@ func TestGenerateRules(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("utf8 metric names are allowed by default", func(t *testing.T) {
+		apiRules := &Rules{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "test-namespace",
+			},
+			Spec: RulesSpec{
+				Groups: []RuleGroup{
+					{
+						Name: "test-group",
+						Rules: []Rule{
+							{
+								Record: "utf8.record-name",
+								Expr:   `{"utf8.metric-name"}`,
+							},
+						},
+					},
+				},
+			},
+		}
+		if _, err := apiRules.ValidateCreate(); err != nil {
+			t.Fatalf("expected ValidateCreate to succeed for UTF-8 rule, got: %v", err)
+		}
+		got, err := apiRules.RuleGroupsConfig(projectID, location, clusterName)
+		if err != nil {
+			t.Fatalf("expected RuleGroupsConfig to succeed for UTF-8 rule, got: %v", err)
+		}
+		want := `groups:
+    - name: test-group
+      rules:
+        - record: utf8.record-name
+          expr: '{__name__="utf8.metric-name",cluster="test-cluster",location="us-central1",namespace="test-namespace",project_id="123"}'
+          labels:
+            cluster: test-cluster
+            location: us-central1
+            namespace: test-namespace
+            project_id: "123"
+`
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("expected rule groups config (-want, +got): %s", diff)
+		}
+	})
 }
 
 func TestGenerateClusterRules(t *testing.T) {

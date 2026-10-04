@@ -187,6 +187,21 @@ type CollectionSpec struct {
 	KubeletScraping *KubeletScraping `json:"kubeletScraping,omitempty"`
 	// Compression enables compression of metrics collection data.
 	Compression CompressionType `json:"compression,omitempty"`
+	// EnableUTF8 enables UTF-8 metric and label names in collector scraping
+	// (rule evaluation in rule-evaluator already allows UTF-8 names by default).
+	// When true, it configures Prometheus collector with `global.metric_name_validation_scheme: utf8`
+	// and `global.metric_name_escaping_scheme: allow-utf-8`.
+	// If unset or false, it defaults to `global.metric_name_validation_scheme: legacy`
+	// and `global.metric_name_escaping_scheme: underscores`.
+	// Note: In practice, Google Cloud Monitoring only supports a subset of UTF-8 characters
+	// (metric names matching `(/[a-zA-Z0-9$\-_.+!*'(),%:]+)+` and label names matching
+	// `[a-zA-Z_][a-zA-Z0-9_.]*`); series with other UTF-8 characters will be rejected on write.
+	// Additionally, enabling this can be a breaking change for targets that already instrument
+	// metric or label names with non-legacy UTF-8 characters (e.g., dots or hyphens),
+	// because `underscores` escaping (`Accept: ...; escaping=underscores`) rewrites those
+	// characters to `_` during scrape content negotiation, whereas `allow-utf-8` preserves
+	// the raw UTF-8 names.
+	EnableUTF8 *bool `json:"enableUTF8,omitempty"`
 }
 
 type ExportSpec struct {
