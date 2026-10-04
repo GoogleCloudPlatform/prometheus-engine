@@ -257,15 +257,12 @@ func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, httpCli
 	// Set up pod job queue and jobs.
 	podDiscoveryCh := make(chan prometheusPod)
 	wg := sync.WaitGroup{}
-	wg.Add(int(opts.TargetPollConcurrency))
 
 	// Must be unbounded or else we deadlock.
 	targetCh := make(chan *prometheusv1.TargetsResult)
 
 	for range opts.TargetPollConcurrency {
-		// Wrapper function so we can defer in this scope.
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for prometheusPod := range podDiscoveryCh {
 				// Fetch operation is blocking.
 				target, err := getTarget(ctx, logger, httpClient, prometheusPod.port, prometheusPod.pod)
@@ -275,7 +272,7 @@ func fetchTargets(ctx context.Context, logger logr.Logger, opts Options, httpCli
 				// nil represents being unable to reach a target.
 				targetCh <- target
 			}
-		}()
+		})
 	}
 
 	// Unbuffered channels are blocking so make sure we end the goroutine processing them.
