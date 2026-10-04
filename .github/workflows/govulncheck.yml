@@ -27,7 +27,7 @@ jobs:
         with:
            output-format: 'sarif'
            output-file: 'results.sarif'
-      - uses: github/codeql-action/upload-sarif@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
+      - uses: github/codeql-action/upload-sarif@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
         with:
           sarif_file: 'results.sarif'
       - id: govulncheck
