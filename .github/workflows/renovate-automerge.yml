@@ -1,0 +1,146 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+name: Renovate Auto-Merge
+
+# zizmor: ignore[dangerous-triggers]
+on:
+  # zizmor: ignore[dangerous-triggers]
+  pull_request_target:
+    types: [opened, synchronize, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull request number to evaluate and auto-merge'
+        required: true
+        type: number
+
+permissions: {}
+
+jobs:
+  automerge:
+    # Fast filtering for pull_request_target events
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+        github.event.pull_request.draft == false &&
+        github.event.pull_request.user.id == 25180681 &&
+        (github.event.pull_request.head.repo.full_name == 'renovate-bot/GoogleCloudPlatform-_-prometheus-engine' ||
+         github.event.pull_request.head.repo.full_name == github.repository) &&
+        contains(github.event.pull_request.body, '**Automerge**: Enabled')
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Verify authenticity and enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          echo "Evaluating Pull Request #${PR_NUMBER} in ${REPO} for secure auto-merge..."
+
+          # 1. Fetch Pull Request metadata
+          PR_JSON=$(gh pr view "${PR_NUMBER}" --repo "${REPO}" --json author,isDraft,headRepository,body,url)
+
+          IS_DRAFT=$(echo "${PR_JSON}" | jq -r '.isDraft')
+          if [ "${IS_DRAFT}" = "true" ]; then
+            echo "PR #${PR_NUMBER} is a draft; skipping auto-merge."
+            exit 0
+          fi
+
+          AUTHOR_LOGIN=$(echo "${PR_JSON}" | jq -r '.author.login')
+          if [ "${AUTHOR_LOGIN}" != "renovate-bot" ]; then
+            echo "Security Error: PR author '${AUTHOR_LOGIN}' is not 'renovate-bot'."
+            exit 1
+          fi
+
+          HEAD_REPO=$(echo "${PR_JSON}" | jq -r '.headRepository.nameWithOwner // empty')
+          if [ "${HEAD_REPO}" != "renovate-bot/GoogleCloudPlatform-_-prometheus-engine" ] && [ "${HEAD_REPO}" != "${REPO}" ]; then
+            echo "Security Error: Head repository '${HEAD_REPO}' is not an authorized Renovate repository."
+            exit 1
+          fi
+
+          BODY=$(echo "${PR_JSON}" | jq -r '.body')
+          if [[ "${BODY}" != *'**Automerge**: Enabled'* ]]; then
+            echo "Automerge is not enabled in PR description; skipping auto-merge."
+            exit 0
+          fi
+
+          # 2. Check for modified forbidden or sensitive files
+          FORBIDDEN_FILES=$(gh pr view "${PR_NUMBER}" --repo "${REPO}" --json files \
+            --jq '[.files[].path | select(
+              . == ".github/workflows/renovate-automerge.yml" or
+              . == ".github/renovate.json5" or
+              . == "Makefile" or
+              startswith("hack/") or
+              endswith(".sh") or
+              endswith(".go")
+            )] | length')
+
+          if [ "${FORBIDDEN_FILES}" -ne 0 ]; then
+            echo "Security Warning: PR #${PR_NUMBER} modifies sensitive or logic files; blocking automated merge."
+            exit 1
+          fi
+
+          # 3. Cryptographically verify all commits via GitHub GraphQL
+          QUERY='query($owner: String!, $repo: String!, $pr: Int!) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $pr) {
+                commits(first: 100) {
+                  nodes {
+                    commit {
+                      oid
+                      signature {
+                        isValid
+                        signer { login }
+                        ... on GpgSignature { keyId }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }'
+
+          OWNER="${REPO%%/*}"
+          NAME="${REPO#*/}"
+
+          COMMITS_JSON=$(gh api graphql -F owner="${OWNER}" -F repo="${NAME}" -F pr="${PR_NUMBER}" -f query="${QUERY}")
+
+          TOTAL_COMMITS=$(echo "${COMMITS_JSON}" | jq '.data.repository.pullRequest.commits.nodes | length')
+          if [ "${TOTAL_COMMITS}" -eq 0 ]; then
+            echo "Security Error: No commits found on PR #${PR_NUMBER}."
+            exit 1
+          fi
+
+          INVALID_COMMITS=$(echo "${COMMITS_JSON}" | jq '[.data.repository.pullRequest.commits.nodes[] | select(
+            .commit.signature.isValid != true or
+            .commit.signature.signer.login != "renovate-bot" or
+            .commit.signature.keyId != "A1020E7F5FFD673D"
+          )] | length')
+
+          if [ "${INVALID_COMMITS}" -ne 0 ]; then
+            echo "Security Error: Found ${INVALID_COMMITS} commit(s) not signed with Mend Renovate GPG key (A1020E7F5FFD673D)."
+            exit 1
+          fi
+
+          echo "All ${TOTAL_COMMITS} commit(s) verified with official Mend Renovate GPG signature (Key ID: A1020E7F5FFD673D)."
+
+          # 4. Enable platform auto-merge with squash
+          PR_URL=$(echo "${PR_JSON}" | jq -r '.url')
+          gh pr merge "${PR_URL}" --auto --squash
+          echo "Successfully enabled auto-merge on ${PR_URL}."
