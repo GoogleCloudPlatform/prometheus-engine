@@ -40,14 +40,16 @@
     'gomodTidy',
     'gomodUpdateImportPaths',
   ],
-  // Surface GitHub and OSV vulnerability alerts across all branches
+  // Surface GitHub and OSV vulnerability alerts across all branches (use lowest fix strategy to minimize churn on release branches)
   vulnerabilityAlerts: {
     enabled: true,
     semanticCommitType: 'chore',
     groupName: 'security-fixes',
     groupSlug: 'security-fixes',
-    vulnerabilityFixStrategy: 'highest',
+    vulnerabilityFixStrategy: 'lowest',
   },
+  // Enable OSV.dev vulnerability alerts for cross-branch vulnerability detection
+  osvVulnerabilityAlerts: true,
   // Enable GitHub platform automerge (uses gh pr merge --auto)
   platformAutomerge: true,
   // Custom managers to track container images across Helm charts and rendered manifests
@@ -233,32 +235,18 @@
       automerge: true,
       automergeType: 'pr',
     },
-    // Release branches policy: use lowest vulnerability fix strategy to minimize churn
+    // Release branches policy: disable routine updates for Go modules (security updates remain enabled via vulnerabilityAlerts)
     {
-      description: 'Use lowest vulnerability fix strategy on release branches to minimize churn',
-      matchBaseBranches: [
-        '/^release\\/.*$/',
-      ],
-      vulnerabilityAlerts: {
-        vulnerabilityFixStrategy: 'lowest',
-      },
-    },
-    // Release branches policy: only allow security updates for production code (root go.mod)
-    {
-      description: 'Disable all updates (including security) for auxiliary Go modules on release branches',
+      description: 'Disable routine updates for all Go modules on release branches (security updates remain enabled via vulnerabilityAlerts)',
       matchBaseBranches: [
         '/^release\\/.*$/',
       ],
       matchManagers: [
         'gomod',
       ],
-      matchFileNames: [
-        'tools/go.mod',
-        'examples/**',
-        'ops/gmpctl/**',
-      ],
       enabled: false,
     },
+    // Release branches policy: allow only patch and digest updates for Dockerfile and GitHub Actions
     {
       description: 'Disable major and minor updates for Dockerfile and GitHub Actions on release branches (allow patch, digest, and vulnerability fixes)',
       matchBaseBranches: [
@@ -271,26 +259,6 @@
       matchUpdateTypes: [
         'major',
         'minor',
-      ],
-      enabled: false,
-    },
-    {
-      description: 'Disable non-security updates on release branches for root go.mod (security updates remain enabled)',
-      matchBaseBranches: [
-        '/^release\\/.*$/',
-      ],
-      matchFileNames: [
-        'go.mod',
-      ],
-      matchUpdateTypes: [
-        'major',
-        'minor',
-        'patch',
-        'pin',
-        'digest',
-        'lockFileMaintenance',
-        'rollback',
-        'bump',
       ],
       enabled: false,
     },

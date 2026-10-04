@@ -20,6 +20,9 @@ const { createRequire } = require('module');
 const renovateRequire = createRequire('/usr/local/renovate/package.json');
 const json5 = renovateRequire('json5');
 const { applyPackageRules } = renovateRequire('./dist/util/package-rules/index.js');
+const { Vulnerabilities } = renovateRequire('./dist/workers/repository/process/vulnerabilities.js');
+const { applyVulnerabilityFixFilter } = renovateRequire('./dist/workers/repository/process/lookup/vulnerability.js');
+const { get: getVersioning } = renovateRequire('./dist/modules/versioning/index.js');
 
 const configFile = path.resolve(__dirname, '../.github/renovate.json5');
 const configRaw = fs.readFileSync(configFile, 'utf8');
@@ -228,135 +231,231 @@ async function runTests() {
 
   // Suite 7: Maintenance Release Branch Policies
   console.log('\nTest Suite 7: Release Branch Policies (release/*)');
-  const releaseBranch = 'release/0.19';
+  const sampleReleaseBranches = [
+    'release/0.14',
+    'release/0.25',
+    'release/1.0',
+    'release/future-branch',
+  ];
 
-  const relRootMinor = await simulateDep('github.com/google/go-cmp', {
-    baseBranch: releaseBranch,
-    updateType: 'minor',
-  });
-  assert(
-    relRootMinor.enabled === false,
-    'Non-security update for root go.mod is disabled on release branches'
-  );
+  for (const relBranch of sampleReleaseBranches) {
+    const relRootMinor = await simulateDep('github.com/google/go-cmp', {
+      baseBranch: relBranch,
+      updateType: 'minor',
+    });
+    assert(
+      relRootMinor.enabled === false,
+      `Non-security minor update for root go.mod is disabled on ${relBranch}`
+    );
 
-  const relRootPatch = await simulateDep('github.com/google/go-cmp', {
-    baseBranch: releaseBranch,
-    updateType: 'patch',
-  });
-  assert(
-    relRootPatch.enabled === false,
-    'Non-security patch update for root go.mod is disabled on release branches'
-  );
+    const relRootPatch = await simulateDep('github.com/google/go-cmp', {
+      baseBranch: relBranch,
+      updateType: 'patch',
+    });
+    assert(
+      relRootPatch.enabled === false,
+      `Non-security patch update for root go.mod is disabled on ${relBranch}`
+    );
 
-  const relRootVuln = await simulateDep('github.com/google/go-cmp', {
-    baseBranch: releaseBranch,
-    updateType: 'vulnerability',
-  });
-  assert(
-    relRootVuln.enabled !== false,
-    'Security/vulnerability update for root go.mod remains enabled on release branches'
-  );
-  assert(
-    relRootVuln.vulnerabilityAlerts?.vulnerabilityFixStrategy === 'lowest',
-    'vulnerabilityFixStrategy is "lowest" on release branches'
-  );
+    const relRootVuln = await simulateDep('github.com/google/go-cmp', {
+      baseBranch: relBranch,
+      updateType: 'patch',
+      force: { ...config.vulnerabilityAlerts },
+      isVulnerabilityAlert: true,
+    });
+    assert(
+      relRootVuln.enabled === true,
+      `Security/vulnerability update for root go.mod remains enabled on ${relBranch}`
+    );
+    assert(
+      relRootVuln.vulnerabilityFixStrategy === 'lowest',
+      `vulnerabilityFixStrategy is "lowest" on ${relBranch}`
+    );
+    assert(
+      relRootVuln.groupName === 'security-fixes',
+      `Root go.mod vulnerability update resolves to groupName "security-fixes" on ${relBranch}`
+    );
+
+    const relToolsRoutine = await simulateDep('oras.land/oras-go/v2', {
+      packageFile: 'tools/go.mod',
+      baseBranch: relBranch,
+      updateType: 'minor',
+    });
+    assert(
+      relToolsRoutine.enabled === false,
+      `Routine updates for auxiliary modules are disabled on ${relBranch}`
+    );
+
+    const relToolsVuln = await simulateDep('oras.land/oras-go/v2', {
+      packageFile: 'tools/go.mod',
+      baseBranch: relBranch,
+      updateType: 'patch',
+      force: { ...config.vulnerabilityAlerts },
+      isVulnerabilityAlert: true,
+    });
+    assert(
+      relToolsVuln.enabled === true,
+      `Security/vulnerability updates for auxiliary modules remain enabled on ${relBranch}`
+    );
+    assert(
+      relToolsVuln.vulnerabilityFixStrategy === 'lowest',
+      `vulnerabilityFixStrategy is "lowest" for auxiliary modules on ${relBranch}`
+    );
+    assert(
+      relToolsVuln.groupName === 'security-fixes',
+      `Auxiliary module vulnerability update resolves to groupName "security-fixes" on ${relBranch}`
+    );
+
+    // Docker updates on release branches
+    const relDockerPatch = await simulateDep('golang:1.24', {
+      manager: 'dockerfile',
+      packageFile: 'Dockerfile',
+      baseBranch: relBranch,
+      updateType: 'patch',
+    });
+    assert(
+      relDockerPatch.enabled !== false,
+      `Dockerfile patch updates are enabled on ${relBranch}`
+    );
+
+    const relDockerDigest = await simulateDep('golang:1.24', {
+      manager: 'dockerfile',
+      packageFile: 'Dockerfile',
+      baseBranch: relBranch,
+      updateType: 'digest',
+    });
+    assert(
+      relDockerDigest.enabled !== false,
+      `Dockerfile digest updates are enabled on ${relBranch}`
+    );
+
+    const relDockerVuln = await simulateDep('golang:1.24', {
+      manager: 'dockerfile',
+      packageFile: 'Dockerfile',
+      baseBranch: relBranch,
+      updateType: 'patch',
+      force: { ...config.vulnerabilityAlerts },
+      isVulnerabilityAlert: true,
+    });
+    assert(
+      relDockerVuln.enabled !== false,
+      `Dockerfile vulnerability updates are enabled on ${relBranch}`
+    );
+
+    const relDockerMinor = await simulateDep('golang:1.24', {
+      manager: 'dockerfile',
+      packageFile: 'Dockerfile',
+      baseBranch: relBranch,
+      updateType: 'minor',
+    });
+    assert(
+      relDockerMinor.enabled === false,
+      `Dockerfile minor updates are disabled on ${relBranch}`
+    );
+
+    // GitHub Actions updates on release branches
+    const relActionsPatch = await simulateDep('actions/checkout', {
+      manager: 'github-actions',
+      packageFile: '.github/workflows/presubmit.yml',
+      baseBranch: relBranch,
+      updateType: 'patch',
+    });
+    assert(
+      relActionsPatch.enabled !== false,
+      `GitHub Actions patch updates are enabled on ${relBranch}`
+    );
+
+    const relActionsVuln = await simulateDep('actions/checkout', {
+      manager: 'github-actions',
+      packageFile: '.github/workflows/presubmit.yml',
+      baseBranch: relBranch,
+      updateType: 'patch',
+      force: { ...config.vulnerabilityAlerts },
+      isVulnerabilityAlert: true,
+    });
+    assert(
+      relActionsVuln.enabled !== false,
+      `GitHub Actions vulnerability updates are enabled on ${relBranch}`
+    );
+
+    const relActionsMinor = await simulateDep('actions/checkout', {
+      manager: 'github-actions',
+      packageFile: '.github/workflows/presubmit.yml',
+      baseBranch: relBranch,
+      updateType: 'minor',
+    });
+    assert(
+      relActionsMinor.enabled === false,
+      `GitHub Actions minor updates are disabled on ${relBranch}`
+    );
+
+    // Grouping rules verification on release branches (matching main)
+    assert(
+      relRootPatch.groupName === 'deps',
+      `General Go dependencies resolve to groupName "deps" on ${relBranch}`
+    );
+
+    const relK8sRoutine = await simulateDep('k8s.io/client-go', {
+      baseBranch: relBranch,
+      updateType: 'patch',
+    });
+    assert(
+      relK8sRoutine.groupName === 'k8s-deps',
+      `Kubernetes dependencies resolve to groupName "k8s-deps" on ${relBranch}`
+    );
+
+    const relOtelRoutine = await simulateDep('go.opentelemetry.io/otel', {
+      baseBranch: relBranch,
+      updateType: 'patch',
+    });
+    assert(
+      relOtelRoutine.groupName === 'opentelemetry',
+      `OpenTelemetry dependencies resolve to groupName "opentelemetry" on ${relBranch}`
+    );
+
+    assert(
+      relToolsRoutine.groupName === 'auxiliary-modules',
+      `tools/go.mod module resolves to groupName "auxiliary-modules" on ${relBranch}`
+    );
+
+    const relOpsRoutine = await simulateDep('github.com/spf13/cobra', {
+      packageFile: 'ops/gmpctl/go.mod',
+      baseBranch: relBranch,
+      updateType: 'patch',
+    });
+    assert(
+      relOpsRoutine.groupName === 'auxiliary-modules',
+      `ops/gmpctl module resolves to groupName "auxiliary-modules" on ${relBranch}`
+    );
+
+    assert(
+      relDockerPatch.groupName === 'docker',
+      `Dockerfile patch updates resolve to groupName "docker" on ${relBranch}`
+    );
+    assert(
+      relDockerVuln.groupName === 'security-fixes',
+      `Dockerfile vulnerability updates resolve to groupName "security-fixes" on ${relBranch}`
+    );
+
+    assert(
+      relActionsPatch.groupName === 'github-actions',
+      `GitHub Actions patch updates resolve to groupName "github-actions" on ${relBranch}`
+    );
+    assert(
+      relActionsVuln.groupName === 'security-fixes',
+      `GitHub Actions vulnerability updates resolve to groupName "security-fixes" on ${relBranch}`
+    );
+  }
 
   const mainRootVuln = await simulateDep('github.com/google/go-cmp', {
     baseBranch: 'main',
-    updateType: 'vulnerability',
-  });
-  assert(
-    mainRootVuln.vulnerabilityAlerts?.vulnerabilityFixStrategy === 'highest',
-    'vulnerabilityFixStrategy defaults to "highest" on main'
-  );
-
-  const relToolsVuln = await simulateDep('github.com/efficientgo/tools', {
-    packageFile: 'tools/go.mod',
-    baseBranch: releaseBranch,
-    updateType: 'vulnerability',
-  });
-  assert(
-    relToolsVuln.enabled === false,
-    'All updates (including security) for auxiliary modules are disabled on release branches'
-  );
-
-  // Docker updates on release branches
-  const relDockerPatch = await simulateDep('golang:1.24', {
-    manager: 'dockerfile',
-    packageFile: 'Dockerfile',
-    baseBranch: releaseBranch,
     updateType: 'patch',
+    force: { ...config.vulnerabilityAlerts },
+    isVulnerabilityAlert: true,
   });
   assert(
-    relDockerPatch.enabled !== false,
-    'Dockerfile patch updates are enabled on release branches'
-  );
-
-  const relDockerDigest = await simulateDep('golang:1.24', {
-    manager: 'dockerfile',
-    packageFile: 'Dockerfile',
-    baseBranch: releaseBranch,
-    updateType: 'digest',
-  });
-  assert(
-    relDockerDigest.enabled !== false,
-    'Dockerfile digest updates are enabled on release branches'
-  );
-
-  const relDockerVuln = await simulateDep('golang:1.24', {
-    manager: 'dockerfile',
-    packageFile: 'Dockerfile',
-    baseBranch: releaseBranch,
-    updateType: 'vulnerability',
-  });
-  assert(
-    relDockerVuln.enabled !== false,
-    'Dockerfile vulnerability updates are enabled on release branches'
-  );
-
-  const relDockerMinor = await simulateDep('golang:1.24', {
-    manager: 'dockerfile',
-    packageFile: 'Dockerfile',
-    baseBranch: releaseBranch,
-    updateType: 'minor',
-  });
-  assert(
-    relDockerMinor.enabled === false,
-    'Dockerfile minor updates are disabled on release branches'
-  );
-
-  // GitHub Actions updates on release branches
-  const relActionsPatch = await simulateDep('actions/checkout', {
-    manager: 'github-actions',
-    packageFile: '.github/workflows/presubmit.yml',
-    baseBranch: releaseBranch,
-    updateType: 'patch',
-  });
-  assert(
-    relActionsPatch.enabled !== false,
-    'GitHub Actions patch updates are enabled on release branches'
-  );
-
-  const relActionsVuln = await simulateDep('actions/checkout', {
-    manager: 'github-actions',
-    packageFile: '.github/workflows/presubmit.yml',
-    baseBranch: releaseBranch,
-    updateType: 'vulnerability',
-  });
-  assert(
-    relActionsVuln.enabled !== false,
-    'GitHub Actions vulnerability updates are enabled on release branches'
-  );
-
-  const relActionsMinor = await simulateDep('actions/checkout', {
-    manager: 'github-actions',
-    packageFile: '.github/workflows/presubmit.yml',
-    baseBranch: releaseBranch,
-    updateType: 'minor',
-  });
-  assert(
-    relActionsMinor.enabled === false,
-    'GitHub Actions minor updates are disabled on release branches'
+    mainRootVuln.vulnerabilityFixStrategy === 'lowest',
+    'vulnerabilityFixStrategy is "lowest" globally on main and release branches'
   );
 
   // Suite 8: Indirect Go Module Dependencies
@@ -391,13 +490,13 @@ async function runTests() {
     'Indirect Go module routine minor updates are disabled'
   );
 
-  // Renovate vulnerabilityAlerts worker overrides enabled: false by injecting force: { enabled: true }
+  // Renovate vulnerabilityAlerts worker overrides enabled: false by injecting force: { ...config.vulnerabilityAlerts }
   const indirectVulnSimulated = await simulateDep('go.mongodb.org/mongo-driver', {
     manager: 'gomod',
     packageFile: 'go.mod',
     depType: 'indirect',
     updateType: 'patch',
-    force: { enabled: true },
+    force: { ...config.vulnerabilityAlerts },
   });
   assert(
     indirectVulnSimulated.enabled === true,
@@ -411,23 +510,48 @@ async function runTests() {
     'ignorePaths excludes vendor directory from package scanning'
   );
 
-  const hasDynamicReleasePattern = Array.isArray(config.baseBranchPatterns) &&
-    config.baseBranchPatterns.includes('main') &&
-    config.baseBranchPatterns.some(
-      (p) => typeof p === 'string' && p.startsWith('/') && new RegExp(p.slice(1, -1)).test('release/0.14')
-    );
   assert(
-    hasDynamicReleasePattern,
-    'baseBranchPatterns dynamically matches release/0.14'
+    config.osvVulnerabilityAlerts === true,
+    'osvVulnerabilityAlerts is enabled for cross-branch vulnerability tracking'
   );
 
-  const archiveMatches = (config.baseBranchPatterns || []).some(
-    (p) => typeof p === 'string' && (p === 'archive/0.13' || (p.startsWith('/') && new RegExp(p.slice(1, -1)).test('archive/0.13')))
-  );
-  assert(
-    !archiveMatches,
-    'baseBranchPatterns rejects archive/* branches'
-  );
+  function matchesBaseBranch(branchName) {
+    return (config.baseBranchPatterns || []).some((pattern) => {
+      if (pattern === branchName) return true;
+      if (typeof pattern === 'string' && pattern.startsWith('/') && pattern.endsWith('/')) {
+        return new RegExp(pattern.slice(1, -1)).test(branchName);
+      }
+      return false;
+    });
+  }
+
+  const testReleaseBranches = [
+    'release/0.14',
+    'release/0.25',
+    'release/1.0',
+    'release/2026.01',
+    'release/v2.0',
+  ];
+  for (const b of testReleaseBranches) {
+    assert(
+      matchesBaseBranch(b),
+      `baseBranchPatterns dynamically matches release branch format ${b}`
+    );
+  }
+
+  const testNonReleaseBranches = [
+    'archive/0.13',
+    'archive/0.16',
+    'feature/test',
+    'hotfix/123',
+    'pr/456',
+  ];
+  for (const b of testNonReleaseBranches) {
+    assert(
+      !matchesBaseBranch(b),
+      `baseBranchPatterns rejects non-release branch ${b}`
+    );
+  }
 
   // Suite 10: Custom Managers for Chart & Manifest Images
   console.log('\nTest Suite 10: Custom Managers for Chart & Manifest Images');
@@ -515,6 +639,193 @@ async function runTests() {
       'customManager extracts generic registry image from manifest format'
     );
   }
+
+  // Suite 11: End-to-End Vulnerability Alert Engine Integration
+  console.log('\nTest Suite 11: End-to-End Vulnerability Alert Engine Integration');
+  const vulnHelper = new Vulnerabilities();
+  const semverVersioning = getVersioning('semver');
+
+  // 11.1: Root go.mod vulnerability alert on release branch using real config.vulnerabilityAlerts
+  const rootVulnRule = vulnHelper.vulnerabilityToPackageRules({
+    vulnerability: { id: 'GHSA-test-root', severity: [{ type: 'CVSS_V3', score: '9.8' }] },
+    affected: {},
+    packageName: 'github.com/google/go-cmp',
+    depVersion: '0.5.9',
+    fixedVersion: '>= 0.6.0',
+    datasource: 'go',
+    packageFileConfig: {
+      vulnerabilityAlerts: config.vulnerabilityAlerts,
+    },
+  });
+  assert(
+    rootVulnRule && rootVulnRule.isVulnerabilityAlert === true && rootVulnRule.force?.enabled === true,
+    'vulnerabilityToPackageRules generates package rule with isVulnerabilityAlert and force: { enabled: true }'
+  );
+
+  const rootRoutineRel = await applyPackageRules({
+    ...config,
+    depName: 'github.com/google/go-cmp',
+    packageName: 'github.com/google/go-cmp',
+    currentValue: '0.5.9',
+    manager: 'gomod',
+    packageFile: 'go.mod',
+    baseBranch: 'release/0.14',
+    updateType: 'patch',
+    datasource: 'go',
+  });
+  assert(
+    rootRoutineRel.enabled === false,
+    'Routine patch update on release branch evaluates to enabled: false without vulnerability rule'
+  );
+
+  const rootVulnRel = await applyPackageRules({
+    ...config,
+    depName: 'github.com/google/go-cmp',
+    packageName: 'github.com/google/go-cmp',
+    currentValue: '0.5.9',
+    manager: 'gomod',
+    packageFile: 'go.mod',
+    baseBranch: 'release/0.14',
+    updateType: 'patch',
+    datasource: 'go',
+    packageRules: [...config.packageRules, rootVulnRule],
+  });
+  assert(
+    rootVulnRel.enabled === true,
+    'Vulnerability alert overrides enabled: false on release branch via engine package rule'
+  );
+  assert(
+    rootVulnRel.groupName === 'security-fixes' && rootVulnRel.groupSlug === 'security-fixes',
+    'Root go.mod vulnerability alert resolves to groupName "security-fixes" on release branch'
+  );
+  assert(
+    rootVulnRel.vulnerabilityFixStrategy === 'lowest',
+    'Root go.mod vulnerability alert sets top-level vulnerabilityFixStrategy to "lowest" on release branch'
+  );
+
+  // 11.2: Auxiliary Go module vulnerability alert on release branch using real config.vulnerabilityAlerts
+  const auxVulnRule = vulnHelper.vulnerabilityToPackageRules({
+    vulnerability: { id: 'GHSA-test-aux', severity: [{ type: 'CVSS_V3', score: '9.8' }] },
+    affected: {},
+    packageName: 'oras.land/oras-go/v2',
+    depVersion: '2.3.0',
+    fixedVersion: '>= 2.5.0',
+    datasource: 'go',
+    packageFileConfig: {
+      vulnerabilityAlerts: config.vulnerabilityAlerts,
+    },
+  });
+
+  const auxRoutineRel = await applyPackageRules({
+    ...config,
+    depName: 'oras.land/oras-go/v2',
+    packageName: 'oras.land/oras-go/v2',
+    currentValue: '2.3.0',
+    manager: 'gomod',
+    packageFile: 'tools/go.mod',
+    baseBranch: 'release/0.14',
+    updateType: 'patch',
+    datasource: 'go',
+  });
+  assert(
+    auxRoutineRel.enabled === false,
+    'Routine patch update for auxiliary module on release branch evaluates to enabled: false'
+  );
+
+  const auxVulnRel = await applyPackageRules({
+    ...config,
+    depName: 'oras.land/oras-go/v2',
+    packageName: 'oras.land/oras-go/v2',
+    currentValue: '2.3.0',
+    manager: 'gomod',
+    packageFile: 'tools/go.mod',
+    baseBranch: 'release/0.14',
+    updateType: 'patch',
+    datasource: 'go',
+    packageRules: [...config.packageRules, auxVulnRule],
+  });
+  assert(
+    auxVulnRel.enabled === true,
+    'Auxiliary module vulnerability alert overrides enabled: false on release branch'
+  );
+  assert(
+    auxVulnRel.groupName === 'security-fixes' && auxVulnRel.groupSlug === 'security-fixes',
+    'Auxiliary module vulnerability alert resolves to groupName "security-fixes"'
+  );
+  assert(
+    auxVulnRel.vulnerabilityFixStrategy === 'lowest',
+    'Auxiliary module vulnerability alert sets top-level vulnerabilityFixStrategy to "lowest" on release branch'
+  );
+
+  const auxCandidateReleases = [{ version: '2.5.0' }, { version: '2.6.0' }];
+  const auxFixFilterRes = applyVulnerabilityFixFilter(auxVulnRel, {}, semverVersioning, auxCandidateReleases);
+  assert(
+    auxFixFilterRes.shrinkedViaVulnerability === true &&
+      auxFixFilterRes.releases.length === 1 &&
+      auxFixFilterRes.releases[0].version === '2.5.0',
+    'applyVulnerabilityFixFilter selects the lowest fixed version (2.5.0) for auxiliary module vulnerability'
+  );
+
+  // 11.3: Indirect dependency vulnerability alert
+  const indirectVulnRule = vulnHelper.vulnerabilityToPackageRules({
+    vulnerability: { id: 'GHSA-test-indirect', severity: [{ type: 'CVSS_V3', score: '7.5' }] },
+    affected: {},
+    packageName: 'go.mongodb.org/mongo-driver',
+    depType: 'indirect',
+    depVersion: '1.11.0',
+    fixedVersion: '>= 1.11.8',
+    datasource: 'go',
+    packageFileConfig: {
+      vulnerabilityAlerts: config.vulnerabilityAlerts,
+    },
+  });
+
+  const indirectVulnApplied = await applyPackageRules({
+    ...config,
+    depName: 'go.mongodb.org/mongo-driver',
+    packageName: 'go.mongodb.org/mongo-driver',
+    depType: 'indirect',
+    currentValue: '1.11.0',
+    manager: 'gomod',
+    packageFile: 'go.mod',
+    baseBranch: 'main',
+    updateType: 'patch',
+    datasource: 'go',
+    packageRules: [...config.packageRules, indirectVulnRule],
+  });
+  assert(
+    indirectVulnApplied.enabled === true,
+    'Indirect dependency vulnerability alert overrides enabled: false via engine package rule'
+  );
+
+  // 11.4: Main branch vulnerability fix strategy
+  const mainVulnRule = vulnHelper.vulnerabilityToPackageRules({
+    vulnerability: { id: 'GHSA-test-main', severity: [] },
+    affected: {},
+    packageName: 'github.com/google/go-cmp',
+    depVersion: '0.5.9',
+    fixedVersion: '>= 0.6.0',
+    datasource: 'go',
+    packageFileConfig: {
+      vulnerabilityAlerts: config.vulnerabilityAlerts,
+    },
+  });
+  const mainVulnApplied = await applyPackageRules({
+    ...config,
+    depName: 'github.com/google/go-cmp',
+    packageName: 'github.com/google/go-cmp',
+    currentValue: '0.5.9',
+    manager: 'gomod',
+    packageFile: 'go.mod',
+    baseBranch: 'main',
+    updateType: 'patch',
+    datasource: 'go',
+    packageRules: [...config.packageRules, mainVulnRule],
+  });
+  assert(
+    mainVulnApplied.vulnerabilityFixStrategy === 'lowest' && mainVulnApplied.groupName === 'security-fixes',
+    'Vulnerability alerts use "lowest" fix strategy and "security-fixes" group on main'
+  );
 
   console.log(`\n========================================`);
   console.log(`Total: ${totalTests} | Passed: ${passedTests} | Failed: ${failedTests}`);
