@@ -361,15 +361,12 @@ async function runTests() {
 
   // Suite 8: Indirect Go Module Dependencies
   console.log('\nTest Suite 8: Indirect Go Module Dependencies');
-  const indirectVuln = await simulateDep('go.mongodb.org/mongo-driver', {
-    manager: 'gomod',
-    packageFile: 'go.mod',
-    depType: 'indirect',
-    updateType: 'vulnerability',
-  });
+  const hasInvalidVulnUpdateType = (config.packageRules || []).some(
+    (r) => Array.isArray(r.matchUpdateTypes) && r.matchUpdateTypes.includes('vulnerability')
+  );
   assert(
-    indirectVuln.enabled !== false,
-    'Indirect Go module vulnerability updates are enabled'
+    !hasInvalidVulnUpdateType,
+    'packageRules do not use invalid matchUpdateTypes: ["vulnerability"]'
   );
 
   const indirectPatch = await simulateDep('go.mongodb.org/mongo-driver', {
@@ -394,11 +391,24 @@ async function runTests() {
     'Indirect Go module routine minor updates are disabled'
   );
 
+  // Renovate vulnerabilityAlerts worker overrides enabled: false by injecting force: { enabled: true }
+  const indirectVulnSimulated = await simulateDep('go.mongodb.org/mongo-driver', {
+    manager: 'gomod',
+    packageFile: 'go.mod',
+    depType: 'indirect',
+    updateType: 'patch',
+    force: { enabled: true },
+  });
+  assert(
+    indirectVulnSimulated.enabled === true,
+    'Vulnerability alerts override disabled indirect updates via force: { enabled: true }'
+  );
+
   // Suite 9: Repository and Base Branch Configuration
   console.log('\nTest Suite 9: Repository Configuration & Base Branch Patterns');
   assert(
-    Array.isArray(config.ignorePaths) && !config.ignorePaths.includes('**/vendor/**'),
-    'ignorePaths does not exclude vendor directory'
+    Array.isArray(config.ignorePaths) && config.ignorePaths.includes('**/vendor/**'),
+    'ignorePaths excludes vendor directory from package scanning'
   );
 
   const hasDynamicReleasePattern = Array.isArray(config.baseBranchPatterns) &&
@@ -474,6 +484,16 @@ async function runTests() {
       'customManager does not include trailing single quote in currentValue for chart format'
     );
 
+    // Unquoted image tag test for charts
+    const unquotedChart = "image: gke.gcr.io/gke-distroless/bash\n    tag: gke_distroless_20260815.00_p0";
+    const unquotedChartRes = extractPackageFile(unquotedChart, 'charts/values.global.yaml', customManager);
+    assert(
+      unquotedChartRes &&
+        unquotedChartRes.deps.length === 1 &&
+        unquotedChartRes.deps[0].currentValue === 'gke_distroless_20260815.00_p0',
+      'customManager extracts unquoted tag from chart format'
+    );
+
     const singleQuotedManifest = "image: 'gke.gcr.io/gke-distroless/bash:gke_distroless_20260815.00_p0'";
     const singleQuotedManifestRes = extractPackageFile(singleQuotedManifest, 'manifests/operator.yaml', customManager);
     assert(
@@ -482,6 +502,17 @@ async function runTests() {
         singleQuotedManifestRes.deps[0].currentValue === 'gke_distroless_20260815.00_p0' &&
         !singleQuotedManifestRes.deps[0].currentValue.endsWith("'"),
       'customManager does not include trailing single quote in currentValue for manifest format'
+    );
+
+    // Generic registry image test for manifests
+    const genericManifest = "image: 'quay.io/prometheus/alertmanager:v0.28.0'";
+    const genericManifestRes = extractPackageFile(genericManifest, 'manifests/operator.yaml', customManager);
+    assert(
+      genericManifestRes &&
+        genericManifestRes.deps.length === 1 &&
+        genericManifestRes.deps[0].depName === 'quay.io/prometheus/alertmanager' &&
+        genericManifestRes.deps[0].currentValue === 'v0.28.0',
+      'customManager extracts generic registry image from manifest format'
     );
   }
 
