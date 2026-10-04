@@ -189,6 +189,9 @@ linters:
             - 3
           severity: warning
           disabled: true
+        - name: multiline-if-init
+          severity: warning
+          disabled: true
         - name: package-comments
           severity: warning
           disabled: true
