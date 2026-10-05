@@ -19,17 +19,14 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // DaemonSetPods returns the pods used for the given DaemonSet.
 func DaemonSetPods(ctx context.Context, kubeClient client.Client, namespace, name string) ([]corev1.Pod, error) {
 	daemonSet := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 	}
 	if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(daemonSet), daemonSet); err != nil {
 		return nil, err

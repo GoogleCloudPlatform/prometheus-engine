@@ -21,7 +21,6 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -47,10 +46,8 @@ func DeploymentComplete(deployment *appsv1.Deployment, newStatus *appsv1.Deploym
 
 func WaitForDeploymentReady(ctx context.Context, kubeClient client.Client, namespace, name string) error {
 	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 	}
 	return waitForResourceReady(ctx, kubeClient, deployment, func(deployment *appsv1.Deployment) error {
 		if DeploymentComplete(deployment, &deployment.Status) {
@@ -63,10 +60,8 @@ func WaitForDeploymentReady(ctx context.Context, kubeClient client.Client, names
 // DeploymentPods returns the pods used for the given Deployment.
 func DeploymentPods(ctx context.Context, kubeClient client.Client, namespace, name string) ([]corev1.Pod, error) {
 	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 	}
 	if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(deployment), deployment); err != nil {
 		return nil, err

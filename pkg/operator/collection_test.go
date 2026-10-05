@@ -34,7 +34,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -171,11 +170,9 @@ func TestCollectionReconcile(t *testing.T) {
 				},
 			},
 			expected: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            "prom-example",
-					Namespace:       "gmp-test",
-					ResourceVersion: "2",
-				},
+				Name:            "prom-example",
+				Namespace:       "gmp-test",
+				ResourceVersion: "2",
 				Spec: monitoringv1.PodMonitoringSpec{
 					TargetLabels: exampleTargetLabels,
 					Endpoints:    validScrapeEndpoints,
@@ -203,11 +200,9 @@ func TestCollectionReconcile(t *testing.T) {
 				},
 			},
 			expected: &monitoringv1.PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            "prom-example",
-					Namespace:       "gmp-test",
-					ResourceVersion: "2",
-				}, Spec: monitoringv1.PodMonitoringSpec{
+				Name:            "prom-example",
+				Namespace:       "gmp-test",
+				ResourceVersion: "2", Spec: monitoringv1.PodMonitoringSpec{
 					TargetLabels: exampleTargetLabels,
 					Endpoints:    []monitoringv1.ScrapeEndpoint{{}},
 				},
@@ -277,11 +272,9 @@ func TestCollectionReconcile(t *testing.T) {
 				},
 			},
 			expected: &monitoringv1.ClusterPodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            "prom-example",
-					Namespace:       "gmp-test",
-					ResourceVersion: "2",
-				},
+				Name:            "prom-example",
+				Namespace:       "gmp-test",
+				ResourceVersion: "2",
 				Spec: monitoringv1.ClusterPodMonitoringSpec{
 					TargetLabels: exampleClusterTargetLabels,
 					Endpoints:    validScrapeEndpoints,
@@ -309,11 +302,9 @@ func TestCollectionReconcile(t *testing.T) {
 				},
 			},
 			expected: &monitoringv1.ClusterPodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            "prom-example",
-					Namespace:       "gmp-test",
-					ResourceVersion: "2",
-				}, Spec: monitoringv1.ClusterPodMonitoringSpec{
+				Name:            "prom-example",
+				Namespace:       "gmp-test",
+				ResourceVersion: "2", Spec: monitoringv1.ClusterPodMonitoringSpec{
 					TargetLabels: exampleClusterTargetLabels,
 					Endpoints:    []monitoringv1.ScrapeEndpoint{{}},
 				},
@@ -371,11 +362,9 @@ func TestCollectionReconcile(t *testing.T) {
 				},
 			},
 			expected: &monitoringv1.ClusterNodeMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            "prom-example",
-					Namespace:       "gmp-test",
-					ResourceVersion: "2",
-				},
+				Name:            "prom-example",
+				Namespace:       "gmp-test",
+				ResourceVersion: "2",
 				Spec: monitoringv1.ClusterNodeMonitoringSpec{
 					Endpoints: validScrapeNodeEndpoints,
 				},
@@ -398,11 +387,9 @@ func TestCollectionReconcile(t *testing.T) {
 				},
 			},
 			expected: &monitoringv1.ClusterNodeMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            "prom-example",
-					Namespace:       "gmp-test",
-					ResourceVersion: "2",
-				}, Spec: monitoringv1.ClusterNodeMonitoringSpec{
+				Name:            "prom-example",
+				Namespace:       "gmp-test",
+				ResourceVersion: "2", Spec: monitoringv1.ClusterNodeMonitoringSpec{
 					Endpoints: []monitoringv1.ScrapeNodeEndpoint{{}},
 				},
 				Status: monitoringv1.MonitoringStatus{
@@ -436,16 +423,12 @@ func TestCollectionReconcile(t *testing.T) {
 			kubeClient := newFakeClientBuilder().
 				WithObjects(tc.input).
 				WithObjects(&monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      NameOperatorConfig,
-						Namespace: opts.PublicNamespace,
-					},
+					Name:      NameOperatorConfig,
+					Namespace: opts.PublicNamespace,
 				}).
 				WithObjects(&appsv1.DaemonSet{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      NameCollector,
-						Namespace: opts.OperatorNamespace,
-					},
+					Name:      NameCollector,
+					Namespace: opts.OperatorNamespace,
 					Spec: appsv1.DaemonSetSpec{
 						Selector: &metav1.LabelSelector{},
 						Template: corev1.PodTemplateSpec{
@@ -462,20 +445,16 @@ func TestCollectionReconcile(t *testing.T) {
 
 			collectionReconciler := newCollectionReconciler(kubeClient, opts)
 			if _, err := collectionReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: opts.PublicNamespace,
-					Name:      NameOperatorConfig,
-				},
+				Namespace: opts.PublicNamespace,
+				Name:      NameOperatorConfig,
 			}); err != nil {
 				t.Fatal(err)
 			}
 
 			if tc.expectedCollectorConfigMap != nil {
 				collectorConfigMap := &corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: opts.OperatorNamespace,
-						Name:      NameCollector,
-					},
+					Namespace: opts.OperatorNamespace,
+					Name:      NameCollector,
 				}
 				if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(collectorConfigMap), collectorConfigMap); err != nil {
 					t.Fatal(err)
@@ -554,22 +533,18 @@ func TestSetConfigMapData(t *testing.T) {
 func TestMakeCollectorConfig_SecretConfigsDeterministicOrder(t *testing.T) {
 	ctx := t.Context()
 	pmon := &monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pmon-secrets",
-			Namespace: "gmp-test",
-		},
+		Name:      "pmon-secrets",
+		Namespace: "gmp-test",
 		Spec: monitoringv1.PodMonitoringSpec{
 			Endpoints: []monitoringv1.ScrapeEndpoint{
 				{
 					Port:     intstr.FromString("metrics"),
 					Interval: "10s",
-					HTTPClientConfig: monitoringv1.HTTPClientConfig{
-						Authorization: &monitoringv1.Auth{
-							Credentials: &monitoringv1.SecretSelector{
-								Secret: &monitoringv1.SecretKeySelector{
-									Name: "secret-c",
-									Key:  "token",
-								},
+					Authorization: &monitoringv1.Auth{
+						Credentials: &monitoringv1.SecretSelector{
+							Secret: &monitoringv1.SecretKeySelector{
+								Name: "secret-c",
+								Key:  "token",
 							},
 						},
 					},
@@ -577,13 +552,11 @@ func TestMakeCollectorConfig_SecretConfigsDeterministicOrder(t *testing.T) {
 				{
 					Port:     intstr.FromString("metrics"),
 					Interval: "10s",
-					HTTPClientConfig: monitoringv1.HTTPClientConfig{
-						Authorization: &monitoringv1.Auth{
-							Credentials: &monitoringv1.SecretSelector{
-								Secret: &monitoringv1.SecretKeySelector{
-									Name: "secret-a",
-									Key:  "token",
-								},
+					Authorization: &monitoringv1.Auth{
+						Credentials: &monitoringv1.SecretSelector{
+							Secret: &monitoringv1.SecretKeySelector{
+								Name: "secret-a",
+								Key:  "token",
 							},
 						},
 					},
@@ -591,13 +564,11 @@ func TestMakeCollectorConfig_SecretConfigsDeterministicOrder(t *testing.T) {
 				{
 					Port:     intstr.FromString("metrics"),
 					Interval: "10s",
-					HTTPClientConfig: monitoringv1.HTTPClientConfig{
-						Authorization: &monitoringv1.Auth{
-							Credentials: &monitoringv1.SecretSelector{
-								Secret: &monitoringv1.SecretKeySelector{
-									Name: "secret-b",
-									Key:  "token",
-								},
+					Authorization: &monitoringv1.Auth{
+						Credentials: &monitoringv1.SecretSelector{
+							Secret: &monitoringv1.SecretKeySelector{
+								Name: "secret-b",
+								Key:  "token",
 							},
 						},
 					},
@@ -652,10 +623,8 @@ kubernetes_secrets:
 func TestMakeCollectorConfig_MigrationRiskDefaults(t *testing.T) {
 	ctx := t.Context()
 	pmon := &monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pmon-example",
-			Namespace: "gmp-test",
-		},
+		Name:      "pmon-example",
+		Namespace: "gmp-test",
 		Spec: monitoringv1.PodMonitoringSpec{
 			Endpoints: []monitoringv1.ScrapeEndpoint{
 				{
@@ -666,9 +635,7 @@ func TestMakeCollectorConfig_MigrationRiskDefaults(t *testing.T) {
 		},
 	}
 	cpmon := &monitoringv1.ClusterPodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cpmon-example",
-		},
+		Name: "cpmon-example",
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Endpoints: []monitoringv1.ScrapeEndpoint{
 				{
@@ -679,9 +646,7 @@ func TestMakeCollectorConfig_MigrationRiskDefaults(t *testing.T) {
 		},
 	}
 	cnmon := &monitoringv1.ClusterNodeMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cnmon-example",
-		},
+		Name: "cnmon-example",
 		Spec: monitoringv1.ClusterNodeMonitoringSpec{
 			Endpoints: []monitoringv1.ScrapeNodeEndpoint{
 				{

@@ -31,9 +31,7 @@ func TestClusterNodeMonitoring_ScrapeConfig(t *testing.T) {
 	// defaulting as the Prometheus structs are misconfigured in this regard in
 	// several places.
 	pmon := &ClusterNodeMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "kubelet",
-		},
+		Name: "kubelet",
 		Spec: ClusterNodeMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{"kubernetes.io/os": "linux"},
@@ -223,9 +221,7 @@ kubernetes_sd_configs:
 
 func TestClusterNodeMonitoring_ScrapeIntervalFloor(t *testing.T) {
 	cmon := &ClusterNodeMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "node-mon",
-		},
+		Name: "node-mon",
 		Spec: ClusterNodeMonitoringSpec{
 			Endpoints: []ScrapeNodeEndpoint{
 				{

@@ -31,10 +31,8 @@ import (
 )
 
 var collectorPodMonitoring = &monitoringv1.PodMonitoring{
-	ObjectMeta: metav1.ObjectMeta{
-		Name:      "collector-podmon",
-		Namespace: operator.DefaultOperatorNamespace,
-	},
+	Name:      "collector-podmon",
+	Namespace: operator.DefaultOperatorNamespace,
 	Spec: monitoringv1.PodMonitoringSpec{
 		Selector: metav1.LabelSelector{
 			MatchLabels: map[string]string{

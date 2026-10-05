@@ -24,7 +24,6 @@ import (
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
 	appsv1 "k8s.io/api/apps/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -38,16 +37,12 @@ func TestWebhooksNoRBAC(t *testing.T) {
 	}
 
 	if err := kubeClient.Delete(ctx, &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "gmp-system:operator:webhook-admin",
-		},
+		Name: "gmp-system:operator:webhook-admin",
 	}); err != nil {
 		t.Fatalf("error deleting cluster role: %s", err)
 	}
 	if err := kubeClient.Delete(ctx, &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "gmp-system:operator:webhook-admin",
-		},
+		Name: "gmp-system:operator:webhook-admin",
 	}); err != nil {
 		t.Fatalf("error deleting cluster role binding: %s", err)
 	}
@@ -79,10 +74,8 @@ func TestWebhooksNoRBAC(t *testing.T) {
 
 func deploymentRestart(ctx context.Context, kubeClient client.Client, namespace, name string) error {
 	deploy := appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-		},
+		Namespace: namespace,
+		Name:      name,
 	}
 	if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&deploy), &deploy); err != nil {
 		return err

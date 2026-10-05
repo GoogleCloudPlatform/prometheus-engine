@@ -1,6 +1,6 @@
 module github.com/GoogleCloudPlatform/prometheus-engine/tools/helm
 
-go 1.26.0
+go 1.27.0
 
 tool (
 	github.com/ahmetb/gen-crd-api-reference-docs

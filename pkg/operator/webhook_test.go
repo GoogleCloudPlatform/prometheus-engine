@@ -26,7 +26,6 @@ import (
 
 	"github.com/go-logr/logr"
 	arv1 "k8s.io/api/admissionregistration/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -348,9 +347,7 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 
 			objs := []runtime.Object{
 				&arv1.MutatingWebhookConfiguration{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: name,
-					},
+					Name: name,
 					Webhooks: []arv1.MutatingWebhook{
 						{
 							Name:         "webhook-1",
@@ -363,9 +360,7 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 					},
 				},
 				&arv1.MutatingWebhookConfiguration{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: nameInvalid,
-					},
+					Name: nameInvalid,
 					Webhooks: []arv1.MutatingWebhook{
 						{
 							Name:         "webhook-1",
@@ -378,9 +373,7 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 					},
 				},
 				&arv1.ValidatingWebhookConfiguration{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: name,
-					},
+					Name: name,
 					Webhooks: []arv1.ValidatingWebhook{
 						{
 							Name:         "webhook-1",
@@ -393,9 +386,7 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 					},
 				},
 				&arv1.ValidatingWebhookConfiguration{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: nameInvalid,
-					},
+					Name: nameInvalid,
 					Webhooks: []arv1.ValidatingWebhook{
 						{
 							Name:         "webhook-1",
@@ -424,9 +415,7 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 			validateCABundles := func(managedCABundle, unmanagedCABundle []byte) {
 				if err := wait.PollUntilContextCancel(t.Context(), 3*time.Second, true, func(ctx context.Context) (bool, error) {
 					mutatingWebhook := arv1.MutatingWebhookConfiguration{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: name,
-						},
+						Name: name,
 					}
 					if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&mutatingWebhook), &mutatingWebhook); err != nil {
 						t.Log(err)
@@ -437,9 +426,7 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 					}
 
 					validatingWebhook := arv1.ValidatingWebhookConfiguration{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: name,
-						},
+						Name: name,
 					}
 					if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&validatingWebhook), &validatingWebhook); err != nil {
 						t.Log(err)
@@ -450,9 +437,7 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 					}
 
 					mutatingWebhook = arv1.MutatingWebhookConfiguration{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: nameInvalid,
-						},
+						Name: nameInvalid,
 					}
 					if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&mutatingWebhook), &mutatingWebhook); err != nil {
 						t.Log(err)
@@ -463,9 +448,7 @@ func TestWebhookCABundleUpdate(t *testing.T) {
 					}
 
 					validatingWebhook = arv1.ValidatingWebhookConfiguration{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: nameInvalid,
-						},
+						Name: nameInvalid,
 					}
 					if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&validatingWebhook), &validatingWebhook); err != nil {
 						t.Log(err)

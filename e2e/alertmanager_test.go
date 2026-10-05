@@ -50,10 +50,8 @@ func testAlertmanagerDeployed(ctx context.Context, kubeClient client.Client) fun
 
 		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
 			ss := appsv1.StatefulSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operator.NameAlertmanager,
-					Namespace: operator.DefaultOperatorNamespace,
-				},
+				Name:      operator.NameAlertmanager,
+				Namespace: operator.DefaultOperatorNamespace,
 			}
 			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&ss), &ss); err != nil {
 				if apierrors.IsNotFound(err) {
@@ -78,10 +76,8 @@ func testAlertmanagerDeployed(ctx context.Context, kubeClient client.Client) fun
 
 			// Ensure default no-op alertmanager secret has been created by operator.
 			secret := corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operator.AlertmanagerSecretName,
-					Namespace: operator.DefaultOperatorNamespace,
-				},
+				Name:      operator.AlertmanagerSecretName,
+				Namespace: operator.DefaultOperatorNamespace,
 			}
 			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&secret), &secret); err != nil {
 				if apierrors.IsNotFound(err) {
@@ -121,10 +117,8 @@ google_cloud:
   external_url: "https://alertmanager.mycompany.com/"
 `
 		secret := corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-secret-name",
-				Namespace: operator.DefaultPublicNamespace,
-			},
+			Name:      "my-secret-name",
+			Namespace: operator.DefaultPublicNamespace,
 			Data: map[string][]byte{
 				"my-secret-key": []byte(alertmanagerConfig),
 			},
@@ -135,10 +129,8 @@ google_cloud:
 		}
 
 		config := monitoringv1.OperatorConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      operator.NameOperatorConfig,
-				Namespace: operator.DefaultPublicNamespace,
-			},
+			Name:      operator.NameOperatorConfig,
+			Namespace: operator.DefaultPublicNamespace,
 		}
 		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Fatalf("get operatorconfig: %s", err)
@@ -146,10 +138,8 @@ google_cloud:
 		// Update OperatorConfig alertmanager spec with secret info.
 		config.ManagedAlertmanager = &monitoringv1.ManagedAlertmanagerSpec{
 			ConfigSecret: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "my-secret-name",
-				},
-				Key: "my-secret-key",
+				Name: "my-secret-name",
+				Key:  "my-secret-key",
 			},
 			ExternalURL: "https://alertmanager.mycompany.com/",
 		}
@@ -161,10 +151,8 @@ google_cloud:
 
 		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
 			secret := corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operator.AlertmanagerSecretName,
-					Namespace: operator.DefaultOperatorNamespace,
-				},
+				Name:      operator.AlertmanagerSecretName,
+				Namespace: operator.DefaultOperatorNamespace,
 			}
 			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&secret), &secret); err != nil {
 				if apierrors.IsNotFound(err) {
@@ -183,10 +171,8 @@ google_cloud:
 			}
 
 			ss := appsv1.StatefulSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operator.NameAlertmanager,
-					Namespace: operator.DefaultOperatorNamespace,
-				},
+				Name:      operator.NameAlertmanager,
+				Namespace: operator.DefaultOperatorNamespace,
 			}
 			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&ss), &ss); err != nil {
 				if apierrors.IsNotFound(err) {

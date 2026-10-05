@@ -77,9 +77,7 @@ func TestCollectorClusterPodMonitoring(t *testing.T) {
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 	// Self-scrape clusterpodmonitoring.
 	cpm := &monitoringv1.ClusterPodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "collector-cmon",
-		},
+		Name: "collector-cmon",
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
@@ -129,10 +127,8 @@ func testCollectorDeployed(ctx context.Context, restConfig *rest.Config, kubeCli
 		t.Log("checking collector is running")
 
 		ds := appsv1.DaemonSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      operator.NameCollector,
-				Namespace: operator.DefaultOperatorNamespace,
-			},
+			Name:      operator.NameCollector,
+			Namespace: operator.DefaultOperatorNamespace,
 		}
 
 		// Keep checking the state of the collectors until they're running.
@@ -190,10 +186,8 @@ func testCollectorOperatorConfigWithParams(
 		t.Log("checking collector is configured")
 
 		config := monitoringv1.OperatorConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      operator.NameOperatorConfig,
-				Namespace: operator.DefaultPublicNamespace,
-			},
+			Name:      operator.NameOperatorConfig,
+			Namespace: operator.DefaultPublicNamespace,
 		}
 		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Fatalf("get operatorconfig: %s", err)
@@ -253,10 +247,8 @@ google_cloud:
 		var err error
 		pollErr := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
 			cm := corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: operator.DefaultOperatorNamespace,
-					Name:      operator.NameCollector,
-				},
+				Namespace: operator.DefaultOperatorNamespace,
+				Name:      operator.NameCollector,
 			}
 			if err = kubeClient.Get(ctx, client.ObjectKeyFromObject(&cm), &cm); err != nil {
 				if apierrors.IsNotFound(err) {
@@ -425,10 +417,8 @@ func testEnableTargetStatus(ctx context.Context, kubeClient client.Client) func(
 		t.Log("enabling target status reporting")
 
 		config := monitoringv1.OperatorConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      operator.NameOperatorConfig,
-				Namespace: operator.DefaultPublicNamespace,
-			},
+			Name:      operator.NameOperatorConfig,
+			Namespace: operator.DefaultPublicNamespace,
 		}
 		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Errorf("get operatorconfig: %s", err)
@@ -448,10 +438,8 @@ func testEnableKubeletScraping(ctx context.Context, kubeClient client.Client) fu
 		t.Log("enabling kubelet scraping")
 
 		config := monitoringv1.OperatorConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      operator.NameOperatorConfig,
-				Namespace: operator.DefaultPublicNamespace,
-			},
+			Name:      operator.NameOperatorConfig,
+			Namespace: operator.DefaultPublicNamespace,
 		}
 		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Errorf("get operatorconfig: %s", err)

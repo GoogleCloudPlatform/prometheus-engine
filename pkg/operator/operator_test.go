@@ -22,7 +22,6 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ktesting "k8s.io/client-go/testing"
@@ -49,9 +48,7 @@ func TestIsVPAAvailable(t *testing.T) {
 			desc: "VPA CRD available",
 			clientset: func() *apiextensionsfake.Clientset {
 				return apiextensionsfake.NewClientset(&apiextensionsv1.CustomResourceDefinition{
-					ObjectMeta: v1.ObjectMeta{
-						Name: vpaCRDName,
-					},
+					Name: vpaCRDName,
 				})
 			},
 			wantVPAAvailable: true,
@@ -180,19 +177,15 @@ func TestCleanupOldResources(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			ds := &appsv1.DaemonSet{
-				ObjectMeta: v1.ObjectMeta{
-					Name:        NameCollector,
-					Namespace:   "gmp-system",
-					Annotations: c.collectorAnnots,
-				},
+				Name:        NameCollector,
+				Namespace:   "gmp-system",
+				Annotations: c.collectorAnnots,
 			}
 
 			deploy := &appsv1.Deployment{
-				ObjectMeta: v1.ObjectMeta{
-					Name:        NameRuleEvaluator,
-					Namespace:   "gmp-system",
-					Annotations: c.evaluatorAnnots,
-				},
+				Name:        NameRuleEvaluator,
+				Namespace:   "gmp-system",
+				Annotations: c.evaluatorAnnots,
 			}
 			opts := Options{
 				ProjectID:         "test-proj",

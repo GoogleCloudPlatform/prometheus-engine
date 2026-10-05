@@ -103,9 +103,7 @@ func expand(testCases []updateTargetStatusTestCase) []updateTargetStatusTestCase
 		for _, pm := range tc.podMonitorings {
 			pmCopy := pm.DeepCopy()
 			cpm := monitoringv1.ClusterPodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: pmCopy.Name,
-				},
+				Name: pmCopy.Name,
 				Spec: monitoringv1.ClusterPodMonitoringSpec{
 					Selector:  pmCopy.Spec.Selector,
 					Endpoints: pmCopy.Spec.Endpoints,
@@ -228,7 +226,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -305,7 +303,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -338,7 +336,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-2", Namespace: "gmp-test"},
+					Name: "prom-example-2", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -390,7 +388,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -421,7 +419,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -429,7 +427,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-2", Namespace: "gmp-test"},
+					Name: "prom-example-2", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -462,7 +460,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-3", Namespace: "gmp-test"},
+					Name: "prom-example-3", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -489,7 +487,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -542,7 +540,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -602,7 +600,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -691,7 +689,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics-1"),
@@ -829,7 +827,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -1004,7 +1002,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -1133,7 +1131,7 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+					Name: "prom-example-1", Namespace: "gmp-test",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{{
 							Port: intstr.FromString("metrics"),
@@ -1272,8 +1270,8 @@ func TestUpdateTargetStatus(t *testing.T) {
 			desc: "no-targets-no-match",
 			podMonitorings: []monitoringv1.PodMonitoring{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
-					Spec:       monitoringv1.PodMonitoringSpec{},
+					Name: "prom-example-1", Namespace: "gmp-test",
+					Spec: monitoringv1.PodMonitoringSpec{},
 
 					Status: monitoringv1.PodMonitoringStatus{
 						MonitoringStatus: monitoringv1.MonitoringStatus{
@@ -1292,17 +1290,15 @@ func TestUpdateTargetStatus(t *testing.T) {
 			},
 			initializeStatus: []monitoringv1.PodMonitoringStatus{
 				{
-					MonitoringStatus: monitoringv1.MonitoringStatus{
-						ObservedGeneration: 2,
-						Conditions: []monitoringv1.MonitoringCondition{{
-							Type:               monitoringv1.ConfigurationCreateSuccess,
-							Status:             corev1.ConditionTrue,
-							LastUpdateTime:     metav1.Time{},
-							LastTransitionTime: metav1.Time{},
-							Reason:             "",
-							Message:            "",
-						}},
-					},
+					ObservedGeneration: 2,
+					Conditions: []monitoringv1.MonitoringCondition{{
+						Type:               monitoringv1.ConfigurationCreateSuccess,
+						Status:             corev1.ConditionTrue,
+						LastUpdateTime:     metav1.Time{},
+						LastTransitionTime: metav1.Time{},
+						Reason:             "",
+						Message:            "",
+					}},
 					EndpointStatuses: []monitoringv1.ScrapeEndpointStatus{
 						{
 							Name:             "PodMonitoring/gmp-test/prom-example-1/metrics",
@@ -1421,10 +1417,8 @@ func TestPolling(t *testing.T) {
 
 	port := int32(19090)
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-a",
-			Namespace: opts.OperatorNamespace,
-		},
+		Name:      "pod-a",
+		Namespace: opts.OperatorNamespace,
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{{
 				Name: "prometheus",
@@ -1441,10 +1435,8 @@ func TestPolling(t *testing.T) {
 	}
 
 	kubeClient := newFakeClientBuilder().WithObjects(&appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      NameCollector,
-			Namespace: opts.OperatorNamespace,
-		},
+		Name:      NameCollector,
+		Namespace: opts.OperatorNamespace,
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{},
 			Template: corev1.PodTemplateSpec{
@@ -1462,10 +1454,8 @@ func TestPolling(t *testing.T) {
 		},
 	}).WithObjects(
 		&monitoringv1.OperatorConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "config",
-				Namespace: "gmp-system",
-			},
+			Name:      "config",
+			Namespace: "gmp-system",
 			Features: monitoringv1.OperatorFeatures{
 				TargetStatus: monitoringv1.TargetStatusSpec{
 					Enabled: true,
@@ -1473,7 +1463,7 @@ func TestPolling(t *testing.T) {
 			},
 		},
 	).WithObjects(&monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{Name: "prom-example-1", Namespace: "gmp-test"},
+		Name: "prom-example-1", Namespace: "gmp-test",
 		Spec: monitoringv1.PodMonitoringSpec{
 			Endpoints: []monitoringv1.ScrapeEndpoint{{
 				Port: intstr.FromString("metrics"),
@@ -1659,10 +1649,8 @@ func TestShouldPoll(t *testing.T) {
 			desc: "should poll targets - podmonitorings",
 			objs: []client.Object{
 				&monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
+					Name:      "config",
+					Namespace: "gmp-public",
 					Features: monitoringv1.OperatorFeatures{
 						TargetStatus: monitoringv1.TargetStatusSpec{
 							Enabled: true,
@@ -1670,10 +1658,8 @@ func TestShouldPoll(t *testing.T) {
 					},
 				},
 				&monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "pm1",
-						Namespace: "default",
-					},
+					Name:      "pm1",
+					Namespace: "default",
 				},
 			},
 			should: true,
@@ -1683,10 +1669,8 @@ func TestShouldPoll(t *testing.T) {
 			desc: "should poll targets - clusterpodmonitorings",
 			objs: []client.Object{
 				&monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
+					Name:      "config",
+					Namespace: "gmp-public",
 					Features: monitoringv1.OperatorFeatures{
 						TargetStatus: monitoringv1.TargetStatusSpec{
 							Enabled: true,
@@ -1694,10 +1678,8 @@ func TestShouldPoll(t *testing.T) {
 					},
 				},
 				&monitoringv1.ClusterPodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cpm1",
-						Namespace: "default",
-					},
+					Name:      "cpm1",
+					Namespace: "default",
 				},
 			},
 			should: true,
@@ -1707,10 +1689,8 @@ func TestShouldPoll(t *testing.T) {
 			desc: "should not poll targets - no operatorconfig error",
 			objs: []client.Object{
 				&monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "pm1",
-						Namespace: "default",
-					},
+					Name:      "pm1",
+					Namespace: "default",
 				},
 			},
 			should: false,
@@ -1720,10 +1700,8 @@ func TestShouldPoll(t *testing.T) {
 			desc: "should not poll targets - disabled",
 			objs: []client.Object{
 				&monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
+					Name:      "config",
+					Namespace: "gmp-public",
 					Features: monitoringv1.OperatorFeatures{
 						TargetStatus: monitoringv1.TargetStatusSpec{
 							Enabled: false,
@@ -1731,10 +1709,8 @@ func TestShouldPoll(t *testing.T) {
 					},
 				},
 				&monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "pm1",
-						Namespace: "default",
-					},
+					Name:      "pm1",
+					Namespace: "default",
 				},
 			},
 			should: false,
@@ -1784,10 +1760,8 @@ func TestFetchTargets(t *testing.T) {
 			prometheusTargetMap := make(map[string]*prometheusv1.TargetsResult, podCnt)
 			targetsExpected := make([]*prometheusv1.TargetsResult, 0, podCnt)
 			kubeClientBuilder := newFakeClientBuilder().WithObjects(&appsv1.DaemonSet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      NameCollector,
-					Namespace: opts.OperatorNamespace,
-				},
+				Name:      NameCollector,
+				Namespace: opts.OperatorNamespace,
 				Spec: appsv1.DaemonSetSpec{
 					Selector: &metav1.LabelSelector{},
 					Template: corev1.PodTemplateSpec{
@@ -1806,10 +1780,8 @@ func TestFetchTargets(t *testing.T) {
 			})
 			for i := range podCnt {
 				pod := &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("pod-%d", i),
-						Namespace: opts.OperatorNamespace,
-					},
+					Name:      fmt.Sprintf("pod-%d", i),
+					Namespace: opts.OperatorNamespace,
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{{
 							Name: "prometheus",

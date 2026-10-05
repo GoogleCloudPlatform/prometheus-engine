@@ -135,15 +135,13 @@ func TestRulesStatus(t *testing.T) {
 						},
 					},
 					monitoringv1.RulesStatus{
-						MonitoringStatus: monitoringv1.MonitoringStatus{
-							ObservedGeneration: 1,
-							Conditions: []monitoringv1.MonitoringCondition{
-								{
-									Type:               monitoringv1.ConfigurationCreateSuccess,
-									Status:             corev1.ConditionTrue,
-									LastUpdateTime:     timeDefault,
-									LastTransitionTime: timeDefault,
-								},
+						ObservedGeneration: 1,
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:               monitoringv1.ConfigurationCreateSuccess,
+								Status:             corev1.ConditionTrue,
+								LastUpdateTime:     timeDefault,
+								LastTransitionTime: timeDefault,
 							},
 						},
 					},
@@ -181,15 +179,13 @@ func TestRulesStatus(t *testing.T) {
 						},
 					},
 					monitoringv1.RulesStatus{
-						MonitoringStatus: monitoringv1.MonitoringStatus{
-							ObservedGeneration: 1,
-							Conditions: []monitoringv1.MonitoringCondition{
-								{
-									Type:               monitoringv1.ConfigurationCreateSuccess,
-									Status:             corev1.ConditionFalse,
-									LastUpdateTime:     timeDefault,
-									LastTransitionTime: timeDefault,
-								},
+						ObservedGeneration: 1,
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:               monitoringv1.ConfigurationCreateSuccess,
+								Status:             corev1.ConditionFalse,
+								LastUpdateTime:     timeDefault,
+								LastTransitionTime: timeDefault,
 							},
 						},
 					},
@@ -260,15 +256,13 @@ func TestRulesStatus(t *testing.T) {
 						},
 					},
 					monitoringv1.RulesStatus{
-						MonitoringStatus: monitoringv1.MonitoringStatus{
-							ObservedGeneration: 1,
-							Conditions: []monitoringv1.MonitoringCondition{
-								{
-									Type:               monitoringv1.ConfigurationCreateSuccess,
-									Status:             corev1.ConditionFalse,
-									LastUpdateTime:     timeDefault,
-									LastTransitionTime: timeDefault,
-								},
+						ObservedGeneration: 1,
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:               monitoringv1.ConfigurationCreateSuccess,
+								Status:             corev1.ConditionFalse,
+								LastUpdateTime:     timeDefault,
+								LastTransitionTime: timeDefault,
 							},
 						},
 					},
@@ -305,15 +299,13 @@ func TestRulesStatus(t *testing.T) {
 						},
 					},
 					monitoringv1.RulesStatus{
-						MonitoringStatus: monitoringv1.MonitoringStatus{
-							ObservedGeneration: 1,
-							Conditions: []monitoringv1.MonitoringCondition{
-								{
-									Type:               monitoringv1.ConfigurationCreateSuccess,
-									Status:             corev1.ConditionTrue,
-									LastUpdateTime:     timeDefault,
-									LastTransitionTime: timeDefault,
-								},
+						ObservedGeneration: 1,
+						Conditions: []monitoringv1.MonitoringCondition{
+							{
+								Type:               monitoringv1.ConfigurationCreateSuccess,
+								Status:             corev1.ConditionTrue,
+								LastUpdateTime:     timeDefault,
+								LastTransitionTime: timeDefault,
 							},
 						},
 					},
@@ -402,18 +394,14 @@ func TestRulesStatus(t *testing.T) {
 func TestScaleRuleConsumers(t *testing.T) {
 	var alertmanagerReplicas int32
 	alertManager := appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "alertmanager",
-		},
+		Name: "alertmanager",
 		Spec: appsv1.StatefulSetSpec{
 			Replicas: &alertmanagerReplicas,
 		},
 	}
 	var ruleEvaluatorReplicas int32
 	ruleEvaluator := appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "rule-evaluator",
-		},
+		Name: "rule-evaluator",
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &ruleEvaluatorReplicas,
 		},
@@ -471,7 +459,7 @@ func TestScaleRuleConsumers(t *testing.T) {
 				t.Error(err)
 			}
 			if ruleEvaluator.Spec.Replicas != nil && *ruleEvaluator.Spec.Replicas != tc.want {
-				t.Errorf("want: %d, got: %d", tc.want, ruleEvaluator.Spec.Replicas)
+				t.Errorf("want: %d, got: %d", tc.want, *ruleEvaluator.Spec.Replicas)
 			}
 		})
 	}

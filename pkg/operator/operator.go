@@ -383,7 +383,7 @@ func (o *Operator) cleanupOldResources(ctx context.Context) error {
 	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator.
 	// in previous versions.
 	validatingWebhookConfig := arv1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{Name: "gmp-operator"},
+		Name: "gmp-operator",
 	}
 	if err := o.client.Delete(ctx, &validatingWebhookConfig); err != nil {
 		switch {

@@ -35,7 +35,7 @@ type secretNamespaceTestCase struct {
 func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
 		p := &PodMonitoring{
-			ObjectMeta: metav1.ObjectMeta{Namespace: "foo"},
+			Namespace: "foo",
 		}
 		pool := PrometheusSecretConfigs{}
 		var c *SecretKeySelector
@@ -97,7 +97,7 @@ func TestClusterSecretKeySelector_toPrometheusSecretRef_PodMonitoring(t *testing
 			}
 
 			p := &PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{Namespace: monitoringNamespace},
+				Namespace: monitoringNamespace,
 			}
 
 			pool := PrometheusSecretConfigs{}

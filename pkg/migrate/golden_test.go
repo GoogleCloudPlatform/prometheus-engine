@@ -34,7 +34,6 @@ import (
 	"github.com/prometheus/prometheus/util/strutil"
 	"go.yaml.in/yaml/v3"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
@@ -356,8 +355,8 @@ func normalizeGMPScrapeConfig(gmp *config.ScrapeConfig, expectedPO *config.Scrap
 // newTestServiceFixture creates a standard test Service backing ServiceMonitor fixtures.
 func newTestServiceFixture(name, namespace string, labels map[string]string) *corev1.Service {
 	return &corev1.Service{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
+		APIVersion: "v1", Kind: "Service",
+		Name: name, Namespace: namespace, Labels: labels,
 		Spec: corev1.ServiceSpec{
 			Selector: map[string]string{"app": "testpod"},
 			Ports: []corev1.ServicePort{
@@ -506,13 +505,11 @@ func testGoldenEquivalence(t *testing.T, goldenFileName string, inputs []runtime
 // TestPodTargetLabelsFromPodMonitor mirrors upstream TestPodTargetLabelsFromPodMonitor in promcfg_test.go.
 func TestPodTargetLabelsFromPodMonitor(t *testing.T) {
 	pm := &pomonitoringv1.PodMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "PodMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testpodmonitor1",
-			Namespace: "default",
-			Labels: map[string]string{
-				"group": "group1",
-			},
+		APIVersion: "monitoring.coreos.com/v1", Kind: "PodMonitor",
+		Name:      "testpodmonitor1",
+		Namespace: "default",
+		Labels: map[string]string{
+			"group": "group1",
 		},
 		Spec: pomonitoringv1.PodMonitorSpec{
 			PodTargetLabels: []string{"example", "env"},
@@ -530,13 +527,11 @@ func TestPodTargetLabelsFromPodMonitor(t *testing.T) {
 // TestPodMonitorPhaseFilter mirrors upstream TestPodMonitorPhaseFilter in promcfg_test.go.
 func TestPodMonitorPhaseFilter(t *testing.T) {
 	pm := &pomonitoringv1.PodMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "PodMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testpodmonitor1",
-			Namespace: "default",
-			Labels: map[string]string{
-				"group": "group1",
-			},
+		APIVersion: "monitoring.coreos.com/v1", Kind: "PodMonitor",
+		Name:      "testpodmonitor1",
+		Namespace: "default",
+		Labels: map[string]string{
+			"group": "group1",
 		},
 		Spec: pomonitoringv1.PodMonitorSpec{
 			PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
@@ -555,11 +550,9 @@ func TestPodMonitorPhaseFilter(t *testing.T) {
 // TestTargetLabels mirrors upstream TestTargetLabels in promcfg_test.go.
 func TestTargetLabels(t *testing.T) {
 	sm := &pomonitoringv1.ServiceMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testservicemonitor1",
-			Namespace: "default",
-		},
+		APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+		Name:      "testservicemonitor1",
+		Namespace: "default",
 		Spec: pomonitoringv1.ServiceMonitorSpec{
 			TargetLabels: []string{"example", "env"},
 			Endpoints: []pomonitoringv1.Endpoint{
@@ -577,13 +570,11 @@ func TestTargetLabels(t *testing.T) {
 // TestPodTargetLabels mirrors upstream TestPodTargetLabels in promcfg_test.go for ServiceMonitor.
 func TestPodTargetLabels(t *testing.T) {
 	sm := &pomonitoringv1.ServiceMonitor{
-		TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testservicemonitor1",
-			Namespace: "default",
-			Labels: map[string]string{
-				"group": "group1",
-			},
+		APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+		Name:      "testservicemonitor1",
+		Namespace: "default",
+		Labels: map[string]string{
+			"group": "group1",
 		},
 		Spec: pomonitoringv1.ServiceMonitorSpec{
 			PodTargetLabels: []string{"example", "env"},

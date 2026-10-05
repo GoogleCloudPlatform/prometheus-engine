@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build goexperiment.jsonv2
-
 // TODO(bernot): Remove this file when the webhook is removed.
 
 package v1
