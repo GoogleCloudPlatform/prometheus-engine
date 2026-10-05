@@ -25,7 +25,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -42,10 +41,8 @@ const (
 func setupRulesControllers(op *Operator) error {
 	// The singleton OperatorConfig is the request object we reconcile against.
 	objRequest := reconcile.Request{
-		NamespacedName: types.NamespacedName{
-			Namespace: op.opts.PublicNamespace,
-			Name:      NameOperatorConfig,
-		},
+		Namespace: op.opts.PublicNamespace,
+		Name:      NameOperatorConfig,
 	}
 	// Default OperatorConfig filter.
 	objFilterOperatorConfig := namespacedNamePredicate{
@@ -155,10 +152,8 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 	scaleClient := r.client.SubResource("scale")
 
 	alertManagerStatefulSet := appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.opts.OperatorNamespace,
-			Name:      "alertmanager",
-		},
+		Namespace: r.opts.OperatorNamespace,
+		Name:      "alertmanager",
 	}
 	alertManagerScale := autoscalingv1.Scale{}
 	if err := scaleClient.Get(ctx, &alertManagerStatefulSet, &alertManagerScale); apierrors.IsNotFound(err) {
@@ -174,10 +169,8 @@ func (r *rulesReconciler) scaleRuleConsumers(ctx context.Context) error {
 	}
 
 	ruleEvaluatorDeployment := appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.opts.OperatorNamespace,
-			Name:      "rule-evaluator",
-		},
+		Namespace: r.opts.OperatorNamespace,
+		Name:      "rule-evaluator",
 	}
 	ruleEvaluatorScale := autoscalingv1.Scale{}
 	if err := scaleClient.Get(ctx, &ruleEvaluatorDeployment, &ruleEvaluatorScale); apierrors.IsNotFound(err) {
@@ -226,12 +219,10 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 
 	// Re-generate the configmap that's loaded by the rule-evaluator.
 	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.opts.OperatorNamespace,
-			Name:      nameRulesGenerated,
-			Labels: map[string]string{
-				LabelAppName: NameRuleEvaluator,
-			},
+		Namespace: r.opts.OperatorNamespace,
+		Name:      nameRulesGenerated,
+		Labels: map[string]string{
+			LabelAppName: NameRuleEvaluator,
 		},
 		// Ensure there's always at least an empty, uncompressed dummy file as the evaluator
 		// expects at least one match.

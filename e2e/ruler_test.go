@@ -96,10 +96,8 @@ func testRuleEvaluatorDeployed(ctx context.Context, kubeClient client.Client) fu
 
 		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
 			deploy := appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operator.NameRuleEvaluator,
-					Namespace: operator.DefaultOperatorNamespace,
-				},
+				Name:      operator.NameRuleEvaluator,
+				Namespace: operator.DefaultOperatorNamespace,
 			}
 			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&deploy), &deploy); err != nil {
 				if apierrors.IsNotFound(err) {
@@ -132,10 +130,8 @@ func testRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient client.Clie
 		t.Log("checking rule-evaluator is configured")
 
 		config := monitoringv1.OperatorConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      operator.NameOperatorConfig,
-				Namespace: operator.DefaultPublicNamespace,
-			},
+			Name:      operator.NameOperatorConfig,
+			Namespace: operator.DefaultPublicNamespace,
 		}
 		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			t.Fatalf("get operatorconfig: %s", err)
@@ -162,19 +158,15 @@ func testRuleEvaluatorSecrets(ctx context.Context, kubeClient client.Client) fun
 		}
 
 		tlsPair := corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "alertmanager-authorization",
-				Namespace: operator.DefaultPublicNamespace,
-			},
+			Name:      "alertmanager-authorization",
+			Namespace: operator.DefaultPublicNamespace,
 			Data: map[string][]byte{
 				"token": []byte("auth-bearer-password"),
 			},
 		}
 		authToken := corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "alertmanager-tls",
-				Namespace: operator.DefaultPublicNamespace,
-			},
+			Name:      "alertmanager-tls",
+			Namespace: operator.DefaultPublicNamespace,
 			Data: map[string][]byte{
 				"cert": cert,
 				"key":  key,
@@ -201,10 +193,8 @@ func testRuleEvaluatorSecrets(ctx context.Context, kubeClient client.Client) fun
 		}
 		err = wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
 			secret := corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operator.RulesSecretName,
-					Namespace: operator.DefaultOperatorNamespace,
-				},
+				Name:      operator.RulesSecretName,
+				Namespace: operator.DefaultOperatorNamespace,
 			}
 			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&secret), &secret); err != nil {
 				if apierrors.IsNotFound(err) {
@@ -317,10 +307,8 @@ google_cloud:{exportCredentialsEntry}
 
 		err := wait.PollUntilContextCancel(ctx, pollDuration, false, func(ctx context.Context) (bool, error) {
 			cm := corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      operator.NameRuleEvaluator,
-					Namespace: operator.DefaultOperatorNamespace,
-				},
+				Name:      operator.NameRuleEvaluator,
+				Namespace: operator.DefaultOperatorNamespace,
 			}
 			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&cm), &cm); err != nil {
 				if apierrors.IsNotFound(err) {
@@ -443,9 +431,7 @@ func testCreateRules(
 		// Create multiple rules in the cluster and expect their scoped equivalents
 		// to be present in the generated rule file.
 		if err := kubeClient.Create(ctx, &monitoringv1.GlobalRules{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: userNamespace + "-global-rules",
-			},
+			Name: userNamespace + "-global-rules",
 			Spec: monitoringv1.RulesSpec{
 				Groups: []monitoringv1.RuleGroup{
 					{
@@ -467,9 +453,7 @@ func testCreateRules(
 		}
 
 		if err := kubeClient.Create(ctx, &monitoringv1.ClusterRules{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: userNamespace + "-cluster-rules",
-			},
+			Name: userNamespace + "-cluster-rules",
 			Spec: monitoringv1.RulesSpec{
 				Groups: []monitoringv1.RuleGroup{
 					{
@@ -491,10 +475,8 @@ func testCreateRules(
 		}
 
 		if err := kubeClient.Create(ctx, &monitoringv1.Rules{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "rules",
-				Namespace: userNamespace,
-			},
+			Name:      "rules",
+			Namespace: userNamespace,
 			Spec: monitoringv1.RulesSpec{
 				Groups: []monitoringv1.RuleGroup{
 					{
@@ -628,10 +610,8 @@ func testCreateRules(
 			t.Errorf("rule-evaluator is not ready: %s", err)
 			out := strings.Builder{}
 			if err := kube.Debug(t.Context(), restConfig, kubeClient, &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: systemNamespace,
-					Name:      operator.NameRuleEvaluator,
-				},
+				Namespace: systemNamespace,
+				Name:      operator.NameRuleEvaluator,
 			}, &out,
 			); err != nil {
 				t.Fatalf("unable to debug: %s", err)
@@ -740,20 +720,16 @@ func testValidateRuleEvaluationMetrics(
 // that contains rule-evaluator configuration.
 func createRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient client.Client, certSecretName, tokenSecretName string) error {
 	config := monitoringv1.OperatorConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      operator.NameOperatorConfig,
-			Namespace: operator.DefaultPublicNamespace,
-		},
+		Name:      operator.NameOperatorConfig,
+		Namespace: operator.DefaultPublicNamespace,
 	}
 	if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 		return err
 	}
 	// Setup TLS secret selectors.
 	certSecret := &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{
-			Name: certSecretName,
-		},
-		Key: "cert",
+		Name: certSecretName,
+		Key:  "cert",
 	}
 
 	keySecret := certSecret.DeepCopy()
@@ -772,10 +748,8 @@ func createRuleEvaluatorOperatorConfig(ctx context.Context, kubeClient client.Cl
 				Authorization: &monitoringv1.Authorization{
 					Type: "Bearer",
 					Credentials: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: tokenSecretName,
-						},
-						Key: "token",
+						Name: tokenSecretName,
+						Key:  "token",
 					},
 				},
 				TLS: &monitoringv1.TLSConfig{

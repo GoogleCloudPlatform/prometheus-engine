@@ -52,10 +52,8 @@ func TestTLS(t *testing.T) {
 			Scheme:   "https",
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				TLS: &monitoringv1.TLS{
-					InsecureSkipVerify: true,
-				},
+			TLS: &monitoringv1.TLS{
+				InsecureSkipVerify: true,
 			},
 		}, &monitoringv1.ScrapeEndpoint{
 			Scheme:   "https",
@@ -80,10 +78,8 @@ func TestBasicAuthNoPassword(t *testing.T) {
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				BasicAuth: &monitoringv1.BasicAuth{
-					Username: "user",
-				},
+			BasicAuth: &monitoringv1.BasicAuth{
+				Username: "user",
 			},
 		}, &monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
@@ -113,13 +109,11 @@ func TestBasicAuthNoUsername(t *testing.T) {
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				BasicAuth: &monitoringv1.BasicAuth{
-					Password: &monitoringv1.SecretSelector{
-						Secret: &monitoringv1.SecretKeySelector{
-							Name: secretName,
-							Key:  secretKey,
-						},
+			BasicAuth: &monitoringv1.BasicAuth{
+				Password: &monitoringv1.SecretSelector{
+					Secret: &monitoringv1.SecretKeySelector{
+						Name: secretName,
+						Key:  secretKey,
 					},
 				},
 			},
@@ -152,24 +146,20 @@ func TestBasicAuth(t *testing.T) {
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				BasicAuth: &monitoringv1.BasicAuth{
-					Username: "user",
-					Password: &monitoringv1.SecretSelector{
-						Secret: &monitoringv1.SecretKeySelector{
-							Name: secretName,
-							Key:  secretKey,
-						},
+			BasicAuth: &monitoringv1.BasicAuth{
+				Username: "user",
+				Password: &monitoringv1.SecretSelector{
+					Secret: &monitoringv1.SecretKeySelector{
+						Name: secretName,
+						Key:  secretKey,
 					},
 				},
 			},
 		}, &monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				BasicAuth: &monitoringv1.BasicAuth{
-					Username: "user",
-				},
+			BasicAuth: &monitoringv1.BasicAuth{
+				Username: "user",
 			},
 		},
 		errUnauthorized,
@@ -190,10 +180,8 @@ func TestAuthNoCredentials(t *testing.T) {
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				Authorization: &monitoringv1.Auth{
-					Type: "Bearer",
-				},
+			Authorization: &monitoringv1.Auth{
+				Type: "Bearer",
 			},
 		}, &monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
@@ -224,22 +212,18 @@ func TestAuth(t *testing.T) {
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				Authorization: &monitoringv1.Auth{
-					Credentials: &monitoringv1.SecretSelector{
-						Secret: &monitoringv1.SecretKeySelector{
-							Name: secretName,
-							Key:  secretKey,
-						},
+			Authorization: &monitoringv1.Auth{
+				Credentials: &monitoringv1.SecretSelector{
+					Secret: &monitoringv1.SecretKeySelector{
+						Name: secretName,
+						Key:  secretKey,
 					},
 				},
 			},
 		}, &monitoringv1.ScrapeEndpoint{
-			Port:     intstr.FromString("web"),
-			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				Authorization: &monitoringv1.Auth{},
-			},
+			Port:          intstr.FromString("web"),
+			Interval:      "5s",
+			Authorization: &monitoringv1.Auth{},
 		},
 		errUnauthorized,
 	)
@@ -266,12 +250,10 @@ func TestOAuth2NoSecret(t *testing.T) {
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				OAuth2: &monitoringv1.OAuth2{
-					ClientID: clientID,
-					Scopes:   []string{clientScope},
-					TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
-				},
+			OAuth2: &monitoringv1.OAuth2{
+				ClientID: clientID,
+				Scopes:   []string{clientScope},
+				TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
 			},
 		}, &monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
@@ -310,28 +292,24 @@ func TestOAuth2(t *testing.T) {
 		&monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				OAuth2: &monitoringv1.OAuth2{
-					ClientID: clientID,
-					ClientSecret: &monitoringv1.SecretSelector{
-						Secret: &monitoringv1.SecretKeySelector{
-							Name: secretName,
-							Key:  secretKey,
-						},
+			OAuth2: &monitoringv1.OAuth2{
+				ClientID: clientID,
+				ClientSecret: &monitoringv1.SecretSelector{
+					Secret: &monitoringv1.SecretKeySelector{
+						Name: secretName,
+						Key:  secretKey,
 					},
-					Scopes:   []string{clientScope},
-					TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
 				},
+				Scopes:   []string{clientScope},
+				TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
 			},
 		}, &monitoringv1.ScrapeEndpoint{
 			Port:     intstr.FromString("web"),
 			Interval: "5s",
-			HTTPClientConfig: monitoringv1.HTTPClientConfig{
-				OAuth2: &monitoringv1.OAuth2{
-					ClientID: clientID,
-					Scopes:   []string{clientScope},
-					TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
-				},
+			OAuth2: &monitoringv1.OAuth2{
+				ClientID: clientID,
+				Scopes:   []string{clientScope},
+				TokenURL: "http://go-synthetic.default.svc.cluster.local:8080/token",
 			},
 		},
 		errInvalidClientCredentials,
@@ -352,10 +330,8 @@ func authorizationPodMonitoringTest(ctx context.Context, t *testing.T, restConfi
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 
 	pm := &monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-ready", name),
-			Namespace: "default",
-		},
+		Name:      fmt.Sprintf("%s-ready", name),
+		Namespace: "default",
 		Spec: monitoringv1.PodMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
@@ -370,10 +346,8 @@ func authorizationPodMonitoringTest(ctx context.Context, t *testing.T, restConfi
 	t.Run(fmt.Sprintf("%s-podmon-ready", name), testEnsurePodMonitoringReady(ctx, kubeClient, pm))
 
 	pmFail := &monitoringv1.PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-fail", name),
-			Namespace: "default",
-		},
+		Name:      fmt.Sprintf("%s-fail", name),
+		Namespace: "default",
 		Spec: monitoringv1.PodMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
@@ -393,9 +367,7 @@ func authorizationClusterPodMonitoringTest(ctx context.Context, t *testing.T, re
 	t.Run("enable-target-status", testEnableTargetStatus(ctx, kubeClient))
 
 	cpm := &monitoringv1.ClusterPodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s-ready", name),
-		},
+		Name: fmt.Sprintf("%s-ready", name),
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
@@ -410,9 +382,7 @@ func authorizationClusterPodMonitoringTest(ctx context.Context, t *testing.T, re
 	t.Run(fmt.Sprintf("%s-cmon-ready", name), testEnsureClusterPodMonitoringReady(ctx, kubeClient, cpm))
 
 	cpmFail := &monitoringv1.ClusterPodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s-fail", name),
-		},
+		Name: fmt.Sprintf("%s-fail", name),
 		Spec: monitoringv1.ClusterPodMonitoringSpec{
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
@@ -501,10 +471,8 @@ func testEnsureClusterPodMonitoringFailure(ctx context.Context, kubeClient clien
 
 func addSecret(ctx context.Context, client client.Client, operatorNamespace, namespace, name, key string, data []byte) error {
 	secret := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Data: map[string][]byte{
 			key: data,
 		},
@@ -513,10 +481,8 @@ func addSecret(ctx context.Context, client client.Client, operatorNamespace, nam
 		return fmt.Errorf("unable to create secret: %w", err)
 	}
 	role := rbacv1.Role{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		Rules: []rbacv1.PolicyRule{
 			{
 				Verbs:         []string{"get", "list", "watch"},
@@ -530,10 +496,8 @@ func addSecret(ctx context.Context, client client.Client, operatorNamespace, nam
 		return fmt.Errorf("unable to create secret role: %w", err)
 	}
 	roleBinding := rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 		RoleRef: rbacv1.RoleRef{
 			Kind: "Role",
 			Name: name,

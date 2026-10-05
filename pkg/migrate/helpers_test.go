@@ -43,11 +43,9 @@ func newTestConversionContext() *conversionContext {
 
 func addSecretToCache(cache *ResourceCache, namespace, name, key, value string, isStringData bool) error {
 	secret := &corev1.Secret{
-		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		APIVersion: "v1", Kind: "Secret",
+		Name:      name,
+		Namespace: namespace,
 	}
 	if isStringData {
 		secret.StringData = map[string]string{key: value}
@@ -64,12 +62,10 @@ func addSecretToCache(cache *ResourceCache, namespace, name, key, value string, 
 
 func addConfigMapToCache(cache *ResourceCache, namespace, name, key, value string) error {
 	cm := &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Data: map[string]string{key: value},
+		APIVersion: "v1", Kind: "ConfigMap",
+		Name:      name,
+		Namespace: namespace,
+		Data:      map[string]string{key: value},
 	}
 
 	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm)
@@ -274,8 +270,8 @@ func TestConvertConfigMapToSecretSelector(t *testing.T) {
 				return addConfigMapToCache(cache, "default", "tls-cm", "ca.crt", "cert-data")
 			},
 			selector: &corev1.ConfigMapKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"},
-				Key:                  "ca.crt",
+				Name: "tls-cm",
+				Key:  "ca.crt",
 			},
 			expectedSecretName:    "secret-tls-cm",
 			expectedSecretKey:     "ca.crt",
@@ -303,7 +299,7 @@ func TestConvertConfigMapToSecretSelector(t *testing.T) {
 		{
 			name:                  "Empty key reference",
 			setupCache:            func(_ *ResourceCache) error { return nil },
-			selector:              &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"}},
+			selector:              &corev1.ConfigMapKeySelector{Name: "tls-cm"},
 			expectedSecretName:    "secret-tls-cm",
 			expectedSecretKey:     "TODO_SET_CONFIGMAP_KEY",
 			expectGeneratedSecret: false,
@@ -438,10 +434,10 @@ func TestConvertSafeTLSConfig(t *testing.T) {
 			},
 			tlsConfig: &pomonitoringv1.SafeTLSConfig{
 				CA: pomonitoringv1.SecretOrConfigMap{
-					ConfigMap: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "ca-cm"}, Key: "ca.crt"},
+					ConfigMap: &corev1.ConfigMapKeySelector{Name: "ca-cm", Key: "ca.crt"},
 				},
 				Cert: pomonitoringv1.SecretOrConfigMap{
-					Secret: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "cert-sec"}, Key: "tls.crt"},
+					Secret: &corev1.SecretKeySelector{Name: "cert-sec", Key: "tls.crt"},
 				},
 				InsecureSkipVerify: &trueVal,
 				ServerName:         &[]string{"my-server"}[0],
@@ -534,8 +530,8 @@ func TestConvertOAuth2(t *testing.T) {
 			oauth2: &pomonitoringv1.OAuth2{
 				ClientID: pomonitoringv1.SecretOrConfigMap{
 					Secret: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-sec"},
-						Key:                  "client_id",
+						Name: "oauth-sec",
+						Key:  "client_id",
 					},
 				},
 				ClientSecret: corev1.SecretKeySelector{
@@ -574,8 +570,8 @@ func TestConvertOAuth2(t *testing.T) {
 			oauth2: &pomonitoringv1.OAuth2{
 				ClientID: pomonitoringv1.SecretOrConfigMap{
 					Secret: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-sec"},
-						Key:                  "client_id",
+						Name: "oauth-sec",
+						Key:  "client_id",
 					},
 				},
 				ClientSecret: corev1.SecretKeySelector{
@@ -630,8 +626,8 @@ func TestConvertConfigMapToSecretSelectorDeduplication(t *testing.T) {
 	}
 
 	selector := &corev1.ConfigMapKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"},
-		Key:                  "ca.crt",
+		Name: "tls-cm",
+		Key:  "ca.crt",
 	}
 
 	// Call first time.
@@ -1061,8 +1057,8 @@ func TestDecoupledNamespaces(t *testing.T) {
 		t.Fatalf("failed to add secret to cache: %v", err)
 	}
 	sel := corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"},
-		Key:                  "user",
+		Name: "my-secret",
+		Key:  "user",
 	}
 	val := ctx.extractSecretKey(sel)
 	if val != "admin" {
@@ -1074,8 +1070,8 @@ func TestDecoupledNamespaces(t *testing.T) {
 		t.Fatalf("failed to add configmap to cache: %v", err)
 	}
 	cmSel := &corev1.ConfigMapKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "tls-cm"},
-		Key:                  "ca.crt",
+		Name: "tls-cm",
+		Key:  "ca.crt",
 	}
 	secretSel := ctx.convertConfigMapToSecretSelector(cmSel)
 	if secretSel.Secret.Namespace != "target-ns" {
@@ -1283,7 +1279,7 @@ func TestResolveServicePort(t *testing.T) {
 		{
 			name: "Skip malformed port entry and resolve valid later entry",
 			service: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{Name: "my-svc", Namespace: "default"},
+				Name: "my-svc", Namespace: "default",
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{Name: "malformed", Port: 0},
@@ -1298,7 +1294,7 @@ func TestResolveServicePort(t *testing.T) {
 		{
 			name: "All ports malformed returns todo placeholder",
 			service: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{Name: "my-svc", Namespace: "default"},
+				Name: "my-svc", Namespace: "default",
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{Name: "malformed1", Port: 0},
@@ -1313,7 +1309,7 @@ func TestResolveServicePort(t *testing.T) {
 		{
 			name: "Out of range port number is rejected",
 			service: &corev1.Service{
-				ObjectMeta: metav1.ObjectMeta{Name: "my-svc", Namespace: "default"},
+				Name: "my-svc", Namespace: "default",
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{Name: "overflow-port", Port: -5},
@@ -1355,12 +1351,10 @@ func TestResolveServicePort(t *testing.T) {
 // makeTestTypedService builds a corev1.Service object from labels and ports.
 func makeTestTypedService(namespace, name string, labels map[string]string, ports []corev1.ServicePort) *corev1.Service {
 	return &corev1.Service{
-		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    labels,
-		},
+		APIVersion: "v1", Kind: "Service",
+		Name:      name,
+		Namespace: namespace,
+		Labels:    labels,
 		Spec: corev1.ServiceSpec{
 			Ports: ports,
 		},
@@ -1371,12 +1365,10 @@ func makeTestTypedService(namespace, name string, labels map[string]string, port
 func makeTestService(t *testing.T, namespace, name string, labels map[string]string, ports []corev1.ServicePort) *unstructured.Unstructured {
 	t.Helper()
 	svc := &corev1.Service{
-		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    labels,
-		},
+		APIVersion: "v1", Kind: "Service",
+		Name:      name,
+		Namespace: namespace,
+		Labels:    labels,
 		Spec: corev1.ServiceSpec{
 			Ports: ports,
 		},

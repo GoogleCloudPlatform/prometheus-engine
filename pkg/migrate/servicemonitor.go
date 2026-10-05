@@ -236,19 +236,15 @@ func (c *ServiceMonitorConverter) findAndGroupServices(
 		if len(targetNamespaces) == 0 {
 			dummySvcs = []*corev1.Service{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      sm.Name,
-						Namespace: sm.Namespace,
-					},
+					Name:      sm.Name,
+					Namespace: sm.Namespace,
 				},
 			}
 		} else {
 			for _, ns := range targetNamespaces {
 				dummySvcs = append(dummySvcs, &corev1.Service{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      sm.Name,
-						Namespace: ns,
-					},
+					Name:      sm.Name,
+					Namespace: ns,
 				})
 			}
 		}

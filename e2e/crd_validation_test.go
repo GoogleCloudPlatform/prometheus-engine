@@ -261,10 +261,8 @@ func TestCRDDefaulting(t *testing.T) {
 		tests := map[string]cpmTest{
 			"TargetLabels/default": {
 				obj: &monitoringv1.ClusterPodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "default",
-						Namespace: "default",
-					},
+					Name:      "default",
+					Namespace: "default",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -275,10 +273,8 @@ func TestCRDDefaulting(t *testing.T) {
 					},
 				},
 				want: &monitoringv1.ClusterPodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "default",
-						Namespace: "default",
-					},
+					Name:      "default",
+					Namespace: "default",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -294,10 +290,8 @@ func TestCRDDefaulting(t *testing.T) {
 			},
 			"TargetLabels/nondefault": {
 				obj: &monitoringv1.ClusterPodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "nondefault",
-						Namespace: "default",
-					},
+					Name:      "nondefault",
+					Namespace: "default",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -316,10 +310,8 @@ func TestCRDDefaulting(t *testing.T) {
 					},
 				},
 				want: &monitoringv1.ClusterPodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "nondefault",
-						Namespace: "default",
-					},
+					Name:      "nondefault",
+					Namespace: "default",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -348,10 +340,8 @@ func TestCRDDefaulting(t *testing.T) {
 		tests := map[string]pmTest{
 			"TargetLabels/default": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "default",
-						Namespace: "default",
-					},
+					Name:      "default",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -362,10 +352,8 @@ func TestCRDDefaulting(t *testing.T) {
 					},
 				},
 				want: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "default",
-						Namespace: "default",
-					},
+					Name:      "default",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -381,10 +369,8 @@ func TestCRDDefaulting(t *testing.T) {
 			},
 			"TargetLabels/nondefault": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "nondefault",
-						Namespace: "default",
-					},
+					Name:      "nondefault",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -403,10 +389,8 @@ func TestCRDDefaulting(t *testing.T) {
 					},
 				},
 				want: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "nondefault",
-						Namespace: "default",
-					},
+					Name:      "nondefault",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -470,10 +454,8 @@ func TestCRDValidation(t *testing.T) {
 		tests := map[string]test{
 			"scrape interval missing": {
 				obj: &monitoringv1.ClusterNodeMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "scrape-interval-missing",
-						Namespace: "default",
-					},
+					Name:      "scrape-interval-missing",
+					Namespace: "default",
 					Spec: monitoringv1.ClusterNodeMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeNodeEndpoint{
 							{},
@@ -483,10 +465,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"scrape interval malformed": {
 				obj: &monitoringv1.ClusterNodeMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "scrape-interval-malformed",
-						Namespace: "default",
-					},
+					Name:      "scrape-interval-malformed",
+					Namespace: "default",
 					Spec: monitoringv1.ClusterNodeMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeNodeEndpoint{
 							{
@@ -499,10 +479,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"scrape timeout malformed": {
 				obj: &monitoringv1.ClusterNodeMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "scrape-timeout-malformed",
-						Namespace: "default",
-					},
+					Name:      "scrape-timeout-malformed",
+					Namespace: "default",
 					Spec: monitoringv1.ClusterNodeMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeNodeEndpoint{
 							{
@@ -516,10 +494,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"scrape timeout greater than interval": {
 				obj: &monitoringv1.ClusterNodeMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "scrape-timeout-greater-than-interval",
-						Namespace: "default",
-					},
+					Name:      "scrape-timeout-greater-than-interval",
+					Namespace: "default",
 					Spec: monitoringv1.ClusterNodeMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeNodeEndpoint{
 							{
@@ -539,21 +515,17 @@ func TestCRDValidation(t *testing.T) {
 		tests := map[string]test{
 			"namespace on secret reference": {
 				obj: &monitoringv1.ClusterPodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "namespace-on-secret-references",
-					},
+					Name: "namespace-on-secret-references",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									OAuth2: &monitoringv1.OAuth2{
-										ClientSecret: &monitoringv1.SecretSelector{
-											Secret: &monitoringv1.SecretKeySelector{
-												Name:      "test",
-												Namespace: "hack",
-											},
+								OAuth2: &monitoringv1.OAuth2{
+									ClientSecret: &monitoringv1.SecretSelector{
+										Secret: &monitoringv1.SecretKeySelector{
+											Name:      "test",
+											Namespace: "hack",
 										},
 									},
 								},
@@ -574,28 +546,22 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"invalid name": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "invalid-name",
-						Namespace: "gmp-public",
-					},
+					Name:      "invalid-name",
+					Namespace: "gmp-public",
 				},
 				wantErr: true,
 			},
 			"invalid namespace": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "invalid-namespace",
-					},
+					Name:      "config",
+					Namespace: "invalid-namespace",
 				},
 				wantErr: true,
 			},
 			"bad scrape interval": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-bad-scrape-interval",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-bad-scrape-interval",
+					Namespace: "gmp-public",
 					Collection: monitoringv1.CollectionSpec{
 						KubeletScraping: &monitoringv1.KubeletScraping{
 							Interval: "xyz",
@@ -606,10 +572,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"missing collection credentials secret key": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-missing-collection-credentials",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-missing-collection-credentials",
+					Namespace: "gmp-public",
 					Collection: monitoringv1.CollectionSpec{
 						Credentials: &corev1.SecretKeySelector{},
 					},
@@ -618,10 +582,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"bad generator URL": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-bad-generator-url",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-bad-generator-url",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						GeneratorURL: "~:://example.com",
 					},
@@ -630,10 +592,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"missing rule manager credentials secret key": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-missing-rule-manager-credentials",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-missing-rule-manager-credentials",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Credentials: &corev1.SecretKeySelector{},
 					},
@@ -642,10 +602,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"missing managed alert manager config secret key": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-missing-alert-manager-secret",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-missing-alert-manager-secret",
+					Namespace: "gmp-public",
 					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
 						ConfigSecret: &corev1.SecretKeySelector{},
 					},
@@ -654,10 +612,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"rule manager authorization credentials secret key missing": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-missing-rule-auth-secret",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-missing-rule-auth-secret",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
@@ -674,10 +630,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"rule manager TLS secret key missing": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-missing-tls-secret-key",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-missing-tls-secret-key",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
@@ -693,10 +647,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"rule manager TLS CA mutually exclusive": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-tls-ca-mutually-exclusive",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-tls-ca-mutually-exclusive",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
@@ -704,14 +656,10 @@ func TestCRDValidation(t *testing.T) {
 								TLS: &monitoringv1.TLSConfig{
 									CA: &monitoringv1.SecretOrConfigMap{
 										Secret: &corev1.SecretKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "baz",
-											},
+											Name: "baz",
 										},
 										ConfigMap: &corev1.ConfigMapKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "qux",
-											},
+											Name: "qux",
 										},
 									},
 								},
@@ -723,10 +671,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"rule manager TLS CA secret key missing": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-tls-ca-secret-key-missing",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-tls-ca-secret-key-missing",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
@@ -744,10 +690,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"rule manager TLS Cert mutually exclusive": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-tls-cert-mutually-exclusive",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-tls-cert-mutually-exclusive",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
@@ -755,14 +699,10 @@ func TestCRDValidation(t *testing.T) {
 								TLS: &monitoringv1.TLSConfig{
 									Cert: &monitoringv1.SecretOrConfigMap{
 										Secret: &corev1.SecretKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "baz",
-											},
+											Name: "baz",
 										},
 										ConfigMap: &corev1.ConfigMapKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "qux",
-											},
+											Name: "qux",
 										},
 									},
 								},
@@ -774,10 +714,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"rule manager TLS Cert secret key missing": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-tls-cert-secret-key-missing",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-tls-cert-secret-key-missing",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
@@ -795,24 +733,18 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"minimal": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
+					Name:      "config",
+					Namespace: "gmp-public",
 				},
 			},
 			"valid credentials secret name (RFC 1123 subdomain)": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
+					Name:      "config",
+					Namespace: "gmp-public",
 					Collection: monitoringv1.CollectionSpec{
 						Credentials: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: "my-secret.v1",
-							},
-							Key: "key.json",
+							Name: "my-secret.v1",
+							Key:  "key.json",
 						},
 					},
 				},
@@ -883,10 +815,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"valid externalLabels": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
+					Name:      "config",
+					Namespace: "gmp-public",
 					Collection: monitoringv1.CollectionSpec{
 						ExternalLabels: map[string]string{
 							"env": "production",
@@ -902,10 +832,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"collection externalLabels invalid key": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-invalid-collection-labels",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-invalid-collection-labels",
+					Namespace: "gmp-public",
 					Collection: monitoringv1.CollectionSpec{
 						ExternalLabels: map[string]string{
 							"0invalid-key": "value",
@@ -916,10 +844,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"rules externalLabels invalid key": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-invalid-rules-labels",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-invalid-rules-labels",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						ExternalLabels: map[string]string{
 							"invalid.key": "value",
@@ -946,10 +872,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"valid generator URL": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
+					Name:      "config",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						GeneratorURL: "https://example.com/graph",
 					},
@@ -958,10 +882,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"valid exports URL": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
+					Name:      "config",
+					Namespace: "gmp-public",
 					Exports: []monitoringv1.ExportSpec{
 						{
 							URL: "https://remote-write.example.com/api/v1/write",
@@ -972,10 +894,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"bad exports URL": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-bad-exports-url",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-bad-exports-url",
+					Namespace: "gmp-public",
 					Exports: []monitoringv1.ExportSpec{
 						{
 							URL: "~:://example.com",
@@ -986,14 +906,12 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"valid externalURL": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
+					Name:      "config",
+					Namespace: "gmp-public",
 					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
 						ConfigSecret: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{Name: "alertmanager"},
-							Key:                  "alertmanager.yaml",
+							Name: "alertmanager",
+							Key:  "alertmanager.yaml",
 						},
 						ExternalURL: "https://alertmanager.example.com",
 					},
@@ -1002,14 +920,12 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"bad externalURL": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-bad-external-url",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-bad-external-url",
+					Namespace: "gmp-public",
 					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
 						ConfigSecret: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{Name: "alertmanager"},
-							Key:                  "alertmanager.yaml",
+							Name: "alertmanager",
+							Key:  "alertmanager.yaml",
 						},
 						ExternalURL: "~:://example.com",
 					},
@@ -1018,10 +934,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"valid AlertmanagerEndpoints": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: "gmp-public",
-					},
+					Name:      "config",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
@@ -1039,10 +953,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"AlertmanagerEndpoints invalid namespace": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-alertmanager-invalid-ns",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-alertmanager-invalid-ns",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
@@ -1060,10 +972,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"AlertmanagerEndpoints invalid name": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-alertmanager-invalid-name",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-alertmanager-invalid-name",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
@@ -1081,10 +991,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"AlertmanagerEndpoints invalid scheme": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-alertmanager-invalid-scheme",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-alertmanager-invalid-scheme",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
@@ -1102,10 +1010,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"too many exports": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-too-many-exports",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-too-many-exports",
+					Namespace: "gmp-public",
 					Exports: func() []monitoringv1.ExportSpec {
 						var exports []monitoringv1.ExportSpec
 						for i := range 11 {
@@ -1120,10 +1026,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"too many alertmanagers": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-too-many-alertmanagers",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-too-many-alertmanagers",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: func() []monitoringv1.AlertmanagerEndpoints {
@@ -1145,10 +1049,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"invalid TLS key secret name": {
 				obj: &monitoringv1.OperatorConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config-invalid-tls-key-secret",
-						Namespace: "gmp-public",
-					},
+					Name:      "config-invalid-tls-key-secret",
+					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
 							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
@@ -1157,10 +1059,8 @@ func TestCRDValidation(t *testing.T) {
 								Port:      intstr.FromString("web"),
 								TLS: &monitoringv1.TLSConfig{
 									KeySecret: &corev1.SecretKeySelector{
-										LocalObjectReference: corev1.LocalObjectReference{
-											Name: "my_invalid_secret",
-										},
-										Key: "tls.key",
+										Name: "my_invalid_secret",
+										Key:  "tls.key",
 									},
 								},
 							}},
@@ -1181,10 +1081,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"minimal": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "minimal",
-						Namespace: "default",
-					},
+					Name:      "minimal",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1197,10 +1095,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"port missing": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "port-missing",
-						Namespace: "default",
-					},
+					Name:      "port-missing",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1214,10 +1110,8 @@ func TestCRDValidation(t *testing.T) {
 			// Regression case for b/464455553.
 			"port using regex": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "port-using-regex",
-						Namespace: "default",
-					},
+					Name:      "port-using-regex",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1231,10 +1125,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"duplicate port": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "duplicate-port",
-						Namespace: "default",
-					},
+					Name:      "duplicate-port",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1252,10 +1144,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"scrape interval missing": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "scrape-interval-missing",
-						Namespace: "default",
-					},
+					Name:      "scrape-interval-missing",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1268,10 +1158,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"scrape interval malformed": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "scrape-interval-malformed",
-						Namespace: "default",
-					},
+					Name:      "scrape-interval-malformed",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1285,10 +1173,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"scrape timeout malformed": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "scrape-timeout-malformed",
-						Namespace: "default",
-					},
+					Name:      "scrape-timeout-malformed",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1303,10 +1189,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"scrape timeout greater than interval": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "scrape-timeout-greater-than-interval",
-						Namespace: "default",
-					},
+					Name:      "scrape-timeout-greater-than-interval",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1321,10 +1205,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"remapping onto prometheus_target label": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "remapping-onto-prometheus-target-label",
-						Namespace: "default",
-					},
+					Name:      "remapping-onto-prometheus-target-label",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1343,10 +1225,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"remapping onto bad label name": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "remapping-onto-bad-label-name",
-						Namespace: "default",
-					},
+					Name:      "remapping-onto-bad-label-name",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1365,10 +1245,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"metric relabeling: valid": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "relabeling-valid",
-						Namespace: "default",
-					},
+					Name:      "relabeling-valid",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1428,10 +1306,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"metric relabeling: labelmap forbidden": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "labelmap-forbidden",
-						Namespace: "default",
-					},
+					Name:      "labelmap-forbidden",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1451,10 +1327,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"metric relabeling: protected replace label": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "protected-replace-label",
-						Namespace: "default",
-					},
+					Name:      "protected-replace-label",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1474,10 +1348,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"metric relabeling: protected labelkeep": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "protected-labelkeep",
-						Namespace: "default",
-					},
+					Name:      "protected-labelkeep",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1497,10 +1369,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"metric relabeling: protected labeldrop": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "protected-labeldrop",
-						Namespace: "default",
-					},
+					Name:      "protected-labeldrop",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1520,10 +1390,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"metric relabeling: labeldrop default regex": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "labeldrop-default-regex",
-						Namespace: "default",
-					},
+					Name:      "labeldrop-default-regex",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1542,10 +1410,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"metric relabeling: labelkeep default regex": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "labelkeep-default-regex",
-						Namespace: "default",
-					},
+					Name:      "labelkeep-default-regex",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1563,10 +1429,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"metric relabeling: empty action is valid and defaults to replace": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "empty-action-valid",
-						Namespace: "default",
-					},
+					Name:      "empty-action-valid",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1586,20 +1450,14 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"invalid URL": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "invalid-url",
-						Namespace: "default",
-					},
+					Name:      "invalid-url",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									ProxyConfig: monitoringv1.ProxyConfig{
-										ProxyURL: "_:_",
-									},
-								},
+								ProxyURL: "_:_",
 							},
 						},
 					},
@@ -1608,20 +1466,14 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"proxy URL with password": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proxy-url-with-password",
-						Namespace: "default",
-					},
+					Name:      "proxy-url-with-password",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									ProxyConfig: monitoringv1.ProxyConfig{
-										ProxyURL: "http://user:password@foo.bar/",
-									},
-								},
+								ProxyURL: "http://user:password@foo.bar/",
 							},
 						},
 					},
@@ -1630,10 +1482,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"metadata labels empty": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "metadata-labels-empty",
-						Namespace: "default",
-					},
+					Name:      "metadata-labels-empty",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -1649,19 +1499,15 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"TLS setting invalid": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "tls-setting-invalid",
-						Namespace: "default",
-					},
+					Name:      "tls-setting-invalid",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									TLS: &monitoringv1.TLS{
-										MinVersion: "TLS09",
-									},
+								TLS: &monitoringv1.TLS{
+									MinVersion: "TLS09",
 								},
 							},
 						},
@@ -1671,19 +1517,15 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"TLS setting valid": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proxy-url-with-password",
-						Namespace: "default",
-					},
+					Name:      "proxy-url-with-password",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									TLS: &monitoringv1.TLS{
-										MinVersion: "TLS13",
-									},
+								TLS: &monitoringv1.TLS{
+									MinVersion: "TLS13",
 								},
 							},
 						},
@@ -1692,19 +1534,15 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"authentication basic header": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "authentication-basic-header",
-						Namespace: "default",
-					},
+					Name:      "authentication-basic-header",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									Authorization: &monitoringv1.Auth{
-										Type: "Basic",
-									},
+								Authorization: &monitoringv1.Auth{
+									Type: "Basic",
 								},
 							},
 						},
@@ -1714,22 +1552,18 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"basic auth and authorization header": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "authentication-basic-header",
-						Namespace: "default",
-					},
+					Name:      "authentication-basic-header",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									Authorization: &monitoringv1.Auth{
-										Type: "Bearer",
-									},
-									BasicAuth: &monitoringv1.BasicAuth{
-										Username: "xyz",
-									},
+								Authorization: &monitoringv1.Auth{
+									Type: "Bearer",
+								},
+								BasicAuth: &monitoringv1.BasicAuth{
+									Username: "xyz",
 								},
 							},
 						},
@@ -1739,22 +1573,18 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"authorization header and oauth2": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "authentication-basic-header",
-						Namespace: "default",
-					},
+					Name:      "authentication-basic-header",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									Authorization: &monitoringv1.Auth{
-										Type: "Bearer",
-									},
-									OAuth2: &monitoringv1.OAuth2{
-										ClientID: "xyz",
-									},
+								Authorization: &monitoringv1.Auth{
+									Type: "Bearer",
+								},
+								OAuth2: &monitoringv1.OAuth2{
+									ClientID: "xyz",
 								},
 							},
 						},
@@ -1764,22 +1594,18 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"client cert only": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "client-cert-only",
-						Namespace: "default",
-					},
+					Name:      "client-cert-only",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									OAuth2: &monitoringv1.OAuth2{
-										TLS: &monitoringv1.TLS{
-											Cert: &monitoringv1.SecretSelector{
-												Secret: &monitoringv1.SecretKeySelector{
-													Name: "test",
-												},
+								OAuth2: &monitoringv1.OAuth2{
+									TLS: &monitoringv1.TLS{
+										Cert: &monitoringv1.SecretSelector{
+											Secret: &monitoringv1.SecretKeySelector{
+												Name: "test",
 											},
 										},
 									},
@@ -1792,22 +1618,18 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"client key only": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "client-key-only",
-						Namespace: "default",
-					},
+					Name:      "client-key-only",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									OAuth2: &monitoringv1.OAuth2{
-										TLS: &monitoringv1.TLS{
-											Key: &monitoringv1.SecretSelector{
-												Secret: &monitoringv1.SecretKeySelector{
-													Name: "test",
-												},
+								OAuth2: &monitoringv1.OAuth2{
+									TLS: &monitoringv1.TLS{
+										Key: &monitoringv1.SecretSelector{
+											Secret: &monitoringv1.SecretKeySelector{
+												Name: "test",
 											},
 										},
 									},
@@ -1820,27 +1642,23 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"client cert/key pair": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "client-cert-key-pair",
-						Namespace: "default",
-					},
+					Name:      "client-cert-key-pair",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									OAuth2: &monitoringv1.OAuth2{
-										TLS: &monitoringv1.TLS{
-											Cert: &monitoringv1.SecretSelector{
-												Secret: &monitoringv1.SecretKeySelector{
-													Name: "test",
-												},
+								OAuth2: &monitoringv1.OAuth2{
+									TLS: &monitoringv1.TLS{
+										Cert: &monitoringv1.SecretSelector{
+											Secret: &monitoringv1.SecretKeySelector{
+												Name: "test",
 											},
-											Key: &monitoringv1.SecretSelector{
-												Secret: &monitoringv1.SecretKeySelector{
-													Name: "test",
-												},
+										},
+										Key: &monitoringv1.SecretSelector{
+											Secret: &monitoringv1.SecretKeySelector{
+												Name: "test",
 											},
 										},
 									},
@@ -1852,22 +1670,18 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"namespace on secret reference": {
 				obj: &monitoringv1.PodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "namespace-on-secret-references",
-						Namespace: "default",
-					},
+					Name:      "namespace-on-secret-references",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
 								Interval: "1m",
 								Port:     intstr.FromString("metrics"),
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									OAuth2: &monitoringv1.OAuth2{
-										ClientSecret: &monitoringv1.SecretSelector{
-											Secret: &monitoringv1.SecretKeySelector{
-												Name:      "test",
-												Namespace: "hack",
-											},
+								OAuth2: &monitoringv1.OAuth2{
+									ClientSecret: &monitoringv1.SecretSelector{
+										Secret: &monitoringv1.SecretKeySelector{
+											Name:      "test",
+											Namespace: "hack",
 										},
 									},
 								},
@@ -1884,10 +1698,8 @@ func TestCRDValidation(t *testing.T) {
 		tests := map[string]test{
 			"minimal-alerting": {
 				obj: &monitoringv1.Rules{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "minimal-alerting",
-						Namespace: "default",
-					},
+					Name:      "minimal-alerting",
+					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
@@ -1904,10 +1716,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"minimal-recording": {
 				obj: &monitoringv1.Rules{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "minimal-recording",
-						Namespace: "default",
-					},
+					Name:      "minimal-recording",
+					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
@@ -1924,10 +1734,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"invalid-interval": {
 				obj: &monitoringv1.Rules{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "invalid-interval",
-						Namespace: "default",
-					},
+					Name:      "invalid-interval",
+					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
@@ -1945,10 +1753,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"invalid-rule-name": {
 				obj: &monitoringv1.Rules{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "invalid-rule-name",
-						Namespace: "default",
-					},
+					Name:      "invalid-rule-name",
+					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
@@ -1965,10 +1771,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"invalid-rule-name-dash": {
 				obj: &monitoringv1.Rules{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "invalid-rule-name-dash",
-						Namespace: "default",
-					},
+					Name:      "invalid-rule-name-dash",
+					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
@@ -1985,10 +1789,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"valid-rule-name-colon": {
 				obj: &monitoringv1.Rules{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "valid-rule-name-colon",
-						Namespace: "default",
-					},
+					Name:      "valid-rule-name-colon",
+					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
@@ -2005,10 +1807,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"invalid-annotation": {
 				obj: &monitoringv1.Rules{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "invalid-annotation",
-						Namespace: "default",
-					},
+					Name:      "invalid-annotation",
+					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
@@ -2028,10 +1828,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"valid-annotation": {
 				obj: &monitoringv1.Rules{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "valid-annotation",
-						Namespace: "default",
-					},
+					Name:      "valid-annotation",
+					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
@@ -2051,10 +1849,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"alert-and-record-both-set": {
 				obj: &monitoringv1.Rules{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "alert-and-record-set",
-						Namespace: "default",
-					},
+					Name:      "alert-and-record-set",
+					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
@@ -2072,10 +1868,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"neither-alert-nor-record-set": {
 				obj: &monitoringv1.Rules{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "neither-alert-nor-record-set",
-						Namespace: "default",
-					},
+					Name:      "neither-alert-nor-record-set",
+					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
@@ -2090,10 +1884,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"TargetLabels/from-kubernetes-labels": {
 				obj: &monitoringv1.ClusterPodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "from-kubernetes-labels",
-						Namespace: "default",
-					},
+					Name:      "from-kubernetes-labels",
+					Namespace: "default",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{
@@ -2118,10 +1910,8 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"TargetLabels/empty-to": {
 				obj: &monitoringv1.ClusterPodMonitoring{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "empty-to",
-						Namespace: "default",
-					},
+					Name:      "empty-to",
+					Namespace: "default",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Endpoints: []monitoringv1.ScrapeEndpoint{
 							{

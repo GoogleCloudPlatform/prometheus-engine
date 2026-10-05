@@ -45,16 +45,12 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Cluster-Scoped (Any Namespace)",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "global-monitor",
-					Namespace:   "default",
-					Labels:      map[string]string{"team": "frontend"},
-					Annotations: map[string]string{"prometheus.io/scrape": "true", "kubectl.kubernetes.io/last-applied-configuration": "{}"},
-				},
+				APIVersion:  "monitoring.coreos.com/v1",
+				Kind:        KindPodMonitor,
+				Name:        "global-monitor",
+				Namespace:   "default",
+				Labels:      map[string]string{"team": "frontend"},
+				Annotations: map[string]string{"prometheus.io/scrape": "true", "kubectl.kubernetes.io/last-applied-configuration": "{}"},
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						Any: true,
@@ -66,13 +62,9 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.ClusterPodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindClusterPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "global-monitor",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindClusterPodMonitoring,
+					Name:       "global-monitor",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
@@ -89,14 +81,10 @@ func TestPodMonitorConversion(t *testing.T) {
 				return addSecretToCache(cache, "monitoring-ns", "auth-secret", "user", "admin", true)
 			},
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-auth-monitor",
-					Namespace: "monitoring-ns",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "cluster-auth-monitor",
+				Namespace:  "monitoring-ns",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						Any: true,
@@ -117,13 +105,9 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.ClusterPodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindClusterPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "cluster-auth-monitor",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindClusterPodMonitoring,
+					Name:       "cluster-auth-monitor",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
@@ -134,15 +118,13 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("metrics"),
 								Interval: "30s",
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									BasicAuth: &monitoringv1.BasicAuth{
-										Username: "admin",
-										Password: &monitoringv1.SecretSelector{
-											Secret: &monitoringv1.SecretKeySelector{
-												Name:      "auth-secret",
-												Key:       "pass",
-												Namespace: "monitoring-ns",
-											},
+								BasicAuth: &monitoringv1.BasicAuth{
+									Username: "admin",
+									Password: &monitoringv1.SecretSelector{
+										Secret: &monitoringv1.SecretKeySelector{
+											Name:      "auth-secret",
+											Key:       "pass",
+											Namespace: "monitoring-ns",
 										},
 									},
 								},
@@ -155,14 +137,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Multi-Namespace Split",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "multi-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "multi-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						MatchNames: []string{"ns-a", "ns-b"},
@@ -174,14 +152,10 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "multi-monitor",
-						Namespace: "ns-a",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "multi-monitor",
+					Namespace:  "ns-a",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
@@ -191,14 +165,10 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 				},
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "multi-monitor",
-						Namespace: "ns-b",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "multi-monitor",
+					Namespace:  "ns-b",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
@@ -212,14 +182,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Namespace Deduplication & Trimming",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "dirty-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "dirty-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						MatchNames: []string{"ns-a", " ns-a ", "  ns-a", "", "   "},
@@ -231,14 +197,10 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "dirty-monitor",
-						Namespace: "ns-a",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "dirty-monitor",
+					Namespace:  "ns-a",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
@@ -255,14 +217,10 @@ func TestPodMonitorConversion(t *testing.T) {
 				return addSecretToCache(cache, "default", "auth", "user", "admin", true)
 			},
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "secret-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "secret-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						MatchNames: []string{"ns-1", "ns-2"},
@@ -283,14 +241,10 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "secret-monitor",
-						Namespace: "ns-1",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "secret-monitor",
+					Namespace:  "ns-1",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "secret-app"},
@@ -299,25 +253,19 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("metrics"),
 								Interval: "30s",
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									BasicAuth: &monitoringv1.BasicAuth{
-										Username: "admin",
-										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass"}},
-									},
+								BasicAuth: &monitoringv1.BasicAuth{
+									Username: "admin",
+									Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass"}},
 								},
 							},
 						},
 					},
 				},
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "secret-monitor",
-						Namespace: "ns-2",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "secret-monitor",
+					Namespace:  "ns-2",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "secret-app"},
@@ -326,11 +274,9 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("metrics"),
 								Interval: "30s",
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									BasicAuth: &monitoringv1.BasicAuth{
-										Username: "admin",
-										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass"}},
-									},
+								BasicAuth: &monitoringv1.BasicAuth{
+									Username: "admin",
+									Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth", Key: "pass"}},
 								},
 							},
 						},
@@ -341,14 +287,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Broken Config",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "broken-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "broken-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						MatchNames: []string{"", "   "},
@@ -363,14 +305,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Local Scoping (Omitted Selector)",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "local-monitor",
-					Namespace: "my-local-namespace",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "local-monitor",
+				Namespace:  "my-local-namespace",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "local-app"},
@@ -379,14 +317,10 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "local-monitor",
-						Namespace: "my-local-namespace",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "local-monitor",
+					Namespace:  "my-local-namespace",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
@@ -400,14 +334,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Valid Basic Mapping & Capping & Defaulting",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "frontend-monitor",
-					Namespace: "frontend",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "frontend-monitor",
+				Namespace:  "frontend",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "frontend"},
@@ -434,14 +364,10 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "frontend-monitor",
-						Namespace: "frontend",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "frontend-monitor",
+					Namespace:  "frontend",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
@@ -474,14 +400,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Target Labels Mapping",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "label-monitor",
-					Namespace: "frontend",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "label-monitor",
+				Namespace:  "frontend",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "label-app"},
@@ -497,14 +419,10 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "label-monitor",
-						Namespace: "frontend",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "label-monitor",
+					Namespace:  "frontend",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "label-app"},
@@ -530,14 +448,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Relabeling and Unsupported Warnings Mapping",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "relabel-monitor",
-					Namespace: "frontend",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "relabel-monitor",
+				Namespace:  "frontend",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "relabel-app"},
@@ -600,14 +514,10 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "relabel-monitor",
-						Namespace: "frontend",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "relabel-monitor",
+					Namespace:  "frontend",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
@@ -663,14 +573,10 @@ func TestPodMonitorConversion(t *testing.T) {
 				return addConfigMapToCache(cache, "frontend", "oauth-cm", "id", "client-123")
 			},
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "auth-monitor",
-					Namespace: "frontend",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "auth-monitor",
+				Namespace:  "frontend",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "auth-app"},
@@ -684,7 +590,7 @@ func TestPodMonitorConversion(t *testing.T) {
 							},
 							TLSConfig: &pomonitoringv1.SafeTLSConfig{
 								CA: pomonitoringv1.SecretOrConfigMap{
-									ConfigMap: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "ca-cm"}, Key: "ca.crt"},
+									ConfigMap: &corev1.ConfigMapKeySelector{Name: "ca-cm", Key: "ca.crt"},
 								},
 							},
 						},
@@ -696,7 +602,7 @@ func TestPodMonitorConversion(t *testing.T) {
 							Port: "metrics-oauth",
 							OAuth2: &pomonitoringv1.OAuth2{
 								ClientID: pomonitoringv1.SecretOrConfigMap{
-									ConfigMap: &corev1.ConfigMapKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-cm"}, Key: "id"},
+									ConfigMap: &corev1.ConfigMapKeySelector{Name: "oauth-cm", Key: "id"},
 								},
 								ClientSecret: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "oauth-secret"}, Key: "secret"},
 								TokenURL:     "https://auth.example.com/token",
@@ -707,14 +613,10 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "auth-monitor",
-						Namespace: "frontend",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "auth-monitor",
+					Namespace:  "frontend",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
@@ -725,34 +627,28 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("metrics-basic"),
 								Interval: "30s",
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									BasicAuth: &monitoringv1.BasicAuth{
-										Username: "admin",
-										Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth-secret", Key: "pass"}},
-									},
-									TLS: &monitoringv1.TLS{
-										CA: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "secret-ca-cm", Key: "ca.crt"}},
-									},
+								BasicAuth: &monitoringv1.BasicAuth{
+									Username: "admin",
+									Password: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "auth-secret", Key: "pass"}},
+								},
+								TLS: &monitoringv1.TLS{
+									CA: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "secret-ca-cm", Key: "ca.crt"}},
 								},
 							},
 							{
 								Port:     intstr.FromString("metrics-bearer"),
 								Interval: "30s",
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									Authorization: &monitoringv1.Auth{
-										Credentials: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "token-secret", Key: "token"}},
-									},
+								Authorization: &monitoringv1.Auth{
+									Credentials: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "token-secret", Key: "token"}},
 								},
 							},
 							{
 								Port:     intstr.FromString("metrics-oauth"),
 								Interval: "30s",
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									OAuth2: &monitoringv1.OAuth2{
-										ClientID:     "client-123",
-										ClientSecret: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "oauth-secret", Key: "secret"}},
-										TokenURL:     "https://auth.example.com/token",
-									},
+								OAuth2: &monitoringv1.OAuth2{
+									ClientID:     "client-123",
+									ClientSecret: &monitoringv1.SecretSelector{Secret: &monitoringv1.SecretKeySelector{Name: "oauth-secret", Key: "secret"}},
+									TokenURL:     "https://auth.example.com/token",
 								},
 							},
 						},
@@ -763,14 +659,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: drop unsupported actions and pod annotations with warning",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "warn-relabel-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "warn-relabel-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -831,8 +723,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "warn-relabel-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "warn-relabel-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -855,14 +747,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: drop relabeling rule referencing node Kubernetes metadata with warning",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "node-relabel-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "node-relabel-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -898,8 +786,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "node-relabel-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "node-relabel-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -917,14 +805,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: target filtering keep rule translated to Pod Selector, drop rule falls through to metricRelabeling",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "filter-relabel-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "filter-relabel-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -952,8 +836,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "filter-relabel-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "filter-relabel-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test", "env": "production"},
@@ -983,14 +867,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: label names with underscores in keep rules are converted to selectors",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "sanitized-relabel-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "sanitized-relabel-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -1012,8 +892,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "sanitized-relabel-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "sanitized-relabel-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
@@ -1034,14 +914,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: complex regex substring extraction promoted to post-scrape metricRelabeling",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "complex-relabel-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "complex-relabel-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -1064,8 +940,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "complex-relabel-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "complex-relabel-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
 						TargetLabels: monitoringv1.TargetLabels{
@@ -1088,14 +964,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: target filtering rules fall through to metricRelabeling in multi-endpoint resource to prevent cross-endpoint restriction",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "multi-endpoint-filter-relabel",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "multi-endpoint-filter-relabel",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -1119,8 +991,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "multi-endpoint-filter-relabel", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "multi-endpoint-filter-relabel", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}}, // Remains unchanged.
 						TargetLabels: monitoringv1.TargetLabels{
@@ -1146,14 +1018,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: metadata label copy with renamed target falls through to metricRelabeling",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "metadata-rename-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "metadata-rename-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -1174,8 +1042,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "metadata-rename-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "metadata-rename-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
 						TargetLabels: monitoringv1.TargetLabels{
@@ -1197,14 +1065,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: target filtering rules with invalid k8s label values fall through to metricRelabeling",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "invalid-selector-value-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "invalid-selector-value-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -1225,8 +1089,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "invalid-selector-value-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "invalid-selector-value-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
 						TargetLabels: monitoringv1.TargetLabels{
@@ -1248,14 +1112,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Unsupported annotation keep rule is dropped, selector remains empty (selecting all pods)",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "annotation-keep-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "annotation-keep-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{}, // Empty selector selects all pods.
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
@@ -1274,14 +1134,12 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "annotation-keep-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[WARNING] Dropped target filtering rule ('keep' on '__meta_kubernetes_pod_annotation_prometheus_io_scrape'). ACTION: Add equivalent pod label selector in 'spec.selector.matchLabels'.",
-							"gmp.googleapis.com/todo-2": "[WARNING] Resulting PodMonitoring selector is empty and matches all pods in this namespace. ACTION: Define explicit 'matchLabels' in 'spec.selector'.",
-						},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "annotation-keep-monitor",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[WARNING] Dropped target filtering rule ('keep' on '__meta_kubernetes_pod_annotation_prometheus_io_scrape'). ACTION: Add equivalent pod label selector in 'spec.selector.matchLabels'.",
+						"gmp.googleapis.com/todo-2": "[WARNING] Resulting PodMonitoring selector is empty and matches all pods in this namespace. ACTION: Define explicit 'matchLabels' in 'spec.selector'.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{},
@@ -1298,14 +1156,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: custom relabel rule overrides static podTargetLabels",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "override-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "override-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -1327,8 +1181,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "override-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "override-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
 						TargetLabels: monitoringv1.TargetLabels{
@@ -1350,14 +1204,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Scope-aware Metadata: namespace metadata mapping dropped in namespaced PodMonitoring",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "namespaced-metadata-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "namespaced-metadata-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -1378,8 +1228,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "namespaced-metadata-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "namespaced-metadata-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -1400,14 +1250,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Scope-aware Metadata: namespace metadata mapping kept in ClusterPodMonitoring",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-metadata-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "cluster-metadata-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						Any: true,
@@ -1431,8 +1277,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.ClusterPodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "cluster-metadata-monitor"},
+					TypeMeta: BuildTypeMeta(KindClusterPodMonitoring),
+					Name:     "cluster-metadata-monitor",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -1453,14 +1299,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Scope-aware Metadata: AttachMetadata.Node seeds from namespacedMetadataDefaults in PodMonitoring",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "node-metadata-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "node-metadata-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					AttachMetadata: &pomonitoringv1.AttachMetadata{
 						Node: ptrTo(true),
@@ -1478,8 +1320,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "node-metadata-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "node-metadata-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -1500,14 +1342,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Scope-aware Metadata: AttachMetadata.Node seeds from clusterMetadataDefaults in ClusterPodMonitoring",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-node-metadata-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "cluster-node-metadata-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						Any: true,
@@ -1528,8 +1366,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.ClusterPodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "cluster-node-metadata-monitor"},
+					TypeMeta: BuildTypeMeta(KindClusterPodMonitoring),
+					Name:     "cluster-node-metadata-monitor",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -1550,14 +1388,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Scope-aware Metadata: AttachMetadata.Node merges with existing relabeling metadata in PodMonitoring",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "node-metadata-merge-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "node-metadata-merge-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					AttachMetadata: &pomonitoringv1.AttachMetadata{
 						Node: ptrTo(true),
@@ -1582,8 +1416,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "node-metadata-merge-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "node-metadata-merge-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -1604,14 +1438,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Scope-aware Metadata: AttachMetadata.Node merges with existing relabeling metadata in ClusterPodMonitoring",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-node-metadata-merge-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "cluster-node-metadata-merge-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						Any: true,
@@ -1639,8 +1469,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.ClusterPodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "cluster-node-metadata-merge-monitor"},
+					TypeMeta: BuildTypeMeta(KindClusterPodMonitoring),
+					Name:     "cluster-node-metadata-merge-monitor",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -1661,14 +1491,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Selector conflict: keep rule value conflicts with base matchLabels value",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "conflict-selector-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "conflict-selector-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "frontend"},
@@ -1689,13 +1515,11 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "conflict-selector-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Selector conflict: label \"app\" has conflicting values \"frontend\" (from base selector) and \"backend\" (from relabeling rule). ACTION: Reconcile 'spec.selector.matchLabels' for label \"app\" with the intended target pods.",
-						},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "conflict-selector-monitor",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Selector conflict: label \"app\" has conflicting values \"frontend\" (from base selector) and \"backend\" (from relabeling rule). ACTION: Reconcile 'spec.selector.matchLabels' for label \"app\" with the intended target pods.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -1716,14 +1540,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: conflicting keep rules on same pod label attaches TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "conflicting-keep-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "conflicting-keep-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
@@ -1749,13 +1569,11 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "conflicting-keep-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Conflicting relabeling keep rules for label \"env\": cannot require both \"production\" and \"staging\" simultaneously. ACTION: Define the intended label value for \"env\" in 'spec.selector.matchLabels'.",
-						},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "conflicting-keep-monitor",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Conflicting relabeling keep rules for label \"env\": cannot require both \"production\" and \"staging\" simultaneously. ACTION: Define the intended label value for \"env\" in 'spec.selector.matchLabels'.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -1777,14 +1595,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "BearerTokenSecret with empty Name generates draft with TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "bearer-token-secret-err",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "bearer-token-secret-err",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "frontend"},
@@ -1799,13 +1613,11 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "bearer-token-secret-err",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Referenced Secret has an empty name for key \"token\". ACTION: Specify a valid Secret name in the configuration.",
-						},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "bearer-token-secret-err",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Referenced Secret has an empty name for key \"token\". ACTION: Specify a valid Secret name in the configuration.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -1817,13 +1629,11 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("metrics"),
 								Interval: "30s",
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									Authorization: &monitoringv1.Auth{
-										Credentials: &monitoringv1.SecretSelector{
-											Secret: &monitoringv1.SecretKeySelector{
-												Name: "TODO_SET_SECRET_NAME",
-												Key:  "token",
-											},
+								Authorization: &monitoringv1.Auth{
+									Credentials: &monitoringv1.SecretSelector{
+										Secret: &monitoringv1.SecretKeySelector{
+											Name: "TODO_SET_SECRET_NAME",
+											Key:  "token",
 										},
 									},
 								},
@@ -1836,14 +1646,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "PodMetricsEndpoint missing port and targetPort generates draft with TODO",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "missing-port-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "missing-port-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "frontend"},
@@ -1857,13 +1663,11 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "missing-port-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Endpoint [0] does not specify a 'port' or 'targetPort'. ACTION: Specify a valid port name or number in 'spec.endpoints[].port'.",
-						},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "missing-port-monitor",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Endpoint [0] does not specify a 'port' or 'targetPort'. ACTION: Specify a valid port name or number in 'spec.endpoints[].port'.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -1885,14 +1689,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: drop action rule on pod label falls through to metricRelabelings",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "drop-rule-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "drop-rule-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "frontend"},
@@ -1913,11 +1713,9 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "drop-rule-monitor",
-						Namespace: "default",
-					},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "drop-rule-monitor",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "frontend"},
@@ -1947,14 +1745,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: hashmod action rule is dropped with warning as GMP handles sharding",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "action-promotion-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "action-promotion-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "frontend"},
@@ -1976,11 +1770,9 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "action-promotion-monitor",
-						Namespace: "default",
-					},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "action-promotion-monitor",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "frontend"},
@@ -1998,14 +1790,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Pre-Scrape Relabelings: simple copy with anchored default regex ^(.*)$ and ^.*$ is converted to fromPod",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "anchored-regex-copy-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "anchored-regex-copy-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "frontend"},
@@ -2033,11 +1821,9 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "anchored-regex-copy-monitor",
-						Namespace: "default",
-					},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "anchored-regex-copy-monitor",
+					Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "frontend"},
@@ -2061,14 +1847,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Limits, AttachMetadata.Node, and FilterRunning conversion",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "advanced-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "advanced-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					AttachMetadata: &pomonitoringv1.AttachMetadata{
 						Node: ptrTo(true),
@@ -2097,8 +1879,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "advanced-monitor", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "advanced-monitor", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "advanced"}},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -2132,14 +1914,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "Limits, AttachMetadata.Node, and FilterRunning conversion in ClusterPodMonitoring",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-advanced-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "cluster-advanced-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						Any: true,
@@ -2179,8 +1957,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.ClusterPodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "cluster-advanced-monitor"},
+					TypeMeta: BuildTypeMeta(KindClusterPodMonitoring),
+					Name:     "cluster-advanced-monitor",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "advanced"}},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -2206,14 +1984,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "ScrapeProtocols protobuf warning",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "scrape-protocols-warn",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "scrape-protocols-warn",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					ScrapeProtocols: []pomonitoringv1.ScrapeProtocol{
 						scrapeProtocolOpenMetricsText100,
@@ -2231,8 +2005,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "scrape-protocols-warn", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "scrape-protocols-warn", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "scrape-protocols"}},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -2251,14 +2025,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "ScrapeProtocols protobuf warning in ClusterPodMonitoring",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-scrape-protocols-warn",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "cluster-scrape-protocols-warn",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						Any: true,
@@ -2279,8 +2049,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.ClusterPodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "cluster-scrape-protocols-warn"},
+					TypeMeta: BuildTypeMeta(KindClusterPodMonitoring),
+					Name:     "cluster-scrape-protocols-warn",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "scrape-protocols"}},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -2299,14 +2069,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "FilterRunning conflict resolution",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "filter-running-conflict",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "filter-running-conflict",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
@@ -2323,8 +2089,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "filter-running-conflict", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "filter-running-conflict", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -2348,14 +2114,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "FilterRunning conflict resolution in ClusterPodMonitoring",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-filter-running-conflict",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "cluster-filter-running-conflict",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						Any: true,
@@ -2378,8 +2140,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.ClusterPodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindClusterPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "cluster-filter-running-conflict"},
+					TypeMeta: BuildTypeMeta(KindClusterPodMonitoring),
+					Name:     "cluster-filter-running-conflict",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -2400,14 +2162,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "All endpoints set filterRunning: false (no conflict warning emitted)",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "filter-running-consistent-false",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "filter-running-consistent-false",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
@@ -2424,8 +2182,8 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta:   BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{Name: "filter-running-consistent-false", Namespace: "default"},
+					TypeMeta: BuildTypeMeta(KindPodMonitoring),
+					Name:     "filter-running-consistent-false", Namespace: "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
 						Endpoints: []monitoringv1.ScrapeEndpoint{
@@ -2449,14 +2207,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "PodMonitor with dropped annotation relabeling attaches TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "annotated-relabel-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "annotated-relabel-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "annotated-app"},
@@ -2477,16 +2231,12 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "annotated-relabel-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[WARNING] Dropped target filtering rule ('keep' on '__meta_kubernetes_pod_annotation_prometheus_io_scrape'). ACTION: Add equivalent pod label selector in 'spec.selector.matchLabels'.",
-						},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "annotated-relabel-monitor",
+					Namespace:  "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[WARNING] Dropped target filtering rule ('keep' on '__meta_kubernetes_pod_annotation_prometheus_io_scrape'). ACTION: Add equivalent pod label selector in 'spec.selector.matchLabels'.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -2507,14 +2257,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "PodMonitor with dropped node metadata relabeling attaches TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "node-keep-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "node-keep-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "node-app"},
@@ -2535,13 +2281,11 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "node-keep-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[WARNING] Dropped target filtering rule ('keep' on '__meta_kubernetes_node_label_topology_kubernetes_io_zone'). ACTION: Add equivalent pod label selector in 'spec.selector.matchLabels'.",
-						},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "node-keep-monitor",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[WARNING] Dropped target filtering rule ('keep' on '__meta_kubernetes_node_label_topology_kubernetes_io_zone'). ACTION: Add equivalent pod label selector in 'spec.selector.matchLabels'.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -2562,14 +2306,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "PodMonitor with empty selector attaches TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "empty-selector-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "empty-selector-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
@@ -2581,16 +2321,12 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "empty-selector-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[WARNING] Resulting PodMonitoring selector is empty and matches all pods in this namespace. ACTION: Define explicit 'matchLabels' in 'spec.selector'.",
-						},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "empty-selector-monitor",
+					Namespace:  "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[WARNING] Resulting PodMonitoring selector is empty and matches all pods in this namespace. ACTION: Define explicit 'matchLabels' in 'spec.selector'.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{},
@@ -2607,14 +2343,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "PodMonitor with proxyUrl containing password attaches TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "proxy-pass-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "proxy-pass-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "proxy-app"},
@@ -2629,16 +2361,12 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proxy-pass-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Proxy URL contains embedded plaintext credentials. Credentials were removed. ACTION: Configure proxy authentication via proxy server configuration or network allowlist.",
-						},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "proxy-pass-monitor",
+					Namespace:  "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Proxy URL contains embedded plaintext credentials. Credentials were removed. ACTION: Configure proxy authentication via proxy server configuration or network allowlist.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -2650,11 +2378,7 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("web"),
 								Interval: "30s",
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									ProxyConfig: monitoringv1.ProxyConfig{
-										ProxyURL: "http://proxy.example.com:8080",
-									},
-								},
+								ProxyURL: "http://proxy.example.com:8080",
 							},
 						},
 					},
@@ -2664,14 +2388,10 @@ func TestPodMonitorConversion(t *testing.T) {
 		{
 			name: "PodMonitor with missing BasicAuth secret username injects placeholder and TODO annotation",
 			input: &pomonitoringv1.PodMonitor{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "monitoring.coreos.com/v1",
-					Kind:       KindPodMonitor,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "missing-secret-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1",
+				Kind:       KindPodMonitor,
+				Name:       "missing-secret-monitor",
+				Namespace:  "default",
 				Spec: pomonitoringv1.PodMonitorSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "missing-app"},
@@ -2689,16 +2409,12 @@ func TestPodMonitorConversion(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       KindPodMonitoring,
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "missing-secret-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Referenced SECRET \"missing-auth\" for key \"user\" was not found in migration inputs. ACTION: Verify SECRET \"missing-auth\" exists in namespace \"default\" or provide it in migration inputs.",
-						},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       KindPodMonitoring,
+					Name:       "missing-secret-monitor",
+					Namespace:  "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Referenced SECRET \"missing-auth\" for key \"user\" was not found in migration inputs. ACTION: Verify SECRET \"missing-auth\" exists in namespace \"default\" or provide it in migration inputs.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -2710,14 +2426,12 @@ func TestPodMonitorConversion(t *testing.T) {
 							{
 								Port:     intstr.FromString("web"),
 								Interval: "30s",
-								HTTPClientConfig: monitoringv1.HTTPClientConfig{
-									BasicAuth: &monitoringv1.BasicAuth{
-										Username: "TODO_SET_USER_FROM_SECRET_MISSING-AUTH",
-										Password: &monitoringv1.SecretSelector{
-											Secret: &monitoringv1.SecretKeySelector{
-												Name: "missing-auth",
-												Key:  "pass",
-											},
+								BasicAuth: &monitoringv1.BasicAuth{
+									Username: "TODO_SET_USER_FROM_SECRET_MISSING-AUTH",
+									Password: &monitoringv1.SecretSelector{
+										Secret: &monitoringv1.SecretKeySelector{
+											Name: "missing-auth",
+											Key:  "pass",
 										},
 									},
 								},

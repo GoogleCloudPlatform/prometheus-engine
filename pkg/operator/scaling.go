@@ -24,7 +24,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	autoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -100,10 +99,8 @@ func (r *scalingReconciler) Reconcile(ctx context.Context, req reconcile.Request
 
 func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 	alertmanagerVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      alertmanagerVPAName,
-		},
+		Namespace: namespace,
+		Name:      alertmanagerVPAName,
 	}
 	if _, err := controllerutil.CreateOrUpdate(ctx, c, &alertmanagerVPA, func() error {
 		alertmanagerVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
@@ -139,10 +136,8 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 	}
 
 	collectorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      collectorVPAName,
-		},
+		Namespace: namespace,
+		Name:      collectorVPAName,
 	}
 	if _, err := controllerutil.CreateOrUpdate(ctx, c, &collectorVPA, func() error {
 		collectorVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
@@ -177,10 +172,8 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 	}
 
 	operatorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      operatorVPAName,
-		},
+		Namespace: namespace,
+		Name:      operatorVPAName,
 	}
 	if _, err := controllerutil.CreateOrUpdate(ctx, c, &operatorVPA, func() error {
 		operatorVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
@@ -212,10 +205,8 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 	}
 
 	ruleEvaluatorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      ruleEvaluatorVPAName,
-		},
+		Namespace: namespace,
+		Name:      ruleEvaluatorVPAName,
 	}
 	if _, err := controllerutil.CreateOrUpdate(ctx, c, &ruleEvaluatorVPA, func() error {
 		ruleEvaluatorVPA.Spec = autoscalingv1.VerticalPodAutoscalerSpec{
@@ -255,40 +246,32 @@ func applyVPA(ctx context.Context, c client.Client, namespace string) error {
 
 func deleteVPA(ctx context.Context, c client.Writer, namespace string) error {
 	alertmanagerVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      alertmanagerVPAName,
-			Namespace: namespace,
-		},
+		Name:      alertmanagerVPAName,
+		Namespace: namespace,
 	}
 	if err := c.Delete(ctx, &alertmanagerVPA); client.IgnoreNotFound(err) != nil {
 		return err
 	}
 
 	collectorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      collectorVPAName,
-			Namespace: namespace,
-		},
+		Name:      collectorVPAName,
+		Namespace: namespace,
 	}
 	if err := c.Delete(ctx, &collectorVPA); client.IgnoreNotFound(err) != nil {
 		return err
 	}
 
 	operatorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      operatorVPAName,
-			Namespace: namespace,
-		},
+		Name:      operatorVPAName,
+		Namespace: namespace,
 	}
 	if err := c.Delete(ctx, &operatorVPA); client.IgnoreNotFound(err) != nil {
 		return err
 	}
 
 	ruleEvaluatorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      ruleEvaluatorVPAName,
-			Namespace: namespace,
-		},
+		Name:      ruleEvaluatorVPAName,
+		Namespace: namespace,
 	}
 	if err := c.Delete(ctx, &ruleEvaluatorVPA); client.IgnoreNotFound(err) != nil {
 		return err

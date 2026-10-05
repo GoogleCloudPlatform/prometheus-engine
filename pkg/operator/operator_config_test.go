@@ -29,7 +29,6 @@ import (
 	"go.yaml.in/yaml/v3"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -265,10 +264,8 @@ func TestEnsureOperatorConfig(t *testing.T) {
 
 			reconciler := newOperatorConfigReconciler(kubeClient, operatorOpts)
 			operatorConfig, err := reconciler.ensureOperatorConfig(t.Context(), logger, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: DefaultPublicNamespace,
-					Name:      NameOperatorConfig,
-				},
+				Namespace: DefaultPublicNamespace,
+				Name:      NameOperatorConfig,
 			})
 			if err != nil {
 				t.Fatalf("ensure operator config: %s", err)
@@ -416,28 +413,22 @@ route:
 	} {
 		t.Run(tcase.name, func(t *testing.T) {
 			operatorConfig := &monitoringv1.OperatorConfig{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: DefaultPublicNamespace,
-					Name:      NameOperatorConfig,
-				},
+				Namespace: DefaultPublicNamespace,
+				Name:      NameOperatorConfig,
 				ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
 					ConfigSecret: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: AlertmanagerSecretName,
-						},
-						Key: AlertmanagerConfigKey,
+						Name: AlertmanagerSecretName,
+						Key:  AlertmanagerConfigKey,
 					},
 					ExternalURL: tcase.operatorConfigManagedAMExtURL,
 				},
 			}
 			amSecret := &corev1.Secret{
-				ObjectMeta: v1.ObjectMeta{
-					Name:        AlertmanagerSecretName,
-					Namespace:   DefaultPublicNamespace,
-					Annotations: componentAnnotations(),
-					Labels:      alertmanagerLabels(),
-				},
-				Data: map[string][]byte{AlertmanagerConfigKey: []byte(tcase.amConfig)},
+				Name:        AlertmanagerSecretName,
+				Namespace:   DefaultPublicNamespace,
+				Annotations: componentAnnotations(),
+				Labels:      alertmanagerLabels(),
+				Data:        map[string][]byte{AlertmanagerConfigKey: []byte(tcase.amConfig)},
 			}
 
 			ctx := t.Context()

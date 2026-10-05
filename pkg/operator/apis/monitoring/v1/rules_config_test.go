@@ -23,7 +23,6 @@ import (
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"github.com/prometheus/prometheus/promql/parser"
 	"go.yaml.in/yaml/v3"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGenerateRules(t *testing.T) {
@@ -40,9 +39,7 @@ func TestGenerateRules(t *testing.T) {
 		{
 			name: "good",
 			apiRules: &Rules{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "test-namespace",
-				},
+				Namespace: "test-namespace",
 				Spec: RulesSpec{
 					Groups: []RuleGroup{
 						{

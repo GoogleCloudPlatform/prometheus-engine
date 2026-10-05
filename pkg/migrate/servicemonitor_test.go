@@ -51,11 +51,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
 					Endpoints: []pomonitoringv1.Endpoint{
@@ -65,14 +63,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -112,11 +106,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
 					Endpoints: []pomonitoringv1.Endpoint{
@@ -126,14 +118,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor-service-a",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor-service-a",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -147,14 +135,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor-service-b",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor-service-b",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "bar-pod"},
@@ -193,11 +177,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
 					Endpoints: []pomonitoringv1.Endpoint{
@@ -207,14 +189,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor-service-a",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor-service-a",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -228,14 +206,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor-service-b",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor-service-b",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -274,11 +248,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					Selector:     metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
 					TargetLabels: []string{"team"},
@@ -289,14 +261,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor-service-a",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor-service-a",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -317,14 +285,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor-service-b",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor-service-b",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -368,11 +332,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					Selector:     metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
 					TargetLabels: []string{"team"},
@@ -383,14 +345,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor-service-labeled",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor-service-labeled",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -411,14 +369,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor-service-unlabeled",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor-service-unlabeled",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -457,11 +411,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "redis-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "redis-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "redis"}},
 					Endpoints: []pomonitoringv1.Endpoint{
@@ -471,14 +423,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "redis-monitor",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "redis-monitor",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "redis-pod"},
@@ -516,11 +464,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						MatchNames: []string{"ns-1", "ns-2"},
@@ -533,14 +479,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor-service-a",
-						Namespace: "ns-1",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor-service-a",
+					Namespace:  "ns-1",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod-1"},
@@ -554,14 +496,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor-service-b",
-						Namespace: "ns-2",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor-service-b",
+					Namespace:  "ns-2",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod-2"},
@@ -599,11 +537,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-cluster-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-cluster-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{Any: true},
 					Selector:          metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
@@ -614,13 +550,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.ClusterPodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "ClusterPodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "my-cluster-monitor-ns-1-service-a",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "ClusterPodMonitoring",
+					Name:       "my-cluster-monitor-ns-1-service-a",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -634,13 +566,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 				&monitoringv1.ClusterPodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "ClusterPodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "my-cluster-monitor-ns-2-service-b",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "ClusterPodMonitoring",
+					Name:       "my-cluster-monitor-ns-2-service-b",
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "bar-pod"},
@@ -660,11 +588,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			name:       "Missing backing Service",
 			setupCache: func(_ *ResourceCache) error { return nil },
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
 					Endpoints: []pomonitoringv1.Endpoint{
@@ -674,13 +600,11 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
-						},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "my-monitor",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -703,11 +627,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			name:       "Missing backing Service with multiple target namespaces",
 			setupCache: func(_ *ResourceCache) error { return nil },
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{
 						MatchNames: []string{"ns-1", "ns-2"},
@@ -720,13 +642,11 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor",
-						Namespace: "ns-1",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
-						},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "my-monitor",
+					Namespace: "ns-1",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -743,13 +663,11 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 					},
 				},
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor",
-						Namespace: "ns-2",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
-						},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "my-monitor",
+					Namespace: "ns-2",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -772,11 +690,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			name:       "Missing backing Service with cluster scoping",
 			setupCache: func(_ *ResourceCache) error { return nil },
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-cluster-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-cluster-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					NamespaceSelector: pomonitoringv1.NamespaceSelector{Any: true},
 					Selector:          metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
@@ -788,11 +704,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			expected: []runtime.Object{
 				&monitoringv1.ClusterPodMonitoring{
 					TypeMeta: BuildTypeMeta(KindClusterPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "my-cluster-monitor",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
-						},
+					Name:     "my-cluster-monitor",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Corresponding Kubernetes Service was not found. Selector and port mappings could not be resolved. ACTION: Define target pod selector in 'spec.selector.matchLabels' and verify endpoint ports.",
 					},
 					Spec: monitoringv1.ClusterPodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -823,11 +737,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
 					Endpoints: []pomonitoringv1.Endpoint{
@@ -850,11 +762,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
 					Endpoints: []pomonitoringv1.Endpoint{
@@ -864,13 +774,11 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: BuildTypeMeta(KindPodMonitoring),
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor",
-						Namespace: "default",
-						Annotations: map[string]string{
-							"gmp.googleapis.com/todo-1": "[ERROR] Endpoint [0] does not specify a 'port' or 'targetPort'. ACTION: Specify a valid port name or number in 'spec.endpoints[].port'.",
-						},
+					TypeMeta:  BuildTypeMeta(KindPodMonitoring),
+					Name:      "my-monitor",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"gmp.googleapis.com/todo-1": "[ERROR] Endpoint [0] does not specify a 'port' or 'targetPort'. ACTION: Specify a valid port name or number in 'spec.endpoints[].port'.",
 					},
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
@@ -902,11 +810,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					JobLabel: "job-key",
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
@@ -917,14 +823,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -959,11 +861,9 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 				)
 			},
 			inputSM: &pomonitoringv1.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor"},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "my-monitor",
-					Namespace: "default",
-				},
+				APIVersion: "monitoring.coreos.com/v1", Kind: "ServiceMonitor",
+				Name:      "my-monitor",
+				Namespace: "default",
 				Spec: pomonitoringv1.ServiceMonitorSpec{
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "foo"}},
 					Endpoints: []pomonitoringv1.Endpoint{
@@ -973,14 +873,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 			},
 			expected: []runtime.Object{
 				&monitoringv1.PodMonitoring{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "monitoring.googleapis.com/v1",
-						Kind:       "PodMonitoring",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-monitor",
-						Namespace: "default",
-					},
+					APIVersion: "monitoring.googleapis.com/v1",
+					Kind:       "PodMonitoring",
+					Name:       "my-monitor",
+					Namespace:  "default",
 					Spec: monitoringv1.PodMonitoringSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "foo-pod"},
@@ -1050,12 +946,10 @@ func TestServiceMonitorConverter_Convert(t *testing.T) {
 
 func addServiceWithSelectorToCache(cache *ResourceCache, namespace, name string, labels map[string]string, selector map[string]string, ports []corev1.ServicePort) error {
 	svc := &corev1.Service{
-		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Service"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    labels,
-		},
+		APIVersion: "v1", Kind: "Service",
+		Name:      name,
+		Namespace: namespace,
+		Labels:    labels,
 		Spec: corev1.ServiceSpec{
 			Selector: selector,
 			Ports:    ports,

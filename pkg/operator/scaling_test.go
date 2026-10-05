@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	autoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -29,24 +28,16 @@ import (
 
 func TestApplyVPA(t *testing.T) {
 	alertmanagerVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: alertmanagerVPAName,
-		},
+		Name: alertmanagerVPAName,
 	}
 	collectorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: collectorVPAName,
-		},
+		Name: collectorVPAName,
 	}
 	operatorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: operatorVPAName,
-		},
+		Name: operatorVPAName,
 	}
 	ruleEvaluatorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ruleEvaluatorVPAName,
-		},
+		Name: ruleEvaluatorVPAName,
 	}
 
 	scheme, err := NewScheme()
@@ -128,24 +119,16 @@ func TestApplyVPA(t *testing.T) {
 
 func TestDeleteVPA(t *testing.T) {
 	alertmanagerVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: alertmanagerVPAName,
-		},
+		Name: alertmanagerVPAName,
 	}
 	collectorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: collectorVPAName,
-		},
+		Name: collectorVPAName,
 	}
 	operatorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: operatorVPAName,
-		},
+		Name: operatorVPAName,
 	}
 	ruleEvaluatorVPA := autoscalingv1.VerticalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ruleEvaluatorVPAName,
-		},
+		Name: ruleEvaluatorVPAName,
 	}
 
 	scheme, err := NewScheme()

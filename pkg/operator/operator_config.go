@@ -38,7 +38,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -113,10 +112,8 @@ func componentAnnotations() map[string]string {
 func setupOperatorConfigControllers(op *Operator) error {
 	// The singleton OperatorConfig is the request object we reconcile against.
 	objRequest := reconcile.Request{
-		NamespacedName: types.NamespacedName{
-			Namespace: op.opts.PublicNamespace,
-			Name:      NameOperatorConfig,
-		},
+		Namespace: op.opts.PublicNamespace,
+		Name:      NameOperatorConfig,
 	}
 	// Default OperatorConfig filter.
 	objFilterOperatorConfig := namespacedNamePredicate{
@@ -246,10 +243,8 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 func (r *operatorConfigReconciler) ensureOperatorConfig(ctx context.Context, logger logr.Logger, req reconcile.Request) (*monitoringv1.OperatorConfig, error) {
 	exists := true
 	config := &monitoringv1.OperatorConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: req.Namespace,
-			Name:      req.Name,
-		},
+		Namespace: req.Namespace,
+		Name:      req.Name,
 	}
 	if err := r.client.Get(ctx, req.NamespacedName, config); apierrors.IsNotFound(err) {
 		logger.Info("no operatorconfig created yet")
@@ -342,10 +337,8 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 
 	// Create rule-evaluator Secret.
 	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      NameRuleEvaluator,
-			Namespace: r.opts.OperatorNamespace,
-		},
+		Name:      NameRuleEvaluator,
+		Namespace: r.opts.OperatorNamespace,
 		Data: map[string]string{
 			configFilename: string(cfgEncoded),
 		},
@@ -356,13 +349,11 @@ func (r *operatorConfigReconciler) makeRuleEvaluatorConfig(ctx context.Context, 
 // ensureRuleEvaluatorSecrets reconciles the Secrets for rule-evaluator.
 func (r *operatorConfigReconciler) ensureRuleEvaluatorSecrets(ctx context.Context, data map[string][]byte) error {
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        RulesSecretName,
-			Namespace:   r.opts.OperatorNamespace,
-			Annotations: componentAnnotations(),
-			Labels:      rulesLabels(),
-		},
-		Data: make(map[string][]byte),
+		Name:        RulesSecretName,
+		Namespace:   r.opts.OperatorNamespace,
+		Annotations: componentAnnotations(),
+		Labels:      rulesLabels(),
+		Data:        make(map[string][]byte),
 	}
 	maps.Copy(secret.Data, data)
 
@@ -387,21 +378,17 @@ func (r *operatorConfigReconciler) ensureAlertmanagerConfigSecret(ctx context.Co
 	// default secret exists (so that the alertmanager pod doesn't crash due to no
 	// config found). This flow also handles user deletion/disabling of managed AM.
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        AlertmanagerSecretName,
-			Namespace:   r.opts.OperatorNamespace,
-			Annotations: componentAnnotations(),
-			Labels:      alertmanagerLabels(),
-		},
-		Data: map[string][]byte{AlertmanagerConfigKey: []byte(AlertmanagerNoOpConfig)},
+		Name:        AlertmanagerSecretName,
+		Namespace:   r.opts.OperatorNamespace,
+		Annotations: componentAnnotations(),
+		Labels:      alertmanagerLabels(),
+		Data:        map[string][]byte{AlertmanagerConfigKey: []byte(AlertmanagerNoOpConfig)},
 	}
 
 	// Set defaults on public namespace secret.
 	sel := &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{
-			Name: AlertmanagerPublicSecretName,
-		},
-		Key: AlertmanagerPublicSecretKey,
+		Name: AlertmanagerPublicSecretName,
+		Key:  AlertmanagerPublicSecretKey,
 	}
 	// Overwrite defaults if specified.
 	if spec != nil && spec.ConfigSecret != nil {

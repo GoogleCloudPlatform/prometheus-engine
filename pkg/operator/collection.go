@@ -49,10 +49,8 @@ import (
 func setupCollectionControllers(op *Operator) error {
 	// The singleton OperatorConfig is the request object we reconcile against.
 	objRequest := reconcile.Request{
-		NamespacedName: types.NamespacedName{
-			Namespace: op.opts.PublicNamespace,
-			Name:      NameOperatorConfig,
-		},
+		Namespace: op.opts.PublicNamespace,
+		Name:      NameOperatorConfig,
 	}
 	// Default OperatorConfig filter.
 	objFilterOperatorConfig := namespacedNamePredicate{
@@ -186,15 +184,13 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 
 func (r *collectionReconciler) ensureCollectorSecrets(ctx context.Context, spec *monitoringv1.CollectionSpec) error {
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      CollectionSecretName,
-			Namespace: r.opts.OperatorNamespace,
-			Labels: map[string]string{
-				LabelAppName: NameCollector,
-			},
-			Annotations: map[string]string{
-				AnnotationMetricName: componentName,
-			},
+		Name:      CollectionSecretName,
+		Namespace: r.opts.OperatorNamespace,
+		Labels: map[string]string{
+			LabelAppName: NameCollector,
+		},
+		Annotations: map[string]string{
+			AnnotationMetricName: componentName,
 		},
 		Data: make(map[string][]byte),
 	}
@@ -296,10 +292,8 @@ func (r *collectionReconciler) ensureCollectorConfig(ctx context.Context, spec *
 	}
 
 	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.opts.OperatorNamespace,
-			Name:      NameCollector,
-		},
+		Namespace: r.opts.OperatorNamespace,
+		Name:      NameCollector,
 	}
 	if err := setConfigMapData(cm, configCompression, configFilename, string(cfgEncoded)); err != nil {
 		return err

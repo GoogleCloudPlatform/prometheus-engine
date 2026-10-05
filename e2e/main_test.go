@@ -33,7 +33,6 @@ import (
 	"google.golang.org/api/option"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -151,10 +150,8 @@ func getExplicitGCMSAJSON() ([]byte, error) {
 
 func createGCMSecret(ctx context.Context, kubeClient client.Client, serviceAccount []byte) error {
 	if err := kubeClient.Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      gcmExplicitSecretName,
-			Namespace: operator.DefaultPublicNamespace,
-		},
+		Name:      gcmExplicitSecretName,
+		Namespace: operator.DefaultPublicNamespace,
 		Data: map[string][]byte{
 			gcmExplicitSecretKey: serviceAccount,
 		},
@@ -199,21 +196,19 @@ func configureOperatorExplicitCredentials(ctx context.Context, kubeClient client
 	// empty OperatorConfig in the same time.
 	return wait.PollUntilContextCancel(ctx, 500*time.Millisecond, false, func(ctx context.Context) (bool, error) {
 		config := monitoringv1.OperatorConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      operator.NameOperatorConfig,
-				Namespace: operator.DefaultPublicNamespace,
-			},
+			Name:      operator.NameOperatorConfig,
+			Namespace: operator.DefaultPublicNamespace,
 		}
 		if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(&config), &config); err != nil {
 			return false, fmt.Errorf("get operatorconfig: %w", err)
 		}
 		config.Collection.Credentials = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: gcmExplicitSecretName},
-			Key:                  gcmExplicitSecretKey,
+			Name: gcmExplicitSecretName,
+			Key:  gcmExplicitSecretKey,
 		}
 		config.Rules.Credentials = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: gcmExplicitSecretName},
-			Key:                  gcmExplicitSecretKey,
+			Name: gcmExplicitSecretName,
+			Key:  gcmExplicitSecretKey,
 		}
 		if err := kubeClient.Update(ctx, &config); err != nil {
 			return false, fmt.Errorf("update operatorconfig: %w", err)

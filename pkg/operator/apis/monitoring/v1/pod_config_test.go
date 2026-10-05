@@ -26,7 +26,6 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/relabel"
 	"go.yaml.in/yaml/v3"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -273,10 +272,8 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 	// defaulting as the Prometheus structs are misconfigured in this regard in
 	// several places.
 	pmon := &PodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "name1",
-		},
+		Namespace: "ns1",
+		Name:      "name1",
 		Spec: PodMonitoringSpec{
 			Endpoints: []ScrapeEndpoint{
 				{
@@ -307,11 +304,7 @@ func TestPodMonitoring_ScrapeConfig(t *testing.T) {
 					Interval: "10000ms",
 					Timeout:  "5s",
 					Path:     "/prometheus",
-					HTTPClientConfig: HTTPClientConfig{
-						ProxyConfig: ProxyConfig{
-							ProxyURL: "http://foo.bar/test",
-						},
-					},
+					ProxyURL: "http://foo.bar/test",
 				},
 			},
 			TargetLabels: TargetLabels{
@@ -517,9 +510,7 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 	// defaulting as the Prometheus structs are misconfigured in this regard in
 	// several places.
 	pmon := &ClusterPodMonitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "name1",
-		},
+		Name: "name1",
 		Spec: ClusterPodMonitoringSpec{
 			Endpoints: []ScrapeEndpoint{
 				{
@@ -547,11 +538,7 @@ func TestClusterPodMonitoring_ScrapeConfig(t *testing.T) {
 					Interval: "10000ms",
 					Timeout:  "5s",
 					Path:     "/prometheus",
-					HTTPClientConfig: HTTPClientConfig{
-						ProxyConfig: ProxyConfig{
-							ProxyURL: "http://foo.bar/test",
-						},
-					},
+					ProxyURL: "http://foo.bar/test",
 				},
 			},
 			TargetLabels: ClusterTargetLabels{
@@ -793,10 +780,8 @@ func TestScrapeIntervalFloor(t *testing.T) {
 				Timeout:  tc.timeout,
 			}
 			pmon := &PodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "ns1",
-					Name:      "name1",
-				},
+				Namespace: "ns1",
+				Name:      "name1",
 				Spec: PodMonitoringSpec{
 					Endpoints: []ScrapeEndpoint{ep},
 				},
@@ -822,9 +807,7 @@ func TestScrapeIntervalFloor(t *testing.T) {
 			}
 
 			cpmon := &ClusterPodMonitoring{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "name1",
-				},
+				Name: "name1",
 				Spec: ClusterPodMonitoringSpec{
 					Endpoints: []ScrapeEndpoint{ep},
 				},
