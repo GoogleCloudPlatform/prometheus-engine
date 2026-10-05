@@ -17,7 +17,7 @@ name: Renovate Auto-Merge
 on:
   # zizmor: ignore[dangerous-triggers]
   pull_request_target:
-    types: [opened, synchronize, ready_for_review]
+    types: [opened, synchronize, ready_for_review, labeled]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -36,7 +36,8 @@ jobs:
         github.event.pull_request.user.id == 25180681 &&
         (github.event.pull_request.head.repo.full_name == 'renovate-bot/GoogleCloudPlatform-_-prometheus-engine' ||
          github.event.pull_request.head.repo.full_name == github.repository) &&
-        contains(github.event.pull_request.body, '**Automerge**: Enabled')
+        (contains(github.event.pull_request.labels.*.name, 'automerge') ||
+         contains(github.event.pull_request.body, '**Automerge**: Enabled'))
       )
     runs-on: ubuntu-latest
     permissions:
@@ -54,7 +55,7 @@ jobs:
           echo "Evaluating Pull Request #${PR_NUMBER} in ${REPO} for secure auto-merge..."
 
           # 1. Fetch Pull Request metadata
-          PR_JSON=$(gh pr view "${PR_NUMBER}" --repo "${REPO}" --json author,isDraft,headRepository,body,url)
+          PR_JSON=$(gh pr view "${PR_NUMBER}" --repo "${REPO}" --json author,isDraft,headRepository,labels,body,url)
 
           IS_DRAFT=$(echo "${PR_JSON}" | jq -r '.isDraft')
           if [ "${IS_DRAFT}" = "true" ]; then
@@ -74,9 +75,10 @@ jobs:
             exit 1
           fi
 
+          HAS_AUTOMERGE_LABEL=$(echo "${PR_JSON}" | jq -r '[.labels[]?.name | select(. == "automerge")] | length')
           BODY=$(echo "${PR_JSON}" | jq -r '.body')
-          if [[ "${BODY}" != *'**Automerge**: Enabled'* ]]; then
-            echo "Automerge is not enabled in PR description; skipping auto-merge."
+          if [ "${HAS_AUTOMERGE_LABEL}" -eq 0 ] && [[ "${BODY}" != *'**Automerge**: Enabled'* ]]; then
+            echo "Automerge is not enabled (missing 'automerge' label and '**Automerge**: Enabled' in description); skipping auto-merge."
             exit 0
           fi
 

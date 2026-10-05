@@ -124,6 +124,9 @@
       semanticCommitType: 'ci',
       automerge: true,
       automergeType: 'pr',
+      addLabels: [
+        'automerge',
+      ],
     },
     // Docker updates
     {
@@ -135,6 +138,9 @@
       groupSlug: 'docker',
       automerge: true,
       automergeType: 'pr',
+      addLabels: [
+        'automerge',
+      ],
     },
     {
       description: 'Stop upgrading prometheus-engine images as those are handled by manifest command (e.g. make regen)',
@@ -234,6 +240,9 @@
       ],
       automerge: true,
       automergeType: 'pr',
+      addLabels: [
+        'automerge',
+      ],
     },
     // Release branches policy: disable routine updates for Go modules (security updates remain enabled via vulnerabilityAlerts)
     {

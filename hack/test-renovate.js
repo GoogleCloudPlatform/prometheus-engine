@@ -117,10 +117,32 @@ async function runTests() {
       `Base image ${img} has automerge enabled`
     );
     assert(
+      Array.isArray(res.addLabels) && res.addLabels.includes('automerge'),
+      `Base image ${img} has automerge label`
+    );
+    assert(
       res.enabled !== false,
       `Base image ${img} upgrades are enabled`
     );
   }
+
+  const actionsUpdate = await simulateDep('actions/checkout', {
+    manager: 'github-actions',
+    packageFile: '.github/workflows/presubmit.yml',
+    updateType: 'patch',
+  });
+  assert(
+    actionsUpdate.groupName === 'github-actions' && actionsUpdate.groupSlug === 'github-actions',
+    'GitHub Actions update is grouped under "github-actions"'
+  );
+  assert(
+    actionsUpdate.automerge === true && actionsUpdate.automergeType === 'pr',
+    'GitHub Actions update has automerge enabled'
+  );
+  assert(
+    Array.isArray(actionsUpdate.addLabels) && actionsUpdate.addLabels.includes('automerge'),
+    'GitHub Actions update has automerge label'
+  );
 
   const selfImages = [
     'gke.gcr.io/prometheus-engine/frontend',
@@ -194,6 +216,10 @@ async function runTests() {
     generalMinor.automerge !== true,
     'General Go minor update is not automerged'
   );
+  assert(
+    !generalMinor.addLabels || !generalMinor.addLabels.includes('automerge'),
+    'General Go minor update does not have automerge label'
+  );
 
   const generalPatch = await simulateDep('github.com/google/go-cmp', {
     updateType: 'patch',
@@ -205,6 +231,10 @@ async function runTests() {
   assert(
     generalPatch.automerge === true,
     'General Go patch update is automerged'
+  );
+  assert(
+    Array.isArray(generalPatch.addLabels) && generalPatch.addLabels.includes('automerge'),
+    'General Go patch update has automerge label'
   );
   assert(
     config.commitMessageTopic === '{{depName}}',
