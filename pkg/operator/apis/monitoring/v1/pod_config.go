@@ -348,7 +348,7 @@ func endpointScrapeConfig(
 	if ep.Port.StrVal != "" {
 		portValue, err := relabel.NewRegexp(ep.Port.StrVal)
 		if err != nil {
-			return nil, fmt.Errorf("invalid port name %q: %w", ep.Port, err)
+			return nil, fmt.Errorf("invalid port name %q: %w", ep.Port.String(), err)
 		}
 		relabelCfgs = append(relabelCfgs, &relabel.Config{
 			Action:       relabel.Keep,
