@@ -16,8 +16,11 @@ on:
   push:
     branches:
       - main
-      - release-.*
+      - 'release/**'
   pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   bin:
     runs-on: ubuntu-latest
@@ -29,6 +32,10 @@ jobs:
           persist-credentials: false
       - name: Build go images
         run: make bin
+      - name: Run container image tests
+        env:
+          GCM_SECRET: ${{ secrets.GCM_SECRET }}
+        run: go test -tags=image ./cmd/frontend
   conform:
     runs-on: ubuntu-latest
     permissions:
@@ -97,18 +104,6 @@ jobs:
         env:
           GCM_SECRET: ${{ secrets.GCM_SECRET }}
         run: make test-script-gcm
-  image-test:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      with:
-        persist-credentials: false
-    - name: Run container image tests
-      env:
-        GCM_SECRET: ${{ secrets.GCM_SECRET }}
-      run: make image-test
   e2e-testruns:
     runs-on: ubuntu-latest
     permissions:
@@ -139,3 +134,14 @@ jobs:
           GCM_SECRET: ${{ secrets.GCM_SECRET }}
           MATRIX_TESTRUN: ${{matrix.testrun}}
         run: TEST_RUN=${MATRIX_TESTRUN} make e2e
+  e2e-status:
+    runs-on: ubuntu-latest
+    permissions: {}
+    needs: [e2e-testruns, e2e-test]
+    if: always()
+    steps:
+      - name: Verify E2E test matrix results
+        run: |
+          if [ "${{ needs.e2e-testruns.result }}" != "success" ] || [ "${{ needs.e2e-test.result }}" != "success" ]; then
+            exit 1
+          fi
