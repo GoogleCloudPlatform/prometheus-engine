@@ -1,0 +1,248 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+name: GCM Tests
+
+# Runs the tests that write to and read from Google Cloud Monitoring (GCM)
+# using GCM_SECRET. The presubmit workflow can't do this for pull requests from
+# forks, because GitHub never passes secrets to fork pull_request runs.
+#
+# pull_request_target is used so that fork pull requests can reach the secret.
+# Pull request code is executed with secrets, which is acceptable only because:
+# * GCM_SECRET for this workflow lives in the gcm-auto and gcm-protected
+#   environments.
+# * gcm-auto is selected only for pushes, for pull requests where both the
+#   author and the event sender have the admin or maintain role on this
+#   repository, and for verified Renovate pull requests (see
+#   select-environment).
+# * Everything else uses gcm-protected, which requires an approval from the
+#   gmp team after reviewing the code that will run.
+# * Checkout is pinned to the head SHA from the event payload, so commits
+#   pushed after the run was triggered are never executed with secrets.
+# * GITHUB_TOKEN is read-only and checkout does not persist credentials.
+#
+# zizmor: ignore[dangerous-triggers]
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+  # zizmor: ignore[dangerous-triggers]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Cancel superseded pull request runs (including ones waiting for approval),
+  # but let every push to a protected branch finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
+
+jobs:
+  select-environment:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      environment: ${{ steps.select.outputs.environment }}
+      run-e2e: ${{ steps.select.outputs.run-e2e }}
+    steps:
+      # This step only reads API metadata; it never checks out or runs pull
+      # request code.
+      - id: select
+        name: Select GCM environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          SENDER: ${{ github.event.sender.login }}
+          SENDER_ID: ${{ github.event.sender.id }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Check whether the target branch's e2e harness accepts GCM_SECRET.
+          if gh api "repos/${REPO}/contents/hack/kind-test.sh?ref=${BASE_SHA}" --jq '.content' 2>/dev/null | base64 -d | grep -q 'GCM_SECRET'; then
+            echo "run-e2e=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "run-e2e=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+          use_env() { echo "Using $1: $2"; echo "environment=$1" >> "${GITHUB_OUTPUT}"; exit 0; }
+
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            use_env gcm-auto "push to a protected branch"
+          fi
+
+          # 1. Maintainers (repository role admin or maintain, e.g. team gmp).
+          # Fail closed: any API error is treated as "not a maintainer".
+          role() {
+            gh api "repos/${REPO}/collaborators/$1/permission" --jq '.role_name' 2>/dev/null || echo "none"
+          }
+          AUTHOR_ROLE="$(role "${PR_AUTHOR}")"
+          SENDER_ROLE="$(role "${SENDER}")"
+          echo "PR author ${PR_AUTHOR}: ${AUTHOR_ROLE}; event sender ${SENDER}: ${SENDER_ROLE}"
+          if [[ "${AUTHOR_ROLE}" =~ ^(admin|maintain)$ && "${SENDER_ROLE}" =~ ^(admin|maintain)$ ]]; then
+            use_env gcm-auto "PR author and sender are maintainers"
+          fi
+
+          # 2. Verified Renovate pull requests. Keep in sync with
+          # renovate-automerge.yml.
+          RENOVATE_ID=25180681
+          RENOVATE_REPO="renovate-bot/GoogleCloudPlatform-_-prometheus-engine"
+          RENOVATE_KEY="A1020E7F5FFD673D"
+          if [[ "${PR_AUTHOR_ID}" != "${RENOVATE_ID}" || "${SENDER_ID}" != "${RENOVATE_ID}" || "${HEAD_REPO}" != "${RENOVATE_REPO}" ]]; then
+            use_env gcm-protected "not a maintainer or Renovate PR"
+          fi
+          # $owner, $repo and $pr are GraphQL variables, not shell expansions.
+          # shellcheck disable=SC2016
+          QUERY='query($owner: String!, $repo: String!, $pr: Int!) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $pr) {
+                headRefOid
+                changedFiles
+                files(first: 100) { nodes { path } }
+                commits(first: 100) {
+                  totalCount
+                  nodes { commit { signature {
+                    isValid
+                    signer { login }
+                    ... on GpgSignature { keyId }
+                  } } }
+                }
+              }
+            }
+          }'
+          if ! PR_JSON="$(gh api graphql -F owner="${REPO%%/*}" -F repo="${REPO#*/}" -F pr="${PR_NUMBER}" \
+              -f query="${QUERY}" --jq '.data.repository.pullRequest')"; then
+            use_env gcm-protected "failed to query Renovate PR details"
+          fi
+          # Require: the event SHA is still the PR head, every commit is signed
+          # by Mend Renovate, and no file that can change CI behavior is touched.
+          if ! jq -e --arg sha "${HEAD_SHA}" --arg key "${RENOVATE_KEY}" '
+              .headRefOid == $sha
+              and (.files.nodes | length) == .changedFiles
+              and (.commits.nodes | length) == .commits.totalCount
+              and .commits.totalCount > 0
+              and all(.commits.nodes[].commit.signature;
+                    . != null and .isValid == true and .signer.login == "renovate-bot" and .keyId == $key)
+              and all(.files.nodes[].path;
+                    (. == "Makefile" or startswith("hack/") or startswith(".github/")
+                     or endswith(".sh") or endswith(".go")) | not)
+            ' <<< "${PR_JSON}" > /dev/null; then
+            use_env gcm-protected "Renovate PR is unsigned, stale, or touches sensitive files"
+          fi
+          use_env gcm-auto "verified Renovate PR"
+
+  gcm-script-test:
+    needs: select-environment
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Scalar syntax is required for CodeQL's EnvironmentCheck sanitizer.
+    environment: ${{ needs.select-environment.outputs.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          # Safe only behind the environment gate above; see the header comment.
+          allow-unsafe-pr-checkout: true
+      - name: Run example/script GCM tests
+        env:
+          GCM_SECRET: ${{ secrets.GCM_SECRET }}
+        run: |
+          if [[ -z "${GCM_SECRET}" ]]; then echo "::error::GCM_SECRET is empty"; exit 1; fi
+          make test-script-gcm
+
+  gcm-image-test:
+    needs: select-environment
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Scalar syntax is required for CodeQL's EnvironmentCheck sanitizer.
+    environment: ${{ needs.select-environment.outputs.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          # Safe only behind the environment gate above; see the header comment.
+          allow-unsafe-pr-checkout: true
+      - name: Run container image tests
+        env:
+          GCM_SECRET: ${{ secrets.GCM_SECRET }}
+        run: |
+          if [[ -z "${GCM_SECRET}" ]]; then echo "::error::GCM_SECRET is empty"; exit 1; fi
+          make image-test
+
+  gcm-e2e-test:
+    needs: select-environment
+    if: needs.select-environment.outputs.run-e2e == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Scalar syntax is required for CodeQL's EnvironmentCheck sanitizer.
+    environment: ${{ needs.select-environment.outputs.environment }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The e2e tests that validate data in GCM, i.e. the ones that change
+        # behavior based on skipGCM in e2e/. Keep in sync.
+        testrun:
+          - '^TestCollectorPodMonitoring$'
+          - '^TestCollectorClusterPodMonitoring$'
+          - '^TestCollectorKubeletScraping$'
+          - '^TestCollectorMatch_NoFiltering$'
+          - '^TestCollectorMatch_NewFilter$'
+          - '^TestCollectorMatch_NewFilter_ThenRemoved$'
+          - '^TestCollectorMatch_StuckFilter$'
+          - '^TestRuleEvaluatorNoCompression$'
+          - '^TestRuleEvaluatorGzipCompression$'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          # Safe only behind the environment gate above; see the header comment.
+          allow-unsafe-pr-checkout: true
+      - name: Run e2e with GCM validation
+        env:
+          GCM_SECRET: ${{ secrets.GCM_SECRET }}
+          MATRIX_TESTRUN: ${{ matrix.testrun }}
+        run: |
+          if [[ -z "${GCM_SECRET}" ]]; then echo "::error::GCM_SECRET is empty"; exit 1; fi
+          TEST_RUN="${MATRIX_TESTRUN}" make e2e
+
+  gcm-tests:
+    # Single, stable check name for rulesets, independent of the matrix.
+    if: always()
+    needs: [gcm-script-test, gcm-image-test, gcm-e2e-test]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Check results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -e '
+            .["gcm-script-test"].result == "success"
+            and .["gcm-image-test"].result == "success"
+            and (.["gcm-e2e-test"].result == "success" or .["gcm-e2e-test"].result == "skipped")
+          ' <<< "${NEEDS}"
