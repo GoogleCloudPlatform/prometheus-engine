@@ -133,6 +133,7 @@
       description: 'Group and automerge Docker image updates',
       matchManagers: [
         'dockerfile',
+        'custom.regex',
       ],
       groupName: 'docker',
       groupSlug: 'docker',
@@ -143,16 +144,49 @@
       ],
     },
     {
-      description: 'Stop upgrading prometheus-engine images as those are handled by manifest command (e.g. make regen)',
+      description: 'Parse patch, build (-gmp.N), and revision (-gke.N) versions for prometheus-engine images',
       matchManagers: [
         'dockerfile',
+        'custom.regex',
       ],
       matchPackageNames: [
         'gke.gcr.io/prometheus-engine/**',
         'gke-release/prometheus-engine/**',
         'gcr.io/gke-release/prometheus-engine/**',
       ],
+      versioning: 'regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-(?:gmp|gke)\\.(?<build>\\d+)(?:-gke\\.(?<revision>\\d+))?$',
+    },
+    {
+      description: 'Allow only patch, build, and revision updates for prometheus-engine images (disable major and minor bumps)',
+      matchManagers: [
+        'dockerfile',
+        'custom.regex',
+      ],
+      matchPackageNames: [
+        'gke.gcr.io/prometheus-engine/**',
+        'gke-release/prometheus-engine/**',
+        'gcr.io/gke-release/prometheus-engine/**',
+      ],
+      matchUpdateTypes: [
+        'major',
+        'minor',
+      ],
       enabled: false,
+    },
+    {
+      description: 'Disable minimum release age for 1P Google container images (GCR and Artifact Registry do not expose release timestamps)',
+      matchManagers: [
+        'dockerfile',
+        'custom.regex',
+      ],
+      matchPackageNames: [
+        'gke.gcr.io/**',
+        'gcr.io/distroless/**',
+        'gcr.io/gke-release/**',
+        'google-go.pkg.dev/**',
+        '*-docker.pkg.dev/serverless-runtimes/**',
+      ],
+      minimumReleaseAge: null,
     },
     // Auxiliary Go modules (tools, examples, ops/gmpctl)
     {
@@ -264,6 +298,7 @@
       matchManagers: [
         'github-actions',
         'dockerfile',
+        'custom.regex',
       ],
       matchUpdateTypes: [
         'major',
