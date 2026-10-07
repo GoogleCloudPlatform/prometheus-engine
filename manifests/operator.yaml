@@ -229,7 +229,7 @@ rules:
 - resources:
   - verticalpodautoscalers
   apiGroups: ["autoscaling.k8s.io"]
-  verbs: ["create", "delete", "get", "list", "watch"]
+  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
 ---
 # Source: operator/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
