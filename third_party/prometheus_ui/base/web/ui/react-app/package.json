@@ -23,10 +23,9 @@
     "bootstrap": "^4.6.2",
     "css.escape": "^1.5.1",
     "downshift": "^7.6.0",
-    "http-proxy-middleware": "^2.0.6",
     "jquery": "^3.7.0",
     "jquery.flot.tooltip": "^0.9.0",
-    "moment": "^2.29.4",
+    "moment": "^2.31.0",
     "moment-timezone": "^0.5.43",
     "popper.js": "^1.14.3",
     "react": "^17.0.2",
@@ -37,8 +36,7 @@
     "react-router-dom": "^5.3.4",
     "react-test-renderer": "^17.0.2",
     "reactstrap": "^8.10.1",
-    "sanitize-html": "^2.10.0",
-    "sass": "1.62.1",
+    "sanitize-html": "^2.17.7",
     "tempusdominus-bootstrap-4": "^5.39.2",
     "tempusdominus-core": "^5.19.3"
   },
@@ -78,7 +76,9 @@
     "@wojtekmaj/enzyme-adapter-react-17": "^0.8.0",
     "enzyme": "^3.11.0",
     "enzyme-to-json": "^3.6.2",
+    "http-proxy-middleware": "^2.0.10",
     "mutationobserver-shim": "^0.3.7",
+    "sass": "1.62.1",
     "sinon": "^14.0.2"
   },
   "jest": {
@@ -86,11 +86,12 @@
       "enzyme-to-json/serializer"
     ],
     "transformIgnorePatterns": [
-      "<rootDir>/../node_modules/(?!@prometheus-io/codemirror-promql)/",
-      "<rootDir>/../node_modules/(?!@prometheus-io/lezer-promql)/"
+      "<rootDir>/../node_modules/(?!(@prometheus-io/codemirror-promql|@prometheus-io/lezer-promql|sanitize-html/node_modules/(htmlparser2|entities|domutils|domhandler|domelementtype|dom-serializer)))/"
     ],
     "moduleNameMapper": {
-      "lezer-promql": "<rootDir>/../node_modules/@prometheus-io/lezer-promql/dist/index.cjs"
+      "lezer-promql": "<rootDir>/../node_modules/@prometheus-io/lezer-promql/dist/index.cjs",
+      "^entities/decode$": "<rootDir>/../node_modules/sanitize-html/node_modules/entities/dist/decode.js",
+      "^entities/escape$": "<rootDir>/../node_modules/sanitize-html/node_modules/entities/dist/escape.js"
     }
   },
   "optionalDependencies": {

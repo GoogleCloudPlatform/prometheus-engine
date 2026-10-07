@@ -1,0 +1,1 @@
+{"version":3,"file":"WebWritableStream.d.ts","sourceRoot":"","sources":["../src/WebWritableStream.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,KAAK,OAAO,EAAU,KAAK,aAAa,EAAE,MAAM,aAAa,CAAC;AAEvE;;;;;;;;;;;;;;;;;;GAkBG;AAEH,qBAAa,iBAAkB,SAAQ,cAAc,CAAC,MAAM,GAAG,UAAU,CAAC;gBAC1D,GAAG,EAAE,OAAO,CAAC,OAAO,CAAC,EAAE,OAAO,CAAC,EAAE,aAAa;CAuB7D"}
