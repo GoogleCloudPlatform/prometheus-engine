@@ -713,7 +713,38 @@ async function runTests() {
 
   if (Array.isArray(config.customManagers) && config.customManagers.length > 0) {
     const { extractPackageFile } = renovateRequire('./dist/modules/manager/custom/regex/index.js');
+    const { matchRegexOrGlob } = renovateRequire('./dist/util/string-match.js');
     const customManager = config.customManagers[0];
+
+    assert(
+      Array.isArray(customManager.managerFilePatterns) &&
+        customManager.managerFilePatterns.length > 0 &&
+        customManager.fileMatch === undefined,
+      'customManager uses managerFilePatterns instead of deprecated fileMatch'
+    );
+
+    const expectedMatchedFiles = [
+      'charts/values.global.yaml',
+      'manifests/operator.yaml',
+      'cmd/datasource-syncer/datasource-syncer.yaml',
+    ];
+    for (const file of expectedMatchedFiles) {
+      const matched = customManager.managerFilePatterns.some((pattern) =>
+        matchRegexOrGlob(file, pattern)
+      );
+      assert(matched, `managerFilePatterns matches ${file}`);
+    }
+
+    const expectedUnmatchedFiles = [
+      'charts/Chart.yaml',
+      'README.md',
+    ];
+    for (const file of expectedUnmatchedFiles) {
+      const matched = customManager.managerFilePatterns.some((pattern) =>
+        matchRegexOrGlob(file, pattern)
+      );
+      assert(!matched, `managerFilePatterns does not match ${file}`);
+    }
 
     const chartContent = fs.readFileSync(path.resolve(__dirname, '../charts/values.global.yaml'), 'utf8');
     const chartRes = extractPackageFile(chartContent, 'charts/values.global.yaml', customManager);

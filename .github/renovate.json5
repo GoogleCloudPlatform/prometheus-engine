@@ -6,7 +6,7 @@
   // Process main branch and all active release branches (unmaintained branches renamed to archive/* are ignored)
   baseBranchPatterns: [
     'main',
-    '/^release\\/.*$/',
+    '/^release/.*$/',
   ],
   // Schedule updates on weekends to match weekly dependabot interval
   schedule: [
@@ -57,10 +57,10 @@
     {
       customType: 'regex',
       description: 'Track all container images in charts/values.global.yaml and manifests',
-      fileMatch: [
-        '^charts/values\\.global\\.yaml$',
-        '^manifests/.*\\.yaml$',
-        '^cmd/datasource-syncer/datasource-syncer\\.yaml$',
+      managerFilePatterns: [
+        '/^charts/values\\.global\\.yaml$/',
+        '/^manifests/.*\\.yaml$/',
+        '/^cmd/datasource-syncer/datasource-syncer\\.yaml$/',
       ],
       matchStrings: [
         'image:\\s*["\']?(?<depName>[^\\s"\'\\n]+)["\']?\\s*\\n\\s*tag:\\s*["\']?(?<currentValue>[^"\'@\\s\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?["\']?',
@@ -282,7 +282,7 @@
     {
       description: 'Disable routine updates for all Go modules on release branches (security updates remain enabled via vulnerabilityAlerts)',
       matchBaseBranches: [
-        '/^release\\/.*$/',
+        '/^release/.*$/',
       ],
       matchManagers: [
         'gomod',
@@ -293,7 +293,7 @@
     {
       description: 'Disable major and minor updates for Dockerfile and GitHub Actions on release branches (allow patch, digest, and vulnerability fixes)',
       matchBaseBranches: [
-        '/^release\\/.*$/',
+        '/^release/.*$/',
       ],
       matchManagers: [
         'github-actions',
