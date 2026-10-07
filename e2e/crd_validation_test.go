@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,21 +37,71 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func createKindCluster(t *testing.T) (client.Client, string) {
-	// Add a randomized suffix to the test cluster name to reduce collisions.
-	clusterName := fmt.Sprintf("crd-test-%s", rand.String(6))
+func existingKindCluster(t *testing.T) (client.Client, string, bool) {
+	t.Helper()
 
-	tmp := t.TempDir()
-	kubeconfigPath := filepath.Join(tmp, "kubeconfig")
-
-	// Create a cluster with a randomized name, and save the kubeconfig in a temporary directory scoped to this test.
-	createClusterOutput, err := exec.CommandContext(t.Context(), "kind", "create", "cluster", "--name", clusterName, "--kubeconfig", kubeconfigPath).CombinedOutput()
-	if err != nil {
-		t.Fatal(err)
+	rules := clientcmd.NewDefaultClientConfigLoadingRules()
+	kubeconfigPath := rules.GetDefaultFilename()
+	if kubeconfigPath == "" {
+		return nil, "", false
 	}
-	t.Logf("%s\n", createClusterOutput)
 
-	t.Cleanup(cleanupKindCluster(t, clusterName))
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, nil)
+	rawConfig, err := clientConfig.RawConfig()
+	if err != nil || !strings.HasPrefix(rawConfig.CurrentContext, "kind-") {
+		return nil, "", false
+	}
+
+	restConfig, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, "", false
+	}
+	if err := setRESTConfigDefaults(restConfig); err != nil {
+		return nil, "", false
+	}
+
+	c, err := newKubeClient(restConfig)
+	if err != nil {
+		return nil, "", false
+	}
+	if err := c.List(t.Context(), &corev1.NamespaceList{}, client.Limit(1)); err != nil {
+		return nil, "", false
+	}
+	return c, kubeconfigPath, true
+}
+
+func createKindCluster(t *testing.T) (client.Client, string) {
+	t.Helper()
+
+	c, kubeconfigPath, ok := existingKindCluster(t)
+	if !ok {
+		// Add a randomized suffix to the test cluster name to reduce collisions.
+		clusterName := fmt.Sprintf("crd-test-%s", rand.String(6))
+
+		tmp := t.TempDir()
+		kubeconfigPath = filepath.Join(tmp, "kubeconfig")
+
+		// Create a cluster with a randomized name, and save the kubeconfig in a temporary directory scoped to this test.
+		createClusterOutput, err := exec.CommandContext(t.Context(), "kind", "create", "cluster", "--name", clusterName, "--kubeconfig", kubeconfigPath).CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("%s\n", createClusterOutput)
+
+		t.Cleanup(cleanupKindCluster(t, clusterName))
+
+		// Load the test cluster kubeconfig.
+		config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+		if err != nil {
+			t.Fatalf("%v", err)
+		}
+
+		// Create a client for the test cluster.
+		c, err = newKubeClient(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	// Apply GMP CRDs.
 	applyCRDsOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", "../manifests/setup.yaml").CombinedOutput()
@@ -59,12 +110,10 @@ func createKindCluster(t *testing.T) (client.Client, string) {
 	}
 	t.Logf("%s\n", applyCRDsOutput)
 
-	// Create Public namespace for OperatorConfig.
-	applyPublicNamespaceOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "create", "namespace", "gmp-public").CombinedOutput()
-	if err != nil {
-		t.Fatalf("%s\b%v", applyPublicNamespaceOutput, err)
+	// Create Public namespace for OperatorConfig if it does not already exist.
+	if err := c.Create(t.Context(), &corev1.Namespace{Name: "gmp-public"}); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatal(err)
 	}
-	t.Logf("%s\n", applyPublicNamespaceOutput)
 
 	// Apply Validating Admission Policy.
 	applyValidatingAdmissionOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", "../charts/operator/templates/validating-admission-policy.yaml").CombinedOutput()
@@ -78,17 +127,6 @@ func createKindCluster(t *testing.T) (client.Client, string) {
 		t.Fatal(err)
 	}
 
-	// Load the test cluster kubeconfig.
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-
-	// Create a client for the test cluster.
-	c, err := newKubeClient(config)
-	if err != nil {
-		t.Error(err)
-	}
 	return c, kubeconfigPath
 }
 
@@ -100,6 +138,16 @@ func cleanupKindCluster(t *testing.T, clusterName string) func() {
 			t.Log(err.Error())
 		}
 	}
+}
+
+func deleteTestObject(t *testing.T, c client.Client, obj client.Object) {
+	t.Helper()
+
+	_ = c.Delete(t.Context(), obj)
+	_ = wait.PollUntilContextTimeout(t.Context(), 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
+		err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj.DeepCopyObject().(client.Object))
+		return apierrors.IsNotFound(err), nil
+	})
 }
 
 func TestClusterPodMonitoringDefaultingYAML(t *testing.T) {
@@ -142,6 +190,8 @@ func TestClusterPodMonitoringDefaultingYAML(t *testing.T) {
 		var got monitoringv1.ClusterPodMonitoring
 		if err := c.Get(t.Context(), client.ObjectKey{Namespace: "default", Name: "prom-example"}, &got); err != nil {
 			t.Error(err)
+		} else {
+			deleteTestObject(t, c, &got)
 		}
 
 		if diff := cmp.Diff(tc.want, got.Spec); diff != "" {
@@ -190,6 +240,8 @@ func TestPodMonitoringDefaultingYAML(t *testing.T) {
 		var got monitoringv1.PodMonitoring
 		if err := c.Get(t.Context(), client.ObjectKey{Namespace: "default", Name: "prom-example"}, &got); err != nil {
 			t.Error(err)
+		} else {
+			deleteTestObject(t, c, &got)
 		}
 
 		if diff := cmp.Diff(tc.want, got.Spec); diff != "" {
@@ -212,6 +264,8 @@ func TestCRDDefaulting(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				if err := c.Create(t.Context(), tc.obj); err != nil {
 					t.Errorf("Unexpected error: %v", err)
+				} else {
+					defer deleteTestObject(t, c, tc.obj)
 				}
 
 				err := c.Get(
@@ -239,6 +293,8 @@ func TestCRDDefaulting(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				if err := c.Create(t.Context(), tc.obj); err != nil {
 					t.Errorf("Unexpected error: %v", err)
+				} else {
+					defer deleteTestObject(t, c, tc.obj)
 				}
 
 				err := c.Get(
@@ -430,11 +486,7 @@ func TestCRDValidation(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				err := c.Create(t.Context(), tc.obj)
 				if err == nil {
-					_ = c.Delete(t.Context(), tc.obj)
-					_ = wait.PollUntilContextTimeout(t.Context(), 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
-						err := c.Get(ctx, client.ObjectKeyFromObject(tc.obj), tc.obj.DeepCopyObject().(client.Object))
-						return apierrors.IsNotFound(err), nil
-					})
+					deleteTestObject(t, c, tc.obj)
 				}
 				switch {
 				case err == nil && !tc.wantErr:
