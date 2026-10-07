@@ -22,6 +22,7 @@ const json5 = renovateRequire('json5');
 const { applyPackageRules } = renovateRequire('./dist/util/package-rules/index.js');
 const { Vulnerabilities } = renovateRequire('./dist/workers/repository/process/vulnerabilities.js');
 const { applyVulnerabilityFixFilter } = renovateRequire('./dist/workers/repository/process/lookup/vulnerability.js');
+const { classifyRelease } = renovateRequire('./dist/workers/repository/process/lookup/update-type.js');
 const { get: getVersioning } = renovateRequire('./dist/modules/versioning/index.js');
 
 const configFile = path.resolve(__dirname, '../.github/renovate.json5');
@@ -150,14 +151,134 @@ async function runTests() {
     'gcr.io/gke-release/prometheus-engine/rule-evaluator',
   ];
   for (const img of selfImages) {
-    const res = await simulateDep(img, {
-      manager: 'dockerfile',
-      packageFile: 'Dockerfile',
-    });
+    for (const manager of ['dockerfile', 'custom.regex']) {
+      const packageFile = manager === 'dockerfile' ? 'Dockerfile' : 'charts/values.global.yaml';
+
+      // Lookup-phase evaluation (no updateType yet) resolves custom regex versioning
+      const lookupRes = await applyPackageRules({
+        ...config,
+        packageFile,
+        manager,
+        packageName: img,
+        depName: img,
+        baseBranch: 'main',
+      });
+      assert(
+        typeof lookupRes.versioning === 'string' && lookupRes.versioning.startsWith('regex:'),
+        `Self-referencing engine image ${img} (${manager}) configures regex versioning`
+      );
+
+      for (const blockedType of ['major', 'minor']) {
+        const blockedRes = await simulateDep(img, {
+          manager,
+          packageFile,
+          updateType: blockedType,
+        });
+        assert(
+          blockedRes.enabled === false,
+          `Self-referencing engine image ${img} (${manager}) disables ${blockedType} updates`
+        );
+      }
+
+      for (const allowedType of ['patch', 'digest']) {
+        const allowedRes = await simulateDep(img, {
+          manager,
+          packageFile,
+          updateType: allowedType,
+        });
+        assert(
+          allowedRes.enabled !== false,
+          `Self-referencing engine image ${img} (${manager}) enables ${allowedType} updates`
+        );
+        assert(
+          allowedRes.groupName === 'docker' && allowedRes.automerge === true,
+          `Self-referencing engine image ${img} (${manager}, ${allowedType}) is grouped under 'docker' with automerge`
+        );
+      }
+    }
+  }
+
+  // Verify prometheus-engine regex versioning classifies patch, build (-gmp.N), and revision (-gke.N) updates as 'patch'
+  const engineLookup = await applyPackageRules({
+    ...config,
+    packageFile: 'charts/values.global.yaml',
+    manager: 'custom.regex',
+    packageName: 'gke.gcr.io/prometheus-engine/operator',
+    depName: 'gke.gcr.io/prometheus-engine/operator',
+    baseBranch: 'main',
+  });
+  const engineVersioning = getVersioning(engineLookup.versioning);
+  const patchBuildRevisionPairs = [
+    ['v0.17.2-gke.0', 'v0.17.2-gke.2', 'revision bump (-gke.0 -> -gke.2)'],
+    ['v0.17.2-gke.2', 'v0.17.3-gke.0', 'patch bump across -gke.N suffixes'],
+    ['v0.27.0-gmp.4-gke.4', 'v0.27.0-gmp.5-gke.0', 'build bump (-gmp.4 -> -gmp.5)'],
+    ['v0.27.0-gmp.5-gke.0', 'v0.27.0-gmp.5-gke.1', 'revision bump on -gmp.M-gke.N tag'],
+    ['v2.53.5-gmp.1-gke.2', 'v2.53.5-gmp.2-gke.0', 'Prometheus build bump (-gmp.1 -> -gmp.2)'],
+  ];
+  for (const [fromVer, toVer, desc] of patchBuildRevisionPairs) {
     assert(
-      res.enabled === false,
-      `Self-referencing engine image ${img} is disabled (managed by make regen)`
+      engineVersioning.isValid(fromVer) &&
+        engineVersioning.isValid(toVer) &&
+        engineVersioning.isCompatible(toVer, fromVer) &&
+        engineVersioning.isGreaterThan(toVer, fromVer) &&
+        classifyRelease(engineVersioning, fromVer, toVer) === 'patch',
+      `Engine versioning classifies ${fromVer} -> ${toVer} (${desc}) as compatible 'patch'`
     );
+  }
+  assert(
+    classifyRelease(engineVersioning, 'v0.17.3-gke.0', 'v0.18.1-gke.0') === 'minor',
+    'Engine versioning classifies v0.17.3-gke.0 -> v0.18.1-gke.0 as "minor"'
+  );
+  assert(
+    classifyRelease(engineVersioning, 'v2.53.5-gmp.2-gke.0', 'v3.13.0-gmp.1-gke.0') === 'major',
+    'Engine versioning classifies v2.53.5-gmp.2-gke.0 -> v3.13.0-gmp.1-gke.0 as "major"'
+  );
+
+  // Verify 1P Google container images bypass minimumReleaseAge while 3P images keep '7 days'
+  const firstPartyImages = [
+    'google-go.pkg.dev/golang',
+    'gke.gcr.io/gke-distroless/libc',
+    'gke.gcr.io/gke-distroless/bash',
+    'gke.gcr.io/prometheus-engine/operator',
+    'gcr.io/distroless/static',
+    'gcr.io/gke-release/prometheus-engine/datasource-syncer',
+    'us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24',
+  ];
+  for (const img of firstPartyImages) {
+    for (const manager of ['dockerfile', 'custom.regex']) {
+      const res = await simulateDep(img, {
+        manager,
+        packageFile: manager === 'dockerfile' ? 'Dockerfile' : 'charts/values.global.yaml',
+        updateType: 'digest',
+      });
+      assert(
+        res.minimumReleaseAge === null,
+        `1P Google image ${img} (${manager}) sets minimumReleaseAge to null`
+      );
+    }
+  }
+
+  const thirdPartyImages = [
+    'varnish',
+    'docker',
+    'debian',
+    'docker.io/node',
+    'quay.io/prometheus/alertmanager',
+    'gcr.io/other-project/app',
+    'us-central1-docker.pkg.dev/other-project/repo/app',
+  ];
+  for (const img of thirdPartyImages) {
+    for (const manager of ['dockerfile', 'custom.regex']) {
+      const res = await simulateDep(img, {
+        manager,
+        packageFile: manager === 'dockerfile' ? 'Dockerfile' : 'manifests/operator.yaml',
+        updateType: 'digest',
+      });
+      assert(
+        res.minimumReleaseAge === '7 days',
+        `3P image ${img} (${manager}) retains 7-day minimumReleaseAge`
+      );
+    }
   }
 
   // Suite 3: OpenTelemetry Synchronization
