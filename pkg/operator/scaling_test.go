@@ -19,11 +19,13 @@ import (
 	"errors"
 	"testing"
 
+	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	autoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 func TestApplyVPA(t *testing.T) {
@@ -51,6 +53,12 @@ func TestApplyVPA(t *testing.T) {
 		},
 	}
 
+	updateInterceptorWithError := interceptor.Funcs{
+		Update: func(context.Context, client.WithWatch, client.Object, ...client.UpdateOption) error {
+			return errors.New("error other than not found")
+		},
+	}
+
 	type test struct {
 		c       client.Client
 		wantErr bool
@@ -66,6 +74,10 @@ func TestApplyVPA(t *testing.T) {
 		},
 		"update": {
 			c: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&alertmanagerVPA, &collectorVPA, &operatorVPA, &ruleEvaluatorVPA).Build(),
+		},
+		"update with error": {
+			c:       fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&alertmanagerVPA, &collectorVPA, &operatorVPA, &ruleEvaluatorVPA).WithInterceptorFuncs(updateInterceptorWithError).Build(),
+			wantErr: true,
 		},
 	}
 
@@ -190,6 +202,103 @@ func TestDeleteVPA(t *testing.T) {
 				}
 			default:
 				// Ok.
+			}
+		})
+	}
+}
+
+func TestScalingReconciler(t *testing.T) {
+	scheme, err := NewScheme()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts := Options{
+		OperatorNamespace: "gmp-system",
+		PublicNamespace:   "gmp-public",
+	}
+
+	req := reconcile.Request{
+		Namespace: "gmp-public",
+		Name:      NameOperatorConfig,
+	}
+
+	enabledConfig := &monitoringv1.OperatorConfig{
+		Scaling: monitoringv1.ScalingSpec{
+			VPA: monitoringv1.VPASpec{
+				Enabled: true,
+			},
+		},
+	}
+	enabledConfig.Namespace = "gmp-public"
+	enabledConfig.Name = NameOperatorConfig
+
+	disabledConfig := &monitoringv1.OperatorConfig{
+		Scaling: monitoringv1.ScalingSpec{
+			VPA: monitoringv1.VPASpec{
+				Enabled: false,
+			},
+		},
+	}
+	disabledConfig.Namespace = "gmp-public"
+	disabledConfig.Name = NameOperatorConfig
+
+	alertmanagerVPA := &autoscalingv1.VerticalPodAutoscaler{}
+	alertmanagerVPA.Namespace = opts.OperatorNamespace
+	alertmanagerVPA.Name = alertmanagerVPAName
+
+	updateForbiddenErr := apierrors.NewForbidden(
+		autoscalingv1.Resource("verticalpodautoscalers"),
+		alertmanagerVPAName,
+		errors.New("update forbidden"),
+	)
+	updateForbiddenInterceptor := interceptor.Funcs{
+		Update: func(context.Context, client.WithWatch, client.Object, ...client.UpdateOption) error {
+			return updateForbiddenErr
+		},
+	}
+
+	cases := []struct {
+		desc    string
+		client  client.Client
+		wantErr bool
+	}{
+		{
+			desc:   "OperatorConfig not found cleans up VPAs",
+			client: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(alertmanagerVPA).Build(),
+		},
+		{
+			desc:   "Scaling VPA enabled creates VPAs",
+			client: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(enabledConfig).Build(),
+		},
+		{
+			desc:   "Scaling VPA enabled updates existing VPAs",
+			client: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(enabledConfig, alertmanagerVPA).Build(),
+		},
+		{
+			desc: "Scaling VPA enabled update fails returns error",
+			client: fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRuntimeObjects(enabledConfig, alertmanagerVPA).
+				WithInterceptorFuncs(updateForbiddenInterceptor).
+				Build(),
+			wantErr: true,
+		},
+		{
+			desc:   "Scaling VPA disabled deletes VPAs",
+			client: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(disabledConfig, alertmanagerVPA).Build(),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			r := newScalingReconciler(tc.client, opts)
+			_, err := r.Reconcile(t.Context(), req)
+			if tc.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 		})
 	}
