@@ -263,7 +263,8 @@ type TargetLabels struct {
 	// +kubebuilder:default=container;pod;top_level_controller_name;top_level_controller_type
 	Metadata *[]string `json:"metadata"`
 	// Labels to transfer from the Kubernetes Pod to Prometheus target labels.
-	// Mappings are applied in order.
+	// Mappings are applied in order. Useful for exposing Pod labels as metric
+	// labels on scraped targets.
 	// +kubebuilder:validation:MaxItems=100
 	FromPod []LabelMapping `json:"fromPod,omitempty"`
 }
@@ -283,7 +284,8 @@ type ClusterTargetLabels struct {
 	// +kubebuilder:default=container;namespace;pod;top_level_controller_name;top_level_controller_type
 	Metadata *[]string `json:"metadata,omitempty"`
 	// Labels to transfer from the Kubernetes Pod to Prometheus target labels.
-	// Mappings are applied in order.
+	// Mappings are applied in order. Useful for exposing Pod labels as metric
+	// labels on scraped targets.
 	// +kubebuilder:validation:MaxItems=100
 	FromPod []LabelMapping `json:"fromPod,omitempty"`
 }
@@ -295,6 +297,9 @@ type LabelMapping struct {
 	From string `json:"from"`
 	// Remapped Prometheus target label.
 	// Defaults to the same name as `From`.
+	// Specifying `to` is necessary if the Kubernetes label key contains characters
+	// that are invalid in Prometheus label names (such as `-`, `/`, or `.`),
+	// or to rename the label to avoid naming collisions or conform to conventions.
 	// +kubebuilder:validation:Pattern=^[a-zA-Z_][a-zA-Z0-9_]*$
 	// +kubebuilder:validation:MaxLength:100
 	// +kubebuilder:validation:XValidation:rule="self != 'project_id' && self != 'location' && self != 'cluster' && self != 'namespace' && self != 'job' && self != 'instance' && self != 'top_level_controller' && self != 'top_level_controller_type' && self != '__address__'",messageExpression="'cannot relabel onto protected label \"%s\"'.format([self])"
