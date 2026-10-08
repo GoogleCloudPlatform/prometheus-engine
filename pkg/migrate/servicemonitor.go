@@ -364,7 +364,7 @@ func (c *ServiceMonitorConverter) buildSpecForGroup(
 	}
 	filterRunning := resolveFilterRunning(filterRunnings, logger, isClusterScoped)
 
-	limits := convertLimits(sm.Spec.SampleLimit, sm.Spec.LabelLimit, sm.Spec.LabelNameLengthLimit, sm.Spec.LabelValueLengthLimit)
+	limits := convertLimits(logger, sm.Spec.SampleLimit, sm.Spec.LabelLimit, sm.Spec.LabelNameLengthLimit, sm.Spec.LabelValueLengthLimit)
 
 	return &commonMonitorSpec{
 		endpoints:        endpoints,
@@ -406,7 +406,9 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 
 		// 2. Basic Fields.
 		gmpEp.Path = ep.Path
-		gmpEp.Scheme = strings.ToLower(ep.Scheme)
+		if ep.Scheme != nil {
+			gmpEp.Scheme = strings.ToLower(string(*ep.Scheme))
+		}
 		gmpEp.Params = ep.Params
 
 		// 3. Scrape Intervals & Timeouts.
@@ -436,16 +438,10 @@ func (c *ServiceMonitorConverter) convertEndpointsForGroup(
 			}
 		}
 
-		var bearerTokenSecret corev1.SecretKeySelector
-		// nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
-		if ep.BearerTokenSecret != nil {
-			// nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
-			bearerTokenSecret = *ep.BearerTokenSecret
-		}
-		convCtx.applyAuthAndTLS(&gmpEp, ep.BasicAuth, ep.OAuth2, safeTLS, ep.Authorization, bearerTokenSecret) // nolint:staticcheck
+		convCtx.applyAuthAndTLS(&gmpEp, ep.BasicAuth, ep.OAuth2, safeTLS, ep.Authorization, ep.BearerTokenSecret) // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 
 		// Warnings for Unsupported Fields.
-		warnUnsupportedEndpointFields(convCtx.logger, ep.FollowRedirects, ep.EnableHttp2, ep.HonorLabels, ep.HonorTimestamps, ep.TrackTimestampsStaleness, i)
+		warnUnsupportedEndpointFields(convCtx.logger, ep.FollowRedirects, ep.EnableHTTP2, ep.HonorLabels, ep.HonorTimestamps, ep.TrackTimestampsStaleness, i)
 
 		gmpEndpoints = append(gmpEndpoints, gmpEp)
 	}

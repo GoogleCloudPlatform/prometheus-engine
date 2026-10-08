@@ -112,8 +112,8 @@ func (c *PodMonitorConverter) convertEndpoints(
 		gmpEp := monitoringv1.ScrapeEndpoint{}
 
 		// 1. Port mapping.
-		if ep.Port != "" {
-			gmpEp.Port = intstr.FromString(ep.Port)
+		if ep.Port != nil && *ep.Port != "" {
+			gmpEp.Port = intstr.FromString(*ep.Port)
 		} else if ep.TargetPort != nil { // nolint:staticcheck // Map deprecated TargetPort for backwards compatibility.
 			gmpEp.Port = *ep.TargetPort // nolint:staticcheck // Map deprecated TargetPort for backwards compatibility.
 		} else {
@@ -127,7 +127,9 @@ func (c *PodMonitorConverter) convertEndpoints(
 
 		// 2. Basic Fields.
 		gmpEp.Path = ep.Path
-		gmpEp.Scheme = strings.ToLower(ep.Scheme)
+		if ep.Scheme != nil {
+			gmpEp.Scheme = strings.ToLower(string(*ep.Scheme))
+		}
 		gmpEp.Params = ep.Params
 
 		// 3. Scrape Intervals & Timeouts.
@@ -141,14 +143,13 @@ func (c *PodMonitorConverter) convertEndpoints(
 		// Proxy Settings.
 		gmpEp.ProxyURL = convCtx.convertProxyURL(ep.ProxyURL)
 
-		// noProxy, proxyConnectHeader, and proxyFromEnvironment fields are silently dropped.
-		// The pinned Prometheus Operator version lacks these fields, and GMP does not support them anyway.
+		// TODO(https://github.com/GoogleCloudPlatform/prometheus-engine/issues/2378): warn about noProxy, proxyConnectHeader, and proxyFromEnvironment, which are currently silently dropped.
 
 		// Auth & TLS mappings.
 		convCtx.applyAuthAndTLS(&gmpEp, ep.BasicAuth, ep.OAuth2, ep.TLSConfig, ep.Authorization, ep.BearerTokenSecret) // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
 
 		// 5. Warnings for Unsupported Fields in Endpoint.
-		warnUnsupportedEndpointFields(convCtx.logger, ep.FollowRedirects, ep.EnableHttp2, ep.HonorLabels, ep.HonorTimestamps, ep.TrackTimestampsStaleness, i)
+		warnUnsupportedEndpointFields(convCtx.logger, ep.FollowRedirects, ep.EnableHTTP2, ep.HonorLabels, ep.HonorTimestamps, ep.TrackTimestampsStaleness, i)
 
 		gmpEndpoints = append(gmpEndpoints, gmpEp)
 	}
@@ -213,7 +214,7 @@ func (c *PodMonitorConverter) convertMonitorSpec(pm *pomonitoringv1.PodMonitor, 
 	}
 	filterRunning := resolveFilterRunning(filterRunnings, logger, isCluster)
 
-	limits := convertLimits(pm.Spec.SampleLimit, pm.Spec.LabelLimit, pm.Spec.LabelNameLengthLimit, pm.Spec.LabelValueLengthLimit)
+	limits := convertLimits(logger, pm.Spec.SampleLimit, pm.Spec.LabelLimit, pm.Spec.LabelNameLengthLimit, pm.Spec.LabelValueLengthLimit)
 
 	return &commonMonitorSpec{
 		endpoints:        endpoints,

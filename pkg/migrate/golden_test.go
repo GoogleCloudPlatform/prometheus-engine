@@ -515,7 +515,7 @@ func TestPodTargetLabelsFromPodMonitor(t *testing.T) {
 			PodTargetLabels: []string{"example", "env"},
 			PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 				{
-					Port:     "web",
+					Port:     ptr.To("web"),
 					Interval: "30s",
 				},
 			},
@@ -537,7 +537,7 @@ func TestPodMonitorPhaseFilter(t *testing.T) {
 			PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 				{
 					FilterRunning: ptr.To(false),
-					Port:          "test",
+					Port:          ptr.To("test"),
 				},
 			},
 		},

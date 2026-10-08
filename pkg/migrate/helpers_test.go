@@ -676,12 +676,13 @@ func TestMergeFromPod(t *testing.T) {
 }
 
 func TestConvertLimits(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	tests := []struct {
 		name                  string
-		sampleLimit           *uint64
-		labelLimit            *uint64
-		labelNameLengthLimit  *uint64
-		labelValueLengthLimit *uint64
+		sampleLimit           *int64
+		labelLimit            *int64
+		labelNameLengthLimit  *int64
+		labelValueLengthLimit *int64
 		expected              *monitoringv1.ScrapeLimits
 	}{
 		{
@@ -690,15 +691,15 @@ func TestConvertLimits(t *testing.T) {
 		},
 		{
 			name:        "Explicit zero value returns nil as zero values are omitted by omitempty",
-			sampleLimit: ptrTo(uint64(0)),
+			sampleLimit: ptrTo(int64(0)),
 			expected:    nil,
 		},
 		{
 			name:                  "Non-zero limits are converted",
-			sampleLimit:           ptrTo(uint64(5000)),
-			labelLimit:            ptrTo(uint64(50)),
-			labelNameLengthLimit:  ptrTo(uint64(100)),
-			labelValueLengthLimit: ptrTo(uint64(200)),
+			sampleLimit:           ptrTo(int64(5000)),
+			labelLimit:            ptrTo(int64(50)),
+			labelNameLengthLimit:  ptrTo(int64(100)),
+			labelValueLengthLimit: ptrTo(int64(200)),
 			expected: &monitoringv1.ScrapeLimits{
 				Samples:          5000,
 				Labels:           50,
@@ -710,7 +711,7 @@ func TestConvertLimits(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := convertLimits(tc.sampleLimit, tc.labelLimit, tc.labelNameLengthLimit, tc.labelValueLengthLimit)
+			got := convertLimits(logger, tc.sampleLimit, tc.labelLimit, tc.labelNameLengthLimit, tc.labelValueLengthLimit)
 			if diff := cmp.Diff(tc.expected, got); diff != "" {
 				t.Errorf("convertLimits() mismatch (-want +got):\n%s", diff)
 			}

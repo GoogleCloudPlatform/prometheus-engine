@@ -94,7 +94,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							BasicAuth: &pomonitoringv1.BasicAuth{
 								Username: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "user"},
 								Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "pass"},
@@ -230,7 +230,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							BasicAuth: &pomonitoringv1.BasicAuth{
 								Username: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth"}, Key: "user"},
 								Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth"}, Key: "pass"},
@@ -344,9 +344,9 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:          "web",
+							Port:          ptrTo("web"),
 							Path:          "/telemetry",
-							Scheme:        "HTTPS",
+							Scheme:        ptrTo(pomonitoringv1.Scheme("HTTPS")),
 							Interval:      "15s",
 							ScrapeTimeout: "10s",
 							Params:        map[string][]string{"debug": {"true"}},
@@ -357,7 +357,7 @@ func TestPodMonitorConversion(t *testing.T) {
 							ScrapeTimeout: "15s",
 						},
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 						},
 					},
 				},
@@ -412,7 +412,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					PodTargetLabels: []string{"env", "instance", "version"},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 						},
 					},
 				},
@@ -458,7 +458,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:            "metrics",
+							Port:            ptrTo("metrics"),
 							HonorLabels:     true,
 							HonorTimestamps: ptrTo(true),
 							MetricRelabelConfigs: []pomonitoringv1.RelabelConfig{
@@ -583,7 +583,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics-basic",
+							Port: ptrTo("metrics-basic"),
 							BasicAuth: &pomonitoringv1.BasicAuth{
 								Username: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "user"},
 								Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "auth-secret"}, Key: "pass"},
@@ -595,11 +595,11 @@ func TestPodMonitorConversion(t *testing.T) {
 							},
 						},
 						{
-							Port:              "metrics-bearer",
-							BearerTokenSecret: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "token-secret"}, Key: "token"},
+							Port:              ptrTo("metrics-bearer"),
+							BearerTokenSecret: &corev1.SecretKeySelector{Name: "token-secret", Key: "token"},
 						},
 						{
-							Port: "metrics-oauth",
+							Port: ptrTo("metrics-oauth"),
 							OAuth2: &pomonitoringv1.OAuth2{
 								ClientID: pomonitoringv1.SecretOrConfigMap{
 									ConfigMap: &corev1.ConfigMapKeySelector{Name: "oauth-cm", Key: "id"},
@@ -669,7 +669,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									// Pod annotation reference (should be dropped with warning).
@@ -757,7 +757,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_node_label_topology_kubernetes_io_zone"},
@@ -815,7 +815,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									// Exact keep -> matchLabels.
@@ -877,7 +877,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									// Contains underscore (e.g. app_kubernetes_io_name) -> converted to matchLabels selector.
@@ -924,7 +924,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_app_versioned"},
@@ -974,7 +974,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics-alpha",
+							Port: ptrTo("metrics-alpha"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
@@ -984,7 +984,7 @@ func TestPodMonitorConversion(t *testing.T) {
 							},
 						},
 						{
-							Port: "metrics-beta",
+							Port: ptrTo("metrics-beta"),
 						},
 					},
 				},
@@ -1028,7 +1028,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_name"},
@@ -1075,7 +1075,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
@@ -1120,7 +1120,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					Selector: metav1.LabelSelector{}, // Empty selector selects all pods.
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_annotation_prometheus_io_scrape"},
@@ -1167,7 +1167,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					PodTargetLabels: []string{"env"}, // Static copy env -> env.
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_custom_env"},
@@ -1214,7 +1214,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_namespace"},
@@ -1263,7 +1263,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_namespace"},
@@ -1312,7 +1312,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:     "metrics",
+							Port:     ptrTo("metrics"),
 							Interval: "30s",
 						},
 					},
@@ -1358,7 +1358,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:     "metrics",
+							Port:     ptrTo("metrics"),
 							Interval: "30s",
 						},
 					},
@@ -1401,7 +1401,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:     "metrics",
+							Port:     ptrTo("metrics"),
 							Interval: "30s",
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
@@ -1454,7 +1454,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:     "metrics",
+							Port:     ptrTo("metrics"),
 							Interval: "30s",
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
@@ -1501,7 +1501,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_app"},
@@ -1550,7 +1550,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
@@ -1605,8 +1605,8 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:              "metrics",
-							BearerTokenSecret: corev1.SecretKeySelector{Key: "token"},
+							Port:              ptrTo("metrics"),
+							BearerTokenSecret: &corev1.SecretKeySelector{Key: "token"},
 						},
 					},
 				},
@@ -1699,7 +1699,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
@@ -1755,7 +1755,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
@@ -1800,7 +1800,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "metrics",
+							Port: ptrTo("metrics"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									SourceLabels: []pomonitoringv1.LabelName{"__meta_kubernetes_pod_label_env"},
@@ -1855,12 +1855,12 @@ func TestPodMonitorConversion(t *testing.T) {
 					AttachMetadata: &pomonitoringv1.AttachMetadata{
 						Node: ptrTo(true),
 					},
-					SampleLimit:           ptrTo(uint64(5000)),
-					TargetLimit:           ptrTo(uint64(100)),
-					KeepDroppedTargets:    ptrTo(uint64(50)),
-					LabelLimit:            ptrTo(uint64(50)),
-					LabelNameLengthLimit:  ptrTo(uint64(100)),
-					LabelValueLengthLimit: ptrTo(uint64(200)),
+					SampleLimit:           ptrTo(int64(5000)),
+					TargetLimit:           ptrTo(int64(100)),
+					KeepDroppedTargets:    ptrTo(int64(50)),
+					LabelLimit:            ptrTo(int64(50)),
+					LabelNameLengthLimit:  ptrTo(int64(100)),
+					LabelValueLengthLimit: ptrTo(int64(200)),
 					BodySizeLimit:         ptrTo(pomonitoringv1.ByteSize("10MB")),
 					ScrapeClassName:       ptrTo("custom-class"),
 					Selector: metav1.LabelSelector{
@@ -1868,11 +1868,11 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:            "web",
+							Port:            ptrTo("web"),
 							Interval:        "15s",
 							FilterRunning:   ptrTo(false),
 							FollowRedirects: ptrTo(false),
-							EnableHttp2:     ptrTo(false),
+							EnableHTTP2:     ptrTo(false),
 						},
 					},
 				},
@@ -1925,12 +1925,12 @@ func TestPodMonitorConversion(t *testing.T) {
 					AttachMetadata: &pomonitoringv1.AttachMetadata{
 						Node: ptrTo(true),
 					},
-					SampleLimit:           ptrTo(uint64(5000)),
-					TargetLimit:           ptrTo(uint64(100)),
-					KeepDroppedTargets:    ptrTo(uint64(50)),
-					LabelLimit:            ptrTo(uint64(50)),
-					LabelNameLengthLimit:  ptrTo(uint64(100)),
-					LabelValueLengthLimit: ptrTo(uint64(200)),
+					SampleLimit:           ptrTo(int64(5000)),
+					TargetLimit:           ptrTo(int64(100)),
+					KeepDroppedTargets:    ptrTo(int64(50)),
+					LabelLimit:            ptrTo(int64(50)),
+					LabelNameLengthLimit:  ptrTo(int64(100)),
+					LabelValueLengthLimit: ptrTo(int64(200)),
 					BodySizeLimit:         ptrTo(pomonitoringv1.ByteSize("10MB")),
 					ScrapeClassName:       ptrTo("custom-class"),
 					Selector: metav1.LabelSelector{
@@ -1938,11 +1938,11 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:            "web",
+							Port:            ptrTo("web"),
 							Interval:        "15s",
 							FilterRunning:   ptrTo(false),
 							FollowRedirects: ptrTo(false),
-							EnableHttp2:     ptrTo(false),
+							EnableHTTP2:     ptrTo(false),
 						},
 					},
 				},
@@ -1998,7 +1998,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "web",
+							Port: ptrTo("web"),
 						},
 					},
 				},
@@ -2042,7 +2042,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "web",
+							Port: ptrTo("web"),
 						},
 					},
 				},
@@ -2077,11 +2077,11 @@ func TestPodMonitorConversion(t *testing.T) {
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:          "web-1",
+							Port:          ptrTo("web-1"),
 							FilterRunning: ptrTo(false),
 						},
 						{
-							Port:          "web-2",
+							Port:          ptrTo("web-2"),
 							FilterRunning: ptrTo(true),
 						},
 					},
@@ -2125,11 +2125,11 @@ func TestPodMonitorConversion(t *testing.T) {
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:          "web-1",
+							Port:          ptrTo("web-1"),
 							FilterRunning: ptrTo(false),
 						},
 						{
-							Port:          "web-2",
+							Port:          ptrTo("web-2"),
 							FilterRunning: ptrTo(true),
 						},
 					},
@@ -2170,11 +2170,11 @@ func TestPodMonitorConversion(t *testing.T) {
 					Selector: metav1.LabelSelector{MatchLabels: map[string]string{"app": "filter-running"}},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:          "web-1",
+							Port:          ptrTo("web-1"),
 							FilterRunning: ptrTo(false),
 						},
 						{
-							Port:          "web-2",
+							Port:          ptrTo("web-2"),
 							FilterRunning: ptrTo(false),
 						},
 					},
@@ -2217,7 +2217,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "web",
+							Port: ptrTo("web"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									Action:       "keep",
@@ -2267,7 +2267,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "web",
+							Port: ptrTo("web"),
 							RelabelConfigs: []pomonitoringv1.RelabelConfig{
 								{
 									Action:       "keep",
@@ -2314,7 +2314,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					Selector: metav1.LabelSelector{},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "web",
+							Port: ptrTo("web"),
 						},
 					},
 				},
@@ -2353,7 +2353,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port:     "web",
+							Port:     ptrTo("web"),
 							ProxyURL: ptrTo("http://user:secret123@proxy.example.com:8080"),
 						},
 					},
@@ -2398,7 +2398,7 @@ func TestPodMonitorConversion(t *testing.T) {
 					},
 					PodMetricsEndpoints: []pomonitoringv1.PodMetricsEndpoint{
 						{
-							Port: "web",
+							Port: ptrTo("web"),
 							BasicAuth: &pomonitoringv1.BasicAuth{
 								Username: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing-auth"}, Key: "user"},
 								Password: corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "missing-auth"}, Key: "pass"},
