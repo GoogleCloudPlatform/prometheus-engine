@@ -85,28 +85,6 @@ jobs:
           persist-credentials: false
       - name: Run unit tests
         run: make test
-  test-script-gcm:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      # GCM coverage lives in gcm-tests.yml, so this is a no-op here. It's kept
-      # until the required check is removed from the ruleset.
-      - name: Run example/script GCM tests
-        run: make test-script-gcm
-  image-test:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      with:
-        persist-credentials: false
-    - name: Run container image tests
-      run: make image-test
   e2e-testruns:
     runs-on: ubuntu-latest
     permissions:
@@ -118,7 +96,9 @@ jobs:
         with:
           persist-credentials: false
       - id: set-testruns
-        run: echo "testrun=$(go test ./e2e/... -list=. | grep -E 'Test*' | jq -R -s -c 'split("\n")[:-1] | map("^" + . + "$")')" >> $GITHUB_OUTPUT
+        run: |
+          GCM_TESTS=$(yq -o=json '.jobs.gcm-e2e-test.strategy.matrix.testrun' .github/workflows/gcm-tests.yml)
+          echo "testrun=$(go test ./e2e/... -list=. | grep -E '^Test' | jq -R -s -c --argjson gcm "${GCM_TESTS}" 'split("\n")[:-1] | map("^" + . + "$") - $gcm')" >> "${GITHUB_OUTPUT}"
   e2e-test:
     runs-on: ubuntu-latest
     permissions:
