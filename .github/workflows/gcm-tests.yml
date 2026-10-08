@@ -23,13 +23,15 @@ name: GCM Tests
 #   environments.
 # * gcm-auto is selected only for pushes, for pull requests where both the
 #   author and the event sender have the admin or maintain role on this
-#   repository, and for verified Renovate pull requests (see
-#   select-environment).
+#   repository, and for verified Renovate pull requests (including when updated
+#   by a maintainer; see select-environment).
 # * Everything else uses gcm-protected, which requires an approval from the
-#   gmp team after reviewing the code that will run.
+#   gmp team after reviewing the code that will run, and posts a comment on the
+#   pull request with a direct link to review and approve the run.
 # * Checkout is pinned to the head SHA from the event payload, so commits
 #   pushed after the run was triggered are never executed with secrets.
-# * GITHUB_TOKEN is read-only and checkout does not persist credentials.
+# * Test jobs use a read-only GITHUB_TOKEN and checkout does not persist
+#   credentials.
 #
 # zizmor: ignore[dangerous-triggers]
 on:
@@ -57,13 +59,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
     outputs:
       environment: ${{ steps.select.outputs.environment }}
       run-e2e: ${{ steps.select.outputs.run-e2e }}
     steps:
-      # This step only reads API metadata; it never checks out or runs pull
-      # request code.
+      # This step only reads API metadata and manages the approval comment; it
+      # never checks out or runs pull request code.
       - id: select
         name: Select GCM environment
         env:
@@ -87,7 +89,39 @@ jobs:
             echo "run-e2e=false" >> "${GITHUB_OUTPUT}"
           fi
 
-          use_env() { echo "Using $1: $2"; echo "environment=$1" >> "${GITHUB_OUTPUT}"; exit 0; }
+          COMMENT_MARKER="<!-- gcm-tests-approval -->"
+          sync_comment() {
+            if [[ -z "${PR_NUMBER}" ]]; then
+              return 0
+            fi
+            local existing_id
+            existing_id="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate 2>/dev/null \
+              | jq -r --arg marker "${COMMENT_MARKER}" '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith($marker))) | .id' \
+              | head -n 1 || true)"
+            if [[ "$1" == "gcm-protected" ]]; then
+              local run_url="${GITHUB_SERVER_URL}/${REPO}/actions/runs/${GITHUB_RUN_ID}"
+              local body
+              # Backticks in the format string are Markdown code spans, not shell expansions.
+              # shellcheck disable=SC2016
+              body="$(printf '%s\n<!-- gcm-tests-sha:%s -->\n**GCM Tests** for commit `%s` require **`gcm-protected`** environment approval (%s).\n\nMaintainers (`@GoogleCloudPlatform/gmp`): **[Review deployments and approve run](%s)**\n' \
+                "${COMMENT_MARKER}" "${HEAD_SHA}" "${HEAD_SHA}" "$2" "${run_url}")"
+              echo "${body}" >> "${GITHUB_STEP_SUMMARY}"
+              if [[ -n "${existing_id}" ]]; then
+                gh api --method PATCH "repos/${REPO}/issues/comments/${existing_id}" -f body="${body}" >/dev/null 2>&1 || true
+              else
+                gh api --method POST "repos/${REPO}/issues/${PR_NUMBER}/comments" -f body="${body}" >/dev/null 2>&1 || true
+              fi
+            elif [[ -n "${existing_id}" ]]; then
+              gh api --method DELETE "repos/${REPO}/issues/comments/${existing_id}" >/dev/null 2>&1 || true
+            fi
+          }
+
+          use_env() {
+            echo "Using $1: $2"
+            echo "environment=$1" >> "${GITHUB_OUTPUT}"
+            sync_comment "$1" "$2"
+            exit 0
+          }
 
           if [[ "${EVENT_NAME}" == "push" ]]; then
             use_env gcm-auto "push to a protected branch"
@@ -105,13 +139,16 @@ jobs:
             use_env gcm-auto "PR author and sender are maintainers"
           fi
 
-          # 2. Verified Renovate pull requests. Keep in sync with
-          # renovate-automerge.yml.
+          # 2. Verified Renovate pull requests (including maintainer fix-up
+          # pushes). Keep in sync with renovate-automerge.yml.
           RENOVATE_ID=25180681
           RENOVATE_REPO="renovate-bot/GoogleCloudPlatform-_-prometheus-engine"
           RENOVATE_KEY="A1020E7F5FFD673D"
-          if [[ "${PR_AUTHOR_ID}" != "${RENOVATE_ID}" || "${SENDER_ID}" != "${RENOVATE_ID}" || "${HEAD_REPO}" != "${RENOVATE_REPO}" ]]; then
+          if [[ "${PR_AUTHOR_ID}" != "${RENOVATE_ID}" || "${HEAD_REPO}" != "${RENOVATE_REPO}" ]]; then
             use_env gcm-protected "not a maintainer or Renovate PR"
+          fi
+          if [[ "${SENDER_ID}" != "${RENOVATE_ID}" ]] && ! [[ "${SENDER_ROLE}" =~ ^(admin|maintain)$ ]]; then
+            use_env gcm-protected "Renovate PR triggered by non-maintainer"
           fi
           # $owner, $repo and $pr are GraphQL variables, not shell expansions.
           # shellcheck disable=SC2016
@@ -123,11 +160,14 @@ jobs:
                 files(first: 100) { nodes { path } }
                 commits(first: 100) {
                   totalCount
-                  nodes { commit { signature {
-                    isValid
-                    signer { login }
-                    ... on GpgSignature { keyId }
-                  } } }
+                  nodes { commit {
+                    committer { user { login } }
+                    signature {
+                      isValid
+                      signer { login }
+                      ... on GpgSignature { keyId }
+                    }
+                  } }
                 }
               }
             }
@@ -135,6 +175,32 @@ jobs:
           if ! PR_JSON="$(gh api graphql -F owner="${REPO%%/*}" -F repo="${REPO#*/}" -F pr="${PR_NUMBER}" \
               -f query="${QUERY}" --jq '.data.repository.pullRequest')"; then
             use_env gcm-protected "failed to query Renovate PR details"
+          fi
+          if [[ "${SENDER_ROLE}" =~ ^(admin|maintain)$ ]]; then
+            # When a maintainer updates or reopens a Renovate PR, require that
+            # the event SHA is still the PR head and every commit is either
+            # signed by Mend Renovate or committed by a maintainer.
+            if ! jq -e --arg sha "${HEAD_SHA}" --arg key "${RENOVATE_KEY}" '
+                .headRefOid == $sha
+                and (.commits.nodes | length) == .commits.totalCount
+                and .commits.totalCount > 0
+                and all(.commits.nodes[].commit;
+                      (.signature != null and .signature.isValid == true and .signature.signer.login == "renovate-bot" and .signature.keyId == $key)
+                      or (.committer.user.login != null and .committer.user.login != ""))
+              ' <<< "${PR_JSON}" > /dev/null; then
+              use_env gcm-protected "Renovate PR is unsigned or stale"
+            fi
+            while IFS= read -r login; do
+              [[ -z "${login}" ]] && continue
+              if [[ "${login}" != "${SENDER}" ]] && ! [[ "$(role "${login}")" =~ ^(admin|maintain)$ ]]; then
+                use_env gcm-protected "Renovate PR contains commit from non-maintainer ${login}"
+              fi
+            done < <(jq -r --arg key "${RENOVATE_KEY}" '
+              .commits.nodes[].commit
+              | select((.signature != null and .signature.isValid == true and .signature.signer.login == "renovate-bot" and .signature.keyId == $key) | not)
+              | .committer.user.login
+            ' <<< "${PR_JSON}" | sort -u)
+            use_env gcm-auto "Renovate PR updated by maintainer"
           fi
           # Require: the event SHA is still the PR head, every commit is signed
           # by Mend Renovate, and no file that can change CI behavior is touched.
@@ -238,15 +304,36 @@ jobs:
 
   gcm-tests:
     # Single, stable check name for rulesets, independent of the matrix.
-    if: always()
-    needs: [gcm-script-test, gcm-image-test, gcm-e2e-test]
+    if: always() && github.repository == 'GoogleCloudPlatform/prometheus-engine'
+    needs: [select-environment, gcm-script-test, gcm-image-test, gcm-e2e-test]
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      pull-requests: write
     steps:
       - name: Check results
         env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ENVIRONMENT: ${{ needs.select-environment.outputs.environment }}
           NEEDS: ${{ toJSON(needs) }}
         run: |
+          set -euo pipefail
+          if [[ "${ENVIRONMENT}" == "gcm-protected" && -n "${PR_NUMBER}" ]]; then
+            if jq -e '
+              .["gcm-script-test"].result == "success"
+              or .["gcm-script-test"].result == "failure"
+            ' <<< "${NEEDS}" > /dev/null; then
+              MARKER="<!-- gcm-tests-sha:${HEAD_SHA} -->"
+              COMMENT_ID="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate 2>/dev/null \
+                | jq -r --arg marker "${MARKER}" '.[] | select(.user.login == "github-actions[bot]" and (.body | contains($marker))) | .id' \
+                | head -n 1 || true)"
+              if [[ -n "${COMMENT_ID}" ]]; then
+                gh api --method DELETE "repos/${REPO}/issues/comments/${COMMENT_ID}" >/dev/null 2>&1 || true
+              fi
+            fi
+          fi
           jq -e '
             .["gcm-script-test"].result == "success"
             and .["gcm-image-test"].result == "success"
