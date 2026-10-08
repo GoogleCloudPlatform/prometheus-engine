@@ -51,6 +51,9 @@ concurrency:
 
 jobs:
   select-environment:
+    # Guard against runs in forks and satisfy CodeQL's ControlCheck when
+    # downstream jobs use the environment mapping syntax (deployment: false).
+    if: github.repository == 'GoogleCloudPlatform/prometheus-engine'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -155,8 +158,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Scalar syntax is required for CodeQL's EnvironmentCheck sanitizer.
-    environment: ${{ needs.select-environment.outputs.environment }}
+    environment:
+      name: ${{ needs.select-environment.outputs.environment }}
+      deployment: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -176,8 +180,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Scalar syntax is required for CodeQL's EnvironmentCheck sanitizer.
-    environment: ${{ needs.select-environment.outputs.environment }}
+    environment:
+      name: ${{ needs.select-environment.outputs.environment }}
+      deployment: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -198,8 +203,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Scalar syntax is required for CodeQL's EnvironmentCheck sanitizer.
-    environment: ${{ needs.select-environment.outputs.environment }}
+    environment:
+      name: ${{ needs.select-environment.outputs.environment }}
+      deployment: false
     strategy:
       fail-fast: false
       matrix:
