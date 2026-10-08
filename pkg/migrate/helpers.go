@@ -713,7 +713,7 @@ func (c *conversionContext) convertOAuth2(oa *pomonitoringv1.OAuth2) *monitoring
 
 	clientSecret := c.convertSecretSelector(&oa.ClientSecret)
 
-	tokenURL := oa.TokenURL
+	tokenURL := string(oa.TokenURL)
 	if tokenURL == "" {
 		c.todos = append(c.todos, todoItem{
 			category: "ERROR",
@@ -754,7 +754,7 @@ func (c *conversionContext) applyAuthAndTLS(
 	oAuth2 *pomonitoringv1.OAuth2,
 	tlsConfig *pomonitoringv1.SafeTLSConfig,
 	authorization *pomonitoringv1.SafeAuthorization,
-	bearerTokenSecret corev1.SecretKeySelector,
+	bearerTokenSecret *corev1.SecretKeySelector,
 ) {
 	if basicAuth != nil {
 		gmpEp.BasicAuth = c.convertBasicAuth(basicAuth)
@@ -770,11 +770,11 @@ func (c *conversionContext) applyAuthAndTLS(
 	}
 
 	// Handle deprecated BearerTokenSecret -> Authorization.
-	if bearerTokenSecret.Name != "" || bearerTokenSecret.Key != "" { // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
+	if bearerTokenSecret != nil && (bearerTokenSecret.Name != "" || bearerTokenSecret.Key != "") {
 		if gmpEp.Authorization != nil {
 			c.logger.Warn("Endpoint has both 'bearerTokenSecret' and 'authorization' defined. Dropping 'bearerTokenSecret'.")
 		} else {
-			tokenSecret := bearerTokenSecret // nolint:staticcheck // Map deprecated BearerTokenSecret for backwards compatibility.
+			tokenSecret := *bearerTokenSecret
 			gmpEp.Authorization = c.convertAuthorization(&pomonitoringv1.SafeAuthorization{Credentials: &tokenSecret})
 		}
 	}
@@ -810,7 +810,7 @@ func convertMetricRelabelings(
 		rule := monitoringv1.RelabelingRule{
 			TargetLabel: targetLabel,
 			Regex:       config.Regex,
-			Modulus:     config.Modulus,
+			Modulus:     toUint64(logger, "modulus", config.Modulus),
 			Action:      string(action),
 		}
 
@@ -1072,7 +1072,7 @@ func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingDa
 		SourceLabels: data.rewrittenSources,
 		TargetLabel:  targetLabel,
 		Regex:        data.config.Regex,
-		Modulus:      data.config.Modulus,
+		Modulus:      toUint64(logger, "modulus", data.config.Modulus),
 		Action:       string(data.action),
 	}
 	if data.config.Separator != nil {
@@ -1086,8 +1086,8 @@ func convertRelabelingToMetricRelabeling(logger *slog.Logger, data *relabelingDa
 }
 
 // warnUnsupportedMonitorSpecFields logs warnings for spec-level fields that GMP does not support or need.
-// TODO: Once Prometheus Operator Go structs are upgraded, add warning checks for unsupported native histogram fields ('scrapeNativeHistograms', 'scrapeClassicHistograms', 'nativeHistogramBucketLimit', 'nativeHistogramMinBucketFactor', 'fallbackScrapeProtocols').
-func warnUnsupportedMonitorSpecFields(logger *slog.Logger, targetLimit *uint64, keepDroppedTargets *uint64, bodySizeLimit *pomonitoringv1.ByteSize) {
+// TODO(https://github.com/GoogleCloudPlatform/prometheus-engine/issues/2378): add warning checks for unsupported native histogram fields ('scrapeNativeHistograms', 'scrapeClassicHistograms', 'nativeHistogramBucketLimit', 'nativeHistogramMinBucketFactor', 'convertClassicHistogramsToNHCB'), 'fallbackScrapeProtocol' and 'selectorMechanism'.
+func warnUnsupportedMonitorSpecFields(logger *slog.Logger, targetLimit *int64, keepDroppedTargets *int64, bodySizeLimit *pomonitoringv1.ByteSize) {
 	if targetLimit != nil {
 		logger.Warn("Field 'targetLimit' is unnecessary in GMP Managed Collection and has been dropped. Target discovery and scaling are managed automatically by GKE.")
 	}
@@ -1099,23 +1099,34 @@ func warnUnsupportedMonitorSpecFields(logger *slog.Logger, targetLimit *uint64, 
 	}
 }
 
+// toUint64 converts a signed Prometheus Operator value to the unsigned type used by GMP.
+// Prometheus Operator rejects negative values through CRD validation, but gmp-migrate processes
+// manifests offline, so a negative value is dropped (zero value) with a warning instead of wrapping around.
+func toUint64(logger *slog.Logger, field string, value int64) uint64 {
+	if value < 0 {
+		logger.Warn(fmt.Sprintf("Field %q has a negative value (%d), which is invalid. The field has been dropped.", field, value))
+		return 0
+	}
+	return uint64(value)
+}
+
 // convertLimits maps PodMonitor limit settings to GMP ScrapeLimits.
-func convertLimits(sampleLimit, labelLimit, labelNameLengthLimit, labelValueLengthLimit *uint64) *monitoringv1.ScrapeLimits {
+func convertLimits(logger *slog.Logger, sampleLimit, labelLimit, labelNameLengthLimit, labelValueLengthLimit *int64) *monitoringv1.ScrapeLimits {
 	if sampleLimit == nil && labelLimit == nil && labelNameLengthLimit == nil && labelValueLengthLimit == nil {
 		return nil
 	}
 	limits := &monitoringv1.ScrapeLimits{}
 	if sampleLimit != nil {
-		limits.Samples = *sampleLimit
+		limits.Samples = toUint64(logger, "sampleLimit", *sampleLimit)
 	}
 	if labelLimit != nil {
-		limits.Labels = *labelLimit
+		limits.Labels = toUint64(logger, "labelLimit", *labelLimit)
 	}
 	if labelNameLengthLimit != nil {
-		limits.LabelNameLength = *labelNameLengthLimit
+		limits.LabelNameLength = toUint64(logger, "labelNameLengthLimit", *labelNameLengthLimit)
 	}
 	if labelValueLengthLimit != nil {
-		limits.LabelValueLength = *labelValueLengthLimit
+		limits.LabelValueLength = toUint64(logger, "labelValueLengthLimit", *labelValueLengthLimit)
 	}
 	// Return nil if all fields in limits remain zero since zero values are stripped by omitempty.
 	if *limits == (monitoringv1.ScrapeLimits{}) {
@@ -1413,7 +1424,7 @@ func (c *conversionContext) convertProxyURL(proxyURL *string) string {
 }
 
 // warnUnsupportedEndpointFields logs warnings for fields that GMP does not support.
-// TODO: Once Prometheus Operator Go structs are upgraded, add warning checks for unsupported endpoint proxy fields ('noProxy', 'proxyConnectHeader', 'proxyFromEnvironment').
+// TODO(https://github.com/GoogleCloudPlatform/prometheus-engine/issues/2378): add warning checks for unsupported endpoint proxy fields ('noProxy', 'proxyConnectHeader', 'proxyFromEnvironment').
 func warnUnsupportedEndpointFields(logger *slog.Logger, followRedirects *bool, enableHTTP2 *bool, honorLabels bool, honorTimestamps *bool, trackTimestampsStaleness *bool, i int) {
 	if followRedirects != nil && !*followRedirects {
 		logger.Warn(fmt.Sprintf("endpoint [%d]: field 'followRedirects: false' is unsupported by GMP Managed Collection and has been dropped. The collector will always follow redirects.", i))
