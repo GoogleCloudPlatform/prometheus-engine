@@ -92,6 +92,11 @@ RUN ARCH=$(dpkg --print-architecture) && \
 	install -o root -g root -m 0755 kind /usr/local/bin/kind && \
 	rm kind
 
+# Install yq (used by examples/inject-gmp-sidecar.sh) with the version from tools/go.mod.
+COPY tools tools
+RUN --mount=type=cache,target=/root/go/pkg/mod \
+	--mount=type=cache,target=/root/.cache/go-build \
+	cd tools && GOBIN=/usr/local/bin go install github.com/mikefarah/yq/v4
 
 # Get resources into image.
 COPY examples examples

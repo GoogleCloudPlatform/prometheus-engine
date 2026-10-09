@@ -112,6 +112,12 @@ update_manifests() {
 	go tool -modfile="${REPO_ROOT}/tools/go.mod" helm template "${REPO_ROOT}/charts/datasource-syncer" \
 		-f "${REPO_ROOT}/charts/values.global.yaml" \
 		>"${REPO_ROOT}/cmd/datasource-syncer/datasource-syncer.yaml"
+	# Helm only renders YAML, so the script is extracted from the rendered YAML document.
+	go tool -modfile="${REPO_ROOT}/tools/go.mod" helm template "${REPO_ROOT}/charts/inject-gmp-sidecar" \
+		-f "${REPO_ROOT}/charts/values.global.yaml" |
+		go tool -modfile="${REPO_ROOT}/tools/go.mod" yq '."inject-gmp-sidecar.sh"' \
+			>"${REPO_ROOT}/examples/inject-gmp-sidecar.sh"
+	chmod +x "${REPO_ROOT}/examples/inject-gmp-sidecar.sh"
 
 	go tool -modfile="${REPO_ROOT}/tools/go.mod" addlicense -y 2025 ${REPO_ROOT}/manifests/*.yaml "${REPO_ROOT}/cmd/datasource-syncer/datasource-syncer.yaml"
 }
@@ -174,7 +180,7 @@ main() {
 				update_crdgen
 				;;
 			diff)
-				git diff --exit-code go.mod go.sum '*.md' '*.go' '*.yml' '*.yaml' ||
+				git diff --exit-code go.mod go.sum '*.md' '*.go' '*.yml' '*.yaml' 'examples/inject-gmp-sidecar.sh' ||
 					exit_msg "diff found - ensure regenerated code is up-to-date and committed."
 				;;
 			docgen)
