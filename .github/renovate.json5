@@ -155,6 +155,9 @@
         'gcr.io/gke-release/prometheus-engine/**',
       ],
       versioning: 'regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-(?:gmp|gke)\\.(?<build>\\d+)(?:-gke\\.(?<revision>\\d+))?$',
+      // Use the image basename instead of the docker datasource default ("<full depName> Docker tag")
+      // so commit headers fit .conform.yaml limits, e.g. "chore(deps): update alertmanager image to v0.27.0-gmp.10-gke.0".
+      commitMessageTopic: '{{{replace "^.*/" "" depName}}} image',
     },
     {
       description: 'Allow only patch, build, and revision updates for prometheus-engine images (disable major and minor bumps)',
