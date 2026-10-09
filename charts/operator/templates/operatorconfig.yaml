@@ -13,6 +13,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 */}}
+{{- if .Values.workloadIdentity.enabled }}
+{{- if and (not .Values.projectId) (or (not .Values.workloadIdentity.tokenAudience) (not .Values.workloadIdentity.audience)) }}
+  {{- fail ".Values.projectId must be set when workloadIdentity is enabled (unless both .Values.workloadIdentity.tokenAudience and .Values.workloadIdentity.audience are explicitly provided)" }}
+{{- end }}
+{{- $membershipLocation := default "global" .Values.workloadIdentity.membershipLocation -}}
+{{- $membershipName := default .Values.cluster .Values.workloadIdentity.membershipName -}}
+{{- if and (not .Values.workloadIdentity.audience) (not $membershipName) }}
+  {{- fail "Either .Values.cluster or .Values.workloadIdentity.membershipName must be set when workloadIdentity is enabled and no custom audience is provided" }}
+{{- end }}
+{{- $wifAudience := .Values.workloadIdentity.audience -}}
+{{- if not $wifAudience -}}
+  {{- $wifAudience = printf "identitynamespace:%s.svc.id.goog:https://gkehub.googleapis.com/projects/%s/locations/%s/memberships/%s" .Values.projectId .Values.projectId $membershipLocation $membershipName -}}
+{{- end -}}
+{{- $wifConfig := dict
+  "type" "external_account"
+  "audience" $wifAudience
+  "subject_token_type" "urn:ietf:params:oauth:token-type:jwt"
+  "token_url" "https://sts.googleapis.com/v1/token"
+  "credential_source" (dict "file" "/etc/ksa-token/ksa-token")
+-}}
+{{- if .Values.workloadIdentity.serviceAccountEmail -}}
+{{- $_ := set $wifConfig "service_account_impersonation_url" (printf "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken" .Values.workloadIdentity.serviceAccountEmail) -}}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.workloadIdentity.secretName }}
+  namespace: {{ .Values.namespace.public }}
+  {{- if .Values.commonLabels }}
+  labels:
+    {{- include "prometheus-engine.labels" . | nindent 4 }}
+  {{- end }}
+type: Opaque
+stringData:
+  key.json: |
+    {{- $wifConfig | toPrettyJson | nindent 4 }}
+---
+{{- end }}
 apiVersion: monitoring.googleapis.com/v1
 kind: OperatorConfig
 metadata:
@@ -22,3 +60,14 @@ metadata:
   labels:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
   {{- end }}
+{{- if .Values.workloadIdentity.enabled }}
+collection:
+  credentials:
+    name: {{ .Values.workloadIdentity.secretName }}
+    key: key.json
+rules:
+  credentials:
+    name: {{ .Values.workloadIdentity.secretName }}
+    key: key.json
+{{- end }}
+
