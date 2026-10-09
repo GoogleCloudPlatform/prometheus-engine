@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -413,6 +414,82 @@ func TestCRDDefaulting(t *testing.T) {
 		}
 		runPM(t, tests)
 	})
+
+	type ocTest struct {
+		obj  *monitoringv1.OperatorConfig
+		want *monitoringv1.OperatorConfig
+	}
+	runOC := func(t *testing.T, tests map[string]ocTest) {
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				if err := c.Create(t.Context(), tc.obj); err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				defer func() {
+					_ = c.Delete(t.Context(), tc.obj)
+					_ = wait.PollUntilContextTimeout(t.Context(), 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
+						err := c.Get(ctx, client.ObjectKeyFromObject(tc.obj), tc.obj.DeepCopyObject().(client.Object))
+						return apierrors.IsNotFound(err), nil
+					})
+				}()
+
+				err := c.Get(
+					t.Context(),
+					client.ObjectKeyFromObject(tc.obj),
+					tc.obj,
+				)
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+
+				if diff := cmp.Diff(tc.want.ManagedAlertmanager, tc.obj.ManagedAlertmanager); diff != "" {
+					t.Errorf("diff -want +got:\n%s", diff)
+				}
+			})
+		}
+	}
+
+	t.Run("OperatorConfig", func(t *testing.T) {
+		tests := map[string]ocTest{
+			"ManagedAlertmanager/default": {
+				obj: &monitoringv1.OperatorConfig{
+					Name:      "config",
+					Namespace: "gmp-public",
+				},
+				want: &monitoringv1.OperatorConfig{
+					Name:      "config",
+					Namespace: "gmp-public",
+					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+						ConfigSecret: &corev1.SecretKeySelector{
+							Name: "alertmanager",
+							Key:  "alertmanager.yaml",
+						},
+					},
+				},
+			},
+			"ManagedAlertmanager/nondefault": {
+				obj: &monitoringv1.OperatorConfig{
+					Name:      "config",
+					Namespace: "gmp-public",
+					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+						ExternalURL: "https://alertmanager.example.com",
+					},
+				},
+				want: &monitoringv1.OperatorConfig{
+					Name:      "config",
+					Namespace: "gmp-public",
+					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
+						ConfigSecret: &corev1.SecretKeySelector{
+							Name: "alertmanager",
+							Key:  "alertmanager.yaml",
+						},
+						ExternalURL: "https://alertmanager.example.com",
+					},
+				},
+			},
+		}
+		runOC(t, tests)
+	})
 }
 
 func TestCRDValidation(t *testing.T) {
@@ -421,8 +498,9 @@ func TestCRDValidation(t *testing.T) {
 	c, _ := createKindCluster(t)
 
 	type test struct {
-		obj     client.Object
-		wantErr bool
+		obj        client.Object
+		wantErr    bool
+		wantErrMsg string
 	}
 
 	run := func(t *testing.T, tests map[string]test) {
@@ -445,7 +523,9 @@ func TestCRDValidation(t *testing.T) {
 					t.Error("Want error, but got none")
 				case err != nil && tc.wantErr:
 					t.Log(err)
-					// OK.
+					if tc.wantErrMsg != "" && !strings.Contains(err.Error(), tc.wantErrMsg) {
+						t.Errorf("Expected error containing %q, got: %v", tc.wantErrMsg, err)
+					}
 				}
 			})
 		}
@@ -541,26 +621,29 @@ func TestCRDValidation(t *testing.T) {
 	t.Run("OperatorConfig", func(t *testing.T) {
 		tests := map[string]test{
 			"empty": {
-				obj:     &monitoringv1.OperatorConfig{},
-				wantErr: true,
+				obj:        &monitoringv1.OperatorConfig{},
+				wantErr:    true,
+				wantErrMsg: "an empty namespace may not be set during creation",
 			},
 			"invalid name": {
 				obj: &monitoringv1.OperatorConfig{
 					Name:      "invalid-name",
 					Namespace: "gmp-public",
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "object.metadata.name == 'config'",
 			},
 			"invalid namespace": {
 				obj: &monitoringv1.OperatorConfig{
 					Name:      "config",
-					Namespace: "invalid-namespace",
+					Namespace: "default",
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "object.metadata.namespace == 'gmp-public'",
 			},
 			"bad scrape interval": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-bad-scrape-interval",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Collection: monitoringv1.CollectionSpec{
 						KubeletScraping: &monitoringv1.KubeletScraping{
@@ -568,51 +651,124 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "collection.kubeletScraping.interval in body must be of type duration",
+			},
+			"missing scrape interval": {
+				obj: &monitoringv1.OperatorConfig{
+					Name:      "config",
+					Namespace: "gmp-public",
+					Collection: monitoringv1.CollectionSpec{
+						KubeletScraping: &monitoringv1.KubeletScraping{
+							Interval: "",
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "collection.kubeletScraping.interval in body must be of type duration",
+			},
+			"missing scrape interval (omitted)": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "OperatorConfig",
+						"metadata": map[string]any{
+							"name":      "config",
+							"namespace": "gmp-public",
+						},
+						"collection": map[string]any{
+							"kubeletScraping": map[string]any{},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "collection.kubeletScraping.interval: Required value",
+			},
+			"valid compression": {
+				obj: &monitoringv1.OperatorConfig{
+					Name:      "config",
+					Namespace: "gmp-public",
+					Collection: monitoringv1.CollectionSpec{
+						Compression: monitoringv1.CompressionGzip,
+					},
+					Features: monitoringv1.OperatorFeatures{
+						Config: monitoringv1.ConfigSpec{
+							Compression: monitoringv1.CompressionNone,
+						},
+					},
+				},
+			},
+			"bad collection compression": {
+				obj: &monitoringv1.OperatorConfig{
+					Name:      "config",
+					Namespace: "gmp-public",
+					Collection: monitoringv1.CollectionSpec{
+						Compression: "snappy",
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "collection.compression: Unsupported value",
+			},
+			"bad features config compression": {
+				obj: &monitoringv1.OperatorConfig{
+					Name:      "config",
+					Namespace: "gmp-public",
+					Features: monitoringv1.OperatorFeatures{
+						Config: monitoringv1.ConfigSpec{
+							Compression: "snappy",
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "features.config.compression: Unsupported value",
 			},
 			"missing collection credentials secret key": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-missing-collection-credentials",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Collection: monitoringv1.CollectionSpec{
 						Credentials: &corev1.SecretKeySelector{},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "collection.credentials: Invalid value",
 			},
 			"bad generator URL": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-bad-generator-url",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						GeneratorURL: "~:://example.com",
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "rules.generatorUrl",
 			},
 			"missing rule manager credentials secret key": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-missing-rule-manager-credentials",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Credentials: &corev1.SecretKeySelector{},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "rules.credentials: Invalid value",
 			},
 			"missing managed alert manager config secret key": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-missing-alert-manager-secret",
+					Name:      "config",
 					Namespace: "gmp-public",
 					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
 						ConfigSecret: &corev1.SecretKeySelector{},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "managedAlertmanager.configSecret: Invalid value",
 			},
 			"rule manager authorization credentials secret key missing": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-missing-rule-auth-secret",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
@@ -626,11 +782,12 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "rules.alerting.alertmanagers[0].authorization.credentials: Invalid value",
 			},
 			"rule manager TLS secret key missing": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-missing-tls-secret-key",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
@@ -643,11 +800,12 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "rules.alerting.alertmanagers[0].tls.keySecret: Invalid value",
 			},
 			"rule manager TLS CA mutually exclusive": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-tls-ca-mutually-exclusive",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
@@ -667,11 +825,12 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "rules.alerting.alertmanagers[0].tls.ca: Invalid value",
 			},
 			"rule manager TLS CA secret key missing": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-tls-ca-secret-key-missing",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
@@ -686,11 +845,12 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "rules.alerting.alertmanagers[0].tls.ca.secret: Invalid value",
 			},
 			"rule manager TLS Cert mutually exclusive": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-tls-cert-mutually-exclusive",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
@@ -710,11 +870,12 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "rules.alerting.alertmanagers[0].tls.cert: Invalid value",
 			},
 			"rule manager TLS Cert secret key missing": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-tls-cert-secret-key-missing",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
@@ -729,7 +890,8 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "rules.alerting.alertmanagers[0].tls.cert.secret: Invalid value",
 			},
 			"minimal": {
 				obj: &monitoringv1.OperatorConfig{
@@ -781,38 +943,6 @@ func TestCRDValidation(t *testing.T) {
 				},
 				wantErr: false,
 			},
-			"queryProjectID invalid pattern": {
-				obj: &unstructured.Unstructured{
-					Object: map[string]any{
-						"apiVersion": "monitoring.googleapis.com/v1",
-						"kind":       "OperatorConfig",
-						"metadata": map[string]any{
-							"name":      "config-query-project-id-invalid-pattern",
-							"namespace": "gmp-public",
-						},
-						"rules": map[string]any{
-							"queryProjectID": "bad!",
-						},
-					},
-				},
-				wantErr: true,
-			},
-			"queryProjectID too short": {
-				obj: &unstructured.Unstructured{
-					Object: map[string]any{
-						"apiVersion": "monitoring.googleapis.com/v1",
-						"kind":       "OperatorConfig",
-						"metadata": map[string]any{
-							"name":      "config-query-project-id-too-short",
-							"namespace": "gmp-public",
-						},
-						"rules": map[string]any{
-							"queryProjectID": "abc",
-						},
-					},
-				},
-				wantErr: true,
-			},
 			"valid externalLabels": {
 				obj: &monitoringv1.OperatorConfig{
 					Name:      "config",
@@ -829,46 +959,6 @@ func TestCRDValidation(t *testing.T) {
 					},
 				},
 				wantErr: false,
-			},
-			"collection externalLabels invalid key": {
-				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-invalid-collection-labels",
-					Namespace: "gmp-public",
-					Collection: monitoringv1.CollectionSpec{
-						ExternalLabels: map[string]string{
-							"0invalid-key": "value",
-						},
-					},
-				},
-				wantErr: true,
-			},
-			"rules externalLabels invalid key": {
-				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-invalid-rules-labels",
-					Namespace: "gmp-public",
-					Rules: monitoringv1.RuleEvaluatorSpec{
-						ExternalLabels: map[string]string{
-							"invalid.key": "value",
-						},
-					},
-				},
-				wantErr: true,
-			},
-			"queryProjectID too long": {
-				obj: &unstructured.Unstructured{
-					Object: map[string]any{
-						"apiVersion": "monitoring.googleapis.com/v1",
-						"kind":       "OperatorConfig",
-						"metadata": map[string]any{
-							"name":      "config-query-project-id-too-long",
-							"namespace": "gmp-public",
-						},
-						"rules": map[string]any{
-							"queryProjectID": "a-project-id-that-is-way-too-long-to-be-valid",
-						},
-					},
-				},
-				wantErr: true,
 			},
 			"valid generator URL": {
 				obj: &monitoringv1.OperatorConfig{
@@ -894,7 +984,7 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"bad exports URL": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-bad-exports-url",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Exports: []monitoringv1.ExportSpec{
 						{
@@ -902,7 +992,8 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "exports[0].url",
 			},
 			"valid externalURL": {
 				obj: &monitoringv1.OperatorConfig{
@@ -920,7 +1011,7 @@ func TestCRDValidation(t *testing.T) {
 			},
 			"bad externalURL": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-bad-external-url",
+					Name:      "config",
 					Namespace: "gmp-public",
 					ManagedAlertmanager: &monitoringv1.ManagedAlertmanagerSpec{
 						ConfigSecret: &corev1.SecretKeySelector{
@@ -930,7 +1021,8 @@ func TestCRDValidation(t *testing.T) {
 						ExternalURL: "~:://example.com",
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "managedAlertmanager.externalURL",
 			},
 			"valid AlertmanagerEndpoints": {
 				obj: &monitoringv1.OperatorConfig{
@@ -944,6 +1036,7 @@ func TestCRDValidation(t *testing.T) {
 									Name:      "alertmanager-operated",
 									Port:      intstr.FromString("web"),
 									Scheme:    "https",
+									Timeout:   "10s",
 								},
 							},
 						},
@@ -951,47 +1044,9 @@ func TestCRDValidation(t *testing.T) {
 				},
 				wantErr: false,
 			},
-			"AlertmanagerEndpoints invalid namespace": {
+			"bad alertmanager timeout": {
 				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-alertmanager-invalid-ns",
-					Namespace: "gmp-public",
-					Rules: monitoringv1.RuleEvaluatorSpec{
-						Alerting: monitoringv1.AlertingSpec{
-							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
-								{
-									Namespace: "invalid.ns!",
-									Name:      "alertmanager-operated",
-									Port:      intstr.FromString("web"),
-									Scheme:    "http",
-								},
-							},
-						},
-					},
-				},
-				wantErr: true,
-			},
-			"AlertmanagerEndpoints invalid name": {
-				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-alertmanager-invalid-name",
-					Namespace: "gmp-public",
-					Rules: monitoringv1.RuleEvaluatorSpec{
-						Alerting: monitoringv1.AlertingSpec{
-							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{
-								{
-									Namespace: "monitoring",
-									Name:      "invalid_name",
-									Port:      intstr.FromString("web"),
-									Scheme:    "http",
-								},
-							},
-						},
-					},
-				},
-				wantErr: true,
-			},
-			"AlertmanagerEndpoints invalid scheme": {
-				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-alertmanager-invalid-scheme",
+					Name:      "config",
 					Namespace: "gmp-public",
 					Rules: monitoringv1.RuleEvaluatorSpec{
 						Alerting: monitoringv1.AlertingSpec{
@@ -1000,74 +1055,37 @@ func TestCRDValidation(t *testing.T) {
 									Namespace: "monitoring",
 									Name:      "alertmanager-operated",
 									Port:      intstr.FromString("web"),
-									Scheme:    "grpc",
+									Timeout:   "xyz",
 								},
 							},
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "rules.alerting.alertmanagers[0].timeout in body must be of type duration",
 			},
-			"too many exports": {
-				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-too-many-exports",
-					Namespace: "gmp-public",
-					Exports: func() []monitoringv1.ExportSpec {
-						var exports []monitoringv1.ExportSpec
-						for i := range 11 {
-							exports = append(exports, monitoringv1.ExportSpec{
-								URL: fmt.Sprintf("https://example.com/write-%d", i),
-							})
-						}
-						return exports
-					}(),
-				},
-				wantErr: true,
-			},
-			"too many alertmanagers": {
-				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-too-many-alertmanagers",
-					Namespace: "gmp-public",
-					Rules: monitoringv1.RuleEvaluatorSpec{
-						Alerting: monitoringv1.AlertingSpec{
-							Alertmanagers: func() []monitoringv1.AlertmanagerEndpoints {
-								var ams []monitoringv1.AlertmanagerEndpoints
-								for i := range 4 {
-									ams = append(ams, monitoringv1.AlertmanagerEndpoints{
-										Namespace: "monitoring",
-										Name:      fmt.Sprintf("am-%d", i),
-										Port:      intstr.FromString("web"),
-										Scheme:    "http",
-									})
-								}
-								return ams
-							}(),
+			"missing alertmanager required fields (omitted)": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "OperatorConfig",
+						"metadata": map[string]any{
+							"name":      "config",
+							"namespace": "gmp-public",
 						},
-					},
-				},
-				wantErr: true,
-			},
-			"invalid TLS key secret name": {
-				obj: &monitoringv1.OperatorConfig{
-					Name:      "config-invalid-tls-key-secret",
-					Namespace: "gmp-public",
-					Rules: monitoringv1.RuleEvaluatorSpec{
-						Alerting: monitoringv1.AlertingSpec{
-							Alertmanagers: []monitoringv1.AlertmanagerEndpoints{{
-								Namespace: "monitoring",
-								Name:      "alertmanager-operated",
-								Port:      intstr.FromString("web"),
-								TLS: &monitoringv1.TLSConfig{
-									KeySecret: &corev1.SecretKeySelector{
-										Name: "my_invalid_secret",
-										Key:  "tls.key",
+						"rules": map[string]any{
+							"alerting": map[string]any{
+								"alertmanagers": []any{
+									map[string]any{
+										"name": "alertmanager-operated",
 									},
 								},
-							}},
+							},
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "rules.alerting.alertmanagers[0].namespace: Required value",
 			},
 		}
 		run(t, tests)

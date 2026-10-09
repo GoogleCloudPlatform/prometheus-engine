@@ -63,6 +63,11 @@ func TestInspectNewSchemaValidator(t *testing.T) {
 		t.Fatalf("failed to convert schema: %v", err)
 	}
 
+	openapiValidator, _, err := validation.NewSchemaValidator(&internalSchema)
+	if err != nil {
+		t.Fatalf("failed to create OpenAPI validator: %v", err)
+	}
+
 	structural, err := structuralschema.NewStructural(&internalSchema)
 	if err != nil {
 		t.Fatalf("failed to create structural schema: %v", err)
@@ -70,37 +75,187 @@ func TestInspectNewSchemaValidator(t *testing.T) {
 
 	celValidator := cel.NewValidator(structural, false, celconfig.PerCallLimit)
 
-	invalidPayload := map[string]any{
-		"apiVersion": "monitoring.googleapis.com/v1",
-		"kind":       "OperatorConfig",
-		"metadata": map[string]any{
-			"name":      "config",
-			"namespace": "gmp-public",
+	validateCRD := func(obj map[string]any) []string {
+		var errs []string
+		openapiResult := openapiValidator.Validate(obj)
+		for _, e := range openapiResult.Errors {
+			errs = append(errs, e.Error())
+		}
+		celErrors, _ := celValidator.Validate(t.Context(), nil, structural, obj, nil, celconfig.RuntimeCELCostBudget)
+		for _, e := range celErrors {
+			errs = append(errs, e.Error())
+		}
+		return errs
+	}
+
+	tests := []struct {
+		name       string
+		payload    map[string]any
+		wantErrMsg string
+	}{
+		{
+			name: "valid minimal",
+			payload: map[string]any{
+				"apiVersion": "monitoring.googleapis.com/v1",
+				"kind":       "OperatorConfig",
+				"metadata": map[string]any{
+					"name":      "config",
+					"namespace": "gmp-public",
+				},
+			},
 		},
-		"rules": map[string]any{
-			"alerting": map[string]any{
-				"alertmanagers": []any{
-					map[string]any{
-						"tls": map[string]any{
-							"ca": map[string]any{
-								"secret": map[string]any{
-									"name": "my-secret",
-								},
-								"configMap": map[string]any{
-									"name": "my-configmap",
+		{
+			name: "TLS CA secret and configMap mutually exclusive",
+			payload: map[string]any{
+				"apiVersion": "monitoring.googleapis.com/v1",
+				"kind":       "OperatorConfig",
+				"metadata": map[string]any{
+					"name":      "config",
+					"namespace": "gmp-public",
+				},
+				"rules": map[string]any{
+					"alerting": map[string]any{
+						"alertmanagers": []any{
+							map[string]any{
+								"name":      "am",
+								"namespace": "gmp-public",
+								"port":      9093,
+								"tls": map[string]any{
+									"ca": map[string]any{
+										"secret": map[string]any{
+											"name": "my-secret",
+											"key":  "ca.crt",
+										},
+										"configMap": map[string]any{
+											"name": "my-configmap",
+											"key":  "ca.crt",
+										},
+									},
 								},
 							},
 						},
 					},
 				},
 			},
+			wantErrMsg: "SecretOrConfigMap fields are mutually exclusive",
+		},
+		{
+			name: "invalid collection compression enum",
+			payload: map[string]any{
+				"collection": map[string]any{
+					"compression": "snappy",
+				},
+			},
+			wantErrMsg: "collection.compression in body should be one of [none gzip]",
+		},
+		{
+			name: "invalid features config compression enum",
+			payload: map[string]any{
+				"features": map[string]any{
+					"config": map[string]any{
+						"compression": "snappy",
+					},
+				},
+			},
+			wantErrMsg: "features.config.compression in body should be one of [none gzip]",
+		},
+		{
+			name: "invalid kubeletScraping interval duration",
+			payload: map[string]any{
+				"collection": map[string]any{
+					"kubeletScraping": map[string]any{
+						"interval": "xyz",
+					},
+				},
+			},
+			wantErrMsg: "collection.kubeletScraping.interval in body must be of type duration",
+		},
+		{
+			name: "omitted kubeletScraping interval required",
+			payload: map[string]any{
+				"collection": map[string]any{
+					"kubeletScraping": map[string]any{},
+				},
+			},
+			wantErrMsg: "collection.kubeletScraping.interval in body is required",
+		},
+		{
+			name: "invalid alertmanager timeout duration",
+			payload: map[string]any{
+				"rules": map[string]any{
+					"alerting": map[string]any{
+						"alertmanagers": []any{
+							map[string]any{
+								"name":      "am",
+								"namespace": "gmp-public",
+								"port":      9093,
+								"timeout":   "xyz",
+							},
+						},
+					},
+				},
+			},
+			wantErrMsg: "rules.alerting.alertmanagers[0].timeout in body must be of type duration",
+		},
+		{
+			name: "omitted alertmanager required fields",
+			payload: map[string]any{
+				"rules": map[string]any{
+					"alerting": map[string]any{
+						"alertmanagers": []any{
+							map[string]any{
+								"name": "am",
+							},
+						},
+					},
+				},
+			},
+			wantErrMsg: "namespace in body is required",
+		},
+		{
+			name: "omitted secret key required field",
+			payload: map[string]any{
+				"collection": map[string]any{
+					"credentials": map[string]any{
+						"name": "my-secret",
+					},
+				},
+			},
+			wantErrMsg: "collection.credentials.key in body is required",
+		},
+		{
+			name: "invalid exports url",
+			payload: map[string]any{
+				"exports": []any{
+					map[string]any{
+						"url": "http://:::",
+					},
+				},
+			},
+			wantErrMsg: "url must be a valid URL",
+		},
+		{
+			name: "invalid managedAlertmanager externalURL",
+			payload: map[string]any{
+				"managedAlertmanager": map[string]any{
+					"externalURL": "http://:::",
+				},
+			},
+			wantErrMsg: "externalURL must be a valid URL",
 		},
 	}
 
-	errs, _ := celValidator.Validate(t.Context(), nil, structural, invalidPayload, nil, celconfig.RuntimeCELCostBudget)
-	t.Logf("CEL Validation Errors: %v (len=%d)", errs, len(errs))
-	if len(errs) == 0 {
-		t.Error("expected CEL validation to fail, but it passed.")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := validateCRD(tc.payload)
+			joined := strings.Join(errs, "; ")
+			if tc.wantErrMsg == "" && len(errs) > 0 {
+				t.Errorf("expected no errors, got: %s", joined)
+			}
+			if tc.wantErrMsg != "" && !strings.Contains(joined, tc.wantErrMsg) {
+				t.Errorf("expected error containing %q, got: %s", tc.wantErrMsg, joined)
+			}
+		})
 	}
 }
 
@@ -260,33 +415,25 @@ func FuzzOperatorConfig(f *testing.F) {
 			t.Skip()
 		}
 
-		// 3. Execute OpenAPIv3 Schema Validation.
+		// 3. Execute OpenAPIv3 Schema Validation and CEL Validation.
 		openapiResult := openapiValidator.Validate(unstructuredObj)
-		if openapiResult.HasErrors() {
-			// If the object is structurally invalid according to the OpenAPI schema,
-			// the API server would reject it before it ever reaches the validating webhook or CEL rules.
-			// Therefore, we skip differential validation for this input.
-			t.Skip()
-		}
-
-		// 4. Execute CEL Validation.
 		celErrors, _ := celValidator.Validate(t.Context(), nil, structural, unstructuredObj, nil, celconfig.RuntimeCELCostBudget)
-		celPassed := len(celErrors) == 0
+		crdPassed := !openapiResult.HasErrors() && len(celErrors) == 0
 
-		// 5. Execute Webhook Validation.
+		// 4. Execute Webhook Validation.
 		webhookErr := oc.Validate()
 		webhookPassed := webhookErr == nil
 
-		// 6. Differential assertion.
-		if celPassed != webhookPassed {
-			if !celPassed && webhookPassed {
-				if isURLValidationDiscrepancy(celErrors) {
-					t.Skip("Narrowly skipping: CEL is stricter than Webhook for URL validation")
+		// 5. Differential assertion.
+		if crdPassed != webhookPassed {
+			if !crdPassed && webhookPassed {
+				if isExpectedCRDDiscrepancy(openapiResult.Errors, celErrors) {
+					t.Skip("Narrowly skipping: CRD schema/CEL is intentionally stricter than Webhook")
 				}
-				t.Fatalf("Discrepancy (False Positive): CEL validation rejected the object, but Webhook accepted it.\nCEL Errors: %v\nPayload: %s", celErrors, string(data))
+				t.Fatalf("Discrepancy (False Positive): CRD validation rejected the object, but Webhook accepted it.\nOpenAPI Errors: %v\nCEL Errors: %v\nPayload: %s", openapiResult.Errors, celErrors, string(data))
 			}
-			if celPassed && !webhookPassed {
-				// This is a False Negative in CEL (CEL is too lenient / missing rules).
+			if crdPassed && !webhookPassed {
+				// This is a False Negative in CRD/CEL (CRD/CEL is too lenient / missing rules).
 				// We narrowly tolerate this if the webhook rejected it specifically because of generatorUrl parsing
 				// or duration string parsing (see https://github.com/kubernetes/kube-openapi/pull/619).
 				if strings.Contains(webhookErr.Error(), "failed to parse generator URL") {
@@ -295,7 +442,7 @@ func FuzzOperatorConfig(f *testing.F) {
 				if isDurationValidationDiscrepancy(webhookErr) {
 					t.Skip("Narrowly skipping: Webhook is stricter than CEL for duration string validation")
 				}
-				t.Fatalf("Discrepancy (False Negative): CEL validation accepted the object, but Webhook rejected it.\nWebhook Error: %v\nPayload: %s", webhookErr, string(data))
+				t.Fatalf("Discrepancy (False Negative): CRD validation accepted the object, but Webhook rejected it.\nWebhook Error: %v\nPayload: %s", webhookErr, string(data))
 			}
 		}
 	})
@@ -312,11 +459,23 @@ func isDurationValidationDiscrepancy(err error) bool {
 		strings.Contains(msg, "duration out of range")
 }
 
-func isURLValidationDiscrepancy(errs field.ErrorList) bool {
-	if len(errs) == 0 {
+func isExpectedCRDDiscrepancy(openapiErrs []error, celErrs field.ErrorList) bool {
+	if len(openapiErrs) == 0 && len(celErrs) == 0 {
 		return false
 	}
-	for _, err := range errs {
+	for _, err := range openapiErrs {
+		msg := err.Error()
+		isExpected := strings.HasSuffix(msg, "is required") ||
+			strings.Contains(msg, "should be one of [none gzip]") ||
+			strings.Contains(msg, "must be of type uri") ||
+			strings.Contains(msg, ".timeout in body must be of type duration") ||
+			strings.Contains(msg, "collection.kubeletScraping.interval in body must be of type duration") ||
+			strings.HasPrefix(msg, "metadata.")
+		if !isExpected {
+			return false
+		}
+	}
+	for _, err := range celErrs {
 		f := err.Field
 		isURLField := f == "rules.generatorUrl" || f == "managedAlertmanager.externalURL" || (strings.HasPrefix(f, "exports[") && strings.HasSuffix(f, "].url"))
 		if !isURLField {
