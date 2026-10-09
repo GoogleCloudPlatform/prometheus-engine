@@ -24,6 +24,7 @@ const { Vulnerabilities } = renovateRequire('./dist/workers/repository/process/v
 const { applyVulnerabilityFixFilter } = renovateRequire('./dist/workers/repository/process/lookup/vulnerability.js');
 const { classifyRelease } = renovateRequire('./dist/workers/repository/process/lookup/update-type.js');
 const { get: getVersioning } = renovateRequire('./dist/modules/versioning/index.js');
+const { compile: compileTemplate } = renovateRequire('./dist/util/template/index.js');
 
 const configFile = path.resolve(__dirname, '../.github/renovate.json5');
 const configRaw = fs.readFileSync(configFile, 'utf8');
@@ -232,6 +233,51 @@ async function runTests() {
   assert(
     classifyRelease(engineVersioning, 'v2.53.5-gmp.2-gke.0', 'v3.13.0-gmp.1-gke.0') === 'major',
     'Engine versioning classifies v2.53.5-gmp.2-gke.0 -> v3.13.0-gmp.1-gke.0 as "major"'
+  );
+
+  // Verify prometheus-engine image commit headers fit .conform.yaml limits (header <= 89, description <= 80).
+  // Renovate applies the docker datasource default topic ("{{{depName}}} Docker tag") before packageRules,
+  // so simulate that order to make sure the packageRules override wins.
+  const dockerDefaultTopic = '{{{depName}}} Docker tag';
+  const engineTopicImages = [
+    ['gke.gcr.io/prometheus-engine/datasource-syncer', 'datasource-syncer image'],
+    ['gke.gcr.io/prometheus-engine/alertmanager', 'alertmanager image'],
+    ['gke-release/prometheus-engine/config-reloader', 'config-reloader image'],
+    ['gcr.io/gke-release/prometheus-engine/rule-evaluator', 'rule-evaluator image'],
+  ];
+  const longestEngineTag = 'v2.45.3-gmp.11-gke.10';
+  for (const [img, expectedTopic] of engineTopicImages) {
+    for (const manager of ['dockerfile', 'custom.regex']) {
+      const res = await simulateDep(img, {
+        manager,
+        packageFile: manager === 'dockerfile' ? 'Dockerfile' : 'charts/values.global.yaml',
+        updateType: 'patch',
+        datasource: 'docker',
+        commitMessageTopic: dockerDefaultTopic,
+      });
+      const topic = compileTemplate(res.commitMessageTopic, { depName: img });
+      assert(
+        topic === expectedTopic,
+        `Engine image ${img} (${manager}) renders commit topic "${expectedTopic}" (got "${topic}")`
+      );
+      const description = `update ${topic} to ${longestEngineTag}`;
+      const header = `${config.semanticCommitType}(${config.semanticCommitScope}): ${description}`;
+      assert(
+        header.length <= 89 && description.length <= 80,
+        `Engine image ${img} (${manager}) commit header fits conform limits (${header.length}/89, ${description.length}/80)`
+      );
+    }
+  }
+  const thirdPartyTopic = await simulateDep('quay.io/prometheus/alertmanager', {
+    manager: 'custom.regex',
+    packageFile: 'manifests/operator.yaml',
+    updateType: 'patch',
+    datasource: 'docker',
+    commitMessageTopic: dockerDefaultTopic,
+  });
+  assert(
+    thirdPartyTopic.commitMessageTopic === dockerDefaultTopic,
+    '3P image quay.io/prometheus/alertmanager keeps the docker datasource default commit topic'
   );
 
   // Verify 1P Google container images bypass minimumReleaseAge while 3P images keep '7 days'
