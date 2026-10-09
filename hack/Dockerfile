@@ -14,7 +14,7 @@
 
 # hermetic is a lite copy of the repo resources used in building
 # testing in a hermetic, idempotent, and reproducable environment.
-FROM google-go.pkg.dev/golang:1.27.1@sha256:839dafae523554ce25f90b48dae988215e8fed7c8a3c6e0577fec4b847d7e41e AS hermetic
+FROM google-go.pkg.dev/golang:1.27.2@sha256:dd4f740b4898b045a97d57a10120363f4e80419d36e787fa520f4f24b2c5a11d AS hermetic
 
 ARG RUNCMD='go fmt ./...'
 WORKDIR /workspace
@@ -64,7 +64,7 @@ COPY --from=hermetic /workspace/hack hack
 COPY --from=hermetic /workspace/tools tools
 
 ## kindtest image for running tests against kind cluster in hermetic environment.
-FROM google-go.pkg.dev/golang:1.27.1@sha256:839dafae523554ce25f90b48dae988215e8fed7c8a3c6e0577fec4b847d7e41e AS buildbase
+FROM google-go.pkg.dev/golang:1.27.2@sha256:dd4f740b4898b045a97d57a10120363f4e80419d36e787fa520f4f24b2c5a11d AS buildbase
 FROM docker:29.8-cli AS docker
 FROM debian:stable-slim AS kindtest
 
