@@ -287,6 +287,7 @@ type AlertingSpec struct {
 type ManagedAlertmanagerSpec struct {
 	// ConfigSecret refers to the name of a single-key Secret in the public namespace that
 	// holds the managed Alertmanager config file.
+	// +kubebuilder:default={name: alertmanager, key: alertmanager.yaml}
 	// +kubebuilder:validation:XValidation:rule="has(self.name) && self.name != ''",message="missing secret key selector name"
 	ConfigSecret *corev1.SecretKeySelector `json:"configSecret,omitempty"`
 	// ExternalURL is the URL under which Alertmanager is externally reachable (for example, if
