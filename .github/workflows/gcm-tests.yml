@@ -260,6 +260,12 @@ jobs:
         env:
           GCM_SECRET: ${{ secrets.GCM_SECRET }}
         run: |
+          # pull_request_target runs this workflow from main even for PRs into
+          # older release branches, whose Makefile may predate image-test.
+          if ! grep -qE '^image-test:' Makefile; then
+            echo "::notice::Makefile has no image-test target on this branch; skipping."
+            exit 0
+          fi
           if [[ -z "${GCM_SECRET}" ]]; then echo "::error::GCM_SECRET is empty"; exit 1; fi
           make image-test
 
