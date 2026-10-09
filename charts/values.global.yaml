@@ -110,6 +110,5 @@ workloadIdentity:
   audience: ""
   membershipName: ""
   membershipLocation: "global"
-  projectNumber: ""
   serviceAccountEmail: ""
   secretName: "gmp-wif-creds"
