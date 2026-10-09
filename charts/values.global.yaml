@@ -99,3 +99,17 @@ ruleEvaluator:
   serviceAccount:
     create: true
     name: rule-evaluator
+projectId: ""
+cluster: ""
+location: ""
+tolerations: []
+workloadIdentity:
+  enabled: false
+  tokenAudience: ""
+  tokenExpirationSeconds: 172800
+  audience: ""
+  membershipName: ""
+  membershipLocation: "global"
+  projectNumber: ""
+  serviceAccountEmail: ""
+  secretName: "gmp-wif-creds"

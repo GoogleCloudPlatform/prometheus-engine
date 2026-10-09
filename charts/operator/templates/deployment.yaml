@@ -43,6 +43,15 @@ spec:
         - "--operator-namespace={{.Values.namespace.system}}"
         - "--public-namespace={{.Values.namespace.public}}"
         - "--webhook-addr=:10250"
+        {{- if .Values.projectId }}
+        - "--project-id={{.Values.projectId}}"
+        {{- end }}
+        {{- if .Values.cluster }}
+        - "--cluster={{.Values.cluster}}"
+        {{- end }}
+        {{- if .Values.location }}
+        - "--location={{.Values.location}}"
+        {{- end }}
         {{- if .Values.tls.base64.ca }}
         - "--tls-ca-cert-base64={{.Values.tls.base64.ca}}"
         {{- end }}
@@ -120,6 +129,9 @@ spec:
         effect: "NoSchedule"
         key: "kubernetes.io/arch"
         operator: "Equal"
+      {{- with .Values.tolerations }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
       securityContext:
         runAsGroup: 1000
         runAsNonRoot: true
