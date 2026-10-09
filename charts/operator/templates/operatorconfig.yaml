@@ -24,11 +24,7 @@
 {{- end }}
 {{- $wifAudience := .Values.workloadIdentity.audience -}}
 {{- if not $wifAudience -}}
-  {{- if .Values.workloadIdentity.projectNumber -}}
-    {{- $wifAudience = printf "//iam.googleapis.com/projects/%v/locations/%s/workloadIdentityPools/%s.svc.id.goog/providers/%s" .Values.workloadIdentity.projectNumber $membershipLocation .Values.projectId $membershipName -}}
-  {{- else -}}
-    {{- $wifAudience = printf "identitynamespace:%s.svc.id.goog:https://gkehub.googleapis.com/projects/%s/locations/%s/memberships/%s" .Values.projectId .Values.projectId $membershipLocation $membershipName -}}
-  {{- end -}}
+  {{- $wifAudience = printf "identitynamespace:%s.svc.id.goog:https://gkehub.googleapis.com/projects/%s/locations/%s/memberships/%s" .Values.projectId .Values.projectId $membershipLocation $membershipName -}}
 {{- end -}}
 {{- $wifConfig := dict
   "type" "external_account"
