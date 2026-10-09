@@ -397,7 +397,7 @@ spec:
               fieldPath: spec.nodeName
         resources:
           limits:
-            memory: 64M
+            memory: 32M
           requests:
             cpu: 1m
             memory: 4M
@@ -737,7 +737,7 @@ spec:
           containerPort: 19093
         resources:
           limits:
-            memory: 64M
+            memory: 32M
           requests:
             cpu: 1m
             memory: 4M
@@ -906,7 +906,7 @@ spec:
               fieldPath: spec.nodeName
         resources:
           limits:
-            memory: 64M
+            memory: 32M
           requests:
             cpu: 1m
             memory: 4M
