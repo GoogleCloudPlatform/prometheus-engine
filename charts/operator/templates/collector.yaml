@@ -127,6 +127,10 @@ spec:
         env:
         - name: GOGC
           value: "25"
+        {{- if .Values.workloadIdentity.enabled }}
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: {{ printf "/etc/secrets/secret_%s_%s_key.json" .Values.namespace.public .Values.workloadIdentity.secretName }}
+        {{- end }}
         resources: {{- toYaml $.Values.resources.collector | nindent 10 }}
         volumeMounts:
         - name: storage
@@ -137,6 +141,11 @@ spec:
         - name: collection-secret
           readOnly: true
           mountPath: /etc/secrets
+        {{- if .Values.workloadIdentity.enabled }}
+        - name: ksa-token
+          readOnly: true
+          mountPath: /etc/ksa-token
+        {{- end }}
         livenessProbe:
           httpGet:
             port: 19090
@@ -165,6 +174,16 @@ spec:
       - name: collection-secret
         secret:
           secretName: collection
+      {{- if .Values.workloadIdentity.enabled }}
+      - name: ksa-token
+        projected:
+          defaultMode: 420
+          sources:
+          - serviceAccountToken:
+              audience: {{ default (printf "%s.svc.id.goog" .Values.projectId) .Values.workloadIdentity.tokenAudience }}
+              expirationSeconds: {{ .Values.workloadIdentity.tokenExpirationSeconds }}
+              path: ksa-token
+      {{- end }}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

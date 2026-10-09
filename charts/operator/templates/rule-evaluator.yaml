@@ -65,6 +65,11 @@ spec:
         ports:
         - name: r-eval-metrics
           containerPort: 19092
+        {{- if .Values.workloadIdentity.enabled }}
+        env:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: {{ printf "/etc/secrets/secret_%s_%s_key.json" .Values.namespace.public .Values.workloadIdentity.secretName }}
+        {{- end }}
         resources: {{- toYaml $.Values.resources.ruleEvaluator | nindent 10 }}
         volumeMounts:
         - name: config-out
@@ -76,6 +81,11 @@ spec:
         - name: rules-secret
           readOnly: true
           mountPath: /etc/secrets
+        {{- if .Values.workloadIdentity.enabled }}
+        - name: ksa-token
+          readOnly: true
+          mountPath: /etc/ksa-token
+        {{- end }}
         livenessProbe:
           httpGet:
             port: 19092
@@ -146,6 +156,16 @@ spec:
         secret:
           defaultMode: 420
           secretName: rules
+      {{- if .Values.workloadIdentity.enabled }}
+      - name: ksa-token
+        projected:
+          defaultMode: 420
+          sources:
+          - serviceAccountToken:
+              audience: {{ default (printf "%s.svc.id.goog" .Values.projectId) .Values.workloadIdentity.tokenAudience }}
+              expirationSeconds: {{ .Values.workloadIdentity.tokenExpirationSeconds }}
+              path: ksa-token
+      {{- end }}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -171,6 +191,9 @@ spec:
         effect: "NoSchedule"
         key: "kubernetes.io/arch"
         operator: "Equal"
+      {{- with .Values.tolerations }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
       securityContext:
         runAsGroup: 1000
         runAsNonRoot: true
