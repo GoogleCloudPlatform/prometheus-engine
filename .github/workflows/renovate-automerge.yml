@@ -142,7 +142,7 @@ jobs:
 
           echo "All ${TOTAL_COMMITS} commit(s) verified with official Mend Renovate GPG signature (Key ID: A1020E7F5FFD673D)."
 
-          # 4. Enable platform auto-merge with squash
+          # 4. Enable platform auto-merge with rebase (squash merging is disabled on this repository)
           PR_URL=$(echo "${PR_JSON}" | jq -r '.url')
-          gh pr merge "${PR_URL}" --auto --squash
+          gh pr merge "${PR_URL}" --auto --rebase
           echo "Successfully enabled auto-merge on ${PR_URL}."
