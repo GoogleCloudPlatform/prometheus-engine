@@ -127,10 +127,6 @@ spec:
         env:
         - name: GOGC
           value: "25"
-        {{- if .Values.workloadIdentity.enabled }}
-        - name: GOOGLE_APPLICATION_CREDENTIALS
-          value: {{ printf "/etc/secrets/secret_%s_%s_key.json" .Values.namespace.public .Values.workloadIdentity.secretName }}
-        {{- end }}
         resources: {{- toYaml $.Values.resources.collector | nindent 10 }}
         volumeMounts:
         - name: storage

@@ -70,4 +70,3 @@ rules:
     name: {{ .Values.workloadIdentity.secretName }}
     key: key.json
 {{- end }}
-
