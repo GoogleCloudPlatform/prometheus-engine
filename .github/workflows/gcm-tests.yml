@@ -212,7 +212,7 @@ jobs:
               and all(.commits.nodes[].commit.signature;
                     . != null and .isValid == true and .signer.login == "renovate-bot" and .keyId == $key)
               and all(.files.nodes[].path;
-                    (. == "Makefile" or startswith("hack/") or startswith(".github/")
+                    (. == "Makefile" or (startswith("hack/") and . != "hack/Dockerfile") or startswith(".github/")
                      or endswith(".sh") or endswith(".go")) | not)
             ' <<< "${PR_JSON}" > /dev/null; then
             use_env gcm-protected "Renovate PR is unsigned, stale, or touches sensitive files"

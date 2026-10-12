@@ -45,8 +45,13 @@ function assert(condition, message) {
   }
 }
 
+async function evaluatePackageRules(inputConfig) {
+  const stage1 = await applyPackageRules(inputConfig, 'datasource-merge');
+  return await applyPackageRules(stage1, 'update-type-merge');
+}
+
 async function simulateDep(depName, opts = {}) {
-  return await applyPackageRules({
+  return await evaluatePackageRules({
     ...config,
     packageFile: opts.packageFile || 'go.mod',
     manager: opts.manager || 'gomod',
@@ -138,12 +143,12 @@ async function runTests() {
     'GitHub Actions update is grouped under "github-actions"'
   );
   assert(
-    actionsUpdate.automerge === true && actionsUpdate.automergeType === 'pr',
-    'GitHub Actions update has automerge enabled'
+    actionsUpdate.automerge === false,
+    'GitHub Actions update has automerge disabled (GITHUB_TOKEN lacks workflows permission)'
   );
   assert(
-    Array.isArray(actionsUpdate.addLabels) && actionsUpdate.addLabels.includes('automerge'),
-    'GitHub Actions update has automerge label'
+    !actionsUpdate.addLabels || !actionsUpdate.addLabels.includes('automerge'),
+    'GitHub Actions update does not have automerge label'
   );
 
   const selfImages = [
@@ -472,6 +477,13 @@ async function runTests() {
       relRootVuln.groupName === 'security-fixes',
       `Root go.mod vulnerability update resolves to groupName "security-fixes" on ${relBranch}`
     );
+    assert(
+      relRootVuln.automerge === true &&
+        relRootVuln.automergeType === 'pr' &&
+        Array.isArray(relRootVuln.addLabels) &&
+        relRootVuln.addLabels.includes('automerge'),
+      `Root go.mod vulnerability update enables automerge on ${relBranch}`
+    );
 
     const relToolsRoutine = await simulateDep('oras.land/oras-go/v2', {
       packageFile: 'tools/go.mod',
@@ -501,6 +513,13 @@ async function runTests() {
     assert(
       relToolsVuln.groupName === 'security-fixes',
       `Auxiliary module vulnerability update resolves to groupName "security-fixes" on ${relBranch}`
+    );
+    assert(
+      relToolsVuln.automerge === true &&
+        relToolsVuln.automergeType === 'pr' &&
+        Array.isArray(relToolsVuln.addLabels) &&
+        relToolsVuln.addLabels.includes('automerge'),
+      `Auxiliary module vulnerability update enables automerge on ${relBranch}`
     );
 
     // Docker updates on release branches
@@ -538,6 +557,13 @@ async function runTests() {
       relDockerVuln.enabled !== false,
       `Dockerfile vulnerability updates are enabled on ${relBranch}`
     );
+    assert(
+      relDockerVuln.automerge === true &&
+        relDockerVuln.automergeType === 'pr' &&
+        Array.isArray(relDockerVuln.addLabels) &&
+        relDockerVuln.addLabels.includes('automerge'),
+      `Dockerfile vulnerability updates enable automerge on ${relBranch}`
+    );
 
     const relDockerMinor = await simulateDep('golang:1.24', {
       manager: 'dockerfile',
@@ -573,6 +599,11 @@ async function runTests() {
     assert(
       relActionsVuln.enabled !== false,
       `GitHub Actions vulnerability updates are enabled on ${relBranch}`
+    );
+    assert(
+      relActionsVuln.automerge === false &&
+        (!relActionsVuln.addLabels || !relActionsVuln.addLabels.includes('automerge')),
+      `GitHub Actions vulnerability updates do not enable automerge on ${relBranch}`
     );
 
     const relActionsMinor = await simulateDep('actions/checkout', {
@@ -639,8 +670,8 @@ async function runTests() {
       `GitHub Actions patch updates resolve to groupName "github-actions" on ${relBranch}`
     );
     assert(
-      relActionsVuln.groupName === 'security-fixes',
-      `GitHub Actions vulnerability updates resolve to groupName "security-fixes" on ${relBranch}`
+      relActionsVuln.groupName === 'github-actions',
+      `GitHub Actions vulnerability updates stay in groupName "github-actions" (never grouped into "security-fixes") on ${relBranch}`
     );
   }
 
@@ -890,7 +921,7 @@ async function runTests() {
     'vulnerabilityToPackageRules generates package rule with isVulnerabilityAlert and force: { enabled: true }'
   );
 
-  const rootRoutineRel = await applyPackageRules({
+  const rootRoutineRel = await evaluatePackageRules({
     ...config,
     depName: 'github.com/google/go-cmp',
     packageName: 'github.com/google/go-cmp',
@@ -906,7 +937,7 @@ async function runTests() {
     'Routine patch update on release branch evaluates to enabled: false without vulnerability rule'
   );
 
-  const rootVulnRel = await applyPackageRules({
+  const rootVulnRel = await evaluatePackageRules({
     ...config,
     depName: 'github.com/google/go-cmp',
     packageName: 'github.com/google/go-cmp',
@@ -927,6 +958,13 @@ async function runTests() {
     'Root go.mod vulnerability alert resolves to groupName "security-fixes" on release branch'
   );
   assert(
+    rootVulnRel.automerge === true &&
+      rootVulnRel.automergeType === 'pr' &&
+      Array.isArray(rootVulnRel.addLabels) &&
+      rootVulnRel.addLabels.includes('automerge'),
+    'Root go.mod vulnerability alert enables automerge and adds "automerge" label on release branch'
+  );
+  assert(
     rootVulnRel.vulnerabilityFixStrategy === 'lowest',
     'Root go.mod vulnerability alert sets top-level vulnerabilityFixStrategy to "lowest" on release branch'
   );
@@ -944,7 +982,7 @@ async function runTests() {
     },
   });
 
-  const auxRoutineRel = await applyPackageRules({
+  const auxRoutineRel = await evaluatePackageRules({
     ...config,
     depName: 'oras.land/oras-go/v2',
     packageName: 'oras.land/oras-go/v2',
@@ -960,7 +998,7 @@ async function runTests() {
     'Routine patch update for auxiliary module on release branch evaluates to enabled: false'
   );
 
-  const auxVulnRel = await applyPackageRules({
+  const auxVulnRel = await evaluatePackageRules({
     ...config,
     depName: 'oras.land/oras-go/v2',
     packageName: 'oras.land/oras-go/v2',
@@ -979,6 +1017,13 @@ async function runTests() {
   assert(
     auxVulnRel.groupName === 'security-fixes' && auxVulnRel.groupSlug === 'security-fixes',
     'Auxiliary module vulnerability alert resolves to groupName "security-fixes"'
+  );
+  assert(
+    auxVulnRel.automerge === true &&
+      auxVulnRel.automergeType === 'pr' &&
+      Array.isArray(auxVulnRel.addLabels) &&
+      auxVulnRel.addLabels.includes('automerge'),
+    'Auxiliary module vulnerability alert enables automerge and adds "automerge" label'
   );
   assert(
     auxVulnRel.vulnerabilityFixStrategy === 'lowest',
@@ -1008,7 +1053,7 @@ async function runTests() {
     },
   });
 
-  const indirectVulnApplied = await applyPackageRules({
+  const indirectVulnApplied = await evaluatePackageRules({
     ...config,
     depName: 'go.mongodb.org/mongo-driver',
     packageName: 'go.mongodb.org/mongo-driver',
@@ -1025,6 +1070,13 @@ async function runTests() {
     indirectVulnApplied.enabled === true,
     'Indirect dependency vulnerability alert overrides enabled: false via engine package rule'
   );
+  assert(
+    indirectVulnApplied.groupName === 'security-fixes' &&
+      indirectVulnApplied.automerge === true &&
+      Array.isArray(indirectVulnApplied.addLabels) &&
+      indirectVulnApplied.addLabels.includes('automerge'),
+    'Indirect dependency vulnerability alert resolves to "security-fixes" with automerge enabled'
+  );
 
   // 11.4: Main branch vulnerability fix strategy
   const mainVulnRule = vulnHelper.vulnerabilityToPackageRules({
@@ -1038,7 +1090,7 @@ async function runTests() {
       vulnerabilityAlerts: config.vulnerabilityAlerts,
     },
   });
-  const mainVulnApplied = await applyPackageRules({
+  const mainVulnApplied = await evaluatePackageRules({
     ...config,
     depName: 'github.com/google/go-cmp',
     packageName: 'github.com/google/go-cmp',
@@ -1053,6 +1105,48 @@ async function runTests() {
   assert(
     mainVulnApplied.vulnerabilityFixStrategy === 'lowest' && mainVulnApplied.groupName === 'security-fixes',
     'Vulnerability alerts use "lowest" fix strategy and "security-fixes" group on main'
+  );
+  assert(
+    mainVulnApplied.automerge === true &&
+      mainVulnApplied.automergeType === 'pr' &&
+      Array.isArray(mainVulnApplied.addLabels) &&
+      mainVulnApplied.addLabels.includes('automerge'),
+    'Main branch vulnerability alerts enable automerge and add "automerge" label'
+  );
+
+  // 11.5: GitHub Actions vulnerability alert isolation (must never group into security-fixes or automerge)
+  const ghaVulnRule = {
+    matchDatasources: ['github-tags'],
+    matchPackageNames: ['github/codeql-action'],
+    matchCurrentVersion: '!/^v4\\.38\\.3$/',
+    vulnerabilityFixVersion: 'v4.38.3',
+    vulnerabilitySeverity: 'HIGH',
+    isVulnerabilityAlert: true,
+    force: { ...config.vulnerabilityAlerts },
+  };
+  const ghaVulnApplied = await evaluatePackageRules({
+    ...config,
+    depName: 'github/codeql-action',
+    packageName: 'github/codeql-action',
+    currentValue: 'v4.38.0',
+    manager: 'github-actions',
+    packageFile: '.github/workflows/govulncheck.yml',
+    baseBranch: 'main',
+    updateType: 'patch',
+    datasource: 'github-tags',
+    packageRules: [...config.packageRules, ghaVulnRule],
+  });
+  assert(
+    ghaVulnApplied.enabled === true &&
+      ghaVulnApplied.groupName === 'github-actions' &&
+      ghaVulnApplied.groupSlug === 'github-actions' &&
+      ghaVulnApplied.semanticCommitType === 'ci',
+    'GitHub Actions vulnerability alert stays in "github-actions" group with "ci" commit type (never grouped with "security-fixes")'
+  );
+  assert(
+    ghaVulnApplied.automerge === false &&
+      (!ghaVulnApplied.addLabels || !ghaVulnApplied.addLabels.includes('automerge')),
+    'GitHub Actions vulnerability alert disables automerge and does not add "automerge" label'
   );
 
   console.log(`\n========================================`);

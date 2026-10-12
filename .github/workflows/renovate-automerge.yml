@@ -27,6 +27,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   automerge:
     # Fast filtering for pull_request_target events
@@ -82,13 +86,12 @@ jobs:
             exit 0
           fi
 
-          # 2. Check for modified forbidden or sensitive files
+          # 2. Check for modified forbidden or sensitive files (keep in sync with gcm-tests.yml)
           FORBIDDEN_FILES=$(gh pr view "${PR_NUMBER}" --repo "${REPO}" --json files \
             --jq '[.files[].path | select(
-              . == ".github/workflows/renovate-automerge.yml" or
-              . == ".github/renovate.json5" or
               . == "Makefile" or
-              startswith("hack/") or
+              (startswith("hack/") and . != "hack/Dockerfile") or
+              startswith(".github/") or
               endswith(".sh") or
               endswith(".go")
             )] | length')
@@ -142,7 +145,8 @@ jobs:
 
           echo "All ${TOTAL_COMMITS} commit(s) verified with official Mend Renovate GPG signature (Key ID: A1020E7F5FFD673D)."
 
-          # 4. Enable platform auto-merge with rebase (squash merging is disabled on this repository)
+          # 4. Approve PR and enable platform auto-merge with rebase (squash merging is disabled on this repository)
           PR_URL=$(echo "${PR_JSON}" | jq -r '.url')
+          gh pr review "${PR_URL}" --approve
           gh pr merge "${PR_URL}" --auto --rebase
-          echo "Successfully enabled auto-merge on ${PR_URL}."
+          echo "Successfully approved and enabled auto-merge on ${PR_URL}."

@@ -43,10 +43,35 @@
   // Surface GitHub and OSV vulnerability alerts across all branches (use lowest fix strategy to minimize churn on release branches)
   vulnerabilityAlerts: {
     enabled: true,
-    semanticCommitType: 'chore',
-    groupName: 'security-fixes',
-    groupSlug: 'security-fixes',
     vulnerabilityFixStrategy: 'lowest',
+    packageRules: [
+      {
+        description: 'Group and automerge non-workflow vulnerability fixes',
+        matchManagers: [
+          '!github-actions',
+        ],
+        enabled: true,
+        semanticCommitType: 'chore',
+        groupName: 'security-fixes',
+        groupSlug: 'security-fixes',
+        automerge: true,
+        automergeType: 'pr',
+        addLabels: [
+          'automerge',
+        ],
+      },
+      {
+        description: 'Keep GitHub Actions workflow vulnerability updates separate and require manual review',
+        matchManagers: [
+          'github-actions',
+        ],
+        enabled: true,
+        semanticCommitType: 'ci',
+        groupName: 'github-actions',
+        groupSlug: 'github-actions',
+        automerge: false,
+      },
+    ],
   },
   // Enable OSV.dev vulnerability alerts for cross-branch vulnerability detection
   osvVulnerabilityAlerts: true,
@@ -113,20 +138,16 @@
       ],
       enabled: false,
     },
-    // GitHub Actions workflow updates
+    // GitHub Actions workflow updates (require human review; GITHUB_TOKEN lacks workflows permission)
     {
-      description: 'Group and automerge GitHub Actions workflow updates',
+      description: 'Group GitHub Actions workflow updates without automerge',
       matchManagers: [
         'github-actions',
       ],
       groupName: 'github-actions',
       groupSlug: 'github-actions',
       semanticCommitType: 'ci',
-      automerge: true,
-      automergeType: 'pr',
-      addLabels: [
-        'automerge',
-      ],
+      automerge: false,
     },
     // Docker updates
     {
