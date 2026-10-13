@@ -16,9 +16,12 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
+	"time"
 
 	grafana "github.com/grafana/grafana-api-golang-client"
+	"golang.org/x/oauth2"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -202,6 +205,85 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			}
 			if diff := cmp.Diff(string(wantJSON), string(gotJSON)); diff != "" {
 				t.Fatalf("unexpected json config (-want, +got): %s", diff)
+			}
+		})
+	}
+}
+
+func TestFetchFreshToken(t *testing.T) {
+	now := time.Now()
+	stale := &oauth2.Token{AccessToken: "stale", Expiry: now.Add(time.Minute)}
+	staler := &oauth2.Token{AccessToken: "staler", Expiry: now.Add(30 * time.Second)}
+	fresh := &oauth2.Token{AccessToken: "fresh", Expiry: now.Add(time.Hour)}
+	noExpiry := &oauth2.Token{AccessToken: "no-expiry"}
+	errToken := errors.New("token error")
+
+	tests := []struct {
+		name      string
+		tokens    []*oauth2.Token
+		err       error
+		want      string
+		wantCalls int
+		fail      bool
+	}{
+		{
+			name:      "fresh token on first attempt",
+			tokens:    []*oauth2.Token{fresh},
+			want:      "fresh",
+			wantCalls: 1,
+		},
+		{
+			name:      "nearly expired token is fetched again",
+			tokens:    []*oauth2.Token{stale, fresh},
+			want:      "fresh",
+			wantCalls: 2,
+		},
+		{
+			name:      "token without expiry is accepted",
+			tokens:    []*oauth2.Token{noExpiry},
+			want:      "no-expiry",
+			wantCalls: 1,
+		},
+		{
+			name:      "token with the latest expiry is returned when attempts are exhausted",
+			tokens:    []*oauth2.Token{staler, stale, staler},
+			want:      "stale",
+			wantCalls: 3,
+		},
+		{
+			name:      "token source error",
+			err:       errToken,
+			wantCalls: 1,
+			fail:      true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			newTokenSource := func() (oauth2.TokenSource, error) {
+				if tt.err != nil {
+					calls++
+					return nil, tt.err
+				}
+				token := tt.tokens[calls]
+				calls++
+				return oauth2.StaticTokenSource(token), nil
+			}
+			got, err := fetchFreshToken(newTokenSource, 5*time.Minute, 3, 0)
+			if calls != tt.wantCalls {
+				t.Errorf("got %d token fetches, want %d", calls, tt.wantCalls)
+			}
+			if tt.fail {
+				if err == nil {
+					t.Fatal("unexpectedly succeeded")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.AccessToken != tt.want {
+				t.Errorf("got token %q, want %q", got.AccessToken, tt.want)
 			}
 		})
 	}
