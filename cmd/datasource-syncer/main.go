@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	grafana "github.com/grafana/grafana-api-golang-client"
 	"github.com/hashicorp/go-cleanhttp"
@@ -121,11 +122,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	token, err := getOAuth2Token(*credentialsFile)
+	oauth2Token, err := getOAuth2Token(*credentialsFile)
 	if err != nil {
 		logger.Error("couldn't get Google OAuth2 token", "err", err)
 		os.Exit(1)
 	}
+	if !oauth2Token.Expiry.IsZero() && time.Until(oauth2Token.Expiry) < minTokenValidity {
+		logger.Warn("Google OAuth2 token expires soon, Grafana queries may fail until the next sync", "expiry", oauth2Token.Expiry)
+	}
+	token := oauth2Token.AccessToken
 
 	dsSuccessfullyUpdated := []string{}
 	dsErrors := []string{}
@@ -166,31 +171,66 @@ func main() {
 	}
 }
 
+const (
+	// minTokenValidity is the minimum remaining lifetime a fetched access token
+	// should have. The GKE metadata server can return a cached token that is
+	// close to expiry while it refreshes the token in the background, see
+	// https://cloud.google.com/kubernetes-engine/docs/concepts/workload-identity#token-lifetime.
+	minTokenValidity = 5 * time.Minute
+	// tokenFetchAttempts is the maximum number of times a token is fetched while
+	// waiting for a token with at least minTokenValidity remaining.
+	tokenFetchAttempts = 5
+	// tokenFetchRetryDelay is the delay between token fetch attempts.
+	tokenFetchRetryDelay = time.Second
+)
+
 // getOAuth2Token generates an OAuth token based if a JSON file is provided or it will use the default credentials.
-func getOAuth2Token(credentialsFile string) (string, error) {
-	var err error
-	var token oauth2.TokenSource
-	if credentialsFile == "" {
-		ctx := context.Background()
-		token, err = google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/monitoring.read")
-		if err != nil {
-			return "", err
+func getOAuth2Token(credentialsFile string) (*oauth2.Token, error) {
+	newTokenSource := func() (oauth2.TokenSource, error) {
+		if credentialsFile == "" {
+			return google.DefaultTokenSource(context.Background(), "https://www.googleapis.com/auth/monitoring.read")
 		}
-	} else {
 		jsonKey, err := os.ReadFile(credentialsFile)
 		if err != nil {
-			return "", fmt.Errorf("failed to read json key file: %v", err)
+			return nil, fmt.Errorf("failed to read json key file: %v", err)
 		}
-		token, err = google.JWTAccessTokenSourceWithScope(jsonKey, "https://www.googleapis.com/auth/monitoring.read")
+		token, err := google.JWTAccessTokenSourceWithScope(jsonKey, "https://www.googleapis.com/auth/monitoring.read")
 		if err != nil {
-			return "", fmt.Errorf("could not generate token: %v", err)
+			return nil, fmt.Errorf("could not generate token: %v", err)
+		}
+		return token, nil
+	}
+	return fetchFreshToken(newTokenSource, minTokenValidity, tokenFetchAttempts, tokenFetchRetryDelay)
+}
+
+// fetchFreshToken fetches a token that remains valid for at least minValidity.
+// A new token source is created for every attempt, so that a nearly expired
+// token is not served from the token source's own cache. If no such token is
+// returned within the given attempts, the token with the latest expiry is
+// returned.
+func fetchFreshToken(newTokenSource func() (oauth2.TokenSource, error), minValidity time.Duration, attempts int, retryDelay time.Duration) (*oauth2.Token, error) {
+	var best *oauth2.Token
+	for i := range attempts {
+		if i > 0 {
+			time.Sleep(retryDelay)
+		}
+		tokenSource, err := newTokenSource()
+		if err != nil {
+			return nil, err
+		}
+		token, err := tokenSource.Token()
+		if err != nil {
+			return nil, err
+		}
+		// A zero expiry means the token does not expire.
+		if token.Expiry.IsZero() || time.Until(token.Expiry) >= minValidity {
+			return token, nil
+		}
+		if best == nil || token.Expiry.After(best.Expiry) {
+			best = token
 		}
 	}
-	accessToken, err := token.Token()
-	if err != nil {
-		return "", err
-	}
-	return accessToken.AccessToken, nil
+	return best, nil
 }
 
 /*
