@@ -25,6 +25,9 @@ on:
       - .github/renovate.json5
       - hack/test-renovate.js
       - .github/workflows/check-renovate.yml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   check-renovate:
     runs-on: ubuntu-latest
