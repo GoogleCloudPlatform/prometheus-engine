@@ -222,38 +222,57 @@ func TestFetchFreshToken(t *testing.T) {
 		name      string
 		tokens    []*oauth2.Token
 		err       error
+		attempts  int
 		want      string
 		wantCalls int
 		fail      bool
 	}{
 		{
 			name:      "fresh token on first attempt",
+			attempts:  3,
 			tokens:    []*oauth2.Token{fresh},
 			want:      "fresh",
 			wantCalls: 1,
 		},
 		{
 			name:      "nearly expired token is fetched again",
+			attempts:  3,
 			tokens:    []*oauth2.Token{stale, fresh},
 			want:      "fresh",
 			wantCalls: 2,
 		},
 		{
 			name:      "token without expiry is accepted",
+			attempts:  3,
 			tokens:    []*oauth2.Token{noExpiry},
 			want:      "no-expiry",
 			wantCalls: 1,
 		},
 		{
 			name:      "token with the latest expiry is returned when attempts are exhausted",
+			attempts:  3,
 			tokens:    []*oauth2.Token{staler, stale, staler},
 			want:      "stale",
 			wantCalls: 3,
 		},
 		{
 			name:      "token source error",
+			attempts:  3,
 			err:       errToken,
 			wantCalls: 1,
+			fail:      true,
+		},
+		{
+			name:      "token source returns no token",
+			attempts:  3,
+			tokens:    []*oauth2.Token{nil},
+			wantCalls: 1,
+			fail:      true,
+		},
+		{
+			name:      "no attempts",
+			attempts:  0,
+			wantCalls: 0,
 			fail:      true,
 		},
 	}
@@ -267,9 +286,9 @@ func TestFetchFreshToken(t *testing.T) {
 				}
 				token := tt.tokens[calls]
 				calls++
-				return oauth2.StaticTokenSource(token), nil
+				return nilableTokenSource{token}, nil
 			}
-			got, err := fetchFreshToken(newTokenSource, 5*time.Minute, 3, 0)
+			got, err := fetchFreshToken(newTokenSource, 5*time.Minute, tt.attempts, 0)
 			if calls != tt.wantCalls {
 				t.Errorf("got %d token fetches, want %d", calls, tt.wantCalls)
 			}
@@ -287,4 +306,14 @@ func TestFetchFreshToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+// nilableTokenSource returns its token as-is, unlike oauth2.StaticTokenSource
+// which never returns a nil token.
+type nilableTokenSource struct {
+	token *oauth2.Token
+}
+
+func (s nilableTokenSource) Token() (*oauth2.Token, error) {
+	return s.token, nil
 }
