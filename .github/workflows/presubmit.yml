@@ -117,3 +117,14 @@ jobs:
         env:
           MATRIX_TESTRUN: ${{matrix.testrun}}
         run: TEST_RUN=${MATRIX_TESTRUN} make e2e
+  e2e-status:
+    runs-on: ubuntu-latest
+    permissions: {}
+    needs: [e2e-testruns, e2e-test]
+    if: always()
+    steps:
+      - name: Verify E2E test matrix results
+        run: |
+          if [ "${{ needs.e2e-testruns.result }}" != "success" ] || [ "${{ needs.e2e-test.result }}" != "success" ]; then
+            exit 1
+          fi
