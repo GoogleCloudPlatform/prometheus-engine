@@ -44,7 +44,7 @@ CI enforces a clean working tree after running code generation and formatting (`
 
 * **Never edit generated files solely by hand.** If you modify any of the following sources, you **must** regenerate derivatives:
   * Go API types under `pkg/operator/apis/monitoring/v1/` -> regenerates `pkg/operator/generated/`, `charts/operator/crds/`, `manifests/setup.yaml`, and `doc/api.md`.
-  * Helm templates/values under `charts/` -> regenerates `manifests/*.yaml` and `cmd/datasource-syncer/datasource-syncer.yaml`.
+  * Helm templates/values under `charts/` -> regenerates `manifests/*.yaml`, `cmd/datasource-syncer/datasource-syncer.yaml`, and `examples/inject-gmp-sidecar.sh`.
   * Any `*.md` file at the root, `cmd/**/*.md`, or `ops/gmpctl/*.md` -> formatted via `mdox fmt --soft-wraps`.
   * Bash scripts (`hack/presubmit.sh`, `ops/gmpctl/lib.sh`) -> formatted via `shfmt -l -w`.
 * **Fast local formatting**:
