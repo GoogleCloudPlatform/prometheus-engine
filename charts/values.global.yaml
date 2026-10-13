@@ -104,8 +104,6 @@ ruleEvaluator:
 projectId: ""
 cluster: ""
 location: ""
-# Optional tolerations appended to the gmp-operator, rule-evaluator, and alertmanager pods.
-tolerations: []
 # Keyless Workload Identity Federation for collector and rule-evaluator on non-GKE clusters (e.g. Fleet
 # attached clusters). When enabled, the chart creates an external_account credentials Secret in the public
 # namespace, mounts a projected KSA token into collector and rule-evaluator, and references the Secret from
