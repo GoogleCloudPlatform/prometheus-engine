@@ -33,8 +33,10 @@ Every commit in a pull request is strictly validated in CI by [Sidero Labs Confo
 8. **Verify locally**:
    Run `make conform` (or validate against the rules above if Docker is unavailable) before pushing.
 
-### PR Scope & Backportability
-* Keep PRs focused on a single logical change. Do not mix unrelated refactoring, formatting, or major dependency upgrades into bug-fix or security-fix PRs so changes can be cleanly cherry-picked to release branches (`release/0.19`, `release/0.18`, etc.).
+### PR Scope, Descriptions & Backportability
+* Optimize PRs for human reviews. Split bigger changes into smaller PRs and stack or chain them.
+* Keep PRs focused on a single logical change. Do not mix unrelated fixes, refactoring, formatting, or major dependency upgrades into bug-fix or security-fix PRs; submit unrelated fixes as separate, small PRs. This allows changes to be cleanly cherry-picked to release branches (`release/0.19`, `release/0.18`, etc.).
+* Keep PR descriptions concise, [unslopped](https://aiuxplayground.com/skills/unslop), and focused on **why** the change is needed rather than low-level details of what changed. Reviewers can see what changed in the diff; focus on intent and only provide a high-level change summary.
 
 ---
 
