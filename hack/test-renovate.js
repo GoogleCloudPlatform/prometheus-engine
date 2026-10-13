@@ -804,6 +804,7 @@ async function runTests() {
       'charts/values.global.yaml',
       'manifests/operator.yaml',
       'cmd/datasource-syncer/datasource-syncer.yaml',
+      'examples/inject-gmp-sidecar.sh',
     ];
     for (const file of expectedMatchedFiles) {
       const matched = customManager.managerFilePatterns.some((pattern) =>
@@ -854,6 +855,13 @@ async function runTests() {
     assert(
       manifestRes && Array.isArray(manifestRes.deps) && manifestRes.deps.length > 0,
       'customManager extracts matching images from manifests/operator.yaml'
+    );
+
+    const sidecarScriptContent = fs.readFileSync(path.resolve(__dirname, '../examples/inject-gmp-sidecar.sh'), 'utf8');
+    const sidecarScriptRes = extractPackageFile(sidecarScriptContent, 'examples/inject-gmp-sidecar.sh', customManager);
+    assert(
+      sidecarScriptRes && Array.isArray(sidecarScriptRes.deps) && sidecarScriptRes.deps.length === 3,
+      'customManager extracts all 3 images from examples/inject-gmp-sidecar.sh'
     );
 
     // Single-quoted image tag tests for charts and manifests

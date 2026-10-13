@@ -77,19 +77,21 @@
   osvVulnerabilityAlerts: true,
   // Enable GitHub platform automerge (uses gh pr merge --auto)
   platformAutomerge: true,
-  // Custom managers to track container images across Helm charts and rendered manifests
+  // Custom managers to track container images across Helm charts, rendered manifests, and examples
   customManagers: [
     {
       customType: 'regex',
-      description: 'Track all container images in charts/values.global.yaml and manifests',
+      description: 'Track all container images in charts/values.global.yaml, manifests, and examples',
       managerFilePatterns: [
         '/^charts/values\\.global\\.yaml$/',
         '/^manifests/.*\\.yaml$/',
         '/^cmd/datasource-syncer/datasource-syncer\\.yaml$/',
+        '/^examples/inject-gmp-sidecar\\.sh$/',
       ],
       matchStrings: [
         'image:\\s*["\']?(?<depName>[^\\s"\'\\n]+)["\']?\\s*\\n\\s*tag:\\s*["\']?(?<currentValue>[^"\'@\\s\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?["\']?',
         'image:\\s*["\']?(?<depName>[^\\s:"\'\\n]+):(?<currentValue>[^"\'@\\s\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?["\']?',
+        '_IMAGE=["\']?(?<depName>[^\\s:"\'\\n]+):(?<currentValue>[^"\'@\\s\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?["\']?',
       ],
       datasourceTemplate: 'docker',
     },
