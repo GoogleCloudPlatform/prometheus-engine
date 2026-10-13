@@ -186,13 +186,17 @@ const (
 
 // getOAuth2Token generates an OAuth token based if a JSON file is provided or it will use the default credentials.
 func getOAuth2Token(credentialsFile string) (*oauth2.Token, error) {
+	var jsonKey []byte
+	if credentialsFile != "" {
+		var err error
+		jsonKey, err = os.ReadFile(credentialsFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read json key file: %v", err)
+		}
+	}
 	newTokenSource := func() (oauth2.TokenSource, error) {
 		if credentialsFile == "" {
 			return google.DefaultTokenSource(context.Background(), "https://www.googleapis.com/auth/monitoring.read")
-		}
-		jsonKey, err := os.ReadFile(credentialsFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read json key file: %v", err)
 		}
 		token, err := google.JWTAccessTokenSourceWithScope(jsonKey, "https://www.googleapis.com/auth/monitoring.read")
 		if err != nil {
@@ -222,6 +226,9 @@ func fetchFreshToken(newTokenSource func() (oauth2.TokenSource, error), minValid
 		if err != nil {
 			return nil, err
 		}
+		if token == nil {
+			return nil, errors.New("token source returned no token")
+		}
 		// A zero expiry means the token does not expire.
 		if token.Expiry.IsZero() || time.Until(token.Expiry) >= minValidity {
 			return token, nil
@@ -229,6 +236,9 @@ func fetchFreshToken(newTokenSource func() (oauth2.TokenSource, error), minValid
 		if best == nil || token.Expiry.After(best.Expiry) {
 			best = token
 		}
+	}
+	if best == nil {
+		return nil, errors.New("no token fetched")
 	}
 	return best, nil
 }
