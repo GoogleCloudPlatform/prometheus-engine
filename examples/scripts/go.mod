@@ -9,7 +9,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/oklog/ulid/v2 v2.1.2
 	golang.org/x/oauth2 v0.37.0
-	google.golang.org/api v0.302.0
+	google.golang.org/api v0.303.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941
 	google.golang.org/protobuf v1.36.12
 )
