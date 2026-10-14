@@ -36,6 +36,22 @@ warn() {
 	echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: Warning: $*" >&2
 }
 
+retry() {
+	local attempts=5
+	local delay=5
+	local i
+	for ((i = 1; i <= attempts; i++)); do
+		if "$@"; then
+			return 0
+		fi
+		if ((i == attempts)); then
+			return 1
+		fi
+		warn "Command '$*' failed (attempt ${i}/${attempts}); retrying in ${delay}s..."
+		sleep "${delay}"
+	done
+}
+
 REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." &>/dev/null && pwd)
 CRD_DIR=${REPO_ROOT}/charts/operator/crds
 SED=$(which gsed 2>/dev/null || which sed)
@@ -124,6 +140,7 @@ update_manifests() {
 
 run_tests() {
 	echo ">>> running unit tests"
+	retry go mod download
 	go test $(go list ${REPO_ROOT}/... | grep -v e2e | grep -v gmpctl/data | grep -v export/bench | grep -v export/gcm)
 }
 
@@ -132,7 +149,8 @@ reformat() {
 		dir=$(dirname "$file")
 		pushd "${dir}"
 		echo ">>> go mod tidy $dir"
-		go mod tidy
+		retry go mod download
+		retry go mod tidy
 		popd
 	done
 
@@ -143,13 +161,13 @@ reformat() {
 
 	echo ">>> formatting docs"
 	pushd "${REPO_ROOT}/ops/gmpctl"
-	go mod download # get all deps to avoid garbage output on <command> --help when auto-generating docs.
+	retry go mod download # get all deps to avoid garbage output on <command> --help when auto-generating docs.
 	popd
 	go tool -modfile="${REPO_ROOT}/tools/go.mod" mdox fmt --soft-wraps "${REPO_ROOT}"/*.md "${REPO_ROOT}"/cmd/**/*.md "${REPO_ROOT}"/ops/gmpctl/*.md
 
 	echo ">>> formatting bash scripts"
 	# TODO: Fix and apply this to all .sh scripts we host.
-	go tool -modfile="${REPO_ROOT}/tools/go.mod" shfmt -l -w "${REPO_ROOT}/ops/gmpctl/lib.sh" "${REPO_ROOT}/hack/presubmit.sh"
+	go tool -modfile="${REPO_ROOT}/tools/go.mod" shfmt -l -w "${REPO_ROOT}/ops/gmpctl/lib.sh" "${REPO_ROOT}/ops/gmpctl.sh" "${REPO_ROOT}/hack/presubmit.sh"
 }
 
 exit_msg() {
