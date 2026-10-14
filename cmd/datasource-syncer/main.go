@@ -21,16 +21,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	grafana "github.com/grafana/grafana-api-golang-client"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/prometheus/common/promslog"
 	"golang.org/x/mod/semver"
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
 
@@ -122,15 +124,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	oauth2Token, err := getOAuth2Token(*credentialsFile)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	token, err := getOAuth2Token(ctx, logger, *credentialsFile)
 	if err != nil {
 		logger.Error("couldn't get Google OAuth2 token", "err", err)
 		os.Exit(1)
 	}
-	if !oauth2Token.Expiry.IsZero() && time.Until(oauth2Token.Expiry) < minTokenValidity {
-		logger.Warn("Google OAuth2 token expires soon, Grafana queries may fail until the next sync", "expiry", oauth2Token.Expiry)
-	}
-	token := oauth2Token.AccessToken
 
 	dsSuccessfullyUpdated := []string{}
 	dsErrors := []string{}
@@ -171,76 +171,71 @@ func main() {
 	}
 }
 
-const (
-	// minTokenValidity is the minimum remaining lifetime a fetched access token
-	// should have. The GKE metadata server can return a cached token that is
-	// close to expiry while it refreshes the token in the background, see
-	// https://cloud.google.com/kubernetes-engine/docs/concepts/workload-identity#token-lifetime.
-	minTokenValidity = 5 * time.Minute
-	// tokenFetchAttempts is the maximum number of times a token is fetched while
-	// waiting for a token with at least minTokenValidity remaining.
-	tokenFetchAttempts = 5
-	// tokenFetchRetryDelay is the delay between token fetch attempts.
-	tokenFetchRetryDelay = time.Second
+var (
+	// minTokenValidity is how long a token fetched from the default credentials
+	// must remain valid. It matches the recommended 10m sync interval, so that
+	// the token written to Grafana stays valid until the next sync.
+	minTokenValidity = 10 * time.Minute
+	// tokenRetryDelay is the delay between attempts to fetch a valid token.
+	tokenRetryDelay = 5 * time.Second
+	// tokenRetryTimeout is how long to keep retrying for a valid token.
+	tokenRetryTimeout = 6 * time.Minute
+
+	// newDefaultTokenSource is replaced in tests.
+	newDefaultTokenSource = google.DefaultTokenSource
 )
 
 // getOAuth2Token generates an OAuth token based if a JSON file is provided or it will use the default credentials.
-func getOAuth2Token(credentialsFile string) (*oauth2.Token, error) {
-	var jsonKey []byte
+func getOAuth2Token(ctx context.Context, logger *slog.Logger, credentialsFile string) (string, error) {
 	if credentialsFile != "" {
-		var err error
-		jsonKey, err = os.ReadFile(credentialsFile)
+		jsonKey, err := os.ReadFile(credentialsFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read json key file: %v", err)
+			return "", fmt.Errorf("failed to read json key file: %v", err)
 		}
-	}
-	newTokenSource := func() (oauth2.TokenSource, error) {
-		if credentialsFile == "" {
-			return google.DefaultTokenSource(context.Background(), "https://www.googleapis.com/auth/monitoring.read")
-		}
-		token, err := google.JWTAccessTokenSourceWithScope(jsonKey, "https://www.googleapis.com/auth/monitoring.read")
+		tokenSource, err := google.JWTAccessTokenSourceWithScope(jsonKey, "https://www.googleapis.com/auth/monitoring.read")
 		if err != nil {
-			return nil, fmt.Errorf("could not generate token: %v", err)
-		}
-		return token, nil
-	}
-	return fetchFreshToken(newTokenSource, minTokenValidity, tokenFetchAttempts, tokenFetchRetryDelay)
-}
-
-// fetchFreshToken fetches a token that remains valid for at least minValidity.
-// A new token source is created for every attempt, so that a nearly expired
-// token is not served from the token source's own cache. If no such token is
-// returned within the given attempts, the token with the latest expiry is
-// returned.
-func fetchFreshToken(newTokenSource func() (oauth2.TokenSource, error), minValidity time.Duration, attempts int, retryDelay time.Duration) (*oauth2.Token, error) {
-	var best *oauth2.Token
-	for i := range attempts {
-		if i > 0 {
-			time.Sleep(retryDelay)
-		}
-		tokenSource, err := newTokenSource()
-		if err != nil {
-			return nil, err
+			return "", fmt.Errorf("could not generate token: %v", err)
 		}
 		token, err := tokenSource.Token()
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		if token == nil {
-			return nil, errors.New("token source returned no token")
+		return token.AccessToken, nil
+	}
+
+	// With Workload Identity Federation for GKE, the default token source fetches
+	// access tokens from the GKE metadata server, which caches them. Depending on
+	// the cached token's remaining lifetime:
+	//   > 5m:  the cached token is returned.
+	//   1m-5m: the cached token is returned and a refresh is started in the background.
+	//   < 1m:  a refreshed token is returned.
+	// To write a token that stays valid until the next sync, retry until the token
+	// is valid for at least minTokenValidity. With a 10m sync interval, the worst
+	// case is waiting ~5m for the cached token to drop below 5m and be refreshed.
+	ctx, cancel := context.WithTimeout(ctx, tokenRetryTimeout)
+	defer cancel()
+	for {
+		// Create a new token source for every attempt, so the token is not
+		// returned from the token source's own cache.
+		tokenSource, err := newDefaultTokenSource(ctx, "https://www.googleapis.com/auth/monitoring.read")
+		if err != nil {
+			return "", err
+		}
+		token, err := tokenSource.Token()
+		if err != nil {
+			return "", err
 		}
 		// A zero expiry means the token does not expire.
-		if token.Expiry.IsZero() || time.Until(token.Expiry) >= minValidity {
-			return token, nil
+		if token.Expiry.IsZero() || time.Until(token.Expiry) >= minTokenValidity {
+			return token.AccessToken, nil
 		}
-		if best == nil || token.Expiry.After(best.Expiry) {
-			best = token
+		logger.Info("Google OAuth2 token expires soon, retrying until the token is refreshed", "expiry", token.Expiry, "retry_in", tokenRetryDelay)
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("couldn't fetch a token valid for %v within %v: %w", minTokenValidity, tokenRetryTimeout, ctx.Err())
+		case <-time.After(tokenRetryDelay):
 		}
 	}
-	if best == nil {
-		return nil, errors.New("no token fetched")
-	}
-	return best, nil
 }
 
 /*

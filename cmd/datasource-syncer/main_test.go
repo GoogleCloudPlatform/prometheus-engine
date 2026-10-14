@@ -15,13 +15,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
 	grafana "github.com/grafana/grafana-api-golang-client"
+	"github.com/prometheus/common/promslog"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -210,86 +213,73 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 	}
 }
 
-func TestFetchFreshToken(t *testing.T) {
-	now := time.Now()
-	stale := &oauth2.Token{AccessToken: "stale", Expiry: now.Add(time.Minute)}
-	staler := &oauth2.Token{AccessToken: "staler", Expiry: now.Add(30 * time.Second)}
-	fresh := &oauth2.Token{AccessToken: "fresh", Expiry: now.Add(time.Hour)}
+func TestGetOAuth2Token(t *testing.T) {
+	stale := &oauth2.Token{AccessToken: "stale", Expiry: time.Now().Add(time.Minute)}
+	fresh := &oauth2.Token{AccessToken: "fresh", Expiry: time.Now().Add(time.Hour)}
 	noExpiry := &oauth2.Token{AccessToken: "no-expiry"}
-	errToken := errors.New("token error")
 
 	tests := []struct {
 		name      string
 		tokens    []*oauth2.Token
 		err       error
-		attempts  int
 		want      string
 		wantCalls int
 		fail      bool
 	}{
 		{
-			name:      "fresh token on first attempt",
-			attempts:  3,
+			name:      "valid token on first attempt",
 			tokens:    []*oauth2.Token{fresh},
 			want:      "fresh",
 			wantCalls: 1,
 		},
 		{
-			name:      "nearly expired token is fetched again",
-			attempts:  3,
-			tokens:    []*oauth2.Token{stale, fresh},
+			name:      "token near expiry is fetched again",
+			tokens:    []*oauth2.Token{stale, stale, fresh},
 			want:      "fresh",
-			wantCalls: 2,
+			wantCalls: 3,
 		},
 		{
 			name:      "token without expiry is accepted",
-			attempts:  3,
 			tokens:    []*oauth2.Token{noExpiry},
 			want:      "no-expiry",
 			wantCalls: 1,
 		},
 		{
-			name:      "token with the latest expiry is returned when attempts are exhausted",
-			attempts:  3,
-			tokens:    []*oauth2.Token{staler, stale, staler},
-			want:      "stale",
-			wantCalls: 3,
-		},
-		{
 			name:      "token source error",
-			attempts:  3,
-			err:       errToken,
+			err:       errors.New("token error"),
 			wantCalls: 1,
 			fail:      true,
 		},
 		{
-			name:      "token source returns no token",
-			attempts:  3,
-			tokens:    []*oauth2.Token{nil},
-			wantCalls: 1,
-			fail:      true,
-		},
-		{
-			name:      "no attempts",
-			attempts:  0,
-			wantCalls: 0,
-			fail:      true,
+			name: "timeout while token stays near expiry",
+			tokens: func() []*oauth2.Token {
+				tokens := make([]*oauth2.Token, 1000)
+				for i := range tokens {
+					tokens[i] = stale
+				}
+				return tokens
+			}(),
+			fail: true,
 		},
 	}
+	defer func(delay, timeout time.Duration) {
+		tokenRetryDelay, tokenRetryTimeout = delay, timeout
+		newDefaultTokenSource = google.DefaultTokenSource
+	}(tokenRetryDelay, tokenRetryTimeout)
+	tokenRetryDelay, tokenRetryTimeout = time.Millisecond, 100*time.Millisecond
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			calls := 0
-			newTokenSource := func() (oauth2.TokenSource, error) {
+			newDefaultTokenSource = func(context.Context, ...string) (oauth2.TokenSource, error) {
+				calls++
 				if tt.err != nil {
-					calls++
 					return nil, tt.err
 				}
-				token := tt.tokens[calls]
-				calls++
-				return nilableTokenSource{token}, nil
+				return oauth2.StaticTokenSource(tt.tokens[calls-1]), nil
 			}
-			got, err := fetchFreshToken(newTokenSource, 5*time.Minute, tt.attempts, 0)
-			if calls != tt.wantCalls {
+			got, err := getOAuth2Token(context.Background(), promslog.NewNopLogger(), "")
+			if tt.wantCalls != 0 && calls != tt.wantCalls {
 				t.Errorf("got %d token fetches, want %d", calls, tt.wantCalls)
 			}
 			if tt.fail {
@@ -301,19 +291,9 @@ func TestFetchFreshToken(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got.AccessToken != tt.want {
-				t.Errorf("got token %q, want %q", got.AccessToken, tt.want)
+			if got != tt.want {
+				t.Errorf("got token %q, want %q", got, tt.want)
 			}
 		})
 	}
-}
-
-// nilableTokenSource returns its token as-is, unlike oauth2.StaticTokenSource
-// which never returns a nil token.
-type nilableTokenSource struct {
-	token *oauth2.Token
-}
-
-func (s nilableTokenSource) Token() (*oauth2.Token, error) {
-	return s.token, nil
 }
