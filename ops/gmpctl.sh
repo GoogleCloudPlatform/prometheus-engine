@@ -30,11 +30,21 @@ SCRIPT_DIR="$(
 export GOBIN="${SCRIPT_DIR}/.bin"
 export PATH="${GOBIN}:${PATH}"
 
-go install github.com/google/go-containerregistry/cmd/gcrane@latest
-go install github.com/mikefarah/yq/v4@latest
-go install helm.sh/helm/v3/cmd/helm@latest
-go install github.com/google/addlicense@latest
-go install golang.org/x/vuln/cmd/govulncheck@latest
+install_deps=true
+for arg in "$@"; do
+	if [[ "${arg}" == "-h" || "${arg}" == "--help" ]]; then
+		install_deps=false
+		break
+	fi
+done
+
+if [[ "${install_deps}" == "true" ]]; then
+	go install github.com/google/go-containerregistry/cmd/gcrane@latest
+	go install github.com/mikefarah/yq/v4@latest
+	go install helm.sh/helm/v3/cmd/helm@latest
+	go install github.com/google/addlicense@latest
+	go install golang.org/x/vuln/cmd/govulncheck@latest
+fi
 
 # NOTE gmpctl expects the gmpctl directory to be present on execution for
 # local bash scripts and configuration.

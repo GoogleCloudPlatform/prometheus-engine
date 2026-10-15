@@ -67,6 +67,7 @@ COPY --from=hermetic /workspace/tools tools
 FROM google-go.pkg.dev/golang:1.27.2@sha256:dd4f740b4898b045a97d57a10120363f4e80419d36e787fa520f4f24b2c5a11d AS buildbase
 FROM docker:29.9-cli@sha256:1a4c7cb63513f349bdad01fcc6e0f3f2f67d37b9da86f14dc0d4a0942eecda00 AS docker
 FROM debian:stable-slim AS kindtest
+SHELL ["/bin/bash", "-c"]
 
 WORKDIR /build
 
@@ -82,13 +83,13 @@ RUN apt install -y curl
 
 # Install kubectl, jq, kind.
 RUN ARCH=$(dpkg --print-architecture) && \
-	curl -Lo ./kubectl "https://dl.k8s.io/release/v1.32.1/bin/linux/${ARCH}/kubectl" && \
+	curl --fail --retry 5 --retry-all-errors -Lo ./kubectl "https://dl.k8s.io/release/v1.32.1/bin/linux/${ARCH}/kubectl" && \
 	install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
 	rm kubectl && \
-	curl -Lo ./jq "https://github.com/jqlang/jq/releases/download/jq-1.7/jq-linux-${ARCH}" && \
+	curl --fail --retry 5 --retry-all-errors -Lo ./jq "https://github.com/jqlang/jq/releases/download/jq-1.7/jq-linux-${ARCH}" && \
 	install -o root -g root -m 0755 jq /usr/local/bin/jq && \
 	rm jq && \
-	curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.26.0/kind-linux-${ARCH}" && \
+	curl --fail --retry 5 --retry-all-errors -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.26.0/kind-linux-${ARCH}" && \
 	install -o root -g root -m 0755 kind /usr/local/bin/kind && \
 	rm kind
 
@@ -96,7 +97,32 @@ RUN ARCH=$(dpkg --print-architecture) && \
 COPY tools tools
 RUN --mount=type=cache,target=/root/go/pkg/mod \
 	--mount=type=cache,target=/root/.cache/go-build \
-	cd tools && GOBIN=/usr/local/bin go install github.com/mikefarah/yq/v4
+	cd tools && for i in {1..5}; do \
+		if GOBIN=/usr/local/bin go install github.com/mikefarah/yq/v4; then \
+			break; \
+		elif [ "$i" -eq 5 ]; then \
+			echo "Failed to install yq after 5 attempts" >&2; \
+			exit 1; \
+		else \
+			echo "go install yq failed (attempt $i/5), retrying in 5s..." >&2; \
+			sleep 5; \
+		fi; \
+	done
+
+# Pre-download Go modules with retries so e2e test containers do not fetch from proxy.golang.org at runtime.
+COPY go.mod go.mod
+COPY go.sum go.sum
+RUN for i in {1..5}; do \
+		if go mod download; then \
+			break; \
+		elif [ "$i" -eq 5 ]; then \
+			echo "Failed to download Go modules after 5 attempts" >&2; \
+			exit 1; \
+		else \
+			echo "go mod download failed (attempt $i/5), retrying in 5s..." >&2; \
+			sleep 5; \
+		fi; \
+	done
 
 # Get resources into image.
 COPY examples examples
@@ -107,5 +133,3 @@ COPY vendor* vendor
 COPY pkg pkg
 COPY e2e e2e
 COPY hack hack
-COPY go.mod go.mod
-COPY go.sum go.sum
