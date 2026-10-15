@@ -67,6 +67,7 @@ COPY --from=hermetic /workspace/tools tools
 FROM google-go.pkg.dev/golang:1.27.3@sha256:4d14dcb0974d4d5a608700a6a495e9730813582dadab5ceb4ff4b99d5462f897 AS buildbase
 FROM docker:29.9-cli@sha256:1a4c7cb63513f349bdad01fcc6e0f3f2f67d37b9da86f14dc0d4a0942eecda00 AS docker
 FROM debian:stable-slim AS kindtest
+SHELL ["/bin/bash", "-c"]
 
 WORKDIR /build
 
@@ -96,7 +97,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
 COPY tools tools
 RUN --mount=type=cache,target=/root/go/pkg/mod \
 	--mount=type=cache,target=/root/.cache/go-build \
-	cd tools && for i in 1 2 3 4 5; do \
+	cd tools && for i in {1..5}; do \
 		if GOBIN=/usr/local/bin go install github.com/mikefarah/yq/v4; then \
 			break; \
 		elif [ "$i" -eq 5 ]; then \
@@ -111,7 +112,7 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
 # Pre-download Go modules with retries so e2e test containers do not fetch from proxy.golang.org at runtime.
 COPY go.mod go.mod
 COPY go.sum go.sum
-RUN for i in 1 2 3 4 5; do \
+RUN for i in {1..5}; do \
 		if go mod download; then \
 			break; \
 		elif [ "$i" -eq 5 ]; then \
