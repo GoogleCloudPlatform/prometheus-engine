@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/prometheus/common/promslog"
 )
@@ -89,7 +90,7 @@ func TestForward(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockRT := &mockRoundTripper{}
-			forwardHandler := forward(logger, targetURL, mockRT)
+			forwardHandler := forward(logger, targetURL, mockRT, 30*time.Second)
 
 			mux := http.NewServeMux()
 			mux.Handle("/api/", forwardHandler)
@@ -133,5 +134,50 @@ func TestForward(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+type delayRoundTripper struct {
+	delay time.Duration
+}
+
+func (d *delayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	timer := time.NewTimer(d.delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("ok")),
+		}, nil
+	case <-req.Context().Done():
+		return nil, req.Context().Err()
+	}
+}
+
+func TestForwardTimeout(t *testing.T) {
+	logger := promslog.NewNopLogger()
+	targetURL, err := url.Parse("https://monitoring.googleapis.com/v1/projects/my-project/location/global/prometheus")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Handler configured with 50ms timeout, but transport takes 200ms.
+	handler := forward(logger, targetURL, &delayRoundTripper{delay: 200 * time.Millisecond}, 50*time.Millisecond)
+
+	mux := http.NewServeMux()
+	mux.Handle("/api/", handler)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/v1/query")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusGatewayTimeout {
+		t.Errorf("Expected status %d (Gateway Timeout), got %d", http.StatusGatewayTimeout, resp.StatusCode)
 	}
 }
