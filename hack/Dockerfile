@@ -96,12 +96,32 @@ RUN ARCH=$(dpkg --print-architecture) && \
 COPY tools tools
 RUN --mount=type=cache,target=/root/go/pkg/mod \
 	--mount=type=cache,target=/root/.cache/go-build \
-	cd tools && for i in 1 2 3 4 5; do if GOBIN=/usr/local/bin go install github.com/mikefarah/yq/v4; then break; elif [ "$i" -eq 5 ]; then exit 1; else sleep 5; fi; done
+	cd tools && for i in 1 2 3 4 5; do \
+		if GOBIN=/usr/local/bin go install github.com/mikefarah/yq/v4; then \
+			break; \
+		elif [ "$i" -eq 5 ]; then \
+			echo "Failed to install yq after 5 attempts" >&2; \
+			exit 1; \
+		else \
+			echo "go install yq failed (attempt $i/5), retrying in 5s..." >&2; \
+			sleep 5; \
+		fi; \
+	done
 
 # Pre-download Go modules with retries so e2e test containers do not fetch from proxy.golang.org at runtime.
 COPY go.mod go.mod
 COPY go.sum go.sum
-RUN for i in 1 2 3 4 5; do if go mod download; then break; elif [ "$i" -eq 5 ]; then exit 1; else sleep 5; fi; done
+RUN for i in 1 2 3 4 5; do \
+		if go mod download; then \
+			break; \
+		elif [ "$i" -eq 5 ]; then \
+			echo "Failed to download Go modules after 5 attempts" >&2; \
+			exit 1; \
+		else \
+			echo "go mod download failed (attempt $i/5), retrying in 5s..." >&2; \
+			sleep 5; \
+		fi; \
+	done
 
 # Get resources into image.
 COPY examples examples
