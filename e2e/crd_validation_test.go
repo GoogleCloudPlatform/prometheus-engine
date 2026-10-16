@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -37,21 +38,91 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func createKindCluster(t *testing.T) (client.Client, string) {
-	// Add a randomized suffix to the test cluster name to reduce collisions.
-	clusterName := fmt.Sprintf("crd-test-%s", rand.String(6))
+// existingKindCluster returns a client and kubeconfig path for the cluster of
+// the current kubeconfig context if that context points to a reachable kind
+// cluster (e.g. the one provisioned by hack/kind-test.sh). Otherwise, it returns
+// an error describing why the cluster cannot be reused.
+func existingKindCluster(t *testing.T) (client.Client, string, error) {
+	t.Helper()
 
-	tmp := t.TempDir()
-	kubeconfigPath := filepath.Join(tmp, "kubeconfig")
-
-	// Create a cluster with a randomized name, and save the kubeconfig in a temporary directory scoped to this test.
-	createClusterOutput, err := exec.CommandContext(t.Context(), "kind", "create", "cluster", "--name", clusterName, "--kubeconfig", kubeconfigPath).CombinedOutput()
-	if err != nil {
-		t.Fatal(err)
+	rules := clientcmd.NewDefaultClientConfigLoadingRules()
+	// kubectl --kubeconfig accepts a single file rather than a KUBECONFIG-style
+	// list, so use the first existing file from the loading precedence.
+	kubeconfigPath := rules.GetDefaultFilename()
+	if kubeconfigPath == "" {
+		return nil, "", errors.New("no kubeconfig path found")
 	}
-	t.Logf("%s\n", createClusterOutput)
 
-	t.Cleanup(cleanupKindCluster(t, clusterName))
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, nil)
+	rawConfig, err := clientConfig.RawConfig()
+	if err != nil {
+		return nil, "", fmt.Errorf("load kubeconfig: %w", err)
+	}
+	if !strings.HasPrefix(rawConfig.CurrentContext, "kind-") {
+		return nil, "", fmt.Errorf("current context %q is not a kind cluster", rawConfig.CurrentContext)
+	}
+
+	restConfig, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, "", fmt.Errorf("build REST config for context %q: %w", rawConfig.CurrentContext, err)
+	}
+	if err := setRESTConfigDefaults(restConfig); err != nil {
+		return nil, "", fmt.Errorf("set REST config defaults: %w", err)
+	}
+
+	c, err := newKubeClient(restConfig)
+	if err != nil {
+		return nil, "", fmt.Errorf("create client: %w", err)
+	}
+	if err := c.List(t.Context(), &corev1.NamespaceList{}, client.Limit(1)); err != nil {
+		return nil, "", fmt.Errorf("cluster of context %q is not reachable: %w", rawConfig.CurrentContext, err)
+	}
+	t.Logf("Reusing kind cluster of current context %q (kubeconfig %s)", rawConfig.CurrentContext, kubeconfigPath)
+	return c, kubeconfigPath, nil
+}
+
+// createOrReuseKindCluster returns a client and kubeconfig path for a kind
+// cluster with the GMP CRDs and validating admission policies applied. It reuses
+// the cluster of the current kubeconfig context if that is a reachable kind
+// cluster, and otherwise creates a dedicated one that is deleted after the test.
+//
+// Callers must not use t.Parallel: tests reusing a cluster share it, and
+// concurrent "kubectl apply" runs of the same manifests can fail with
+// AlreadyExists errors.
+func createOrReuseKindCluster(t *testing.T) (client.Client, string) {
+	t.Helper()
+
+	c, kubeconfigPath, reuseErr := existingKindCluster(t)
+	if reuseErr != nil {
+		t.Logf("Creating a dedicated kind cluster instead of reusing the current context: %v", reuseErr)
+
+		// Add a randomized suffix to the test cluster name to reduce collisions.
+		clusterName := fmt.Sprintf("crd-test-%s", rand.String(6))
+
+		tmp := t.TempDir()
+		kubeconfigPath = filepath.Join(tmp, "kubeconfig")
+
+		// Create a cluster with a randomized name, and save the kubeconfig in a temporary directory scoped to this test.
+		createClusterOutput, err := exec.CommandContext(t.Context(), "kind", "create", "cluster", "--name", clusterName, "--kubeconfig", kubeconfigPath).CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("%s\n", createClusterOutput)
+
+		t.Cleanup(cleanupKindCluster(t, clusterName))
+
+		// Load the test cluster kubeconfig.
+		config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+		if err != nil {
+			t.Fatalf("%v", err)
+		}
+
+		// Create a client for the test cluster.
+		c, err = newKubeClient(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	// Apply GMP CRDs.
 	applyCRDsOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", "../manifests/setup.yaml").CombinedOutput()
@@ -60,12 +131,10 @@ func createKindCluster(t *testing.T) (client.Client, string) {
 	}
 	t.Logf("%s\n", applyCRDsOutput)
 
-	// Create Public namespace for OperatorConfig.
-	applyPublicNamespaceOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "create", "namespace", "gmp-public").CombinedOutput()
-	if err != nil {
-		t.Fatalf("%s\b%v", applyPublicNamespaceOutput, err)
+	// Create Public namespace for OperatorConfig if it does not already exist.
+	if err := c.Create(t.Context(), &corev1.Namespace{Name: "gmp-public"}); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatal(err)
 	}
-	t.Logf("%s\n", applyPublicNamespaceOutput)
 
 	// Apply Validating Admission Policy.
 	applyValidatingAdmissionOutput, err := exec.CommandContext(t.Context(), "kubectl", "--kubeconfig", kubeconfigPath, "apply", "-f", "../charts/operator/templates/validating-admission-policy.yaml").CombinedOutput()
@@ -79,17 +148,6 @@ func createKindCluster(t *testing.T) (client.Client, string) {
 		t.Fatal(err)
 	}
 
-	// Load the test cluster kubeconfig.
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-
-	// Create a client for the test cluster.
-	c, err := newKubeClient(config)
-	if err != nil {
-		t.Error(err)
-	}
 	return c, kubeconfigPath
 }
 
@@ -103,10 +161,32 @@ func cleanupKindCluster(t *testing.T, clusterName string) func() {
 	}
 }
 
-func TestClusterPodMonitoringDefaultingYAML(t *testing.T) {
-	t.Parallel()
+func deleteTestObject(t *testing.T, c client.Client, obj client.Object) {
+	t.Helper()
 
-	c, kubeconfigPath := createKindCluster(t)
+	err := c.Delete(t.Context(), obj)
+	if apierrors.IsNotFound(err) {
+		return
+	}
+	if err != nil {
+		t.Errorf("Failed to delete object %s: %v", obj.GetName(), err)
+		return
+	}
+
+	err = wait.PollUntilContextTimeout(t.Context(), 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
+		err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj.DeepCopyObject().(client.Object))
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	})
+	if err != nil {
+		t.Errorf("Failed waiting for object %s to be deleted: %v", obj.GetName(), err)
+	}
+}
+
+func TestClusterPodMonitoringDefaultingYAML(t *testing.T) {
+	c, kubeconfigPath := createOrReuseKindCluster(t)
 
 	tests := []struct {
 		file string
@@ -143,6 +223,8 @@ func TestClusterPodMonitoringDefaultingYAML(t *testing.T) {
 		var got monitoringv1.ClusterPodMonitoring
 		if err := c.Get(t.Context(), client.ObjectKey{Namespace: "default", Name: "prom-example"}, &got); err != nil {
 			t.Error(err)
+		} else {
+			deleteTestObject(t, c, &got)
 		}
 
 		if diff := cmp.Diff(tc.want, got.Spec); diff != "" {
@@ -152,9 +234,7 @@ func TestClusterPodMonitoringDefaultingYAML(t *testing.T) {
 }
 
 func TestPodMonitoringDefaultingYAML(t *testing.T) {
-	t.Parallel()
-
-	c, kubeconfigPath := createKindCluster(t)
+	c, kubeconfigPath := createOrReuseKindCluster(t)
 
 	tests := []struct {
 		file string
@@ -191,6 +271,8 @@ func TestPodMonitoringDefaultingYAML(t *testing.T) {
 		var got monitoringv1.PodMonitoring
 		if err := c.Get(t.Context(), client.ObjectKey{Namespace: "default", Name: "prom-example"}, &got); err != nil {
 			t.Error(err)
+		} else {
+			deleteTestObject(t, c, &got)
 		}
 
 		if diff := cmp.Diff(tc.want, got.Spec); diff != "" {
@@ -200,9 +282,7 @@ func TestPodMonitoringDefaultingYAML(t *testing.T) {
 }
 
 func TestCRDDefaulting(t *testing.T) {
-	t.Parallel()
-
-	c, _ := createKindCluster(t)
+	c, _ := createOrReuseKindCluster(t)
 
 	type cpmTest struct {
 		obj  *monitoringv1.ClusterPodMonitoring
@@ -213,6 +293,8 @@ func TestCRDDefaulting(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				if err := c.Create(t.Context(), tc.obj); err != nil {
 					t.Errorf("Unexpected error: %v", err)
+				} else {
+					defer deleteTestObject(t, c, tc.obj)
 				}
 
 				err := c.Get(
@@ -240,6 +322,8 @@ func TestCRDDefaulting(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				if err := c.Create(t.Context(), tc.obj); err != nil {
 					t.Errorf("Unexpected error: %v", err)
+				} else {
+					defer deleteTestObject(t, c, tc.obj)
 				}
 
 				err := c.Get(
@@ -493,9 +577,7 @@ func TestCRDDefaulting(t *testing.T) {
 }
 
 func TestCRDValidation(t *testing.T) {
-	t.Parallel()
-
-	c, _ := createKindCluster(t)
+	c, _ := createOrReuseKindCluster(t)
 
 	type test struct {
 		obj        client.Object
@@ -508,11 +590,7 @@ func TestCRDValidation(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				err := c.Create(t.Context(), tc.obj)
 				if err == nil {
-					_ = c.Delete(t.Context(), tc.obj)
-					_ = wait.PollUntilContextTimeout(t.Context(), 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
-						err := c.Get(ctx, client.ObjectKeyFromObject(tc.obj), tc.obj.DeepCopyObject().(client.Object))
-						return apierrors.IsNotFound(err), nil
-					})
+					deleteTestObject(t, c, tc.obj)
 				}
 				switch {
 				case err == nil && !tc.wantErr:
