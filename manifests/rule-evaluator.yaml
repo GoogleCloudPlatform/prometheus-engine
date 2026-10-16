@@ -182,6 +182,10 @@ spec:
         - name: cfg-rel-metrics
           protocol: TCP
           containerPort: 9093
+        env:
+        # See operator collector config-reloader comment for GOMAXPROCS context.
+        - name: GOMAXPROCS
+          value: "1"
         resources:
           limits:
             memory: 32M
