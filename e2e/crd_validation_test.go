@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -37,49 +38,64 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func existingKindCluster(t *testing.T) (client.Client, string, bool) {
+// existingKindCluster returns a client and kubeconfig path for the cluster of
+// the current kubeconfig context if that context points to a reachable kind
+// cluster (e.g. the one provisioned by hack/kind-test.sh). Otherwise, it returns
+// an error describing why the cluster cannot be reused.
+func existingKindCluster(t *testing.T) (client.Client, string, error) {
 	t.Helper()
 
 	rules := clientcmd.NewDefaultClientConfigLoadingRules()
-	var kubeconfigPath string
-	if len(rules.Precedence) > 0 {
-		kubeconfigPath = strings.Join(rules.Precedence, string(filepath.ListSeparator))
-	} else {
-		kubeconfigPath = rules.GetDefaultFilename()
-	}
+	// kubectl --kubeconfig accepts a single file rather than a KUBECONFIG-style
+	// list, so use the first existing file from the loading precedence.
+	kubeconfigPath := rules.GetDefaultFilename()
 	if kubeconfigPath == "" {
-		return nil, "", false
+		return nil, "", errors.New("no kubeconfig path found")
 	}
 
 	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, nil)
 	rawConfig, err := clientConfig.RawConfig()
-	if err != nil || !strings.HasPrefix(rawConfig.CurrentContext, "kind-") {
-		return nil, "", false
+	if err != nil {
+		return nil, "", fmt.Errorf("load kubeconfig: %w", err)
+	}
+	if !strings.HasPrefix(rawConfig.CurrentContext, "kind-") {
+		return nil, "", fmt.Errorf("current context %q is not a kind cluster", rawConfig.CurrentContext)
 	}
 
 	restConfig, err := clientConfig.ClientConfig()
 	if err != nil {
-		return nil, "", false
+		return nil, "", fmt.Errorf("build REST config for context %q: %w", rawConfig.CurrentContext, err)
 	}
 	if err := setRESTConfigDefaults(restConfig); err != nil {
-		return nil, "", false
+		return nil, "", fmt.Errorf("set REST config defaults: %w", err)
 	}
 
 	c, err := newKubeClient(restConfig)
 	if err != nil {
-		return nil, "", false
+		return nil, "", fmt.Errorf("create client: %w", err)
 	}
 	if err := c.List(t.Context(), &corev1.NamespaceList{}, client.Limit(1)); err != nil {
-		return nil, "", false
+		return nil, "", fmt.Errorf("cluster of context %q is not reachable: %w", rawConfig.CurrentContext, err)
 	}
-	return c, kubeconfigPath, true
+	t.Logf("Reusing kind cluster of current context %q (kubeconfig %s)", rawConfig.CurrentContext, kubeconfigPath)
+	return c, kubeconfigPath, nil
 }
 
-func createKindCluster(t *testing.T) (client.Client, string) {
+// createOrReuseKindCluster returns a client and kubeconfig path for a kind
+// cluster with the GMP CRDs and validating admission policies applied. It reuses
+// the cluster of the current kubeconfig context if that is a reachable kind
+// cluster, and otherwise creates a dedicated one that is deleted after the test.
+//
+// Callers must not use t.Parallel: tests reusing a cluster share it, and
+// concurrent "kubectl apply" runs of the same manifests can fail with
+// AlreadyExists errors.
+func createOrReuseKindCluster(t *testing.T) (client.Client, string) {
 	t.Helper()
 
-	c, kubeconfigPath, ok := existingKindCluster(t)
-	if !ok {
+	c, kubeconfigPath, reuseErr := existingKindCluster(t)
+	if reuseErr != nil {
+		t.Logf("Creating a dedicated kind cluster instead of reusing the current context: %v", reuseErr)
+
 		// Add a randomized suffix to the test cluster name to reduce collisions.
 		clusterName := fmt.Sprintf("crd-test-%s", rand.String(6))
 
@@ -165,14 +181,12 @@ func deleteTestObject(t *testing.T, c client.Client, obj client.Object) {
 		return false, err
 	})
 	if err != nil {
-		t.Errorf("Timed out waiting for object %s to be deleted: %v", obj.GetName(), err)
+		t.Errorf("Failed waiting for object %s to be deleted: %v", obj.GetName(), err)
 	}
 }
 
 func TestClusterPodMonitoringDefaultingYAML(t *testing.T) {
-	t.Parallel()
-
-	c, kubeconfigPath := createKindCluster(t)
+	c, kubeconfigPath := createOrReuseKindCluster(t)
 
 	tests := []struct {
 		file string
@@ -220,9 +234,7 @@ func TestClusterPodMonitoringDefaultingYAML(t *testing.T) {
 }
 
 func TestPodMonitoringDefaultingYAML(t *testing.T) {
-	t.Parallel()
-
-	c, kubeconfigPath := createKindCluster(t)
+	c, kubeconfigPath := createOrReuseKindCluster(t)
 
 	tests := []struct {
 		file string
@@ -270,9 +282,7 @@ func TestPodMonitoringDefaultingYAML(t *testing.T) {
 }
 
 func TestCRDDefaulting(t *testing.T) {
-	t.Parallel()
-
-	c, _ := createKindCluster(t)
+	c, _ := createOrReuseKindCluster(t)
 
 	type cpmTest struct {
 		obj  *monitoringv1.ClusterPodMonitoring
@@ -491,9 +501,7 @@ func TestCRDDefaulting(t *testing.T) {
 }
 
 func TestCRDValidation(t *testing.T) {
-	t.Parallel()
-
-	c, _ := createKindCluster(t)
+	c, _ := createOrReuseKindCluster(t)
 
 	type test struct {
 		obj     client.Object
