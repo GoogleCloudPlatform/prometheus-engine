@@ -17,6 +17,8 @@ package v1
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -128,42 +130,50 @@ func marshalRules(rs rulefmt.RuleGroups) ([]byte, error) {
 // An error is returned if metric selectors have a conflicting selector set.
 func scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 	p := parser.NewParser(parser.Options{})
+	keys := slices.Sorted(maps.Keys(lset))
+	var errs []error
 	for _, g := range groups.Groups {
 		for i, r := range g.Rules {
 			expr, err := p.ParseExpr(r.Expr)
 			if err != nil {
-				return fmt.Errorf("parse PromQL expression: %w", err)
+				errs = append(errs, fmt.Errorf("group %q rule #%d: parse PromQL expression: %w", g.Name, i+1, err))
+				continue
 			}
 
 			// Traverse the query and inject label matchers to all metric selectors.
 			err = walkExpr(expr, func(n parser.Node) error {
 				vs, ok := n.(*parser.VectorSelector)
 				if ok {
-					for name, value := range lset {
+					origVS := vs.String()
+					for _, name := range keys {
+						value := lset[name]
 						if err := setSelector(vs, name, value); err != nil {
-							return fmt.Errorf("set isolation selector %s=%q on %s: %w", name, value, vs, err)
+							return fmt.Errorf("set isolation selector %s=%q on %s: %w", name, value, origVS, err)
 						}
 					}
 				}
 				return nil
 			})
 			if err != nil {
-				return err
+				errs = append(errs, fmt.Errorf("group %q rule #%d: %w", g.Name, i+1, err))
 			}
+			origRule := r
+			r.Labels = maps.Clone(r.Labels)
 			r.Expr = expr.String()
 
 			// Add labels to produced label sets (metrics or alerts) in case
 			// they got aggregated away.
-			for name, value := range lset {
+			for _, name := range keys {
+				value := lset[name]
 				if err := setLabel(&r, name, value); err != nil {
-					return fmt.Errorf("set result isolation label %s=%q on %v: %w", name, value, r, err)
+					errs = append(errs, fmt.Errorf("group %q rule #%d: set result isolation label %s=%q on %v: %w", g.Name, i+1, name, value, origRule, err))
 				}
 			}
 
 			g.Rules[i] = r
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func setLabel(r *rulefmt.Rule, name, value string) error {
