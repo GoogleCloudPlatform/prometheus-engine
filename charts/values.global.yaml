@@ -99,3 +99,38 @@ ruleEvaluator:
   serviceAccount:
     create: true
     name: rule-evaluator
+# Optional: passed to gmp-operator as --project-id, --cluster, and --location. Required when running
+# outside GCE/GKE, where the GCE metadata server is unavailable. May be left empty on GKE.
+projectId: ""
+cluster: ""
+location: ""
+# Keyless Workload Identity Federation for collector and rule-evaluator on non-GKE clusters (e.g. Fleet
+# attached clusters). When enabled, the chart creates an external_account credentials Secret in the public
+# namespace, mounts a projected KSA token into collector and rule-evaluator, and references the Secret from
+# OperatorConfig collection.credentials and rules.credentials.
+#
+# Do not enable on GKE: use GKE Workload Identity instead. The default audience uses the Fleet membership
+# (gkehub.googleapis.com) identity provider, which GKE cluster memberships don't use.
+#
+# Required IAM (grant to the GSA instead when serviceAccountEmail is set). Note that rule-evaluator runs
+# as the "collector" Kubernetes service account, so both components use the same principal:
+#   principal://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/<PROJECT_ID>.svc.id.goog/subject/ns/gmp-system/sa/collector
+#   - roles/monitoring.metricWriter (collector and rule-evaluator export)
+#   - roles/monitoring.viewer (rule-evaluator queries)
+workloadIdentity:
+  enabled: false
+  # Projected KSA token audience. Defaults to "<projectId>.svc.id.goog".
+  tokenAudience: ""
+  tokenExpirationSeconds: 172800
+  # STS audience. Defaults to the Fleet membership identity provider:
+  # identitynamespace:<projectId>.svc.id.goog:https://gkehub.googleapis.com/projects/<projectId>/locations/<membershipLocation>/memberships/<membershipName>
+  # Set explicitly for other providers (e.g. an IAM Workload Identity Pool provider).
+  audience: ""
+  # Fleet membership name. Defaults to cluster.
+  membershipName: ""
+  membershipLocation: "global"
+  # Optional GSA to impersonate (e.g. for VPC Service Controls). Requires roles/iam.workloadIdentityUser
+  # on the GSA for the principal above.
+  serviceAccountEmail: ""
+  # Name of the generated credentials Secret in the public namespace.
+  secretName: "gmp-wif-creds"

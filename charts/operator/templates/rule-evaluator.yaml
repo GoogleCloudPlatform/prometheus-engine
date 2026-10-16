@@ -76,6 +76,11 @@ spec:
         - name: rules-secret
           readOnly: true
           mountPath: /etc/secrets
+        {{- if .Values.workloadIdentity.enabled }}
+        - name: ksa-token
+          readOnly: true
+          mountPath: /etc/ksa-token
+        {{- end }}
         livenessProbe:
           httpGet:
             port: 19092
@@ -146,6 +151,16 @@ spec:
         secret:
           defaultMode: 420
           secretName: rules
+      {{- if .Values.workloadIdentity.enabled }}
+      - name: ksa-token
+        projected:
+          defaultMode: 420
+          sources:
+          - serviceAccountToken:
+              audience: {{ default (printf "%s.svc.id.goog" .Values.projectId) .Values.workloadIdentity.tokenAudience }}
+              expirationSeconds: {{ .Values.workloadIdentity.tokenExpirationSeconds }}
+              path: ksa-token
+      {{- end }}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
