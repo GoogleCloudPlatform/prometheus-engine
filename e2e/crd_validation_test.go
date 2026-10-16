@@ -1721,9 +1721,11 @@ func TestCRDValidation(t *testing.T) {
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
+								Name: "group-1",
 								Rules: []monitoringv1.Rule{
 									{
 										Alert: "Any-characters:Allowed!?#@",
+										Expr:  "vector(1)",
 									},
 								},
 							},
@@ -1739,9 +1741,11 @@ func TestCRDValidation(t *testing.T) {
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
+								Name: "group-1",
 								Rules: []monitoringv1.Rule{
 									{
 										Record: "test",
+										Expr:   "vector(1)",
 									},
 								},
 							},
@@ -1750,6 +1754,142 @@ func TestCRDValidation(t *testing.T) {
 				},
 				wantErr: false,
 			},
+			"prometheus-duration-units": {
+				obj: &monitoringv1.Rules{
+					Name:      "prometheus-duration-units",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name:     "group-1",
+								Interval: "1d",
+								Rules: []monitoringv1.Rule{
+									{
+										Alert: "SlowBurn",
+										Expr:  "vector(1)",
+										For:   "1w",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"valid-rule-name-leading-colon-and-underscore": {
+				obj: &monitoringv1.Rules{
+					Name:      "valid-leading-colon-underscore",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: ":leading_colon",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"_leading_underscore": "val",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"empty-groups-slice": {
+				obj: &monitoringv1.Rules{
+					Name:      "empty-groups-slice",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{},
+					},
+				},
+				wantErr: false,
+			},
+			"nil-groups-slice": {
+				obj: &monitoringv1.Rules{
+					Name:      "nil-groups-slice",
+					Namespace: "default",
+					Spec:      monitoringv1.RulesSpec{},
+				},
+				wantErr:    true,
+				wantErrMsg: "spec.groups",
+			},
+			"empty-group-name": {
+				obj: &monitoringv1.Rules{
+					Name:      "empty-group-name",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "spec.groups[0].name",
+			},
+			"duplicate-group-name": {
+				obj: &monitoringv1.Rules{
+					Name:      "duplicate-group-name",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "dup",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_1",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+							{
+								Name: "dup",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_2",
+										Expr:   "vector(2)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Rule group names must be unique",
+			},
+			"empty-expr": {
+				obj: &monitoringv1.Rules{
+					Name:      "empty-expr",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "spec.groups[0].rules[0].expr",
+			},
 			"invalid-interval": {
 				obj: &monitoringv1.Rules{
 					Name:      "invalid-interval",
@@ -1757,17 +1897,20 @@ func TestCRDValidation(t *testing.T) {
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
+								Name:     "group-1",
 								Interval: "foo",
 								Rules: []monitoringv1.Rule{
 									{
 										Record: "test",
+										Expr:   "vector(1)",
 									},
 								},
 							},
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "spec.groups[0].interval",
 			},
 			"invalid-rule-name": {
 				obj: &monitoringv1.Rules{
@@ -1776,16 +1919,19 @@ func TestCRDValidation(t *testing.T) {
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
+								Name: "group-1",
 								Rules: []monitoringv1.Rule{
 									{
 										Record: "dots.not.allowed",
+										Expr:   "vector(1)",
 									},
 								},
 							},
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "spec.groups[0].rules[0].record",
 			},
 			"invalid-rule-name-dash": {
 				obj: &monitoringv1.Rules{
@@ -1794,16 +1940,40 @@ func TestCRDValidation(t *testing.T) {
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
+								Name: "group-1",
 								Rules: []monitoringv1.Rule{
 									{
 										Record: "dashes-not-allowed",
+										Expr:   "vector(1)",
 									},
 								},
 							},
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "spec.groups[0].rules[0].record",
+			},
+			"invalid-rule-name-leading-digit": {
+				obj: &monitoringv1.Rules{
+					Name:      "invalid-rule-name-digit",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "0leading_digit",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "spec.groups[0].rules[0].record",
 			},
 			"valid-rule-name-colon": {
 				obj: &monitoringv1.Rules{
@@ -1812,9 +1982,11 @@ func TestCRDValidation(t *testing.T) {
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
+								Name: "group-1",
 								Rules: []monitoringv1.Rule{
 									{
 										Record: "colon:allowed",
+										Expr:   "vector(1)",
 									},
 								},
 							},
@@ -1830,9 +2002,11 @@ func TestCRDValidation(t *testing.T) {
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
+								Name: "group-1",
 								Rules: []monitoringv1.Rule{
 									{
 										Record: "test",
+										Expr:   "vector(1)",
 										Annotations: map[string]string{
 											"test": "annotation",
 										},
@@ -1842,7 +2016,8 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "Annotations are only allowed for alerting rules",
 			},
 			"valid-annotation": {
 				obj: &monitoringv1.Rules{
@@ -1851,9 +2026,11 @@ func TestCRDValidation(t *testing.T) {
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
+								Name: "group-1",
 								Rules: []monitoringv1.Rule{
 									{
 										Alert: "test",
+										Expr:  "vector(1)",
 										Annotations: map[string]string{
 											"test": "annotation",
 										},
@@ -1865,6 +2042,288 @@ func TestCRDValidation(t *testing.T) {
 				},
 				wantErr: false,
 			},
+			"for-on-recording-rule": {
+				obj: &monitoringv1.Rules{
+					Name:      "for-on-recording-rule",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										For:    "5m",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "For is only allowed for alerting rules",
+			},
+			"for-0s-on-recording-rule": {
+				obj: &monitoringv1.Rules{
+					Name:      "for-0s-on-recording-rule",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										For:    "0s",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "For is only allowed for alerting rules",
+			},
+			"for-1d-on-recording-rule": {
+				obj: &monitoringv1.Rules{
+					Name:      "for-1d-on-recording-rule",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										For:    "1d",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "For is only allowed for alerting rules",
+			},
+			"invalid-label-key": {
+				obj: &monitoringv1.Rules{
+					Name:      "invalid-label-key",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"invalid-key": "val",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Label keys must match",
+			},
+			"invalid-label-key-colon": {
+				obj: &monitoringv1.Rules{
+					Name:      "invalid-label-key-colon",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"colon:not_allowed": "val",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Label keys must match",
+			},
+			"label-key-__name__": {
+				obj: &monitoringv1.Rules{
+					Name:      "label-key-name",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"__name__": "val",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Label keys must match",
+			},
+			"invalid-annotation-key": {
+				obj: &monitoringv1.Rules{
+					Name:      "invalid-annotation-key",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Alert: "test",
+										Expr:  "vector(1)",
+										Annotations: map[string]string{
+											"invalid-key": "val",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Annotation keys must match",
+			},
+			"invalid-annotation-key-colon": {
+				obj: &monitoringv1.Rules{
+					Name:      "invalid-annotation-key-colon",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Alert: "test",
+										Expr:  "vector(1)",
+										Annotations: map[string]string{
+											"colon:not_allowed": "val",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Annotation keys must match",
+			},
+			"reserved-label-project-id": {
+				obj: &monitoringv1.Rules{
+					Name:      "reserved-label-project-id",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"project_id": "other",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Rule labels cannot contain reserved keys",
+			},
+			"reserved-label-location": {
+				obj: &monitoringv1.Rules{
+					Name:      "reserved-label-location",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"location": "other",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Rule labels cannot contain reserved keys",
+			},
+			"reserved-label-cluster": {
+				obj: &monitoringv1.Rules{
+					Name:      "reserved-label-cluster",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"cluster": "other",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Rule labels cannot contain reserved keys",
+			},
+			"reserved-label-namespace": {
+				obj: &monitoringv1.Rules{
+					Name:      "reserved-label-namespace",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"namespace": "other",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Rule labels cannot contain reserved keys",
+			},
 			"alert-and-record-both-set": {
 				obj: &monitoringv1.Rules{
 					Name:      "alert-and-record-set",
@@ -1872,17 +2331,20 @@ func TestCRDValidation(t *testing.T) {
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
+								Name: "group-1",
 								Rules: []monitoringv1.Rule{
 									{
 										Alert:  "alert",
 										Record: "record",
+										Expr:   "vector(1)",
 									},
 								},
 							},
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "Must set exactly one of Record or Alert",
 			},
 			"neither-alert-nor-record-set": {
 				obj: &monitoringv1.Rules{
@@ -1891,15 +2353,391 @@ func TestCRDValidation(t *testing.T) {
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
 							{
+								Name: "group-1",
 								Rules: []monitoringv1.Rule{
-									{},
+									{
+										Expr: "vector(1)",
+									},
 								},
 							},
 						},
 					},
 				},
-				wantErr: true,
+				wantErr:    true,
+				wantErrMsg: "Must set exactly one of Record or Alert",
 			},
+			"unstructured-missing-spec": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "Rules",
+						"metadata": map[string]any{
+							"name":      "unstructured-missing-spec",
+							"namespace": "default",
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "spec: Required value",
+			},
+			"unstructured-missing-spec-groups": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "Rules",
+						"metadata": map[string]any{
+							"name":      "unstructured-missing-groups",
+							"namespace": "default",
+						},
+						"spec": map[string]any{},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "spec.groups: Required value",
+			},
+			"unstructured-missing-group-name": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "Rules",
+						"metadata": map[string]any{
+							"name":      "unstructured-missing-group-name",
+							"namespace": "default",
+						},
+						"spec": map[string]any{
+							"groups": []any{
+								map[string]any{
+									"rules": []any{
+										map[string]any{
+											"record": "test",
+											"expr":   "vector(1)",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "spec.groups[0].name: Required value",
+			},
+			"unstructured-missing-group-rules": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "Rules",
+						"metadata": map[string]any{
+							"name":      "unstructured-missing-group-rules",
+							"namespace": "default",
+						},
+						"spec": map[string]any{
+							"groups": []any{
+								map[string]any{
+									"name": "group-1",
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "spec.groups[0].rules: Required value",
+			},
+			"unstructured-empty-group-rules": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "Rules",
+						"metadata": map[string]any{
+							"name":      "unstructured-empty-group-rules",
+							"namespace": "default",
+						},
+						"spec": map[string]any{
+							"groups": []any{
+								map[string]any{
+									"name":  "group-1",
+									"rules": []any{},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "spec.groups[0].rules",
+			},
+			"unstructured-missing-rule-expr": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "Rules",
+						"metadata": map[string]any{
+							"name":      "unstructured-missing-rule-expr",
+							"namespace": "default",
+						},
+						"spec": map[string]any{
+							"groups": []any{
+								map[string]any{
+									"name": "group-1",
+									"rules": []any{
+										map[string]any{
+											"record": "test",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "spec.groups[0].rules[0].expr: Required value",
+			},
+		}
+		run(t, tests)
+	})
+	t.Run("ClusterRules", func(t *testing.T) {
+		tests := map[string]test{
+			"minimal-recording": {
+				obj: &monitoringv1.ClusterRules{
+					Name: "minimal-recording",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"allowed-label-namespace": {
+				obj: &monitoringv1.ClusterRules{
+					Name: "allowed-label-namespace",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"namespace": "other",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"reserved-label-project-id": {
+				obj: &monitoringv1.ClusterRules{
+					Name: "reserved-label-project-id",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"project_id": "other",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "ClusterRule labels cannot contain reserved keys",
+			},
+			"reserved-label-location": {
+				obj: &monitoringv1.ClusterRules{
+					Name: "reserved-label-location",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"location": "other",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "ClusterRule labels cannot contain reserved keys",
+			},
+			"reserved-label-cluster": {
+				obj: &monitoringv1.ClusterRules{
+					Name: "reserved-label-cluster",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"cluster": "other",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "ClusterRule labels cannot contain reserved keys",
+			},
+			"duplicate-group-name": {
+				obj: &monitoringv1.ClusterRules{
+					Name: "duplicate-group-name",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "dup",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_1",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+							{
+								Name: "dup",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_2",
+										Expr:   "vector(2)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Rule group names must be unique",
+			},
+		}
+		run(t, tests)
+	})
+	t.Run("GlobalRules", func(t *testing.T) {
+		tests := map[string]test{
+			"minimal-recording": {
+				obj: &monitoringv1.GlobalRules{
+					Name: "minimal-recording",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"allowed-all-scope-labels": {
+				obj: &monitoringv1.GlobalRules{
+					Name: "allowed-all-scope-labels",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"project_id": "other-project",
+											"location":   "other-location",
+											"cluster":    "other-cluster",
+											"namespace":  "other-namespace",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"for-on-recording-rule": {
+				obj: &monitoringv1.GlobalRules{
+					Name: "for-on-recording-rule",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										For:    "5m",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "For is only allowed for alerting rules",
+			},
+			"duplicate-group-name": {
+				obj: &monitoringv1.GlobalRules{
+					Name: "duplicate-group-name",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "dup",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_1",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+							{
+								Name: "dup",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_2",
+										Expr:   "vector(2)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr:    true,
+				wantErrMsg: "Rule group names must be unique",
+			},
+		}
+		run(t, tests)
+	})
+	t.Run("ClusterPodMonitoring-TargetLabels", func(t *testing.T) {
+		tests := map[string]test{
 			"TargetLabels/from-kubernetes-labels": {
 				obj: &monitoringv1.ClusterPodMonitoring{
 					Name:      "from-kubernetes-labels",

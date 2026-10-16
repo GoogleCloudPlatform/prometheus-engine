@@ -68,9 +68,12 @@ spec:
                       description: The interval at which to evaluate the rules. Must
                         be a valid Prometheus duration.
                       format: duration
+                      minLength: 1
                       type: string
                     name:
                       description: The name of the rule group.
+                      maxLength: 1024
+                      minLength: 1
                       type: string
                     rules:
                       description: A list of rules that are executed sequentially
@@ -84,6 +87,7 @@ spec:
                             description: |-
                               Name of the alert to evaluate the expression as.
                               Only one of `record` and `alert` must be set.
+                            minLength: 1
                             type: string
                           annotations:
                             additionalProperties:
@@ -91,26 +95,39 @@ spec:
                             description: |-
                               A set of annotations to attach to alerts produced by the query expression.
                               Only valid if `alert` is set.
+                            maxProperties: 64
                             type: object
+                            x-kubernetes-validations:
+                            - message: Annotation keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$
+                              rule: self.all(k, k.matches('^[a-zA-Z_][a-zA-Z0-9_]*$'))
                           expr:
                             description: The PromQL expression to evaluate.
+                            minLength: 1
                             type: string
                           for:
                             description: |-
                               The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
                               Only valid if `alert` is set.
                             format: duration
+                            minLength: 1
                             type: string
                           labels:
                             additionalProperties:
                               type: string
                             description: A set of labels to attach to the result of
                               the query expression.
+                            maxProperties: 64
                             type: object
+                            x-kubernetes-validations:
+                            - message: Label keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$
+                                and must not be __name__
+                              rule: self.all(k, k.matches('^[a-zA-Z_][a-zA-Z0-9_]*$')
+                                && k != '__name__')
                           record:
                             description: |-
                               Record the result of the expression to this metric name.
                               Only one of `record` and `alert` must be set.
+                            minLength: 1
                             pattern: ^[a-zA-Z_:][a-zA-Z0-9_:]*$
                             type: string
                         required:
@@ -121,14 +138,22 @@ spec:
                           rule: '(has(self.record) ? 1 : 0) + (has(self.alert) ? 1
                             : 0) == 1'
                         - message: Annotations are only allowed for alerting rules
-                          rule: '!has(self.annotations) || has(self.alert)'
+                          rule: '!has(self.annotations) || size(self.annotations)
+                            == 0 || has(self.alert)'
+                        - message: For is only allowed for alerting rules
+                          rule: '!has(self.__for__) || has(self.alert)'
+                      maxItems: 200
                       minItems: 1
                       type: array
                   required:
                   - name
                   - rules
                   type: object
+                maxItems: 50
                 type: array
+                x-kubernetes-validations:
+                - message: Rule group names must be unique
+                  rule: self.all(g, self.filter(h, h.name == g.name).size() == 1)
             required:
             - groups
             type: object
@@ -176,6 +201,12 @@ spec:
         required:
         - spec
         type: object
+        x-kubernetes-validations:
+        - message: 'ClusterRule labels cannot contain reserved keys: project_id, location,
+            cluster'
+          rule: '!has(self.spec.groups) || self.spec.groups.all(g, g.rules.all(r,
+            !has(r.labels) || (!(''project_id'' in r.labels) && !(''location'' in
+            r.labels) && !(''cluster'' in r.labels))))'
     served: true
     storage: true
     subresources:
