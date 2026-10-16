@@ -79,6 +79,9 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 				Annotations: r.Annotations,
 			}
 			if r.For != "" {
+				if r.Record != "" {
+					return result, errors.New("invalid field 'for' in recording rule")
+				}
 				rule.For, err = model.ParseDuration(r.For)
 				if err != nil {
 					return result, fmt.Errorf("parse 'for' duration: %w", err)

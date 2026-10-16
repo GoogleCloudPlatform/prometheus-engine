@@ -30,6 +30,7 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.groups) || self.spec.groups.all(g, g.rules.all(r, !has(r.labels) || (!('project_id' in r.labels) && !('location' in r.labels) && !('cluster' in r.labels) && !('namespace' in r.labels))))",message="Rule labels cannot contain reserved keys: project_id, location, cluster, namespace"
 type Rules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -81,6 +82,7 @@ type RulesList struct {
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.groups) || self.spec.groups.all(g, g.rules.all(r, !has(r.labels) || (!('project_id' in r.labels) && !('location' in r.labels) && !('cluster' in r.labels))))",message="ClusterRule labels cannot contain reserved keys: project_id, location, cluster"
 type ClusterRules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -173,6 +175,8 @@ type GlobalRulesList struct {
 // RulesSpec contains specification parameters for a Rules resource.
 type RulesSpec struct {
 	// A list of Prometheus rule groups.
+	// +kubebuilder:validation:MaxItems=50
+	// +kubebuilder:validation:XValidation:rule="self.all(g, self.filter(h, h.name == g.name).size() == 1)",message="Rule group names must be unique"
 	Groups []RuleGroup `json:"groups"`
 }
 
@@ -180,38 +184,51 @@ type RulesSpec struct {
 // https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
 type RuleGroup struct {
 	// The name of the rule group.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=1024
 	Name string `json:"name"`
 	// The interval at which to evaluate the rules. Must be a valid Prometheus duration.
+	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:Format=duration
 	// +kubebuilder:default="1m"
 	Interval string `json:"interval,omitempty"`
 	// A list of rules that are executed sequentially as part of this group.
 	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=200
 	Rules []Rule `json:"rules"`
 }
 
 // Rule is a single rule in the Prometheus format:
 // https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
 // +kubebuilder:validation:XValidation:rule="(has(self.record) ? 1 : 0) + (has(self.alert) ? 1 : 0) == 1",message="Must set exactly one of Record or Alert"
-// +kubebuilder:validation:XValidation:rule="!has(self.annotations) || has(self.alert)",message="Annotations are only allowed for alerting rules"
+// +kubebuilder:validation:XValidation:rule="!has(self.annotations) || size(self.annotations) == 0 || has(self.alert)",message="Annotations are only allowed for alerting rules"
+// +kubebuilder:validation:XValidation:rule="!has(self.__for__) || has(self.alert)",message="For is only allowed for alerting rules"
 type Rule struct {
 	// Record the result of the expression to this metric name.
 	// Only one of `record` and `alert` must be set.
+	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:Pattern="^[a-zA-Z_:][a-zA-Z0-9_:]*$"
 	Record string `json:"record,omitempty"`
 	// Name of the alert to evaluate the expression as.
 	// Only one of `record` and `alert` must be set.
+	// +kubebuilder:validation:MinLength=1
 	Alert string `json:"alert,omitempty"`
 	// The PromQL expression to evaluate.
+	// +kubebuilder:validation:MinLength=1
 	Expr string `json:"expr"`
 	// The duration to wait before a firing alert produced by this rule is sent to Alertmanager.
 	// Only valid if `alert` is set.
+	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:Format=duration
 	For string `json:"for,omitempty"`
 	// A set of labels to attach to the result of the query expression.
+	// +kubebuilder:validation:MaxProperties=64
+	// +kubebuilder:validation:XValidation:rule="self.all(k, k.matches('^[a-zA-Z_][a-zA-Z0-9_]*$') && k != '__name__')",message="Label keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$ and must not be __name__"
 	Labels map[string]string `json:"labels,omitempty"`
 	// A set of annotations to attach to alerts produced by the query expression.
 	// Only valid if `alert` is set.
+	// +kubebuilder:validation:MaxProperties=64
+	// +kubebuilder:validation:XValidation:rule="self.all(k, k.matches('^[a-zA-Z_][a-zA-Z0-9_]*$'))",message="Annotation keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$"
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
