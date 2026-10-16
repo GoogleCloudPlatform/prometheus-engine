@@ -18,11 +18,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,7 +39,11 @@ import (
 )
 
 const (
-	nameRulesGenerated = "rules-generated"
+	nameRulesGenerated    = "rules-generated"
+	reasonRuleConfigError = "RuleConfigError"
+	reportingController   = "monitoring.googleapis.com/gmp-operator"
+	maxEventNoteLength    = 1024
+	maxEventObjNameLength = 140
 )
 
 func setupRulesControllers(op *Operator) error {
@@ -250,20 +258,24 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		Type:   monitoringv1.ConfigurationCreateSuccess,
 		Status: corev1.ConditionTrue,
 	}
-	var statusUpdates []monitoringv1.MonitoringCRD
+	type statusUpdate struct {
+		obj     monitoringv1.MonitoringCRD
+		kind    string
+		ruleErr error
+	}
+	var statusUpdates []statusUpdate
 
 	for i := range rulesList.Items {
 		rs := &rulesList.Items[i]
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
 		if err != nil {
-			msg := "generating rule config failed"
 			if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
-				Message: msg,
-				Reason:  err.Error(),
+				Reason:  reasonRuleConfigError,
+				Message: fmt.Sprintf("generating rule config failed: %s", err),
 			}) {
-				statusUpdates = append(statusUpdates, rs)
+				statusUpdates = append(statusUpdates, statusUpdate{obj: rs, kind: "Rules", ruleErr: err})
 			}
 			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
 			continue
@@ -274,7 +286,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		}
 
 		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
-			statusUpdates = append(statusUpdates, rs)
+			statusUpdates = append(statusUpdates, statusUpdate{obj: rs, kind: "Rules"})
 		}
 	}
 
@@ -286,14 +298,13 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		rs := &clusterRulesList.Items[i]
 		result, err := rs.RuleGroupsConfig(projectID, location, cluster)
 		if err != nil {
-			msg := "generating rule config failed"
-			if rs.Status.SetMonitoringCondition(rs.Generation, now, &monitoringv1.MonitoringCondition{
+			if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
-				Message: msg,
-				Reason:  err.Error(),
+				Reason:  reasonRuleConfigError,
+				Message: fmt.Sprintf("generating rule config failed: %s", err),
 			}) {
-				statusUpdates = append(statusUpdates, rs)
+				statusUpdates = append(statusUpdates, statusUpdate{obj: rs, kind: "ClusterRules", ruleErr: err})
 			}
 			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
 			continue
@@ -304,7 +315,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		}
 
 		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
-			statusUpdates = append(statusUpdates, rs)
+			statusUpdates = append(statusUpdates, statusUpdate{obj: rs, kind: "ClusterRules"})
 		}
 	}
 
@@ -316,14 +327,13 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		rs := &globalRulesList.Items[i]
 		result, err := rs.RuleGroupsConfig()
 		if err != nil {
-			msg := "generating rule config failed"
-			if rs.Status.SetMonitoringCondition(rs.Generation, now, &monitoringv1.MonitoringCondition{
+			if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, &monitoringv1.MonitoringCondition{
 				Type:    monitoringv1.ConfigurationCreateSuccess,
 				Status:  corev1.ConditionFalse,
-				Message: msg,
-				Reason:  err.Error(),
+				Reason:  reasonRuleConfigError,
+				Message: fmt.Sprintf("generating rule config failed: %s", err),
 			}) {
-				statusUpdates = append(statusUpdates, rs)
+				statusUpdates = append(statusUpdates, statusUpdate{obj: rs, kind: "GlobalRules", ruleErr: err})
 			}
 			logger.Error(err, "convert rules", "err", err, "namespace", rs.Namespace, "name", rs.Name)
 			continue
@@ -334,7 +344,7 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 		}
 
 		if rs.Status.SetMonitoringCondition(rs.GetGeneration(), now, conditionSuccess) {
-			statusUpdates = append(statusUpdates, rs)
+			statusUpdates = append(statusUpdates, statusUpdate{obj: rs, kind: "GlobalRules"})
 		}
 	}
 
@@ -348,11 +358,116 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 	}
 
 	var errs []error
-	for _, obj := range statusUpdates {
-		if err := patchMonitoringStatus(ctx, r.client, obj, obj.GetMonitoringStatus()); err != nil {
+	for _, u := range statusUpdates {
+		if err := patchMonitoringStatus(ctx, r.client, u.obj, u.obj.GetMonitoringStatus()); err != nil {
 			errs = append(errs, err)
+			continue
+		}
+		if u.ruleErr != nil {
+			r.recordInvalidRuleEvents(ctx, u.obj, u.kind, now, u.ruleErr)
 		}
 	}
 
 	return errors.Join(errs...)
+}
+
+// recordInvalidRuleEvents emits Kubernetes Warning Events when a Rules, ClusterRules, or GlobalRules
+// resource fails operator-side validation. An event is always emitted in the operator namespace with
+// regarding set to Deployment/gmp-operator so that it surfaces in the Google Cloud Console workload
+// events tab. For namespaced Rules resources, a second event is emitted in the resource's namespace
+// with regarding set directly to the Rules object.
+func (r *rulesReconciler) recordInvalidRuleEvents(ctx context.Context, obj monitoringv1.MonitoringCRD, kind string, now metav1.Time, ruleErr error) {
+	logger, _ := logr.FromContext(ctx)
+
+	opNamespace := r.opts.OperatorNamespace
+	if opNamespace == "" {
+		opNamespace = DefaultOperatorNamespace
+	}
+
+	eventTime := metav1.NewMicroTime(now.Time)
+	objRef := corev1.ObjectReference{
+		APIVersion: monitoringv1.SchemeGroupVersion.String(),
+		Kind:       kind,
+		Namespace:  obj.GetNamespace(),
+		Name:       obj.GetName(),
+		UID:        obj.GetUID(),
+	}
+
+	objName := truncateEventObjName(obj.GetName())
+	workloadEventName := fmt.Sprintf("%s.%s.%s.%x", NameOperator, strings.ToLower(kind), objName, now.UnixNano())
+	workloadNote := fmt.Sprintf("%s %s: %s", kind, obj.GetName(), ruleErr.Error())
+	if obj.GetNamespace() != "" {
+		workloadEventName = fmt.Sprintf("%s.%s.%s.%s.%x", NameOperator, strings.ToLower(kind), obj.GetNamespace(), objName, now.UnixNano())
+		workloadNote = fmt.Sprintf("%s %s/%s: %s", kind, obj.GetNamespace(), obj.GetName(), ruleErr.Error())
+	}
+
+	workloadEvent := &eventsv1.Event{
+		Name:                workloadEventName,
+		Namespace:           opNamespace,
+		EventTime:           eventTime,
+		ReportingController: reportingController,
+		ReportingInstance:   NameOperator,
+		Action:              "Ignored",
+		Reason:              reasonRuleConfigError,
+		Note:                truncateEventNote(workloadNote),
+		Type:                corev1.EventTypeWarning,
+		Regarding: corev1.ObjectReference{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+			Namespace:  opNamespace,
+			Name:       NameOperator,
+		},
+		Related: &objRef,
+	}
+	if err := r.client.Create(ctx, workloadEvent); err != nil && !apierrors.IsAlreadyExists(err) {
+		logger.Error(err, "create operator workload event for invalid rules", "kind", kind, "namespace", obj.GetNamespace(), "name", obj.GetName())
+	}
+
+	if kind == "Rules" {
+		resourceEvent := &eventsv1.Event{
+			Name:                fmt.Sprintf("rules.%s.%x", objName, now.UnixNano()),
+			Namespace:           obj.GetNamespace(),
+			EventTime:           eventTime,
+			ReportingController: reportingController,
+			ReportingInstance:   NameOperator,
+			Action:              "Ignored",
+			Reason:              reasonRuleConfigError,
+			Note:                truncateEventNote(ruleErr.Error()),
+			Type:                corev1.EventTypeWarning,
+			Regarding:           objRef,
+		}
+		if err := r.client.Create(ctx, resourceEvent); err != nil && !apierrors.IsAlreadyExists(err) {
+			logger.Error(err, "create resource event for invalid rules", "namespace", obj.GetNamespace(), "name", obj.GetName())
+		}
+	}
+}
+
+// truncateEventNote caps an event note to maxEventNoteLength bytes without splitting
+// a multi-byte UTF-8 rune at the cut boundary.
+func truncateEventNote(note string) string {
+	if len(note) <= maxEventNoteLength {
+		return note
+	}
+	cut := maxEventNoteLength - 3
+	for cut > 0 && !utf8.RuneStart(note[cut]) {
+		cut--
+	}
+	return note[:cut] + "..."
+}
+
+// truncateEventObjName caps a resource name so generated Kubernetes Event names stay
+// within the 253-character DNS subdomain limit and end on an alphanumeric character.
+// When truncating, an 8-character FNV-1a hex digest suffix is appended so distinct long
+// names that share a common prefix do not collide.
+func truncateEventObjName(name string) string {
+	if len(name) <= maxEventObjNameLength {
+		return name
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+	prefix := strings.TrimRight(name[:maxEventObjNameLength-9], "-.")
+	if prefix == "" {
+		return fmt.Sprintf("%08x", h.Sum32())
+	}
+	return fmt.Sprintf("%s-%08x", prefix, h.Sum32())
 }
