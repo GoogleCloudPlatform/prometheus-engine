@@ -490,6 +490,286 @@ func TestCRDDefaulting(t *testing.T) {
 		}
 		runOC(t, tests)
 	})
+
+	t.Run("Rules", func(t *testing.T) {
+		tests := map[string]struct {
+			obj  *monitoringv1.Rules
+			want *monitoringv1.Rules
+		}{
+			"Interval/default": {
+				obj: &monitoringv1.Rules{
+					Name:      "default",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				want: &monitoringv1.Rules{
+					Name:      "default",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name:     "group-1",
+								Interval: "1m",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"Interval/nondefault": {
+				obj: &monitoringv1.Rules{
+					Name:      "nondefault",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name:     "group-1",
+								Interval: "30s",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				want: &monitoringv1.Rules{
+					Name:      "nondefault",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name:     "group-1",
+								Interval: "30s",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				if err := c.Create(t.Context(), tc.obj); err != nil {
+					t.Fatalf("Unexpected error: %v", err)
+				}
+				if err := c.Get(t.Context(), client.ObjectKeyFromObject(tc.obj), tc.obj); err != nil {
+					t.Fatalf("Unexpected error: %v", err)
+				}
+				if diff := cmp.Diff(tc.want.Spec, tc.obj.Spec); diff != "" {
+					t.Errorf("diff -want +got:\n%s", diff)
+				}
+			})
+		}
+	})
+
+	t.Run("ClusterRules", func(t *testing.T) {
+		tests := map[string]struct {
+			obj  *monitoringv1.ClusterRules
+			want *monitoringv1.ClusterRules
+		}{
+			"Interval/default": {
+				obj: &monitoringv1.ClusterRules{
+					Name: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				want: &monitoringv1.ClusterRules{
+					Name: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name:     "group-1",
+								Interval: "1m",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"Interval/nondefault": {
+				obj: &monitoringv1.ClusterRules{
+					Name: "nondefault",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name:     "group-1",
+								Interval: "30s",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				want: &monitoringv1.ClusterRules{
+					Name: "nondefault",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name:     "group-1",
+								Interval: "30s",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				if err := c.Create(t.Context(), tc.obj); err != nil {
+					t.Fatalf("Unexpected error: %v", err)
+				}
+				if err := c.Get(t.Context(), client.ObjectKeyFromObject(tc.obj), tc.obj); err != nil {
+					t.Fatalf("Unexpected error: %v", err)
+				}
+				if diff := cmp.Diff(tc.want.Spec, tc.obj.Spec); diff != "" {
+					t.Errorf("diff -want +got:\n%s", diff)
+				}
+			})
+		}
+	})
+
+	t.Run("GlobalRules", func(t *testing.T) {
+		tests := map[string]struct {
+			obj  *monitoringv1.GlobalRules
+			want *monitoringv1.GlobalRules
+		}{
+			"Interval/default": {
+				obj: &monitoringv1.GlobalRules{
+					Name: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				want: &monitoringv1.GlobalRules{
+					Name: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name:     "group-1",
+								Interval: "1m",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"Interval/nondefault": {
+				obj: &monitoringv1.GlobalRules{
+					Name: "nondefault",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name:     "group-1",
+								Interval: "30s",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				want: &monitoringv1.GlobalRules{
+					Name: "nondefault",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name:     "group-1",
+								Interval: "30s",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test_metric",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				if err := c.Create(t.Context(), tc.obj); err != nil {
+					t.Fatalf("Unexpected error: %v", err)
+				}
+				if err := c.Get(t.Context(), client.ObjectKeyFromObject(tc.obj), tc.obj); err != nil {
+					t.Fatalf("Unexpected error: %v", err)
+				}
+				if diff := cmp.Diff(tc.want.Spec, tc.obj.Spec); diff != "" {
+					t.Errorf("diff -want +got:\n%s", diff)
+				}
+			})
+		}
+	})
 }
 
 func TestCRDValidation(t *testing.T) {
