@@ -139,6 +139,11 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
+        # Cap GOMAXPROCS so Go does not allocate per-CPU runtime arenas on high-vCPU nodes and exceed the tight 32M memory limit.
+        # We use GOMAXPROCS instead of limits.cpu to avoid CFS throttling during reload bursts and to comply with GKE system component policies.
+        # 1 is sufficient as config-reloader requests 1m CPU and runs a single-threaded 10s reload loop.
+        - name: GOMAXPROCS
+          value: "1"
         resources: {{- toYaml $.Values.resources.bash | nindent 10}}
         volumeMounts:
         - name: config
