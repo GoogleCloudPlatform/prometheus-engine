@@ -119,6 +119,9 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
+        # See collector config-reloader comment for GOMAXPROCS context.
+        - name: GOMAXPROCS
+          value: "1"
         resources: {{- toYaml $.Values.resources.configReloader | nindent 10 }}
         volumeMounts:
         - name: config
