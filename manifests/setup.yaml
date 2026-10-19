@@ -1568,8 +1568,8 @@ spec:
                   type: array
                   x-kubernetes-validations:
                     - message: Rule group names must be unique
-                      rule: self.all(g, self.filter(h, h.name == g.name).size() ==
-                        1)
+                      rule: self.all(g, !has(g.name) || self.filter(h, has(h.name)
+                        && h.name == g.name).size() == 1)
               required:
                 - groups
               type: object
@@ -1622,9 +1622,9 @@ spec:
           x-kubernetes-validations:
             - message: 'ClusterRule labels cannot contain reserved keys: project_id,
                 location, cluster'
-              rule: '!has(self.spec.groups) || self.spec.groups.all(g, g.rules.all(r,
-                !has(r.labels) || (!(''project_id'' in r.labels) && !(''location''
-                in r.labels) && !(''cluster'' in r.labels))))'
+              rule: '!has(self.spec) || !has(self.spec.groups) || self.spec.groups.all(g,
+                !has(g.rules) || g.rules.all(r, !has(r.labels) || (!(''project_id''
+                in r.labels) && !(''location'' in r.labels) && !(''cluster'' in r.labels))))'
       served: true
       storage: true
       subresources:
@@ -1878,8 +1878,8 @@ spec:
                   type: array
                   x-kubernetes-validations:
                     - message: Rule group names must be unique
-                      rule: self.all(g, self.filter(h, h.name == g.name).size() ==
-                        1)
+                      rule: self.all(g, !has(g.name) || self.filter(h, has(h.name)
+                        && h.name == g.name).size() == 1)
               required:
                 - groups
               type: object
@@ -4259,8 +4259,8 @@ spec:
                   type: array
                   x-kubernetes-validations:
                     - message: Rule group names must be unique
-                      rule: self.all(g, self.filter(h, h.name == g.name).size() ==
-                        1)
+                      rule: self.all(g, !has(g.name) || self.filter(h, has(h.name)
+                        && h.name == g.name).size() == 1)
               required:
                 - groups
               type: object
@@ -4313,9 +4313,10 @@ spec:
           x-kubernetes-validations:
             - message: 'Rule labels cannot contain reserved keys: project_id, location,
                 cluster, namespace'
-              rule: '!has(self.spec.groups) || self.spec.groups.all(g, g.rules.all(r,
-                !has(r.labels) || (!(''project_id'' in r.labels) && !(''location''
-                in r.labels) && !(''cluster'' in r.labels) && !(''namespace'' in r.labels))))'
+              rule: '!has(self.spec) || !has(self.spec.groups) || self.spec.groups.all(g,
+                !has(g.rules) || g.rules.all(r, !has(r.labels) || (!(''project_id''
+                in r.labels) && !(''location'' in r.labels) && !(''cluster'' in r.labels)
+                && !(''namespace'' in r.labels))))'
       served: true
       storage: true
       subresources:
