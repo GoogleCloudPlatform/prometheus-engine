@@ -25,6 +25,11 @@ const { applyVulnerabilityFixFilter } = renovateRequire('./dist/workers/reposito
 const { classifyRelease } = renovateRequire('./dist/workers/repository/process/lookup/update-type.js');
 const { get: getVersioning } = renovateRequire('./dist/modules/versioning/index.js');
 const { compile: compileTemplate } = renovateRequire('./dist/util/template/index.js');
+const { getConfig: getDefaultConfig } = renovateRequire('./dist/config/defaults.js');
+const { resolveConfigPresets } = renovateRequire('./dist/config/presets/index.js');
+const { mergeChildConfig } = renovateRequire('./dist/config/utils.js');
+const { flattenUpdates } = renovateRequire('./dist/workers/repository/updates/flatten.js');
+const { generateBranchConfig } = renovateRequire('./dist/workers/repository/updates/generate.js');
 
 const configFile = path.resolve(__dirname, '../.github/renovate.json5');
 const configRaw = fs.readFileSync(configFile, 'utf8');
@@ -281,8 +286,8 @@ async function runTests() {
     commitMessageTopic: dockerDefaultTopic,
   });
   assert(
-    thirdPartyTopic.commitMessageTopic === dockerDefaultTopic,
-    '3P image quay.io/prometheus/alertmanager keeps the docker datasource default commit topic'
+    compileTemplate(thirdPartyTopic.commitMessageTopic, { depName: 'quay.io/prometheus/alertmanager' }) === 'alertmanager image',
+    '3P image quay.io/prometheus/alertmanager renders the short "alertmanager image" commit topic'
   );
 
   // Verify 1P Google container images bypass minimumReleaseAge while 3P images keep '7 days'
@@ -1156,6 +1161,131 @@ async function runTests() {
       (!ghaVulnApplied.addLabels || !ghaVulnApplied.addLabels.includes('automerge')),
     'GitHub Actions vulnerability alert disables automerge and does not add "automerge" label'
   );
+
+  // Suite 12: End-to-End Commit Message & PR Title Rendering
+  // Runs the real Renovate pipeline (presets + defaults -> flattenUpdates -> generateBranchConfig) so that
+  // datasource/update-type defaults (e.g. "<depName> Docker digest") are applied in the same order as in production.
+  console.log('\nTest Suite 12: End-to-End Commit Message & PR Title Rendering');
+  const fullConfig = mergeChildConfig(getDefaultConfig(), (await resolveConfigPresets(config)).config);
+  async function renderBranch(manager, packageFile, deps, baseBranch = 'main') {
+    const upgrades = await flattenUpdates(
+      { ...fullConfig, baseBranch, hasBaseBranches: true },
+      { [manager]: [{ packageFile, deps }] }
+    );
+    return generateBranchConfig(upgrades);
+  }
+  function dockerDep(depName, update, extra = {}) {
+    return { depName, packageName: depName, datasource: 'docker', updates: [update], ...extra };
+  }
+  function goDep(depName, currentValue, newValue) {
+    return {
+      depName,
+      packageName: depName,
+      datasource: 'go',
+      depType: 'require',
+      currentValue,
+      updates: [{ updateType: 'minor', newValue, newVersion: newValue, newMajor: 0 }],
+    };
+  }
+  const digestUpdate = (short) => ({ updateType: 'digest', newDigest: `sha256:${short}${'0'.repeat(57)}` });
+
+  const commitCases = [
+    {
+      desc: 'Long Artifact Registry image digest on release branch (PR #2431)',
+      manager: 'dockerfile',
+      packageFile: 'cmd/frontend/Dockerfile',
+      baseBranch: 'release/0.19',
+      deps: [dockerDep(
+        'us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24',
+        digestUpdate('b154243'),
+        { currentDigest: `sha256:${'a'.repeat(64)}` }
+      )],
+      expectedHeader: 'chore(deps): update nodejs24 image to b154243',
+      expectedPrTitle: 'chore(deps): update nodejs24 image to b154243 (release/0.19)',
+    },
+    {
+      desc: 'Pinned image tag digest',
+      manager: 'dockerfile',
+      packageFile: 'cmd/operator/Dockerfile',
+      deps: [dockerDep('gcr.io/distroless/static-debian12', digestUpdate('c0ffee1'), {
+        currentValue: 'nonroot',
+        currentDigest: `sha256:${'a'.repeat(64)}`,
+      })],
+      expectedHeader: 'chore(deps): update static-debian12 image to c0ffee1',
+    },
+    {
+      desc: 'Chart image with long tag',
+      manager: 'custom.regex',
+      packageFile: 'charts/values.global.yaml',
+      deps: [dockerDep('gke.gcr.io/gke-distroless/bash', {
+        updateType: 'patch',
+        newValue: 'gke_distroless_20260915.00_p0',
+        newVersion: 'gke_distroless_20260915.00_p0',
+      }, { currentValue: 'gke_distroless_20260815.00_p0' })],
+      expectedHeader: 'chore(deps): update bash image to gke_distroless_20260915.00_p0',
+    },
+    {
+      desc: 'Prometheus-engine image with longest -gmp.N-gke.N tag',
+      manager: 'custom.regex',
+      packageFile: 'charts/values.global.yaml',
+      deps: [dockerDep('gke.gcr.io/prometheus-engine/datasource-syncer', {
+        updateType: 'patch',
+        newValue: 'v2.45.3-gmp.11-gke.10',
+        newVersion: 'v2.45.3-gmp.11-gke.10',
+      }, { currentValue: 'v2.45.3-gmp.11-gke.9' })],
+      expectedHeader: 'chore(deps): update datasource-syncer image to v2.45.3-gmp.11-gke.10',
+    },
+    {
+      desc: 'Long nested Go module path',
+      manager: 'gomod',
+      packageFile: 'go.mod',
+      deps: [goDep('github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric', 'v0.54.0', 'v0.55.0')],
+      expectedHeader: 'fix(deps): update module exporter/metric to v0.55.0',
+    },
+    {
+      desc: 'Short Go module path is kept as is',
+      manager: 'gomod',
+      packageFile: 'go.mod',
+      deps: [goDep('google.golang.org/api', 'v0.302.0', 'v0.303.0')],
+      expectedHeader: 'fix(deps): update module google.golang.org/api to v0.303.0',
+    },
+    {
+      desc: 'Go module with major version suffix keeps the suffix',
+      manager: 'gomod',
+      packageFile: 'ops/gmpctl/go.mod',
+      deps: [goDep('github.com/mikefarah/yq/v4', 'v4.44.0', 'v4.45.0')],
+      expectedHeader: 'fix(deps): update module yq/v4 to v4.45.0',
+    },
+    {
+      desc: 'Multi-update group uses the group name',
+      manager: 'dockerfile',
+      packageFile: 'cmd/operator/Dockerfile',
+      deps: [
+        dockerDep('gcr.io/distroless/static-debian12', digestUpdate('c0ffee1'), { currentDigest: `sha256:${'a'.repeat(64)}` }),
+        dockerDep('google-go.pkg.dev/golang', { updateType: 'patch', newValue: '1.25.3', newVersion: '1.25.3' }, { currentValue: '1.25.2' }),
+      ],
+      expectedHeader: 'chore(deps): update docker',
+    },
+  ];
+  for (const c of commitCases) {
+    const branch = await renderBranch(c.manager, c.packageFile, c.deps, c.baseBranch);
+    const header = branch.commitMessage.split('\n')[0];
+    const description = header.replace(/^[^:]+:\s*/, '');
+    assert(
+      header.length <= 89 && description.length <= 80,
+      `${c.desc}: commit header fits conform limits (${header.length}/89, ${description.length}/80): "${header}"`
+    );
+    assert(
+      header === c.expectedHeader,
+      `${c.desc}: commit header is "${c.expectedHeader}" (got "${header}")`
+    );
+    if (c.expectedPrTitle) {
+      assert(
+        branch.prTitle === c.expectedPrTitle,
+        `${c.desc}: PR title is "${c.expectedPrTitle}" (got "${branch.prTitle}")`
+      );
+    }
+  }
 
   console.log(`\n========================================`);
   console.log(`Total: ${totalTests} | Passed: ${passedTests} | Failed: ${failedTests}`);
