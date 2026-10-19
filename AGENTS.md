@@ -25,9 +25,8 @@ Every commit in a pull request is strictly validated in CI by [Sidero Labs Confo
    The first character of `<description>` after `: ` **must** be lowercase (e.g., `feat(ops): allow gmpctl to work without gh CLI`, **not** `feat(ops): Allow ...`).
 5. **No trailing period (`invalidLastCharacters: .`)**:
    Never end the commit header line with a `.`.
-6. **Length limits**:
-   * Full header (`<type>(<scope>): <description>`): **max 89 characters**.
-   * `<description>` part alone: **max 80 characters**.
+6. **Length limit**:
+   * Full header (`<type>(<scope>): <description>`): **max 120 characters** (`conventional.descriptionLength` is also set to `120` to override `conform`'s 72-character default so only the full header limit applies).
 7. **US English Spellcheck (`spellcheck.locale: US`)**:
    `conform` spellchecks the entire commit header and body using a US English dictionary. Avoid typos or unknown informal abbreviations in prose.
 8. **Verify locally**:

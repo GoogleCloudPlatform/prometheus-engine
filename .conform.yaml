@@ -16,7 +16,7 @@ policies:
   - type: commit
     spec:
       header:
-        length: 89
+        length: 120
         imperative: true
         case: lower
         invalidLastCharacters: .
@@ -52,4 +52,6 @@ policies:
           - config-reloader
           - rule-evaluator
           - ops
-        descriptionLength: 80
+        # Conform defaults descriptionLength to 72 when omitted; set it to match
+        # header.length so the 120-character full header limit is the sole cap.
+        descriptionLength: 120

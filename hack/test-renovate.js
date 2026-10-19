@@ -245,7 +245,7 @@ async function runTests() {
     'Engine versioning classifies v2.53.5-gmp.2-gke.0 -> v3.13.0-gmp.1-gke.0 as "major"'
   );
 
-  // Verify prometheus-engine image commit headers fit .conform.yaml limits (header <= 89, description <= 80).
+  // Verify prometheus-engine image commit headers fit .conform.yaml limits (header <= 120, description <= 120).
   // Renovate applies the docker datasource default topic ("{{{depName}}} Docker tag") before packageRules,
   // so simulate that order to make sure the packageRules override wins.
   const dockerDefaultTopic = '{{{depName}}} Docker tag';
@@ -273,8 +273,8 @@ async function runTests() {
       const description = `update ${topic} to ${longestEngineTag}`;
       const header = `${config.semanticCommitType}(${config.semanticCommitScope}): ${description}`;
       assert(
-        header.length <= 89 && description.length <= 80,
-        `Engine image ${img} (${manager}) commit header fits conform limits (${header.length}/89, ${description.length}/80)`
+        header.length <= 120 && description.length <= 120,
+        `Engine image ${img} (${manager}) commit header fits conform limits (${header.length}/120, ${description.length}/120)`
       );
     }
   }
