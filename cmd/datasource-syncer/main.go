@@ -23,14 +23,16 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	grafana "github.com/grafana/grafana-api-golang-client"
 	"github.com/hashicorp/go-cleanhttp"
 	"golang.org/x/mod/semver"
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
 
@@ -126,7 +128,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	token, err := getOAuth2Token(*credentialsFile)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	token, err := getOAuth2Token(ctx, logger, *credentialsFile)
 	if err != nil {
 		//nolint:errcheck
 		level.Error(logger).Log("msg", "couldn't get Google OAuth2 token", "err", err)
@@ -177,31 +181,72 @@ func main() {
 	}
 }
 
+var (
+	// minTokenValidity is how long a token fetched from the default credentials
+	// must remain valid. It matches the recommended 10m sync interval, so that
+	// the token written to Grafana stays valid until the next sync.
+	minTokenValidity = 10 * time.Minute
+	// tokenRetryDelay is the delay between attempts to fetch a valid token.
+	tokenRetryDelay = 5 * time.Second
+	// tokenRetryTimeout is how long to keep retrying for a valid token.
+	tokenRetryTimeout = 6 * time.Minute
+
+	// newDefaultTokenSource is replaced in tests.
+	newDefaultTokenSource = google.DefaultTokenSource
+)
+
 // getOAuth2Token generates an OAuth token based if a JSON file is provided or it will use the default credentials.
-func getOAuth2Token(credentialsFile string) (string, error) {
-	var err error
-	var token oauth2.TokenSource
-	if credentialsFile == "" {
-		ctx := context.Background()
-		token, err = google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/monitoring.read")
-		if err != nil {
-			return "", err
-		}
-	} else {
+func getOAuth2Token(ctx context.Context, logger log.Logger, credentialsFile string) (string, error) {
+	if credentialsFile != "" {
 		jsonKey, err := os.ReadFile(credentialsFile)
 		if err != nil {
 			return "", fmt.Errorf("failed to read json key file: %v", err)
 		}
-		token, err = google.JWTAccessTokenSourceWithScope(jsonKey, "https://www.googleapis.com/auth/monitoring.read")
+		tokenSource, err := google.JWTAccessTokenSourceWithScope(jsonKey, "https://www.googleapis.com/auth/monitoring.read")
 		if err != nil {
 			return "", fmt.Errorf("could not generate token: %v", err)
 		}
+		token, err := tokenSource.Token()
+		if err != nil {
+			return "", err
+		}
+		return token.AccessToken, nil
 	}
-	accessToken, err := token.Token()
-	if err != nil {
-		return "", err
+
+	// With Workload Identity Federation for GKE, the default token source fetches
+	// access tokens from the GKE metadata server, which caches them. Depending on
+	// the cached token's remaining lifetime:
+	//   > 5m:  the cached token is returned.
+	//   1m-5m: the cached token is returned and a refresh is started in the background.
+	//   < 1m:  a refreshed token is returned.
+	// To write a token that stays valid until the next sync, retry until the token
+	// is valid for at least minTokenValidity. With a 10m sync interval, the worst
+	// case is waiting ~5m for the cached token to drop below 5m and be refreshed.
+	ctx, cancel := context.WithTimeout(ctx, tokenRetryTimeout)
+	defer cancel()
+	for {
+		// Create a new token source for every attempt, so the token is not
+		// returned from the token source's own cache.
+		tokenSource, err := newDefaultTokenSource(ctx, "https://www.googleapis.com/auth/monitoring.read")
+		if err != nil {
+			return "", err
+		}
+		token, err := tokenSource.Token()
+		if err != nil {
+			return "", err
+		}
+		// A zero expiry means the token does not expire.
+		if token.Expiry.IsZero() || time.Until(token.Expiry) >= minTokenValidity {
+			return token.AccessToken, nil
+		}
+		//nolint:errcheck
+		level.Info(logger).Log("msg", "Google OAuth2 token expires soon, retrying until the token is refreshed", "expiry", token.Expiry, "retry_in", tokenRetryDelay)
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("couldn't fetch a token valid for %v within %v: %w", minTokenValidity, tokenRetryTimeout, ctx.Err())
+		case <-time.After(tokenRetryDelay):
+		}
 	}
-	return accessToken.AccessToken, nil
 }
 
 /*

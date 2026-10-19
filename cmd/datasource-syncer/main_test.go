@@ -15,10 +15,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"testing"
+	"time"
 
+	"github.com/go-kit/log"
 	grafana "github.com/grafana/grafana-api-golang-client"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -202,6 +208,91 @@ func TestBuildUpdateDataSourceRequest(t *testing.T) {
 			}
 			if diff := cmp.Diff(string(wantJSON), string(gotJSON)); diff != "" {
 				t.Fatalf("unexpected json config (-want, +got): %s", diff)
+			}
+		})
+	}
+}
+
+func TestGetOAuth2Token(t *testing.T) {
+	stale := &oauth2.Token{AccessToken: "stale", Expiry: time.Now().Add(time.Minute)}
+	fresh := &oauth2.Token{AccessToken: "fresh", Expiry: time.Now().Add(time.Hour)}
+	noExpiry := &oauth2.Token{AccessToken: "no-expiry"}
+
+	tests := []struct {
+		name      string
+		tokens    []*oauth2.Token
+		err       error
+		want      string
+		wantCalls int
+		fail      bool
+	}{
+		{
+			name:      "valid token on first attempt",
+			tokens:    []*oauth2.Token{fresh},
+			want:      "fresh",
+			wantCalls: 1,
+		},
+		{
+			name:      "token near expiry is fetched again",
+			tokens:    []*oauth2.Token{stale, stale, fresh},
+			want:      "fresh",
+			wantCalls: 3,
+		},
+		{
+			name:      "token without expiry is accepted",
+			tokens:    []*oauth2.Token{noExpiry},
+			want:      "no-expiry",
+			wantCalls: 1,
+		},
+		{
+			name:      "token source error",
+			err:       errors.New("token error"),
+			wantCalls: 1,
+			fail:      true,
+		},
+		{
+			name: "timeout while token stays near expiry",
+			tokens: func() []*oauth2.Token {
+				tokens := make([]*oauth2.Token, 1000)
+				for i := range tokens {
+					tokens[i] = stale
+				}
+				return tokens
+			}(),
+			fail: true,
+		},
+	}
+	defer func(delay, timeout time.Duration) {
+		tokenRetryDelay, tokenRetryTimeout = delay, timeout
+		newDefaultTokenSource = google.DefaultTokenSource
+	}(tokenRetryDelay, tokenRetryTimeout)
+	tokenRetryDelay, tokenRetryTimeout = time.Millisecond, 100*time.Millisecond
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			newDefaultTokenSource = func(context.Context, ...string) (oauth2.TokenSource, error) {
+				calls++
+				if tt.err != nil {
+					return nil, tt.err
+				}
+				return oauth2.StaticTokenSource(tt.tokens[calls-1]), nil
+			}
+			got, err := getOAuth2Token(context.Background(), log.NewNopLogger(), "")
+			if tt.wantCalls != 0 && calls != tt.wantCalls {
+				t.Errorf("got %d token fetches, want %d", calls, tt.wantCalls)
+			}
+			if tt.fail {
+				if err == nil {
+					t.Fatal("unexpectedly succeeded")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got token %q, want %q", got, tt.want)
 			}
 		})
 	}
