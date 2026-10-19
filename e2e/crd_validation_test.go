@@ -2770,6 +2770,33 @@ func TestCRDValidation(t *testing.T) {
 				wantErr:    true,
 				wantErrMsg: "spec.groups[0].rules[0].expr: Required value",
 			},
+			"unstructured-recording-empty-annotations": {
+				obj: &unstructured.Unstructured{
+					Object: map[string]any{
+						"apiVersion": "monitoring.googleapis.com/v1",
+						"kind":       "Rules",
+						"metadata": map[string]any{
+							"name":      "unstructured-recording-empty-annotations",
+							"namespace": "default",
+						},
+						"spec": map[string]any{
+							"groups": []any{
+								map[string]any{
+									"name": "group-1",
+									"rules": []any{
+										map[string]any{
+											"record":      "test",
+											"expr":        "vector(1)",
+											"annotations": map[string]any{},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
 		}
 		run(t, tests)
 	})
