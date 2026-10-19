@@ -166,6 +166,27 @@
         'automerge',
       ],
     },
+    // Short commit/PR topics so single-update commit headers fit .conform.yaml limits (header <= 89, description <= 80).
+    // Multi-update groups are unaffected as they use the "{{groupName}}" topic.
+    {
+      description: 'Use the image basename instead of the docker datasource default topic ("<full depName> Docker tag/digest")',
+      // e.g. "chore(deps): update nodejs24 image to b154243" instead of
+      // "chore(deps): update us-central1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/nodejs24 docker digest to b154243".
+      matchDatasources: [
+        'docker',
+      ],
+      commitMessageTopic: '{{{replace "^.*/" "" depName}}} image',
+    },
+    {
+      description: 'Use the last two path segments of Go module paths instead of the full module path',
+      // e.g. "fix(deps): update module exporter/metric to v0.55.0" instead of
+      // "fix(deps): update module github.com/googlecloudplatform/opentelemetry-operations-go/exporter/metric to v0.55.0".
+      // Two segments keep major version suffixes meaningful (e.g. "yq/v4" rather than "v4").
+      matchDatasources: [
+        'go',
+      ],
+      commitMessageTopic: 'module {{{replace "^(?:[^/]+/)*?([^/]+/[^/]+)$" "$1" depName}}}',
+    },
     {
       description: 'Parse patch, build (-gmp.N), and revision (-gke.N) versions for prometheus-engine images',
       matchManagers: [
@@ -178,9 +199,6 @@
         'gcr.io/gke-release/prometheus-engine/**',
       ],
       versioning: 'regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-(?:gmp|gke)\\.(?<build>\\d+)(?:-gke\\.(?<revision>\\d+))?$',
-      // Use the image basename instead of the docker datasource default ("<full depName> Docker tag")
-      // so commit headers fit .conform.yaml limits, e.g. "chore(deps): update alertmanager image to v0.27.0-gmp.10-gke.0".
-      commitMessageTopic: '{{{replace "^.*/" "" depName}}} image',
     },
     {
       description: 'Allow only patch, build, and revision updates for prometheus-engine images (disable major and minor bumps)',
