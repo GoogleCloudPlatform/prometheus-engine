@@ -30,7 +30,7 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.groups) || self.spec.groups.all(g, g.rules.all(r, !has(r.labels) || (!('project_id' in r.labels) && !('location' in r.labels) && !('cluster' in r.labels) && !('namespace' in r.labels))))",message="Rule labels cannot contain reserved keys: project_id, location, cluster, namespace"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec) || !has(self.spec.groups) || self.spec.groups.all(g, !has(g.rules) || g.rules.all(r, !has(r.labels) || (!('project_id' in r.labels) && !('location' in r.labels) && !('cluster' in r.labels) && !('namespace' in r.labels))))",message="Rule labels cannot contain reserved keys: project_id, location, cluster, namespace"
 type Rules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -82,7 +82,7 @@ type RulesList struct {
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.groups) || self.spec.groups.all(g, g.rules.all(r, !has(r.labels) || (!('project_id' in r.labels) && !('location' in r.labels) && !('cluster' in r.labels))))",message="ClusterRule labels cannot contain reserved keys: project_id, location, cluster"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec) || !has(self.spec.groups) || self.spec.groups.all(g, !has(g.rules) || g.rules.all(r, !has(r.labels) || (!('project_id' in r.labels) && !('location' in r.labels) && !('cluster' in r.labels))))",message="ClusterRule labels cannot contain reserved keys: project_id, location, cluster"
 type ClusterRules struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -176,7 +176,7 @@ type GlobalRulesList struct {
 type RulesSpec struct {
 	// A list of Prometheus rule groups.
 	// +kubebuilder:validation:MaxItems=50
-	// +kubebuilder:validation:XValidation:rule="self.all(g, self.filter(h, h.name == g.name).size() == 1)",message="Rule group names must be unique"
+	// +kubebuilder:validation:XValidation:rule="self.all(g, !has(g.name) || self.filter(h, has(h.name) && h.name == g.name).size() == 1)",message="Rule group names must be unique"
 	Groups []RuleGroup `json:"groups"`
 }
 
