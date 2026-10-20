@@ -427,7 +427,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantGlobalValid:  false,
 		},
 		{
-			name: "invalid label key with dash rejected",
+			name: "invalid label key with dash rejected by CRD CEL",
 			spec: map[string]any{
 				"groups": []any{
 					map[string]any{
@@ -444,12 +444,13 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 					},
 				},
 			},
-			wantRulesValid:   false,
-			wantClusterValid: false,
-			wantGlobalValid:  false,
+			wantRulesValid:    false,
+			wantClusterValid:  false,
+			wantGlobalValid:   false,
+			skipWebhookParity: true,
 		},
 		{
-			name: "invalid label key with colon rejected",
+			name: "invalid label key with colon rejected by CRD CEL",
 			spec: map[string]any{
 				"groups": []any{
 					map[string]any{
@@ -466,31 +467,74 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 					},
 				},
 			},
-			wantRulesValid:   false,
-			wantClusterValid: false,
-			wantGlobalValid:  false,
+			wantRulesValid:    false,
+			wantClusterValid:  false,
+			wantGlobalValid:   false,
+			skipWebhookParity: true,
 		},
 		{
-			name: "invalid metric name with leading digit rejected",
+			name: "valid metric name with leading digit accepted",
 			spec: map[string]any{
 				"groups": []any{
 					map[string]any{
 						"name": "group-1",
 						"rules": []any{
 							map[string]any{
-								"record": "0invalid_metric",
+								"record": "0valid_metric",
 								"expr":   "vector(1)",
 							},
 						},
 					},
 				},
 			},
-			wantRulesValid:   false,
-			wantClusterValid: false,
-			wantGlobalValid:  false,
+			wantRulesValid:   true,
+			wantClusterValid: true,
+			wantGlobalValid:  true,
 		},
 		{
-			name: "invalid annotation key with colon rejected",
+			name: "valid metric name with slash and label key with dot accepted",
+			spec: map[string]any{
+				"groups": []any{
+					map[string]any{
+						"name": "group-1",
+						"rules": []any{
+							map[string]any{
+								"record": "service/http.requests:rate5m",
+								"expr":   "vector(1)",
+								"labels": map[string]any{
+									"service.name": "frontend",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantRulesValid:   true,
+			wantClusterValid: true,
+			wantGlobalValid:  true,
+		},
+		{
+			name: "invalid metric name with spaces rejected by CRD pattern",
+			spec: map[string]any{
+				"groups": []any{
+					map[string]any{
+						"name": "group-1",
+						"rules": []any{
+							map[string]any{
+								"record": "spaces not allowed",
+								"expr":   "vector(1)",
+							},
+						},
+					},
+				},
+			},
+			wantRulesValid:    false,
+			wantClusterValid:  false,
+			wantGlobalValid:   false,
+			skipWebhookParity: true,
+		},
+		{
+			name: "invalid annotation key with colon rejected by CRD CEL",
 			spec: map[string]any{
 				"groups": []any{
 					map[string]any{
@@ -507,9 +551,10 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 					},
 				},
 			},
-			wantRulesValid:   false,
-			wantClusterValid: false,
-			wantGlobalValid:  false,
+			wantRulesValid:    false,
+			wantClusterValid:  false,
+			wantGlobalValid:   false,
+			skipWebhookParity: true,
 		},
 		{
 			name: "reserved label project_id rejected on Rules and ClusterRules but allowed on GlobalRules",
@@ -948,17 +993,27 @@ func runRulesDifferentialFuzz(
 
 var errSkipUnmarshal = errors.New("skip unmarshal")
 
-// isIntentionalOpenAPISchemaTightening returns true when CRD OpenAPIv3 validation rejects a raw JSON
+// isIntentionalOpenAPISchemaTightening returns true when CRD OpenAPIv3 or CEL validation rejects a raw JSON
 // payload that Go struct json.Unmarshal + ValidateCreate() accepts due to intentional schema constraints:
 //   - Missing required envelope fields ("spec", "spec.groups") or null "spec.groups" (which unmarshal as nil in Go).
 //   - Missing or empty "rules" in a RuleGroup (OpenAPIv3 enforces required + minItems: 1, while rulefmt allows 0 rules).
 //   - Explicit "" on omitempty duration fields ("interval": "" or "for": ""), which OpenAPIv3 rejects via minLength: 1
 //     while Go json.Unmarshal cannot distinguish "" from an omitted omitempty field.
 //   - Upper-bound limits (maxItems / maxProperties) required for Kubernetes CEL static cost estimation.
+//   - Cloud Monitoring character set restrictions on recording rule names (OpenAPIv3 pattern) and label/annotation keys
+//     (CEL), where ValidateCreate() uses Prometheus UTF8Validation.
 //   - TypeMeta/ObjectMeta schema checks on "apiVersion", "kind", or "metadata" not checked by ValidateCreate().
 func isIntentionalOpenAPISchemaTightening(openapiErrs []error, celErrs field.ErrorList) bool {
-	if len(celErrs) > 0 || len(openapiErrs) == 0 {
+	if len(openapiErrs) == 0 && len(celErrs) == 0 {
 		return false
+	}
+	for _, err := range celErrs {
+		msg := err.Error()
+		allowed := strings.Contains(msg, "Label keys must match") ||
+			strings.Contains(msg, "Annotation keys must match")
+		if !allowed {
+			return false
+		}
 	}
 	for _, err := range openapiErrs {
 		msg := err.Error()
@@ -970,6 +1025,7 @@ func isIntentionalOpenAPISchemaTightening(openapiErrs []error, celErrs field.Err
 			strings.Contains(msg, ".rules in body must be of type array") ||
 			strings.Contains(msg, ".interval in body should be at least 1 chars long") ||
 			strings.Contains(msg, ".for in body should be at least 1 chars long") ||
+			strings.Contains(msg, ".record in body should match") ||
 			strings.Contains(msg, "should have at most") ||
 			strings.Contains(msg, "should be at most 1024 chars long") ||
 			strings.HasPrefix(msg, "apiVersion ") ||

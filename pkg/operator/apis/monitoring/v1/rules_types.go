@@ -207,7 +207,7 @@ type Rule struct {
 	// Record the result of the expression to this metric name.
 	// Only one of `record` and `alert` must be set.
 	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:Pattern="^[a-zA-Z_:][a-zA-Z0-9_:]*$"
+	// +kubebuilder:validation:Pattern="^[a-zA-Z0-9$\\-_.+!*'(),%:/]+$"
 	Record string `json:"record,omitempty"`
 	// Name of the alert to evaluate the expression as.
 	// Only one of `record` and `alert` must be set.
@@ -223,7 +223,7 @@ type Rule struct {
 	For string `json:"for,omitempty"`
 	// A set of labels to attach to the result of the query expression.
 	// +kubebuilder:validation:MaxProperties=64
-	// +kubebuilder:validation:XValidation:rule="self.all(k, k.matches('^[a-zA-Z_][a-zA-Z0-9_]*$') && k != '__name__')",message="Label keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$ and must not be __name__"
+	// +kubebuilder:validation:XValidation:rule="self.all(k, k.matches('^[a-zA-Z_][a-zA-Z0-9_.]*$') && k != '__name__')",message="Label keys must match ^[a-zA-Z_][a-zA-Z0-9_.]*$ and must not be __name__"
 	Labels map[string]string `json:"labels,omitempty"`
 	// A set of annotations to attach to alerts produced by the query expression.
 	// Only valid if `alert` is set.

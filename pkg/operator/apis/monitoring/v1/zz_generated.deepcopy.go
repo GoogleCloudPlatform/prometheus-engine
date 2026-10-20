@@ -452,6 +452,11 @@ func (in *CollectionSpec) DeepCopyInto(out *CollectionSpec) {
 		*out = new(KubeletScraping)
 		**out = **in
 	}
+	if in.EnableUTF8 != nil {
+		in, out := &in.EnableUTF8, &out.EnableUTF8
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 
