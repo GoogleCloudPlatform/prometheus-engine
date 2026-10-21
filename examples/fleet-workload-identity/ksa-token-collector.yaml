@@ -1,0 +1,43 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: collector
+  namespace: gmp-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: prometheus
+        # The operator mounts the OperatorConfig credential at this path. Pointing Application Default
+        # Credentials at it lets the container authenticate at startup, before its generated config (which
+        # references the same file) is loaded; there's no metadata server to fall back on outside GKE.
+        env:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /etc/secrets/secret_gmp-public_gmp-wif-credentials_key.json
+        volumeMounts:
+        - name: ksa-token
+          mountPath: /etc/ksa-token
+          readOnly: true
+      volumes:
+      - name: ksa-token
+        projected:
+          defaultMode: 420
+          sources:
+          - serviceAccountToken:
+              audience: ${PROJECT_ID}.svc.id.goog
+              expirationSeconds: 3600
+              path: ksa-token

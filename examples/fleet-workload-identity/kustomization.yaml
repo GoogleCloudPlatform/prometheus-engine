@@ -1,0 +1,58 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Deploys GMP managed collection on a Fleet-registered, non-GKE cluster, authenticating the collector and
+# rule-evaluator with Fleet Workload Identity Federation. See README.md for the placeholders to fill in.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/v0.19.4-rc.0/manifests/setup.yaml
+- https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/v0.19.4-rc.0/manifests/operator.yaml
+- wif-credentials.yaml
+patches:
+# Outside GKE there's no metadata server for the operator to discover the cluster's identity.
+- target:
+    kind: Deployment
+    name: gmp-operator
+  patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/args/-
+      value: --project-id=${PROJECT_ID}
+    - op: add
+      path: /spec/template/spec/containers/0/args/-
+      value: --cluster=${MEMBERSHIP_NAME}
+    - op: add
+      path: /spec/template/spec/containers/0/args/-
+      value: --location=${LOCATION}
+# Use the Workload Identity Federation credential for collection and rule evaluation.
+- target:
+    kind: OperatorConfig
+    name: config
+  patch: |-
+    apiVersion: monitoring.googleapis.com/v1
+    kind: OperatorConfig
+    metadata:
+      name: config
+      namespace: gmp-public
+    collection:
+      credentials:
+        name: gmp-wif-credentials
+        key: key.json
+    rules:
+      credentials:
+        name: gmp-wif-credentials
+        key: key.json
+# Mount a projected KSA token, which the credential exchanges for Google credentials.
+- path: ksa-token-collector.yaml
+- path: ksa-token-rule-evaluator.yaml
