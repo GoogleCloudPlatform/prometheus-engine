@@ -889,6 +889,34 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantNoCELErrors:   true,
 			skipWebhookParity: true,
 		},
+		{
+			name: "multiline group.name and rule.alert with leading newline or space accepted",
+			spec: map[string]any{
+				"groups": []any{
+					map[string]any{
+						"name": "\n0",
+						"rules": []any{
+							map[string]any{
+								"alert": " alert\nname",
+								"expr":  "  vector(1)\n+ vector(2)",
+							},
+						},
+					},
+					map[string]any{
+						"name": " group\nname",
+						"rules": []any{
+							map[string]any{
+								"record": "valid_metric",
+								"expr":   "\nvector(1)",
+							},
+						},
+					},
+				},
+			},
+			wantRulesValid:   true,
+			wantClusterValid: true,
+			wantGlobalValid:  true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -1253,6 +1281,7 @@ func FuzzRulesStructured(f *testing.F) {
 	f.Add(uint8(1), "alerts", "1m", "alerts-2", "", "HighLatency", "up == 0", "5m", "severity", "page", "summary", "Instance down", true, true)
 	f.Add(uint8(2), "daily", "1d", "dup", "", "DiskFull", "vector(1)", "1w", "project_id", "other", "description", "Disk full", false, false)
 	f.Add(uint8(0), "dup", "10s", "dup", "valid_metric", "", "vector(1)", "0s", "__name__", "bad", "bad-key", "val", true, false)
+	f.Add(uint8(0), "\n0", "30s", " group\nname", "", " alert\nname", "  vector(1)\n+ vector(2)", "", "env", "prod", "summary", " val\n2", true, true)
 
 	f.Fuzz(func(
 		t *testing.T,

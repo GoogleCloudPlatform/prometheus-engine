@@ -508,47 +508,47 @@ func testCreateRules(
 		want := map[string]string{
 			"empty.yaml": "",
 			replace("globalrules__{namespace}-global-rules.yaml"): replace(`groups:
-    - name: group-1
-      interval: 1m
-      rules:
-        - record: bar
-          expr: avg(up)
-          labels:
-            flavor: test
+  - name: group-1
+    interval: 1m
+    rules:
+      - record: bar
+        expr: avg(up)
+        labels:
+          flavor: test
 `),
 			replace("clusterrules__{namespace}-cluster-rules.yaml"): replace(`groups:
-    - name: group-1
-      interval: 1m
-      rules:
-        - record: foo
-          expr: sum(up{cluster="{cluster}",location="{location}",project_id="{project_id}"})
-          labels:
-            cluster: {cluster}
-            flavor: test
-            location: {location}
-            project_id: {project_id}
+  - name: group-1
+    interval: 1m
+    rules:
+      - record: foo
+        expr: sum(up{cluster="{cluster}",location="{location}",project_id="{project_id}"})
+        labels:
+          cluster: {cluster}
+          flavor: test
+          location: {location}
+          project_id: {project_id}
 `),
 			replace("rules__{namespace}__rules.yaml"): replace(`groups:
-    - name: group-1
-      interval: 5s
-      rules:
-        - alert: Bar
-          expr: avg(down{cluster="{cluster}",location="{location}",namespace="{namespace}",project_id="{project_id}"}) > 1
-          labels:
-            cluster: {cluster}
-            flavor: test
-            location: {location}
-            namespace: {namespace}
-            project_id: {project_id}
-          annotations:
-            description: bar avg down
-        - record: always_one
-          expr: vector(1)
-          labels:
-            cluster: {cluster}
-            location: {location}
-            namespace: {namespace}
-            project_id: {project_id}
+  - name: group-1
+    interval: 5s
+    rules:
+      - alert: Bar
+        expr: avg(down{cluster="{cluster}",location="{location}",namespace="{namespace}",project_id="{project_id}"}) > 1
+        labels:
+          cluster: {cluster}
+          flavor: test
+          location: {location}
+          namespace: {namespace}
+          project_id: {project_id}
+        annotations:
+          description: bar avg down
+      - record: always_one
+        expr: vector(1)
+        labels:
+          cluster: {cluster}
+          location: {location}
+          namespace: {namespace}
+          project_id: {project_id}
 `),
 		}
 
