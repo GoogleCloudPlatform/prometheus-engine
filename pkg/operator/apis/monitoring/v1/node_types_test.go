@@ -20,7 +20,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	promconfig "github.com/prometheus/prometheus/config"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

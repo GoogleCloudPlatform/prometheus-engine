@@ -24,7 +24,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"github.com/prometheus/prometheus/promql/parser"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 func (r *Rules) RuleGroupsConfig(projectID, location, cluster string) (string, error) {
@@ -56,7 +56,7 @@ func ruleGroupsConfig(ruleGroups []RuleGroup, labelSet map[string]string) (strin
 	if err := scope(&rs, labelSet); err != nil {
 		return "", fmt.Errorf("isolating rules failed: %w", err)
 	}
-	result, err := yaml.Marshal(rs)
+	result, err := marshalRules(rs)
 	if err != nil {
 		return "", fmt.Errorf("marshalling rules failed: %w", err)
 	}
@@ -103,7 +103,7 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 	}
 	// Marshal and re-parse the rules to run the upstream Prometheus validation,
 	// which is only exposed via rulefmt.Parse.
-	b, err := yaml.Marshal(result)
+	b, err := marshalRules(result)
 	if err != nil {
 		return result, err
 	}
@@ -111,6 +111,14 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 		return result, fmt.Errorf("loading rules failed: %w", errors.Join(errs...))
 	}
 	return result, nil
+}
+
+// marshalRules serializes rule groups to YAML using 2-space indentation.
+// Using 2-space indentation avoids a go-yaml emitter bug where 4-space indentation
+// emits an invalid "|4-" indentation indicator for block scalars starting with a
+// space inside a sequence item.
+func marshalRules(rs rulefmt.RuleGroups) ([]byte, error) {
+	return yaml.Dump(rs, yaml.WithV3Defaults(), yaml.WithLineWidth(-1), yaml.WithIndent(2))
 }
 
 // scope all rules in the given groups to the given labels. All metric selectors
