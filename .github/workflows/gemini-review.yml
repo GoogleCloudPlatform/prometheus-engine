@@ -1,0 +1,321 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+name: Gemini Review
+
+on:
+  pull_request:
+    types:
+      - opened
+      - ready_for_review
+      - reopened
+  issue_comment:
+    types:
+      - created
+  pull_request_review_comment:
+    types:
+      - created
+  pull_request_review:
+    types:
+      - submitted
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number }}'
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions: {}
+
+jobs:
+  review:
+    if: >-
+      (
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.draft == false &&
+        github.event.pull_request.head.repo.fork == false &&
+        github.event.sender.type == 'User'
+      ) || (
+        (
+          (github.event_name == 'issue_comment' && github.event.issue.pull_request != null) ||
+          github.event_name == 'pull_request_review_comment' ||
+          github.event_name == 'pull_request_review'
+        ) &&
+        github.event.sender.type == 'User' &&
+        startsWith(github.event.comment.body || github.event.review.body, '@gemini-cli /review') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association)
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Prepare PR branch, hard-filtered diff, and existing comment context
+        id: prepare_context
+        env:
+          GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          REPOSITORY: '${{ github.repository }}'
+          PULL_REQUEST_NUMBER: '${{ github.event.pull_request.number || github.event.issue.number }}'
+          RAW_COMMENT: '${{ github.event.comment.body || github.event.review.body || '''' }}'
+        run: |-
+          set -euo pipefail
+
+          # 1. Fetch PR metadata and check out the exact PR head commit (fixes issue_comment default-branch bug).
+          PR_META="$(gh pr view "${PULL_REQUEST_NUMBER}" --repo "${REPOSITORY}" --json baseRefOid,headRefOid,title,body,state)"
+          BASE_SHA="$(jq -r '.baseRefOid' <<<"${PR_META}")"
+          HEAD_SHA="$(jq -r '.headRefOid' <<<"${PR_META}")"
+          git fetch --no-tags origin "${BASE_SHA}" "+refs/pull/${PULL_REQUEST_NUMBER}/head:refs/remotes/origin/pr-head"
+          git checkout --detach "${HEAD_SHA}"
+
+          # 2. Safely extract optional user focus instructions without xargs quote parsing.
+          USER_CONTEXT="${RAW_COMMENT#@gemini-cli /review}"
+          USER_CONTEXT="${USER_CONTEXT#"${USER_CONTEXT%%[![:space:]]*}"}"
+          USER_CONTEXT="${USER_CONTEXT%"${USER_CONTEXT##*[![:space:]]}"}"
+
+          mkdir -p .gemini
+          jq -n \
+            --arg repo "${REPOSITORY}" \
+            --argjson pr "${PULL_REQUEST_NUMBER}" \
+            --arg base_sha "${BASE_SHA}" \
+            --arg head_sha "${HEAD_SHA}" \
+            --arg title "$(jq -r '.title // ""' <<<"${PR_META}")" \
+            --arg body "$(jq -r '.body // ""' <<<"${PR_META}")" \
+            --arg additional_context "${USER_CONTEXT}" \
+            '{
+              repository: $repo,
+              pull_request_number: $pr,
+              base_sha: $base_sha,
+              head_sha: $head_sha,
+              title: $title,
+              description: $body,
+              additional_context: $additional_context
+            }' > .gemini/context.json
+
+          # 3. Generate hard-filtered diff (excluding doc/**, manifests/**, vendor/**, **/zz_generated.*)
+          # annotated with explicit [L:<old> R:<new>] line numbers for accurate inline suggestions.
+          git diff --no-color -U3 "${BASE_SHA}...${HEAD_SHA}" -- . \
+            ':!doc/**' \
+            ':!manifests/**' \
+            ':!vendor/**' \
+            ':!**/zz_generated.*' | awk '
+            /^@@ / {
+              match($0, /-[0-9]+/); l = substr($0, RSTART+1, RLENGTH-1) - 1
+              match($0, /\+[0-9]+/); r = substr($0, RSTART+1, RLENGTH-1) - 1
+              print $0; next
+            }
+            /^(diff --git|index |--- |\+\+\+ |Binary files |new file |deleted file |similarity |rename )/ {
+              print $0; next
+            }
+            /^-/ { l++; printf "[L:%d R:-] %s\n", l, $0; next }
+            /^\+/ { r++; printf "[L:- R:%d] %s\n", r, $0; next }
+            /^ / { l++; r++; printf "[L:%d R:%d] %s\n", l, r, $0; next }
+            { print $0 }
+          ' > .gemini/pr.diff
+
+          if [[ ! -s .gemini/pr.diff ]]; then
+            echo "skip_review=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo "skip_review=false" >> "${GITHUB_OUTPUT}"
+          echo "head_sha=${HEAD_SHA}" >> "${GITHUB_OUTPUT}"
+
+          # 4. Fetch existing review threads, comments, and maintainer reactions via GraphQL.
+          OWNER="${REPOSITORY%/*}"
+          REPO_NAME="${REPOSITORY#*/}"
+          gh api graphql \
+            -F owner="${OWNER}" \
+            -F name="${REPO_NAME}" \
+            -F pr="${PULL_REQUEST_NUMBER}" \
+            -f query='
+              query($owner: String!, $name: String!, $pr: Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $pr) {
+                    reviewThreads(last: 100) {
+                      nodes {
+                        isResolved
+                        isOutdated
+                        path
+                        line
+                        comments(first: 50) {
+                          nodes {
+                            author { login }
+                            authorAssociation
+                            body
+                            createdAt
+                            reactions(first: 20) {
+                              nodes {
+                                content
+                                user { login }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                    comments(last: 50) {
+                      nodes {
+                        author { login }
+                        authorAssociation
+                        body
+                        createdAt
+                        reactions(first: 20) {
+                          nodes {
+                            content
+                            user { login }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ' | jq '.data.repository.pullRequest' > .gemini/existing_comments.json
+
+      - name: Run Gemini pull request review
+        if: steps.prepare_context.outputs.skip_review != 'true'
+        uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489 # v0.1.22
+        id: gemini_pr_review
+        env:
+          GEMINI_CLI_TRUST_WORKSPACE: 'true'
+          GEMINI_API_KEY: '${{ secrets.GEMINI_API_KEY }}'
+        with:
+          gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
+          gcp_project_id: '${{ vars.GOOGLE_CLOUD_PROJECT }}'
+          gcp_service_account: '${{ vars.SERVICE_ACCOUNT_EMAIL }}'
+          gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
+          gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+          gemini_cli_version: '${{ vars.GEMINI_CLI_VERSION || ''latest'' }}'
+          gemini_debug: '${{ fromJSON(vars.GEMINI_DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
+          gemini_model: '${{ vars.GEMINI_MODEL || ''gemini-4-argon'' }}'
+          google_api_key: '${{ secrets.GOOGLE_API_KEY }}'
+          use_gemini_code_assist: '${{ vars.GOOGLE_GENAI_USE_GCA || ''false'' }}'
+          use_vertex_ai: '${{ vars.GOOGLE_GENAI_USE_VERTEXAI || ''false'' }}'
+          upload_artifacts: '${{ vars.UPLOAD_ARTIFACTS || ''false'' }}'
+          workflow_name: 'gemini-review'
+          github_pr_number: '${{ github.event.pull_request.number || github.event.issue.number }}'
+          settings: |-
+            {
+              "context": {
+                "fileName": [
+                  "AGENTS.md",
+                  ".gemini/styleguide.md"
+                ]
+              },
+              "model": {
+                "maxSessionTurns": 25
+              },
+              "telemetry": {
+                "enabled": true,
+                "target": "local",
+                "outfile": ".gemini/telemetry.log"
+              },
+              "tools": {
+                "sandbox": false,
+                "core": [
+                  "read_file",
+                  "list_directory",
+                  "glob",
+                  "grep_search",
+                  "write_file"
+                ],
+                "shell": {
+                  "allowCommands": [
+                    "cat"
+                  ]
+                }
+              }
+            }
+          extensions: |
+            [
+              "https://github.com/gemini-cli-extensions/code-review"
+            ]
+          prompt: '/pr-review'
+
+      - name: Submit pull request review
+        if: steps.prepare_context.outputs.skip_review != 'true'
+        env:
+          GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          REPOSITORY: '${{ github.repository }}'
+          PULL_REQUEST_NUMBER: '${{ github.event.pull_request.number || github.event.issue.number }}'
+          HEAD_SHA: '${{ steps.prepare_context.outputs.head_sha }}'
+        run: |-
+          set -euo pipefail
+          if [[ ! -f .gemini/review.json ]]; then
+            echo "::error::Gemini CLI did not produce .gemini/review.json"
+            exit 1
+          fi
+
+          # Hard-filter any comments targeting excluded paths and build a COMMENT-only review payload.
+          PAYLOAD="$(jq -c --arg commit_id "${HEAD_SHA}" '
+            {
+              commit_id: $commit_id,
+              event: "COMMENT",
+              body: (.body // "## 📋 Review Summary\n\nNo significant issues found."),
+              comments: [
+                (.comments // [])[]
+                | select(
+                    (.path | test("^(doc|manifests|vendor)/") | not) and
+                    (.path | test("(^|/)zz_generated\\.") | not)
+                  )
+                | {
+                    path: .path,
+                    side: (.side // "RIGHT"),
+                    line: (.line | tonumber),
+                    body: .body
+                  } + (
+                    if (.start_line != null and (.start_line | tonumber) < (.line | tonumber)) then
+                      { start_line: (.start_line | tonumber), start_side: (.side // "RIGHT") }
+                    else
+                      {}
+                    end
+                  )
+              ]
+            }
+          ' .gemini/review.json)"
+
+          # Submit atomically; if GitHub rejects an out-of-hunk line number (HTTP 422),
+          # fall back to appending inline comments to the summary body so feedback is never lost.
+          if ! gh api "repos/${REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}/reviews" \
+            --method POST \
+            --input - <<<"${PAYLOAD}"; then
+            echo "::warning::Atomic inline review submission failed; posting fallback summary review."
+            FALLBACK_PAYLOAD="$(jq -c --arg commit_id "${HEAD_SHA}" '
+              {
+                commit_id: $commit_id,
+                event: "COMMENT",
+                body: (
+                  .body +
+                  if (.comments | length) > 0 then
+                    "\n\n### Inline Findings\n" + (
+                      [.comments[] | "- **`\(.path):\(.line)`**: \(.body)"] | join("\n\n")
+                    )
+                  else
+                    ""
+                  end
+                )
+              }
+            ' <<<"${PAYLOAD}")"
+            gh api "repos/${REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}/reviews" \
+              --method POST \
+              --input - <<<"${FALLBACK_PAYLOAD}"
+          fi
