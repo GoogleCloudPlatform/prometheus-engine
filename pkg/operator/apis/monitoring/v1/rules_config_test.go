@@ -22,7 +22,7 @@ import (
 	"github.com/prometheus/prometheus/google/export"
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"github.com/prometheus/prometheus/promql/parser"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 func TestGenerateRules(t *testing.T) {
@@ -55,15 +55,70 @@ func TestGenerateRules(t *testing.T) {
 				},
 			},
 			want: `groups:
-    - name: test-group
-      rules:
-        - record: test_record
-          expr: test_expr{cluster="test-cluster",location="us-central1",namespace="test-namespace",project_id="123"}
-          labels:
-            cluster: test-cluster
-            location: us-central1
-            namespace: test-namespace
-            project_id: "123"
+  - name: test-group
+    rules:
+      - record: test_record
+        expr: test_expr{cluster="test-cluster",location="us-central1",namespace="test-namespace",project_id="123"}
+        labels:
+          cluster: test-cluster
+          location: us-central1
+          namespace: test-namespace
+          project_id: "123"
+`,
+			wantErr: false,
+		},
+		{
+			name: "multiline strings with leading newline and spaces",
+			apiRules: &Rules{
+				Namespace: "test-namespace",
+				Spec: RulesSpec{
+					Groups: []RuleGroup{
+						{
+							Name: "\n0",
+							Rules: []Rule{
+								{
+									Alert: " alert\nname",
+									Expr:  "  test_expr\n+ test_expr",
+								},
+							},
+						},
+						{
+							Name: " group\nname",
+							Rules: []Rule{
+								{
+									Record: "test_record",
+									Expr:   "\ntest_expr",
+								},
+							},
+						},
+					},
+				},
+			},
+			want: `groups:
+  - name: |-
+
+      0
+    rules:
+      - alert: |2-
+           alert
+          name
+        expr: test_expr{cluster="test-cluster",location="us-central1",namespace="test-namespace",project_id="123"} + test_expr{cluster="test-cluster",location="us-central1",namespace="test-namespace",project_id="123"}
+        labels:
+          cluster: test-cluster
+          location: us-central1
+          namespace: test-namespace
+          project_id: "123"
+  - name: |2-
+       group
+      name
+    rules:
+      - record: test_record
+        expr: test_expr{cluster="test-cluster",location="us-central1",namespace="test-namespace",project_id="123"}
+        labels:
+          cluster: test-cluster
+          location: us-central1
+          namespace: test-namespace
+          project_id: "123"
 `,
 			wantErr: false,
 		},
@@ -197,14 +252,14 @@ func TestGenerateClusterRules(t *testing.T) {
 				},
 			},
 			want: `groups:
-    - name: test-group
-      rules:
-        - record: test_record
-          expr: test_expr{cluster="test-cluster",location="us-central1",project_id="123"}
-          labels:
-            cluster: test-cluster
-            location: us-central1
-            project_id: "123"
+  - name: test-group
+    rules:
+      - record: test_record
+        expr: test_expr{cluster="test-cluster",location="us-central1",project_id="123"}
+        labels:
+          cluster: test-cluster
+          location: us-central1
+          project_id: "123"
 `,
 			wantErr: false,
 		},
@@ -270,15 +325,15 @@ func TestGenerateClusterRules(t *testing.T) {
 				},
 			},
 			want: `groups:
-    - name: test-group
-      rules:
-        - record: test_record
-          expr: test_expr{cluster="test-cluster",location="us-central1",project_id="123"}
-          labels:
-            cluster: test-cluster
-            location: us-central1
-            namespace: other
-            project_id: "123"
+  - name: test-group
+    rules:
+      - record: test_record
+        expr: test_expr{cluster="test-cluster",location="us-central1",project_id="123"}
+        labels:
+          cluster: test-cluster
+          location: us-central1
+          namespace: other
+          project_id: "123"
 `,
 			wantErr: false,
 		},
@@ -326,10 +381,10 @@ func TestGenerateGlobalRules(t *testing.T) {
 				},
 			},
 			want: `groups:
-    - name: test-group
-      rules:
-        - record: test_record
-          expr: test_expr
+  - name: test-group
+    rules:
+      - record: test_record
+        expr: test_expr
 `,
 			wantErr: false,
 		},
@@ -373,12 +428,12 @@ func TestGenerateGlobalRules(t *testing.T) {
 				},
 			},
 			want: `groups:
-    - name: test-group
-      rules:
-        - record: test_record
-          expr: test_expr
-          labels:
-            project_id: other
+  - name: test-group
+    rules:
+      - record: test_record
+        expr: test_expr
+        labels:
+          project_id: other
 `,
 		},
 		{
@@ -402,12 +457,12 @@ func TestGenerateGlobalRules(t *testing.T) {
 				},
 			},
 			want: `groups:
-    - name: test-group
-      rules:
-        - record: test_record
-          expr: test_expr
-          labels:
-            namespace: other
+  - name: test-group
+    rules:
+      - record: test_record
+        expr: test_expr
+        labels:
+          namespace: other
 `,
 			wantErr: false,
 		},

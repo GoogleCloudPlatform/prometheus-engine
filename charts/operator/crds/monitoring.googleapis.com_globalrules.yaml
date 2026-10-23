@@ -152,7 +152,8 @@ spec:
                 type: array
                 x-kubernetes-validations:
                 - message: Rule group names must be unique
-                  rule: self.all(g, self.filter(h, h.name == g.name).size() == 1)
+                  rule: self.all(g, !has(g.name) || self.filter(h, has(h.name) &&
+                    h.name == g.name).size() == 1)
             required:
             - groups
             type: object

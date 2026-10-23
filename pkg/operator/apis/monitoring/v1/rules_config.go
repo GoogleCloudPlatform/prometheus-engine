@@ -17,6 +17,8 @@ package v1
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -24,7 +26,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"github.com/prometheus/prometheus/promql/parser"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 func (r *Rules) RuleGroupsConfig(projectID, location, cluster string) (string, error) {
@@ -56,7 +58,7 @@ func ruleGroupsConfig(ruleGroups []RuleGroup, labelSet map[string]string) (strin
 	if err := scope(&rs, labelSet); err != nil {
 		return "", fmt.Errorf("isolating rules failed: %w", err)
 	}
-	result, err := yaml.Marshal(rs)
+	result, err := marshalRules(rs)
 	if err != nil {
 		return "", fmt.Errorf("marshalling rules failed: %w", err)
 	}
@@ -103,7 +105,7 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 	}
 	// Marshal and re-parse the rules to run the upstream Prometheus validation,
 	// which is only exposed via rulefmt.Parse.
-	b, err := yaml.Marshal(result)
+	b, err := marshalRules(result)
 	if err != nil {
 		return result, err
 	}
@@ -113,6 +115,14 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 	return result, nil
 }
 
+// marshalRules serializes rule groups to YAML using 2-space indentation.
+// Using 2-space indentation avoids a go-yaml emitter bug where 4-space indentation
+// emits an invalid "|4-" indentation indicator for block scalars starting with a
+// space inside a sequence item.
+func marshalRules(rs rulefmt.RuleGroups) ([]byte, error) {
+	return yaml.Dump(rs, yaml.WithV3Defaults(), yaml.WithLineWidth(-1), yaml.WithIndent(2))
+}
+
 // scope all rules in the given groups to the given labels. All metric selectors
 // check for equality on the labels and all rule results are annotated with them again.
 // This ensures that the scope is preserved in output data, even if the given label keys
@@ -120,42 +130,48 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 // An error is returned if metric selectors have a conflicting selector set.
 func scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
 	p := parser.NewParser(parser.Options{})
+	keys := slices.Sorted(maps.Keys(lset))
+	var errs []error
 	for _, g := range groups.Groups {
 		for i, r := range g.Rules {
 			expr, err := p.ParseExpr(r.Expr)
 			if err != nil {
-				return fmt.Errorf("parse PromQL expression: %w", err)
+				errs = append(errs, fmt.Errorf("group %q rule #%d: parse PromQL expression: %w", g.Name, i+1, err))
+				continue
 			}
 
 			// Traverse the query and inject label matchers to all metric selectors.
 			err = walkExpr(expr, func(n parser.Node) error {
 				vs, ok := n.(*parser.VectorSelector)
 				if ok {
-					for name, value := range lset {
+					origVS := vs.String()
+					for _, name := range keys {
+						value := lset[name]
 						if err := setSelector(vs, name, value); err != nil {
-							return fmt.Errorf("set isolation selector %s=%q on %s: %w", name, value, vs, err)
+							return fmt.Errorf("set isolation selector %s=%q on %s: %w", name, value, origVS, err)
 						}
 					}
 				}
 				return nil
 			})
 			if err != nil {
-				return err
+				errs = append(errs, fmt.Errorf("group %q rule #%d: %w", g.Name, i+1, err))
 			}
 			r.Expr = expr.String()
 
 			// Add labels to produced label sets (metrics or alerts) in case
 			// they got aggregated away.
-			for name, value := range lset {
+			for _, name := range keys {
+				value := lset[name]
 				if err := setLabel(&r, name, value); err != nil {
-					return fmt.Errorf("set result isolation label %s=%q on %v: %w", name, value, r, err)
+					errs = append(errs, fmt.Errorf("group %q rule #%d: set result isolation label %s=%q on %v: %w", g.Name, i+1, name, value, r, err))
 				}
 			}
 
 			g.Rules[i] = r
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func setLabel(r *rulefmt.Rule, name, value string) error {

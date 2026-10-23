@@ -22,7 +22,7 @@ import (
 	promconfig "github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/relabel"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 	v1 "k8s.io/api/core/v1"
 )
 
