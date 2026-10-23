@@ -549,7 +549,7 @@ type response struct {
 
 // QueryFunc queries a Prometheus instance and returns a promql.Vector.
 func QueryFunc(ctx context.Context, q string, t time.Time, v1api v1.API) (parser.Value, v1.Warnings, error) {
-	results, warnings, err := v1api.Query(ctx, q, t)
+	results, warnings, _, err := v1api.Query(ctx, q, t)
 	if err != nil {
 		return nil, warnings, fmt.Errorf("error querying Prometheus: %w", err)
 	}
