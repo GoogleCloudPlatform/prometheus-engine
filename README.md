@@ -14,31 +14,76 @@ For more documentation and to get started, go to [g.co/cloud/managedprometheus](
 
 ## Binaries
 
-* **[config-reloader](cmd/config-reloader)**: An auxiliary binary to initiate reload on configuration file changes.
+* **[config-reloader](cmd/config-reloader)**: An auxiliary sidecar binary to initiate reloads on configuration file changes.
 * **[frontend](cmd/frontend)**: An authorizing proxy for the Prometheus-compatible query API of GMP. It additionally hosts a query UI.
-* **[operator](cmd/operator)**: A Kubernetes operator for managed metric collection for GMP.
-* **[rule-evaluator](cmd/rule-evaluator)**: A Prometheus rule evaluation engine that evaluates against GMP.
-* **[datasource-syncer](cmd/datasource-syncer)**: A cron job for periodic Oauth2 token injection to Grafana Prometheus datasource.
-* **[gmp-migrate](cmd/gmp-migrate)**: A migration CLI tool to convert Prometheus Operator resources to GMP CRDs.
+* **[operator](cmd/operator)**: A Kubernetes operator for managed metric collection and rule evaluation for GMP.
+* **[rule-evaluator](cmd/rule-evaluator)**: A Prometheus rule evaluation engine that evaluates alerting and recording rules against GMP.
+* **[datasource-syncer](cmd/datasource-syncer)**: A periodic job that injects short-lived OAuth2 access tokens into Grafana Prometheus data sources.
+* **[gmp-migrate](cmd/gmp-migrate)**: A standalone CLI tool to convert Prometheus Operator (`PodMonitor`, `ServiceMonitor`) resources to GMP Custom Resources.
 
 For the fully Prometheus-compatible binary that writes ingested data into GMP/GCM,
 see [GoogleCloudPlatform/prometheus](https://github.com/GoogleCloudPlatform/prometheus).
 
 ## Docker Images
 
-Images for this repo are regularly released [in the GKE release GCR](https://console.cloud.google.com/gcr/images/gke-release/global[main.go](cmd%2Fdatasource-syncer%2Fmain.go)/prometheus-engine).
+Container images for this repository (except `gmp-migrate`, which is a standalone CLI binary) are published to [Artifact Registry](https://console.cloud.google.com/artifacts/docker/gke-release/us/gke-release/prometheus-engine) under `us-docker.pkg.dev/gke-release/gke-release/prometheus-engine/<binary>`.
+
+## Deploying Self-Managed Manifests & Custom Resources
+
+On GKE, Managed Service for Prometheus can be enabled directly via GKE cluster flags. For self-managed deployments or non-GKE Kubernetes clusters, apply the pre-rendered manifests in [`manifests/`](manifests/) in the following order:
+
+```bash
+# 1. Create namespaces (gmp-system, gmp-public), CRDs, and cluster RBAC:
+kubectl apply -f manifests/setup.yaml
+
+# 2. Deploy gmp-operator, admission webhooks, and default OperatorConfig:
+kubectl apply -f manifests/operator.yaml
+
+# 3. (Optional) Deploy standalone rule-evaluator:
+kubectl apply -f manifests/rule-evaluator.yaml
+```
+
+### Custom Resource Definitions (CRDs)
+
+All CRDs live under API group `monitoring.googleapis.com/v1`. For the full field-level schema, see the generated [API Reference (`doc/api.md`)](doc/api.md) and the sample manifests in [`examples/`](examples/).
+
+| Kind                    | Scope      | Allowed Namespace             | Purpose                                                                                                                                  |
+|:------------------------|:-----------|:------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------|
+| `PodMonitoring`         | Namespaced | Any user namespace            | Scrapes Pod endpoints in the same namespace; injects `project_id`, `location`, `cluster`, `namespace`, `job`, and `instance`.            |
+| `ClusterPodMonitoring`  | Cluster    | Cluster-scoped                | Scrapes Pod endpoints across all namespaces; injects `namespace` from the scraped Pod.                                                   |
+| `ClusterNodeMonitoring` | Cluster    | Cluster-scoped                | Scrapes node-level endpoints (such as kubelet, cAdvisor, or node-exporter).                                                              |
+| `Rules`                 | Namespaced | Any user namespace            | Evaluates Prometheus alerting and recording rules scoped to the resource's `namespace` (plus `project_id`, `location`, `cluster`).       |
+| `ClusterRules`          | Cluster    | Cluster-scoped                | Evaluates alerting and recording rules across all namespaces in the cluster (scoped to `project_id`, `location`, `cluster`).             |
+| `GlobalRules`           | Cluster    | Cluster-scoped                | Evaluates alerting and recording rules across the entire GCM metrics scope without injecting cluster or namespace selectors.             |
+| `OperatorConfig`        | Namespaced | `gmp-public` (named `config`) | Configures cluster-wide collector credentials, kubelet scraping, rule-evaluator credentials, Alertmanager endpoints, and export filters. |
 
 ## Development
+
+See [`AGENTS.md`](AGENTS.md) for detailed contribution guidelines, commit message formatting (`make conform`), linter rules (`make lint`), and code-generation workflows (`make regen`).
+
+### Repository Layout & Go Modules
+
+| Path                                                       | Go Module                                                                 | Description                                                                                                                            |
+|:-----------------------------------------------------------|:--------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------|
+| [`cmd/`](cmd/)                                             | [`go.mod`](go.mod)                                                        | Main entrypoints and Dockerfiles for the 6 binaries.                                                                                   |
+| [`pkg/`](pkg/), [`internal/`](internal/)                   | [`go.mod`](go.mod)                                                        | Reconcilers, CRD API types (`pkg/operator/apis/monitoring/v1`), GCM export client, migration library, and UI asset loader (`pkg/ui`).  |
+| [`charts/`](charts/) → [`manifests/`](manifests/)          | —                                                                         | Internal Helm templates (`charts/`) that render static deployment manifests (`manifests/`) via `make regen`.                           |
+| [`doc/api.md`](doc/api.md)                                 | —                                                                         | Autogenerated CRD API reference documentation (do not edit by hand; updated via `make regen`).                                         |
+| [`e2e/`](e2e/)                                             | [`go.mod`](go.mod)                                                        | End-to-end Kubernetes test suite executed against `kind` or GKE clusters.                                                              |
+| [`examples/`](examples/)                                   | [`go.mod`](go.mod) & [`examples/scripts/go.mod`](examples/scripts/go.mod) | Reference CRD manifests, feature guides, synthetic Go workload (`examples/instrumentation/go-synthetic`), and exporter configurations. |
+| [`ops/`](ops/)                                             | [`ops/gmpctl/go.mod`](ops/gmpctl/go.mod)                                  | Multi-branch release and vulnerability automation CLI (`ops/gmpctl`).                                                                  |
+| [`third_party/prometheus_ui/`](third_party/prometheus_ui/) | —                                                                         | Vendored upstream Prometheus React UI (`base/`) and GMP overrides (`override/`).                                                       |
+| [`tools/`](tools/)                                         | [`tools/go.mod`](tools/go.mod)                                            | Pinned build, codegen, and linting tool dependencies (`controller-gen`, `helm`, `yq`, `mdox`, `shfmt`, `addlicense`).                  |
 
 ### Dependencies
 
 In order to best develop and contribute to this repository, the following dependencies are
 recommended:
-1. [`go`](https://golang.org/doc/install)
+1. [`go`](https://golang.org/doc/install) (matching the version in [`go.mod`](go.mod))
 2. [`gcloud`](https://cloud.google.com/sdk/docs/install)
 3. [`kubectl`](https://kubernetes.io/docs/tasks/tools/)
 
-Can be also installed via:
+Can also be installed via:
 
 ```bash
 gcloud components install kubectl
@@ -47,7 +92,7 @@ gcloud components install kubectl
 4. [`Docker`](https://docs.docker.com/get-docker/) with
    [`buildx`](https://docs.docker.com/build/architecture/#install-buildx) plugin.
 
-If you want to execute docker containers on remote machine you can run:
+If you want to execute docker containers on a remote machine you can run:
 
 ```bash
 gcloud alpha cloud-shell ssh --authorize-session -- -nNT -L `pwd`/docker.sock:/var/run/docker.sock
@@ -56,32 +101,32 @@ gcloud alpha cloud-shell ssh --authorize-session -- -nNT -L `pwd`/docker.sock:/v
 export DOCKER_HOST=unix://docker.sock
 ```
 
-5. For UI development or update (e.g. to resolve UI security issue), `npm` is
+5. For UI development or updates (e.g. to resolve UI security issues), `npm` is
    required. See [pkg/ui documentation](pkg/ui/README.md) for details.
 
-### Presubmit
+### Presubmit, Code Generation & Linting
 
-`make presubmit` regenerates all resources, builds all images and runs all tests.
-
-Steps from presubmit are validated on the CI, but feel free to run it if you see
-CI failures related to regenerating resources or when you want to do local check
-before submitting.
-
-Run `CHECK=1 make presubmit` to fail the command if repo state is not clean after
-presubmit (might require committing the changes).
+* `make regen` (or `./hack/presubmit.sh`): Regenerates CRD YAMLs (`charts/operator/crds/`), Helm manifests (`manifests/`), API docs (`doc/api.md`), and runs formatting (`./hack/presubmit.sh format`).
+* `CHECK=1 make regen`: Verifies that no uncommitted diffs or missing license headers remain after regeneration (enforced in CI).
+* `./hack/presubmit.sh codegen`: Regenerates Kubernetes `DeepCopy` methods (`zz_generated.deepcopy.go`) and typed client/informer/lister code (`pkg/operator/generated/`) when Go API types under `pkg/operator/apis/monitoring/v1/` change.
+* `make lint`: Runs `golangci-lint` across the repository.
+* `make conform`: Validates git commit messages against [`.conform.yaml`](.conform.yaml).
+* `make presubmit` (or `CHECK=1 make presubmit`): Regenerates all resources, builds all images, and runs unit tests in Docker.
 
 ### Building
 
-Run `make help` shows a list of candidate targets with documentation.
+Running `make help` shows a list of candidate targets with documentation.
 
-Any go application in `./cmd/` with an associated `main.go`, e.g. `./cmd/operator/main.go`
-is a candidate for build by running, for example:
+Any Go application in `./cmd/` with an associated `main.go` (e.g. `./cmd/operator/main.go`)
+can be built via `make`:
 
 ```bash
 make operator
 make frontend
 make rule-evaluator
 make config-reloader
+make datasource-syncer
+NO_DOCKER=1 make gmp-migrate
 ```
 
 This also includes example Go apps from `/examples/instrumentation/`:
@@ -90,31 +135,37 @@ This also includes example Go apps from `/examples/instrumentation/`:
 make go-synthetic
 ```
 
-Running `make bin` will build all of the above go binaries.
-* Setting `NO_DOCKER=1` here will build all the binaries natively on the host machine.
+Running `make bin` will build the component Go binaries into `./build/bin/`.
+* Setting `NO_DOCKER=1` (`NO_DOCKER=1 make bin`) builds the binaries natively on the host machine without Docker.
 
 ### Testing
 
 #### Unit
 
-To run unit tests locally, use `go test`, your IDE or `NO_DOCKER=1 make test`.
+To run unit tests natively on the host machine, use `go test ./...`, your IDE, or:
 
-To run unit tests from docker container run `make test`
+```bash
+NO_DOCKER=1 make test
+```
+
+To run unit tests inside the hermetic Docker container, run `make test`.
 
 #### Kubernetes End-to-end tests
 
-Running `make e2e` will generally run e2e tests against Kubernetes cluster:
-* By default, it runs in hermetic docker container, downloads kind, recreates
-  a single node kind cluster and runs [e2e](./e2e) tests against it.
-* Each Go test from [e2e](./e2e) is running in separate `kind` cluster. Name of
-  the test is determining the cluster name, so `TestXYZ` is executed in `XYX-<short unique sha>` cluster.
-* To run a single test, use the `TEST_RUN` environment variable. For example:
+Running `make e2e` builds the container images and runs end-to-end tests against a Kubernetes cluster:
+* By default, it runs in a hermetic Docker container, downloads `kind`, creates
+  a single-node `kind` cluster, and runs [e2e](./e2e) tests against it.
+* Each Go test from [e2e](./e2e) runs in a separate `kind` cluster. The name of
+  the test determines the cluster name, so `TestXYZ` is executed in a `XYZ-<short unique sha>` cluster.
+* To run a single test (or re-run without rebuilding Docker images via `make e2e-only`), use the `TEST_RUN` environment variable:
 
 ```bash
 TEST_RUN=TestCollectorPodMonitoring make e2e
+# Or re-run against already-built images:
+TEST_RUN=TestCollectorPodMonitoring make e2e-only
 ```
 
-* For easier debugging you can choose to keep `kind` cluster running after test failures using `KIND_PERSIST` variable:
+* For easier debugging you can keep the `kind` cluster running after test failures using the `KIND_PERSIST` variable:
 
 ```bash
 KIND_PERSIST=1 TEST_RUN=TestCollectorPodMonitoring make e2e
@@ -122,25 +173,25 @@ KIND_PERSIST=1 TEST_RUN=TestCollectorPodMonitoring make e2e
 
 ##### GCM integration
 
-Some tests verify GCM state. For this you need a GCP service account to with read and write permissions against
-GCM in certain project. Here is how to configure it:
+Some tests verify GCM state. For this you need a GCP service account with read and write permissions against
+GCM in a project. Here is how to configure it:
 
-* If you have GCP service account in a local file, use `GOOGLE_APPLICATION_CREDENTIALS` environment variable to specify the path to that file.
+* If you have a GCP service account key in a local file, use the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to specify the path to that file:
 
 ```bash
 GOOGLE_APPLICATION_CREDENTIALS=<path to SA> TEST_RUN=TestCollectorPodMonitoring make e2e
 ```
 
-* If you have the content of GCP service account in environment variable (e.g. CI), use `GCM_SECRET` variable:
+* If you have the content of a GCP service account key in an environment variable (e.g. CI), use the `GCM_SECRET` variable:
 
 ```bash
 GCM_SECRET=<...> TEST_RUN=TestCollectorPodMonitoring make e2e
 ```
 
-> NOTE: This is what CI is using at the moment.
-> NOTE2: This is utilizing an explicit credentials path via OperatorConfig, while GOOGLE_APPLICATION_CREDENTIALS is using default credentials mode.
+> NOTE: This is what CI uses.
+> NOTE2: This utilizes an explicit credentials path via `OperatorConfig`, while `GOOGLE_APPLICATION_CREDENTIALS` uses default credentials mode.
 
-* If you want to skip GCM tests ensure those two variables are empty.
+* If you want to skip GCM tests, ensure those two variables are empty:
 
 ```bash
 GCM_SECRET="" GOOGLE_APPLICATION_CREDENTIALS="" TEST_RUN=TestCollectorPodMonitoring make e2e
@@ -148,30 +199,29 @@ GCM_SECRET="" GOOGLE_APPLICATION_CREDENTIALS="" TEST_RUN=TestCollectorPodMonitor
 
 ##### Debugging
 
-In docker mode, after failures with `KIND_PERSIST` and during tests, you can use
-inspect local `kind` cluster for further investigations. The easiest way is to use
-the same docker image and setup that is used in `make e2e`, by starting a new
-container using `gmp/kindtest` image on the same docker socket and network.
+In Docker mode, after failures with `KIND_PERSIST` and during tests, you can
+inspect the local `kind` cluster for further investigation. The easiest way is to use
+the same Docker image and setup that is used in `make e2e`, by starting a new
+container using the `gmp/kindtest` image on the same Docker socket and network.
 
 You can use `make e2e-exec` to start an interactive shell:
 
 ```bash
-make e2e-exec 
+make e2e-exec
 ```
 
-In the interactive shell, you can inspect existing tests/cluster or spin up a new tests.
+In the interactive shell, you can inspect existing tests/clusters or spin up a new test.
 
-For example, assuming you are running (or ran with `KIND_PERSIST=1`) `make e2e` you can
+For example, assuming you are running (or ran with `KIND_PERSIST=1`) `make e2e`, you can
 access the Kubernetes cluster (e.g. to list pods):
 
 ```bash
-kind get clusters 
+kind get clusters
 kind export kubeconfig -n <TestName-hash from the output above>
 kubectl -n gmp-system get po
 ```
 
-You could also execute a single test e.g. `TestCollectorPodMonitoring`, but you need to
-either reuse already started `kind` cluster or create your own e.g.
+You can also execute a single test (e.g. `TestCollectorPodMonitoring`) by reusing an already started `kind` cluster or creating your own:
 
 ```bash
 kind export kubeconfig -n "existing-cluster"
@@ -179,7 +229,7 @@ go test -v ./e2e -run "TestCollectorPodMonitoring" -args -project-id=test-proj -
 kubectl -n gmp-system get po
 ```
 
-However, it might be easier to run `KIND_PERSIST=1 TEST_RUN=TestCollector make e2e` in separate terminal and
+However, it might be easier to run `KIND_PERSIST=1 TEST_RUN=TestCollector make e2e` in a separate terminal and
 play with custom `time.Sleep` statements for more detailed investigations.
 
 ##### Benchmarking
