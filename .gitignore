@@ -8,3 +8,12 @@ e2e_*
 vendor/
 .DS_Store
 
+# Gemini CLI runtime files
+.gemini/settings.json
+.gemini/telemetry.log
+.gemini/context.json
+.gemini/pr.diff
+.gemini/existing_comments.json
+.gemini/review.json
+gha-creds-*.json
+
