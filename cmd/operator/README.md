@@ -1,100 +1,79 @@
 # Operator
 
-This binary is a Kubernetes operator that provides Managed Collection for Google
-Cloud Prometheus Engine on Kubernetes.
+This binary is the Kubernetes operator (`gmp-operator`) that reconciles Google Cloud Managed Service for Prometheus (GMP) Custom Resources into collector and rule-evaluator workloads.
 
-The operator can be run and tested two ways. The first and arguably better way,
-in lieu of matching actual deployment, is by creating a docker image and pushing
-it to Google Cloud and telling Kubernetes to fetch and run it. The second is by
-pushing the configurations to Kubernetes running and instead of Kubernetes
-running an image, you run the operator locally on your machine.
+The operator can be run and tested in two ways:
+1. **In-cluster deployment**: Build and push a container image to a registry accessible by your Kubernetes cluster and apply the manifests in [`manifests/`](../../manifests/).
+2. **Local out-of-cluster execution**: Apply the cluster prerequisites (`manifests/setup.yaml` and `manifests/operator.yaml`), scale down the in-cluster `gmp-operator` Deployment, and run `go run ./cmd/operator` locally against your cluster's `kubeconfig`.
 
-## Running through Google Cloud
+## Running in a Kubernetes Cluster
 
-As a pre-requisite, ensure that your Kubernetes cluster is setup and you are
-connected to it via the `gcloud` CLI. The easiest way is by clicking the
-`Connect` button which reveals a command after selecting your cluster in the
-Google Cloud Console. Ensure that your service account is [configured to read
-images](https://cloud.google.com/kubernetes-engine/docs/troubleshooting#permission_denied_error).
-If you are using the default service account for your Kubernetes node pool, you
-can find the email via `IAM & Admin > Service Accounts` and looking for the
-account that is listed as "Compute Engine default service account".
+Ensure that your Kubernetes cluster is set up and connected via `kubectl`, and that your node service account is [configured to pull images](https://cloud.google.com/kubernetes-engine/docs/troubleshooting#permission_denied_error) if using a private registry.
 
-First, build and push the operator image. In the root directory:
+From the repository root, build and push the operator image:
 
 ```bash
 DOCKER_PUSH=1 make operator
 ```
 
-Note, that you can configure the [Makefile](/Makefile) to use certain
-environment variables, such as `PROJECT_ID` but these are configured
-automatically if they are not set. The command will give you the uploaded image
-URL and update all necessary configurations to use it.
+You can configure [`Makefile`](../../Makefile) environment variables such as `IMAGE_REGISTRY` and `TAG_NAME` to control the target image repository.
 
-Next, apply the Kubernetes configuration files, starting with the CRDs:
+Next, apply the CRDs, RBAC, and operator manifests from the repository root:
 
 ```bash
-kubectl apply -f cmd/operator/deploy/crds/
-kubectl apply -f cmd/operator/deploy/operator/
+kubectl apply -f manifests/setup.yaml
+kubectl apply -f manifests/operator.yaml
 ```
 
-Finally, wait until the operator starts up. You will see a status of `Running`
-for the gmp-operator pod:
+Wait until the `gmp-operator` pod in `gmp-system` reaches `Running`:
 
 ```bash
-kubectl get all -ngmp-system
+kubectl get all -n gmp-system
 ```
 
-## Run Locally
+## Running Locally (Out-of-Cluster)
 
-Deploy all CRDs. In this directory:
+To run the operator binary on your local workstation against a `kind` or GKE cluster (from the repository root):
+
+1. Apply the CRDs, namespaces, and base operator resources:
 
 ```bash
-kubectl apply -f deploy/crds/
+kubectl apply -f manifests/setup.yaml
+kubectl apply -f manifests/operator.yaml
 ```
 
-Deploy all of the operator required configurations besides the operator
-deployment, otherwise you will have an operator deployed in addition to your
-local one.
+2. Scale down the in-cluster `gmp-operator` Deployment so it does not compete with your local process, and remove the validating webhook configuration (unless you configure local webhook TLS certificates and network routing from the API server):
 
 ```bash
-kubectl apply -f deploy/operator/00-namespace.yaml
-kubectl apply -f deploy/operator/01-priority-class.yaml
-kubectl apply -f deploy/operator/02-service-account.yaml
-kubectl apply -f deploy/operator/03-role.yaml
-kubectl apply -f deploy/operator/04-rolebinding.yaml
+kubectl -n gmp-system scale deploy/gmp-operator --replicas=0
+kubectl delete validatingwebhookconfiguration gmp-operator.gmp-system.monitoring.coreos.com --ignore-not-found
 ```
 
-Run the operator locally (requires active kubectl context to have all
-permissions the operator needs):
+3. Run the operator locally from the repository root:
 
 ```bash
-go run main.go
+go run ./cmd/operator \
+  --project-id=test-proj \
+  --cluster=test-cluster \
+  --location=us-central1-a \
+  --kubeconfig="$HOME/.kube/config"
 ```
 
-Finally because the webhooks are configured to the operator apply the rest of
-the configurations in a separate terminal session:
+The operator reconciles `OperatorConfig/config` in `gmp-public` and updates the configuration of all `collector` pods in `gmp-system`.
+
+4. Verify target discovery by port-forwarding to the `collector` DaemonSet:
 
 ```bash
-kubectl apply -f deploy/operator/06-service.yaml
-kubectl apply -f deploy/operator/07-operatorconfig.yaml
-kubectl apply -f deploy/operator/08-validatingwebhookconfiguration.yaml
-kubectl apply -f deploy/operator/09-mutatingwebhookconfiguration.yaml
-kubectl apply -f deploy/operator/10-collector.yaml
-kubectl apply -f deploy/operator/11-rule-evaluator.yaml
+kubectl -n gmp-system port-forward daemonset/collector 19090
 ```
 
-The operator updates the configuration of all collectors after which they start
-scraping various metric endpoints.
+Open `http://localhost:19090/targets` in your browser to inspect active scrape targets.
 
-Verify by port-forwarding an arbitrary collector and inspect its UI. You should
-see various targets being scraped successfully.
+## Namespace & Secret RBAC Boundaries
 
-```bash
-kubectl -n gmp-system port-forward --address 0.0.0.0 collector 19090
-```
-
-Go to `http://localhost:19090/targets`.
+* **`gmp-public` (`--public-namespace`)**: Holds the singleton `OperatorConfig` named `config` and any Secrets referenced directly by `OperatorConfig` (such as `collection.credentials`, `rules.credentials`, or Alertmanager auth Secrets). The operator mirrors those Secrets into `gmp-system`.
+* **`gmp-system` (`--operator-namespace`)**: Holds operator-managed workloads (`collector` DaemonSet, `rule-evaluator` Deployment) and generated configuration Secrets/ConfigMaps (`collection`, `rules-generated`).
+* **Secrets referenced by `PodMonitoring` / `ClusterPodMonitoring`**: Secrets used for scrape endpoint TLS, BasicAuth, Bearer tokens, or OAuth2 must reside in the same namespace as the `PodMonitoring` resource (or in `gmp-system` for cluster-scoped `ClusterPodMonitoring` / `ClusterNodeMonitoring`). Because the collector reads these Secrets via the Kubernetes API, you must grant `get` permission on `secrets` in that namespace to `ServiceAccount` `gmp-system:collector` via a `Role` and `RoleBinding`.
 
 ## Flags
 
@@ -134,9 +113,9 @@ Usage of operator:
 
 ## Teardown
 
-Simply stop running the operator locally and remove all manifests in the cluster
-with:
+Stop the local operator process (if running) and remove the deployed manifests from the cluster:
 
 ```bash
-kubectl delete -f deploy/ --recursive
+kubectl delete -f manifests/operator.yaml --ignore-not-found
+kubectl delete -f manifests/setup.yaml --ignore-not-found
 ```
