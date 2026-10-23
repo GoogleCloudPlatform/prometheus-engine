@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO(bernot): Remove this file when the *Rules webhooks are removed.
+// TODO(bernot): Remove the webhook parity checks and differential fuzzers in this file when the *Rules webhooks are removed.
 
 package v1
 
@@ -32,6 +32,7 @@ import (
 	structuralschema "k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/cel"
 	celmodel "k8s.io/apiextensions-apiserver/pkg/apiserver/schema/cel/model"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/defaulting"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -88,7 +89,7 @@ func compileCRDValidators(tb testing.TB, crdName string) (validation.SchemaValid
 		tb.Fatalf("failed to create structural schema for %s: %v", crdName, err)
 	}
 
-	celValidator := cel.NewValidator(structural, false, celconfig.PerCallLimit)
+	celValidator := cel.NewValidator(structural, true, celconfig.PerCallLimit)
 	if celValidator == nil {
 		tb.Fatalf("expected non-nil CEL validator for %s", crdName)
 	}
@@ -99,6 +100,27 @@ const (
 	staticEstimatedCostLimit    uint64 = 10_000_000
 	staticEstimatedCRDCostLimit uint64 = 100_000_000
 )
+
+func hasXValidations(s *structuralschema.Structural) bool {
+	if s == nil {
+		return false
+	}
+	if len(s.XValidations) > 0 {
+		return true
+	}
+	if hasXValidations(s.Items) {
+		return true
+	}
+	for _, prop := range s.Properties {
+		if hasXValidations(&prop) {
+			return true
+		}
+	}
+	if s.AdditionalProperties != nil && hasXValidations(s.AdditionalProperties.Structural) {
+		return true
+	}
+	return false
+}
 
 func validateStaticCELCost(tb testing.TB, s *structuralschema.Structural, fldPath *field.Path, isRoot bool, cardinality uint64, totalCost *uint64) {
 	tb.Helper()
@@ -132,17 +154,22 @@ func validateStaticCELCost(tb testing.TB, s *structuralschema.Structural, fldPat
 		itemCardinality := cardinality
 		if s.ValueValidation != nil && s.ValueValidation.MaxItems != nil && *s.ValueValidation.MaxItems > 0 {
 			itemCardinality *= uint64(*s.ValueValidation.MaxItems)
+		} else if hasXValidations(s.Items) {
+			tb.Errorf("%s: list schema with nested XValidations must set positive maxItems to bound static CEL cost", fldPath)
+			itemCardinality *= staticEstimatedCostLimit
 		}
 		validateStaticCELCost(tb, s.Items, fldPath.Child("items"), false, itemCardinality, totalCost)
 	}
 	for name, prop := range s.Properties {
-		propCopy := prop
-		validateStaticCELCost(tb, &propCopy, fldPath.Child("properties").Key(name), false, cardinality, totalCost)
+		validateStaticCELCost(tb, &prop, fldPath.Child("properties").Key(name), false, cardinality, totalCost)
 	}
 	if s.AdditionalProperties != nil && s.AdditionalProperties.Structural != nil {
 		valCardinality := cardinality
 		if s.ValueValidation != nil && s.ValueValidation.MaxProperties != nil && *s.ValueValidation.MaxProperties > 0 {
 			valCardinality *= uint64(*s.ValueValidation.MaxProperties)
+		} else if len(s.XValidations) > 0 || hasXValidations(s.AdditionalProperties.Structural) {
+			tb.Errorf("%s: map schema with XValidations must set positive maxProperties to bound static CEL cost", fldPath)
+			valCardinality *= staticEstimatedCostLimit
 		}
 		validateStaticCELCost(tb, s.AdditionalProperties.Structural, fldPath.Child("additionalProperties"), false, valCardinality, totalCost)
 	}
@@ -181,6 +208,8 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 		wantRulesValid    bool
 		wantClusterValid  bool
 		wantGlobalValid   bool
+		wantErrMsg        string
+		wantNoCELErrors   bool
 		skipWebhookParity bool
 	}
 
@@ -279,6 +308,89 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantGlobalValid:  true,
 		},
 		{
+			name: "recording rule with empty annotations map accepted",
+			spec: map[string]any{
+				"groups": []any{
+					map[string]any{
+						"name": "group-empty-annotations",
+						"rules": []any{
+							map[string]any{
+								"record":      "valid_metric",
+								"expr":        "vector(1)",
+								"annotations": map[string]any{},
+							},
+						},
+					},
+				},
+			},
+			wantRulesValid:   true,
+			wantClusterValid: true,
+			wantGlobalValid:  true,
+		},
+		{
+			name: "recording rule with non-empty annotations rejected",
+			spec: map[string]any{
+				"groups": []any{
+					map[string]any{
+						"name": "group-recording-annotations",
+						"rules": []any{
+							map[string]any{
+								"record": "valid_metric",
+								"expr":   "vector(1)",
+								"annotations": map[string]any{
+									"summary": "not allowed on recording rule",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantRulesValid:   false,
+			wantClusterValid: false,
+			wantGlobalValid:  false,
+			wantErrMsg:       "Annotations are only allowed for alerting rules",
+		},
+		{
+			name: "both record and alert set rejected",
+			spec: map[string]any{
+				"groups": []any{
+					map[string]any{
+						"name": "group-both-record-and-alert",
+						"rules": []any{
+							map[string]any{
+								"record": "valid_metric",
+								"alert":  "BothSet",
+								"expr":   "vector(1)",
+							},
+						},
+					},
+				},
+			},
+			wantRulesValid:   false,
+			wantClusterValid: false,
+			wantGlobalValid:  false,
+			wantErrMsg:       "Must set exactly one of Record or Alert",
+		},
+		{
+			name: "neither record nor alert set rejected",
+			spec: map[string]any{
+				"groups": []any{
+					map[string]any{
+						"name": "group-neither-record-nor-alert",
+						"rules": []any{
+							map[string]any{
+								"expr": "vector(1)",
+							},
+						},
+					},
+				},
+			},
+			wantRulesValid:   false,
+			wantClusterValid: false,
+			wantGlobalValid:  false,
+			wantErrMsg:       "Must set exactly one of Record or Alert",
+		},
+		{
 			name: "empty group name rejected",
 			spec: map[string]any{
 				"groups": []any{
@@ -296,6 +408,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "name in body should be at least 1 chars long",
 		},
 		{
 			name: "duplicate group names rejected",
@@ -324,6 +437,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "Rule group names must be unique",
 		},
 		{
 			name: "empty expr rejected",
@@ -343,6 +457,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "expr in body should be at least 1 chars long",
 		},
 		{
 			name: "for (5m) on recording rule rejected",
@@ -363,6 +478,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "For is only allowed for alerting rules",
 		},
 		{
 			name: "for (1d) on recording rule rejected",
@@ -383,6 +499,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "For is only allowed for alerting rules",
 		},
 		{
 			name: "for (0s) on recording rule rejected",
@@ -403,6 +520,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "For is only allowed for alerting rules",
 		},
 		{
 			name: "__name__ label key rejected",
@@ -425,6 +543,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "Label keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$ and must not be __name__",
 		},
 		{
 			name: "invalid label key with dash rejected",
@@ -447,6 +566,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "Label keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$ and must not be __name__",
 		},
 		{
 			name: "invalid label key with colon rejected",
@@ -469,6 +589,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "Label keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$ and must not be __name__",
 		},
 		{
 			name: "invalid metric name with leading digit rejected",
@@ -488,6 +609,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "record in body should match '^[a-zA-Z_:][a-zA-Z0-9_:]*$'",
 		},
 		{
 			name: "invalid annotation key with colon rejected",
@@ -510,6 +632,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "Annotation keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$",
 		},
 		{
 			name: "reserved label project_id rejected on Rules and ClusterRules but allowed on GlobalRules",
@@ -532,6 +655,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  true,
+			wantErrMsg:       "labels cannot contain reserved keys",
 		},
 		{
 			name: "reserved label location rejected on Rules and ClusterRules but allowed on GlobalRules",
@@ -554,6 +678,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  true,
+			wantErrMsg:       "labels cannot contain reserved keys",
 		},
 		{
 			name: "reserved label cluster rejected on Rules and ClusterRules but allowed on GlobalRules",
@@ -576,6 +701,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  true,
+			wantErrMsg:       "labels cannot contain reserved keys",
 		},
 		{
 			name: "reserved label namespace rejected on Rules but allowed on ClusterRules and GlobalRules",
@@ -598,6 +724,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: true,
 			wantGlobalValid:  true,
+			wantErrMsg:       "Rule labels cannot contain reserved keys",
 		},
 		{
 			name: "omitted spec rejected by OpenAPIv3 required",
@@ -611,6 +738,8 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:    false,
 			wantClusterValid:  false,
 			wantGlobalValid:   false,
+			wantErrMsg:        "spec in body is required",
+			wantNoCELErrors:   true,
 			skipWebhookParity: true,
 		},
 		{
@@ -619,6 +748,8 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:    false,
 			wantClusterValid:  false,
 			wantGlobalValid:   false,
+			wantErrMsg:        "spec.groups in body is required",
+			wantNoCELErrors:   true,
 			skipWebhookParity: true,
 		},
 		{
@@ -642,11 +773,22 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 							},
 						},
 					},
+					map[string]any{
+						"name": "valid-group",
+						"rules": []any{
+							map[string]any{
+								"record": "valid_metric_2",
+								"expr":   "vector(1)",
+							},
+						},
+					},
 				},
 			},
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "name in body is required",
+			wantNoCELErrors:  true,
 		},
 		{
 			name: "omitted group.rules rejected by OpenAPIv3 required",
@@ -660,6 +802,8 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:    false,
 			wantClusterValid:  false,
 			wantGlobalValid:   false,
+			wantErrMsg:        "rules in body is required",
+			wantNoCELErrors:   true,
 			skipWebhookParity: true,
 		},
 		{
@@ -675,6 +819,8 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:    false,
 			wantClusterValid:  false,
 			wantGlobalValid:   false,
+			wantErrMsg:        "rules in body should have at least 1 items",
+			wantNoCELErrors:   true,
 			skipWebhookParity: true,
 		},
 		{
@@ -694,6 +840,8 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:   false,
 			wantClusterValid: false,
 			wantGlobalValid:  false,
+			wantErrMsg:       "expr in body is required",
+			wantNoCELErrors:  true,
 		},
 		{
 			name: "explicit empty interval string rejected by OpenAPIv3 minLength",
@@ -714,6 +862,8 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:    false,
 			wantClusterValid:  false,
 			wantGlobalValid:   false,
+			wantErrMsg:        "interval in body should be at least 1 chars long",
+			wantNoCELErrors:   true,
 			skipWebhookParity: true,
 		},
 		{
@@ -735,7 +885,37 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantRulesValid:    false,
 			wantClusterValid:  false,
 			wantGlobalValid:   false,
+			wantErrMsg:        "for in body should be at least 1 chars long",
+			wantNoCELErrors:   true,
 			skipWebhookParity: true,
+		},
+		{
+			name: "multiline group.name and rule.alert with leading newline or space accepted",
+			spec: map[string]any{
+				"groups": []any{
+					map[string]any{
+						"name": "\n0",
+						"rules": []any{
+							map[string]any{
+								"alert": " alert\nname",
+								"expr":  "  vector(1)\n+ vector(2)",
+							},
+						},
+					},
+					map[string]any{
+						"name": " group\nname",
+						"rules": []any{
+							map[string]any{
+								"record": "valid_metric",
+								"expr":   "\nvector(1)",
+							},
+						},
+					},
+				},
+			},
+			wantRulesValid:   true,
+			wantClusterValid: true,
+			wantGlobalValid:  true,
 		},
 	}
 
@@ -760,12 +940,35 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 				if err != nil {
 					t.Fatalf("marshal %s: %v", kind, err)
 				}
+				var validationPayload map[string]any
+				if err := json.Unmarshal(data, &validationPayload); err != nil {
+					t.Fatalf("unmarshal %s: %v", kind, err)
+				}
+				defaulting.PruneNonNullableNullsWithoutDefaults(validationPayload, structural)
+				defaulting.Default(validationPayload, structural)
 
-				openapiRes := openapiVal.Validate(payload)
-				celErrs, _ := celVal.Validate(t.Context(), nil, structural, payload, nil, celconfig.RuntimeCELCostBudget)
+				openapiRes := openapiVal.Validate(validationPayload)
+				celErrs, _ := celVal.Validate(t.Context(), nil, structural, validationPayload, nil, celconfig.RuntimeCELCostBudget)
 				crdValid := !openapiRes.HasErrors() && len(celErrs) == 0
 				if crdValid != wantValid {
 					t.Errorf("%s CRD validation got valid=%v, want %v (openapi=%v, cel=%v)", kind, crdValid, wantValid, openapiRes.Errors, celErrs)
+				}
+				if tc.wantNoCELErrors && len(celErrs) > 0 {
+					t.Errorf("%s expected no CEL errors on OpenAPIv3 schema rejection, got %v", kind, celErrs)
+				}
+				if !wantValid && tc.wantErrMsg != "" {
+					var combined strings.Builder
+					for _, e := range openapiRes.Errors {
+						combined.WriteString(e.Error())
+						combined.WriteByte('\n')
+					}
+					for _, e := range celErrs {
+						combined.WriteString(e.Error())
+						combined.WriteByte('\n')
+					}
+					if !strings.Contains(combined.String(), tc.wantErrMsg) {
+						t.Errorf("%s CRD rejection errors %q do not contain wantErrMsg %q", kind, combined.String(), tc.wantErrMsg)
+					}
 				}
 
 				if !tc.skipWebhookParity {
@@ -919,14 +1122,16 @@ func runRulesDifferentialFuzz(
 		if err := json.Unmarshal(data, &unstructuredObj); err != nil {
 			t.Skip()
 		}
+		if unstructuredObj == nil {
+			t.Skip()
+		}
 		// Status is a separate subresource and is not validated by ValidateCreate().
 		delete(unstructuredObj, "status")
+		defaulting.PruneNonNullableNullsWithoutDefaults(unstructuredObj, structural)
+		defaulting.Default(unstructuredObj, structural)
 
 		openapiResult := openapiValidator.Validate(unstructuredObj)
-		var celErrors field.ErrorList
-		if !openapiResult.HasErrors() {
-			celErrors, _ = celValidator.Validate(t.Context(), nil, structural, unstructuredObj, nil, celconfig.RuntimeCELCostBudget)
-		}
+		celErrors, _ := celValidator.Validate(t.Context(), nil, structural, unstructuredObj, nil, celconfig.RuntimeCELCostBudget)
 		crdPassed := !openapiResult.HasErrors() && len(celErrors) == 0
 
 		if crdPassed != webhookPassed {
@@ -952,30 +1157,53 @@ var errSkipUnmarshal = errors.New("skip unmarshal")
 // payload that Go struct json.Unmarshal + ValidateCreate() accepts due to intentional schema constraints:
 //   - Missing required envelope fields ("spec", "spec.groups") or null "spec.groups" (which unmarshal as nil in Go).
 //   - Missing or empty "rules" in a RuleGroup (OpenAPIv3 enforces required + minItems: 1, while rulefmt allows 0 rules).
-//   - Explicit "" on omitempty duration fields ("interval": "" or "for": ""), which OpenAPIv3 rejects via minLength: 1
-//     while Go json.Unmarshal cannot distinguish "" from an omitted omitempty field.
+//   - Explicit "" on omitempty string/duration fields ("record": "", "alert": "", "interval": "", or "for": ""),
+//     which OpenAPIv3 rejects via minLength: 1 while Go json.Unmarshal cannot distinguish "" from an omitted field.
+//   - Prometheus year duration unit ("y") on "interval" or "for", which OpenAPIv3 format: duration rejects
+//     (matching upstream Prometheus v3's removal of "y" from model.ParseDuration) while the v2.53.5 Go pin still parses it.
 //   - Upper-bound limits (maxItems / maxProperties) required for Kubernetes CEL static cost estimation.
 //   - TypeMeta/ObjectMeta schema checks on "apiVersion", "kind", or "metadata" not checked by ValidateCreate().
 func isIntentionalOpenAPISchemaTightening(openapiErrs []error, celErrs field.ErrorList) bool {
-	if len(celErrs) > 0 || len(openapiErrs) == 0 {
+	if len(openapiErrs) == 0 {
 		return false
 	}
+	hasEmptyRecordOrAlert := false
+	hasEmptyFor := false
 	for _, err := range openapiErrs {
 		msg := err.Error()
+		if strings.Contains(msg, ".record in body should be at least 1 chars long") ||
+			strings.Contains(msg, ".alert in body should be at least 1 chars long") {
+			hasEmptyRecordOrAlert = true
+		}
+		if strings.Contains(msg, ".for in body should be at least 1 chars long") {
+			hasEmptyFor = true
+		}
 		allowed := strings.Contains(msg, "spec in body is required") ||
 			strings.Contains(msg, "spec.groups in body is required") ||
 			strings.Contains(msg, "spec.groups in body must be of type array") ||
 			strings.Contains(msg, ".rules in body is required") ||
 			strings.Contains(msg, ".rules in body should have at least 1 items") ||
 			strings.Contains(msg, ".rules in body must be of type array") ||
+			strings.Contains(msg, ".record in body should be at least 1 chars long") ||
+			strings.Contains(msg, ".alert in body should be at least 1 chars long") ||
 			strings.Contains(msg, ".interval in body should be at least 1 chars long") ||
 			strings.Contains(msg, ".for in body should be at least 1 chars long") ||
+			strings.Contains(msg, ".interval in body must be of type duration") ||
+			strings.Contains(msg, ".for in body must be of type duration") ||
 			strings.Contains(msg, "should have at most") ||
 			strings.Contains(msg, "should be at most 1024 chars long") ||
 			strings.HasPrefix(msg, "apiVersion ") ||
 			strings.HasPrefix(msg, "kind ") ||
 			strings.HasPrefix(msg, "metadata.")
 		if !allowed {
+			return false
+		}
+	}
+	for _, cerr := range celErrs {
+		msg := cerr.Error()
+		allowedCEL := (hasEmptyRecordOrAlert && strings.Contains(msg, "Must set exactly one of Record or Alert")) ||
+			(hasEmptyFor && strings.Contains(msg, "For is only allowed for alerting rules"))
+		if !allowedCEL {
 			return false
 		}
 	}
@@ -1053,6 +1281,7 @@ func FuzzRulesStructured(f *testing.F) {
 	f.Add(uint8(1), "alerts", "1m", "alerts-2", "", "HighLatency", "up == 0", "5m", "severity", "page", "summary", "Instance down", true, true)
 	f.Add(uint8(2), "daily", "1d", "dup", "", "DiskFull", "vector(1)", "1w", "project_id", "other", "description", "Disk full", false, false)
 	f.Add(uint8(0), "dup", "10s", "dup", "valid_metric", "", "vector(1)", "0s", "__name__", "bad", "bad-key", "val", true, false)
+	f.Add(uint8(0), "\n0", "30s", " group\nname", "", " alert\nname", "  vector(1)\n+ vector(2)", "", "env", "prod", "summary", " val\n2", true, true)
 
 	f.Fuzz(func(
 		t *testing.T,
@@ -1170,12 +1399,11 @@ func FuzzRulesStructured(f *testing.F) {
 			t.Skip()
 		}
 		delete(unstructuredObj, "status")
+		defaulting.PruneNonNullableNullsWithoutDefaults(unstructuredObj, structural)
+		defaulting.Default(unstructuredObj, structural)
 
 		openapiResult := openapiValidator.Validate(unstructuredObj)
-		var celErrors field.ErrorList
-		if !openapiResult.HasErrors() {
-			celErrors, _ = celValidator.Validate(t.Context(), nil, structural, unstructuredObj, nil, celconfig.RuntimeCELCostBudget)
-		}
+		celErrors, _ := celValidator.Validate(t.Context(), nil, structural, unstructuredObj, nil, celconfig.RuntimeCELCostBudget)
 		crdPassed := !openapiResult.HasErrors() && len(celErrors) == 0
 		webhookPassed := webhookErr == nil
 
