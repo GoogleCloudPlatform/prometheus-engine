@@ -40,32 +40,62 @@ import (
 )
 
 const (
-	defaultTLSDir = "/etc/tls/private"
+	defaultTLSDir      = "/etc/tls/private"
+	gceMetadataTimeout = 5 * time.Second
 )
+
+type metadataProvider interface {
+	OnGCEWithContext(ctx context.Context) bool
+	ProjectIDWithContext(ctx context.Context) (string, error)
+	InstanceAttributeValueWithContext(ctx context.Context, attr string) (string, error)
+}
+
+func populateMetadataDefaults(ctx context.Context, md metadataProvider, projectID, cluster, location *string) error {
+	if projectID == nil || cluster == nil || location == nil {
+		return errors.New("projectID, cluster, and location pointers must not be nil")
+	}
+	if *projectID != "" && *cluster != "" && *location != "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, gceMetadataTimeout)
+	defer cancel()
+
+	if !md.OnGCEWithContext(ctx) {
+		return nil
+	}
+	var errList []error
+	if *projectID == "" {
+		if val, err := md.ProjectIDWithContext(ctx); err != nil {
+			errList = append(errList, err)
+		} else {
+			*projectID = val
+		}
+	}
+	if *cluster == "" {
+		if val, err := md.InstanceAttributeValueWithContext(ctx, "cluster-name"); err != nil {
+			errList = append(errList, err)
+		} else {
+			*cluster = val
+		}
+	}
+	if *location == "" {
+		if val, err := md.InstanceAttributeValueWithContext(ctx, "cluster-location"); err != nil {
+			errList = append(errList, err)
+		} else {
+			*location = val
+		}
+	}
+	return errors.Join(errList...)
+}
 
 func main() {
 	ctx := context.Background()
 
 	var (
-		defaultProjectID string
-		defaultCluster   string
-		defaultLocation  string
-	)
-	errList := []error{}
-	if metadata.OnGCE() {
-		var err error
-		defaultProjectID, err = metadata.ProjectIDWithContext(ctx)
-		errList = append(errList, err)
-		defaultCluster, err = metadata.InstanceAttributeValueWithContext(ctx, "cluster-name")
-		errList = append(errList, err)
-		defaultLocation, err = metadata.InstanceAttributeValueWithContext(ctx, "cluster-location")
-		errList = append(errList, err)
-	}
-	var (
 		logVerbosity      = flag.Int("v", 0, "Logging verbosity")
-		projectID         = flag.String("project-id", defaultProjectID, "Project ID of the cluster. May be left empty on GKE.")
-		location          = flag.String("location", defaultLocation, "Google Cloud region or zone where your data will be stored. May be left empty on GKE.")
-		cluster           = flag.String("cluster", defaultCluster, "Name of the cluster the operator acts on. May be left empty on GKE.")
+		projectID         = flag.String("project-id", "", "Project ID of the cluster. May be left empty on GKE.")
+		location          = flag.String("location", "", "Google Cloud region or zone where your data will be stored. May be left empty on GKE.")
+		cluster           = flag.String("cluster", "", "Name of the cluster the operator acts on. May be left empty on GKE.")
 		operatorNamespace = flag.String("operator-namespace", operator.DefaultOperatorNamespace,
 			"Namespace in which the operator manages its resources.")
 		publicNamespace = flag.String("public-namespace", operator.DefaultPublicNamespace,
@@ -90,7 +120,7 @@ func main() {
 
 	logger := zap.New(zap.Level(zapcore.Level(-*logVerbosity)))
 	ctrl.SetLogger(logger)
-	if err := errors.Join(errList...); err != nil {
+	if err := populateMetadataDefaults(ctx, metadata.NewClient(nil), projectID, cluster, location); err != nil {
 		logger.Error(err, "unable to fetch Google Cloud metadata")
 	}
 
