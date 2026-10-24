@@ -99,3 +99,6 @@ ruleEvaluator:
   serviceAccount:
     create: true
     name: rule-evaluator
+# Optional tolerations appended to the gmp-operator, rule-evaluator, and alertmanager pods (for example, to
+# schedule them onto control-plane or dedicated nodes). The collector DaemonSet already tolerates all taints.
+tolerations: []
