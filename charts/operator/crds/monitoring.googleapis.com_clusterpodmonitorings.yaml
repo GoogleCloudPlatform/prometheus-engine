@@ -659,7 +659,8 @@ spec:
                   fromPod:
                     description: |-
                       Labels to transfer from the Kubernetes Pod to Prometheus target labels.
-                      Mappings are applied in order.
+                      Mappings are applied in order. Useful for exposing Pod labels as metric
+                      labels on scraped targets.
                     items:
                       description: |-
                         LabelMapping specifies how to transfer a label from a Kubernetes resource
@@ -672,6 +673,9 @@ spec:
                           description: |-
                             Remapped Prometheus target label.
                             Defaults to the same name as `From`.
+                            Specifying `to` is necessary if the Kubernetes label key contains characters
+                            that are invalid in Prometheus label names (such as `-`, `/`, or `.`),
+                            or to rename the label to avoid naming collisions or conform to conventions.
                           pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
                           type: string
                           x-kubernetes-validations:
@@ -1028,7 +1032,8 @@ spec:
                   fromPod:
                     description: |-
                       Labels to transfer from the Kubernetes Pod to Prometheus target labels.
-                      Mappings are applied in order.
+                      Mappings are applied in order. Useful for exposing Pod labels as metric
+                      labels on scraped targets.
                     items:
                       description: |-
                         LabelMapping specifies how to transfer a label from a Kubernetes resource
@@ -1041,6 +1046,9 @@ spec:
                           description: |-
                             Remapped Prometheus target label.
                             Defaults to the same name as `From`.
+                            Specifying `to` is necessary if the Kubernetes label key contains characters
+                            that are invalid in Prometheus label names (such as `-`, `/`, or `.`),
+                            or to rename the label to avoid naming collisions or conform to conventions.
                           type: string
                       required:
                       - from

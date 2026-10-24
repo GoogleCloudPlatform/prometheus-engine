@@ -837,7 +837,8 @@ only.</p>
 </td>
 <td>
 <p>Labels to transfer from the Kubernetes Pod to Prometheus target labels.
-Mappings are applied in order.</p>
+Mappings are applied in order. Useful for exposing Pod labels as metric
+labels on scraped targets.</p>
 </td>
 </tr>
 </tbody>
@@ -1319,7 +1320,10 @@ string
 </td>
 <td>
 <p>Remapped Prometheus target label.
-Defaults to the same name as <code>From</code>.</p>
+Defaults to the same name as <code>From</code>.
+Specifying <code>to</code> is necessary if the Kubernetes label key contains characters
+that are invalid in Prometheus label names (such as <code>-</code>, <code>/</code>, or <code>.</code>),
+or to rename the label to avoid naming collisions or conform to conventions.</p>
 </td>
 </tr>
 </tbody>
@@ -3504,7 +3508,8 @@ This is for backwards-compatibility only.</p>
 </td>
 <td>
 <p>Labels to transfer from the Kubernetes Pod to Prometheus target labels.
-Mappings are applied in order.</p>
+Mappings are applied in order. Useful for exposing Pod labels as metric
+labels on scraped targets.</p>
 </td>
 </tr>
 </tbody>
