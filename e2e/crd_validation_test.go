@@ -2202,7 +2202,7 @@ func TestCRDValidation(t *testing.T) {
 								Name: "group-1",
 								Rules: []monitoringv1.Rule{
 									{
-										Record: "dots.not.allowed",
+										Record: "spaces not allowed",
 										Expr:   "vector(1)",
 									},
 								},
@@ -2213,9 +2213,9 @@ func TestCRDValidation(t *testing.T) {
 				wantErr:    true,
 				wantErrMsg: "spec.groups[0].rules[0].record",
 			},
-			"invalid-rule-name-dash": {
+			"valid-rule-name-dots": {
 				obj: &monitoringv1.Rules{
-					Name:      "invalid-rule-name-dash",
+					Name:      "valid-rule-name-dots",
 					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
@@ -2223,7 +2223,7 @@ func TestCRDValidation(t *testing.T) {
 								Name: "group-1",
 								Rules: []monitoringv1.Rule{
 									{
-										Record: "dashes-not-allowed",
+										Record: "dots.allowed",
 										Expr:   "vector(1)",
 									},
 								},
@@ -2231,12 +2231,31 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr:    true,
-				wantErrMsg: "spec.groups[0].rules[0].record",
+				wantErr: false,
 			},
-			"invalid-rule-name-leading-digit": {
+			"valid-rule-name-dash": {
 				obj: &monitoringv1.Rules{
-					Name:      "invalid-rule-name-digit",
+					Name:      "valid-rule-name-dash",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "dashes-allowed",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"valid-rule-name-leading-digit": {
+				obj: &monitoringv1.Rules{
+					Name:      "valid-rule-name-digit",
 					Namespace: "default",
 					Spec: monitoringv1.RulesSpec{
 						Groups: []monitoringv1.RuleGroup{
@@ -2252,8 +2271,7 @@ func TestCRDValidation(t *testing.T) {
 						},
 					},
 				},
-				wantErr:    true,
-				wantErrMsg: "spec.groups[0].rules[0].record",
+				wantErr: false,
 			},
 			"valid-rule-name-colon": {
 				obj: &monitoringv1.Rules{
@@ -2267,6 +2285,49 @@ func TestCRDValidation(t *testing.T) {
 									{
 										Record: "colon:allowed",
 										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"valid-rule-name-slash": {
+				obj: &monitoringv1.Rules{
+					Name:      "valid-rule-name-slash",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "slash/allowed",
+										Expr:   "vector(1)",
+									},
+								},
+							},
+						},
+					},
+				},
+				wantErr: false,
+			},
+			"valid-label-key-dot": {
+				obj: &monitoringv1.Rules{
+					Name:      "valid-label-key-dot",
+					Namespace: "default",
+					Spec: monitoringv1.RulesSpec{
+						Groups: []monitoringv1.RuleGroup{
+							{
+								Name: "group-1",
+								Rules: []monitoringv1.Rule{
+									{
+										Record: "test",
+										Expr:   "vector(1)",
+										Labels: map[string]string{
+											"dot.allowed": "val",
+										},
 									},
 								},
 							},

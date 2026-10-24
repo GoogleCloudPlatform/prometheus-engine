@@ -119,16 +119,16 @@ spec:
                             maxProperties: 64
                             type: object
                             x-kubernetes-validations:
-                            - message: Label keys must match ^[a-zA-Z_][a-zA-Z0-9_]*$
+                            - message: Label keys must match ^[a-zA-Z_][a-zA-Z0-9_.]*$
                                 and must not be __name__
-                              rule: self.all(k, k.matches('^[a-zA-Z_][a-zA-Z0-9_]*$')
+                              rule: self.all(k, k.matches('^[a-zA-Z_][a-zA-Z0-9_.]*$')
                                 && k != '__name__')
                           record:
                             description: |-
                               Record the result of the expression to this metric name.
                               Only one of `record` and `alert` must be set.
                             minLength: 1
-                            pattern: ^[a-zA-Z_:][a-zA-Z0-9_:]*$
+                            pattern: ^[a-zA-Z0-9$\-_.+!*'(),%:/]+$
                             type: string
                         required:
                         - expr
