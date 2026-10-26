@@ -54,7 +54,17 @@ Then configure scraping with `PodMonitoring` resources as usual, for example [`e
 
 ## Customization
 
-* **Service account impersonation** (for example, with VPC Service Controls): add `"service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/GSA_EMAIL:generateAccessToken"` to `key.json` in `wif-credentials.yaml`, and grant the principal above `roles/iam.workloadIdentityUser` on the Google service account instead of the monitoring roles.
+* **Service account impersonation** (for example, with VPC Service Controls): add `"service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/GSA_EMAIL:generateAccessToken"` to `key.json` in `wif-credentials.yaml`. Then grant `GSA_EMAIL` the monitoring roles on `PROJECT_ID`, and let the principal above impersonate it (the principal itself then no longer needs the monitoring roles):
+
+  ```bash
+  for role in roles/monitoring.metricWriter roles/monitoring.viewer; do
+    gcloud projects add-iam-policy-binding PROJECT_ID \
+      --member="serviceAccount:GSA_EMAIL" --role="$role"
+  done
+  gcloud iam service-accounts add-iam-policy-binding GSA_EMAIL \
+    --member="principal://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/PROJECT_ID.svc.id.goog/subject/ns/gmp-system/sa/collector" \
+    --role="roles/iam.workloadIdentityUser"
+  ```
 * **Pod scheduling**: add Kustomize patches for tolerations or node selectors on the `gmp-operator`, `rule-evaluator`, and `alertmanager` workloads. The collector `DaemonSet` already tolerates all taints.
 
 > Don't apply this overlay to GKE clusters with managed collection enabled; GKE already runs these components.
