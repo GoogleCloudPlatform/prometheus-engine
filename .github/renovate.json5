@@ -322,6 +322,41 @@
         'automerge',
       ],
     },
+    // Automerge non-major 1P Google Go module updates in all Go modules (root, tools, examples, ops/gmpctl).
+    // They need a dedicated group: Renovate only automerges a grouped PR if every update in it is automerge-eligible,
+    // so they would never automerge in the shared "deps" or "auxiliary-modules" groups.
+    {
+      description: 'Group and automerge non-major 1P Google Go module updates on main after CI passes',
+      matchManagers: [
+        'gomod',
+      ],
+      matchBaseBranches: [
+        'main',
+      ],
+      matchPackageNames: [
+        'google.golang.org/**',
+        'cloud.google.com/go',
+        'cloud.google.com/go/**',
+        'golang.org/x/**',
+        'github.com/googleapis/**',
+        'github.com/google/**',
+        'github.com/GoogleCloudPlatform/**',
+        '!github.com/GoogleCloudPlatform/prometheus',
+        '!github.com/GoogleCloudPlatform/prometheus/**',
+      ],
+      matchUpdateTypes: [
+        'minor',
+        'patch',
+        'digest',
+      ],
+      groupName: 'google-go-modules',
+      groupSlug: 'google-go-modules',
+      automerge: true,
+      automergeType: 'pr',
+      addLabels: [
+        'automerge',
+      ],
+    },
     // Release branches policy: disable routine updates for Go modules (security updates remain enabled via vulnerabilityAlerts)
     {
       description: 'Disable routine updates for all Go modules on release branches (security updates remain enabled via vulnerabilityAlerts)',
