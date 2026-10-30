@@ -382,7 +382,7 @@ async function runTests() {
 
   // Suite 5: General Go Dependencies & Automerge
   console.log('\nTest Suite 5: General Go Dependencies');
-  const generalMinor = await simulateDep('github.com/google/go-cmp', {
+  const generalMinor = await simulateDep('github.com/stretchr/testify', {
     updateType: 'minor',
   });
   assert(
@@ -398,7 +398,7 @@ async function runTests() {
     'General Go minor update does not have automerge label'
   );
 
-  const generalPatch = await simulateDep('github.com/google/go-cmp', {
+  const generalPatch = await simulateDep('github.com/stretchr/testify', {
     updateType: 'patch',
   });
   assert(
@@ -1286,6 +1286,136 @@ async function runTests() {
       );
     }
   }
+
+  // Suite 13: 1P Google Go Modules
+  // Non-major 1P Google Go module updates are automerged from a dedicated group in every Go module. Renovate only
+  // automerges a grouped PR if every update in it is automerge-eligible, so they never automerged while grouped in
+  // "deps" or "auxiliary-modules" (e.g. PR #2456).
+  console.log('\nTest Suite 13: 1P Google Go Modules');
+  const googleModuleCases = [
+    ['google.golang.org/api', 'go.mod', 'minor'],
+    ['google.golang.org/api', 'examples/scripts/go.mod', 'minor'],
+    ['google.golang.org/grpc', 'go.mod', 'patch'],
+    ['google.golang.org/protobuf', 'go.mod', 'minor'],
+    ['google.golang.org/genproto/googleapis/api', 'examples/scripts/go.mod', 'digest'],
+    ['cloud.google.com/go/monitoring', 'go.mod', 'minor'],
+    ['cloud.google.com/go/compute/metadata', 'go.mod', 'patch'],
+    ['golang.org/x/mod', 'go.mod', 'minor'],
+    ['golang.org/x/oauth2', 'examples/scripts/go.mod', 'minor'],
+    ['github.com/googleapis/gax-go/v2', 'go.mod', 'minor'],
+    ['github.com/google/go-cmp', 'go.mod', 'minor'],
+    ['github.com/google/go-containerregistry', 'ops/gmpctl/go.mod', 'minor'],
+    ['github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric', 'go.mod', 'minor'],
+  ];
+  for (const [dep, packageFile, updateType] of googleModuleCases) {
+    const res = await simulateDep(dep, { packageFile, updateType });
+    assert(
+      res.enabled !== false && res.groupName === 'google-go-modules' && res.groupSlug === 'google-go-modules',
+      `${dep} ${updateType} update in ${packageFile} resolves to groupName "google-go-modules"`
+    );
+    assert(
+      res.automerge === true &&
+        res.automergeType === 'pr' &&
+        Array.isArray(res.addLabels) &&
+        res.addLabels.includes('automerge'),
+      `${dep} ${updateType} update in ${packageFile} is automerged with "automerge" label`
+    );
+  }
+
+  const googleMajor = await simulateDep('cloud.google.com/go/monitoring', { updateType: 'major' });
+  assert(
+    googleMajor.groupName === 'deps' &&
+      googleMajor.automerge !== true &&
+      (!googleMajor.addLabels || !googleMajor.addLabels.includes('automerge')),
+    '1P Google Go module major update stays in "deps" without automerge'
+  );
+
+  const googleIndirect = await simulateDep('google.golang.org/api', { depType: 'indirect' });
+  assert(
+    googleIndirect.enabled === false,
+    'Indirect 1P Google Go module updates remain disabled'
+  );
+
+  const googleRelease = await simulateDep('google.golang.org/api', { baseBranch: 'release/0.19' });
+  assert(
+    googleRelease.enabled === false && googleRelease.groupName !== 'google-go-modules',
+    'Routine 1P Google Go module updates remain disabled on release branches'
+  );
+
+  const googleVulnRule = vulnHelper.vulnerabilityToPackageRules({
+    vulnerability: { id: 'GHSA-test-google', severity: [] },
+    affected: {},
+    packageName: 'google.golang.org/grpc',
+    depVersion: '1.84.0',
+    fixedVersion: '>= 1.84.1',
+    datasource: 'go',
+    packageFileConfig: {
+      vulnerabilityAlerts: config.vulnerabilityAlerts,
+    },
+  });
+  const googleVulnApplied = await evaluatePackageRules({
+    ...config,
+    depName: 'google.golang.org/grpc',
+    packageName: 'google.golang.org/grpc',
+    currentValue: '1.84.0',
+    manager: 'gomod',
+    packageFile: 'go.mod',
+    baseBranch: 'main',
+    updateType: 'patch',
+    datasource: 'go',
+    packageRules: [...config.packageRules, googleVulnRule],
+  });
+  assert(
+    googleVulnApplied.groupName === 'security-fixes',
+    '1P Google Go module vulnerability alert on main still resolves to groupName "security-fixes"'
+  );
+
+  // Branch-level automerge decision, which drives the PR body and labels checked by renovate-automerge.yml.
+  async function renderBranches(manager, packageFiles, baseBranch = 'main') {
+    const upgrades = await flattenUpdates(
+      { ...fullConfig, baseBranch, hasBaseBranches: true },
+      { [manager]: packageFiles }
+    );
+    const branches = new Map();
+    for (const upgrade of upgrades) {
+      branches.set(upgrade.branchName, [...(branches.get(upgrade.branchName) || []), upgrade]);
+    }
+    return [...branches.values()].map((branchUpgrades) => generateBranchConfig(branchUpgrades));
+  }
+
+  const pr2456Branches = await renderBranches('gomod', [
+    { packageFile: 'examples/scripts/go.mod', deps: [goDep('google.golang.org/api', 'v0.303.0', 'v0.304.0')] },
+  ]);
+  assert(
+    pr2456Branches.length === 1 &&
+      pr2456Branches[0].automerge === true &&
+      pr2456Branches[0].addLabels.includes('automerge') &&
+      pr2456Branches[0].prTitle === 'fix(deps): update module google.golang.org/api to v0.304.0 (main)',
+    'Single 1P Google Go module update in examples/scripts/go.mod (PR #2456) creates an automerge PR'
+  );
+
+  const crossModuleBranches = await renderBranches('gomod', [
+    { packageFile: 'go.mod', deps: [goDep('google.golang.org/api', 'v0.300.0', 'v0.304.0')] },
+    { packageFile: 'examples/scripts/go.mod', deps: [goDep('google.golang.org/api', 'v0.303.0', 'v0.304.0')] },
+    { packageFile: 'ops/gmpctl/go.mod', deps: [goDep('github.com/spf13/cobra', 'v1.9.1', 'v1.10.0')] },
+  ]);
+  const googleBranch = crossModuleBranches.find((b) => b.branchName.endsWith('google-go-modules'));
+  const auxBranch = crossModuleBranches.find((b) => b.branchName.endsWith('auxiliary-modules'));
+  assert(
+    googleBranch &&
+      googleBranch.upgrades.length === 2 &&
+      googleBranch.automerge === true &&
+      googleBranch.addLabels.includes('automerge') &&
+      googleBranch.prTitle === 'fix(deps): update module google.golang.org/api to v0.304.0 (main)',
+    '1P Google Go module updates in root and auxiliary modules share one automerge PR'
+  );
+  assert(
+    auxBranch &&
+      auxBranch.upgrades.length === 1 &&
+      auxBranch.automerge === false &&
+      !auxBranch.addLabels.includes('automerge'),
+    '3P auxiliary module update stays in a separate "auxiliary-modules" PR without automerge or "automerge" label'
+  );
 
   console.log(`\n========================================`);
   console.log(`Total: ${totalTests} | Passed: ${passedTests} | Failed: ${failedTests}`);
