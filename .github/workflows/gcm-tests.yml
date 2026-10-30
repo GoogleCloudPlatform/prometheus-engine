@@ -83,7 +83,7 @@ jobs:
         run: |
           set -euo pipefail
           # Check whether the target branch's e2e harness accepts GCM_SECRET.
-          if gh api "repos/${REPO}/contents/hack/kind-test.sh?ref=${BASE_SHA}" --jq '.content' 2>/dev/null | base64 -d | grep -q 'GCM_SECRET'; then
+          if gh api -H "Accept: application/vnd.github.raw" "repos/${REPO}/contents/hack/kind-test.sh?ref=${BASE_SHA}" 2>/dev/null | grep 'GCM_SECRET' >/dev/null; then
             echo "run-e2e=true" >> "${GITHUB_OUTPUT}"
           else
             echo "run-e2e=false" >> "${GITHUB_OUTPUT}"
