@@ -100,6 +100,7 @@ jobs:
           persist-credentials: false
       - id: set-testruns
         run: |
+          ./hack/retry.sh go mod download
           GCM_TESTS=$(yq -o=json '.jobs.gcm-e2e-test.strategy.matrix.testrun' .github/workflows/gcm-tests.yml)
           echo "testrun=$(go test ./e2e/... -list=. | grep -E '^Test' | jq -R -s -c --argjson gcm "${GCM_TESTS}" 'split("\n")[:-1] | map("^" + . + "$") - $gcm')" >> "${GITHUB_OUTPUT}"
   e2e-test:
